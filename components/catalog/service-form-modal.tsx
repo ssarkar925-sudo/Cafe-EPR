@@ -13,7 +13,8 @@ type Props = {
       name: string;
       description: string;
       category_id: string | null;
-      price: number;
+      sale_price: number;
+      cost_price: number;
     },
     service?: Service
   ) => Promise<void>;
@@ -29,8 +30,15 @@ export default function ServiceFormModal({
   const [name, setName] = useState(editing?.name ?? "");
   const [categoryId, setCategoryId] = useState(editing?.category_id ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
-  const [price, setPrice] = useState(editing ? String(editing.price) : "");
+  const [salePrice, setSalePrice] = useState(
+    editing ? String(editing.sale_price) : ""
+  );
+  const [costPrice, setCostPrice] = useState(
+    editing ? String(editing.cost_price) : ""
+  );
   const [saving, setSaving] = useState(false);
+
+  const margin = (Number(salePrice) || 0) - (Number(costPrice) || 0);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +48,8 @@ export default function ServiceFormModal({
         name,
         description,
         category_id: categoryId || null,
-        price: Number(price) || 0,
+        sale_price: Number(salePrice) || 0,
+        cost_price: Number(costPrice) || 0,
       },
       editing ?? undefined
     );
@@ -107,17 +116,39 @@ export default function ServiceFormModal({
               className={inputClass}
             />
           </div>
-          <div>
-            <label className={labelClass}>Price (₹) *</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className={inputClass}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Sale Price (₹) *</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Cost Price (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={costPrice}
+                onChange={(e) => setCostPrice(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </div>
+          <div
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${
+              margin >= 0
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-rose-50 text-rose-700"
+            }`}
+          >
+            Margin: {margin >= 0 ? "+" : ""}₹{margin.toFixed(2)}
           </div>
         </div>
 

@@ -40,7 +40,8 @@ create table if not exists public.services (
   category_id uuid references public.categories (id) on delete set null,
   name text not null,
   description text,
-  price numeric(15,2) not null default 0,
+  sale_price numeric(15,2) not null default 0,
+  cost_price numeric(15,2) not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );

@@ -21,7 +21,7 @@ export type PosProduct = {
 export type PosService = {
   id: string;
   name: string;
-  price: number | string;
+  sale_price: number | string;
   category_id: string | null;
   categories: { name: string } | null;
 };
@@ -416,7 +416,7 @@ export default function PosClient({
               const reorder = isProduct ? Number(x.reorder_level) : 0;
               const out = stock <= 0;
               const low = !out && stock <= reorder;
-              const price = Number(isProduct ? x.sale_price : x.price);
+              const price = Number(isProduct ? x.sale_price : x.sale_price);
               return (
                 <button
                   key={x.id}

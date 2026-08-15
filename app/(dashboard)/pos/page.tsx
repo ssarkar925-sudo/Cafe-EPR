@@ -24,7 +24,7 @@ export default async function PosPage({
         .order("name"),
       supabase
         .from("services")
-        .select("id, name, price, category_id, categories(name)")
+        .select("id, name, sale_price, category_id, categories(name)")
         .eq("is_active", true)
         .order("name"),
       supabase
