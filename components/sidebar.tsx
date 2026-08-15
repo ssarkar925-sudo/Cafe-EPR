@@ -29,6 +29,12 @@ export default function Sidebar({
           Point of Sale
         </Link>
         <Link
+          href="/invoices"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Invoices
+        </Link>
+        <Link
           href="/customers"
           className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
         >
