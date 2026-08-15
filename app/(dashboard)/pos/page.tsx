@@ -3,7 +3,12 @@ import PosClient from "@/components/pos/pos-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function PosPage() {
+export default async function PosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ customer?: string }>;
+}) {
+  const { customer } = await searchParams;
   const supabase = await createClient();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -48,6 +53,7 @@ export default async function PosPage() {
       customers={(customers ?? []) as any}
       salesTodayCount={salesTodayCount}
       salesTodayAmount={salesTodayAmount}
+      initialCustomerId={customer || ""}
     />
   );
 }

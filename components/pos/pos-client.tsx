@@ -82,12 +82,14 @@ export default function PosClient({
   customers,
   salesTodayCount,
   salesTodayAmount,
+  initialCustomerId = "",
 }: {
   products: PosProduct[];
   services: PosService[];
   customers: PosCustomer[];
   salesTodayCount: number;
   salesTodayAmount: number;
+  initialCustomerId?: string;
 }) {
   const supabase = createClient();
 
@@ -96,7 +98,7 @@ export default function PosClient({
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [customerId, setCustomerId] = useState("");
+  const [customerId, setCustomerId] = useState(initialCustomerId);
   const [discount, setDiscount] = useState("");
   const [payments, setPayments] = useState<{ method: string; amount: string }[]>([
     { method: "cash", amount: "" },

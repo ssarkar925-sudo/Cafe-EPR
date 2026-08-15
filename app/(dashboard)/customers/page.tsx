@@ -15,7 +15,7 @@ export default async function CustomersPage({
     .from("customers")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(500);
 
   if (q) query = query.ilike("name", `%${q}%`);
 
