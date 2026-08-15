@@ -28,9 +28,27 @@ export default function Sidebar({
         >
           Customers
         </Link>
-        <span className="block px-3 py-2 text-sm text-slate-500">
-          More modules coming soon
-        </span>
+        <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
+          Catalog
+        </p>
+        <Link
+          href="/catalog/products"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Products
+        </Link>
+        <Link
+          href="/catalog/services"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Services
+        </Link>
+        <Link
+          href="/catalog/categories"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Categories
+        </Link>
       </nav>
 
       <div className="border-t border-slate-800 p-4">
