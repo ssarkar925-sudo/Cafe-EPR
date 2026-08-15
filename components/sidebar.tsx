@@ -61,6 +61,27 @@ export default function Sidebar({
         >
           Categories
         </Link>
+        <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
+          Finance
+        </p>
+        <Link
+          href="/finance/expenses"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Expenses
+        </Link>
+        <Link
+          href="/finance/cashbook"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Cash Book
+        </Link>
+        <Link
+          href="/finance/ledger"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Ledger
+        </Link>
       </nav>
 
       <div className="border-t border-slate-800 p-4">

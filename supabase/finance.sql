@@ -1,0 +1,327 @@
+-- Run this in Supabase SQL Editor (idempotent).
+-- Required for the Finance module: cash book, expenses, customer ledger.
+
+create table if not exists public.expenses (
+  id uuid primary key default gen_random_uuid(),
+  expense_date date not null default current_date,
+  category text not null default 'general',
+  amount numeric(15,2) not null default 0 check (amount >= 0),
+  note text,
+  status text not null default 'active' check (status in ('active', 'cancelled')),
+  created_by uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  cancelled_at timestamptz
+);
+
+create table if not exists public.cash_entries (
+  id uuid primary key default gen_random_uuid(),
+  entry_date date not null default current_date,
+  method text not null check (method in ('cash', 'upi', 'card')),
+  direction text not null check (direction in ('in', 'out')),
+  amount numeric(15,2) not null default 0 check (amount >= 0),
+  description text,
+  ref_type text,
+  ref_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.customer_ledger (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers (id) on delete cascade,
+  entry_date date not null default current_date,
+  type text not null check (type in ('invoice', 'payment', 'return', 'opening')),
+  description text,
+  debit numeric(15,2) not null default 0,
+  credit numeric(15,2) not null default 0,
+  balance_after numeric(15,2) not null default 0,
+  ref_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_expenses_date on public.expenses (expense_date);
+create index if not exists idx_cash_entries_date on public.cash_entries (entry_date);
+create index if not exists idx_customer_ledger_customer on public.customer_ledger (customer_id);
+
+alter table public.expenses enable row level security;
+alter table public.cash_entries enable row level security;
+alter table public.customer_ledger enable row level security;
+
+create policy "expenses all" on public.expenses for all to authenticated using (true) with check (true);
+create policy "cash_entries all" on public.cash_entries for all to authenticated using (true) with check (true);
+create policy "customer_ledger all" on public.customer_ledger for all to authenticated using (true) with check (true);
+
+-- Sale now writes cash entries + customer ledger atomically
+create or replace function public.create_sale(
+  p_customer_id uuid,
+  p_invoice_date date,
+  p_subtotal numeric,
+  p_discount numeric,
+  p_total numeric,
+  p_payments jsonb,
+  p_items jsonb
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_invoice_id uuid;
+  v_invoice_number text;
+  v_paid numeric := 0;
+  v_due numeric;
+  v_item jsonb;
+  v_product_id uuid;
+  v_qty numeric;
+  v_rate numeric;
+  v_amount numeric;
+  v_stock numeric;
+  v_payment jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  v_invoice_number := 'INV-' || lpad(nextval('public.invoice_number_seq')::text, 4, '0');
+
+  insert into public.invoices (invoice_number, customer_id, invoice_date, subtotal, discount, total, paid, due, status)
+  values (v_invoice_number, p_customer_id, p_invoice_date, p_subtotal, p_discount, p_total, 0, 0, 'unpaid')
+  returning id into v_invoice_id;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_product_id := (v_item->>'product_id')::uuid;
+    v_qty := coalesce((v_item->>'qty')::numeric, 1);
+    v_rate := coalesce((v_item->>'rate')::numeric, 0);
+    v_amount := coalesce((v_item->>'amount')::numeric, 0);
+
+    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount)
+    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount);
+
+    if v_product_id is not null then
+      select stock_qty into v_stock from public.products where id = v_product_id for update;
+      if v_stock is null then
+        raise exception 'Product not found';
+      end if;
+      if v_stock < v_qty then
+        raise exception 'Insufficient stock (have %, need %)', v_stock, v_qty;
+      end if;
+      update public.products set stock_qty = stock_qty - v_qty, updated_at = now() where id = v_product_id;
+    end if;
+  end loop;
+
+  for v_payment in select * from jsonb_array_elements(p_payments)
+  loop
+    v_paid := v_paid + coalesce((v_payment->>'amount')::numeric, 0);
+    insert into public.payments (invoice_id, method, amount)
+    values (v_invoice_id, v_payment->>'method', coalesce((v_payment->>'amount')::numeric, 0));
+
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (p_invoice_date, v_payment->>'method', 'in', coalesce((v_payment->>'amount')::numeric, 0), 'Sale ' || v_invoice_number, 'invoice', v_invoice_id);
+  end loop;
+
+  if v_paid > p_total then
+    raise exception 'Paid amount exceeds total';
+  end if;
+
+  v_due := p_total - v_paid;
+
+  update public.invoices
+  set paid = v_paid,
+      due = v_due,
+      status = case when v_due = 0 then 'paid' else 'partial' end
+  where id = v_invoice_id;
+
+  if p_customer_id is not null and v_due > 0 then
+    update public.customers
+    set balance = balance + v_due, updated_at = now()
+    where id = p_customer_id;
+
+    insert into public.customer_ledger (customer_id, entry_date, type, description, debit, balance_after, ref_id)
+    values (p_customer_id, p_invoice_date, 'invoice', 'Invoice ' || v_invoice_number, v_due,
+            (select balance from public.customers where id = p_customer_id), v_invoice_id);
+  end if;
+
+  return (
+    select jsonb_build_object(
+      'id', id,
+      'invoice_number', invoice_number,
+      'customer_id', customer_id,
+      'total', total,
+      'paid', paid,
+      'due', due,
+      'status', status,
+      'invoice_date', invoice_date
+    )
+    from public.invoices
+    where id = v_invoice_id
+  );
+end;
+$$;
+
+create or replace function public.record_invoice_payment(
+  p_invoice_id uuid,
+  p_method text,
+  p_amount numeric
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_invoice record;
+  v_due numeric;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+  if p_method not in ('cash', 'upi', 'card') then raise exception 'Invalid payment method'; end if;
+
+  select * into v_invoice from public.invoices where id = p_invoice_id for update;
+  if not found then raise exception 'Invoice not found'; end if;
+  if v_invoice.status = 'cancelled' then raise exception 'Cannot pay a returned invoice'; end if;
+
+  v_due := v_invoice.total - v_invoice.paid;
+  if p_amount > v_due then raise exception 'Payment exceeds outstanding due'; end if;
+
+  insert into public.payments (invoice_id, method, amount)
+  values (p_invoice_id, p_method, p_amount);
+
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+  values (current_date, p_method, 'in', p_amount, 'Payment ' || v_invoice.invoice_number, 'invoice', p_invoice_id);
+
+  update public.invoices
+  set paid = paid + p_amount,
+      due = due - p_amount,
+      status = case when due - p_amount <= 0 then 'paid' else 'partial' end
+  where id = p_invoice_id;
+
+  if v_invoice.customer_id is not null then
+    update public.customers
+    set balance = balance - p_amount, updated_at = now()
+    where id = v_invoice.customer_id;
+
+    insert into public.customer_ledger (customer_id, entry_date, type, description, credit, balance_after, ref_id)
+    values (v_invoice.customer_id, current_date, 'payment', 'Payment on ' || v_invoice.invoice_number, p_amount,
+            (select balance from public.customers where id = v_invoice.customer_id), p_invoice_id);
+  end if;
+
+  return (
+    select jsonb_build_object('id', id, 'invoice_number', invoice_number,
+      'total', total, 'paid', paid, 'due', due, 'status', status)
+    from public.invoices where id = p_invoice_id
+  );
+end;
+$$;
+
+create or replace function public.return_invoice(p_invoice_id uuid)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_invoice record;
+  v_item record;
+  v_due numeric;
+  v_refund numeric;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+
+  select * into v_invoice from public.invoices where id = p_invoice_id for update;
+  if not found then raise exception 'Invoice not found'; end if;
+  if v_invoice.status = 'cancelled' then raise exception 'Invoice already returned'; end if;
+
+  v_due := v_invoice.total - v_invoice.paid;
+  v_refund := v_invoice.paid;
+
+  for v_item in
+    select product_id, qty from public.invoice_items
+    where invoice_id = p_invoice_id and product_id is not null
+  loop
+    update public.products
+    set stock_qty = stock_qty + v_item.qty, updated_at = now()
+    where id = v_item.product_id;
+  end loop;
+
+  if v_refund > 0 then
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (current_date, 'cash', 'out', v_refund, 'Refund ' || v_invoice.invoice_number, 'invoice', p_invoice_id);
+  end if;
+
+  if v_invoice.customer_id is not null and v_due > 0 then
+    update public.customers
+    set balance = balance - v_due, updated_at = now()
+    where id = v_invoice.customer_id;
+
+    insert into public.customer_ledger (customer_id, entry_date, type, description, credit, balance_after, ref_id)
+    values (v_invoice.customer_id, current_date, 'return', 'Return of ' || v_invoice.invoice_number, v_due,
+            (select balance from public.customers where id = v_invoice.customer_id), p_invoice_id);
+  end if;
+
+  update public.invoices
+  set status = 'cancelled',
+      paid = 0,
+      due = 0,
+      returned_at = now()
+  where id = p_invoice_id;
+
+  return (
+    select jsonb_build_object('id', id, 'invoice_number', invoice_number,
+      'status', status, 'returned_at', returned_at)
+    from public.invoices where id = p_invoice_id
+  );
+end;
+$$;
+
+-- Add an expense + cash book entry atomically
+create or replace function public.add_expense(
+  p_expense_date date,
+  p_category text,
+  p_amount numeric,
+  p_note text
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_expense_id uuid;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+  if p_category is null or p_category = '' then raise exception 'Category is required'; end if;
+
+  insert into public.expenses (expense_date, category, amount, note, created_by)
+  values (p_expense_date, p_category, p_amount, p_note, auth.uid())
+  returning id into v_expense_id;
+
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+  values (p_expense_date, 'cash', 'out', p_amount, 'Expense: ' || p_category, 'expense', v_expense_id);
+
+  return jsonb_build_object('id', v_expense_id);
+end;
+$$;
+
+-- Cancel an expense (audited, no delete): reverses the cash entry
+create or replace function public.cancel_expense(p_expense_id uuid)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_expense record;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+
+  select * into v_expense from public.expenses where id = p_expense_id for update;
+  if not found then raise exception 'Expense not found'; end if;
+  if v_expense.status = 'cancelled' then raise exception 'Expense already cancelled'; end if;
+
+  update public.expenses
+  set status = 'cancelled', cancelled_at = now()
+  where id = p_expense_id;
+
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+  values (current_date, 'cash', 'in', v_expense.amount, 'Expense cancelled: ' || v_expense.category, 'expense', p_expense_id);
+
+  return jsonb_build_object('id', p_expense_id, 'status', 'cancelled');
+end;
+$$;
