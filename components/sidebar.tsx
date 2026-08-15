@@ -23,6 +23,12 @@ export default function Sidebar({
           Dashboard
         </Link>
         <Link
+          href="/pos"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Point of Sale
+        </Link>
+        <Link
           href="/customers"
           className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
         >
