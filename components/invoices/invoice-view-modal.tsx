@@ -157,12 +157,21 @@ export default function InvoiceViewModal({
               {detail?.customers?.name ?? "Walk-in customer"}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
-          >
-            &times;
-          </button>
+          <div className="flex items-center gap-4">
+            <a
+              href={`/receipt/${invoiceId}`}
+              target="_blank"
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Print
+            </a>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              &times;
+            </button>
+          </div>
         </div>
 
         {detail && (
