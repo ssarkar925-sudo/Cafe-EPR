@@ -35,6 +35,12 @@ export default function Sidebar({
           Invoices
         </Link>
         <Link
+          href="/reports"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Reports
+        </Link>
+        <Link
           href="/customers"
           className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
         >
