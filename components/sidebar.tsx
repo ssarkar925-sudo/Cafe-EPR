@@ -68,6 +68,9 @@ export default function Sidebar({
             <Link href="/finance/expenses" className={linkClass}>
               Expenses
             </Link>
+            <Link href="/finance/transactions" className={linkClass}>
+              Transactions (AEPS/DMT/UPI)
+            </Link>
             <Link href="/finance/cashbook" className={linkClass}>
               Cash Book
             </Link>
