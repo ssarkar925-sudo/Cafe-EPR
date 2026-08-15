@@ -14,11 +14,32 @@ export default async function DashboardLayout({
   if (!user) redirect("/login");
 
   const [{ data: profile }, { data: settings }] = await Promise.all([
-    supabase.from("profiles").select("full_name, role").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, role, is_active").eq("id", user.id).single(),
     supabase.from("settings").select("shop_name, logo_url").single(),
   ]);
 
   const role = await getUserRole();
+
+  if (profile && profile.is_active === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold text-slate-900">
+            Account deactivated
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">Contact the shop admin.</p>
+          <form action="/logout" method="post" className="mt-4">
+            <button
+              type="submit"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">

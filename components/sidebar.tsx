@@ -81,9 +81,14 @@ export default function Sidebar({
         )}
 
         {isAdmin && (
-          <Link href="/settings" className={linkClass}>
-            Settings
-          </Link>
+          <>
+            <Link href="/staff" className={linkClass}>
+              Staff
+            </Link>
+            <Link href="/settings" className={linkClass}>
+              Settings
+            </Link>
+          </>
         )}
       </nav>
 

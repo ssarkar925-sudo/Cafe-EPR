@@ -6,6 +6,7 @@ create table if not exists public.profiles (
   email text not null,
   full_name text not null default '',
   role text not null default 'staff' check (role in ('admin', 'manager', 'staff')),
+  is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
