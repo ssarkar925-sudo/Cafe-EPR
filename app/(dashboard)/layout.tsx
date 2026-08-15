@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
 import Sidebar from "@/components/sidebar";
 
 export default async function DashboardLayout({
@@ -12,18 +13,21 @@ export default async function DashboardLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, role")
-    .eq("id", user.id)
-    .single();
+  const [{ data: profile }, { data: settings }] = await Promise.all([
+    supabase.from("profiles").select("full_name, role").eq("id", user.id).single(),
+    supabase.from("settings").select("shop_name, logo_url").single(),
+  ]);
+
+  const role = await getUserRole();
 
   return (
     <div className="min-h-screen">
       <Sidebar
         name={profile?.full_name || user.email || ""}
         email={user.email || ""}
-        role={profile?.role || "staff"}
+        role={role ?? "staff"}
+        shopName={settings?.shop_name || "SCC OMM Cafe ERP"}
+        logoUrl={settings?.logo_url || null}
       />
       <main className="lg:pl-64">{children}</main>
     </div>

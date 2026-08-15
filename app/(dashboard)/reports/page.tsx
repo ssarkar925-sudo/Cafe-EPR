@@ -1,9 +1,14 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
 import { inr } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
+  const role = await getUserRole();
+  if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
+
   const supabase = await createClient();
 
   const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }] =
