@@ -54,7 +54,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-semibold text-slate-900">
-            SCC OMM Cafe ERP
+            Cafe ERP
           </h1>
           <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
         </div>

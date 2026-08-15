@@ -388,7 +388,7 @@ export default function PosClient({
               onClick={() => setCat("all")}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
                 cat === "all"
-                  ? "bg-slate-900 text-white"
+                  ? "bg-[#0f172a] text-white"
                   : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
               }`}
             >
@@ -400,7 +400,7 @@ export default function PosClient({
                 onClick={() => setCat(cat === c.id ? "all" : c.id)}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
                   cat === c.id
-                    ? "bg-slate-900 text-white"
+                    ? "bg-[#0f172a] text-white"
                     : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                 }`}
               >
@@ -666,7 +666,7 @@ export default function PosClient({
       </div>
 
       {success && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
               <svg viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8">

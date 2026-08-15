@@ -31,7 +31,7 @@ export default async function DashboardLayout({
           <form action="/logout" method="post" className="mt-4">
             <button
               type="submit"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white"
+              className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm text-white"
             >
               Sign out
             </button>
@@ -46,7 +46,7 @@ export default async function DashboardLayout({
       name={profile?.full_name || user.email || ""}
       email={user.email || ""}
       role={role ?? "staff"}
-      shopName={settings?.shop_name || "SCC OMM Cafe ERP"}
+      shopName={settings?.shop_name || "Cafe ERP"}
       logoUrl={settings?.logo_url || null}
     >
       {children}

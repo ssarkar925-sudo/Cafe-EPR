@@ -249,7 +249,7 @@ export default function MasterClient({
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm" onClick={() => setShowForm(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-slate-900">{editing ? `Edit ${title}` : `Add ${title.replace("AEPS ", "").replace("UPI ", "")}`}</h2>
             <p className="mt-0.5 text-xs text-slate-400">

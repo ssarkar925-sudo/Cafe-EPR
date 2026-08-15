@@ -10,10 +10,26 @@ export default async function SettingsPage() {
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: settings } = await supabase
-    .from("settings")
-    .select("*")
-    .single();
 
-  return <SettingsClient initial={(settings ?? null) as any} />;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const [{ data: settings }, { data: profile }] = await Promise.all([
+    supabase.from("settings").select("*").single(),
+    user
+      ? supabase
+          .from("profiles")
+          .select("full_name, role")
+          .eq("id", user.id)
+          .single()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  return (
+    <SettingsClient
+      initial={(settings ?? null) as any}
+      userEmail={user?.email || ""}
+      userName={profile?.full_name || user?.email || ""}
+    />
+  );
 }

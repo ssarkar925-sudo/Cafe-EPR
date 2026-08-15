@@ -289,7 +289,7 @@ export default function DashboardClient({
                   key={p}
                   onClick={() => setPeriod(p)}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition ${
-                    period === p ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-900"
+                    period === p ? "bg-[#0f172a] text-white" : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   {p}D

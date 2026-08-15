@@ -397,7 +397,7 @@ export default function CustomersClient({
       )}
 
       {viewing && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm" onClick={() => setViewing(null)}>
+        <div className="fixed inset-0 z-50 bg-[#020617]/50 backdrop-blur-sm" onClick={() => setViewing(null)}>
           <div
             className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}

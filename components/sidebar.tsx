@@ -181,7 +181,7 @@ export default function Sidebar({
 
   const sidebar = (
     <aside
-      className={`flex h-full flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-200 transition-all duration-300 ${
+      className={`flex h-full flex-col bg-gradient-to-b from-[#0f172a] via-[#0f172a] to-[#020617] text-[#e2e8f0] transition-all duration-300 ${
         collapsed ? "w-[76px]" : "w-72"
       }`}
     >
@@ -207,7 +207,7 @@ export default function Sidebar({
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-white">{shopName}</p>
-            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-slate-400">
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-[#94a3b8]">
               Cafe ERP
             </p>
           </div>
@@ -215,7 +215,7 @@ export default function Sidebar({
         <button
           onClick={onToggle}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden shrink-0 items-center justify-center rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white lg:flex"
+          className="hidden shrink-0 items-center justify-center rounded-lg p-1.5 text-[#94a3b8] transition hover:bg-white/10 hover:text-white lg:flex"
         >
           <Icon d={collapsed ? "m6 9 6 6 6-6" : "m18 15-6-6-6 6"} className="h-4 w-4" />
         </button>
@@ -226,18 +226,18 @@ export default function Sidebar({
           <div className="relative">
             <Icon
               d={ICONS.search}
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]"
             />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search menu…"
-              className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500/60 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[#64748b] focus:border-blue-500/60 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/20"
             />
             {needle && (
               <button
                 onClick={() => setQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-1.5 text-slate-500 hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-1.5 text-[#64748b] hover:text-white"
               >
                 &times;
               </button>
@@ -260,7 +260,7 @@ export default function Sidebar({
                   className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition ${
                     active
                       ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-900/40"
-                      : "text-slate-400 hover:bg-white/10 hover:text-white"
+                      : "text-[#94a3b8] hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {active && (
@@ -281,8 +281,8 @@ export default function Sidebar({
                   <button
                     onClick={() => toggleSection(section.title)}
                     className={`group flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider ${
-                      anyActive ? "text-blue-400" : "text-slate-500"
-                    } transition hover:text-slate-300`}
+                      anyActive ? "text-blue-400" : "text-[#64748b]"
+                    } transition hover:text-[#cbd5e1]`}
                   >
                     <span>{section.title}</span>
                     <Icon
@@ -304,7 +304,7 @@ export default function Sidebar({
                             className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
                               active
                                 ? "bg-gradient-to-r from-blue-600/20 to-indigo-600/10 font-medium text-white ring-1 ring-blue-500/30"
-                                : "text-slate-400 hover:bg-white/5 hover:text-white"
+                                : "text-[#94a3b8] hover:bg-white/5 hover:text-white"
                             }`}
                           >
                             {active && (
@@ -315,7 +315,7 @@ export default function Sidebar({
                               className={`h-[18px] w-[18px] ${
                                 active
                                   ? "text-blue-400"
-                                  : "text-slate-500 group-hover:text-slate-300"
+                                  : "text-[#64748b] group-hover:text-[#cbd5e1]"
                               }`}
                             />
                             <span className="truncate">{item.label}</span>
@@ -328,7 +328,7 @@ export default function Sidebar({
               );
             })}
             {filteredSections.length === 0 && (
-              <p className="px-3 py-6 text-center text-sm text-slate-500">
+              <p className="px-3 py-6 text-center text-sm text-[#64748b]">
                 No menu items found.
               </p>
             )}
@@ -353,7 +353,7 @@ export default function Sidebar({
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">{name}</p>
-              <p className="truncate text-[11px] text-slate-400">{email}</p>
+              <p className="truncate text-[11px] text-[#94a3b8]">{email}</p>
               <span className="mt-0.5 inline-block rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-400">
                 {role}
               </span>
@@ -364,7 +364,7 @@ export default function Sidebar({
           <button
             type="submit"
             title={collapsed ? "Sign out" : undefined}
-            className={`flex w-full items-center rounded-xl bg-white/5 py-2 text-sm font-medium text-slate-300 transition hover:bg-rose-500/20 hover:text-rose-300 ${
+            className={`flex w-full items-center rounded-xl bg-white/5 py-2 text-sm font-medium text-[#cbd5e1] transition hover:bg-rose-500/20 hover:text-rose-300 ${
               collapsed ? "justify-center" : "justify-center gap-2"
             }`}
           >
@@ -387,7 +387,7 @@ export default function Sidebar({
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
-            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-[#020617]/60 backdrop-blur-sm"
             onClick={onMobileClose}
           />
           <div className="absolute inset-y-0 left-0 w-72 shadow-2xl">

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getTheme, setTheme, type Theme } from "@/components/theme-provider";
 
 export type SettingsRow = {
   shop_name: string;
@@ -16,10 +17,14 @@ const CURRENCIES = ["₹", "$", "€", "£", "৳", "ر.س"];
 
 export default function SettingsClient({
   initial,
+  userEmail,
+  userName: initialUserName,
 }: {
   initial: SettingsRow | null;
+  userEmail: string;
+  userName: string;
 }) {
-  const [shopName, setShopName] = useState(initial?.shop_name ?? "SCC OMM Cafe");
+  const [shopName, setShopName] = useState(initial?.shop_name ?? "Cafe ERP");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
   const [footer, setFooter] = useState(initial?.receipt_footer ?? "");
@@ -30,11 +35,17 @@ export default function SettingsClient({
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [userName, setUserName] = useState(initialUserName);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(() => getTheme());
+
   const supabase = createClient();
 
   const dirty = useMemo(
     () =>
-      shopName !== (initial?.shop_name ?? "SCC OMM Cafe") ||
+      shopName !== (initial?.shop_name ?? "Cafe ERP") ||
       phone !== (initial?.phone ?? "") ||
       address !== (initial?.address ?? "") ||
       footer !== (initial?.receipt_footer ?? "") ||
@@ -42,6 +53,10 @@ export default function SettingsClient({
       logoUrl !== (initial?.logo_url ?? null),
     [initial, shopName, phone, address, footer, currency, logoUrl]
   );
+
+  useEffect(() => {
+    setThemeState(getTheme());
+  }, []);
 
   function flash(type: "success" | "error", text: string) {
     setToast({ type, text });
@@ -70,7 +85,7 @@ export default function SettingsClient({
       .from("settings")
       .upsert({
         id: 1,
-        shop_name: shopName.trim() || "SCC OMM Cafe",
+        shop_name: shopName.trim() || "Cafe ERP",
         phone,
         address,
         receipt_footer: footer,
@@ -86,16 +101,74 @@ export default function SettingsClient({
     flash("success", "Settings saved.");
   }
 
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setToast(null);
+    if (password && password.length < 6) {
+      flash("error", "Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      flash("error", "Passwords do not match.");
+      return;
+    }
+    setSavingProfile(true);
+    const name = userName.trim();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setSavingProfile(false);
+      flash("error", "Not signed in.");
+      return;
+    }
+    if (name) {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: name })
+        .eq("id", user.id)
+        .single();
+      if (error) {
+        setSavingProfile(false);
+        flash("error", error.message);
+        return;
+      }
+    }
+    if (password) {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setSavingProfile(false);
+        flash("error", error.message);
+        return;
+      }
+    }
+    setSavingProfile(false);
+    setPassword("");
+    setConfirmPassword("");
+    flash("success", password ? "Profile and password updated." : "Profile updated.");
+  }
+
+  function chooseTheme(t: Theme) {
+    setThemeState(t);
+    setTheme(t);
+  }
+
   const inputClass =
     "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
   const labelClass = "mb-1 block text-xs font-semibold text-slate-500";
+
+  const THEMES: { key: Theme; label: string; icon: string; hint: string }[] = [
+    { key: "light", label: "Light", icon: "M12 3v2m0 14v2M5.6 5.6l1.4 1.4m9.9 9.9 1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m9.9-9.9 1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z", hint: "Bright & clean" },
+    { key: "dark", label: "Dark", icon: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z", hint: "Easy on the eyes" },
+    { key: "system", label: "System", icon: "M12 3a9 9 0 0 0 0 18c.5-2 .5-3.5 0-5a4.5 4.5 0 0 1 0-8c.5-1.5.5-3 0-5ZM3.5 12h17", hint: "Follow your device" },
+  ];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-          <p className="text-sm text-slate-500">Shop identity, receipt and appearance.</p>
+          <p className="text-sm text-slate-500">Shop identity, receipt, profile and theme.</p>
         </div>
         <button
           onClick={() => (document.getElementById("save-settings") as HTMLButtonElement)?.click()}
@@ -228,48 +301,125 @@ export default function SettingsClient({
           <button type="submit" id="save-settings" className="hidden" />
         </form>
 
-        <aside className="lg:sticky lg:top-6 h-fit">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Live receipt preview</p>
-          <div className="rounded-2xl bg-slate-200 p-4 shadow-inner">
-            <div className="mx-auto max-w-[260px] rounded bg-white p-4 font-mono text-xs leading-relaxed text-slate-900 shadow">
-              <div className="text-center">
-                {logoUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoUrl} alt="Logo" className="mx-auto mb-1 h-10 w-10 rounded object-cover" />
+        <div className="space-y-6">
+          <aside className="lg:sticky lg:top-6 h-fit">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Live receipt preview</p>
+            <div className="rounded-2xl bg-slate-200 p-4 shadow-inner">
+              <div className="mx-auto max-w-[260px] rounded bg-white p-4 font-mono text-xs leading-relaxed text-slate-900 shadow">
+                <div className="text-center">
+                  {logoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoUrl} alt="Logo" className="mx-auto mb-1 h-10 w-10 rounded object-cover" />
+                  )}
+                  <p className="text-sm font-bold">{shopName || "Shop name"}</p>
+                  {address && <p>{address}</p>}
+                  {phone && <p>Ph: {phone}</p>}
+                </div>
+                <div className="my-2 border-t border-dashed border-slate-400" />
+                <div className="flex justify-between">
+                  <span>Invoice</span>
+                  <span>INV-0001</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Date</span>
+                  <span>{new Date().toISOString().slice(0, 10)}</span>
+                </div>
+                <div className="my-2 border-t border-dashed border-slate-400" />
+                <p>Sample Item</p>
+                <div className="flex justify-between">
+                  <span className="pl-3">1 x {currency}100.00</span>
+                  <span>{currency}100.00</span>
+                </div>
+                <div className="my-2 border-t border-dashed border-slate-400" />
+                <div className="flex justify-between text-sm font-bold">
+                  <span>TOTAL</span>
+                  <span>{currency}100.00</span>
+                </div>
+                {footer && (
+                  <>
+                    <div className="my-2 border-t border-dashed border-slate-400" />
+                    <div className="whitespace-pre-line text-center">{footer}</div>
+                  </>
                 )}
-                <p className="text-sm font-bold">{shopName || "Shop name"}</p>
-                {address && <p>{address}</p>}
-                {phone && <p>Ph: {phone}</p>}
               </div>
-              <div className="my-2 border-t border-dashed border-slate-400" />
-              <div className="flex justify-between">
-                <span>Invoice</span>
-                <span>INV-0001</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Date</span>
-                <span>{new Date().toISOString().slice(0, 10)}</span>
-              </div>
-              <div className="my-2 border-t border-dashed border-slate-400" />
-              <p>Sample Item</p>
-              <div className="flex justify-between">
-                <span className="pl-3">1 x {currency}100.00</span>
-                <span>{currency}100.00</span>
-              </div>
-              <div className="my-2 border-t border-dashed border-slate-400" />
-              <div className="flex justify-between text-sm font-bold">
-                <span>TOTAL</span>
-                <span>{currency}100.00</span>
-              </div>
-              {footer && (
-                <>
-                  <div className="my-2 border-t border-dashed border-slate-400" />
-                  <div className="whitespace-pre-line text-center">{footer}</div>
-                </>
-              )}
             </div>
-          </div>
-        </aside>
+          </aside>
+
+          <form onSubmit={saveProfile} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-900">User Profile</h2>
+                <p className="text-xs text-slate-400">Your name and account password.</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>Full name</label>
+                <input value={userName} onChange={(e) => setUserName(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input value={userEmail} disabled className={`${inputClass} cursor-not-allowed opacity-60`} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>New password</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Leave blank to keep" className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Confirm password</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repeat new password" className={inputClass} />
+                </div>
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={savingProfile}
+              className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {savingProfile ? "Saving…" : "Update profile"}
+            </button>
+          </form>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                  <path d="M12 3a9 9 0 1 0 0 18V3ZM12 3a9 9 0 0 1 9 9h-9V3Z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-900">Theme</h2>
+                <p className="text-xs text-slate-400">Appearance for this browser.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {THEMES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => chooseTheme(t.key)}
+                  className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition ${
+                    theme === t.key
+                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/20"
+                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`h-5 w-5 ${theme === t.key ? "text-blue-600" : "text-slate-500"}`}>
+                    <path d={t.icon} />
+                  </svg>
+                  <span className={`text-xs font-medium ${theme === t.key ? "text-blue-700" : "text-slate-700"}`}>{t.label}</span>
+                  <span className="text-[10px] text-slate-400">{t.hint}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
 
       {toast && (

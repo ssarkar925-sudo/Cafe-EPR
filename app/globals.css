@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --brand-500: #2563eb;
   --brand-600: #1d4ed8;
@@ -7,4 +9,30 @@
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
+  @apply dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* Dark theme: remap the slate ramp + white so the whole app inverts. */
+.dark {
+  --color-slate-50: #0b1120;
+  --color-slate-100: #141d33;
+  --color-slate-200: #25334d;
+  --color-slate-300: #384b6b;
+  --color-slate-400: #64748b;
+  --color-slate-500: #8fa1bd;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+  --color-slate-950: #ffffff;
+}
+
+.dark .bg-white {
+  background-color: #0f172a;
+}
+
+.dark .bg-white\/50,
+.dark .bg-white\/60,
+.dark .bg-white\/80 {
+  background-color: #0f172a;
 }
