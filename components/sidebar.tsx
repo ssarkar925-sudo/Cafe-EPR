@@ -104,6 +104,9 @@ export default function Sidebar({
 
         {isAdmin && (
           <>
+            <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
+              Administrative
+            </p>
             <Link href="/staff" className={linkClass}>
               Staff
             </Link>
