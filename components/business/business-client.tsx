@@ -23,22 +23,31 @@ export type Txn = {
   profiles: { full_name: string } | null;
 };
 
-const SERVICE_LABEL: Record<string, string> = {
-  aeps: "AEPS",
-  dmt: "DMT",
-  upi: "UPI",
+const DIRECTIONS: Record<string, string> = {
+  aeps: "out",
+  dmt: "in",
+  upi: "out",
 };
 
-export default function TransactionsClient({
+const NOTES: Record<string, string> = {
+  aeps: "Cash withdrawal via Aadhaar. Cash OUT = amount.",
+  dmt: "Money transfer. Cash IN = amount + commission.",
+  upi: "Cash out against UPI payment. Cash OUT = amount.",
+};
+
+export default function BusinessClient({
+  service,
+  label,
   initialTransactions,
   initialCustomers,
 }: {
+  service: string;
+  label: string;
   initialTransactions: Txn[];
   initialCustomers: { id: string; name: string; code: string }[];
 }) {
   const [txns, setTxns] = useState<Txn[]>(initialTransactions);
   const [q, setQ] = useState("");
-  const [service, setService] = useState<"all" | "aeps" | "dmt" | "upi">("all");
   const [status, setStatus] = useState<"all" | "completed" | "cancelled">("all");
   const [modal, setModal] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -48,7 +57,6 @@ export default function TransactionsClient({
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return txns.filter((t) => {
-      if (service !== "all" && t.service_type !== service) return false;
       if (status !== "all" && t.status !== status) return false;
       if (!needle) return true;
       return (
@@ -58,7 +66,7 @@ export default function TransactionsClient({
         (t.phone ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [txns, q, service, status]);
+  }, [txns, q, status]);
 
   const totals = useMemo(() => {
     const comp = filtered.filter((t) => t.status === "completed");
@@ -76,7 +84,7 @@ export default function TransactionsClient({
 
   async function createTxn(input: Record<string, unknown>) {
     const { data, error } = await supabase.rpc("create_txn", {
-      p_service_type: input.service_type,
+      p_service_type: service,
       p_transaction_date: input.transaction_date,
       p_customer_id: input.customer_id ?? null,
       p_customer_name: input.customer_name ?? null,
@@ -97,7 +105,7 @@ export default function TransactionsClient({
       {
         id: d.id as string,
         transaction_number: d.transaction_number as string,
-        service_type: input.service_type as string,
+        service_type: service,
         direction: d.direction as string,
         transaction_date: input.transaction_date as string,
         customer_name: (input.customer_name as string) || "Walk-in",
@@ -117,7 +125,9 @@ export default function TransactionsClient({
   }
 
   async function cancelTxn(id: string) {
-    if (!window.confirm("Cancel this transaction? Its cash entry will be reversed.")) {
+    if (
+      !window.confirm("Cancel this transaction? Its cash entry will be reversed.")
+    ) {
       return;
     }
     setBusyId(id);
@@ -134,19 +144,14 @@ export default function TransactionsClient({
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">
-            AEPS / DMT / UPI Transactions
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Cash-in &amp; cash-out banking services. Cash book is updated
-            automatically.
-          </p>
+          <h1 className="text-xl font-semibold text-slate-900">{label}</h1>
+          <p className="mt-1 text-sm text-slate-500">{NOTES[service]}</p>
         </div>
         <button
           onClick={() => setModal(true)}
           className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
         >
-          New Transaction
+          New {label} Transaction
         </button>
       </div>
 
@@ -157,21 +162,6 @@ export default function TransactionsClient({
           placeholder="Search txn no, name, RRN, phone..."
           className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
         />
-        <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
-          {(["all", "aeps", "dmt", "upi"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setService(s)}
-              className={`rounded-md px-3 py-1 ${
-                service === s
-                  ? "bg-white font-medium text-slate-900 shadow-sm"
-                  : "text-slate-500"
-              }`}
-            >
-              {s === "all" ? "All" : SERVICE_LABEL[s]}
-            </button>
-          ))}
-        </div>
         <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
           {(["all", "completed", "cancelled"] as const).map((s) => (
             <button
@@ -222,7 +212,6 @@ export default function TransactionsClient({
             <tr className="border-b border-slate-200 text-slate-500">
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Txn No</th>
-              <th className="px-4 py-3 font-medium">Service</th>
               <th className="px-4 py-3 font-medium">Direction</th>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Reference</th>
@@ -240,16 +229,9 @@ export default function TransactionsClient({
                   {t.transaction_number}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                    {SERVICE_LABEL[t.service_type]}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
                   <span
                     className={
-                      t.direction === "in"
-                        ? "text-emerald-600"
-                        : "text-red-600"
+                      t.direction === "in" ? "text-emerald-600" : "text-red-600"
                     }
                   >
                     {t.direction === "in" ? "IN" : "OUT"}
@@ -292,11 +274,8 @@ export default function TransactionsClient({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td
-                  colSpan={10}
-                  className="px-4 py-8 text-center text-slate-500"
-                >
-                  No transactions found.
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                  No {label} transactions found.
                 </td>
               </tr>
             )}
@@ -306,6 +285,8 @@ export default function TransactionsClient({
 
       {modal && (
         <TxnFormModal
+          service={service}
+          label={label}
           customers={initialCustomers}
           onClose={() => setModal(false)}
           onSave={createTxn}

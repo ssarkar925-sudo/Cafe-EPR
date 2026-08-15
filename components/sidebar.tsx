@@ -63,13 +63,23 @@ export default function Sidebar({
         {!isStaff && (
           <>
             <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
+              Business
+            </p>
+            <Link href="/business/aeps" className={linkClass}>
+              AEPS
+            </Link>
+            <Link href="/business/dmt" className={linkClass}>
+              DMT
+            </Link>
+            <Link href="/business/upi" className={linkClass}>
+              UPI
+            </Link>
+
+            <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
               Finance
             </p>
             <Link href="/finance/expenses" className={linkClass}>
               Expenses
-            </Link>
-            <Link href="/finance/transactions" className={linkClass}>
-              Transactions (AEPS/DMT/UPI)
             </Link>
             <Link href="/finance/cashbook" className={linkClass}>
               Cash Book

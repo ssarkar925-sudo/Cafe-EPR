@@ -3,26 +3,24 @@
 import { useMemo, useState } from "react";
 import { inr } from "@/lib/format";
 
-const SERVICES = [
-  { value: "aeps", label: "AEPS (Cash Withdrawal)" },
-  { value: "dmt", label: "DMT (Money Transfer)" },
-  { value: "upi", label: "UPI (Cash Out)" },
-];
-
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
 const labelClass = "mb-1 block text-sm font-medium text-slate-700";
 
 export default function TxnFormModal({
+  service,
+  label,
   customers,
   onClose,
   onSave,
 }: {
+  service: string;
+  label: string;
   customers: { id: string; name: string; code: string }[];
   onClose: () => void;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 }) {
-  const [service_type, setServiceType] = useState("aeps");
+  const [service_type] = useState(service);
   const [transaction_date, setTransactionDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
@@ -44,7 +42,8 @@ export default function TxnFormModal({
   const cashEffect = useMemo(() => {
     const amt = Number(amount) || 0;
     const comm = Number(commission) || 0;
-    if (isDmt) return { dir: "in", value: amt + comm, note: "Cash received from sender" };
+    if (isDmt)
+      return { dir: "in", value: amt + comm, note: "Cash received from sender" };
     return { dir: "out", value: amt, note: "Cash paid out to customer" };
   }, [isDmt, amount, commission]);
 
@@ -81,7 +80,7 @@ export default function TxnFormModal({
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
-            New Transaction
+            New {label} Transaction
           </h2>
           <button
             onClick={onClose}
@@ -92,22 +91,15 @@ export default function TxnFormModal({
         </div>
 
         <form onSubmit={submit} className="mt-4 space-y-4">
-          <div>
-            <label className={labelClass}>Service</label>
-            <select
-              value={service_type}
-              onChange={(e) => setServiceType(e.target.value)}
-              className={inputClass}
-            >
-              {SERVICES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Service</label>
+              <input
+                value={label}
+                readOnly
+                className={`${inputClass} bg-slate-50 text-slate-500`}
+              />
+            </div>
             <div>
               <label className={labelClass}>Date</label>
               <input
@@ -118,6 +110,9 @@ export default function TxnFormModal({
                 className={inputClass}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Customer</label>
               <select
@@ -133,9 +128,6 @@ export default function TxnFormModal({
                 ))}
               </select>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Name</label>
               <input
@@ -145,15 +137,16 @@ export default function TxnFormModal({
                 className={inputClass}
               />
             </div>
-            <div>
-              <label className={labelClass}>Phone</label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Optional"
-                className={inputClass}
-              />
-            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Phone</label>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Optional"
+              className={inputClass}
+            />
           </div>
 
           {isAeps && (
