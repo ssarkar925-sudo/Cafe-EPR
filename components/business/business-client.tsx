@@ -749,6 +749,15 @@ export default function BusinessClient({
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" /></svg>
                       Print
                     </a>
+                    <a
+                      href={`/business/receipt/${t.id}/a4`}
+                      target="_blank"
+                      title="A4 print / PDF"
+                      className={`${actionBtn} text-blue-600 hover:bg-blue-50`}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></svg>
+                      A4 / PDF
+                    </a>
                     {t.status === "success" && (
                       <>
                         <button onClick={() => setEditTxn(t)} title="Edit" className={`${actionBtn} text-slate-600 hover:bg-slate-50`}>

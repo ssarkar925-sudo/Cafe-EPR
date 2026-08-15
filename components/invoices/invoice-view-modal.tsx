@@ -157,14 +157,23 @@ export default function InvoiceViewModal({
               {detail?.customers?.name ?? "Walk-in customer"}
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <a
-              href={`/receipt/${invoiceId}`}
-              target="_blank"
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              Print
-            </a>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-sm">
+              <a
+                href={`/receipt/${invoiceId}`}
+                target="_blank"
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-blue-600 transition hover:bg-blue-50"
+              >
+                80mm
+              </a>
+              <a
+                href={`/receipt/${invoiceId}/a4`}
+                target="_blank"
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-blue-600 transition hover:bg-blue-50"
+              >
+                A4 / PDF
+              </a>
+            </div>
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-slate-600"

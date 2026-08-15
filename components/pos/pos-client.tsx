@@ -699,7 +699,14 @@ export default function PosClient({
                 target="_blank"
                 className="rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
               >
-                Print Receipt
+                Print Receipt (80mm)
+              </a>
+              <a
+                href={`/receipt/${success.id}/a4`}
+                target="_blank"
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                A4 Print / Download PDF
               </a>
               <button
                 onClick={() => setSuccess(null)}

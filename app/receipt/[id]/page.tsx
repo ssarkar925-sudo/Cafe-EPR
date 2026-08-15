@@ -57,7 +57,16 @@ export default async function ReceiptPage({
       <div className="mx-auto max-w-sm rounded-lg bg-white p-4 shadow print:max-w-none print:rounded-none print:shadow-none">
         <div className="mb-4 flex items-center justify-between print:hidden">
           <h1 className="text-lg font-semibold text-slate-900">Receipt</h1>
-          <PrintButton />
+          <div className="flex items-center gap-2">
+            <a
+              href={`/receipt/${id}/a4`}
+              target="_blank"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              A4 / PDF
+            </a>
+            <PrintButton />
+          </div>
         </div>
 
         <div className="font-mono text-xs leading-relaxed text-slate-900">

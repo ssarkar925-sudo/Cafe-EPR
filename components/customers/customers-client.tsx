@@ -467,7 +467,12 @@ export default function CustomersClient({
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${inv.status === "paid" ? "bg-emerald-100 text-emerald-700" : inv.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>
                           {inv.status}
                         </span>
-                        <span className="text-sm font-semibold text-slate-900">{inr(inv.total)}</span>
+                        <span className="flex items-center gap-2 text-xs text-slate-400">
+                          <span className="text-sm font-semibold text-slate-900">{inr(inv.total)}</span>
+                          <a href={`/receipt/${inv.id}/a4`} target="_blank" onClick={(e) => e.stopPropagation()} className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50">
+                            A4 / PDF
+                          </a>
+                        </span>
                       </div>
                     </Link>
                   ))}
