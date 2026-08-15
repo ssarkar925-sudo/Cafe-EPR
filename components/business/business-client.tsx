@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
-import TxnFormModal from "./txn-form-modal";
+import BusinessFormModal from "./business-form-modal";
+import ReasonModal from "./business-reason-modal";
+
+export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
+export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
 
 export type Txn = {
   id: string;
@@ -11,91 +15,252 @@ export type Txn = {
   service_type: string;
   direction: string;
   transaction_date: string;
-  customer_name: string | null;
-  phone: string | null;
-  aadhaar_last4: string | null;
-  bank_name: string | null;
-  account_last4: string | null;
+  customer_id: string | null;
+  customer_mobile: string | null;
   reference: string | null;
-  amount: number | string;
-  commission: number | string;
+  remarks: string | null;
   status: string;
+  bank_id: string | null;
+  portal_id: string | null;
+  merchant_qr_id: string | null;
+  aadhaar_last4: string | null;
+  transfer_method: string | null;
+  sender_name: string | null;
+  sender_mobile: string | null;
+  beneficiary_name: string | null;
+  beneficiary_mobile: string | null;
+  beneficiary_bank: string | null;
+  beneficiary_ifsc: string | null;
+  beneficiary_account: string | null;
+  upi_id: string | null;
+  amount: number | string;
+  service_fee: number | string;
+  portal_commission: number | string;
+  customers: { name: string; phone: string | null } | null;
+  banks: { name: string } | null;
+  portals: { name: string } | null;
+  merchant_qrs: { display_name: string; upi_id: string } | null;
   profiles: { full_name: string } | null;
 };
 
-const DIRECTIONS: Record<string, string> = {
-  aeps: "out",
-  dmt: "in",
-  upi: "out",
+type Cfg = {
+  title: string;
+  desc: string;
+  recordLabel: string;
+  groups: { value: string; label: string }[];
+  bankFilter: boolean;
+  portalFilter: boolean;
+  methodFilter: boolean;
+  customerFilter: boolean;
+  cards: { key: string; label: string; income?: boolean; sub?: string }[];
+  tableHeaders: { key: string; label?: string; align?: string }[];
 };
 
-const NOTES: Record<string, string> = {
-  aeps: "Cash withdrawal via Aadhaar. Cash OUT = amount.",
-  dmt: "Money transfer. Cash IN = amount + commission.",
-  upi: "Cash out against UPI payment. Cash OUT = amount.",
+const CONFIG: Record<string, Cfg> = {
+  aeps: {
+    title: "AEPS Cash Withdrawal",
+    desc: "Cash paid out at the counter, settled by the AEPS portal.",
+    recordLabel: "Record Withdrawal",
+    groups: [
+      { value: "none", label: "Overall totals" },
+      { value: "bank", label: "Group by Bank" },
+      { value: "portal", label: "Group by Portal" },
+    ],
+    bankFilter: true,
+    portalFilter: true,
+    methodFilter: false,
+    customerFilter: true,
+    cards: [
+      { key: "count", label: "Transactions" },
+      { key: "withdrawal", label: "Withdrawn" },
+      { key: "fees", label: "Customer Fees" },
+      { key: "commission", label: "Portal Commission" },
+      { key: "net", label: "Shop Income", income: true, sub: "Fees + Commission" },
+    ],
+    tableHeaders: [
+      { key: "txn" },
+      { key: "customer" },
+      { key: "bankPortal" },
+      { key: "date" },
+      { key: "withdrawal", align: "right" },
+      { key: "fee", align: "right" },
+      { key: "commission", align: "right" },
+      { key: "status", align: "center" },
+      { key: "actions", align: "right" },
+    ],
+  },
+  dmt: {
+    title: "DMT — Money Transfer",
+    desc: "Remittances to beneficiaries through the portal.",
+    recordLabel: "Record Transfer",
+    groups: [{ value: "none", label: "Overall totals" }, { value: "method", label: "Group by Method" }],
+    bankFilter: false,
+    portalFilter: false,
+    methodFilter: true,
+    customerFilter: true,
+    cards: [
+      { key: "count", label: "Transactions" },
+      { key: "withdrawal", label: "Transferred" },
+      { key: "fees", label: "Shop Income", sub: "= Customer Fee charged" },
+      { key: "net", label: "Net Contribution", income: true, sub: "Customer Fee − Portal Charge" },
+    ],
+    tableHeaders: [
+      { key: "txn" },
+      { key: "customer" },
+      { key: "sender" },
+      { key: "beneficiary" },
+      { key: "date" },
+      { key: "transfer", align: "right" },
+      { key: "income", align: "right" },
+      { key: "net", align: "right" },
+      { key: "status", align: "center" },
+      { key: "actions", align: "right" },
+    ],
+  },
+  upi: {
+    title: "UPI Cash Out",
+    desc: "Cash handed over against money received on the shop UPI.",
+    recordLabel: "Record Cash Out",
+    groups: [],
+    bankFilter: false,
+    portalFilter: false,
+    methodFilter: false,
+    customerFilter: true,
+    cards: [
+      { key: "count", label: "Transactions" },
+      { key: "withdrawal", label: "Cash Out" },
+      { key: "fees", label: "Customer Fees" },
+      { key: "net", label: "Shop Income", income: true, sub: "= Customer Fees" },
+    ],
+    tableHeaders: [
+      { key: "txn" },
+      { key: "customer" },
+      { key: "date" },
+      { key: "upiAmount", align: "right" },
+      { key: "cashHanded", align: "right" },
+      { key: "fee", align: "right" },
+      { key: "status", align: "center" },
+      { key: "actions", align: "right" },
+    ],
+  },
 };
+
+const STATUS_BADGE: Record<string, string> = {
+  success: "bg-emerald-100 text-emerald-700",
+  pending: "bg-amber-100 text-amber-700",
+  failed: "bg-rose-100 text-rose-700",
+  reversed: "bg-slate-200 text-slate-600",
+  deleted: "bg-rose-100 text-rose-700",
+};
+
+function fmtDate(d: string) {
+  if (!d) return "-";
+  const dt = new Date(d + (d.length === 10 ? "T00:00:00" : ""));
+  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 export default function BusinessClient({
   service,
   label,
   initialTransactions,
   initialCustomers,
+  initialBanks,
+  initialPortals,
+  initialQrs,
 }: {
   service: string;
   label: string;
   initialTransactions: Txn[];
-  initialCustomers: { id: string; name: string; code: string }[];
+  initialCustomers: CustomerRow[];
+  initialBanks: Master[];
+  initialPortals: Master[];
+  initialQrs: Master[];
 }) {
+  const cfg = CONFIG[service];
   const [txns, setTxns] = useState<Txn[]>(initialTransactions);
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"all" | "completed" | "cancelled">("all");
-  const [modal, setModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [bankFilter, setBankFilter] = useState("");
+  const [portalFilter, setPortalFilter] = useState("");
+  const [methodFilter, setMethodFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [groupBy, setGroupBy] = useState("none");
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [editTxn, setEditTxn] = useState<Txn | null>(null);
+  const [reverseTxn, setReverseTxn] = useState<Txn | null>(null);
+  const [deleteTxn, setDeleteTxn] = useState<Txn | null>(null);
 
   const supabase = createClient();
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return txns.filter((t) => {
-      if (status !== "all" && t.status !== status) return false;
+      if (statusFilter && t.status !== statusFilter) return false;
+      if (bankFilter && t.bank_id !== bankFilter) return false;
+      if (portalFilter && t.portal_id !== portalFilter) return false;
+      if (methodFilter && t.transfer_method !== methodFilter) return false;
+      if (customerFilter && t.customer_id !== customerFilter) return false;
+      if (dateFrom && t.transaction_date < dateFrom) return false;
+      if (dateTo && t.transaction_date > dateTo) return false;
       if (!needle) return true;
       return (
         t.transaction_number.toLowerCase().includes(needle) ||
-        (t.customer_name ?? "").toLowerCase().includes(needle) ||
         (t.reference ?? "").toLowerCase().includes(needle) ||
-        (t.phone ?? "").toLowerCase().includes(needle)
+        (t.customer_mobile ?? "").includes(needle) ||
+        (t.aadhaar_last4 ?? "").includes(needle) ||
+        (t.sender_name ?? "").toLowerCase().includes(needle) ||
+        (t.beneficiary_name ?? "").toLowerCase().includes(needle) ||
+        (t.upi_id ?? "").toLowerCase().includes(needle) ||
+        (t.customers?.name ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [txns, q, status]);
+  }, [txns, q, statusFilter, bankFilter, portalFilter, methodFilter, customerFilter, dateFrom, dateTo]);
 
-  const totals = useMemo(() => {
-    const comp = filtered.filter((t) => t.status === "completed");
+  const successOnly = useMemo(() => filtered.filter((t) => t.status === "success"), [filtered]);
+
+  const report = useMemo(() => {
+    const rows = successOnly;
     return {
-      amount: comp.reduce((s, t) => s + Number(t.amount), 0),
-      commission: comp.reduce((s, t) => s + Number(t.commission), 0),
-      cashIn: comp
-        .filter((t) => t.direction === "in")
-        .reduce((s, t) => s + Number(t.amount) + Number(t.commission), 0),
-      cashOut: comp
-        .filter((t) => t.direction === "out")
-        .reduce((s, t) => s + Number(t.amount), 0),
+      count: rows.length,
+      withdrawal: rows.reduce((s, t) => s + Number(t.amount), 0),
+      fees: rows.reduce((s, t) => s + Number(t.service_fee), 0),
+      commission: rows.reduce((s, t) => s + Number(t.portal_commission), 0),
+      cashIn: rows.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount) + Number(t.service_fee), 0),
+      cashOut: rows.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0),
     };
-  }, [filtered]);
+  }, [successOnly]);
 
-  async function createTxn(input: Record<string, unknown>) {
-    const { data, error } = await supabase.rpc("create_txn", {
-      p_service_type: service,
-      p_transaction_date: input.transaction_date,
-      p_customer_id: input.customer_id ?? null,
-      p_customer_name: input.customer_name ?? null,
-      p_phone: input.phone ?? null,
-      p_aadhaar_last4: input.aadhaar_last4 ?? null,
-      p_bank_name: input.bank_name ?? null,
-      p_account_last4: input.account_last4 ?? null,
-      p_reference: input.reference ?? null,
-      p_amount: Number(input.amount),
-      p_commission: Number(input.commission ?? 0),
+  const groups = useMemo(() => {
+    if (groupBy === "none") return [];
+    const map = new Map<string, Txn[]>();
+    successOnly.forEach((t) => {
+      let key = "-";
+      if (groupBy === "bank") key = t.banks?.name ?? "-";
+      if (groupBy === "portal") key = t.portals?.name ?? "-";
+      if (groupBy === "method") key = t.transfer_method === "upi" ? "UPI" : "Bank Account";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
     });
+    return Array.from(map.entries()).map(([label, rows]) => ({
+      label,
+      count: rows.length,
+      withdrawal: rows.reduce((s, t) => s + Number(t.amount), 0),
+      fees: rows.reduce((s, t) => s + Number(t.service_fee), 0),
+      commission: rows.reduce((s, t) => s + Number(t.portal_commission), 0),
+      net: service === "dmt"
+        ? rows.reduce((s, t) => s + Number(t.service_fee) - Number(t.portal_commission), 0)
+        : rows.reduce((s, t) => s + Number(t.service_fee) + Number(t.portal_commission), 0),
+    }));
+  }, [groupBy, successOnly, service]);
+
+  const netTotal = service === "dmt" ? report.fees - report.commission : report.fees + report.commission;
+
+  async function createTxn(payload: Record<string, unknown>) {
+    const { data, error } = await supabase.rpc("create_business_txn", payload);
     if (error) {
       alert(error.message);
       return;
@@ -107,174 +272,409 @@ export default function BusinessClient({
         transaction_number: d.transaction_number as string,
         service_type: service,
         direction: d.direction as string,
-        transaction_date: input.transaction_date as string,
-        customer_name: (input.customer_name as string) || "Walk-in",
-        phone: (input.phone as string) || null,
-        aadhaar_last4: (input.aadhaar_last4 as string) || null,
-        bank_name: (input.bank_name as string) || null,
-        account_last4: (input.account_last4 as string) || null,
-        reference: (input.reference as string) || null,
-        amount: Number(input.amount),
-        commission: Number(input.commission ?? 0),
-        status: "completed",
+        transaction_date: payload.p_transaction_date as string,
+        customer_id: (payload.p_customer_id as string) || null,
+        customer_mobile: (payload.p_customer_mobile as string) || null,
+        reference: (payload.p_reference as string) || null,
+        remarks: (payload.p_remarks as string) || null,
+        status: d.status as string,
+        bank_id: (payload.p_bank_id as string) || null,
+        portal_id: (payload.p_portal_id as string) || null,
+        merchant_qr_id: (payload.p_merchant_qr_id as string) || null,
+        aadhaar_last4: (payload.p_aadhaar_last4 as string) || null,
+        transfer_method: (payload.p_transfer_method as string) || null,
+        sender_name: (payload.p_sender_name as string) || null,
+        sender_mobile: (payload.p_sender_mobile as string) || null,
+        beneficiary_name: (payload.p_beneficiary_name as string) || null,
+        beneficiary_mobile: (payload.p_beneficiary_mobile as string) || null,
+        beneficiary_bank: (payload.p_beneficiary_bank as string) || null,
+        beneficiary_ifsc: (payload.p_beneficiary_ifsc as string) || null,
+        beneficiary_account: (payload.p_beneficiary_account as string) || null,
+        upi_id: (payload.p_upi_id as string) || null,
+        amount: Number(payload.p_amount),
+        service_fee: Number(payload.p_service_fee ?? 0),
+        portal_commission: Number(payload.p_portal_commission ?? 0),
+        customers: payload.p_customer_id
+          ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
+          : null,
+        banks: (payload.p_bank_id as string) ? { name: initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-" } : null,
+        portals: (payload.p_portal_id as string) ? { name: initialPortals.find((p) => p.id === payload.p_portal_id)?.name ?? "-" } : null,
+        merchant_qrs: null,
         profiles: null,
       },
       ...prev,
     ]);
-    setModal(false);
+    setShowCreate(false);
   }
 
-  async function cancelTxn(id: string) {
-    if (
-      !window.confirm("Cancel this transaction? Its cash entry will be reversed.")
-    ) {
+  async function saveEdit(payload: Record<string, unknown>) {
+    if (!editTxn) return;
+    const { error } = await supabase.rpc("update_business_txn", {
+      p_txn_id: editTxn.id,
+      ...payload,
+    });
+    if (error) {
+      alert(error.message);
       return;
     }
-    setBusyId(id);
-    const { error } = await supabase.rpc("cancel_txn", { p_txn_id: id });
+    const upd = {
+      transaction_date: payload.p_transaction_date as string,
+      customer_id: (payload.p_customer_id as string) || null,
+      customer_mobile: (payload.p_customer_mobile as string) || null,
+      reference: (payload.p_reference as string) || null,
+      remarks: (payload.p_remarks as string) || null,
+      bank_id: (payload.p_bank_id as string) || null,
+      portal_id: (payload.p_portal_id as string) || null,
+      merchant_qr_id: (payload.p_merchant_qr_id as string) || null,
+      aadhaar_last4: (payload.p_aadhaar_last4 as string) || null,
+      transfer_method: (payload.p_transfer_method as string) || null,
+      sender_name: (payload.p_sender_name as string) || null,
+      sender_mobile: (payload.p_sender_mobile as string) || null,
+      beneficiary_name: (payload.p_beneficiary_name as string) || null,
+      beneficiary_mobile: (payload.p_beneficiary_mobile as string) || null,
+      beneficiary_bank: (payload.p_beneficiary_bank as string) || null,
+      beneficiary_ifsc: (payload.p_beneficiary_ifsc as string) || null,
+      beneficiary_account: (payload.p_beneficiary_account as string) || null,
+      upi_id: (payload.p_upi_id as string) || null,
+      amount: Number(payload.p_amount),
+      service_fee: Number(payload.p_service_fee ?? 0),
+      portal_commission: Number(payload.p_portal_commission ?? 0),
+    };
+    setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
+    setEditTxn(null);
+  }
+
+  async function reverse() {
+    if (!reverseTxn) return;
+    setBusyId(reverseTxn.id);
+    const { error } = await supabase.rpc("reverse_business_txn", {
+      p_txn_id: reverseTxn.id,
+      p_reason: reverseReason,
+    });
     setBusyId(null);
     if (error) {
       alert(error.message);
       return;
     }
-    setTxns((prev) => prev.map((t) => (t.id === id ? { ...t, status: "cancelled" } : t)));
+    setTxns((prev) => prev.map((t) => (t.id === reverseTxn.id ? { ...t, status: "reversed" } : t)));
+    setReverseTxn(null);
+    setReverseReason("");
   }
 
+  async function deleteTxnAction() {
+    if (!deleteTxn) return;
+    setBusyId(deleteTxn.id);
+    const { error } = await supabase.rpc("delete_business_txn", {
+      p_txn_id: deleteTxn.id,
+      p_reason: deleteReason,
+    });
+    setBusyId(null);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setTxns((prev) => prev.map((t) => (t.id === deleteTxn.id ? { ...t, status: "deleted" } : t)));
+    setDeleteTxn(null);
+    setDeleteReason("");
+  }
+
+  const [reverseReason, setReverseReason] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">{label}</h1>
-          <p className="mt-1 text-sm text-slate-500">{NOTES[service]}</p>
+          <h1 className="text-2xl font-bold text-slate-900">{cfg.title}</h1>
+          <p className="mt-1 text-sm text-slate-500">{cfg.desc}</p>
         </div>
         <button
-          onClick={() => setModal(true)}
+          onClick={() => setShowCreate(true)}
           className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
         >
-          New {label} Transaction
+          {cfg.recordLabel}
         </button>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className={`mb-4 grid grid-cols-2 gap-3 ${cfg.cards.length >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+        {cfg.cards.map((c) => (
+          <div key={c.key} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{c.label}</p>
+            <p className={`mt-1 text-xl font-bold ${c.income ? "text-emerald-600" : "text-slate-900"}`}>
+              {c.key === "count"
+                ? report.count
+                : inr(
+                    c.key === "withdrawal"
+                      ? report.withdrawal
+                      : c.key === "fees"
+                        ? report.fees
+                        : c.key === "commission"
+                          ? report.commission
+                          : netTotal
+                  )}
+            </p>
+            {c.sub && <p className="text-[11px] text-slate-400">{c.sub}</p>}
+          </div>
+        ))}
+      </div>
+
+      {cfg.groups.length > 0 && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-slate-700">Report</p>
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
+            >
+              {cfg.groups.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {groups.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border border-slate-100">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      {groupBy === "bank" ? "Bank" : groupBy === "portal" ? "Portal" : "Method"}
+                    </th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Count</th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      {service === "aeps" ? "Withdrawn" : "Transferred"}
+                    </th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Fees</th>
+                    {service === "aeps" && (
+                      <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Commission</th>
+                    )}
+                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Shop Income</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {groups.map((g) => (
+                    <tr key={g.label} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium text-slate-800">{g.label}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{g.count}</td>
+                      <td className="px-4 py-2 text-right text-slate-800">{inr(g.withdrawal)}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{inr(g.fees)}</td>
+                      {service === "aeps" && (
+                        <td className="px-4 py-2 text-right text-slate-600">{inr(g.commission)}</td>
+                      )}
+                      <td className="px-4 py-2 text-right font-semibold text-emerald-600">{inr(g.net)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Choose a grouping to see the breakdown.</p>
+          )}
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
         <input
+          type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search txn no, name, RRN, phone..."
-          className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+          placeholder="Transaction no, reference, Aadhaar last 4, customer..."
+          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
-        <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
-          {(["all", "completed", "cancelled"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={`rounded-md px-3 py-1 ${
-                status === s
-                  ? "bg-white font-medium text-slate-900 shadow-sm"
-                  : "text-slate-500"
-              }`}
-            >
-              {s[0].toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+            <option value="">All Statuses</option>
+            {["success", "pending", "failed", "reversed", "deleted"].map((s) => (
+              <option key={s} value={s}>
+                {s[0].toUpperCase() + s.slice(1)}
+              </option>
+            ))}
+          </select>
+          {cfg.bankFilter && (
+            <select value={bankFilter} onChange={(e) => setBankFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+              <option value="">All Banks</option>
+              {initialBanks.filter((b) => b.name).map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {cfg.portalFilter && (
+            <select value={portalFilter} onChange={(e) => setPortalFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+              <option value="">All Portals</option>
+              {initialPortals.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {cfg.methodFilter && (
+            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+              <option value="">All Methods</option>
+              <option value="bank_account">Bank Account</option>
+              <option value="upi">UPI</option>
+            </select>
+          )}
+          {cfg.customerFilter && (
+            <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+              <option value="">All Customers</option>
+              {initialCustomers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <p className="text-xs text-slate-500">Total amount</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">
-            {inr(totals.amount)}
-          </p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <p className="text-xs text-slate-500">Commission earned</p>
-          <p className="mt-1 text-lg font-semibold text-emerald-600">
-            {inr(totals.commission)}
-          </p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <p className="text-xs text-slate-500">Cash in</p>
-          <p className="mt-1 text-lg font-semibold text-emerald-600">
-            {inr(totals.cashIn)}
-          </p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <p className="text-xs text-slate-500">Cash out</p>
-          <p className="mt-1 text-lg font-semibold text-red-600">
-            {inr(totals.cashOut)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Txn No</th>
-              <th className="px-4 py-3 font-medium">Direction</th>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Reference</th>
-              <th className="px-4 py-3 font-medium">Amount</th>
-              <th className="px-4 py-3 font-medium">Commission</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {cfg.tableHeaders.map((h, i) => (
+                <th
+                  key={i}
+                  className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 ${
+                    h.align === "right" ? "text-right" : h.align === "center" ? "text-center" : "text-left"
+                  }`}
+                >
+                  {h.key === "txn" ? "Transaction"
+                    : h.key === "customer" ? "Customer"
+                    : h.key === "bankPortal" ? "Bank / Portal"
+                    : h.key === "date" ? "Date"
+                    : h.key === "withdrawal" ? (service === "aeps" ? "Withdrawal" : "Transfer")
+                    : h.key === "fee" ? (service === "aeps" ? "Fee" : "Service Fee")
+                    : h.key === "commission" ? "Commission"
+                    : h.key === "sender" ? "Representative"
+                    : h.key === "beneficiary" ? "Beneficiary"
+                    : h.key === "transfer" ? "Transfer"
+                    : h.key === "income" ? "Income"
+                    : h.key === "net" ? "Net"
+                    : h.key === "upiAmount" ? "UPI Amount"
+                    : h.key === "cashHanded" ? "Cash Handed"
+                    : h.key === "status" ? "Status"
+                    : h.key === "actions" ? "Actions"
+                    : h.key}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100">
             {filtered.map((t) => (
-              <tr key={t.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-500">{t.transaction_date}</td>
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {t.transaction_number}
+              <tr key={t.id} className={`hover:bg-slate-50 ${t.status === "deleted" ? "opacity-60" : ""}`}>
+                <td className="px-5 py-3">
+                  <p className="font-mono text-xs font-medium text-blue-700">{t.transaction_number}</p>
+                  <p className="text-xs text-slate-400">{t.reference || "-"}</p>
                 </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={
-                      t.direction === "in" ? "text-emerald-600" : "text-red-600"
-                    }
-                  >
-                    {t.direction === "in" ? "IN" : "OUT"}
+                <td className="px-5 py-3 text-slate-700">
+                  {t.customers?.name || "-"}
+                  <p className="text-xs text-slate-400">{t.customer_mobile || t.customers?.phone || ""}</p>
+                </td>
+                {service === "aeps" && (
+                  <td className="px-5 py-3 text-slate-700">
+                    {t.banks?.name || "-"}
+                    <p className="text-xs text-slate-400">{t.portals?.name || "-"}</p>
+                  </td>
+                )}
+                {service === "dmt" && (
+                  <>
+                    <td className="px-5 py-3 text-slate-700">
+                      {t.sender_name || "-"}
+                      <p className="font-mono text-xs text-slate-400">{t.sender_mobile || ""}</p>
+                    </td>
+                    <td className="px-5 py-3 text-slate-700">
+                      {t.beneficiary_name || "-"}
+                      {t.transfer_method === "upi" ? (
+                        <p className="font-mono text-xs text-slate-400">{t.upi_id || ""}</p>
+                      ) : (
+                        <>
+                          <p className="text-xs text-slate-400">{t.beneficiary_bank || "-"}</p>
+                          <p className="font-mono text-xs text-slate-400">{t.beneficiary_account || ""}</p>
+                        </>
+                      )}
+                      <p className="text-xs text-slate-400">
+                        {t.transfer_method === "upi" ? "UPI" : "Bank Account"}
+                      </p>
+                    </td>
+                  </>
+                )}
+                <td className="px-5 py-3 text-slate-700">{fmtDate(t.transaction_date)}</td>
+                {service === "aeps" && (
+                  <>
+                    <td className="px-5 py-3 text-right text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{inr(t.portal_commission)}</td>
+                  </>
+                )}
+                {service === "dmt" && (
+                  <>
+                    <td className="px-5 py-3 text-right text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-[13px]">
+                      {inr(Number(t.service_fee) - Number(t.portal_commission))}
+                    </td>
+                  </>
+                )}
+                {service === "upi" && (
+                  <>
+                    <td className="px-5 py-3 text-right text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
+                  </>
+                )}
+                <td className="px-5 py-3 text-center">
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[t.status] || "bg-slate-100 text-slate-500"}`}>
+                    {t.status[0].toUpperCase() + t.status.slice(1)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-900">
-                  {t.customer_name || "-"}
-                  {t.phone && (
-                    <span className="block text-xs text-slate-400">
-                      {t.phone}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-slate-500">{t.reference || "-"}</td>
-                <td className="px-4 py-3 text-slate-900">{inr(t.amount)}</td>
-                <td className="px-4 py-3 text-emerald-600">{inr(t.commission)}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      t.status === "completed"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {t.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {t.status === "completed" && (
-                    <button
-                      onClick={() => cancelTxn(t.id)}
-                      disabled={busyId === t.id}
-                      className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                <td className="px-5 py-3 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <a
+                      href={`/business/receipt/${t.id}`}
+                      target="_blank"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
                     >
-                      {busyId === t.id ? "..." : "Cancel"}
-                    </button>
-                  )}
+                      Print
+                    </a>
+                    {t.status === "success" && (
+                      <>
+                        <button
+                          onClick={() => setEditTxn(t)}
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setReverseTxn(t)}
+                          disabled={busyId === t.id}
+                          className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                        >
+                          {busyId === t.id ? "..." : "Reverse"}
+                        </button>
+                      </>
+                    )}
+                    {t.status !== "reversed" && t.status !== "deleted" && (
+                      <button
+                        onClick={() => setDeleteTxn(t)}
+                        className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={12} className="px-5 py-12 text-center text-sm text-slate-400">
                   No {label} transactions found.
                 </td>
               </tr>
@@ -283,13 +683,58 @@ export default function BusinessClient({
         </table>
       </div>
 
-      {modal && (
-        <TxnFormModal
+      {showCreate && (
+        <BusinessFormModal
           service={service}
           label={label}
           customers={initialCustomers}
-          onClose={() => setModal(false)}
+          banks={initialBanks}
+          portals={initialPortals}
+          qrs={initialQrs}
+          txns={txns}
+          onClose={() => setShowCreate(false)}
           onSave={createTxn}
+        />
+      )}
+
+      {editTxn && (
+        <BusinessFormModal
+          service={service}
+          label={label}
+          customers={initialCustomers}
+          banks={initialBanks}
+          portals={initialPortals}
+          qrs={initialQrs}
+          txns={txns}
+          initial={editTxn}
+          onClose={() => setEditTxn(null)}
+          onSave={saveEdit}
+        />
+      )}
+
+      {reverseTxn && (
+        <ReasonModal
+          title={`Reverse ${label} Transaction`}
+          note="A reversing cash entry is posted. The original record and entries are never deleted."
+          confirmLabel="Reverse Transaction"
+          busy={busyId === reverseTxn.id}
+          reason={reverseReason}
+          setReason={setReverseReason}
+          onClose={() => setReverseTxn(null)}
+          onConfirm={reverse}
+        />
+      )}
+
+      {deleteTxn && (
+        <ReasonModal
+          title={`Delete ${label} Transaction`}
+          note="Admin only. The posted cash entry is reversed and the record is marked deleted — it is never removed."
+          confirmLabel="Delete Transaction"
+          busy={busyId === deleteTxn.id}
+          reason={deleteReason}
+          setReason={setDeleteReason}
+          onClose={() => setDeleteTxn(null)}
+          onConfirm={deleteTxnAction}
         />
       )}
     </div>

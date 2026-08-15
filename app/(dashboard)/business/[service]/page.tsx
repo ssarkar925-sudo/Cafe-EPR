@@ -24,20 +24,26 @@ export default async function BusinessServicePage({
 
   const supabase = await createClient();
 
-  const [{ data: transactions }, { data: customers }] = await Promise.all([
-    supabase
-      .from("transactions")
-      .select("*, profiles(full_name)")
-      .eq("service_type", service)
-      .order("transaction_date", { ascending: false })
-      .limit(300),
-    supabase
-      .from("customers")
-      .select("id, name, code")
-      .eq("is_active", true)
-      .order("name")
-      .limit(300),
-  ]);
+  const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }] =
+    await Promise.all([
+      supabase
+        .from("transactions")
+        .select(
+          "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)"
+        )
+        .eq("service_type", service)
+        .order("transaction_date", { ascending: false })
+        .limit(500),
+      supabase
+        .from("customers")
+        .select("id, name, code, phone")
+        .eq("is_active", true)
+        .order("name")
+        .limit(300),
+      supabase.from("aeps_banks").select("*").order("name"),
+      supabase.from("aeps_portals").select("*").order("name"),
+      supabase.from("upi_merchant_qrs").select("*").order("display_name"),
+    ]);
 
   return (
     <BusinessClient
@@ -45,6 +51,9 @@ export default async function BusinessServicePage({
       label={SERVICES[service]}
       initialTransactions={(transactions ?? []) as any}
       initialCustomers={(customers ?? []) as any}
+      initialBanks={(banks ?? []) as any}
+      initialPortals={(portals ?? []) as any}
+      initialQrs={(qrs ?? []) as any}
     />
   );
 }

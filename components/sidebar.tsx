@@ -74,6 +74,15 @@ export default function Sidebar({
             <Link href="/business/upi" className={linkClass}>
               UPI
             </Link>
+            <Link href="/business/banks" className={linkClass}>
+              Banks
+            </Link>
+            <Link href="/business/portals" className={linkClass}>
+              Portals
+            </Link>
+            <Link href="/business/merchant-qrs" className={linkClass}>
+              Merchant QRs
+            </Link>
 
             <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
               Finance
