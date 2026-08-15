@@ -17,7 +17,7 @@ create sequence if not exists public.invoice_number_seq;
 create index if not exists idx_payments_invoice on public.payments (invoice_id);
 
 alter table public.payments enable row level security;
-create policy "payments all" on public.payments for all to authenticated using (true) with check (true);
+create or replace policy "payments all" on public.payments for all to authenticated using (true) with check (true);
 
 -- Atomic sale: invoice + items + stock deduction + payments + customer balance in ONE transaction
 create or replace function public.create_sale(
