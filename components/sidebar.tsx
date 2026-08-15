@@ -18,9 +18,15 @@ export default function Sidebar({
       <nav className="flex-1 space-y-1 px-3 py-4">
         <Link
           href="/dashboard"
-          className="block rounded-lg bg-slate-800 px-3 py-2 text-sm text-white"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
         >
           Dashboard
+        </Link>
+        <Link
+          href="/customers"
+          className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          Customers
         </Link>
         <span className="block px-3 py-2 text-sm text-slate-500">
           More modules coming soon
