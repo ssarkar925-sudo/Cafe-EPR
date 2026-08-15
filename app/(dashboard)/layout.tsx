@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import Sidebar from "@/components/sidebar";
+import DashboardShell from "@/components/dashboard-shell";
 
 export default async function DashboardLayout({
   children,
@@ -42,15 +42,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen">
-      <Sidebar
-        name={profile?.full_name || user.email || ""}
-        email={user.email || ""}
-        role={role ?? "staff"}
-        shopName={settings?.shop_name || "SCC OMM Cafe ERP"}
-        logoUrl={settings?.logo_url || null}
-      />
-      <main className="lg:pl-64">{children}</main>
-    </div>
+    <DashboardShell
+      name={profile?.full_name || user.email || ""}
+      email={user.email || ""}
+      role={role ?? "staff"}
+      shopName={settings?.shop_name || "SCC OMM Cafe ERP"}
+      logoUrl={settings?.logo_url || null}
+    >
+      {children}
+    </DashboardShell>
   );
 }
