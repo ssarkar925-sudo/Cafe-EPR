@@ -43,6 +43,8 @@ export type Txn = {
   profiles: { full_name: string } | null;
 };
 
+type Card = { key: string; label: string; icon: string; grad: string; sub?: string };
+
 type Cfg = {
   title: string;
   desc: string;
@@ -52,8 +54,17 @@ type Cfg = {
   portalFilter: boolean;
   methodFilter: boolean;
   customerFilter: boolean;
-  cards: { key: string; label: string; income?: boolean; sub?: string }[];
+  cards: Card[];
   tableHeaders: { key: string; label?: string; align?: string }[];
+};
+
+const ICONS = {
+  receipt: "M6 2h12a1 1 0 0 1 1 1v18l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L5 21V3a1 1 0 0 1 1-1Z",
+  rupee: "M6 3h12M6 8h12M6 13h8a4 4 0 0 0 0-8H6v17",
+  coins: "M8 9l4-4 8 4-8 4-4-4ZM8 9v6m0 0 4 4 8-4-4-4m-4 4V9m8 0v6",
+  percent: "M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
+  trend: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6",
+  search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35",
 };
 
 const CONFIG: Record<string, Cfg> = {
@@ -71,11 +82,11 @@ const CONFIG: Record<string, Cfg> = {
     methodFilter: false,
     customerFilter: true,
     cards: [
-      { key: "count", label: "Transactions" },
-      { key: "withdrawal", label: "Withdrawn" },
-      { key: "fees", label: "Customer Fees" },
-      { key: "commission", label: "Portal Commission" },
-      { key: "net", label: "Shop Income", income: true, sub: "Fees + Commission" },
+      { key: "count", label: "Transactions", icon: ICONS.receipt, grad: "from-blue-500 to-indigo-600" },
+      { key: "withdrawal", label: "Withdrawn", icon: ICONS.rupee, grad: "from-emerald-500 to-teal-600" },
+      { key: "fees", label: "Customer Fees", icon: ICONS.coins, grad: "from-amber-500 to-orange-600" },
+      { key: "commission", label: "Portal Commission", icon: ICONS.percent, grad: "from-violet-500 to-purple-600" },
+      { key: "net", label: "Shop Income", icon: ICONS.trend, grad: "from-rose-500 to-pink-600", sub: "Fees + Commission" },
     ],
     tableHeaders: [
       { key: "txn" },
@@ -99,10 +110,10 @@ const CONFIG: Record<string, Cfg> = {
     methodFilter: true,
     customerFilter: true,
     cards: [
-      { key: "count", label: "Transactions" },
-      { key: "withdrawal", label: "Transferred" },
-      { key: "fees", label: "Shop Income", sub: "= Customer Fee charged" },
-      { key: "net", label: "Net Contribution", income: true, sub: "Customer Fee − Portal Charge" },
+      { key: "count", label: "Transactions", icon: ICONS.receipt, grad: "from-blue-500 to-indigo-600" },
+      { key: "withdrawal", label: "Transferred", icon: ICONS.rupee, grad: "from-emerald-500 to-teal-600" },
+      { key: "fees", label: "Shop Income", icon: ICONS.coins, grad: "from-amber-500 to-orange-600", sub: "= Customer Fee charged" },
+      { key: "net", label: "Net Contribution", icon: ICONS.trend, grad: "from-rose-500 to-pink-600", sub: "Customer Fee − Portal Charge" },
     ],
     tableHeaders: [
       { key: "txn" },
@@ -127,10 +138,10 @@ const CONFIG: Record<string, Cfg> = {
     methodFilter: false,
     customerFilter: true,
     cards: [
-      { key: "count", label: "Transactions" },
-      { key: "withdrawal", label: "Cash Out" },
-      { key: "fees", label: "Customer Fees" },
-      { key: "net", label: "Shop Income", income: true, sub: "= Customer Fees" },
+      { key: "count", label: "Transactions", icon: ICONS.receipt, grad: "from-blue-500 to-indigo-600" },
+      { key: "withdrawal", label: "Cash Out", icon: ICONS.rupee, grad: "from-emerald-500 to-teal-600" },
+      { key: "fees", label: "Customer Fees", icon: ICONS.coins, grad: "from-amber-500 to-orange-600" },
+      { key: "net", label: "Shop Income", icon: ICONS.trend, grad: "from-rose-500 to-pink-600", sub: "= Customer Fees" },
     ],
     tableHeaders: [
       { key: "txn" },
@@ -153,10 +164,26 @@ const STATUS_BADGE: Record<string, string> = {
   deleted: "bg-rose-100 text-rose-700",
 };
 
+const STATUSES = ["success", "pending", "failed", "reversed", "deleted"];
+
 function fmtDate(d: string) {
   if (!d) return "-";
   const dt = new Date(d + (d.length === 10 ? "T00:00:00" : ""));
   return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function gradient(name: string) {
+  const palettes = [
+    "from-blue-500 to-cyan-400",
+    "from-violet-500 to-fuchsia-400",
+    "from-emerald-500 to-teal-400",
+    "from-amber-500 to-orange-400",
+    "from-rose-500 to-pink-400",
+    "from-indigo-500 to-purple-400",
+  ];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return palettes[h % palettes.length];
 }
 
 export default function BusinessClient({
@@ -186,6 +213,7 @@ export default function BusinessClient({
   const [customerFilter, setCustomerFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [preset, setPreset] = useState("all");
   const [groupBy, setGroupBy] = useState("none");
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -195,6 +223,26 @@ export default function BusinessClient({
   const [deleteTxn, setDeleteTxn] = useState<Txn | null>(null);
 
   const supabase = createClient();
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  function applyPreset(p: string) {
+    setPreset(p);
+    const now = new Date();
+    if (p === "today") {
+      setDateFrom(today);
+      setDateTo(today);
+    } else if (p === "7d") {
+      setDateFrom(new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10));
+      setDateTo(today);
+    } else if (p === "month") {
+      setDateFrom(now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-01");
+      setDateTo(today);
+    } else {
+      setDateFrom("");
+      setDateTo("");
+    }
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -229,10 +277,20 @@ export default function BusinessClient({
       withdrawal: rows.reduce((s, t) => s + Number(t.amount), 0),
       fees: rows.reduce((s, t) => s + Number(t.service_fee), 0),
       commission: rows.reduce((s, t) => s + Number(t.portal_commission), 0),
-      cashIn: rows.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount) + Number(t.service_fee), 0),
-      cashOut: rows.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0),
     };
   }, [successOnly]);
+
+  const todayRows = useMemo(
+    () => txns.filter((t) => t.transaction_date === today && t.status === "success"),
+    [txns, today]
+  );
+  const todayAmount = useMemo(
+    () => todayRows.reduce((s, t) => s + Number(t.amount), 0),
+    [todayRows]
+  );
+
+  const pendingCount = useMemo(() => txns.filter((t) => t.status === "pending").length, [txns]);
+  const failedCount = useMemo(() => txns.filter((t) => t.status === "failed").length, [txns]);
 
   const groups = useMemo(() => {
     if (groupBy === "none") return [];
@@ -381,37 +439,61 @@ export default function BusinessClient({
   const [reverseReason, setReverseReason] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
 
+  const cardValue = (key: string) => {
+    if (key === "count") return String(report.count);
+    if (key === "withdrawal") return inr(report.withdrawal);
+    if (key === "fees") return inr(report.fees);
+    if (key === "commission") return inr(report.commission);
+    return inr(netTotal);
+  };
+
+  const actionBtn =
+    "inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium transition";
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{cfg.title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{cfg.desc}</p>
+          <p className="text-sm text-slate-500">{cfg.desc}</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-        >
-          {cfg.recordLabel}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+            Today: {todayRows.length} · {inr(todayAmount)}
+          </span>
+          {pendingCount > 0 && (
+            <span className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700">
+              {pendingCount} pending
+            </span>
+          )}
+          {failedCount > 0 && (
+            <span className="rounded-lg bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-700">
+              {failedCount} failed
+            </span>
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          >
+            {cfg.recordLabel}
+          </button>
+        </div>
       </div>
 
-      <div className={`mb-4 grid grid-cols-2 gap-3 ${cfg.cards.length >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className={`mt-6 grid grid-cols-2 gap-4 ${cfg.cards.length >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {cfg.cards.map((c) => (
-          <div key={c.key} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{c.label}</p>
-            <p className={`mt-1 text-xl font-bold ${c.income ? "text-emerald-600" : "text-slate-900"}`}>
-              {c.key === "count"
-                ? report.count
-                : inr(
-                    c.key === "withdrawal"
-                      ? report.withdrawal
-                      : c.key === "fees"
-                        ? report.fees
-                        : c.key === "commission"
-                          ? report.commission
-                          : netTotal
-                  )}
+          <div key={c.key} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-500">{c.label}</p>
+              <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d={c.icon} />
+                </svg>
+              </div>
+            </div>
+            <p className={`mt-1.5 text-xl font-bold ${c.key === "net" ? "text-emerald-600" : "text-slate-900"}`}>
+              {cardValue(c.key)}
             </p>
             {c.sub && <p className="text-[11px] text-slate-400">{c.sub}</p>}
           </div>
@@ -419,122 +501,148 @@ export default function BusinessClient({
       </div>
 
       {cfg.groups.length > 0 && (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-slate-700">Report</p>
-            <select
-              value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
-            >
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-slate-900">Report</p>
+            <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs">
               {cfg.groups.map((g) => (
-                <option key={g.value} value={g.value}>
+                <button
+                  key={g.value}
+                  onClick={() => setGroupBy(g.value)}
+                  className={`rounded-lg px-3 py-1.5 font-medium transition ${
+                    groupBy === g.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
                   {g.label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           {groups.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border border-slate-100">
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
               <table className="min-w-full divide-y divide-slate-100 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       {groupBy === "bank" ? "Bank" : groupBy === "portal" ? "Portal" : "Method"}
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Count</th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Count</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                       {service === "aeps" ? "Withdrawn" : "Transferred"}
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Fees</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Fees</th>
                     {service === "aeps" && (
-                      <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Commission</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Commission</th>
                     )}
-                    <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Shop Income</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Shop Income</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {groups.map((g) => (
-                    <tr key={g.label} className="hover:bg-slate-50">
-                      <td className="px-4 py-2 font-medium text-slate-800">{g.label}</td>
-                      <td className="px-4 py-2 text-right text-slate-600">{g.count}</td>
-                      <td className="px-4 py-2 text-right text-slate-800">{inr(g.withdrawal)}</td>
-                      <td className="px-4 py-2 text-right text-slate-600">{inr(g.fees)}</td>
+                    <tr key={g.label} className="transition hover:bg-slate-50">
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{g.label}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">{g.count}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-800">{inr(g.withdrawal)}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">{inr(g.fees)}</td>
                       {service === "aeps" && (
-                        <td className="px-4 py-2 text-right text-slate-600">{inr(g.commission)}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-600">{inr(g.commission)}</td>
                       )}
-                      <td className="px-4 py-2 text-right font-semibold text-emerald-600">{inr(g.net)}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-emerald-600">{inr(g.net)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="text-sm text-slate-400">Choose a grouping to see the breakdown.</p>
+            <p className="mt-3 text-sm text-slate-400">Choose a grouping to see the breakdown.</p>
           )}
         </div>
       )}
 
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Transaction no, reference, Aadhaar last 4, customer..."
-          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        />
+      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative min-w-[200px] flex-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+            <path d={ICONS.search} />
+          </svg>
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Tr. no, reference, Aadhaar last 4, customer…"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
-            <option value="">All Statuses</option>
-            {["success", "pending", "failed", "reversed", "deleted"].map((s) => (
-              <option key={s} value={s}>
-                {s[0].toUpperCase() + s.slice(1)}
-              </option>
+          <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs">
+            {["", ...STATUSES].map((s) => (
+              <button
+                key={s || "all"}
+                onClick={() => setStatusFilter(s)}
+                className={`rounded-lg px-2.5 py-1.5 font-medium capitalize transition ${
+                  statusFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {s || "All"}
+              </button>
             ))}
-          </select>
+          </div>
           {cfg.bankFilter && (
-            <select value={bankFilter} onChange={(e) => setBankFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+            <select value={bankFilter} onChange={(e) => setBankFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
               <option value="">All Banks</option>
               {initialBanks.filter((b) => b.name).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           )}
           {cfg.portalFilter && (
-            <select value={portalFilter} onChange={(e) => setPortalFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+            <select value={portalFilter} onChange={(e) => setPortalFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
               <option value="">All Portals</option>
               {initialPortals.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           )}
           {cfg.methodFilter && (
-            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
               <option value="">All Methods</option>
               <option value="bank_account">Bank Account</option>
               <option value="upi">UPI</option>
             </select>
           )}
           {cfg.customerFilter && (
-            <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+            <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
               <option value="">All Customers</option>
               {initialCustomers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           )}
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs">
+          {(["today", "7d", "month", "all"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => applyPreset(p)}
+              className={`rounded-lg px-3 py-1.5 font-medium transition ${
+                preset === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {p === "today" ? "Today" : p === "7d" ? "Last 7 days" : p === "month" ? "This month" : "All time"}
+            </button>
+          ))}
+        </div>
+        <input type="date" value={dateFrom} onChange={(e) => { setPreset("all"); setDateFrom(e.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500" />
+        <span className="text-xs text-slate-400">to</span>
+        <input type="date" value={dateTo} onChange={(e) => { setPreset("all"); setDateTo(e.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500" />
+        <span className="ml-auto rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+          {filtered.length} {label} transaction{filtered.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -568,7 +676,7 @@ export default function BusinessClient({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map((t) => (
-              <tr key={t.id} className={`hover:bg-slate-50 ${t.status === "deleted" ? "opacity-60" : ""}`}>
+              <tr key={t.id} className={`transition hover:bg-slate-50 ${t.status === "deleted" ? "opacity-60" : ""}`}>
                 <td className="px-5 py-3">
                   <p className="font-mono text-xs font-medium text-blue-700">{t.transaction_number}</p>
                   <p className="text-xs text-slate-400">{t.reference || "-"}</p>
@@ -599,73 +707,67 @@ export default function BusinessClient({
                           <p className="font-mono text-xs text-slate-400">{t.beneficiary_account || ""}</p>
                         </>
                       )}
-                      <p className="text-xs text-slate-400">
-                        {t.transfer_method === "upi" ? "UPI" : "Bank Account"}
-                      </p>
+                      <p className="text-xs text-slate-400">{t.transfer_method === "upi" ? "UPI" : "Bank Account"}</p>
                     </td>
                   </>
                 )}
                 <td className="px-5 py-3 text-slate-700">{fmtDate(t.transaction_date)}</td>
                 {service === "aeps" && (
                   <>
-                    <td className="px-5 py-3 text-right text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.portal_commission)}</td>
                   </>
                 )}
                 {service === "dmt" && (
                   <>
-                    <td className="px-5 py-3 text-right text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
-                    <td className="px-5 py-3 text-right font-medium text-[13px]">
-                      {inr(Number(t.service_fee) - Number(t.portal_commission))}
-                    </td>
+                    <td className="px-5 py-3 text-right font-medium text-[13px]">{inr(Number(t.service_fee) - Number(t.portal_commission))}</td>
                   </>
                 )}
                 {service === "upi" && (
                   <>
-                    <td className="px-5 py-3 text-right text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.amount)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
                   </>
                 )}
                 <td className="px-5 py-3 text-center">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[t.status] || "bg-slate-100 text-slate-500"}`}>
-                    {t.status[0].toUpperCase() + t.status.slice(1)}
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_BADGE[t.status] || "bg-slate-100 text-slate-500"}`}>
+                    {t.status}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
+                <td className="px-5 py-3">
+                  <div className="flex items-center justify-end gap-1.5">
                     <a
                       href={`/business/receipt/${t.id}`}
                       target="_blank"
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      title="Print 80mm receipt"
+                      className={`${actionBtn} text-slate-600 hover:bg-slate-50`}
                     >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" /></svg>
                       Print
                     </a>
                     {t.status === "success" && (
                       <>
-                        <button
-                          onClick={() => setEditTxn(t)}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                        >
-                          Edit
+                        <button onClick={() => setEditTxn(t)} title="Edit" className={`${actionBtn} text-slate-600 hover:bg-slate-50`}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
                         </button>
                         <button
                           onClick={() => setReverseTxn(t)}
                           disabled={busyId === t.id}
-                          className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                          title="Reverse"
+                          className={`${actionBtn} text-rose-600 hover:bg-rose-50 disabled:opacity-50`}
                         >
-                          {busyId === t.id ? "..." : "Reverse"}
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
+                          {busyId === t.id ? "…" : "Reverse"}
                         </button>
                       </>
                     )}
                     {t.status !== "reversed" && t.status !== "deleted" && (
-                      <button
-                        onClick={() => setDeleteTxn(t)}
-                        className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                      >
-                        Delete
+                      <button onClick={() => setDeleteTxn(t)} title="Delete" className={`${actionBtn} text-rose-600 hover:bg-rose-50`}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z" /></svg>
                       </button>
                     )}
                   </div>
@@ -675,7 +777,7 @@ export default function BusinessClient({
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={12} className="px-5 py-12 text-center text-sm text-slate-400">
-                  No {label} transactions found.
+                  No {label} transactions found. Adjust filters or record a new one.
                 </td>
               </tr>
             )}

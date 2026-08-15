@@ -10,7 +10,15 @@ export default async function PortalsPage() {
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data } = await supabase.from("aeps_portals").select("*").order("name");
+  const [{ data }, { data: txnRows }] = await Promise.all([
+    supabase.from("aeps_portals").select("*").order("name"),
+    supabase.from("transactions").select("portal_id").eq("service_type", "aeps"),
+  ]);
+
+  const usage: Record<string, number> = {};
+  for (const t of (txnRows ?? []) as { portal_id: string | null }[]) {
+    if (t.portal_id) usage[t.portal_id] = (usage[t.portal_id] ?? 0) + 1;
+  }
 
   return (
     <MasterClient
@@ -23,6 +31,7 @@ export default async function PortalsPage() {
         { key: "remarks", label: "Remarks", placeholder: "Settlement daily by 6 PM" },
       ]}
       rows={(data ?? []) as any}
+      usage={usage}
     />
   );
 }

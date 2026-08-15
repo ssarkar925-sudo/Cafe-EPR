@@ -10,7 +10,15 @@ export default async function BanksPage() {
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data } = await supabase.from("aeps_banks").select("*").order("name");
+  const [{ data }, { data: txnRows }] = await Promise.all([
+    supabase.from("aeps_banks").select("*").order("name"),
+    supabase.from("transactions").select("bank_id").eq("service_type", "aeps"),
+  ]);
+
+  const usage: Record<string, number> = {};
+  for (const t of (txnRows ?? []) as { bank_id: string | null }[]) {
+    if (t.bank_id) usage[t.bank_id] = (usage[t.bank_id] ?? 0) + 1;
+  }
 
   return (
     <MasterClient
@@ -22,6 +30,7 @@ export default async function BanksPage() {
         { key: "code", label: "Code", placeholder: "SBI" },
       ]}
       rows={(data ?? []) as any}
+      usage={usage}
     />
   );
 }
