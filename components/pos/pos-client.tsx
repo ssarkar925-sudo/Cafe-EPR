@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 
 export type PosProduct = {
   id: string;
@@ -61,6 +62,12 @@ export default function PosClient({
 
   const [productState, setProductState] = useState<PosProduct[]>(products);
   const [tab, setTab] = useState<"products" | "services">("products");
+
+  useRealtime(["products", "invoices", "payments"]);
+
+  useEffect(() => {
+    setProductState(products);
+  }, [products]);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [cart, setCart] = useState<CartLine[]>([]);

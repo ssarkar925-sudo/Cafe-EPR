@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import DashboardLive from "@/components/dashboard-live";
 
 function inr(n: number) {
   return "₹" + n.toLocaleString("en-IN", {
@@ -77,7 +78,8 @@ export default async function DashboardPage() {
   ).data as RecentRow[] | null;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <DashboardLive>
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
       <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -152,6 +154,7 @@ export default async function DashboardPage() {
           )}
         </section>
       </div>
-    </div>
+      </div>
+    </DashboardLive>
   );
 }
