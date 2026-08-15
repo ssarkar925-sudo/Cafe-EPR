@@ -10,10 +10,19 @@ export default async function StaffPage() {
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: users } = await supabase
     .from("profiles")
     .select("id, email, full_name, role, is_active")
     .order("created_at", { ascending: true });
 
-  return <StaffClient initialUsers={(users ?? []) as any} />;
+  return (
+    <StaffClient
+      initialUsers={(users ?? []) as any}
+      currentUserId={user?.id ?? ""}
+    />
+  );
 }
