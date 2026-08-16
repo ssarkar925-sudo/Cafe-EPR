@@ -20,6 +20,7 @@ const ICONS: Record<string, string> = {
   upi: "M12 18h.01M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
   portals: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z",
   qrs: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
+  returns: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
   expenses: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5M18 12a2 2 0 0 0 0 4h4v-4z",
   cashbook: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
   ledger: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
@@ -92,16 +93,17 @@ export default function Sidebar({
   const isAdmin = role === "admin";
 
   const sections: NavSection[] = useMemo(() => {
+    const main: NavItem[] = [
+      { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
+      { label: "Point of Sale", href: "/pos", icon: "pos" },
+      { label: "Invoices", href: "/invoices", icon: "invoices" },
+      { label: "Customers", href: "/customers", icon: "customers" },
+    ];
+    if (!isStaff) {
+      main.splice(3, 0, { label: "Returns", href: "/returns", icon: "returns" });
+    }
     const base: NavSection[] = [
-      {
-        title: "Main",
-        items: [
-          { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
-          { label: "Point of Sale", href: "/pos", icon: "pos" },
-          { label: "Invoices", href: "/invoices", icon: "invoices" },
-          { label: "Customers", href: "/customers", icon: "customers" },
-        ],
-      },
+      { title: "Main", items: main },
       {
         title: "Catalog",
         items: [

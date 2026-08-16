@@ -9,10 +9,10 @@ export default async function InvoicesPage() {
   const { data: invoices } = await supabase
     .from("invoices")
     .select(
-      "id, invoice_number, invoice_date, total, paid, due, status, customers(name)"
+      "id, invoice_number, invoice_date, total, paid, due, returned, refunded, status, created_at, customers(name)"
     )
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(500);
 
   return <InvoicesClient initialInvoices={(invoices ?? []) as any} />;
 }

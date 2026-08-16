@@ -15,6 +15,8 @@ type Detail = {
   total: number | string;
   paid: number | string;
   due: number | string;
+  returned: number | string;
+  refunded: number | string;
   status: string;
   customers: { name: string } | null;
 };
@@ -27,6 +29,7 @@ type Item = {
   qty: number | string;
   rate: number | string;
   amount: number | string;
+  returned_qty: number | string;
   products: { name: string } | null;
   services: { name: string } | null;
 };
@@ -44,12 +47,13 @@ export default function InvoiceViewModal({
   invoiceId,
   onClose,
   onChanged,
+  onReturn,
 }: {
   invoiceId: string;
   onClose: () => void;
   onChanged: (row: InvoiceRow) => void;
-}) {
-  const supabase = createClient();
+  onReturn?: (invoiceId: string) => void;
+}) {  const supabase = createClient();
 
   const [detail, setDetail] = useState<Detail | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -116,30 +120,10 @@ export default function InvoiceViewModal({
   }
 
   async function returnInvoice() {
-    if (
-      !window.confirm(
-        "Return this invoice? Products will be restocked and any outstanding due removed from the customer."
-      )
-    ) {
-      return;
-    }
+    if (!onReturn) return;
     setError(null);
-    setBusy(true);
-    const { data, error } = await supabase.rpc("return_invoice", {
-      p_invoice_id: invoiceId,
-    });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    const r = data as { status: string };
-    if (detail) {
-      const updated = { ...detail, paid: 0, due: 0, status: r.status };
-      setDetail(updated);
-      onChanged(updated);
-    }
-    load();
+    onReturn(invoiceId);
+    onClose();
   }
 
   const dueNum = detail ? Number(detail.due) : 0;
@@ -203,7 +187,14 @@ export default function InvoiceViewModal({
                       <td className="py-2 pr-4 text-slate-900">
                         {it.products?.name ?? it.services?.name ?? it.description ?? "-"}
                       </td>
-                      <td className="py-2 pr-4 text-slate-700">{it.qty}</td>
+                      <td className="py-2 pr-4 text-slate-700">
+                        {it.qty}
+                        {Number(it.returned_qty) > 0 && (
+                          <span className="ml-1 text-xs text-rose-600">
+                            ({Number(it.returned_qty)} returned)
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 pr-4 text-slate-700">{inr(it.rate)}</td>
                       <td className="py-2 text-slate-900">{inr(it.amount)}</td>
                     </tr>
@@ -233,6 +224,18 @@ export default function InvoiceViewModal({
                 <span>Due</span>
                 <span>{inr(detail.due)}</span>
               </div>
+              {Number(detail.returned) > 0 && (
+                <div className="flex justify-between text-rose-600">
+                  <span>Returned</span>
+                  <span>- {inr(detail.returned)}</span>
+                </div>
+              )}
+              {Number(detail.refunded) > 0 && (
+                <div className="flex justify-between text-violet-600">
+                  <span>Refunded</span>
+                  <span>- {inr(detail.refunded)}</span>
+                </div>
+              )}
             </div>
 
             {payments.length > 0 && (
@@ -308,10 +311,9 @@ export default function InvoiceViewModal({
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={returnInvoice}
-                  disabled={busy}
-                  className="rounded-lg px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-lg border border-rose-200 px-3 py-2 text-sm text-rose-600 transition hover:bg-rose-50"
                 >
-                  Return / Cancel Invoice
+                  Return Items
                 </button>
               </div>
             )}

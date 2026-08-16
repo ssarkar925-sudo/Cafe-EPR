@@ -6,7 +6,8 @@ declare t text;
 begin
   foreach t in array array[
     'invoices', 'invoice_items', 'payments', 'products', 'services',
-    'customers', 'cash_entries', 'expenses', 'customer_ledger'
+    'customers', 'cash_entries', 'expenses', 'customer_ledger',
+    'returns', 'return_items'
   ]
   loop
     begin
