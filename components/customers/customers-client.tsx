@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
+import { logAudit } from "@/lib/audit";
 import CustomerFormModal from "./customer-form-modal";
 
 export type Customer = {
@@ -188,6 +189,13 @@ export default function CustomersClient({
       setCustomers((prev) => [data as Customer, ...prev]);
     }
     setModal(null);
+    logAudit({
+      action: customer ? "update" : "create",
+      entity: "customer",
+      entity_id: customer?.id ?? null,
+      description: customer ? `Customer updated: ${input.name}` : `Customer created: ${input.name}`,
+      details: { name: input.name },
+    });
   }
 
   async function removeCustomer(id: string, active: boolean) {

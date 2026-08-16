@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { logAudit } from "@/lib/audit";
 import ExpenseFormModal from "./expense-form-modal";
 
 export type Expense = {
@@ -68,6 +69,13 @@ export default function ExpensesClient({
     } as Expense;
     setExpenses((prev) => [row, ...prev]);
     setModal(false);
+    logAudit({
+      action: "create",
+      entity: "expense",
+      entity_id: row.id,
+      description: `Expense added: ${input.category} ${inr(input.amount)}`,
+      details: { category: input.category, amount: input.amount, note: input.note },
+    });
   }
 
   async function cancelExpense(id: string) {
@@ -83,6 +91,7 @@ export default function ExpensesClient({
     setExpenses((prev) =>
       prev.map((e) => (e.id === id ? { ...e, status: "cancelled" } : e))
     );
+    logAudit({ action: "cancel", entity: "expense", entity_id: id, description: "Expense cancelled" });
   }
 
   return (

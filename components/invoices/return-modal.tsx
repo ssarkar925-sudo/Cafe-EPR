@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { logAudit } from "@/lib/audit";
 import type { InvoiceRow } from "./invoices-client";
 type Item = {
   id: string;
@@ -142,6 +143,13 @@ export default function ReturnModal({
       });
     }
     onClose();
+    logAudit({
+      action: "create",
+      entity: "return",
+      entity_id: (data as { id?: string })?.id ?? null,
+      description: `${r.full ? "Full" : "Partial"} return ${r.return_number} (${inr(r.returned)})${r.refund > 0 ? `, refund ${inr(r.refund)}` : ""}`,
+      details: { return_number: r.return_number, returned: r.returned, refund: r.refund, full: r.full },
+    });
   }
 
   const remaining = items.reduce(

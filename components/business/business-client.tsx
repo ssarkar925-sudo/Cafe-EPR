@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { logAudit } from "@/lib/audit";
 import BusinessFormModal from "./business-form-modal";
 import ReasonModal from "./business-reason-modal";
 
@@ -363,6 +364,13 @@ export default function BusinessClient({
       ...prev,
     ]);
     setShowCreate(false);
+    logAudit({
+      action: "create",
+      entity: "transaction",
+      entity_id: d.id as string,
+      description: `${service.toUpperCase()} ${(d.direction as string) ?? ""} ${inr(Number(payload.p_amount))} created`,
+      details: { transaction_number: d.transaction_number as string, service_type: service, amount: payload.p_amount },
+    });
   }
 
   async function saveEdit(payload: Record<string, unknown>) {
@@ -400,6 +408,13 @@ export default function BusinessClient({
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
     setEditTxn(null);
+    logAudit({
+      action: "update",
+      entity: "transaction",
+      entity_id: editTxn.id,
+      description: `Transaction ${editTxn.transaction_number} updated`,
+      details: { transaction_number: editTxn.transaction_number },
+    });
   }
 
   async function reverse() {
@@ -417,6 +432,13 @@ export default function BusinessClient({
     setTxns((prev) => prev.map((t) => (t.id === reverseTxn.id ? { ...t, status: "reversed" } : t)));
     setReverseTxn(null);
     setReverseReason("");
+    logAudit({
+      action: "reverse",
+      entity: "transaction",
+      entity_id: reverseTxn.id,
+      description: `Transaction ${reverseTxn.transaction_number} reversed`,
+      details: { transaction_number: reverseTxn.transaction_number, reason: reverseReason },
+    });
   }
 
   async function deleteTxnAction() {
@@ -434,6 +456,13 @@ export default function BusinessClient({
     setTxns((prev) => prev.map((t) => (t.id === deleteTxn.id ? { ...t, status: "deleted" } : t)));
     setDeleteTxn(null);
     setDeleteReason("");
+    logAudit({
+      action: "delete",
+      entity: "transaction",
+      entity_id: deleteTxn.id,
+      description: `Transaction ${deleteTxn.transaction_number} deleted`,
+      details: { transaction_number: deleteTxn.transaction_number, reason: deleteReason },
+    });
   }
 
   const [reverseReason, setReverseReason] = useState("");

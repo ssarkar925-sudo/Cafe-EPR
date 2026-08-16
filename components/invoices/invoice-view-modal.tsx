@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { statusBadge, type InvoiceRow } from "./invoices-client";
+import { logAudit } from "@/lib/audit";
 
 type Detail = {
   id: string;
@@ -117,6 +118,13 @@ export default function InvoiceViewModal({
     }
     setPayAmount("");
     load();
+    logAudit({
+      action: "payment",
+      entity: "invoice",
+      entity_id: invoiceId,
+      description: `Payment of ${inr(amt)} received (${payMethod})`,
+      details: { invoice_number: detail?.invoice_number ?? null, method: payMethod, amount: amt },
+    });
   }
 
   async function returnInvoice() {

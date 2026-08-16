@@ -16,7 +16,7 @@ export default async function StaffPage() {
 
   const { data: users } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, is_active")
+    .select("id, email, full_name, role, is_active, avatar_url")
     .order("created_at", { ascending: true });
 
   return (

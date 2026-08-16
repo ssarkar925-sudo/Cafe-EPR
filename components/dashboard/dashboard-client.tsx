@@ -91,6 +91,7 @@ const KPI_CARDS = [
 
 export default function DashboardClient({
   name,
+  avatarUrl,
   customers,
   products,
   services,
@@ -104,6 +105,7 @@ export default function DashboardClient({
   today,
 }: {
   name: string;
+  avatarUrl: string | null;
   customers: number;
   products: number;
   services: number;
@@ -266,7 +268,11 @@ export default function DashboardClient({
           </h1>
           <p className="mt-1 text-sm text-slate-500">Here's what's happening at your shop today.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {avatarUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover shadow-sm ring-2 ring-slate-100" />
+          )}
           <Link
             href="/pos"
             className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"

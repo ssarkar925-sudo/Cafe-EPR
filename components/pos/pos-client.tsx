@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
+import { logAudit } from "@/lib/audit";
 
 export type PosProduct = {
   id: string;
@@ -325,6 +326,13 @@ export default function PosClient({
     setCustomerId("");
     setDiscount("");
     setPayments([{ method: "cash", amount: "" }]);
+    logAudit({
+      action: "create",
+      entity: "invoice",
+      entity_id: (data as SaleResult)?.id ?? null,
+      description: `Sale created (${inr(total)})${customerId ? " for a customer" : ""}`,
+      details: { invoice_number: (data as SaleResult)?.invoice_number ?? null, total: Number(total.toFixed(2)) },
+    });
   }
 
   const inputClass =

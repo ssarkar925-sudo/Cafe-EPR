@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { logAudit } from "@/lib/audit";
 
 export type StaffUser = {
   id: string;
@@ -9,6 +10,7 @@ export type StaffUser = {
   full_name: string;
   role: string;
   is_active: boolean;
+  avatar_url: string | null;
 };
 
 const ROLES = ["admin", "manager", "staff"] as const;
@@ -100,6 +102,7 @@ export default function StaffClient({
           full_name: (payload.name as string) || "",
           role: (payload.role as string) || "staff",
           is_active: true,
+          avatar_url: null,
         },
       ]);
     } else if (payload.action === "update") {
@@ -119,6 +122,16 @@ export default function StaffClient({
     }
     setModal(null);
     router.refresh();
+    logAudit({
+      action: payload.action === "create" ? "create" : "update",
+      entity: "staff",
+      entity_id: payload.id ? String(payload.id) : (payload.email as string),
+      description:
+        payload.action === "create"
+          ? `Staff created: ${(payload.name as string) || (payload.email as string)} (${(payload.role as string) ?? "staff"})`
+          : `Staff updated: ${(payload.full_name as string) || (payload.email as string)}`,
+      details: { role: payload.role ?? undefined, is_active: payload.is_active ?? undefined },
+    });
     return true;
   }
 
@@ -234,9 +247,14 @@ export default function StaffClient({
                 <tr key={u.id} className={`border-b border-slate-100 transition last:border-0 hover:bg-slate-50 ${!u.is_active ? "opacity-60" : ""}`}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient(u.full_name || u.email)} text-sm font-bold text-white`}>
-                        {(u.full_name || u.email || "?").slice(0, 1).toUpperCase()}
-                      </div>
+                      {u.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={u.avatar_url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-slate-100" />
+                      ) : (
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient(u.full_name || u.email)} text-sm font-bold text-white`}>
+                          {(u.full_name || u.email || "?").slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="font-medium text-slate-900">
                           {u.full_name || "-"}

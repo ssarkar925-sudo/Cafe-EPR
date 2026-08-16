@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   const [{ data: profile }, { count: customers }, { count: products }, { count: services }] =
     await Promise.all([
       user
-        ? supabase.from("profiles").select("full_name").eq("id", user.id).single()
+        ? supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single()
         : Promise.resolve({ data: null }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("products").select("id", { count: "exact", head: true }),
@@ -68,6 +68,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       name={profile?.full_name || user?.email?.split("@")[0] || "there"}
+      avatarUrl={profile?.avatar_url || null}
       customers={customers ?? 0}
       products={products ?? 0}
       services={services ?? 0}

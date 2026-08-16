@@ -14,7 +14,7 @@ export default async function DashboardLayout({
   if (!user) redirect("/login");
 
   const [{ data: profile }, { data: settings }] = await Promise.all([
-    supabase.from("profiles").select("full_name, role, is_active").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, role, is_active, avatar_url").eq("id", user.id).single(),
     supabase.from("settings").select("shop_name, logo_url").single(),
   ]);
 
@@ -48,6 +48,8 @@ export default async function DashboardLayout({
       role={role ?? "staff"}
       shopName={settings?.shop_name || "Cafe ERP"}
       logoUrl={settings?.logo_url || null}
+      avatarUrl={profile?.avatar_url || null}
+      userId={user.id}
     >
       {children}
     </DashboardShell>

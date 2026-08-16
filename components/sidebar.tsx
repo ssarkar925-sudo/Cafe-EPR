@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import AvatarModal from "./profile/avatar-modal";
 
 type NavItem = { label: string; href: string; icon: string };
 type NavSection = { title: string; items: NavItem[] };
@@ -27,6 +28,7 @@ const ICONS: Record<string, string> = {
   reports: "M18 20V10M12 20V4M6 20v-6",
   pnl: "M3 3v18h18M7 14l4-4 3 3 5-6",
   staff: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  audit: "M12 8v4m0 4h.01M12 3l9 5v8l-9 5-9-5V8l9-5ZM6.5 8.5 12 6l5.5 2.5M12 6v12",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   chevron: "m9 18 6-6-6-6",
@@ -69,26 +71,34 @@ export default function Sidebar({
   role,
   shopName,
   logoUrl,
+  avatarUrl,
+  userId,
   collapsed,
   onToggle,
   mobileOpen,
   onMobileClose,
+  onSearch,
 }: {
   name: string;
   email: string;
   role: string;
   shopName: string;
   logoUrl: string | null;
+  avatarUrl: string | null;
+  userId: string;
   collapsed: boolean;
   onToggle: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  onSearch: () => void;
 }) {
   const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [openSections, setOpenSections] = useState<Set<string>>(
     () => new Set(["Catalog"])
   );
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [currentAvatar, setCurrentAvatar] = useState<string | null>(avatarUrl);
 
   const isStaff = role === "staff";
   const isAdmin = role === "admin";
@@ -142,6 +152,7 @@ export default function Sidebar({
         title: "Administrative",
         items: [
           { label: "Staff", href: "/staff", icon: "staff" },
+          { label: "Audit Log", href: "/audit", icon: "audit" },
           { label: "Settings", href: "/settings", icon: "settings" },
         ],
       });
@@ -250,6 +261,21 @@ export default function Sidebar({
         </div>
       )}
 
+      {!collapsed && (
+        <div className="px-3 pt-2">
+          <button
+            onClick={onSearch}
+            className="flex w-full items-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-[#e2e8f0] transition hover:bg-blue-500/20"
+          >
+            <Icon d={ICONS.search} className="h-4 w-4 text-blue-400" />
+            <span className="flex-1 text-left text-[#94a3b8]">Search everything…</span>
+            <kbd className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-[#64748b]">
+              Ctrl K
+            </kbd>
+          </button>
+        </div>
+      )}
+
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {collapsed ? (
           <div className="flex flex-col items-center gap-1">
@@ -342,18 +368,38 @@ export default function Sidebar({
 
       <div className="shrink-0 border-t border-white/5 p-3">
         <div className="flex items-center gap-3">
-          <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
-              name || "User"
-            )} text-sm font-bold text-white shadow-lg`}
+          <button
+            onClick={() => setProfileOpen(true)}
+            title="Change profile photo"
+            className="group relative shrink-0"
           >
-            {(name || "U")
-              .split(" ")
-              .map((p) => p[0])
-              .slice(0, 2)
-              .join("")
-              .toUpperCase()}
-          </div>
+            {currentAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={currentAvatar}
+                alt=""
+                className="h-10 w-10 rounded-xl object-cover shadow-lg ring-2 ring-white/10 transition group-hover:ring-blue-400/50"
+              />
+            ) : (
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
+                  name || "User"
+                )} text-sm font-bold text-white shadow-lg transition group-hover:ring-2 group-hover:ring-blue-400/50`}
+              >
+                {(name || "U")
+                  .split(" ")
+                  .map((p) => p[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()}
+              </div>
+            )}
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-[#0f172a]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="h-2 w-2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </span>
+          </button>
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">{name}</p>
@@ -399,6 +445,16 @@ export default function Sidebar({
           </div>
         </div>
       )}
+
+      <AvatarModal
+        open={profileOpen}
+        name={name}
+        email={email}
+        avatarUrl={currentAvatar}
+        userId={userId}
+        onClose={() => setProfileOpen(false)}
+        onSaved={(url) => setCurrentAvatar(url)}
+      />
     </>
   );
 }

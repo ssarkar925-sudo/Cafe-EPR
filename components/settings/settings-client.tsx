@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTheme, setTheme, type Theme } from "@/components/theme-provider";
+import { logAudit } from "@/lib/audit";
 
 export type SettingsRow = {
   shop_name: string;
@@ -86,6 +87,7 @@ export default function SettingsClient({ initial }: { initial: SettingsRow | nul
       return;
     }
     flash("success", "Settings saved.");
+    logAudit({ action: "settings", entity: "settings", entity_id: "1", description: "Shop settings updated" });
   }
 
   function chooseTheme(t: Theme) {

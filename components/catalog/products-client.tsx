@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 import ProductFormModal from "./product-form-modal";
 import { inr } from "@/lib/format";
 
@@ -137,6 +138,13 @@ export default function ProductsClient({
       setProducts((prev) => [data as Product, ...prev]);
     }
     setModal(null);
+    logAudit({
+      action: product ? "update" : "create",
+      entity: "product",
+      entity_id: product?.id ?? null,
+      description: product ? `Product updated: ${input.name}` : `Product created: ${input.name}`,
+      details: { name: input.name },
+    });
   }
 
   async function removeProduct(id: string) {
