@@ -54,6 +54,8 @@ type SaleResult = {
   due: number;
   status: string;
   invoice_date: string;
+  previous_due?: number;
+  advance_used?: number;
 };
 
 const METHODS = ["cash", "upi", "card"] as const;
@@ -96,6 +98,7 @@ export default function PosClient({
 
   const [productState, setProductState] = useState<PosProduct[]>(products);
   const [tab, setTab] = useState<"products" | "services">("products");
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -110,6 +113,13 @@ export default function PosClient({
   const [payments, setPayments] = useState<{ method: string; amount: string }[]>([
     { method: "cash", amount: "" },
   ]);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customItem, setCustomItem] = useState({ name: "", price: "" });
+  const [collectDue, setCollectDue] = useState(false);
+  const [dueAmount, setDueAmount] = useState("");
+  const [dueMethod, setDueMethod] = useState("cash");
+  const [useAdvance, setUseAdvance] = useState(false);
+  const [advanceAmount, setAdvanceAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SaleResult | null>(null);
@@ -155,16 +165,31 @@ export default function PosClient({
   const itemCount = useMemo(() => cart.reduce((s, l) => s + l.qty, 0), [cart]);
 
   const paid = useMemo(() => payments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [payments]);
-  const due = Math.max(0, total - paid);
+
+  const selectedCustomer = custList.find((c) => c.id === customerId);
+  const custBalance = selectedCustomer ? Number(selectedCustomer.balance) : 0;
+  const hasDue = custBalance > 0;
+  const hasAdvance = custBalance < 0;
+  const dueCollection = collectDue && hasDue ? Math.min(Math.max(Number(dueAmount) || 0, 0), custBalance) : 0;
+  const advanceUsed = useAdvance && hasAdvance ? Math.min(Math.max(Number(advanceAmount) || 0, 0), Math.abs(custBalance), total) : 0;
+  const invoiceDue = Math.max(0, total - paid - advanceUsed);
+
+  useEffect(() => {
+    setCollectDue(false);
+    setUseAdvance(false);
+    setDueAmount("");
+    setAdvanceAmount("");
+  }, [customerId]);
 
   useEffect(() => {
     setPayments((prev) => {
       if (prev.length === 1 && (prev[0].amount === "" || Number(prev[0].amount) === 0)) {
-        return [{ method: prev[0].method, amount: total > 0 ? String(total) : "" }];
+        const rem = Math.max(0, total - advanceUsed);
+        return [{ method: prev[0].method, amount: rem > 0 ? String(rem) : "" }];
       }
       return prev;
     });
-  }, [total]);
+  }, [total, advanceUsed]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -176,8 +201,6 @@ export default function PosClient({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  const selectedCustomer = custList.find((c) => c.id === customerId);
 
   const filteredCustomers = useMemo(() => {
     const needle = custQuery.trim().toLowerCase();
@@ -306,6 +329,34 @@ export default function PosClient({
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
 
+  function addCustomItem() {
+    const name = customItem.name.trim();
+    const price = Number(customItem.price) || 0;
+    if (!name) {
+      setError("Enter a name for the custom item");
+      return;
+    }
+    if (price <= 0) {
+      setError("Enter a valid price for the custom item");
+      return;
+    }
+    setError(null);
+    setCart((prev) => [
+      ...prev,
+      {
+        key: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        product_id: null,
+        service_id: null,
+        name,
+        qty: 1,
+        rate: price,
+        amount: price,
+      },
+    ]);
+    setCustomItem({ name: "", price: "" });
+    setCustomOpen(false);
+  }
+
   function setPaymentMethod(i: number, method: string) {
     setPayments((prev) => prev.map((x, j) => (j === i ? { ...x, method } : x)));
   }
@@ -316,7 +367,7 @@ export default function PosClient({
 
   function addPaymentRow() {
     setPayments((prev) => {
-      const remaining = Math.max(0, total - prev.reduce((s, p) => s + (Number(p.amount) || 0), 0));
+      const remaining = Math.max(0, total - advanceUsed - prev.reduce((s, p) => s + (Number(p.amount) || 0), 0));
       return [...prev, { method: "upi", amount: remaining > 0 ? String(remaining.toFixed(2)) : "" }];
     });
   }
@@ -324,7 +375,8 @@ export default function PosClient({
   function fillExact() {
     setPayments((prev) => {
       const next = [...prev];
-      next[0] = { method: next[0].method, amount: String(total.toFixed(2)) };
+      const rem = Math.max(0, total - advanceUsed);
+      next[0] = { method: next[0].method, amount: rem > 0 ? String(rem.toFixed(2)) : "0" };
       return [next[0]];
     });
   }
@@ -335,11 +387,11 @@ export default function PosClient({
       setError("Cart is empty");
       return;
     }
-    if (paid <= 0) {
+    if (total > 0 && paid + advanceUsed <= 0) {
       setError("Enter a payment amount");
       return;
     }
-    if (paid > total) {
+    if (paid + advanceUsed > total) {
       setError("Paid amount exceeds total");
       return;
     }
@@ -366,6 +418,9 @@ export default function PosClient({
       p_total: Number(total.toFixed(2)),
       p_payments: pmts,
       p_items: items,
+      p_previous_due: Number(dueCollection.toFixed(2)),
+      p_previous_due_method: dueMethod,
+      p_advance_used: Number(advanceUsed.toFixed(2)),
     });
 
     setBusy(false);
@@ -392,6 +447,11 @@ export default function PosClient({
     setCustomerId("");
     setDiscount("");
     setPayments([{ method: "cash", amount: "" }]);
+    setCollectDue(false);
+    setUseAdvance(false);
+    setDueAmount("");
+    setAdvanceAmount("");
+    setDueMethod("cash");
     logAudit({
       action: "create",
       entity: "invoice",
@@ -455,6 +515,33 @@ export default function PosClient({
                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
+            <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
+              <button
+                onClick={() => setView("grid")}
+                title="Grid view"
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                  view === "grid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setView("list")}
+                title="List view"
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                  view === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
+                  <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -483,52 +570,122 @@ export default function PosClient({
             ))}
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((x: any) => {
-              const isProduct = tab === "products";
-              const stock = isProduct ? Number(x.stock_qty) : Infinity;
-              const reorder = isProduct ? Number(x.reorder_level) : 0;
-              const out = stock <= 0;
-              const low = !out && stock <= reorder;
-              const price = Number(isProduct ? x.sale_price : x.sale_price);
-              return (
-                <button
-                  key={x.id}
-                  onClick={() => addLine(x.id, x.name, price, isProduct)}
-                  disabled={out}
-                  className={`group relative flex flex-col rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-400 ${
-                    out ? "cursor-not-allowed opacity-60" : ""
-                  }`}
-                >
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(x.name)} text-sm font-bold text-white shadow-sm`}>
-                    {x.name.slice(0, 1).toUpperCase()}
-                  </div>
-                  <p className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-slate-900">{x.name}</p>
-                  <div className="mt-1.5 flex items-end justify-between gap-1">
-                    <p className="text-sm font-bold text-blue-600">{inr(price)}</p>
-                    {isProduct && (
-                      <span
-                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                          out
-                            ? "bg-rose-100 text-rose-700"
-                            : low
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        {out ? "OUT" : `${x.stock_qty} ${x.unit || "pc"}`}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-            {filtered.length === 0 && (
-              <p className="col-span-full py-14 text-center text-sm text-slate-500">
-                Nothing matches your search. Try a different name or category.
-              </p>
-            )}
-          </div>
+          {view === "grid" ? (
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              {filtered.map((x: any) => {
+                const isProduct = tab === "products";
+                const stock = isProduct ? Number(x.stock_qty) : Infinity;
+                const reorder = isProduct ? Number(x.reorder_level) : 0;
+                const out = stock <= 0;
+                const low = !out && stock <= reorder;
+                const price = Number(isProduct ? x.sale_price : x.sale_price);
+                return (
+                  <button
+                    key={x.id}
+                    onClick={() => addLine(x.id, x.name, price, isProduct)}
+                    disabled={out}
+                    className={`group relative flex flex-col rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-400 ${
+                      out ? "cursor-not-allowed opacity-60" : ""
+                    }`}
+                  >
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(x.name)} text-sm font-bold text-white shadow-sm`}>
+                      {x.name.slice(0, 1).toUpperCase()}
+                    </div>
+                    <p className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-slate-900">{x.name}</p>
+                    <div className="mt-1.5 flex items-end justify-between gap-1">
+                      <p className="text-sm font-bold text-blue-600">{inr(price)}</p>
+                      {isProduct && (
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                            out
+                              ? "bg-rose-100 text-rose-700"
+                              : low
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {out ? "OUT" : `${x.stock_qty} ${x.unit || "pc"}`}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {filtered.length === 0 && (
+                <p className="col-span-full py-14 text-center text-sm text-slate-500">
+                  Nothing matches your search. Try a different name or category.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500">
+                    <th className="py-2.5 pl-4 pr-4 font-medium">Name</th>
+                    {tab === "products" && <th className="py-2.5 pr-4 font-medium">Code</th>}
+                    <th className="py-2.5 pr-4 font-medium">Category</th>
+                    <th className="py-2.5 pr-4 font-medium">Price</th>
+                    {tab === "products" && <th className="py-2.5 pr-4 font-medium">Stock</th>}
+                    <th className="py-2.5 pr-4 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((x: any) => {
+                    const isProduct = tab === "products";
+                    const stock = isProduct ? Number(x.stock_qty) : Infinity;
+                    const reorder = isProduct ? Number(x.reorder_level) : 0;
+                    const out = isProduct && stock <= 0;
+                    const price = Number(x.sale_price);
+                    return (
+                      <tr key={x.id} className="border-b border-slate-100 last:border-0">
+                        <td className="py-2.5 pl-4 pr-4">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(x.name)} text-xs font-bold text-white`}>
+                              {x.name.slice(0, 1).toUpperCase()}
+                            </span>
+                            <span className="font-medium text-slate-900">{x.name}</span>
+                          </div>
+                        </td>
+                        {isProduct && <td className="py-2.5 pr-4 font-mono text-xs text-slate-500">{x.code ?? "-"}</td>}
+                        <td className="py-2.5 pr-4 text-slate-600">{x.categories?.name ?? "-"}</td>
+                        <td className="py-2.5 pr-4 font-medium text-blue-600">{inr(price)}</td>
+                        {isProduct && (
+                          <td className="py-2.5 pr-4">
+                            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                              out
+                                ? "bg-rose-100 text-rose-700"
+                                : stock <= reorder
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-emerald-100 text-emerald-700"
+                            }`}>
+                              {out ? "OUT" : `${x.stock_qty} ${x.unit || "pc"}`}
+                            </span>
+                          </td>
+                        )}
+                        <td className="py-2.5 pr-4 text-right">
+                          <button
+                            onClick={() => addLine(x.id, x.name, price, isProduct)}
+                            disabled={out}
+                            className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-sm text-slate-500">
+                        Nothing matches your search. Try a different name or category.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="min-w-0">
@@ -611,6 +768,42 @@ export default function PosClient({
                   ))}
                 </div>
               )}
+
+              <div className="mt-3">
+                <button
+                  onClick={() => setCustomOpen((o) => !o)}
+                  className="rounded-lg border border-dashed border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-blue-400 hover:text-blue-600"
+                >
+                  + Custom item
+                </button>
+                {customOpen && (
+                  <div className="mt-2 rounded-lg bg-slate-50 p-2.5 ring-1 ring-slate-100">
+                    <input
+                      value={customItem.name}
+                      onChange={(e) => setCustomItem((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="Name (e.g. Commission, Service charge, Cost…)"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-500"
+                    />
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={customItem.price}
+                        onChange={(e) => setCustomItem((p) => ({ ...p, price: e.target.value }))}
+                        placeholder="Price"
+                        className="w-32 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={addCustomItem}
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
+                      >
+                        Add to cart
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="mt-4">
                 <label className="mb-1 block text-xs font-semibold text-slate-500">Customer</label>
@@ -722,10 +915,98 @@ export default function PosClient({
                     </>
                   )}
                 </div>
-                {selectedCustomer && Number(selectedCustomer.balance) > 0 && (
-                  <p className="mt-1 text-xs text-rose-600">
-                    This customer owes {inr(Number(selectedCustomer.balance))} on previous invoices.
-                  </p>
+                {selectedCustomer && custBalance !== 0 && (
+                  <div className="mt-1.5 rounded-lg bg-slate-50 p-2.5 ring-1 ring-slate-100">
+                    {hasDue ? (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-slate-600">
+                            Owing{" "}
+                            <span className="font-semibold text-rose-600">{inr(custBalance)}</span> from previous bills
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const on = !collectDue;
+                              setCollectDue(on);
+                              if (on) setDueAmount(String(custBalance));
+                            }}
+                            className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium transition ${
+                              collectDue
+                                ? "bg-[#0f172a] text-white"
+                                : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            {collectDue ? "Collecting" : "Collect due"}
+                          </button>
+                        </div>
+                        {collectDue && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={dueAmount}
+                              onChange={(e) => setDueAmount(e.target.value)}
+                              className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm outline-none focus:border-blue-500"
+                            />
+                            <div className="flex rounded-lg bg-slate-100 p-0.5">
+                              {METHODS.map((m) => (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => setDueMethod(m)}
+                                  className={`rounded-md px-2 py-0.5 text-xs font-medium capitalize transition ${
+                                    dueMethod === m ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                                  }`}
+                                >
+                                  {m}
+                                </button>
+                              ))}
+                            </div>
+                            <span className="text-[11px] text-slate-400">reduces their balance</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-slate-600">
+                            Has advance{" "}
+                            <span className="font-semibold text-emerald-600">{inr(Math.abs(custBalance))}</span> to adjust
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const on = !useAdvance;
+                              setUseAdvance(on);
+                              if (on) setAdvanceAmount(String(Math.min(total, Math.abs(custBalance))));
+                            }}
+                            className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium transition ${
+                              useAdvance
+                                ? "bg-[#0f172a] text-white"
+                                : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            {useAdvance ? "Applied" : "Use advance"}
+                          </button>
+                        </div>
+                        {useAdvance && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={advanceAmount}
+                              onChange={(e) => setAdvanceAmount(e.target.value)}
+                              className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm outline-none focus:border-blue-500"
+                            />
+                            <span className="text-[11px] text-slate-400">max {inr(Math.abs(custBalance))} · covers part of this bill</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -813,13 +1094,29 @@ export default function PosClient({
                   <span className="font-semibold text-slate-900">Total</span>
                   <span className="text-xl font-bold text-slate-900">{inr(total)}</span>
                 </div>
+                {advanceUsed > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Advance applied</span>
+                    <span>− {inr(advanceUsed)}</span>
+                  </div>
+                )}
+                {dueCollection > 0 && (
+                  <div className="flex justify-between text-rose-600">
+                    <span>Previous due collected</span>
+                    <span>+ {inr(dueCollection)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-500">
                   <span>Paid</span>
                   <span>{inr(paid)}</span>
                 </div>
-                <div className={`flex justify-between ${due > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                  <span className="font-medium">Due</span>
-                  <span className="font-semibold">{inr(due)}</span>
+                <div className={`flex justify-between ${invoiceDue > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                  <span className="font-medium">Due on this bill</span>
+                  <span className="font-semibold">{inr(invoiceDue)}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-100 pt-1.5 text-slate-700">
+                  <span className="font-medium">Till total</span>
+                  <span className="font-bold text-slate-900">{inr(paid + dueCollection)}</span>
                 </div>
               </div>
 
@@ -911,6 +1208,18 @@ export default function PosClient({
                 <span>Paid</span>
                 <span className="font-medium text-slate-900">{inr(success.paid)}</span>
               </div>
+              {Number(success.advance_used) > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Advance used</span>
+                  <span className="font-medium text-emerald-600">− {inr(Number(success.advance_used))}</span>
+                </div>
+              )}
+              {Number(success.previous_due) > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Previous due collected</span>
+                  <span className="font-medium text-slate-900">+ {inr(Number(success.previous_due))}</span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Due</span>
                 <span className={`font-semibold ${success.due > 0 ? "text-amber-600" : "text-emerald-600"}`}>{inr(success.due)}</span>

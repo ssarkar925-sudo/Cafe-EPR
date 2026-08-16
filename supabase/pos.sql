@@ -19,7 +19,9 @@ create index if not exists idx_payments_invoice on public.payments (invoice_id);
 alter table public.payments enable row level security;
 create or replace policy "payments all" on public.payments for all to authenticated using (true) with check (true);
 
--- Atomic sale: invoice + items + stock deduction + payments + customer balance in ONE transaction
+-- Atomic sale: invoice + items + stock deduction + payments + customer balance in ONE transaction.
+-- Supports collecting a customer's previous due (non-revenue cash-in) and applying a customer's
+-- advance (prepaid credit) against the bill.
 create or replace function public.create_sale(
   p_customer_id uuid,
   p_invoice_date date,
@@ -27,7 +29,10 @@ create or replace function public.create_sale(
   p_discount numeric,
   p_total numeric,
   p_payments jsonb,
-  p_items jsonb
+  p_items jsonb,
+  p_previous_due numeric default 0,
+  p_previous_due_method text default 'cash',
+  p_advance_used numeric default 0
 )
 returns jsonb
 language plpgsql
@@ -45,9 +50,19 @@ declare
   v_amount numeric;
   v_stock numeric;
   v_payment jsonb;
+  v_cust_balance numeric;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
+  end if;
+  if p_previous_due < 0 or p_advance_used < 0 then
+    raise exception 'Invalid due/advance amounts';
+  end if;
+  if p_previous_due_method not in ('cash', 'upi', 'card') then
+    raise exception 'Invalid due collection method';
+  end if;
+  if (p_previous_due > 0 or p_advance_used > 0) and p_customer_id is null then
+    raise exception 'Customer is required for due/advance adjustments';
   end if;
 
   v_invoice_number := 'INV-' || lpad(nextval('public.invoice_number_seq')::text, 4, '0');
@@ -83,24 +98,57 @@ begin
     v_paid := v_paid + coalesce((v_payment->>'amount')::numeric, 0);
     insert into public.payments (invoice_id, method, amount)
     values (v_invoice_id, v_payment->>'method', coalesce((v_payment->>'amount')::numeric, 0));
+
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (p_invoice_date, v_payment->>'method', 'in', coalesce((v_payment->>'amount')::numeric, 0), 'Sale ' || v_invoice_number, 'invoice', v_invoice_id);
   end loop;
 
-  if v_paid > p_total then
+  if v_paid + p_advance_used > p_total then
     raise exception 'Paid amount exceeds total';
   end if;
 
-  v_due := p_total - v_paid;
+  v_due := p_total - v_paid - p_advance_used;
 
   update public.invoices
-  set paid = v_paid,
+  set paid = v_paid + p_advance_used,
       due = v_due,
       status = case when v_due = 0 then 'paid' else 'partial' end
   where id = v_invoice_id;
 
-  if p_customer_id is not null and v_due > 0 then
-    update public.customers
-    set balance = balance + v_due, updated_at = now()
-    where id = p_customer_id;
+  if p_customer_id is not null then
+    select balance into v_cust_balance from public.customers where id = p_customer_id for update;
+    if v_cust_balance is null then
+      raise exception 'Customer not found';
+    end if;
+
+    if p_previous_due > 0 then
+      if v_cust_balance < p_previous_due then
+        raise exception 'Customer due is only %, cannot collect %', v_cust_balance, p_previous_due;
+      end if;
+      v_cust_balance := v_cust_balance - p_previous_due;
+      update public.customers set balance = v_cust_balance, updated_at = now() where id = p_customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, credit, balance_after, ref_id)
+      values (p_customer_id, p_invoice_date, 'payment', 'Previous due collected with ' || v_invoice_number, p_previous_due, v_cust_balance, v_invoice_id);
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_invoice_date, p_previous_due_method, 'in', p_previous_due, 'Previous due ' || v_invoice_number, 'invoice', v_invoice_id);
+    end if;
+
+    if p_advance_used > 0 then
+      if v_cust_balance > -p_advance_used then
+        raise exception 'Customer advance is only %, cannot apply %', abs(v_cust_balance), p_advance_used;
+      end if;
+      v_cust_balance := v_cust_balance + p_advance_used;
+      update public.customers set balance = v_cust_balance, updated_at = now() where id = p_customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, balance_after, ref_id)
+      values (p_customer_id, p_invoice_date, 'advance', 'Advance applied to ' || v_invoice_number, p_advance_used, v_cust_balance, v_invoice_id);
+    end if;
+
+    if v_due > 0 then
+      v_cust_balance := v_cust_balance + v_due;
+      update public.customers set balance = v_cust_balance, updated_at = now() where id = p_customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, balance_after, ref_id)
+      values (p_customer_id, p_invoice_date, 'invoice', 'Invoice ' || v_invoice_number, v_due, v_cust_balance, v_invoice_id);
+    end if;
   end if;
 
   return (
@@ -112,7 +160,9 @@ begin
       'paid', paid,
       'due', due,
       'status', status,
-      'invoice_date', invoice_date
+      'invoice_date', invoice_date,
+      'previous_due', p_previous_due,
+      'advance_used', p_advance_used
     )
     from public.invoices
     where id = v_invoice_id
