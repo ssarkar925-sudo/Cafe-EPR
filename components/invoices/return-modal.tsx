@@ -53,7 +53,7 @@ export default function ReturnModal({
           .from("invoice_items")
           .select("*, products(name), services(name)")
           .eq("invoice_id", invoiceId)
-          .order("created_at", { ascending: true }),
+          .order("id", { ascending: true }),
       ]);
       const data = (its.data ?? []) as Item[];
       setItems(data);
