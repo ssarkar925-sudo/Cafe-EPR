@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 
@@ -42,7 +42,7 @@ export default function ReturnDetailModal({
   returnId: string;
   onClose: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [detail, setDetail] = useState<ReturnDetail | null>(null);
   const [items, setItems] = useState<ReturnItem[]>([]);
 
@@ -65,7 +65,7 @@ export default function ReturnDetailModal({
       setItems((its.data ?? []) as ReturnItem[]);
     }
     load();
-  }, [returnId, supabase]);
+  }, [returnId]);
 
   const hasRefund = Number(detail?.refund) > 0;
 

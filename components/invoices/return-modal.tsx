@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import type { InvoiceRow } from "./invoices-client";
-
 type Item = {
   id: string;
   description: string | null;
@@ -29,7 +28,7 @@ export default function ReturnModal({
   onClose: () => void;
   onReturned: (row: InvoiceRow) => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [invoice, setInvoice] = useState<InvoiceRow | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -67,7 +66,7 @@ export default function ReturnModal({
       setQtyMap(map);
     }
     load();
-  }, [invoiceId, supabase]);
+  }, [invoiceId]);
 
   const returnValue = useMemo(() => {
     let v = 0;
