@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRealtime } from "@/lib/supabase/realtime";
+import SearchableSelect from "@/components/ui/searchable-select";
 
 export type AuditLog = {
   id: string;
@@ -122,22 +123,26 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={action} onChange={(e) => setAction(e.target.value)} className={inputClass}>
-            <option value="all">All actions</option>
-            {actions.map((a) => (
-              <option key={a} value={a} className="capitalize">
-                {a}
-              </option>
-            ))}
-          </select>
-          <select value={entity} onChange={(e) => setEntity(e.target.value)} className={inputClass}>
-            <option value="all">All entities</option>
-            {entities.map((e) => (
-              <option key={e} value={e} className="capitalize">
-                {e}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            value={action}
+            onChange={setAction}
+            options={[
+              { value: "all", label: "All actions" },
+              ...actions.map((a) => ({ value: a, label: a.charAt(0).toUpperCase() + a.slice(1) })),
+            ]}
+            searchPlaceholder="Search action…"
+            className="w-full sm:w-44"
+          />
+          <SearchableSelect
+            value={entity}
+            onChange={setEntity}
+            options={[
+              { value: "all", label: "All entities" },
+              ...entities.map((e) => ({ value: e, label: e.charAt(0).toUpperCase() + e.slice(1) })),
+            ]}
+            searchPlaceholder="Search entity…"
+            className="w-full sm:w-44"
+          />
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
         </div>
       </div>

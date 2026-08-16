@@ -926,10 +926,14 @@ begin
     from public.invoices
     where status <> 'cancelled' and invoice_date between p_from and p_to;
 
-  -- Returns / refunds in range
-  select coalesce(sum(refund), 0) into v_returns
-    from public.returns
-    where status = 'completed' and return_date between p_from and p_to;
+-- Returns / refunds in range. Fully-returned invoices (status = 'cancelled') are already
+  -- excluded from revenue, so only returns on still-active invoices reduce revenue here,
+  -- otherwise a full return would be double counted. Uses the returned subtotal (goods value).
+  select coalesce(sum(r.subtotal), 0) into v_returns
+    from public.returns r
+    join public.invoices i on i.id = r.invoice_id
+    where r.status = 'completed' and i.status <> 'cancelled'
+      and r.return_date between p_from and p_to;
 
   -- COGS: sold qty (minus returned) x current cost price (products/services)
   select coalesce(sum((ii.qty - coalesce(ii.returned_qty, 0)) * coalesce(p.cost_price, s.cost_price, 0)), 0)
@@ -974,10 +978,16 @@ begin
       left join public.products p on p.id = it.product_id
       left join public.services s on s.id = it.service_id
       where i.status <> 'cancelled' and i.invoice_date between p_from and p_to
-      union all
+union all
       select expense_date, 0, 0, amount, 0
       from public.expenses
       where status = 'active' and expense_date between p_from and p_to
+      union all
+      select r.return_date, -r.subtotal, 0, 0, 0
+      from public.returns r
+      join public.invoices i on i.id = r.invoice_id
+      where r.status = 'completed' and i.status <> 'cancelled'
+        and r.return_date between p_from and p_to
       union all
       select transaction_date, 0, 0, 0, commission + service_fee
       from public.transactions
@@ -1098,8 +1108,8 @@ create table if not exists public.settlements (
   amount numeric(15,2) not null default 0 check (amount >= 0),
   reference text,
   remarks text,
-  status text not null default 'success' check (status in ('success', 'reversed')),
-  created_by uuid references auth.users(id) on delete set null,
+status text not null default 'success' check (status in ('success', 'reversed')),
+  created_by uuid references public.profiles (id) on delete set null,
   reversed_at timestamptz,
   reversed_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
@@ -1302,4 +1312,136 @@ begin
     end if;
   end loop;
 end $$;
+
+
+-- ================= CUSTOMER PHOTOS =================
+
+-- Run this in Supabase SQL Editor (idempotent).
+-- Customer profile photos: column + public storage bucket + policies.
+
+alter table public.customers add column if not exists avatar_url text;
+
+insert into storage.buckets (id, name, public) values ('customer-photos', 'customer-photos', true)
+on conflict (id) do nothing;
+
+create policy "customer-photos read" on storage.objects for select using (bucket_id = 'customer-photos');
+create policy "customer-photos insert" on storage.objects for insert to authenticated with check (bucket_id = 'customer-photos');
+create policy "customer-photos update" on storage.objects for update to authenticated using (bucket_id = 'customer-photos');
+create policy "customer-photos delete" on storage.objects for delete to authenticated using (bucket_id = 'customer-photos');
+
+-- ================= CUSTOMER ADVANCE =================
+
+-- Allow 'advance' entries in the customer ledger
+alter table public.customer_ledger drop constraint if exists customer_ledger_type_check;
+alter table public.customer_ledger
+  add constraint customer_ledger_type_check
+  check (type in ('invoice', 'payment', 'return', 'opening', 'advance'));
+
+-- Record an advance received from a customer (cash in; reduces their balance -> advance).
+-- Atomically updates customers.balance + customer_ledger + cash_entries.
+create or replace function public.record_advance(
+  p_customer_id uuid,
+  p_amount numeric,
+  p_entry_date date,
+  p_note text default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_balance numeric;
+  v_name text;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+  if p_customer_id is null then
+    raise exception 'Customer is required';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'Amount must be greater than zero';
+  end if;
+
+  select balance, name into v_balance, v_name
+    from public.customers
+   where id = p_customer_id
+   for update;
+
+  if v_name is null then
+    raise exception 'Customer not found';
+  end if;
+
+  update public.customers
+     set balance = balance - p_amount,
+         updated_at = now()
+   where id = p_customer_id;
+
+  v_balance := v_balance - p_amount;
+
+  insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after)
+  values (p_customer_id, p_entry_date, 'advance', coalesce(p_note, 'Advance received'), 0, p_amount, v_balance);
+
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+  values (p_entry_date, 'cash', 'in', p_amount, 'Advance received from ' || v_name, 'customer_advance', p_customer_id);
+
+  return jsonb_build_object('ok', true, 'balance', v_balance);
+end;
+$$;
+
+-- Return an advance to a customer (cash out; increases their balance).
+-- Atomically updates customers.balance + customer_ledger + cash_entries.
+create or replace function public.return_advance(
+  p_customer_id uuid,
+  p_amount numeric,
+  p_entry_date date,
+  p_note text default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_balance numeric;
+  v_name text;
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+  if p_customer_id is null then
+    raise exception 'Customer is required';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'Amount must be greater than zero';
+  end if;
+
+  select balance, name into v_balance, v_name
+    from public.customers
+   where id = p_customer_id
+   for update;
+
+  if v_name is null then
+    raise exception 'Customer not found';
+  end if;
+
+  if v_balance + p_amount > 0 then
+    raise exception 'Cannot return more than the available advance of %', abs(v_balance);
+  end if;
+
+  update public.customers
+     set balance = balance + p_amount,
+         updated_at = now()
+   where id = p_customer_id;
+
+  v_balance := v_balance + p_amount;
+
+  insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after)
+  values (p_customer_id, p_entry_date, 'advance', coalesce(p_note, 'Advance returned'), p_amount, 0, v_balance);
+
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+  values (p_entry_date, 'cash', 'out', p_amount, 'Advance returned to ' || v_name, 'customer_advance', p_customer_id);
+
+  return jsonb_build_object('ok', true, 'balance', v_balance);
+end;
+$$;
 

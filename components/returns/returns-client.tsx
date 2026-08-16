@@ -150,13 +150,6 @@ export default function ReturnsClient({
               </button>
             ))}
           </div>
-          <select
-            value="all"
-            onChange={() => {}}
-            className={`${selectClass} hidden`}
-          >
-            <option value="all">All</option>
-          </select>
           <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
             {filtered.length} returns
           </span>

@@ -78,7 +78,6 @@ export default function Sidebar({
   onToggle,
   mobileOpen,
   onMobileClose,
-  onSearch,
 }: {
   name: string;
   email: string;
@@ -91,7 +90,6 @@ export default function Sidebar({
   onToggle: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
-  onSearch: () => void;
 }) {
   const pathname = usePathname();
   const [query, setQuery] = useState("");
@@ -260,21 +258,6 @@ export default function Sidebar({
               </button>
             )}
           </div>
-        </div>
-      )}
-
-      {!collapsed && (
-        <div className="px-3 pt-2">
-          <button
-            onClick={onSearch}
-            className="flex w-full items-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-[#e2e8f0] transition hover:bg-blue-500/20"
-          >
-            <Icon d={ICONS.search} className="h-4 w-4 text-blue-400" />
-            <span className="flex-1 text-left text-[#94a3b8]">Search everything…</span>
-            <kbd className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-[#64748b]">
-              Ctrl K
-            </kbd>
-          </button>
         </div>
       )}
 

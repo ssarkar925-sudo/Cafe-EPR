@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { inr } from "@/lib/format";
+import SearchableSelect from "@/components/ui/searchable-select";
 
 export type CashEntry = {
   id: string;
@@ -78,16 +79,18 @@ export default function CashbookClient({
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <select
+        <SearchableSelect
           value={method}
-          onChange={(e) => setMethod(e.target.value)}
-          className={inputClass}
-        >
-          <option value="all">All methods</option>
-          <option value="cash">Cash</option>
-          <option value="upi">UPI</option>
-          <option value="card">Card</option>
-        </select>
+          onChange={setMethod}
+          options={[
+            { value: "all", label: "All methods" },
+            { value: "cash", label: "Cash" },
+            { value: "upi", label: "UPI" },
+            { value: "card", label: "Card" },
+          ]}
+          searchPlaceholder="Search method…"
+          className="w-40"
+        />
         <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
           {(["all", "in", "out"] as const).map((d) => (
             <button

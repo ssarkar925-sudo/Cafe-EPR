@@ -100,6 +100,12 @@ export default function PosClient({
   const [cat, setCat] = useState("all");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerId, setCustomerId] = useState(initialCustomerId);
+  const [custList, setCustList] = useState<PosCustomer[]>(customers);
+  const [custQuery, setCustQuery] = useState("");
+  const [custOpen, setCustOpen] = useState(false);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCust, setNewCust] = useState({ name: "", phone: "" });
+  const [addingCustomer, setAddingCustomer] = useState(false);
   const [discount, setDiscount] = useState("");
   const [payments, setPayments] = useState<{ method: string; amount: string }[]>([
     { method: "cash", amount: "" },
@@ -108,6 +114,7 @@ export default function PosClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SaleResult | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const customerSearchRef = useRef<HTMLInputElement>(null);
 
   useRealtime(["products", "invoices", "payments", "customers", "invoice_items"]);
 
@@ -170,7 +177,66 @@ export default function PosClient({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const selectedCustomer = customers.find((c) => c.id === customerId);
+  const selectedCustomer = custList.find((c) => c.id === customerId);
+
+  const filteredCustomers = useMemo(() => {
+    const needle = custQuery.trim().toLowerCase();
+    return custList.filter((c) => {
+      if (!needle) return true;
+      return (
+        c.name.toLowerCase().includes(needle) ||
+        (c.phone ?? "").includes(needle) ||
+        (c.code ?? "").toLowerCase().includes(needle)
+      );
+    });
+  }, [custList, custQuery]);
+
+  function nextCustCode() {
+    let max = 0;
+    for (const c of custList) {
+      const n = parseInt(String(c.code ?? "").replace(/\D/g, ""), 10);
+      if (!Number.isNaN(n)) max = Math.max(max, n);
+    }
+    return "CUST-" + String(max + 1).padStart(4, "0");
+  }
+
+  async function addCustomer() {
+    const name = newCust.name.trim();
+    if (!name) {
+      alert("Customer name is required.");
+      return;
+    }
+    setAddingCustomer(true);
+    const payload = {
+      name,
+      phone: newCust.phone.trim() || null,
+      code: nextCustCode(),
+      opening_balance: 0,
+      balance: 0,
+      is_active: true,
+    };
+    const { data, error } = await supabase
+      .from("customers")
+      .insert(payload)
+      .select("id, name, code, phone, balance")
+      .single();
+    setAddingCustomer(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    const row = data as PosCustomer;
+    setCustList((prev) => [...prev, row]);
+    setCustomerId(row.id);
+    setShowAddCustomer(false);
+    setNewCust({ name: "", phone: "" });
+    logAudit({
+      action: "create",
+      entity: "customer",
+      entity_id: row.id,
+      description: `Customer created from POS: ${row.name}`,
+    });
+  }
 
   function stockOf(productId: string) {
     const p = productState.find((x) => x.id === productId);
@@ -548,14 +614,114 @@ export default function PosClient({
 
               <div className="mt-4">
                 <label className="mb-1 block text-xs font-semibold text-slate-500">Customer</label>
-                <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={inputClass}>
-                  <option value="">Walk-in customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {Number(c.balance) !== 0 ? `(due ${inr(Math.abs(Number(c.balance)))})` : ""}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    ref={customerSearchRef}
+                    value={custQuery}
+                    onChange={(e) => {
+                      setCustQuery(e.target.value);
+                      setCustOpen(true);
+                    }}
+                    onFocus={() => setCustOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setCustOpen(false);
+                    }}
+                    placeholder={
+                      selectedCustomer ? selectedCustomer.name : "Search or select customer…"
+                    }
+                    className={inputClass}
+                  />
+                  {customerId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerId("");
+                        setCustQuery("");
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-rose-600"
+                      title="Clear to walk-in"
+                    >
+                      &#10005;
+                    </button>
+                  )}
+                  {custOpen && (
+                    <>
+                      <div className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomerId("");
+                            setCustQuery("");
+                            setCustOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 ${
+                            !customerId ? "bg-blue-50" : ""
+                          }`}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0 text-slate-400">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                          <span className="flex-1 text-slate-700">Walk-in customer</span>
+                          {!customerId && <span className="text-xs text-blue-600">&#10003;</span>}
+                        </button>
+                        {filteredCustomers.map((c) => {
+                          const b = Number(c.balance);
+                          const active = c.id === customerId;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setCustomerId(c.id);
+                                setCustQuery("");
+                                setCustOpen(false);
+                              }}
+                              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 ${
+                                active ? "bg-blue-50" : ""
+                              }`}
+                            >
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[10px] font-bold text-white">
+                                {c.name.slice(0, 1).toUpperCase()}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium text-slate-900">
+                                  {c.name}
+                                </span>
+                                <span className="block truncate text-xs text-slate-400">
+                                  {c.code ?? ""}
+                                  {c.phone ? " · " + c.phone : ""}
+                                  {b !== 0
+                                    ? ` · ${b > 0 ? "due " : "adv "}${inr(Math.abs(b))}`
+                                    : ""}
+                                </span>
+                              </span>
+                              {active && <span className="text-xs text-blue-600">&#10003;</span>}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddCustomer(true);
+                            setCustOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm font-medium text-blue-600 transition hover:bg-blue-50"
+                        >
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-3.5 w-3.5">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                          </span>
+                          Add new customer
+                        </button>
+                      </div>
+                      <div
+                        className="fixed inset-0 z-20"
+                        onClick={() => setCustOpen(false)}
+                      />
+                    </>
+                  )}
+                </div>
                 {selectedCustomer && Number(selectedCustomer.balance) > 0 && (
                   <p className="mt-1 text-xs text-rose-600">
                     This customer owes {inr(Number(selectedCustomer.balance))} on previous invoices.
@@ -672,6 +838,59 @@ export default function PosClient({
           </div>
         </div>
       </div>
+
+      {showAddCustomer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm"
+          onClick={() => setShowAddCustomer(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-slate-900">Add Customer</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              A new code will be generated automatically and this customer will be selected.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Name *</label>
+                <input
+                  autoFocus
+                  value={newCust.name}
+                  onChange={(e) => setNewCust((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Customer name"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Phone</label>
+                <input
+                  value={newCust.phone}
+                  onChange={(e) => setNewCust((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="Mobile number"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShowAddCustomer(false)}
+                className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addCustomer}
+                disabled={addingCustomer}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                {addingCustomer ? "Adding…" : "Add customer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {success && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm">

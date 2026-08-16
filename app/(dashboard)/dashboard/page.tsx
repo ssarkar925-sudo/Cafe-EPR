@@ -65,6 +65,29 @@ export default async function DashboardPage() {
     p_to: isoToday,
   });
 
+  const [{ data: settlement }, { data: dueInvoices }, { data: txns }, { data: debtors }] = await Promise.all([
+    supabase.rpc("get_settlement_summary"),
+    supabase.from("invoices").select("due").in("status", ["unpaid", "partial"]),
+    supabase
+      .from("transactions")
+      .select(
+        "id, transaction_number, service_type, direction, transaction_date, amount, service_fee, portal_commission, status, customer_mobile, customers(name)"
+      )
+      .gte("transaction_date", iso30)
+      .order("transaction_date", { ascending: false })
+      .limit(500),
+    supabase
+      .from("customers")
+      .select("name, balance")
+      .gt("balance", 0)
+      .order("balance", { ascending: false })
+      .limit(8),
+  ]);
+  const receivables = (dueInvoices ?? []).reduce(
+    (s, r: any) => s + Number(r.due),
+    0
+  );
+
   return (
     <DashboardClient
       name={profile?.full_name || user?.email?.split("@")[0] || "there"}
@@ -80,6 +103,10 @@ export default async function DashboardPage() {
       topRows={(topRows ?? []) as any}
       pnl={(pnl as any) ?? null}
       today={isoToday}
+      settlement={(settlement as any) ?? null}
+      receivables={receivables}
+      transactions={(txns ?? []) as any}
+      topDebtors={(debtors ?? []) as any}
     />
   );
 }

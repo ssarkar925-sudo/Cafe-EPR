@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import SearchableSelect from "@/components/ui/searchable-select";
 import type { Service } from "./services-client";
 import type { CategoryRef } from "./products-client";
 
@@ -92,20 +93,18 @@ export default function ServiceFormModal({
             </div>
             <div>
               <label className={labelClass}>Category</label>
-              <select
+              <SearchableSelect
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">None</option>
-                {categories
-                  .filter((c) => c.is_active)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
+                onChange={setCategoryId}
+                options={[
+                  { value: "", label: "None" },
+                  ...categories
+                    .filter((c) => c.is_active)
+                    .map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                searchPlaceholder="Search category…"
+                showClear={false}
+              />
             </div>
           </div>
           <div>

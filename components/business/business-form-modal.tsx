@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { inr } from "@/lib/format";
+import SearchableSelect from "@/components/ui/searchable-select";
 import type { CustomerRow, Master, Txn } from "./business-client";
 
 export default function BusinessFormModal({
@@ -182,23 +183,31 @@ export default function BusinessFormModal({
           </div>
           <div>
             <label className={labelCls}>Status</label>
-            <select value={form.status} onChange={(e) => set("status", e.target.value)} className={input}>
-              <option value="success">Success — posts cash entry</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-            </select>
+            <SearchableSelect
+            value={form.status}
+            onChange={(v) => set("status", v)}
+            options={[
+              { value: "success", label: "Success — posts cash entry" },
+              { value: "pending", label: "Pending" },
+              { value: "failed", label: "Failed" },
+            ]}
+            searchPlaceholder="Search status…"
+            showClear={false}
+          />
           </div>
 
           <div className="sm:col-span-2">
             <label className={labelCls}>Customer</label>
-            <select value={form.customer_id} onChange={(e) => set("customer_id", e.target.value)} className={input}>
-              <option value="">Walk-in / no saved customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.code})
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+            value={form.customer_id}
+            onChange={(v) => set("customer_id", v)}
+            options={[
+              { value: "", label: "Walk-in / no saved customer" },
+              ...customers.map((c) => ({ value: c.id, label: `${c.name} (${c.code})` })),
+            ]}
+            searchPlaceholder="Search customer…"
+            showClear={false}
+          />
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Customer Mobile {!form.customer_id ? "*" : "(optional)"}</label>
@@ -230,25 +239,29 @@ export default function BusinessFormModal({
             <>
               <div>
                 <label className={labelCls}>Customer Bank *</label>
-                <select value={form.bank_id} onChange={(e) => set("bank_id", e.target.value)} className={input}>
-                  <option value="">Select bank</option>
-                  {banks.filter((b) => b.name).map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.bank_id}
+                  onChange={(v) => set("bank_id", v)}
+                  options={[
+                    { value: "", label: "Select bank" },
+                    ...banks.filter((b) => b.name).map((b) => ({ value: b.id, label: b.name })),
+                  ]}
+                  searchPlaceholder="Search bank…"
+                  showClear={false}
+                />
               </div>
               <div>
                 <label className={labelCls}>AEPS Portal *</label>
-                <select value={form.portal_id} onChange={(e) => set("portal_id", e.target.value)} className={input}>
-                  <option value="">Select portal</option>
-                  {portals.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.portal_id}
+                  onChange={(v) => set("portal_id", v)}
+                  options={[
+                    { value: "", label: "Select portal" },
+                    ...portals.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                  searchPlaceholder="Search portal…"
+                  showClear={false}
+                />
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Aadhaar (last 4 digits) *</label>
@@ -330,14 +343,19 @@ export default function BusinessFormModal({
           {service === "upi" && (
             <div className="sm:col-span-2">
               <label className={labelCls}>Merchant QR *</label>
-              <select value={form.merchant_qr_id} onChange={(e) => set("merchant_qr_id", e.target.value)} className={input}>
-                <option value="">Select merchant QR</option>
-                {qrs.map((qr) => (
-                  <option key={qr.id} value={qr.id}>
-                    {qr.display_name || qr.name} {qr.upi_id ? `(${qr.upi_id})` : ""}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+              value={form.merchant_qr_id}
+              onChange={(v) => set("merchant_qr_id", v)}
+              options={[
+                { value: "", label: "Select merchant QR" },
+                ...qrs.map((qr) => ({
+                  value: qr.id,
+                  label: `${qr.display_name || qr.name}${qr.upi_id ? ` (${qr.upi_id})` : ""}`,
+                })),
+              ]}
+              searchPlaceholder="Search merchant…"
+              showClear={false}
+            />
             </div>
           )}
 

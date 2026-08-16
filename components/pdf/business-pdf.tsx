@@ -25,9 +25,10 @@ const styles = StyleSheet.create({
 export type BusinessPdfData = {
   txn: any;
   settings: any;
+  showFees?: boolean;
 };
 
-export default function BusinessPdf({ txn, settings }: BusinessPdfData) {
+export default function BusinessPdf({ txn, settings, showFees = false }: BusinessPdfData) {
   const cur = settings?.currency_symbol || "₹";
   const money = (n: number | string) =>
     cur +
@@ -97,18 +98,22 @@ export default function BusinessPdf({ txn, settings }: BusinessPdfData) {
               <Text>Withdrawal Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Service Fee</Text>
-              <Text>{money(txn.service_fee)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Portal Commission</Text>
-              <Text>{money(txn.portal_commission)}</Text>
-            </View>
-            <View style={styles.moneyRow}>
-              <Text>Cash Handed</Text>
-              <Text>{money(Number(txn.amount) - Number(txn.service_fee))}</Text>
-            </View>
+            {showFees && (
+              <>
+                <View style={styles.row}>
+                  <Text style={styles.label}>Service Fee</Text>
+                  <Text>{money(txn.service_fee)}</Text>
+                </View>
+                <View style={styles.row}>
+                  <Text style={styles.label}>Portal Commission</Text>
+                  <Text>{money(txn.portal_commission)}</Text>
+                </View>
+                <View style={styles.moneyRow}>
+                  <Text>Cash Handed</Text>
+                  <Text>{money(Number(txn.amount) - Number(txn.service_fee))}</Text>
+                </View>
+              </>
+            )}
           </>
         )}
 
@@ -153,14 +158,18 @@ export default function BusinessPdf({ txn, settings }: BusinessPdfData) {
               <Text>Transferred Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Customer Fee</Text>
-              <Text>{money(txn.service_fee)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Portal Charge</Text>
-              <Text>{money(txn.portal_commission)}</Text>
-            </View>
+            {showFees && (
+              <>
+                <View style={styles.row}>
+                  <Text style={styles.label}>Customer Fee</Text>
+                  <Text>{money(txn.service_fee)}</Text>
+                </View>
+                <View style={styles.row}>
+                  <Text style={styles.label}>Portal Charge</Text>
+                  <Text>{money(txn.portal_commission)}</Text>
+                </View>
+              </>
+            )}
           </>
         )}
 
@@ -182,14 +191,18 @@ export default function BusinessPdf({ txn, settings }: BusinessPdfData) {
               <Text>UPI Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Service Fee</Text>
-              <Text>{money(txn.service_fee)}</Text>
-            </View>
-            <View style={styles.moneyRow}>
-              <Text>Cash Handed</Text>
-              <Text>{money(Number(txn.amount) - Number(txn.service_fee))}</Text>
-            </View>
+            {showFees && (
+              <>
+                <View style={styles.row}>
+                  <Text style={styles.label}>Service Fee</Text>
+                  <Text>{money(txn.service_fee)}</Text>
+                </View>
+                <View style={styles.moneyRow}>
+                  <Text>Cash Handed</Text>
+                  <Text>{money(Number(txn.amount) - Number(txn.service_fee))}</Text>
+                </View>
+              </>
+            )}
           </>
         )}
 

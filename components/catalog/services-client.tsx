@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ServiceFormModal from "./service-form-modal";
 import { inr } from "@/lib/format";
+import SearchableSelect from "@/components/ui/searchable-select";
 import type { CategoryRef } from "./products-client";
 
 export type Service = {
@@ -205,16 +206,18 @@ export default function ServicesClient({
             className="w-full max-w-xs rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </div>
-        <select value={cat} onChange={(e) => setCat(e.target.value)} className={selectClass}>
-          <option value="all">All categories</option>
-          {categories
-            .filter((c) => c.is_active)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-        </select>
+        <SearchableSelect
+          value={cat}
+          onChange={setCat}
+          options={[
+            { value: "all", label: "All categories" },
+            ...categories
+              .filter((c) => c.is_active)
+              .map((c) => ({ value: c.id, label: c.name })),
+          ]}
+          searchPlaceholder="Search category…"
+          className="w-52"
+        />
         <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
           {(["all", "active", "inactive"] as const).map((s) => (
             <button

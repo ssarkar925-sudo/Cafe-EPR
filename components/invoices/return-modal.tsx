@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import SearchableSelect from "@/components/ui/searchable-select";
 import { logAudit } from "@/lib/audit";
 import type { InvoiceRow } from "./invoices-client";
 type Item = {
@@ -334,17 +335,14 @@ export default function ReturnModal({
                         </button>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
-                        <select
+                        <SearchableSelect
                           value={method}
-                          onChange={(e) => setMethod(e.target.value)}
-                          className="rounded-lg border border-slate-300 px-2.5 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
-                        >
-                          {METHODS.map((m) => (
-                            <option key={m} value={m}>
-                              {m.toUpperCase()}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={setMethod}
+                          options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
+                          searchPlaceholder="Search method…"
+                          showClear={false}
+                          className="w-28"
+                        />
                         <input
                           type="number"
                           min={0}

@@ -19,13 +19,22 @@ type Item = { qty: string; amount: string; products: { name: string } | null; se
 type Pay = { method: string; amount: string; received_at: string; invoices: { invoice_number: string } | null };
 type Due = { id: string; name: string; balance: string };
 type Exp = { id: string; expense_date: string; category: string; amount: string; note: string | null; status: string };
-type Ret = { id: string; return_number: string; return_date: string; subtotal: string; refund: string; status: string; invoices: { invoice_number: string } | null };
+type Ret = { id: string; return_number: string; return_date: string; subtotal: string; refund: string; status: string; invoices: { invoice_number: string; status: string } | null };
+type Tx = { id: string; transaction_number: string; service_type: string; direction: string; transaction_date: string; customer_mobile: string | null; reference: string | null; amount: string; service_fee: string; portal_commission: string; status: string };
 
 const STATUS_PILL: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-700",
   partial: "bg-amber-100 text-amber-700",
   unpaid: "bg-rose-100 text-rose-700",
   cancelled: "bg-slate-200 text-slate-600",
+};
+
+const TX_STATUS_PILL: Record<string, string> = {
+  success: "bg-emerald-100 text-emerald-700",
+  pending: "bg-amber-100 text-amber-700",
+  failed: "bg-rose-100 text-rose-700",
+  reversed: "bg-slate-200 text-slate-600",
+  deleted: "bg-rose-100 text-rose-700",
 };
 
 const PERIODS = [
@@ -42,6 +51,7 @@ export default function ReportsClient({
   dues,
   expenses,
   returns,
+  transactions,
 }: {
   invoices: Inv[];
   items: Item[];
@@ -49,9 +59,10 @@ export default function ReportsClient({
   dues: Due[];
   expenses: Exp[];
   returns: Ret[];
+  transactions: Tx[];
 }) {
   const [period, setPeriod] = useState<(typeof PERIODS)[number]["key"]>("30d");
-  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns">("overview");
+  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business">("overview");
 
   useRealtime([
     "invoices",
@@ -61,6 +72,7 @@ export default function ReportsClient({
     "returns",
     "return_items",
     "customers",
+    "transactions",
   ]);
 
   const range = useMemo(() => {
@@ -82,7 +94,14 @@ export default function ReportsClient({
     [expenses, range]
   );
   const validReturns = useMemo(
-    () => returns.filter((r) => r.status === "completed" && r.return_date >= range.from && r.return_date <= range.to),
+    () =>
+      returns.filter(
+        (r) =>
+          r.status === "completed" &&
+          r.invoices?.status !== "cancelled" &&
+          r.return_date >= range.from &&
+          r.return_date <= range.to
+      ),
     [returns, range]
   );
 
@@ -91,6 +110,23 @@ export default function ReportsClient({
   const totalExpenses = activeExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const totalReturns = validReturns.reduce((s, r) => s + Number(r.subtotal), 0);
   const net = totalSales - totalReturns - totalExpenses;
+
+  const validTxns = useMemo(
+    () =>
+      transactions.filter(
+        (t) => t.status === "success" && t.transaction_date >= range.from && t.transaction_date <= range.to
+      ),
+    [transactions, range]
+  );
+  const txnSummary = useMemo(() => {
+    return {
+      count: validTxns.length,
+      principal: validTxns.reduce((s, t) => s + Number(t.amount), 0),
+      fees: validTxns.reduce((s, t) => s + Number(t.service_fee), 0),
+      commission: validTxns.reduce((s, t) => s + Number(t.portal_commission), 0),
+      income: validTxns.reduce((s, t) => s + Number(t.service_fee) + Number(t.portal_commission), 0),
+    };
+  }, [validTxns]);
 
   const dayTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -205,6 +241,7 @@ export default function ReportsClient({
         {tabBtn("invoices", "Invoices")}
         {tabBtn("expenses", "Expenses")}
         {tabBtn("returns", "Returns")}
+        {tabBtn("business", "Business")}
       </div>
 
       {tab === "overview" && (
@@ -542,6 +579,102 @@ export default function ReportsClient({
             </table>
           </div>
         </div>
+      )}
+
+      {tab === "business" && (
+        <>
+          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+            {[
+              { label: "Transactions", value: txnSummary.count, icon: "M6 2h12a1 1 0 0 1 1 1v18l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L5 21V3a1 1 0 0 1 1-1Z", grad: "from-blue-500 to-indigo-600", sub: `${validTxns.length} successful` },
+              { label: "Principal", value: txnSummary.principal, icon: "M6 3h12M6 8h12M6 13h8a4 4 0 0 0 0-8H6v17", grad: "from-emerald-500 to-teal-600", sub: "AEPS / DMT / UPI amount" },
+              { label: "Customer Fees", value: txnSummary.fees, icon: "M8 9l4-4 8 4-8 4-4-4ZM8 9v6m0 0 4 4 8-4-4-4m-4 4V9m8 0v6", grad: "from-amber-500 to-orange-600", sub: "Service fee charged" },
+              { label: "Commission", value: txnSummary.commission, icon: "M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z", grad: "from-violet-500 to-purple-600", sub: "Portal commission" },
+              { label: "Shop Income", value: txnSummary.income, icon: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6", grad: txnSummary.income >= 0 ? "from-emerald-500 to-teal-600" : "from-rose-500 to-red-600", sub: "Fees + Commission" },
+            ].map((c) => (
+              <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-500">{c.label}</p>
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                      <path d={c.icon} />
+                    </svg>
+                  </div>
+                </div>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                  {c.label === "Transactions" ? String(c.value) : inr(c.value)}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">{c.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-slate-900">AEPS / DMT / UPI Transactions</h2>
+                <p className="text-xs text-slate-400">Successful transactions in period, newest first</p>
+              </div>
+              <button
+                onClick={() =>
+                  downloadCsv(
+                    "business-transactions.csv",
+                    ["Tr. No", "Service", "Date", "Customer Mobile", "Reference", "Amount", "Service Fee", "Commission", "Status"],
+                    validTxns.map((t) => [t.transaction_number, t.service_type.toUpperCase(), t.transaction_date, t.customer_mobile ?? "-", t.reference ?? "-", t.amount, t.service_fee, t.portal_commission, t.status])
+                  )
+                }
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+              >
+                Download CSV
+              </button>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500">
+                    <th className="py-2 pr-4 font-medium">Transaction</th>
+                    <th className="py-2 pr-4 font-medium">Service</th>
+                    <th className="py-2 pr-4 font-medium">Date</th>
+                    <th className="py-2 pr-4 font-medium">Customer</th>
+                    <th className="py-2 pr-4 font-medium">Reference</th>
+                    <th className="py-2 pr-4 text-right font-medium">Amount</th>
+                    <th className="py-2 pr-4 text-right font-medium">Fee</th>
+                    <th className="py-2 pr-4 text-right font-medium">Commission</th>
+                    <th className="py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {validTxns.map((t) => (
+                    <tr key={t.id} className="border-b border-slate-100 last:border-0">
+                      <td className="py-2.5 pr-4 font-mono text-xs font-medium text-blue-700">{t.transaction_number}</td>
+                      <td className="py-2.5 pr-4">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold uppercase text-slate-700">{t.service_type}</span>
+                      </td>
+                      <td className="py-2.5 pr-4 text-slate-500">{t.transaction_date}</td>
+                      <td className="py-2.5 pr-4 text-slate-700">{t.customer_mobile || "-"}</td>
+                      <td className="py-2.5 pr-4 text-slate-500">{t.reference || "-"}</td>
+                      <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(t.amount))}</td>
+                      <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(t.service_fee))}</td>
+                      <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(t.portal_commission))}</td>
+                      <td className="py-2.5">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${TX_STATUS_PILL[t.status] || "bg-slate-100 text-slate-600"}`}>
+                          {t.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {validTxns.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-500">
+                        No AEPS / DMT / UPI transactions in this period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">

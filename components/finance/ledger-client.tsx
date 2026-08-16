@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import SearchableSelect from "@/components/ui/searchable-select";
 
 export type LedgerCustomer = {
   id: string;
@@ -57,17 +58,15 @@ export default function LedgerClient({
       <h1 className="text-xl font-semibold text-slate-900">Customer Ledger</h1>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <select
+        <SearchableSelect
           value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
-          className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-        >
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({c.code ?? "-"})
-            </option>
-          ))}
-        </select>
+          onChange={setCustomerId}
+          options={customers.map((c) => ({ value: c.id, label: `${c.name} (${c.code ?? "-"})` }))}
+          placeholder="Select customer…"
+          searchPlaceholder="Search customer…"
+          showClear={false}
+          className="w-full max-w-xs"
+        />
         <span className="text-sm text-slate-500">
           Current balance:{" "}
           <span className="font-semibold text-slate-900">

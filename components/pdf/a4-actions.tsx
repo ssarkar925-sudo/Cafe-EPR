@@ -9,10 +9,12 @@ export default function A4Actions({
   variant,
   data,
   filename,
+  showFees = false,
 }: {
   variant: "invoice" | "business";
   data: InvoicePdfData | BusinessPdfData;
   filename: string;
+  showFees?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -23,7 +25,7 @@ export default function A4Actions({
         variant === "invoice" ? (
           <InvoicePdf {...(data as InvoicePdfData)} />
         ) : (
-          <BusinessPdf {...(data as BusinessPdfData)} />
+          <BusinessPdf {...(data as BusinessPdfData)} showFees={showFees} />
         );
       const blob = await pdf(el).toBlob();
       const url = URL.createObjectURL(blob);

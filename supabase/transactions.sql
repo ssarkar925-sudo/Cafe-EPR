@@ -21,7 +21,7 @@ create table if not exists public.transactions (
   amount numeric(15,2) not null check (amount > 0),
   commission numeric(15,2) not null default 0 check (commission >= 0),
   status text not null default 'completed' check (status in ('completed', 'cancelled')),
-  created_by uuid references auth.users(id) on delete set null,
+  created_by uuid references public.profiles (id) on delete set null,
   cancelled_at timestamptz,
   cancelled_by uuid references auth.users(id) on delete set null,
   created_at timestamptz default now()

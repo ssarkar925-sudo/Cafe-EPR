@@ -6,6 +6,7 @@ import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import BusinessFormModal from "./business-form-modal";
 import ReasonModal from "./business-reason-modal";
+import SearchableSelect from "@/components/ui/searchable-select";
 
 export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
@@ -375,10 +376,10 @@ export default function BusinessClient({
 
   async function saveEdit(payload: Record<string, unknown>) {
     if (!editTxn) return;
-    const { error } = await supabase.rpc("update_business_txn", {
-      p_txn_id: editTxn.id,
-      ...payload,
-    });
+    const args: Record<string, unknown> = { p_txn_id: editTxn.id, ...payload };
+    delete args.p_service_type;
+    delete args.p_status;
+    const { error } = await supabase.rpc("update_business_txn", args);
     if (error) {
       alert(error.message);
       return;
@@ -616,35 +617,53 @@ export default function BusinessClient({
             ))}
           </div>
           {cfg.bankFilter && (
-            <select value={bankFilter} onChange={(e) => setBankFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
-              <option value="">All Banks</option>
-              {initialBanks.filter((b) => b.name).map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={bankFilter}
+              onChange={setBankFilter}
+              options={[
+                { value: "", label: "All Banks" },
+                ...initialBanks.filter((b) => b.name).map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              searchPlaceholder="Search bank…"
+              className="w-44"
+            />
           )}
           {cfg.portalFilter && (
-            <select value={portalFilter} onChange={(e) => setPortalFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
-              <option value="">All Portals</option>
-              {initialPortals.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={portalFilter}
+              onChange={setPortalFilter}
+              options={[
+                { value: "", label: "All Portals" },
+                ...initialPortals.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              searchPlaceholder="Search portal…"
+              className="w-44"
+            />
           )}
           {cfg.methodFilter && (
-            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
-              <option value="">All Methods</option>
-              <option value="bank_account">Bank Account</option>
-              <option value="upi">UPI</option>
-            </select>
+            <SearchableSelect
+              value={methodFilter}
+              onChange={setMethodFilter}
+              options={[
+                { value: "", label: "All Methods" },
+                { value: "bank_account", label: "Bank Account" },
+                { value: "upi", label: "UPI" },
+              ]}
+              searchPlaceholder="Search method…"
+              className="w-44"
+            />
           )}
           {cfg.customerFilter && (
-            <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
-              <option value="">All Customers</option>
-              {initialCustomers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={customerFilter}
+              onChange={setCustomerFilter}
+              options={[
+                { value: "", label: "All Customers" },
+                ...initialCustomers.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              searchPlaceholder="Search customer…"
+              className="w-48"
+            />
           )}
         </div>
       </div>

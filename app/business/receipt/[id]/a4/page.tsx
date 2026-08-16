@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import A4Actions from "@/components/pdf/a4-actions";
+import FeesToggle from "@/components/business/fees-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,14 @@ const SERVICE_TITLE: Record<string, string> = {
 
 export default async function BusinessReceiptA4Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ show_fees?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const showFees = sp?.show_fees === "1";
   const supabase = await createClient();
 
   const {
@@ -55,11 +60,15 @@ export default async function BusinessReceiptA4Page({
       <div className="mx-auto max-w-[800px] rounded-lg bg-white p-8 shadow-lg print:max-w-none print:rounded-none print:p-0 print:shadow-none">
         <div className="mb-6 flex items-center justify-between print:hidden">
           <h1 className="text-lg font-semibold text-slate-900">A4 Print / PDF</h1>
-          <A4Actions
-            variant="business"
-            data={{ txn, settings }}
-            filename={`${txn.transaction_number}.pdf`}
-          />
+          <div className="flex items-center gap-3">
+            <FeesToggle showFees={showFees} />
+            <A4Actions
+              variant="business"
+              data={{ txn, settings }}
+              showFees={showFees}
+              filename={`${txn.transaction_number}.pdf`}
+            />
+          </div>
         </div>
 
         <div className="border-b-2 border-slate-900 pb-4">
@@ -121,18 +130,22 @@ export default async function BusinessReceiptA4Page({
                 <span>Withdrawal Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-600">Service Fee</span>
-                <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-600">Portal Commission</span>
-                <span className="font-medium text-slate-900">{money(txn.portal_commission)}</span>
-              </div>
-              <div className="flex justify-between py-1.5 font-bold text-slate-900">
-                <span>Cash Handed</span>
-                <span>{money(Number(txn.amount) - Number(txn.service_fee))}</span>
-              </div>
+              {showFees && (
+                <>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-slate-600">Service Fee</span>
+                    <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-slate-600">Portal Commission</span>
+                    <span className="font-medium text-slate-900">{money(txn.portal_commission)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 font-bold text-slate-900">
+                    <span>Cash Handed</span>
+                    <span>{money(Number(txn.amount) - Number(txn.service_fee))}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
           {service === "dmt" && (
@@ -174,14 +187,18 @@ export default async function BusinessReceiptA4Page({
                 <span>Transferred Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-600">Customer Fee</span>
-                <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-600">Portal Charge</span>
-                <span className="font-medium text-slate-900">{money(txn.portal_commission)}</span>
-              </div>
+              {showFees && (
+                <>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-slate-600">Customer Fee</span>
+                    <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-slate-600">Portal Charge</span>
+                    <span className="font-medium text-slate-900">{money(txn.portal_commission)}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
           {service === "upi" && (
@@ -200,14 +217,18 @@ export default async function BusinessReceiptA4Page({
                 <span>UPI Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-600">Service Fee</span>
-                <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
-              </div>
-              <div className="flex justify-between py-1.5 font-bold text-slate-900">
-                <span>Cash Handed</span>
-                <span>{money(Number(txn.amount) - Number(txn.service_fee))}</span>
-              </div>
+              {showFees && (
+                <>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-slate-600">Service Fee</span>
+                    <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 font-bold text-slate-900">
+                    <span>Cash Handed</span>
+                    <span>{money(Number(txn.amount) - Number(txn.service_fee))}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

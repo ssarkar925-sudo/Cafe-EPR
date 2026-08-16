@@ -11,7 +11,7 @@ export default async function ReportsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }, { data: expenses }, { data: returns }] =
+  const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }, { data: expenses }, { data: returns }, { data: transactions }] =
     await Promise.all([
       supabase
         .from("invoices")
@@ -40,8 +40,13 @@ export default async function ReportsPage() {
         .limit(500),
       supabase
         .from("returns")
-        .select("id, return_number, return_date, subtotal, refund, status, invoices(invoice_number)")
+        .select("id, return_number, return_date, subtotal, refund, status, invoices(invoice_number, status)")
         .order("return_date", { ascending: false })
+        .limit(500),
+      supabase
+        .from("transactions")
+        .select("id, transaction_number, service_type, direction, transaction_date, customer_mobile, reference, amount, service_fee, portal_commission, status")
+        .order("transaction_date", { ascending: false })
         .limit(500),
     ]);
 
@@ -53,6 +58,7 @@ export default async function ReportsPage() {
       dues={(dues ?? []) as any}
       expenses={(expenses ?? []) as any}
       returns={(returns ?? []) as any}
+      transactions={(transactions ?? []) as any}
     />
   );
 }

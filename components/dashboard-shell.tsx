@@ -74,7 +74,6 @@ export default function DashboardShell({
         onToggle={toggle}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
-        onSearch={() => setSearchOpen(true)}
       />
 
       {/* Mobile topbar */}
@@ -112,6 +111,24 @@ export default function DashboardShell({
       </header>
 
       <main className={`transition-all duration-300 ${collapsed ? "lg:pl-[76px]" : "lg:pl-72"}`}>
+        {/* Desktop topbar with global search */}
+        <header className="sticky top-0 z-20 hidden h-16 items-center gap-3 border-b border-slate-200 bg-white/80 px-6 backdrop-blur lg:flex">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-500 shadow-sm transition hover:border-blue-400 hover:shadow focus:border-blue-400 focus:outline-none"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-slate-400">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <span className="flex-1 text-left text-slate-400">
+              Search customers, products, invoices…
+            </span>
+            <kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+              Ctrl K
+            </kbd>
+          </button>
+        </header>
         {children}
       </main>
 

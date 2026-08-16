@@ -29,10 +29,14 @@ begin
     from public.invoices
     where status <> 'cancelled' and invoice_date between p_from and p_to;
 
-  -- Returns / refunds in range
-  select coalesce(sum(refund), 0) into v_returns
-    from public.returns
-    where status = 'completed' and return_date between p_from and p_to;
+  -- Returns / refunds in range. Fully-returned invoices (status = 'cancelled') are already
+  -- excluded from revenue, so only returns on still-active invoices reduce revenue here,
+  -- otherwise a full return would be double counted. Uses the returned subtotal (goods value).
+  select coalesce(sum(r.subtotal), 0) into v_returns
+    from public.returns r
+    join public.invoices i on i.id = r.invoice_id
+    where r.status = 'completed' and i.status <> 'cancelled'
+      and r.return_date between p_from and p_to;
 
   -- COGS: sold qty (minus returned) x current cost price (products/services)
   select coalesce(sum((ii.qty - coalesce(ii.returned_qty, 0)) * coalesce(p.cost_price, s.cost_price, 0)), 0)
@@ -81,6 +85,12 @@ begin
       select expense_date, 0, 0, amount, 0
       from public.expenses
       where status = 'active' and expense_date between p_from and p_to
+      union all
+      select r.return_date, -r.subtotal, 0, 0, 0
+      from public.returns r
+      join public.invoices i on i.id = r.invoice_id
+      where r.status = 'completed' and i.status <> 'cancelled'
+        and r.return_date between p_from and p_to
       union all
       select transaction_date, 0, 0, 0, commission + service_fee
       from public.transactions

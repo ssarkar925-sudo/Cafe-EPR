@@ -8,6 +8,7 @@ import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import SettlementFormModal, { SETTLEMENT_TYPES, POOL_LABEL } from "./settlement-form-modal";
 import ReasonModal from "@/components/business/business-reason-modal";
+import SearchableSelect from "@/components/ui/searchable-select";
 
 export type SettlementRow = {
   id: string;
@@ -297,19 +298,24 @@ export default function SettlementsClient({
             className={`${inputClass} pl-9`}
           />
         </div>
-        <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
-          <option value="all">All types</option>
-          {SETTLEMENT_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass}>
-          <option value="all">All statuses</option>
-          <option value="success">Success</option>
-          <option value="reversed">Reversed</option>
-        </select>
+        <SearchableSelect
+          value={type}
+          onChange={setType}
+          options={[{ value: "all", label: "All types" }, ...SETTLEMENT_TYPES]}
+          searchPlaceholder="Search type…"
+          className="w-52"
+        />
+        <SearchableSelect
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: "all", label: "All statuses" },
+            { value: "success", label: "Success" },
+            { value: "reversed", label: "Reversed" },
+          ]}
+          searchPlaceholder="Search status…"
+          className="w-44"
+        />
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         <span className="text-sm text-slate-400">to</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />

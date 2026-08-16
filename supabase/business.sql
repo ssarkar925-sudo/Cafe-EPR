@@ -58,6 +58,7 @@ alter table public.transactions add column if not exists reversed_at timestamptz
 alter table public.transactions add column if not exists reversed_by uuid references auth.users(id) on delete set null;
 alter table public.transactions add column if not exists deleted_at timestamptz;
 alter table public.transactions add column if not exists deleted_by uuid references auth.users(id) on delete set null;
+alter table public.transactions add column if not exists updated_at timestamptz default now();
 
 alter table public.transactions drop constraint if exists transactions_status_check;
 alter table public.transactions add constraint transactions_status_check

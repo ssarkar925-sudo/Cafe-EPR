@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import SearchableSelect from "@/components/ui/searchable-select";
 import { statusBadge, type InvoiceRow } from "./invoices-client";
 import { logAudit } from "@/lib/audit";
 
@@ -274,17 +275,14 @@ export default function InvoiceViewModal({
                       Record Payment
                     </p>
                     <div className="mt-2 flex items-center gap-2">
-                      <select
+                      <SearchableSelect
                         value={payMethod}
-                        onChange={(e) => setPayMethod(e.target.value)}
-                        className="rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none focus:border-blue-500"
-                      >
-                        {METHODS.map((m) => (
-                          <option key={m} value={m}>
-                            {m.toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setPayMethod}
+                        options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
+                        searchPlaceholder="Search method…"
+                        showClear={false}
+                        className="w-28"
+                      />
                       <input
                         type="number"
                         min="0"
