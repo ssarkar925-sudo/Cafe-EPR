@@ -57,6 +57,14 @@ export default async function DashboardPage() {
     .gte("invoice_date", sevenAgo)
     .limit(500);
 
+  const monthFrom = new Date(today.getFullYear(), today.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+  const { data: pnl } = await supabase.rpc("get_pnl", {
+    p_from: monthFrom,
+    p_to: isoToday,
+  });
+
   return (
     <DashboardClient
       name={profile?.full_name || user?.email?.split("@")[0] || "there"}
@@ -69,6 +77,7 @@ export default async function DashboardPage() {
       expenses={(expenses ?? []) as any}
       stock={(stockRows ?? []) as any}
       topRows={(topRows ?? []) as any}
+      pnl={(pnl as any) ?? null}
       today={isoToday}
     />
   );

@@ -24,6 +24,18 @@ type TopRow = {
   invoice_items: { product_id: string | null; amount: string; products: { name: string | null } | null }[];
 };
 
+type Pnl = {
+  revenue: number;
+  returns: number;
+  cogs: number;
+  commission_income: number;
+  expenses: number;
+  net_revenue: number;
+  gross_profit: number;
+  net_profit: number;
+  invoice_count: number;
+};
+
 function inr(n: number) {
   return "₹" + n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -73,6 +85,7 @@ const KPI_CARDS = [
   { key: "salesToday", label: "Sales Today", icon: ICONS.rupee, gradient: "from-emerald-500 to-teal-600" },
   { key: "invoicesToday", label: "Invoices Today", icon: ICONS.receipt, gradient: "from-blue-500 to-indigo-600" },
   { key: "cashInHand", label: "Cash in Hand", icon: ICONS.wallet, gradient: "from-indigo-500 to-violet-600" },
+  { key: "netProfit", label: "Net Profit (Month)", icon: ICONS.trend, gradient: "from-emerald-500 to-teal-600" },
   { key: "receivables", label: "Receivables", icon: ICONS.clock, gradient: "from-rose-500 to-pink-600" },
 ];
 
@@ -87,6 +100,7 @@ export default function DashboardClient({
   expenses,
   stock,
   topRows,
+  pnl,
   today,
 }: {
   name: string;
@@ -99,6 +113,7 @@ export default function DashboardClient({
   expenses: Exp[];
   stock: Stock[];
   topRows: TopRow[];
+  pnl: Pnl | null;
   today: string;
 }) {
   useRealtime([
@@ -215,6 +230,19 @@ export default function DashboardClient({
     },
     invoicesToday: { value: String(invoicesToday), sub: <span className="text-slate-400">{today}</span> },
     cashInHand: { value: inr(cashInHand), sub: <span className="text-slate-400">Cash balance (all time)</span> },
+    netProfit: {
+      value: inr(pnl?.net_profit ?? 0),
+      sub:
+        pnl && pnl.net_profit >= 0 ? (
+          <span className="inline-flex items-center gap-1 text-emerald-600">
+            <Icon path={ICONS.arrowUp} className="h-3 w-3" /> This month
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-rose-500">
+            <Icon path={ICONS.arrowDown} className="h-3 w-3" /> This month
+          </span>
+        ),
+    },
     receivables: { value: inr(receivables), sub: <span className="text-slate-400">Unpaid + partial invoices</span> },
   };
 
@@ -260,7 +288,7 @@ export default function DashboardClient({
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {KPI_CARDS.map((c) => (
           <div key={c.key} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.gradient}`} />
@@ -374,6 +402,42 @@ export default function DashboardClient({
             <p className="mt-4 text-sm text-slate-500">No payments recorded yet.</p>
           )}
         </section>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-900">Profit &amp; Loss</h2>
+            <p className="text-xs text-slate-400">This month · {pnl?.invoice_count ?? 0} invoices</p>
+          </div>
+          <Link href="/finance/pnl" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            Full report →
+          </Link>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <PnlTile label="Net Revenue" value={pnl?.net_revenue ?? 0} tone="slate" />
+          <PnlTile label="COGS" value={pnl?.cogs ?? 0} tone="amber" />
+          <PnlTile label="Gross Profit" value={pnl?.gross_profit ?? 0} tone={pnl && pnl.gross_profit >= 0 ? "emerald" : "rose"} />
+          <PnlTile label="Commission" value={pnl?.commission_income ?? 0} tone="violet" />
+          <PnlTile label="Expenses" value={pnl?.expenses ?? 0} tone="rose" />
+          <PnlTile label="Net Profit" value={pnl?.net_profit ?? 0} tone={pnl && pnl.net_profit >= 0 ? "emerald" : "rose"} strong />
+        </div>
+        {pnl && (
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+              style={{ width: `${pnl.net_revenue > 0 ? Math.max(2, Math.min(100, (pnl.net_profit / pnl.net_revenue) * 100)) : 0}%` }}
+            />
+          </div>
+        )}
+        {pnl && (
+          <p className="mt-2 text-xs text-slate-400">
+            Net margin:{" "}
+            <span className={pnl.net_profit >= 0 ? "font-medium text-emerald-600" : "font-medium text-rose-600"}>
+              {pnl.net_revenue > 0 ? ((pnl.net_profit / pnl.net_revenue) * 100).toFixed(1) : "0.0"}%
+            </span>
+          </p>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -502,6 +566,34 @@ export default function DashboardClient({
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PnlTile({
+  label,
+  value,
+  tone,
+  strong,
+}: {
+  label: string;
+  value: number;
+  tone: "slate" | "amber" | "emerald" | "rose" | "violet";
+  strong?: boolean;
+}) {
+  const colors = {
+    slate: "text-slate-900",
+    amber: "text-amber-600",
+    emerald: "text-emerald-600",
+    rose: "text-rose-600",
+    violet: "text-violet-600",
+  }[tone];
+  return (
+    <div className="rounded-xl bg-slate-50 p-3">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-1 truncate text-lg font-bold ${colors} ${strong ? "" : ""}`}>
+        {inr(value)}
+      </p>
     </div>
   );
 }
