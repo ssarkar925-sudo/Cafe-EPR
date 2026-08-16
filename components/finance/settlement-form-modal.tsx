@@ -1,0 +1,285 @@
+"use client";
+
+import { useState } from "react";
+
+export const SETTLEMENT_TYPES = [
+  { value: "aeps_to_bank", label: "AEPS \u2192 Bank", from: "aeps", to: "bank", icon: "aeps", grad: "from-blue-500 to-indigo-600", desc: "AEPS portal settlement credited to the bank account." },
+  { value: "bank_to_dmt", label: "Bank \u2192 DMT", from: "bank", to: "dmt", icon: "dmt", grad: "from-violet-500 to-purple-600", desc: "Load DMT float from the bank balance." },
+  { value: "wallet_to_dmt", label: "Wallet \u2192 DMT", from: "wallet", to: "dmt", icon: "dmt", grad: "from-fuchsia-500 to-pink-600", desc: "Fund the DMT float from the digital wallet." },
+  { value: "upi_qr_to_wallet", label: "UPI QR \u2192 Wallet", from: "upi_qr", to: "wallet", icon: "qr", grad: "from-teal-500 to-emerald-600", desc: "Move money received on the shop UPI QR into the wallet." },
+  { value: "wallet_to_bank", label: "Wallet \u2192 Bank", from: "wallet", to: "bank", icon: "bank", grad: "from-amber-500 to-orange-600", desc: "Transfer wallet balance to the bank account." },
+  { value: "bank_withdrawal", label: "Bank Withdrawal", from: "bank", to: "cash", icon: "cash", grad: "from-emerald-500 to-teal-600", desc: "Withdraw cash from the bank into the counter." },
+  { value: "add_cash_to_bank", label: "Cash \u2192 Bank", from: "cash", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Deposit counter cash into the bank account." },
+  { value: "cash_adjustment", label: "Cash Adjustment", from: "cash", to: "cash", icon: "cash", grad: "from-rose-500 to-pink-600", desc: "Add or remove cash during a physical count." },
+] as const;
+
+export type SettlementType = (typeof SETTLEMENT_TYPES)[number]["value"];
+
+export const POOL_LABEL: Record<string, string> = {
+  cash: "Cash",
+  bank: "Bank",
+  wallet: "Wallet",
+  dmt: "DMT Float",
+  aeps: "AEPS Float",
+  upi_qr: "UPI QR",
+};
+
+const ICONS: Record<string, string> = {
+  bank: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01",
+  cash: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01",
+  dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
+  aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
+  qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
+  arrow: "M5 12h14M13 5l7 7-7 7",
+};
+
+function Icon({ d, className }: { d: string; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? "h-5 w-5"}
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+const inputClass =
+  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
+
+export default function SettlementFormModal({
+  open,
+  onClose,
+  busy,
+  onSave,
+}: {
+  open: boolean;
+  onClose: () => void;
+  busy: boolean;
+  onSave: (payload: {
+    p_settlement_type: string;
+    p_settlement_date: string;
+    p_amount: number;
+    p_reference: string;
+    p_remarks: string;
+    p_direction: string;
+  }) => void;
+}) {
+  const [type, setType] = useState<SettlementType>("bank_withdrawal");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState("");
+  const [reference, setReference] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [direction, setDirection] = useState<"in" | "out">("in");
+  const [error, setError] = useState("");
+
+  if (!open) return null;
+
+  const selected = SETTLEMENT_TYPES.find((t) => t.value === type)!;
+  const isAdjustment = type === "cash_adjustment";
+
+  const submit = () => {
+    setError("");
+    if (!date) return setError("Settlement date is required.");
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return setError("Amount must be greater than zero.");
+    onSave({
+      p_settlement_type: type,
+      p_settlement_date: date,
+      p_amount: Math.round(amt * 100) / 100,
+      p_reference: reference.trim(),
+      p_remarks: remarks.trim(),
+      p_direction: isAdjustment ? direction : "",
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative shrink-0 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#020617] px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">New Settlement</h2>
+              <p className="mt-0.5 text-xs text-[#94a3b8]">
+                Record an internal fund transfer between cash, bank &amp; wallets.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-lg bg-white/10 p-1.5 text-[#cbd5e1] transition hover:bg-white/20 hover:text-white"
+            >
+              <Icon d="M6 6l12 12M18 6L6 18" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Settlement type
+          </p>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {SETTLEMENT_TYPES.map((t) => {
+              const active = type === t.value;
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => setType(t.value)}
+                  className={`group flex items-center gap-3 rounded-xl border p-3 text-left transition ${
+                    active
+                      ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20"
+                      : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${t.grad} text-white shadow`}
+                  >
+                    <Icon d={ICONS[t.icon]} className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-semibold ${
+                        active ? "text-blue-700" : "text-slate-800"
+                      }`}
+                    >
+                      {t.label}
+                    </span>
+                    <span className="block text-[11px] text-slate-400">
+                      {POOL_LABEL[t.from]} → {POOL_LABEL[t.to]}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-slate-100 to-slate-50 px-4 py-3 text-sm text-slate-600">
+            <Icon d={ICONS.arrow} className="h-4 w-4 text-blue-500" />
+            <span className="font-semibold text-slate-800">
+              {POOL_LABEL[selected.from]} → {POOL_LABEL[selected.to]}
+            </span>
+            <span className="hidden text-xs text-slate-400 sm:inline">
+              · {selected.desc}
+            </span>
+          </div>
+
+          {isAdjustment && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Adjustment type
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setDirection("in")}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                    direction === "in"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  Add Cash (Found extra)
+                </button>
+                <button
+                  onClick={() => setDirection("out")}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                    direction === "out"
+                      ? "border-rose-500 bg-rose-50 text-rose-700"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  Remove Cash (Shortage)
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Date
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={`mt-1.5 ${inputClass}`}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Amount
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className={`mt-1.5 ${inputClass}`}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Reference
+            </label>
+            <input
+              type="text"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. bank slip no. / UTR / counter count"
+              className={`mt-1.5 ${inputClass}`}
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Remarks
+            </label>
+            <textarea
+              rows={2}
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="Optional note"
+              className={`mt-1.5 ${inputClass} resize-none`}
+            />
+          </div>
+
+          {error && (
+            <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-white"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Record Settlement"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
