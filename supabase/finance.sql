@@ -63,6 +63,7 @@ create or replace function public.create_sale(
   p_items jsonb,
   p_previous_due numeric default 0,
   p_previous_due_method text default 'cash',
+  p_previous_due_instrument_id uuid default null,
   p_advance_used numeric default 0
 )
 returns jsonb
@@ -81,6 +82,8 @@ declare
   v_amount numeric;
   v_stock numeric;
   v_payment jsonb;
+  v_method text;
+  v_instrument_id uuid;
   v_cust_balance numeric;
 begin
   if auth.uid() is null then
@@ -89,7 +92,7 @@ begin
   if p_previous_due < 0 or p_advance_used < 0 then
     raise exception 'Invalid due/advance amounts';
   end if;
-  if p_previous_due_method not in ('cash', 'upi', 'card') then
+  if p_previous_due_instrument_id is null and p_previous_due_method not in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card') then
     raise exception 'Invalid due collection method';
   end if;
   if (p_previous_due > 0 or p_advance_used > 0) and p_customer_id is null then
@@ -127,11 +130,19 @@ begin
   for v_payment in select * from jsonb_array_elements(p_payments)
   loop
     v_paid := v_paid + coalesce((v_payment->>'amount')::numeric, 0);
-    insert into public.payments (invoice_id, method, amount)
-    values (v_invoice_id, v_payment->>'method', coalesce((v_payment->>'amount')::numeric, 0));
+    v_method := coalesce(v_payment->>'method', 'cash');
+    v_instrument_id := nullif(v_payment->>'instrument_id', '')::uuid;
+    if v_instrument_id is not null then
+      select type into v_method from public.payment_instruments where id = v_instrument_id and is_active = true;
+      if v_method is null then
+        raise exception 'Unknown payment instrument';
+      end if;
+    end if;
+    insert into public.payments (invoice_id, method, amount, instrument_id)
+    values (v_invoice_id, v_method, coalesce((v_payment->>'amount')::numeric, 0), v_instrument_id);
 
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_invoice_date, v_payment->>'method', 'in', coalesce((v_payment->>'amount')::numeric, 0), 'Sale ' || v_invoice_number, 'invoice', v_invoice_id);
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
+    values (p_invoice_date, v_method, 'in', coalesce((v_payment->>'amount')::numeric, 0), 'Sale ' || v_invoice_number, 'invoice', v_invoice_id, v_instrument_id);
   end loop;
 
   if v_paid + p_advance_used > p_total then
@@ -160,8 +171,17 @@ begin
       update public.customers set balance = v_cust_balance, updated_at = now() where id = p_customer_id;
       insert into public.customer_ledger (customer_id, entry_date, type, description, credit, balance_after, ref_id)
       values (p_customer_id, p_invoice_date, 'payment', 'Previous due collected with ' || v_invoice_number, p_previous_due, v_cust_balance, v_invoice_id);
-      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-      values (p_invoice_date, p_previous_due_method, 'in', p_previous_due, 'Previous due ' || v_invoice_number, 'invoice', v_invoice_id);
+
+      v_method := p_previous_due_method;
+      v_instrument_id := nullif(p_previous_due_instrument_id, NULL::uuid);
+      if v_instrument_id is not null then
+        select type into v_method from public.payment_instruments where id = v_instrument_id and is_active = true;
+        if v_method is null then
+          raise exception 'Unknown payment instrument';
+        end if;
+      end if;
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
+      values (p_invoice_date, v_method, 'in', p_previous_due, 'Previous due ' || v_invoice_number, 'invoice', v_invoice_id, v_instrument_id);
     end if;
 
     if p_advance_used > 0 then
@@ -314,12 +334,18 @@ begin
 end;
 $$;
 
--- Add an expense + cash book entry atomically
+-- Extend add_expense so Money Out / bill payments can be tagged to a named instrument
+-- (bank/UPI/wallet/card) or a generic method. Defaults to cash for the existing
+-- Finance -> Expenses flow.
+drop function if exists public.add_expense(date, text, numeric, text);
+drop function if exists public.add_expense(date, text, numeric, text, uuid);
 create or replace function public.add_expense(
   p_expense_date date,
   p_category text,
   p_amount numeric,
-  p_note text
+  p_note text,
+  p_instrument_id uuid default null,
+  p_method text default null
 )
 returns jsonb
 language plpgsql
@@ -327,21 +353,32 @@ security definer set search_path = public
 as $$
 declare
   v_expense_id uuid;
+  v_method text := 'cash';
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if p_amount <= 0 then raise exception 'Amount must be positive'; end if;
   if p_category is null or p_category = '' then raise exception 'Category is required'; end if;
+  if p_instrument_id is not null then
+    select type into v_method from public.payment_instruments where id = p_instrument_id and is_active = true;
+    if v_method is null then raise exception 'Unknown payment instrument'; end if;
+  elsif p_method is not null then
+    v_method := lower(p_method);
+    if v_method not in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card') then
+      raise exception 'Invalid payment method';
+    end if;
+  end if;
 
   insert into public.expenses (expense_date, category, amount, note, created_by)
   values (p_expense_date, p_category, p_amount, p_note, auth.uid())
   returning id into v_expense_id;
 
-  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-  values (p_expense_date, 'cash', 'out', p_amount, 'Expense: ' || p_category, 'expense', v_expense_id);
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
+  values (p_expense_date, v_method, 'out', p_amount, 'Expense: ' || p_category, 'expense', v_expense_id, p_instrument_id);
 
   return jsonb_build_object('id', v_expense_id);
 end;
 $$;
+
 
 -- Cancel an expense (audited, no delete): reverses the cash entry
 create or replace function public.cancel_expense(p_expense_id uuid)

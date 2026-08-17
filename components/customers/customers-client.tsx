@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
@@ -19,6 +20,7 @@ export type Customer = {
   address: string | null;
   opening_balance: number | string;
   balance: number | string;
+  customer_type: string | null;
   avatar_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -118,6 +120,7 @@ export default function CustomersClient({
   const [balFilter, setBalFilter] = useState<BalanceFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
   const [modal, setModal] = useState<ModalState>(null);
+  const [dupWarning, setDupWarning] = useState<{ dup: Customer; input: any } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Customer | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("invoices");
@@ -131,6 +134,7 @@ export default function CustomersClient({
   }>({ invoices: [], ledger: [], transactions: [], loading: false });
 
   const supabase = createClient();
+  const router = useRouter();
   useRealtime(["customers", "invoices", "customer_ledger", "payments", "transactions"]);
 
   const filtered = useMemo(() => {
@@ -249,6 +253,7 @@ export default function CustomersClient({
       email: string;
       address: string;
       opening_balance: number;
+      customer_type: string;
     },
     customer?: Customer
   ) {
@@ -266,6 +271,30 @@ export default function CustomersClient({
       );
       setViewing((v) => (v && v.id === customer.id ? { ...v, ...input } : v));
     } else {
+      const phone = (input.phone ?? "").trim();
+      if (phone) {
+        const { data: dup } = await supabase
+          .from("customers")
+          .select("id, name, phone")
+          .eq("phone", phone)
+          .maybeSingle();
+        if (dup) {
+          const existing = customers.find((c) => c.id === dup.id) ?? {
+            ...dup,
+            code: null,
+            email: null,
+            address: null,
+            opening_balance: 0,
+            balance: 0,
+            customer_type: "retail",
+            avatar_url: null,
+            is_active: true,
+            created_at: "",
+          };
+          setDupWarning({ dup: existing, input });
+          return;
+        }
+      }
       const payload = {
         ...input,
         code: nextCode(),
@@ -489,6 +518,13 @@ export default function CustomersClient({
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`/customers/${c.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                      >
+                        Profile
+                      </Link>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -532,6 +568,53 @@ export default function CustomersClient({
           onClose={() => setModal(null)}
           onSave={saveCustomer}
         />
+      )}
+
+      {dupWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-900">
+              Customer with this mobile number already exists.
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              A customer record for <span className="font-semibold text-slate-700">{dupWarning.dup.phone}</span> is
+              already in your directory:
+            </p>
+            <div className="mt-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <p className="text-sm font-medium text-slate-900">{dupWarning.dup.name}</p>
+              <p className="text-xs text-slate-400">
+                {dupWarning.dup.code ?? ""} · {dupWarning.dup.phone ?? ""}
+              </p>
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                onClick={() => {
+                  router.push(`/customers/${dupWarning.dup.id}`);
+                  setDupWarning(null);
+                  setModal(null);
+                }}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                View Customer
+              </button>
+              <button
+                onClick={() => {
+                  setModal({ mode: "edit", customer: dupWarning.dup });
+                  setDupWarning(null);
+                }}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                Use Existing Customer
+              </button>
+              <button
+                onClick={() => setDupWarning(null)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
+              >
+                Keep editing
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {viewing && (

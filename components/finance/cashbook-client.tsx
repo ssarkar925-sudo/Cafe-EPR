@@ -12,14 +12,18 @@ export type CashEntry = {
   amount: number | string;
   description: string | null;
   created_at: string;
+  payment_instruments: { name: string; type: string } | null;
 };
 
 export default function CashbookClient({
   initialEntries,
+  instruments,
 }: {
   initialEntries: CashEntry[];
+  instruments: { id: string; name: string; type: string }[];
 }) {
   const [method, setMethod] = useState("all");
+  const [account, setAccount] = useState("all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -27,12 +31,13 @@ export default function CashbookClient({
   const filtered = useMemo(() => {
     return initialEntries.filter((e) => {
       if (method !== "all" && e.method !== method) return false;
+      if (account !== "all" && (e.payment_instruments?.name ?? "Unassigned") !== account) return false;
       if (direction !== "all" && e.direction !== direction) return false;
       if (from && e.entry_date < from) return false;
       if (to && e.entry_date > to) return false;
       return true;
     });
-  }, [initialEntries, method, direction, from, to]);
+  }, [initialEntries, method, account, direction, from, to]);
 
   const totals = useMemo(() => {
     let balance = 0;
@@ -87,9 +92,23 @@ export default function CashbookClient({
             { value: "cash", label: "Cash" },
             { value: "upi", label: "UPI" },
             { value: "card", label: "Card" },
+            { value: "bank", label: "Bank" },
+            { value: "wallet", label: "Wallet" },
+            { value: "debit_card", label: "Debit Card" },
+            { value: "credit_card", label: "Credit Card" },
           ]}
           searchPlaceholder="Search method…"
           className="w-40"
+        />
+        <SearchableSelect
+          value={account}
+          onChange={setAccount}
+          options={[
+            { value: "all", label: "All accounts" },
+            ...instruments.map((i) => ({ value: i.name, label: i.name })),
+          ]}
+          searchPlaceholder="Search account…"
+          className="w-44"
         />
         <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
           {(["all", "in", "out"] as const).map((d) => (
@@ -143,6 +162,11 @@ export default function CashbookClient({
                 </td>
                 <td className="px-4 py-2.5 text-slate-700">
                   {e.method.toUpperCase()}
+                  {e.payment_instruments?.name && (
+                    <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">
+                      {e.payment_instruments.name}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-emerald-600">
                   {e.direction === "in" ? inr(e.amount) : ""}

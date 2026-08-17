@@ -1,9 +1,14 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
 import ServicesClient from "@/components/catalog/services-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function ServicesPage() {
+  const role = await getUserRole();
+  if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
+
   const supabase = await createClient();
 
   const [{ data: services }, { data: categories }] = await Promise.all([

@@ -11,6 +11,7 @@ type NavSection = { title: string; items: NavItem[] };
 const ICONS: Record<string, string> = {
   dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
   pos: "M6 6h15l-1.5 8h-13L4 3H2M9 20a1 1 0 1 0 0 .01M20 20a1 1 0 1 0 0 .01",
+  quick: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   invoices: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
   customers: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   products: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9",
@@ -94,7 +95,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [openSections, setOpenSections] = useState<Set<string>>(
-    () => new Set(["Catalog"])
+    () => new Set(["Main", "Customer Management"])
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(avatarUrl);
@@ -106,21 +107,16 @@ export default function Sidebar({
     const main: NavItem[] = [
       { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
       { label: "Point of Sale", href: "/pos", icon: "pos" },
-      { label: "Invoices", href: "/invoices", icon: "invoices" },
-      { label: "Customers", href: "/customers", icon: "customers" },
     ];
     if (!isStaff) {
-      main.splice(3, 0, { label: "Returns", href: "/returns", icon: "returns" });
+      main.push({ label: "Returns", href: "/returns", icon: "returns" });
     }
+    main.push({ label: "Invoices", href: "/invoices", icon: "invoices" });
     const base: NavSection[] = [
       { title: "Main", items: main },
       {
-        title: "Catalog",
-        items: [
-          { label: "Products", href: "/catalog/products", icon: "products" },
-          { label: "Services", href: "/catalog/services", icon: "services" },
-          { label: "Categories", href: "/catalog/categories", icon: "categories" },
-        ],
+        title: "Customer Management",
+        items: [{ label: "Customers", href: "/customers", icon: "customers" }],
       },
     ];
     if (!isStaff) {
@@ -130,19 +126,16 @@ export default function Sidebar({
           { label: "AEPS", href: "/business/aeps", icon: "aeps" },
           { label: "DMT", href: "/business/dmt", icon: "dmt" },
           { label: "UPI", href: "/business/upi", icon: "upi" },
-          { label: "Banks", href: "/business/banks", icon: "aeps" },
-          { label: "Portals", href: "/business/portals", icon: "portals" },
-          { label: "Merchant QRs", href: "/business/merchant-qrs", icon: "qrs" },
         ],
       });
       base.push({
         title: "Finance",
         items: [
           { label: "Profit & Loss", href: "/finance/pnl", icon: "pnl" },
-          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
           { label: "Cash Book", href: "/finance/cashbook", icon: "cashbook" },
           { label: "Settlements", href: "/finance/settlements", icon: "settlements" },
           { label: "Ledger", href: "/finance/ledger", icon: "ledger" },
+          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
           { label: "Reports", href: "/reports", icon: "reports" },
         ],
       });
@@ -222,8 +215,8 @@ export default function Sidebar({
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-white">{shopName}</p>
-            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-[#94a3b8]">
-              Cafe ERP
+            <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8]">
+              Smart Business Suite
             </p>
           </div>
         )}

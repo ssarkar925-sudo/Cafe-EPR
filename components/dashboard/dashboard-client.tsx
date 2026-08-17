@@ -120,10 +120,12 @@ const ICONS = {
   send: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
   card: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
+  bolt: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
 };
 
 const HERO_CARDS = [
   { key: "salesToday", label: "Sales Today", icon: ICONS.rupee, gradient: "from-emerald-500 to-teal-600", href: "/invoices" },
+  { key: "quickToday", label: "Quick Sales Today", icon: ICONS.bolt, gradient: "from-teal-500 to-emerald-600", href: "/pos?mode=quick" },
   { key: "businessToday", label: "Business Income", icon: ICONS.coins, gradient: "from-violet-500 to-purple-600", href: "/business/upi" },
   { key: "expensesToday", label: "Expenses Today", icon: ICONS.minus, gradient: "from-rose-500 to-pink-600", href: "/finance/expenses" },
   { key: "cashFlowToday", label: "Cash Flow Today", icon: ICONS.flow, gradient: "from-blue-500 to-indigo-600", href: "/finance/cashbook" },
@@ -163,6 +165,9 @@ export default function DashboardClient({
   receivables,
   transactions,
   topDebtors,
+  quickTodayCount = 0,
+  quickTodayAmount = 0,
+  quickTodayMargin = 0,
 }: {
   name: string;
   avatarUrl: string | null;
@@ -181,6 +186,9 @@ export default function DashboardClient({
   receivables: number;
   transactions: Tx[];
   topDebtors: Debtor[];
+  quickTodayCount: number;
+  quickTodayAmount: number;
+  quickTodayMargin: number;
 }) {
   useRealtime([
     "invoices",
@@ -361,6 +369,10 @@ export default function DashboardClient({
           </span>
         ),
     },
+    quickToday: {
+      value: inr(quickTodayAmount),
+      sub: <span className="text-slate-400">{quickTodayCount} quick sale{quickTodayCount === 1 ? "" : "s"} · margin {inr(quickTodayMargin)}</span>,
+    },
     businessToday: {
       value: inr(businessToday.income),
       sub: <span className="text-slate-400">{businessToday.count} AEPS/DMT/UPI · MTD {inr(businessMTD.income)}</span>,
@@ -439,12 +451,6 @@ export default function DashboardClient({
             New Sale
           </Link>
           <Link
-            href="/business/upi"
-            className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700"
-          >
-            + Business
-          </Link>
-          <Link
             href="/finance/expenses"
             className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
@@ -454,7 +460,7 @@ export default function DashboardClient({
       </div>
 
       {/* Today's Pulse */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {HERO_CARDS.map((c) => (
           <Link key={c.key} href={c.href} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.gradient}`} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
@@ -21,6 +21,39 @@ type Due = { id: string; name: string; balance: string };
 type Exp = { id: string; expense_date: string; category: string; amount: string; note: string | null; status: string };
 type Ret = { id: string; return_number: string; return_date: string; subtotal: string; refund: string; status: string; invoices: { invoice_number: string; status: string } | null };
 type Tx = { id: string; transaction_number: string; service_type: string; direction: string; transaction_date: string; customer_mobile: string | null; reference: string | null; amount: string; service_fee: string; portal_commission: string; status: string };
+type Inst = { id: string; name: string; type: string; is_active: boolean };
+type CashEntry = {
+  id: string;
+  entry_date: string;
+  method: string;
+  direction: string;
+  amount: string;
+  description: string | null;
+  payment_instruments: { name: string; type: string } | null;
+};
+type Quick = {
+  id: string;
+  sale_number: string;
+  sale_date: string;
+  item_name: string | null;
+  amount: string;
+  cost: string;
+  change_due: string;
+  payments: { method: string; amount: number; instrument_id?: string | null }[];
+  status: string;
+  customers: { name: string } | null;
+  products: { name: string } | null;
+  services: { name: string } | null;
+};
+
+const INSTRUMENT_LABEL: Record<string, string> = {
+  cash: "Cash",
+  bank: "Bank",
+  upi: "UPI",
+  wallet: "Wallet",
+  debit_card: "Debit Card",
+  credit_card: "Credit Card",
+};
 
 const STATUS_PILL: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-700",
@@ -52,6 +85,9 @@ export default function ReportsClient({
   expenses,
   returns,
   transactions,
+  instruments,
+  cashEntries,
+  quickSales,
 }: {
   invoices: Inv[];
   items: Item[];
@@ -60,9 +96,13 @@ export default function ReportsClient({
   expenses: Exp[];
   returns: Ret[];
   transactions: Tx[];
+  instruments: Inst[];
+  cashEntries: CashEntry[];
+  quickSales: Quick[];
 }) {
   const [period, setPeriod] = useState<(typeof PERIODS)[number]["key"]>("30d");
-  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business">("overview");
+  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business" | "accounts" | "quick">("overview");
+  const [openInst, setOpenInst] = useState<string | null>(null);
 
   useRealtime([
     "invoices",
@@ -73,6 +113,7 @@ export default function ReportsClient({
     "return_items",
     "customers",
     "transactions",
+    "quick_sales",
   ]);
 
   const range = useMemo(() => {
@@ -186,6 +227,44 @@ export default function ReportsClient({
     URL.revokeObjectURL(url);
   }
 
+  const instrumentTotals = useMemo(() => {
+    const map = new Map<string, { name: string; type: string; in: number }>();
+    for (const ce of cashEntries) {
+      if (ce.entry_date < range.from || ce.entry_date > range.to) continue;
+      const name = ce.payment_instruments?.name ?? "Unassigned";
+      const cur = map.get(name) ?? { name, type: ce.payment_instruments?.type ?? "other", in: 0 };
+      cur.in += Number(ce.amount);
+      map.set(name, cur);
+    }
+    const rows = Array.from(map.values()).sort((a, b) => b.in - a.in);
+    const zero = instruments
+      .filter((i) => i.is_active && !rows.some((r) => r.name === i.name))
+      .map((i) => ({ name: i.name, type: i.type, in: 0 }));
+    return [...rows, ...zero];
+  }, [cashEntries, instruments, range]);
+
+  const validQuick = useMemo(
+    () =>
+      quickSales.filter(
+        (q) => q.status === "active" && q.sale_date >= range.from && q.sale_date <= range.to
+      ),
+    [quickSales, range]
+  );
+  const quickSummary = useMemo(() => {
+    const byMethod = new Map<string, number>();
+    for (const q of validQuick) {
+      for (const p of q.payments ?? []) {
+        byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + (Number(p.amount) || 0));
+      }
+    }
+    return {
+      count: validQuick.length,
+      amount: validQuick.reduce((s, q) => s + Number(q.amount), 0),
+      cost: validQuick.reduce((s, q) => s + Number(q.cost), 0),
+      byMethod: Array.from(byMethod.entries()).sort((a, b) => b[1] - a[1]),
+    };
+  }, [validQuick]);
+
   const KPI_CARDS = [
     { label: "Sales", value: totalSales, icon: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9", grad: "from-emerald-500 to-teal-600", sub: `${validInvoices.length} invoices` },
     { label: "Collected", value: totalPaid, icon: "M20 6 9 17l-5-5", grad: "from-blue-500 to-indigo-600", sub: `${inr(totalSales - totalPaid)} outstanding` },
@@ -242,6 +321,8 @@ export default function ReportsClient({
         {tabBtn("expenses", "Expenses")}
         {tabBtn("returns", "Returns")}
         {tabBtn("business", "Business")}
+        {tabBtn("accounts", "Accounts")}
+        {tabBtn("quick", "Quick Sales")}
       </div>
 
       {tab === "overview" && (
@@ -673,6 +754,239 @@ export default function ReportsClient({
                 </tbody>
               </table>
             </div>
+          </div>
+        </>
+      )}
+
+      {tab === "accounts" && (
+        <>
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-slate-900">Payments by Account</h2>
+                <p className="text-xs text-slate-400">
+                  Cash, bank, UPI, wallet and card collections in period — each named instrument separately
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-900">
+                  {inr(instrumentTotals.reduce((s, r) => s + r.in, 0))}
+                </span>
+                <button
+                  onClick={() =>
+                    downloadCsv(
+                      "payment-accounts.csv",
+                      ["Account", "Type", "Received"],
+                      instrumentTotals.map((r) => [r.name, INSTRUMENT_LABEL[r.type] ?? r.type, r.in])
+                    )
+                  }
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                >
+                  Download CSV
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500">
+                    <th className="py-2 pr-4 font-medium">Account</th>
+                    <th className="py-2 pr-4 font-medium">Type</th>
+                    <th className="py-2 pr-4 text-right font-medium">Received</th>
+                    <th className="w-8 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {instrumentTotals.map((r) => {
+                    const open = openInst === r.name;
+                    const detail = cashEntries.filter(
+                      (ce) =>
+                        (ce.payment_instruments?.name ?? "Unassigned") === r.name &&
+                        ce.entry_date >= range.from &&
+                        ce.entry_date <= range.to
+                    );
+                    return (
+                      <Fragment key={r.name}>
+                        <tr
+                          onClick={() => setOpenInst(open ? null : r.name)}
+                          className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                        >
+                          <td className="py-2.5 pr-4 font-medium text-slate-900">{r.name}</td>
+                          <td className="py-2.5 pr-4">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600">
+                              {INSTRUMENT_LABEL[r.type] ?? r.type}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4 text-right font-semibold text-slate-900">{inr(r.in)}</td>
+                          <td className="py-2.5 text-right text-slate-400">{open ? "−" : "+"}</td>
+                        </tr>
+                        {open && (
+                          <tr className="border-b border-slate-100 bg-slate-50/60">
+                            <td colSpan={4} className="px-4 py-3">
+                              {detail.length === 0 ? (
+                                <p className="text-sm text-slate-400">No entries in this period.</p>
+                              ) : (
+                                <ul className="divide-y divide-slate-100">
+                                  {detail.map((ce) => (
+                                    <li key={ce.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                                      <span className="min-w-0 flex-1 truncate text-slate-600">
+                                        <span className="font-medium text-slate-800">{ce.entry_date}</span>
+                                        {" · "}
+                                        {ce.description || ce.method}
+                                      </span>
+                                      <span className="shrink-0 font-semibold text-slate-900">{inr(Number(ce.amount))}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                  {instrumentTotals.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-500">
+                        No collections in this period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {tab === "quick" && (
+        <>
+          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {[
+              { label: "Quick Sales", value: quickSummary.count, icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-teal-500 to-emerald-600", sub: `${validQuick.length} in period` },
+              { label: "Collected", value: quickSummary.amount, icon: "M20 6 9 17l-5-5", grad: "from-blue-500 to-indigo-600", sub: "What customers paid" },
+              { label: "Cost", value: quickSummary.cost, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5", grad: "from-amber-500 to-orange-600", sub: "Net cost you paid" },
+              { label: "Margin", value: quickSummary.amount - quickSummary.cost, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: "from-emerald-500 to-teal-600", sub: "Amount − Cost" },
+            ].map((c) => (
+              <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-500">{c.label}</p>
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                      <path d={c.icon} />
+                    </svg>
+                  </div>
+                </div>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                  {c.label === "Quick Sales" ? String(c.value) : inr(c.value)}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">{c.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900">Collected by Method</h2>
+                <span className="text-sm font-medium text-slate-600">{inr(quickSummary.amount)}</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {quickSummary.byMethod.map(([m, amt]) => {
+                  const pct = quickSummary.amount > 0 ? (amt / quickSummary.amount) * 100 : 0;
+                  return (
+                    <div key={m}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium uppercase text-slate-700">{INSTRUMENT_LABEL[m] ?? m}</span>
+                        <span className="text-slate-900">{inr(amt)}</span>
+                      </div>
+                      <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+                        <div
+                          className="h-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-400"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {quickSummary.byMethod.length === 0 && (
+                  <p className="text-sm text-slate-500">No quick sales yet.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900">Recent Quick Sales</h2>
+                <button
+                  onClick={() =>
+                    downloadCsv(
+                      "quick-sales.csv",
+                      ["Sale #", "Date", "Item", "Customer", "Amount", "Cost", "Margin", "Status"],
+                      validQuick.map((q) => [
+                        q.sale_number,
+                        q.sale_date,
+                        q.item_name ?? q.products?.name ?? q.services?.name ?? "Sale (general)",
+                        q.customers?.name ?? "Walk-in",
+                        q.amount,
+                        q.cost,
+                        Number(q.amount) - Number(q.cost),
+                        q.status,
+                      ])
+                    )
+                  }
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                >
+                  Download CSV
+                </button>
+              </div>
+              <div className="mt-4 max-h-80 overflow-x-auto overflow-y-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-500">
+                      <th className="py-2 pr-4 font-medium">Sale #</th>
+                      <th className="py-2 pr-4 font-medium">Item</th>
+                      <th className="py-2 pr-4 text-right font-medium">Amount</th>
+                      <th className="py-2 pr-4 text-right font-medium">Margin</th>
+                      <th className="py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {validQuick.slice(0, 50).map((q) => (
+                      <tr key={q.id} className="border-b border-slate-100 last:border-0">
+                        <td className="py-2.5 pr-4 font-mono text-xs font-medium text-teal-700">{q.sale_number}</td>
+                        <td className="py-2.5 pr-4 text-slate-700">
+                          <span className="block max-w-[180px] truncate">
+                            {q.item_name ?? q.products?.name ?? q.services?.name ?? "Sale (general)"}
+                          </span>
+                          <span className="block text-xs text-slate-400">
+                            {q.sale_date} · {q.customers?.name ?? "Walk-in"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(q.amount))}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-emerald-600">
+                          {inr(Number(q.amount) - Number(q.cost))}
+                        </td>
+                        <td className="py-2.5">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium capitalize text-emerald-700">
+                            {q.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {validQuick.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500">
+                          No quick sales in this period.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </>
       )}

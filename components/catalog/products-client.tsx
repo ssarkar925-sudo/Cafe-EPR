@@ -50,9 +50,11 @@ function gradient(name: string) {
 export default function ProductsClient({
   initialProducts,
   categories,
+  embedded = false,
 }: {
   initialProducts: Product[];
   categories: CategoryRef[];
+  embedded?: boolean;
 }) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [q, setQ] = useState("");
@@ -195,7 +197,7 @@ export default function ProductsClient({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className={embedded ? "max-w-none" : "mx-auto max-w-6xl px-4 py-8 lg:px-8"}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Products</h1>

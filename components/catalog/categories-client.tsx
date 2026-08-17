@@ -33,9 +33,11 @@ function gradient(name: string) {
 export default function CategoriesClient({
   initialCategories,
   counts = {},
+  embedded = false,
 }: {
   initialCategories: Category[];
   counts?: Record<string, number>;
+  embedded?: boolean;
 }) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [q, setQ] = useState("");
@@ -133,7 +135,7 @@ export default function CategoriesClient({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className={embedded ? "max-w-none" : "mx-auto max-w-6xl px-4 py-8 lg:px-8"}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Categories</h1>

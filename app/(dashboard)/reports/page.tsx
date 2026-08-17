@@ -11,7 +11,7 @@ export default async function ReportsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }, { data: expenses }, { data: returns }, { data: transactions }] =
+  const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }, { data: expenses }, { data: returns }, { data: transactions }, { data: instruments }, { data: cashEntries }, { data: quickSales }] =
     await Promise.all([
       supabase
         .from("invoices")
@@ -24,7 +24,7 @@ export default async function ReportsPage() {
         .limit(1000),
       supabase
         .from("payments")
-        .select("method, amount, received_at, invoices(invoice_number)")
+        .select("method, amount, received_at, invoices(invoice_number), payment_instruments(name, type)")
         .order("received_at", { ascending: false })
         .limit(1000),
       supabase
@@ -48,6 +48,22 @@ export default async function ReportsPage() {
         .select("id, transaction_number, service_type, direction, transaction_date, customer_mobile, reference, amount, service_fee, portal_commission, status")
         .order("transaction_date", { ascending: false })
         .limit(500),
+      supabase
+        .from("payment_instruments")
+        .select("id, name, type, is_active")
+        .order("type")
+        .order("name"),
+      supabase
+        .from("cash_entries")
+        .select("id, entry_date, method, direction, amount, description, payment_instruments(name, type)")
+        .eq("direction", "in")
+        .order("entry_date", { ascending: false })
+        .limit(1000),
+      supabase
+        .from("quick_sales")
+        .select("id, sale_number, sale_date, item_name, amount, cost, change_due, payments, status, customers(name), products(name), services(name)")
+        .order("sale_date", { ascending: false })
+        .limit(1000),
     ]);
 
   return (
@@ -59,6 +75,9 @@ export default async function ReportsPage() {
       expenses={(expenses ?? []) as any}
       returns={(returns ?? []) as any}
       transactions={(transactions ?? []) as any}
+      instruments={(instruments ?? []) as any}
+      cashEntries={(cashEntries ?? []) as any}
+      quickSales={(quickSales ?? []) as any}
     />
   );
 }

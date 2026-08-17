@@ -11,12 +11,22 @@ export default async function CashbookPage() {
 
   const supabase = await createClient();
 
-  const { data: entries } = await supabase
-    .from("cash_entries")
-    .select("*")
-    .order("entry_date", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(1000);
+  const [{ data: entries }, { data: instruments }] = await Promise.all([
+    supabase
+      .from("cash_entries")
+      .select("*, payment_instruments(name, type)")
+      .order("entry_date", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(1000),
+    supabase
+      .from("payment_instruments")
+      .select("id, name, type")
+      .eq("is_active", true)
+      .order("type")
+      .order("name"),
+  ]);
 
-  return <CashbookClient initialEntries={(entries ?? []) as any} />;
+  return (
+    <CashbookClient initialEntries={(entries ?? []) as any} instruments={(instruments ?? []) as any} />
+  );
 }

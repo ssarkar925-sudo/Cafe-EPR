@@ -40,9 +40,11 @@ function gradient(name: string) {
 export default function ServicesClient({
   initialServices,
   categories,
+  embedded = false,
 }: {
   initialServices: Service[];
   categories: CategoryRef[];
+  embedded?: boolean;
 }) {
   const [services, setServices] = useState<Service[]>(initialServices);
   const [q, setQ] = useState("");
@@ -160,7 +162,7 @@ export default function ServicesClient({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className={embedded ? "max-w-none" : "mx-auto max-w-6xl px-4 py-8 lg:px-8"}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Services</h1>

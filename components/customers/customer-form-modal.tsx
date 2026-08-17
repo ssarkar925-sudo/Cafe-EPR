@@ -13,6 +13,7 @@ type Props = {
       email: string;
       address: string;
       opening_balance: number;
+      customer_type: string;
     },
     customer?: Customer
   ) => Promise<void>;
@@ -24,6 +25,7 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
   const [phone, setPhone] = useState(editing?.phone ?? "");
   const [email, setEmail] = useState(editing?.email ?? "");
   const [address, setAddress] = useState(editing?.address ?? "");
+  const [customerType, setCustomerType] = useState(editing?.customer_type ?? "retail");
   const [opening, setOpening] = useState(
     editing ? String(editing.opening_balance) : "0"
   );
@@ -39,6 +41,7 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
         email,
         address,
         opening_balance: Number(opening) || 0,
+        customer_type: customerType || "retail",
       },
       editing ?? undefined
     );
@@ -110,6 +113,18 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
               onChange={(e) => setAddress(e.target.value)}
               className={inputClass}
             />
+          </div>
+          <div>
+            <label className={labelClass}>Customer type</label>
+            <select
+              value={customerType}
+              onChange={(e) => setCustomerType(e.target.value)}
+              className={inputClass}
+            >
+              <option value="retail">Retail</option>
+              <option value="business">Business</option>
+              <option value="walk-in">Walk-in</option>
+            </select>
           </div>
           <div>
             <label className={labelClass}>

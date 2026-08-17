@@ -88,6 +88,15 @@ export default async function DashboardPage() {
     0
   );
 
+  const { data: quickRows } = await supabase
+    .from("quick_sales")
+    .select("amount, cost, status")
+    .eq("sale_date", isoToday);
+  const activeQuick = (quickRows ?? []).filter((q) => q.status === "active");
+  const quickTodayCount = activeQuick.length;
+  const quickTodayAmount = activeQuick.reduce((s, q) => s + Number(q.amount), 0);
+  const quickTodayMargin = activeQuick.reduce((s, q) => s + Number(q.amount) - Number(q.cost), 0);
+
   return (
     <DashboardClient
       name={profile?.full_name || user?.email?.split("@")[0] || "there"}
@@ -107,6 +116,9 @@ export default async function DashboardPage() {
       receivables={receivables}
       transactions={(txns ?? []) as any}
       topDebtors={(debtors ?? []) as any}
+      quickTodayCount={quickTodayCount}
+      quickTodayAmount={quickTodayAmount}
+      quickTodayMargin={quickTodayMargin}
     />
   );
 }

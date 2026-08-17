@@ -9,7 +9,7 @@ export function useRealtime(tables: string[]) {
 
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel("db-changes");
+    const channel = supabase.channel("db-changes-" + Math.random().toString(36).slice(2));
 
     for (const t of tables) {
       channel.on(

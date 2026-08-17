@@ -55,8 +55,8 @@ export default function GlobalSearch({
       const [cust, prods, servs, invs] = await Promise.all([
         supabaseRef
           .from("customers")
-          .select("id, name, code, phone")
-          .ilike("name", ilike)
+          .select("id, name, code, phone, email")
+          .or(`name.ilike.${ilike},phone.ilike.${ilike},email.ilike.${ilike}`)
           .limit(5),
         supabaseRef
           .from("products")
@@ -84,7 +84,7 @@ export default function GlobalSearch({
           type: "Customer",
           title: c.name as string,
           subtitle: `${c.code ?? ""}${c.phone ? " · " + c.phone : ""}`.trim(),
-          href: "/customers",
+          href: `/customers/${c.id}`,
         });
       for (const p of prods.data ?? [])
         out.push({

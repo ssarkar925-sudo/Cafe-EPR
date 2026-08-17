@@ -1,9 +1,14 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
 import CategoriesClient from "@/components/catalog/categories-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
+  const role = await getUserRole();
+  if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
+
   const supabase = await createClient();
 
   const [{ data: categories }, { data: products }, { data: services }] =

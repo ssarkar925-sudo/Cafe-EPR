@@ -32,6 +32,7 @@ export default function MasterClient({
   rows,
   usage = {},
   display,
+  embedded = false,
 }: {
   title: string;
   desc: string;
@@ -40,6 +41,7 @@ export default function MasterClient({
   rows: any[];
   usage?: Record<string, number>;
   display?: (row: any) => string;
+  embedded?: boolean;
 }) {
   const [list, setList] = useState(rows);
   const [q, setQ] = useState("");
@@ -48,6 +50,8 @@ export default function MasterClient({
   const [form, setForm] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [delTarget, setDelTarget] = useState<{ row: any; referenced: boolean } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const supabase = createClient();
 
   const filtered = useMemo(() => {
@@ -83,6 +87,24 @@ export default function MasterClient({
     const { error } = await supabase.from(table).update({ is_active: !row.is_active }).eq("id", row.id);
     if (error) return alert(error.message);
     setList((prev) => prev.map((r) => (r.id === row.id ? { ...r, is_active: !row.is_active } : r)));
+  }
+
+  function requestDelete(row: any) {
+    const used = (usage[row.id] ?? 0) > 0;
+    setDelTarget({ row, referenced: used });
+  }
+
+  async function confirmDelete() {
+    if (!delTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from(table).delete().eq("id", delTarget.row.id);
+    setDeleting(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setList((prev) => prev.filter((r) => r.id !== delTarget.row.id));
+    setDelTarget(null);
   }
 
   async function save() {
@@ -121,7 +143,7 @@ export default function MasterClient({
     "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className={`mx-auto ${embedded ? "max-w-none" : "max-w-6xl px-4 py-8 lg:px-8"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
@@ -222,6 +244,13 @@ export default function MasterClient({
                     Edit
                   </button>
                   <button
+                    onClick={() => requestDelete(row)}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                    title={used > 0 ? "Referenced by transactions — will be disabled" : "Delete"}
+                  >
+                    Delete
+                  </button>
+                  <button
                     onClick={() => toggleActive(row)}
                     className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
                       row.is_active
@@ -286,6 +315,56 @@ export default function MasterClient({
                 {busy ? "Saving…" : "Save"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {delTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            {delTarget.referenced ? (
+              <>
+                <h3 className="text-lg font-bold text-slate-900">Used by existing transactions</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  This record is used by existing transactions. Disable it instead to preserve financial history.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    onClick={() => setDelTarget(null)}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { toggleActive(delTarget.row); setDelTarget(null); }}
+                    className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600"
+                  >
+                    Disable
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-slate-900">Delete record?</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  This will permanently remove the record. This cannot be undone.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    onClick={() => setDelTarget(null)}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={deleting}
+                    className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
