@@ -20,7 +20,7 @@ export default async function ReportsPage() {
         .limit(1000),
       supabase
         .from("invoice_items")
-        .select("qty, amount, products(name), services(name)")
+        .select("qty, amount, invoices(invoice_date), products(name), services(name)")
         .limit(1000),
       supabase
         .from("payments")

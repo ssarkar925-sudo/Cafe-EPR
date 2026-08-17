@@ -201,6 +201,7 @@ export default function DashboardClient({
     "expenses",
     "transactions",
     "settlements",
+    "quick_sales",
   ]);
 
   const [period, setPeriod] = useState(7);
@@ -302,7 +303,7 @@ export default function DashboardClient({
     [transactions]
   );
 
-  const netToday = salesToday + businessToday.income - expensesToday;
+  const netToday = salesToday + businessToday.income + quickTodayMargin - expensesToday;
 
   const lowStock = useMemo(() => stock.filter((p) => Number(p.stock_qty) <= Number(p.reorder_level)), [stock]);
 
@@ -387,7 +388,7 @@ export default function DashboardClient({
     },
     netToday: {
       value: inr(netToday),
-      sub: <span className="text-slate-400">Sales + Business − Expenses</span>,
+      sub: <span className="text-slate-400">Sales + Quick + Business − Expenses</span>,
     },
   };
 

@@ -94,6 +94,8 @@ export default function CashbookClient({
             { value: "card", label: "Card" },
             { value: "bank", label: "Bank" },
             { value: "wallet", label: "Wallet" },
+            { value: "dmt", label: "DMT" },
+            { value: "aeps", label: "AEPS" },
             { value: "debit_card", label: "Debit Card" },
             { value: "credit_card", label: "Credit Card" },
           ]}

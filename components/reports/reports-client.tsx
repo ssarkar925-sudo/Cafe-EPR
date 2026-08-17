@@ -15,7 +15,7 @@ type Inv = {
   status: string;
   customers: { name: string | null } | null;
 };
-type Item = { qty: string; amount: string; products: { name: string } | null; services: { name: string } | null };
+type Item = { qty: string; amount: string; invoices: { invoice_date: string } | null; products: { name: string } | null; services: { name: string } | null };
 type Pay = { method: string; amount: string; received_at: string; invoices: { invoice_number: string } | null };
 type Due = { id: string; name: string; balance: string };
 type Exp = { id: string; expense_date: string; category: string; amount: string; note: string | null; status: string };
@@ -136,13 +136,7 @@ export default function ReportsClient({
   );
   const validReturns = useMemo(
     () =>
-      returns.filter(
-        (r) =>
-          r.status === "completed" &&
-          r.invoices?.status !== "cancelled" &&
-          r.return_date >= range.from &&
-          r.return_date <= range.to
-      ),
+      returns.filter((r) => r.status === "completed" && r.return_date >= range.from && r.return_date <= range.to),
     [returns, range]
   );
 
@@ -150,7 +144,27 @@ export default function ReportsClient({
   const totalPaid = validInvoices.reduce((s, i) => s + Number(i.paid), 0);
   const totalExpenses = activeExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const totalReturns = validReturns.reduce((s, r) => s + Number(r.subtotal), 0);
-  const net = totalSales - totalReturns - totalExpenses;
+
+  const validQuick = useMemo(
+    () => quickSales.filter((q) => q.status === "active" && q.sale_date >= range.from && q.sale_date <= range.to),
+    [quickSales, range]
+  );
+  const quickSummary = useMemo(() => {
+    const byMethod = new Map<string, number>();
+    for (const q of validQuick) {
+      for (const p of q.payments ?? []) {
+        byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + (Number(p.amount) || 0));
+      }
+    }
+    return {
+      count: validQuick.length,
+      amount: validQuick.reduce((s, q) => s + Number(q.amount), 0),
+      cost: validQuick.reduce((s, q) => s + Number(q.cost), 0),
+      byMethod: Array.from(byMethod.entries()).sort((a, b) => b[1] - a[1]),
+    };
+  }, [validQuick]);
+
+  const net = totalSales - totalReturns - totalExpenses + quickSummary.amount - quickSummary.cost;
 
   const validTxns = useMemo(
     () =>
@@ -195,13 +209,15 @@ export default function ReportsClient({
     for (const it of items) {
       const name = it.products?.name ?? it.services?.name ?? null;
       if (!name) continue;
+      const date = it.invoices?.invoice_date;
+      if (!date || date < range.from || date > range.to) continue;
       const cur = map.get(name) ?? { name, qty: 0, amount: 0 };
       cur.qty += Number(it.qty);
       cur.amount += Number(it.amount);
       map.set(name, cur);
     }
     return Array.from(map.values()).sort((a, b) => b.amount - a.amount).slice(0, 10);
-  }, [items]);
+  }, [items, range]);
 
   const methodTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -243,40 +259,19 @@ export default function ReportsClient({
     return [...rows, ...zero];
   }, [cashEntries, instruments, range]);
 
-  const validQuick = useMemo(
-    () =>
-      quickSales.filter(
-        (q) => q.status === "active" && q.sale_date >= range.from && q.sale_date <= range.to
-      ),
-    [quickSales, range]
-  );
-  const quickSummary = useMemo(() => {
-    const byMethod = new Map<string, number>();
-    for (const q of validQuick) {
-      for (const p of q.payments ?? []) {
-        byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + (Number(p.amount) || 0));
-      }
-    }
-    return {
-      count: validQuick.length,
-      amount: validQuick.reduce((s, q) => s + Number(q.amount), 0),
-      cost: validQuick.reduce((s, q) => s + Number(q.cost), 0),
-      byMethod: Array.from(byMethod.entries()).sort((a, b) => b[1] - a[1]),
-    };
-  }, [validQuick]);
-
   const KPI_CARDS = [
     { label: "Sales", value: totalSales, icon: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9", grad: "from-emerald-500 to-teal-600", sub: `${validInvoices.length} invoices` },
     { label: "Collected", value: totalPaid, icon: "M20 6 9 17l-5-5", grad: "from-blue-500 to-indigo-600", sub: `${inr(totalSales - totalPaid)} outstanding` },
     { label: "Returns", value: totalReturns, icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5", grad: "from-amber-500 to-orange-600", sub: `${validReturns.length} returns` },
     { label: "Expenses", value: totalExpenses, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5", grad: "from-rose-500 to-pink-600", sub: `${activeExpenses.length} entries` },
-    { label: "Net", value: net, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600", sub: "Sales − returns − expenses" },
+    { label: "Quick Sales", value: quickSummary.amount, icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-teal-500 to-emerald-600", sub: `${quickSummary.count} sales · ${inr(quickSummary.amount - quickSummary.cost)} margin` },
+    { label: "Net", value: net, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600", sub: "Sales + quick margin − returns − expenses" },
   ];
 
-  const recentInvoices = invoices.filter((i) => i.status !== "cancelled").slice(0, 8);
+  const recentInvoices = invoices.filter((i) => i.status !== "cancelled" && i.invoice_date >= range.from && i.invoice_date <= range.to).slice(0, 8);
   const recentPayments = payments.slice(0, 8);
   const recentExpenses = activeExpenses.slice(0, 8);
-  const recentReturns = returns.filter((r) => r.status === "completed").slice(0, 8);
+  const recentReturns = returns.filter((r) => r.status === "completed" && r.return_date >= range.from && r.return_date <= range.to).slice(0, 8);
 
   const tabBtn = (key: typeof tab, label: string) => (
     <button
@@ -327,7 +322,7 @@ export default function ReportsClient({
 
       {tab === "overview" && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
             {KPI_CARDS.map((c) => (
               <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />

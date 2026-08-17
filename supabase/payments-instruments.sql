@@ -30,7 +30,7 @@ create index if not exists idx_cash_entries_instrument on public.cash_entries (i
 alter table public.payments drop constraint if exists payments_method_check;
 alter table public.payments add constraint payments_method_check check (method in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card'));
 alter table public.cash_entries drop constraint if exists cash_entries_method_check;
-alter table public.cash_entries add constraint cash_entries_method_check check (method in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card'));
+alter table public.cash_entries add constraint cash_entries_method_check check (method in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card', 'dmt', 'aeps'));
 
 -- Atomic sale: invoice + items + stock deduction + payments + customer balance in ONE transaction.
 -- Supports collecting a customer's previous due (non-revenue cash-in) and applying a customer's

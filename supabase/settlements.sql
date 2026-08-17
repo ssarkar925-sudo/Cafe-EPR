@@ -142,6 +142,9 @@ end;
 $$;
 
 -- ---------- Pool balances (single source of truth for KPI cards) ----------
+-- Pools = external fund flows captured in the cash book (sales, quick sales, expenses,
+-- refunds) PLUS internal transfers tracked in the settlements ledger. This keeps the
+-- dashboard Money Position consistent with the Cash Book for every account.
 create or replace function public.get_settlement_summary()
 returns jsonb
 language plpgsql
@@ -161,39 +164,54 @@ begin
   select coalesce(sum(case when direction = 'in' then amount else -amount end), 0) into v_cash
   from public.cash_entries where method = 'cash';
 
-  select coalesce(sum(amount), 0) into v_bank
+  select coalesce(sum(x), 0) into v_bank
   from (
-    select amount from public.settlements where status = 'success' and to_pool = 'bank'
+    select amount as x from public.settlements where status = 'success' and to_pool = 'bank'
     union all
     select -amount from public.settlements where status = 'success' and from_pool = 'bank'
+    union all
+    select case when direction = 'in' then amount else -amount end
+    from public.cash_entries where method in ('bank', 'debit_card', 'credit_card')
   ) t;
 
-  select coalesce(sum(amount), 0) into v_wallet
+  select coalesce(sum(x), 0) into v_wallet
   from (
-    select amount from public.settlements where status = 'success' and to_pool = 'wallet'
+    select amount as x from public.settlements where status = 'success' and to_pool = 'wallet'
     union all
     select -amount from public.settlements where status = 'success' and from_pool = 'wallet'
+    union all
+    select case when direction = 'in' then amount else -amount end
+    from public.cash_entries where method = 'wallet'
   ) t;
 
-  select coalesce(sum(amount), 0) into v_dmt
+  select coalesce(sum(x), 0) into v_dmt
   from (
-    select amount from public.settlements where status = 'success' and to_pool = 'dmt'
+    select amount as x from public.settlements where status = 'success' and to_pool = 'dmt'
     union all
     select -amount from public.settlements where status = 'success' and from_pool = 'dmt'
+    union all
+    select case when direction = 'in' then amount else -amount end
+    from public.cash_entries where method = 'dmt'
   ) t;
 
-  select coalesce(sum(amount), 0) into v_aeps
+  select coalesce(sum(x), 0) into v_aeps
   from (
-    select amount from public.settlements where status = 'success' and to_pool = 'aeps'
+    select amount as x from public.settlements where status = 'success' and to_pool = 'aeps'
     union all
     select -amount from public.settlements where status = 'success' and from_pool = 'aeps'
+    union all
+    select case when direction = 'in' then amount else -amount end
+    from public.cash_entries where method = 'aeps'
   ) t;
 
-  select coalesce(sum(amount), 0) into v_upi_qr
+  select coalesce(sum(x), 0) into v_upi_qr
   from (
-    select amount from public.settlements where status = 'success' and to_pool = 'upi_qr'
+    select amount as x from public.settlements where status = 'success' and to_pool = 'upi_qr'
     union all
     select -amount from public.settlements where status = 'success' and from_pool = 'upi_qr'
+    union all
+    select case when direction = 'in' then amount else -amount end
+    from public.cash_entries where method = 'upi'
   ) t;
 
   select count(*) into v_count from public.settlements where status = 'success';

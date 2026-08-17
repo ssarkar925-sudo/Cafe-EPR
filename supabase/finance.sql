@@ -380,7 +380,8 @@ end;
 $$;
 
 
--- Cancel an expense (audited, no delete): reverses the cash entry
+-- Cancel an expense (audited, no delete): reverses the cash entry using the SAME account,
+-- instrument and date the expense was originally posted from, so the cash book stays correct.
 create or replace function public.cancel_expense(p_expense_id uuid)
 returns jsonb
 language plpgsql
@@ -388,6 +389,11 @@ security definer set search_path = public
 as $$
 declare
   v_expense record;
+  v_orig_method text;
+  v_orig_instrument uuid;
+  v_orig_date date;
+  v_method text;
+  v_date date;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
@@ -395,12 +401,22 @@ begin
   if not found then raise exception 'Expense not found'; end if;
   if v_expense.status = 'cancelled' then raise exception 'Expense already cancelled'; end if;
 
+  select ce.method, ce.instrument_id, ce.entry_date
+    into v_orig_method, v_orig_instrument, v_orig_date
+  from public.cash_entries ce
+  where ce.ref_type = 'expense' and ce.ref_id = p_expense_id
+  order by ce.created_at desc
+  limit 1;
+
+  v_method := coalesce(v_orig_method, 'cash');
+  v_date := coalesce(v_orig_date, v_expense.expense_date);
+
   update public.expenses
   set status = 'cancelled', cancelled_at = now()
   where id = p_expense_id;
 
-  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-  values (current_date, 'cash', 'in', v_expense.amount, 'Expense cancelled: ' || v_expense.category, 'expense', p_expense_id);
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
+  values (v_date, v_method, 'in', v_expense.amount, 'Expense cancelled: ' || v_expense.category, 'expense', p_expense_id, v_orig_instrument);
 
   return jsonb_build_object('id', p_expense_id, 'status', 'cancelled');
 end;

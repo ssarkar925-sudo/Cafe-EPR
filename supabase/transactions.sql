@@ -103,7 +103,7 @@ begin
   ) returning id into v_txn_id;
 
   insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-  values (p_transaction_date, 'cash', v_direction, v_cash,
+  values (p_transaction_date, lower(p_service_type), v_direction, v_cash,
           v_service_label || ' ' || v_txn_number ||
             case when p_commission > 0 then ' (commission ' || p_commission || ')' else '' end,
           'transaction', v_txn_id);
@@ -144,7 +144,7 @@ begin
   where id = p_txn_id;
 
   insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-  values (current_date, 'cash', v_reverse, v_cash,
+  values (current_date, lower(v_txn.service_type), v_reverse, v_cash,
           'Cancelled ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number,
           'transaction', p_txn_id);
 

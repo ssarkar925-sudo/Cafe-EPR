@@ -172,7 +172,7 @@ begin
 
   if p_status = 'success' then
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_transaction_date, 'cash', v_direction, v_cash, v_label || ' ' || v_number, 'transaction', v_txn_id);
+    values (p_transaction_date, lower(p_service_type), v_direction, v_cash, v_label || ' ' || v_number, 'transaction', v_txn_id);
   end if;
 
   return (
@@ -256,10 +256,10 @@ begin
 
   if abs(v_old_cash - v_new_cash) > 0.009 then
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, 'cash', case when v_direction = 'in' then 'out' else 'in' end,
+    values (current_date, lower(v_txn.service_type), case when v_direction = 'in' then 'out' else 'in' end,
             v_old_cash, 'Corrected ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_transaction_date, 'cash', v_direction, v_new_cash,
+    values (p_transaction_date, lower(v_txn.service_type), v_direction, v_new_cash,
             upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
   end if;
 
@@ -286,7 +286,7 @@ begin
   v_cash := case when v_txn.direction = 'in' then v_txn.amount + v_txn.service_fee else v_txn.amount end;
 
   insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-  values (current_date, 'cash', case when v_txn.direction = 'in' then 'out' else 'in' end, v_cash,
+  values (current_date, lower(v_txn.service_type), case when v_txn.direction = 'in' then 'out' else 'in' end, v_cash,
           'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
 
   update public.transactions
@@ -317,7 +317,7 @@ begin
   if v_txn.status = 'success' then
     v_cash := case when v_txn.direction = 'in' then v_txn.amount + v_txn.service_fee else v_txn.amount end;
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, 'cash', case when v_txn.direction = 'in' then 'out' else 'in' end, v_cash,
+    values (current_date, lower(v_txn.service_type), case when v_txn.direction = 'in' then 'out' else 'in' end, v_cash,
             'Deleted ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
   end if;
 
