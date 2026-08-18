@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
+import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
+import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
 import InstrumentSelect, { METHOD_ACCOUNT_TYPES, type InstrumentPick } from "./instrument-select";
 import {
@@ -166,6 +168,7 @@ export default function PosClient({
     },
   ]);
   const [collectDue, setCollectDue] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [dueAmount, setDueAmount] = useState("");
   const [duePick, setDuePick] = useState<InstrumentPick>({
     instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
@@ -261,6 +264,11 @@ export default function PosClient({
       }
       return [{ instrument_id: instId, method: m, amount: "" }];
     });
+  }
+
+  function applyPaymentScan(f: ScanFields) {
+    if (f.method) quickMethod(f.method);
+    if (f.amount) setPaymentAmount(0, f.amount);
   }
 
   const selectedCustomer = custList.find((c) => c.id === customerId);
@@ -956,11 +964,22 @@ export default function PosClient({
                   <div>
                     <div className="mb-1 flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-500">QUICK PAYMENT</label>
-                      {payments.length < 3 && (
-                        <button onClick={addPaymentRow} className="text-xs font-medium text-blue-600 hover:text-blue-800">
-                          + Split payment
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setScanOpen(true)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-violet-600 hover:text-violet-800"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                            <path d="M4 7V4h3M9 4h2M4 11v2M17 4h3v3M20 9v2M20 17v3h-3M15 20h-2M4 17v3h3M4 15v-2" />
+                          </svg>
+                          Scan
                         </button>
-                      )}
+                        {payments.length < 3 && (
+                          <button onClick={addPaymentRow} className="text-xs font-medium text-blue-600 hover:text-blue-800">
+                            + Split payment
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mb-2 grid grid-cols-2 gap-2">
@@ -1368,6 +1387,14 @@ export default function PosClient({
           </div>
         </div>
       )}
+
+      <ScanFillModal
+        open={scanOpen}
+        mode="payment"
+        title="Scan Payment"
+        onClose={() => setScanOpen(false)}
+        onApply={applyPaymentScan}
+      />
     </div>
   );
 }

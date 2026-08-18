@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
 import Modal from "@/components/ui/modal";
+import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
+import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
 
 function toLocalInput(value: string) {
@@ -65,6 +67,7 @@ export default function BusinessFormModal({
     remarks: initial?.remarks ?? "",
   }));
   const [error, setError] = useState("");
+  const [scanOpen, setScanOpen] = useState(false);
 
   const selectedCustomer = customers.find((c) => c.id === form.customer_id);
 
@@ -103,6 +106,43 @@ export default function BusinessFormModal({
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function applyScanned(f: ScanFields) {
+    const updates: Partial<typeof form> = {};
+    if (f.amount) updates.amount = f.amount;
+    if (f.reference) updates.reference = f.reference;
+    if (f.aadhaar_last4) updates.aadhaar_last4 = f.aadhaar_last4;
+    if (f.customer_mobile) updates.customer_mobile = f.customer_mobile;
+    if (f.sender_name) updates.sender_name = f.sender_name;
+    if (f.sender_mobile) updates.sender_mobile = f.sender_mobile;
+    if (f.beneficiary_name) updates.beneficiary_name = f.beneficiary_name;
+    if (f.beneficiary_bank) updates.beneficiary_bank = f.beneficiary_bank;
+    if (f.beneficiary_ifsc) updates.beneficiary_ifsc = f.beneficiary_ifsc;
+    if (f.beneficiary_account) updates.beneficiary_account = f.beneficiary_account;
+    if (f.upi_id) updates.upi_id = f.upi_id;
+    if (f.service_fee) updates.service_fee = f.service_fee;
+    if (f.portal_commission) updates.portal_commission = f.portal_commission;
+    if (f.status) updates.status = f.status;
+    if (f.bank_name) {
+      const q = f.bank_name.toLowerCase();
+      const b = banks.find(
+        (x) => x.name && (x.name.toLowerCase().includes(q) || q.includes(x.name.toLowerCase()))
+      );
+      if (b) updates.bank_id = b.id;
+    }
+    if (f.portal_name) {
+      const q = f.portal_name.toLowerCase();
+      const p = portals.find(
+        (x) => x.name && (x.name.toLowerCase().includes(q) || q.includes(x.name.toLowerCase()))
+      );
+      if (p) updates.portal_id = p.id;
+    }
+    if (f.transaction_date) {
+      const time = form.transaction_timestamp ? form.transaction_timestamp.slice(11) : "00:00";
+      updates.transaction_timestamp = `${f.transaction_date}T${time}`;
+    }
+    setForm((prev) => ({ ...prev, ...updates }));
   }
 
   function submit() {
@@ -190,6 +230,20 @@ export default function BusinessFormModal({
         </div>
       }
     >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-slate-400">
+          {service === "aeps" ? "AEPS" : service === "dmt" ? "DMT" : "UPI"} transaction
+        </p>
+        <button
+          onClick={() => setScanOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+            <path d="M4 7V4h3M9 4h2M4 11v2M17 4h3v3M20 9v2M20 17v3h-3M15 20h-2M4 17v3h3M4 15v-2" />
+          </svg>
+          Scan &amp; Fill
+        </button>
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Transaction Date & Time *</label>
@@ -400,6 +454,14 @@ export default function BusinessFormModal({
         {error && (
           <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
         )}
+
+        <ScanFillModal
+          open={scanOpen}
+          mode={service === "aeps" ? "aeps" : service === "dmt" ? "dmt" : "upi"}
+          title={`Scan & Fill — ${service === "aeps" ? "AEPS" : service === "dmt" ? "DMT" : "UPI"}`}
+          onClose={() => setScanOpen(false)}
+          onApply={applyScanned}
+        />
     </Modal>
   );
 }
