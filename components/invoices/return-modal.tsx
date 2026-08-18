@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
+import Modal from "@/components/ui/modal";
 import { logAudit } from "@/lib/audit";
 import type { InvoiceRow } from "./invoices-client";
 type Item = {
@@ -173,251 +174,238 @@ export default function ReturnModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm">
-      <form
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-      >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              Return Items
-            </h2>
-            <p className="text-xs text-slate-400">
-              {invoice?.invoice_number ?? ""} ·{" "}
-              {invoice?.customers?.name ?? "Walk-in customer"}
+    <Modal
+      as="form"
+      onSubmit={submit}
+      onClose={onClose}
+      title="Return Items"
+      subtitle={`${invoice?.invoice_number ?? ""} · ${invoice?.customers?.name ?? "Walk-in customer"}`}
+      icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
+      accent="rose"
+      size="xl"
+      bodyClassName="px-0 py-0"
+      footer={
+        <>
+          {error && (
+            <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {error}
             </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          >
-            ✕
-          </button>
-        </div>
-
-        {invoice && (
-          <div className="grid grid-cols-2 gap-3 border-b border-slate-100 px-6 py-3 text-sm sm:grid-cols-4">
-            <div>
-              <p className="text-xs text-slate-400">Invoice total</p>
-              <p className="font-semibold text-slate-900">
-                {inr(invoice.total)}
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm">
+              <p className="text-slate-500">
+                Return value{" "}
+                <span className="font-bold text-rose-600">
+                  {inr(returnValue)}
+                </span>
+              </p>
+              <p className="text-slate-500">
+                Refund{" "}
+                <span className="font-bold text-slate-900">
+                  {inr(refundNum)}
+                </span>
               </p>
             </div>
-            <div>
-              <p className="text-xs text-slate-400">Paid</p>
-              <p className="font-semibold text-slate-900">{inr(invoice.paid)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Due</p>
-              <p className="font-semibold text-slate-900">{inr(invoice.due)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Returnable qty</p>
-              <p className="font-semibold text-slate-900">{remaining}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy || returnValue <= 0}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? "Processing…" : "Process Return"}
+              </button>
             </div>
           </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {items.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">
-              Loading items…
+        </>
+      }
+    >
+      {invoice && (
+        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 px-6 py-3 text-sm sm:grid-cols-4 dark:border-white/10">
+          <div>
+            <p className="text-xs text-slate-400">Invoice total</p>
+            <p className="font-semibold text-slate-900">
+              {inr(invoice.total)}
             </p>
-          ) : (
-            <>
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-900">
-                  Line items
-                </p>
-                <button
-                  type="button"
-                  onClick={allSelected ? () => setQtyMap({}) : selectAll}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                >
-                  {allSelected ? "Clear all" : "Return all"}
-                </button>
-              </div>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Paid</p>
+            <p className="font-semibold text-slate-900">{inr(invoice.paid)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Due</p>
+            <p className="font-semibold text-slate-900">{inr(invoice.due)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Returnable qty</p>
+            <p className="font-semibold text-slate-900">{remaining}</p>
+          </div>
+        </div>
+      )}
 
-              <div className="space-y-2">
-                {items.map((it) => {
-                  const avail = Number(it.qty) - Number(it.returned_qty || 0);
-                  const qty = qtyMap[it.id] ?? 0;
-                  return (
-                    <div
-                      key={it.id}
-                      className={`flex items-center gap-3 rounded-xl border p-3 transition ${
-                        qty > 0
-                          ? "border-rose-200 bg-rose-50/50"
-                          : "border-slate-200"
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-slate-900">
-                          {it.products?.name ??
-                            it.services?.name ??
-                            it.description ??
-                            "-"}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {avail <= 0 ? (
-                            <span className="text-slate-400">
-                              Fully returned
-                            </span>
-                          ) : (
-                            <>
-                              {avail} left · {inr(it.rate)} each
-                            </>
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-right text-sm font-medium text-slate-900">
-                        {inr(qty * Number(it.rate))}
-                      </div>
-                      {avail > 0 && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setQty(it.id, qty - 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-white"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            min={0}
-                            max={avail}
-                            value={qty}
-                            onChange={(e) =>
-                              setQty(it.id, Number(e.target.value) || 0)
-                            }
-                            className="h-7 w-14 rounded-lg border border-slate-200 text-center text-sm text-slate-900 outline-none focus:border-rose-400"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setQty(it.id, qty + 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-white"
-                          >
-                            +
-                          </button>
-                        </div>
-                      )}
+      <div className="px-6 py-4">
+        {items.length === 0 ? (
+          <p className="py-8 text-center text-sm text-slate-500">
+            Loading items…
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-900">
+                Line items
+              </p>
+              <button
+                type="button"
+                onClick={allSelected ? () => setQtyMap({}) : selectAll}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                {allSelected ? "Clear all" : "Return all"}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {items.map((it) => {
+                const avail = Number(it.qty) - Number(it.returned_qty || 0);
+                const qty = qtyMap[it.id] ?? 0;
+                return (
+                  <div
+                    key={it.id}
+                    className={`flex items-center gap-3 rounded-xl border p-3 transition ${
+                      qty > 0
+                        ? "border-rose-200 bg-rose-50/50"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-900">
+                        {it.products?.name ??
+                          it.services?.name ??
+                          it.description ??
+                          "-"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {avail <= 0 ? (
+                          <span className="text-slate-400">
+                            Fully returned
+                          </span>
+                        ) : (
+                          <>
+                            {avail} left · {inr(it.rate)} each
+                          </>
+                        )}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-5 rounded-xl bg-slate-50 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-900">
-                    Return value
-                  </p>
-                  <p className="text-lg font-bold text-rose-600">
-                    {inr(returnValue)}
-                  </p>
-                </div>
-
-                {maxRefund > 0 && (
-                  <>
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="font-medium">
-                          Refund to customer (partial return payment)
-                        </span>
+                    <div className="text-right text-sm font-medium text-slate-900">
+                      {inr(qty * Number(it.rate))}
+                    </div>
+                    {avail > 0 && (
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => setRefund(String(maxRefund))}
-                          className="rounded-md bg-slate-200 px-2 py-0.5 font-medium text-slate-700 transition hover:bg-slate-300"
+                          onClick={() => setQty(it.id, qty - 1)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-white"
                         >
-                          Max {inr(maxRefund)}
+                          −
                         </button>
-                      </div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <SearchableSelect
-                          value={method}
-                          onChange={setMethod}
-                          options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
-                          searchPlaceholder="Search method…"
-                          showClear={false}
-                          className="w-28"
-                        />
                         <input
                           type="number"
                           min={0}
-                          max={maxRefund}
-                          step="0.01"
-                          value={refund}
-                          onChange={(e) => setRefund(e.target.value)}
-                          placeholder={`0 - ${maxRefund}`}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+                          max={avail}
+                          value={qty}
+                          onChange={(e) =>
+                            setQty(it.id, Number(e.target.value) || 0)
+                          }
+                          className="h-7 w-14 rounded-lg border border-slate-200 text-center text-sm text-slate-900 outline-none focus:border-rose-400"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setQty(it.id, qty + 1)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-white"
+                        >
+                          +
+                        </button>
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        Leave at 0 for a no-money return. Refund cannot exceed{" "}
-                        {inr(maxRefund)}.
-                      </p>
-                    </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-                    <div className="mt-4">
-                      <label className="mb-1 block text-xs font-semibold text-slate-500">
-                        Reason (optional)
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="e.g. Damaged item, wrong product…"
+            <div className="mt-5 rounded-xl bg-slate-50 p-4 dark:bg-white/5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-900">
+                  Return value
+                </p>
+                <p className="text-lg font-bold text-rose-600">
+                  {inr(returnValue)}
+                </p>
+              </div>
+
+              {maxRefund > 0 && (
+                <>
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="font-medium">
+                        Refund to customer (partial return payment)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRefund(String(maxRefund))}
+                        className="rounded-md bg-slate-200 px-2 py-0.5 font-medium text-slate-700 transition hover:bg-slate-300"
+                      >
+                        Max {inr(maxRefund)}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <SearchableSelect
+                        value={method}
+                        onChange={setMethod}
+                        options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
+                        searchPlaceholder="Search method…"
+                        showClear={false}
+                        className="w-28"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={maxRefund}
+                        step="0.01"
+                        value={refund}
+                        onChange={(e) => setRefund(e.target.value)}
+                        placeholder={`0 - ${maxRefund}`}
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
                       />
                     </div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Leave at 0 for a no-money return. Refund cannot exceed{" "}
+                      {inr(maxRefund)}.
+                    </p>
+                  </div>
 
-        {error && (
-          <p className="mx-6 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
-          </p>
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      Reason (optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="e.g. Damaged item, wrong product…"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         )}
-
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
-          <div className="text-sm">
-            <p className="text-slate-500">
-              Return value{" "}
-              <span className="font-bold text-rose-600">
-                {inr(returnValue)}
-              </span>
-            </p>
-            <p className="text-slate-500">
-              Refund{" "}
-              <span className="font-bold text-slate-900">
-                {inr(refundNum)}
-              </span>
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={busy || returnValue <= 0}
-              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy ? "Processing…" : "Process Return"}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+      </div>
+    </Modal>
   );
 }

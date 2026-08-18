@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
+import StatCard from "@/components/ui/stat-card";
+import CompactToggle from "@/components/ui/compact-toggle";
+import { useToast } from "@/components/ui/use-toast";
+import { downloadCsv } from "@/components/ui/csv";
 
 export type AuditLog = {
   id: string;
@@ -35,6 +39,8 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
   const [action, setAction] = useState("all");
   const [entity, setEntity] = useState("all");
   const [date, setDate] = useState("");
+  const [compact, setCompact] = useState(false);
+  const { showToast, toastView } = useToast();
 
   useRealtime(["audit_logs"]);
 
@@ -65,6 +71,21 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
     });
   }, [logs, q, action, entity, date]);
 
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    let todayCount = 0,
+      creates = 0,
+      updates = 0,
+      reverses = 0;
+    for (const l of logs) {
+      if ((l.created_at ?? "").startsWith(today)) todayCount++;
+      if (l.action === "create") creates++;
+      else if (l.action === "update") updates++;
+      else if (l.action === "reverse" || l.action === "cancel") reverses++;
+    }
+    return { todayCount, creates, updates, reverses };
+  }, [logs]);
+
   function downloadCsv() {
     const headers = ["Time", "User", "Action", "Entity", "Entity ID", "Description"];
     const rows = filtered.map((l) => [
@@ -86,6 +107,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    showToast("success", `Exported ${filtered.length} audit entries to CSV`);
   }
 
   const inputClass =
@@ -95,18 +117,52 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Audit Log</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Audit Log</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Every important action, newest first. {filtered.length} of {logs.length} shown.
           </p>
         </div>
         <button
           onClick={downloadCsv}
           disabled={filtered.length === 0}
-          className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-50"
+          className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
         >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+          </svg>
           Download CSV
         </button>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Entries"
+          value={String(logs.length)}
+          sub={`${filtered.length} in current view`}
+          icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
+          grad="from-blue-500 to-indigo-600"
+        />
+        <StatCard
+          label="Today"
+          value={String(stats.todayCount)}
+          sub="Newest activity"
+          icon="M12 15v3m-6-6h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
+          grad="from-emerald-500 to-teal-600"
+        />
+        <StatCard
+          label="Creates"
+          value={String(stats.creates)}
+          sub={`${stats.updates} updates`}
+          icon="M12 5v14M5 12h14"
+          grad="from-violet-500 to-purple-600"
+        />
+        <StatCard
+          label="Reversals / Cancels"
+          value={String(stats.reverses)}
+          sub="Financial safeguards"
+          icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
+          grad="from-rose-500 to-pink-600"
+        />
       </div>
 
       <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -119,7 +175,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search user, description or ID…"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -144,13 +200,14 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
             className="w-full sm:w-44"
           />
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+          <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-audit-compact" />
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table className="w-full text-left text-sm">
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
+            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
               <th className="px-5 py-3 font-medium">Time</th>
               <th className="px-5 py-3 font-medium">User</th>
               <th className="px-5 py-3 font-medium">Action</th>
@@ -171,7 +228,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
                 </td>
                 <td className="px-5 py-2.5 text-slate-700">
                   {l.user_name || "-"}
-                  <span className="block text-[10px] text-slate-400">{l.user_id?.slice(0, 8) ?? ""}</span>
+                  <span className="cell-sub block text-[10px] text-slate-400">{l.user_id?.slice(0, 8) ?? ""}</span>
                 </td>
                 <td className="px-5 py-2.5">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${ACTION_STYLE[l.action] || "bg-slate-100 text-slate-600"}`}>
@@ -183,7 +240,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
                     {l.entity}
                   </span>
                   {l.entity_id && (
-                    <span className="ml-1.5 font-mono text-[10px] text-slate-400">{l.entity_id.slice(0, 12)}</span>
+                    <span className="cell-sub ml-1.5 font-mono text-[10px] text-slate-400">{l.entity_id.slice(0, 12)}</span>
                   )}
                 </td>
                 <td className="max-w-md px-5 py-2.5 text-slate-700">{l.description || "-"}</td>
@@ -199,6 +256,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
           </tbody>
         </table>
       </div>
+      {toastView}
     </div>
   );
 }

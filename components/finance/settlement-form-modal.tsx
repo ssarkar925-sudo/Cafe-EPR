@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Modal from "@/components/ui/modal";
 
 export const SETTLEMENT_TYPES = [
   { value: "aeps_to_bank", label: "AEPS \u2192 Bank", from: "aeps", to: "bank", icon: "aeps", grad: "from-blue-500 to-indigo-600", desc: "AEPS portal settlement credited to the bank account." },
@@ -99,14 +100,10 @@ export default function SettlementFormModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal
+      onClose={onClose}
+      size="xl"
+      header={
         <div className="relative shrink-0 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#020617] px-6 py-5">
           <div className="flex items-center justify-between">
             <div>
@@ -123,11 +120,28 @@ export default function SettlementFormModal({
             </button>
           </div>
         </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Settlement type
-          </p>
+      }
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-white"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Record Settlement"}
+          </button>
+        </div>
+      }
+    >
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        Settlement type
+      </p>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {SETTLEMENT_TYPES.map((t) => {
               const active = type === t.value;
@@ -262,24 +276,6 @@ export default function SettlementFormModal({
               {error}
             </p>
           )}
-        </div>
-
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-white"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
-          >
-            {busy ? "Saving…" : "Record Settlement"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

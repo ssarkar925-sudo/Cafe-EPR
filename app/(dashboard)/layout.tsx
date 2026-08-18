@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import DashboardShell from "@/components/dashboard-shell";
+import SessionGuard from "@/components/session-guard";
 
 export default async function DashboardLayout({
   children,
@@ -42,16 +43,19 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardShell
-      name={profile?.full_name || user.email || ""}
-      email={user.email || ""}
-      role={role ?? "staff"}
-      shopName={settings?.shop_name || "Cafe ERP"}
-      logoUrl={settings?.logo_url || null}
-      avatarUrl={profile?.avatar_url || null}
-      userId={user.id}
-    >
-      {children}
-    </DashboardShell>
+    <>
+      <SessionGuard />
+      <DashboardShell
+        name={profile?.full_name || user.email || ""}
+        email={user.email || ""}
+        role={role ?? "staff"}
+        shopName={settings?.shop_name || "Cafe ERP"}
+        logoUrl={settings?.logo_url || null}
+        avatarUrl={profile?.avatar_url || null}
+        userId={user.id}
+      >
+        {children}
+      </DashboardShell>
+    </>
   );
 }

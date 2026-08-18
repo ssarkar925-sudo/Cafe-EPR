@@ -32,6 +32,7 @@ export default async function BusinessServicePage({
           "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)"
         )
         .eq("service_type", service)
+        .order("transaction_timestamp", { ascending: false, nullsFirst: false })
         .order("transaction_date", { ascending: false })
         .limit(500),
       supabase

@@ -95,11 +95,7 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
         .order("created_at", { ascending: false })
         .limit(200),
       supabase
-        .from("customer_ledger")
-        .select("entry_date, type, description, debit, credit, balance_after")
-        .eq("customer_id", cust.id)
-        .order("created_at", { ascending: false })
-        .limit(200),
+        .rpc("get_customer_ledger", { p_customer_id: cust.id }),
       supabase
         .from("payments")
         .select("id, invoice_id, method, amount, received_at, invoices(invoice_number)")
@@ -107,17 +103,9 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
         .order("received_at", { ascending: false })
         .limit(200),
       supabase
-        .from("transactions")
-        .select("transaction_number, service_type, transaction_date, amount, service_fee, portal_commission, direction, status")
-        .eq("customer_id", cust.id)
-        .order("created_at", { ascending: false })
-        .limit(100),
+        .rpc("get_customer_transactions", { p_customer_id: cust.id }),
       supabase
-        .from("returns")
-        .select("id, return_number, return_date, reason, subtotal, refund, refund_method, status, invoices(invoice_number)")
-        .eq("invoices.customer_id", cust.id)
-        .order("created_at", { ascending: false })
-        .limit(100),
+        .rpc("get_customer_returns", { p_customer_id: cust.id }),
     ]);
     setData({
       invoices: (invRes.data ?? []) as any[],

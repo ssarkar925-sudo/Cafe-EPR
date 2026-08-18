@@ -9,6 +9,7 @@ import MasterClient from "@/components/business/master-client";
 import ProductsClient from "@/components/catalog/products-client";
 import ServicesClient from "@/components/catalog/services-client";
 import CategoriesClient from "@/components/catalog/categories-client";
+import SecurityPanel from "@/components/settings/security-panel";
 
 export type SettingsRow = {
   shop_name: string;
@@ -100,6 +101,7 @@ const TABS: { key: string; label: string; icon: string }[] = [
   { key: "tax", label: "Tax & GST", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" },
   { key: "backup", label: "Backup & Data", icon: "M21 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 8l5-5 5 5M12 3v13" },
   { key: "notifications", label: "Notifications", icon: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" },
+  { key: "security", label: "Security", icon: "M12 22s8-3 8-10V5l-8-3-8 3v7c0 7 8 10 8 10ZM9 12l2 2 4-4" },
   { key: "other", label: "Other Settings", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" },
 ];
 
@@ -114,6 +116,7 @@ const tabMeta: Record<string, { title: string; desc: string }> = {
   tax: { title: "Tax & GST", desc: "GST registration shown on receipts." },
   backup: { title: "Backup & Data", desc: "Download your data as CSV." },
   notifications: { title: "Notifications", desc: "Alert channels for low stock and daily summaries." },
+  security: { title: "Security", desc: "Password, sign-in attempts and account protection." },
   other: { title: "Other Settings", desc: "Appearance for this browser." },
 };
 
@@ -1695,6 +1698,10 @@ export default function SettingsClient({
             ))}
           </div>
         </section>
+      </div>
+
+      <div className={tab === "security" ? "" : "hidden"}>
+        <SecurityPanel />
       </div>
 
       {toast && (

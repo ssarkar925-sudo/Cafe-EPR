@@ -3,7 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
+import Modal from "@/components/ui/modal";
 import type { CustomerRow, Master, Txn } from "./business-client";
+
+function toLocalInput(value: string) {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default function BusinessFormModal({
   service,
@@ -29,7 +37,11 @@ export default function BusinessFormModal({
   onSave: (payload: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = useState(() => ({
-    transaction_date: initial?.transaction_date ?? new Date().toISOString().slice(0, 10),
+    transaction_timestamp: initial?.transaction_timestamp
+      ? toLocalInput(initial.transaction_timestamp)
+      : initial
+        ? `${initial.transaction_date}T00:00`
+        : toLocalInput(new Date().toISOString()),
     customer_id: initial?.customer_id ?? "",
     customer_mobile: initial?.customer_mobile ?? "",
     bank_id: initial?.bank_id ?? "",
@@ -98,7 +110,7 @@ export default function BusinessFormModal({
     const fee = Number(form.service_fee || 0);
     const commission = Number(form.portal_commission || 0);
 
-    if (!form.transaction_date) return setError("Transaction date is required.");
+    if (!form.transaction_timestamp) return setError("Transaction date & time is required.");
     if (!amount || amount <= 0) return setError("Amount is required.");
     if (fee < 0) return setError("Fee cannot be negative.");
     if (commission < 0) return setError("Portal charge cannot be negative.");
@@ -130,7 +142,8 @@ export default function BusinessFormModal({
     setError("");
     onSave({
       p_service_type: service,
-      p_transaction_date: form.transaction_date,
+      p_transaction_date: form.transaction_timestamp.slice(0, 10),
+      p_transaction_timestamp: new Date(form.transaction_timestamp).toISOString(),
       p_customer_id: form.customer_id || null,
       p_customer_mobile: form.customer_mobile.trim() || null,
       p_bank_id: form.bank_id || null,
@@ -159,27 +172,28 @@ export default function BusinessFormModal({
   const labelCls = "mb-1 block text-xs font-semibold text-slate-500";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/50 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">{initial ? `Edit ${label} Transaction` : `Record ${label} Transaction`}</h2>
-            <p className="text-xs text-slate-400">
-              Numbered automatically: {service === "aeps" ? "AEP-XXXX" : service === "dmt" ? "DMT-XXXX" : "UPI-XXXX"}.
-            </p>
-          </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-            ✕
+    <Modal
+      onClose={onClose}
+      title={initial ? `Edit ${label} Transaction` : `Record ${label} Transaction`}
+      subtitle={`Numbered automatically: ${service === "aeps" ? "AEP-XXXX" : service === "dmt" ? "DMT-XXXX" : "UPI-XXXX"}.`}
+      icon={service === "aeps" ? "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 0v4M7 17a5 5 0 0 1 10 0" : service === "dmt" ? "M22 2 11 13M22 2 15 22l-4-9-9-4z" : "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-12-1 2 2 4-4"}
+      accent={service === "aeps" ? "amber" : service === "dmt" ? "violet" : "emerald"}
+      size="lg"
+      footer={
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+            Cancel
+          </button>
+          <button onClick={submit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
+            {initial ? "Save Changes" : "Save Transaction"}
           </button>
         </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      }
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>Transaction Date *</label>
-            <input type="date" value={form.transaction_date} onChange={(e) => set("transaction_date", e.target.value)} className={input} />
+            <label className={labelCls}>Transaction Date & Time *</label>
+            <input type="datetime-local" value={form.transaction_timestamp} onChange={(e) => set("transaction_timestamp", e.target.value)} className={input} />
           </div>
           <div>
             <label className={labelCls}>Status</label>
@@ -384,18 +398,8 @@ export default function BusinessFormModal({
         </div>
 
         {error && (
-          <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+          <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
         )}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            Cancel
-          </button>
-          <button onClick={submit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            {initial ? "Save Changes" : "Save Transaction"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

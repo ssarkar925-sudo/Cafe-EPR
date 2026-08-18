@@ -186,17 +186,9 @@ export default function CustomersClient({
         .order("created_at", { ascending: false })
         .limit(100),
       supabase
-        .from("customer_ledger")
-        .select("entry_date, type, description, debit, credit, balance_after")
-        .eq("customer_id", customer.id)
-        .order("created_at", { ascending: false })
-        .limit(100),
+        .rpc("get_customer_ledger", { p_customer_id: customer.id }),
       supabase
-        .from("transactions")
-        .select("transaction_number, service_type, transaction_date, amount, service_fee, portal_commission, direction, status")
-        .eq("customer_id", customer.id)
-        .order("created_at", { ascending: false })
-        .limit(50),
+        .rpc("get_customer_transactions", { p_customer_id: customer.id }),
     ]);
     setDetail({
       invoices: (invRes.data ?? []) as any[],

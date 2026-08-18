@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import Modal from "@/components/ui/modal";
 
 type ReturnDetail = {
   id: string;
@@ -70,143 +71,135 @@ export default function ReturnDetailModal({
   const hasRefund = Number(detail?.refund) > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm">
-      <div
-        onClick={onClose}
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
-      >
-        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900">
-                {detail?.return_number ?? "Loading…"}
-              </h2>
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
-                  hasRefund
-                    ? "bg-violet-100 text-violet-700 ring-violet-200"
-                    : "bg-amber-100 text-amber-700 ring-amber-200"
-                }`}
-              >
-                {hasRefund ? "Refunded" : "Credit"}
-              </span>
-            </div>
-            <p className="mt-0.5 text-sm text-slate-500">
-              {detail?.invoices?.invoice_number ?? ""} ·{" "}
-              {detail?.invoices?.customers?.name ?? "Walk-in customer"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+    <Modal
+      onClose={onClose}
+      title={detail?.return_number ?? "Loading…"}
+      subtitle={
+        <>
+          {detail?.invoices?.invoice_number ?? ""} ·{" "}
+          {detail?.invoices?.customers?.name ?? "Walk-in customer"}
+        </>
+      }
+      icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
+      accent={hasRefund ? "violet" : "amber"}
+      size="xl"
+      headerRight={
+        <div className="mr-2">
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+              hasRefund
+                ? "bg-violet-100 text-violet-700 ring-violet-200"
+                : "bg-amber-100 text-amber-700 ring-amber-200"
+            }`}
           >
-            ✕
-          </button>
+            {hasRefund ? "Refunded" : "Credit"}
+          </span>
         </div>
-
-        {detail && (
-          <div className="px-6 py-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-400">Return date</p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {detail.return_date}
-                </p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-400">Return value</p>
-                <p className="text-sm font-semibold text-rose-600">
-                  {inr(detail.subtotal)}
-                </p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-400">Refund</p>
-                <p className="text-sm font-semibold text-violet-700">
-                  {hasRefund ? inr(detail.refund) : "—"}
-                  {hasRefund && detail.refund_method && (
-                    <span className="ml-1 text-xs font-normal text-slate-400">
-                      {detail.refund_method.toUpperCase()}
-                    </span>
-                  )}
-                </p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-400">Invoice balance</p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {inr(detail.invoices?.due ?? 0)} due
-                </p>
-              </div>
+      }
+      footer={
+        <div className="flex justify-end">
+          <a
+            href={`/invoices`}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            Back to Invoices
+          </a>
+        </div>
+      }
+    >
+      {detail && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-xs text-slate-400">Return date</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {detail.return_date}
+              </p>
             </div>
-
-            {detail.reason && (
-              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                <span className="font-medium">Reason: </span>
-                {detail.reason}
-              </div>
-            )}
-
-            <div className="mt-4 overflow-hidden rounded-xl ring-1 ring-slate-200">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="px-4 py-2.5 font-medium">Item</th>
-                    <th className="px-4 py-2.5 font-medium">Qty</th>
-                    <th className="px-4 py-2.5 font-medium">Rate</th>
-                    <th className="px-4 py-2.5 text-right font-medium">
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it) => (
-                    <tr key={it.id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-4 py-2.5 text-slate-900">
-                        {it.products?.name ??
-                          it.services?.name ??
-                          it.invoice_items?.description ??
-                          "-"}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-700">{it.qty}</td>
-                      <td className="px-4 py-2.5 text-slate-700">
-                        {inr(it.rate)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium text-slate-900">
-                        {inr(it.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                  {items.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                        Loading items…
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-slate-200 bg-slate-50">
-                    <td colSpan={3} className="px-4 py-2.5 text-sm font-medium text-slate-700">
-                      Total return value
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-sm font-bold text-rose-600">
-                      {inr(detail.subtotal)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-xs text-slate-400">Return value</p>
+              <p className="text-sm font-semibold text-rose-600">
+                {inr(detail.subtotal)}
+              </p>
             </div>
-
-            <div className="mt-4 flex justify-end">
-              <a
-                href={`/invoices`}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                Back to Invoices
-              </a>
+            <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-xs text-slate-400">Refund</p>
+              <p className="text-sm font-semibold text-violet-700">
+                {hasRefund ? inr(detail.refund) : "—"}
+                {hasRefund && detail.refund_method && (
+                  <span className="ml-1 text-xs font-normal text-slate-400">
+                    {detail.refund_method.toUpperCase()}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-xs text-slate-400">Invoice balance</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {inr(detail.invoices?.due ?? 0)} due
+              </p>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+
+          {detail.reason && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-medium">Reason: </span>
+              {detail.reason}
+            </div>
+          )}
+
+          <div className="mt-4 overflow-hidden rounded-xl ring-1 ring-slate-200 dark:ring-white/10">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:bg-white/5">
+                  <th className="px-4 py-2.5 font-medium">Item</th>
+                  <th className="px-4 py-2.5 font-medium">Qty</th>
+                  <th className="px-4 py-2.5 font-medium">Rate</th>
+                  <th className="px-4 py-2.5 text-right font-medium">
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it) => (
+                  <tr key={it.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-4 py-2.5 text-slate-900">
+                      {it.products?.name ??
+                        it.services?.name ??
+                        it.invoice_items?.description ??
+                        "-"}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-700">{it.qty}</td>
+                    <td className="px-4 py-2.5 text-slate-700">
+                      {inr(it.rate)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-medium text-slate-900">
+                      {inr(it.amount)}
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                      Loading items…
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-200 bg-slate-50 dark:bg-white/5">
+                  <td colSpan={3} className="px-4 py-2.5 text-sm font-medium text-slate-700">
+                    Total return value
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-sm font-bold text-rose-600">
+                    {inr(detail.subtotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }

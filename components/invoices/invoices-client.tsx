@@ -6,6 +6,7 @@ import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import InvoiceViewModal from "./invoice-view-modal";
 import ReturnModal from "./return-modal";
+import CompactToggle from "@/components/ui/compact-toggle";
 
 export type InvoiceRow = {
   id: string;
@@ -102,6 +103,7 @@ export default function InvoicesClient({
   const [collectMethod, setCollectMethod] = useState<string>("cash");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -441,6 +443,7 @@ export default function InvoicesClient({
           <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
             {sorted.length} invoice{sorted.length === 1 ? "" : "s"}
           </span>
+          <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-invoices-compact" />
         </div>
       </div>
 
@@ -606,7 +609,7 @@ export default function InvoicesClient({
       ) : (
         <div className="mt-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-left text-sm">
+            <table className={`w-full min-w-[920px] text-left text-sm ${compact ? "rows-compact" : ""}`}>
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   <th className="px-5 py-3">Invoice</th>
@@ -645,7 +648,7 @@ export default function InvoicesClient({
                                 <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
                               </svg>
                             </button>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="cell-sub flex flex-wrap gap-1">
                               {hasReturn && (
                                 <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">R {inr(inv.returned)}</span>
                               )}
@@ -666,7 +669,7 @@ export default function InvoicesClient({
                         <td className="whitespace-nowrap px-4 py-3 text-slate-500">{fmtDate(inv.invoice_date)}</td>
                         <td className="px-4 py-3 text-right">
                           <p className="font-semibold text-slate-900">{inr(total)}</p>
-                          <div className="ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100">
+                          <div className="cell-sub ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100">
                             <div
                               className={`h-full rounded-full ${BAR_STYLE[inv.status] ?? "bg-slate-300"}`}
                               style={{ width: `${cancelled ? 0 : pct}%` }}

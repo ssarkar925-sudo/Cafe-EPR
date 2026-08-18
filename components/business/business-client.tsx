@@ -7,6 +7,11 @@ import { logAudit } from "@/lib/audit";
 import BusinessFormModal from "./business-form-modal";
 import ReasonModal from "./business-reason-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import StatCard from "@/components/ui/stat-card";
+import ViewToggle from "@/components/ui/view-toggle";
+import CompactToggle from "@/components/ui/compact-toggle";
+import { useToast } from "@/components/ui/use-toast";
+import { downloadCsv } from "@/components/ui/csv";
 
 export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
@@ -17,6 +22,7 @@ export type Txn = {
   service_type: string;
   direction: string;
   transaction_date: string;
+  transaction_timestamp: string | null;
   customer_id: string | null;
   customer_mobile: string | null;
   reference: string | null;
@@ -174,6 +180,21 @@ function fmtDate(d: string) {
   return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function fmtDateTime(t: Txn) {
+  if (t.transaction_timestamp) {
+    const dt = new Date(t.transaction_timestamp);
+    return dt.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+  return fmtDate(t.transaction_date);
+}
+
 function gradient(name: string) {
   const palettes = [
     "from-blue-500 to-cyan-400",
@@ -223,6 +244,9 @@ export default function BusinessClient({
   const [editTxn, setEditTxn] = useState<Txn | null>(null);
   const [reverseTxn, setReverseTxn] = useState<Txn | null>(null);
   const [deleteTxn, setDeleteTxn] = useState<Txn | null>(null);
+  const [view, setView] = useState<"cards" | "list">("list");
+  const [compact, setCompact] = useState(false);
+  const { showToast, toastView } = useToast();
 
   const supabase = createClient();
 
@@ -322,7 +346,7 @@ export default function BusinessClient({
   async function createTxn(payload: Record<string, unknown>) {
     const { data, error } = await supabase.rpc("create_business_txn", payload);
     if (error) {
-      alert(error.message);
+      showToast("error", error.message);
       return;
     }
     const d = data as Record<string, unknown>;
@@ -332,7 +356,8 @@ export default function BusinessClient({
         transaction_number: d.transaction_number as string,
         service_type: service,
         direction: d.direction as string,
-        transaction_date: payload.p_transaction_date as string,
+        transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) as string,
+        transaction_timestamp: (payload.p_transaction_timestamp as string) || null,
         customer_id: (payload.p_customer_id as string) || null,
         customer_mobile: (payload.p_customer_mobile as string) || null,
         reference: (payload.p_reference as string) || null,
@@ -365,6 +390,7 @@ export default function BusinessClient({
       ...prev,
     ]);
     setShowCreate(false);
+    showToast("success", `${service.toUpperCase()} ${inr(Number(payload.p_amount))} recorded — ${d.transaction_number}`);
     logAudit({
       action: "create",
       entity: "transaction",
@@ -381,11 +407,12 @@ export default function BusinessClient({
     delete args.p_status;
     const { error } = await supabase.rpc("update_business_txn", args);
     if (error) {
-      alert(error.message);
+      showToast("error", error.message);
       return;
     }
     const upd = {
-      transaction_date: payload.p_transaction_date as string,
+      transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) as string,
+      transaction_timestamp: (payload.p_transaction_timestamp as string) || null,
       customer_id: (payload.p_customer_id as string) || null,
       customer_mobile: (payload.p_customer_mobile as string) || null,
       reference: (payload.p_reference as string) || null,
@@ -409,6 +436,7 @@ export default function BusinessClient({
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
     setEditTxn(null);
+    showToast("success", `Transaction ${editTxn.transaction_number} updated`);
     logAudit({
       action: "update",
       entity: "transaction",
@@ -427,12 +455,13 @@ export default function BusinessClient({
     });
     setBusyId(null);
     if (error) {
-      alert(error.message);
+      showToast("error", error.message);
       return;
     }
     setTxns((prev) => prev.map((t) => (t.id === reverseTxn.id ? { ...t, status: "reversed" } : t)));
     setReverseTxn(null);
     setReverseReason("");
+    showToast("success", `Transaction ${reverseTxn.transaction_number} reversed`);
     logAudit({
       action: "reverse",
       entity: "transaction",
@@ -451,12 +480,13 @@ export default function BusinessClient({
     });
     setBusyId(null);
     if (error) {
-      alert(error.message);
+      showToast("error", error.message);
       return;
     }
     setTxns((prev) => prev.map((t) => (t.id === deleteTxn.id ? { ...t, status: "deleted" } : t)));
     setDeleteTxn(null);
     setDeleteReason("");
+    showToast("success", `Transaction ${deleteTxn.transaction_number} deleted`);
     logAudit({
       action: "delete",
       entity: "transaction",
@@ -477,6 +507,33 @@ export default function BusinessClient({
     return inr(netTotal);
   };
 
+  function exportCsv() {
+    downloadCsv(
+      `${service}-${new Date().toISOString().slice(0, 10)}.csv`,
+      [
+        "Transaction #",
+        "Customer",
+        "Date & Time",
+        "Reference",
+        "Amount",
+        "Service Fee",
+        "Portal Commission",
+        "Status",
+      ],
+      filtered.map((t) => [
+        t.transaction_number,
+        t.customers?.name ?? t.customer_mobile ?? "-",
+        fmtDateTime(t),
+        t.reference ?? "-",
+        Number(t.amount),
+        Number(t.service_fee),
+        Number(t.portal_commission),
+        t.status,
+      ])
+    );
+    showToast("success", `Exported ${filtered.length} ${label} transactions to CSV`);
+  }
+
   const actionBtn =
     "inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium transition";
 
@@ -484,49 +541,55 @@ export default function BusinessClient({
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{cfg.title}</h1>
-          <p className="text-sm text-slate-500">{cfg.desc}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{cfg.title}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{cfg.desc}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
             Today: {todayRows.length} · {inr(todayAmount)}
           </span>
           {pendingCount > 0 && (
-            <span className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700">
+            <span className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
               {pendingCount} pending
             </span>
           )}
           {failedCount > 0 && (
-            <span className="rounded-lg bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-700">
+            <span className="rounded-lg bg-rose-100 px-3 py-1.5 text-xs font-medium text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
               {failedCount} failed
             </span>
           )}
           <button
             onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4"><path d="M12 5v14M5 12h14" /></svg>
             {cfg.recordLabel}
           </button>
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
+            CSV
+          </button>
+          <CompactToggle value={compact} onChange={setCompact} storageKey={`sccomm-business-${service}-compact`} />
+          <ViewToggle value={view} onChange={setView} storageKey={`sccomm-business-${service}-view`} />
         </div>
       </div>
 
       <div className={`mt-6 grid grid-cols-2 gap-4 ${cfg.cards.length >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {cfg.cards.map((c) => (
-          <div key={c.key} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">{c.label}</p>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d={c.icon} />
-                </svg>
-              </div>
-            </div>
-            <p className={`mt-1.5 text-xl font-bold ${c.key === "net" ? "text-emerald-600" : "text-slate-900"}`}>
-              {cardValue(c.key)}
-            </p>
-            {c.sub && <p className="text-[11px] text-slate-400">{c.sub}</p>}
-          </div>
+          <StatCard
+            key={c.key}
+            label={c.label}
+            value={cardValue(c.key)}
+            sub={c.sub}
+            icon={c.icon}
+            grad={c.grad}
+            valueClass={c.key === "net" ? "text-emerald-600" : undefined}
+          />
         ))}
       </div>
 
@@ -599,7 +662,7 @@ export default function BusinessClient({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Tr. no, reference, Aadhaar last 4, customer…"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -682,16 +745,17 @@ export default function BusinessClient({
             </button>
           ))}
         </div>
-        <input type="date" value={dateFrom} onChange={(e) => { setPreset("all"); setDateFrom(e.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500" />
+        <input type="date" value={dateFrom} onChange={(e) => { setPreset("all"); setDateFrom(e.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" />
         <span className="text-xs text-slate-400">to</span>
-        <input type="date" value={dateTo} onChange={(e) => { setPreset("all"); setDateTo(e.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500" />
-        <span className="ml-auto rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+        <input type="date" value={dateTo} onChange={(e) => { setPreset("all"); setDateTo(e.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" />
+        <span className="ml-auto rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
           {filtered.length} {label} transaction{filtered.length === 1 ? "" : "s"}
         </span>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+      {view === "list" ? (
+        <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+          <table className={`min-w-full divide-y divide-slate-200 text-sm ${compact ? "rows-compact" : ""}`}>
           <thead className="bg-slate-50">
             <tr>
               {cfg.tableHeaders.map((h, i) => (
@@ -727,39 +791,39 @@ export default function BusinessClient({
               <tr key={t.id} className={`transition hover:bg-slate-50 ${t.status === "deleted" ? "opacity-60" : ""}`}>
                 <td className="px-5 py-3">
                   <p className="font-mono text-xs font-medium text-blue-700">{t.transaction_number}</p>
-                  <p className="text-xs text-slate-400">{t.reference || "-"}</p>
+                  <p className="cell-sub text-xs text-slate-400">{t.reference || "-"}</p>
                 </td>
                 <td className="px-5 py-3 text-slate-700">
                   {t.customers?.name || "-"}
-                  <p className="text-xs text-slate-400">{t.customer_mobile || t.customers?.phone || ""}</p>
+                  <p className="cell-sub text-xs text-slate-400">{t.customer_mobile || t.customers?.phone || ""}</p>
                 </td>
                 {service === "aeps" && (
                   <td className="px-5 py-3 text-slate-700">
                     {t.banks?.name || "-"}
-                    <p className="text-xs text-slate-400">{t.portals?.name || "-"}</p>
+                    <p className="cell-sub text-xs text-slate-400">{t.portals?.name || "-"}</p>
                   </td>
                 )}
                 {service === "dmt" && (
                   <>
                     <td className="px-5 py-3 text-slate-700">
                       {t.sender_name || "-"}
-                      <p className="font-mono text-xs text-slate-400">{t.sender_mobile || ""}</p>
+                      <p className="cell-sub font-mono text-xs text-slate-400">{t.sender_mobile || ""}</p>
                     </td>
                     <td className="px-5 py-3 text-slate-700">
                       {t.beneficiary_name || "-"}
                       {t.transfer_method === "upi" ? (
-                        <p className="font-mono text-xs text-slate-400">{t.upi_id || ""}</p>
+                        <p className="cell-sub font-mono text-xs text-slate-400">{t.upi_id || ""}</p>
                       ) : (
                         <>
-                          <p className="text-xs text-slate-400">{t.beneficiary_bank || "-"}</p>
-                          <p className="font-mono text-xs text-slate-400">{t.beneficiary_account || ""}</p>
+                          <p className="cell-sub text-xs text-slate-400">{t.beneficiary_bank || "-"}</p>
+                          <p className="cell-sub font-mono text-xs text-slate-400">{t.beneficiary_account || ""}</p>
                         </>
                       )}
-                      <p className="text-xs text-slate-400">{t.transfer_method === "upi" ? "UPI" : "Bank Account"}</p>
+                      <p className="cell-sub text-xs text-slate-400">{t.transfer_method === "upi" ? "UPI" : "Bank Account"}</p>
                     </td>
                   </>
                 )}
-                <td className="px-5 py-3 text-slate-700">{fmtDate(t.transaction_date)}</td>
+                <td className="px-5 py-3 text-slate-700">{fmtDateTime(t)}</td>
                 {service === "aeps" && (
                   <>
                     <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
@@ -841,6 +905,81 @@ export default function BusinessClient({
           </tbody>
         </table>
       </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((t) => {
+            const hasRef = t.reference || t.customers?.name || t.customer_mobile;
+            return (
+              <div
+                key={t.id}
+                className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 ${
+                  t.status === "deleted" ? "opacity-60" : ""
+                }`}
+              >
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${t.status === "success" ? "from-emerald-500 to-teal-500" : t.status === "pending" ? "from-amber-500 to-orange-500" : "from-rose-500 to-pink-500"}`} />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{t.transaction_number}</p>
+                    <p className="truncate text-xs text-slate-400">
+                      {t.customers?.name || t.customer_mobile || "Walk-in"}
+                      {hasRef ? ` · ${t.reference ?? ""}` : ""}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_BADGE[t.status] || "bg-slate-100 text-slate-500"}`}>
+                    {t.status}
+                  </span>
+                </div>
+
+                {(t.beneficiary_name || t.banks?.name || t.portals?.name || t.upi_id) && (
+                  <p className="mt-3 truncate rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                    {service === "dmt"
+                      ? `→ ${t.beneficiary_name ?? "-"}${t.transfer_method === "upi" && t.upi_id ? ` (${t.upi_id})` : ""}`
+                      : t.banks?.name || t.portals?.name || t.upi_id || "-"}
+                  </p>
+                )}
+
+                <div className="mt-4 flex items-end justify-between">
+                  <div>
+                    <p className="text-xs text-slate-400">{service === "upi" ? "Cash handed" : service === "aeps" ? "Withdrawn" : "Transferred"}</p>
+                    <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{inr(t.amount)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400">Shop income</p>
+                    <p className="text-sm font-semibold text-emerald-600">
+                      {inr(service === "dmt" ? Number(t.service_fee) - Number(t.portal_commission) : Number(t.service_fee) + Number(t.portal_commission))}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
+                  <span className="text-xs text-slate-400">{fmtDateTime(t)}</span>
+                  <div className="flex gap-1.5">
+                    <a
+                      href={`/business/receipt/${t.id}`}
+                      target="_blank"
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                    >
+                      Print
+                    </a>
+                    <a
+                      href={`/business/receipt/${t.id}/a4`}
+                      target="_blank"
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-50 dark:border-white/10 dark:hover:bg-blue-500/10"
+                    >
+                      A4 / PDF
+                    </a>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="col-span-full rounded-2xl border border-dashed border-slate-200 py-16 text-center text-sm text-slate-500 dark:border-white/10">
+              No {label} transactions found. Adjust filters or record a new one.
+            </div>
+          )}
+        </div>
+      )}
 
       {showCreate && (
         <BusinessFormModal
@@ -896,6 +1035,8 @@ export default function BusinessClient({
           onConfirm={deleteTxnAction}
         />
       )}
+
+      {toastView}
     </div>
   );
 }

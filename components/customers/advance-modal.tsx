@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Modal from "@/components/ui/modal";
 import type { Customer } from "./customers-client";
 
 function inr(n: number | string) {
@@ -73,71 +74,30 @@ export default function AdvanceModal({
     "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/70 p-4 backdrop-blur-md"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              {isReturn ? "Return Advance" : "Record Advance"}
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {customer.name} · {isReturn ? "advance available" : "cash received from customer"}
-            </p>
-          </div>
-          <div
-            className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-              Number(customer.balance) < 0
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            {isReturn ? `Available ${inr(advance)}` : `Balance ${inr(customer.balance)}`}
-          </div>
+    <Modal
+      onClose={onClose}
+      title={isReturn ? "Return Advance" : "Record Advance"}
+      subtitle={
+        <>
+          {customer.name} · {isReturn ? "advance available" : "cash received from customer"}
+        </>
+      }
+      icon={isReturn ? "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" : "M5 12h14M12 5l7 7-7 7"}
+      accent={isReturn ? "amber" : "emerald"}
+      size="sm"
+      headerRight={
+        <div
+          className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+            Number(customer.balance) < 0
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {isReturn ? `Available ${inr(advance)}` : `Balance ${inr(customer.balance)}`}
         </div>
-
-        <div className="mt-4 space-y-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Amount *</label>
-            <input
-              autoFocus
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Date *</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">Note</label>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder={isReturn ? "e.g. Refund to customer" : "e.g. Advance for future orders"}
-              className={inputClass}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="mt-3 rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-600">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
+      }
+      footer={
+        <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
             className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
@@ -152,7 +112,42 @@ export default function AdvanceModal({
             {saving ? "Saving…" : isReturn ? "Return advance" : "Record advance"}
           </button>
         </div>
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Amount *</label>
+          <input
+            autoFocus
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Date *</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-500">Note</label>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={isReturn ? "e.g. Refund to customer" : "e.g. Advance for future orders"}
+            className={inputClass}
+          />
+        </div>
+        {error && (
+          <div className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-600">
+            {error}
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

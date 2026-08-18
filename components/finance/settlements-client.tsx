@@ -9,6 +9,9 @@ import { logAudit } from "@/lib/audit";
 import SettlementFormModal, { SETTLEMENT_TYPES, POOL_LABEL } from "./settlement-form-modal";
 import ReasonModal from "@/components/business/business-reason-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import StatCard from "@/components/ui/stat-card";
+import CompactToggle from "@/components/ui/compact-toggle";
+import { useToast } from "@/components/ui/use-toast";
 
 export type SettlementRow = {
   id: string;
@@ -87,7 +90,7 @@ function Icon({ d, className }: { d: string; className?: string }) {
 }
 
 const inputClass =
-  "rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
+  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200";
 
 function fmtDate(d: string) {
   if (!d) return "-";
@@ -115,6 +118,8 @@ export default function SettlementsClient({
   const [reverseTarget, setReverseTarget] = useState<SettlementRow | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const { showToast, toastView } = useToast();
 
   useRealtime(["settlements", "cash_entries"]);
 
@@ -170,7 +175,7 @@ export default function SettlementsClient({
     const { data, error } = await supabase.rpc("create_settlement", payload);
     setSaving(false);
     if (error) {
-      alert(error.message);
+      showToast("error", error.message);
       return;
     }
     logAudit({
@@ -181,6 +186,7 @@ export default function SettlementsClient({
       details: payload,
     });
     setShowForm(false);
+    showToast("success", `Settlement ${(data as any)?.settlement_number} recorded`);
     await refresh();
     router.refresh();
   };
@@ -195,7 +201,7 @@ export default function SettlementsClient({
     });
     setBusy(false);
     if (error) {
-      alert(error.message);
+      showToast("error", error.message);
       setReverseTarget(null);
       setReason("");
       return;
@@ -208,6 +214,7 @@ export default function SettlementsClient({
     });
     setReverseTarget(null);
     setReason("");
+    showToast("info", `Settlement ${reverseTarget.settlement_number} reversed`);
     await refresh();
     router.refresh();
   };
@@ -234,27 +241,29 @@ export default function SettlementsClient({
     a.download = `settlements-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast("success", `Exported ${filtered.length} settlements to CSV`);
   };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Settlements</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Settlements</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
             Fund movements between cash, bank &amp; wallets · {summary?.count ?? 0} recorded
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={exportCsv}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
           >
+            <Icon d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" className="h-4 w-4" />
             Export CSV
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-indigo-700"
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
             <Icon d={ICONS.plus} className="h-4 w-4" />
             New Settlement
@@ -264,23 +273,13 @@ export default function SettlementsClient({
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {POOL_CARDS.map((c) => (
-          <div
+          <StatCard
             key={c.key}
-            className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
-            <div className="flex items-center gap-2">
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${c.grad} text-white shadow`}
-              >
-                <Icon d={c.icon} className="h-4 w-4" />
-              </span>
-              <p className="text-xs font-medium text-slate-500">{c.label}</p>
-            </div>
-            <p className="mt-3 text-lg font-bold text-slate-900">
-              {inr((summary as any)?.[c.key] ?? 0)}
-            </p>
-          </div>
+            label={c.label}
+            value={inr((summary as any)?.[c.key] ?? 0)}
+            icon={c.icon}
+            grad={c.grad}
+          />
         ))}
       </div>
 
@@ -320,12 +319,13 @@ export default function SettlementsClient({
         <span className="text-sm text-slate-400">to</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
         <span className="text-sm text-slate-500">{filtered.length} settlements</span>
+        <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-settlements-compact" />
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
+            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
               <th className="px-4 py-3 font-medium">Number</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Date</th>
@@ -354,7 +354,7 @@ export default function SettlementsClient({
                     <p className="mt-1 text-xs text-slate-500">{meta?.label}</p>
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">{fmtDate(r.settlement_date)}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{r.reference || "-"}</td>
+                  <td className="cell-sub px-4 py-2.5 text-slate-500">{r.reference || "-"}</td>
                   <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
                     {inr(r.amount)}
                   </td>
@@ -367,7 +367,7 @@ export default function SettlementsClient({
                       {r.status}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500">
+                  <td className="cell-sub px-4 py-2.5 text-slate-500">
                     {r.profiles?.full_name || "-"}
                   </td>
                   <td className="px-4 py-2.5 text-right">
@@ -417,6 +417,7 @@ export default function SettlementsClient({
           onConfirm={reverse}
         />
       )}
+      {toastView}
     </div>
   );
 }

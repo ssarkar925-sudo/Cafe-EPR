@@ -36,14 +36,12 @@ export default async function DashboardPage() {
     .select("method, amount, received_at")
     .gte("received_at", new Date(Date.now() - 30 * 86400000).toISOString());
 
-  const { data: cashEntries } = await supabase
-    .from("cash_entries")
-    .select("method, direction, amount, entry_date");
-
-  const { data: expenses } = await supabase
-    .from("expenses")
-    .select("expense_date, amount, status")
-    .gte("expense_date", iso30);
+  const { data: financials } = await supabase.rpc("get_dashboard_financials", {
+    p_from: iso30,
+  });
+  const financialData = (financials as any) ?? {};
+  const cashEntries = financialData.cash_entries ?? [];
+  const expenses = financialData.expenses ?? [];
 
   const { data: stockRows } = await supabase
     .from("products")
@@ -68,14 +66,7 @@ export default async function DashboardPage() {
   const [{ data: settlement }, { data: dueInvoices }, { data: txns }, { data: debtors }] = await Promise.all([
     supabase.rpc("get_settlement_summary"),
     supabase.from("invoices").select("due").in("status", ["unpaid", "partial"]),
-    supabase
-      .from("transactions")
-      .select(
-        "id, transaction_number, service_type, direction, transaction_date, amount, service_fee, portal_commission, status, customer_mobile, customers(name)"
-      )
-      .gte("transaction_date", iso30)
-      .order("transaction_date", { ascending: false })
-      .limit(500),
+    Promise.resolve({ data: financialData.transactions ?? [] }),
     supabase
       .from("customers")
       .select("name, balance")

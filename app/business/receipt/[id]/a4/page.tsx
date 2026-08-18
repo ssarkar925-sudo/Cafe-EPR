@@ -28,13 +28,9 @@ export default async function BusinessReceiptA4Page({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: txn } = await supabase
-    .from("transactions")
-    .select(
-      "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id)"
-    )
-    .eq("id", id)
-    .single();
+  const { data: txn } = await supabase.rpc("get_transaction_receipt", {
+    p_id: id,
+  });
   if (!txn) notFound();
 
   const { data: settings } = await supabase.from("settings").select("*").single();

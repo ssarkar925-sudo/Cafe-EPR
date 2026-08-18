@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { logAudit } from "@/lib/audit";
+import StatCard from "@/components/ui/stat-card";
+import Modal from "@/components/ui/modal";
+import CompactToggle from "@/components/ui/compact-toggle";
+import { useToast } from "@/components/ui/use-toast";
 
 export type StaffUser = {
   id: string;
@@ -52,7 +56,9 @@ export default function StaffClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [compact, setCompact] = useState(false);
   const router = useRouter();
+  const { showToast, toastView } = useToast();
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -91,6 +97,7 @@ export default function StaffClient({
     setBusy(false);
     if (!res.ok) {
       setError(json.error ?? "Request failed");
+      showToast("error", json.error ?? "Request failed");
       return false;
     }
     if (payload.action === "create") {
@@ -122,6 +129,12 @@ export default function StaffClient({
     }
     setModal(null);
     router.refresh();
+    showToast(
+      "success",
+      payload.action === "create"
+        ? `Staff added — ${(payload.name as string) || (payload.email as string)}`
+        : "Staff updated"
+    );
     logAudit({
       action: payload.action === "create" ? "create" : "update",
       entity: "staff",
@@ -155,31 +168,21 @@ export default function StaffClient({
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Staff</h1>
-          <p className="text-sm text-slate-500">Manage who can sign in and their access level.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Staff</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Manage who can sign in and their access level.</p>
         </div>
         <button
           onClick={() => setModal({ mode: "create" })}
-          className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
         >
-          + Add Staff
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4"><path d="M12 5v14M5 12h14" /></svg>
+          Add Staff
         </button>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {KPI_CARDS.map((c) => (
-          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">{c.label}</p>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d={c.icon} />
-                </svg>
-              </div>
-            </div>
-            <p className="mt-1.5 text-xl font-bold text-slate-900">{c.value}</p>
-          </div>
+          <StatCard key={c.label} label={c.label} value={c.value} icon={c.icon} grad={c.grad} />
         ))}
       </div>
 
@@ -193,7 +196,7 @@ export default function StaffClient({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by name or email…"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -223,16 +226,17 @@ export default function StaffClient({
               </button>
             ))}
           </div>
-          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
             {filtered.length} shown
           </span>
+          <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-staff-compact" />
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table className="w-full text-left text-sm">
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
+            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
               <th className="px-5 py-3 font-medium">Member</th>
               <th className="px-5 py-3 font-medium">Email</th>
               <th className="px-5 py-3 font-medium">Role</th>
@@ -320,6 +324,7 @@ export default function StaffClient({
           onSave={callApi}
         />
       )}
+      {toastView}
     </div>
   );
 }
@@ -357,132 +362,125 @@ function StaffFormModal({
   }
 
   const inputClass =
-    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-  const labelClass = "mb-1 block text-xs font-semibold text-slate-500";
+    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100";
+  const labelClass = "mb-1 block text-xs font-semibold text-slate-500 dark:text-slate-400";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <form
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              {editing ? "Edit Team Member" : "Add Staff"}
-            </h2>
-            <p className="text-xs text-slate-400">
-              {editing ? `Update access for ${editing.email}` : "Create a login for a new member"}
+    <Modal
+      as="form"
+      onSubmit={submit}
+      onClose={onClose}
+      size="md"
+      accent="blue"
+      icon="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+      title={editing ? "Edit Team Member" : "Add Staff"}
+      subtitle={editing ? `Update access for ${editing.email}` : "Create a login for a new member"}
+      footer={
+        <div className="flex items-center justify-between gap-2">
+          {error ? (
+            <p className="min-w-0 truncate rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+              {error}
             </p>
+          ) : (
+            <span />
+          )}
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              {busy ? "Saving…" : editing ? "Save changes" : "Add staff"}
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-            ✕
-          </button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <label className={labelClass}>Full name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Email *</label>
+          <input
+            type="email"
+            required
+            disabled={!!editing}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={`${inputClass} ${editing ? "bg-slate-50 text-slate-400 dark:bg-white/5" : ""}`}
+          />
         </div>
 
-        <div className="mt-5 space-y-4">
-          <div>
-            <label className={labelClass}>Full name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <div>
+          <label className={labelClass}>Role</label>
+          <div className="grid grid-cols-3 gap-2">
+            {ROLES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRole(r)}
+                disabled={isSelf && r !== editing?.role}
+                className={`rounded-xl border px-3 py-2 text-sm font-medium capitalize transition ${
+                  role === r
+                    ? "border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                } ${isSelf && r !== editing?.role ? "cursor-not-allowed opacity-40" : ""}`}
+              >
+                {r}
+              </button>
+            ))}
           </div>
+          {isSelf && <p className="mt-1 text-[11px] text-slate-400">You cannot change your own role.</p>}
+        </div>
+
+        {!editing ? (
           <div>
-            <label className={labelClass}>Email *</label>
+            <label className={labelClass}>Password *</label>
             <input
-              type="email"
+              type="password"
               required
-              disabled={!!editing}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`${inputClass} ${editing ? "bg-slate-50 text-slate-400" : ""}`}
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              className={inputClass}
             />
           </div>
-
+        ) : (
           <div>
-            <label className={labelClass}>Role</label>
-            <div className="grid grid-cols-3 gap-2">
-              {ROLES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  disabled={isSelf && r !== editing?.role}
-                  className={`rounded-xl border px-3 py-2 text-sm font-medium capitalize transition ${
-                    role === r
-                      ? "border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-200"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  } ${isSelf && r !== editing?.role ? "cursor-not-allowed opacity-40" : ""}`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-            {isSelf && (
-              <p className="mt-1 text-[11px] text-slate-400">You cannot change your own role.</p>
-            )}
+            <label className={labelClass}>Reset password (optional)</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Leave blank to keep current"
+              className={inputClass}
+            />
           </div>
-
-          {!editing ? (
-            <div>
-              <label className={labelClass}>Password *</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className={inputClass}
-              />
-            </div>
-          ) : (
-            <div>
-              <label className={labelClass}>Reset password (optional)</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Leave blank to keep current"
-                className={inputClass}
-              />
-            </div>
-          )}
-
-          {editing && (
-            <label className={`flex items-center gap-2 text-sm text-slate-700 ${isSelf ? "opacity-50" : ""}`}>
-              <input
-                type="checkbox"
-                checked={isActive}
-                disabled={isSelf}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              Account active
-            </label>
-          )}
-        </div>
-
-        {error && (
-          <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
         )}
 
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
-          >
-            {busy ? "Saving…" : editing ? "Save changes" : "Add staff"}
-          </button>
-        </div>
-      </form>
-    </div>
+        {editing && (
+          <label className={`flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 ${isSelf ? "opacity-50" : ""}`}>
+            <input
+              type="checkbox"
+              checked={isActive}
+              disabled={isSelf}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            Account active
+          </label>
+        )}
+      </div>
+    </Modal>
   );
 }

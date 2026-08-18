@@ -54,6 +54,7 @@ alter table public.transactions add column if not exists upi_id text;
 alter table public.transactions add column if not exists service_fee numeric(15,2) not null default 0;
 alter table public.transactions add column if not exists portal_commission numeric(15,2) not null default 0;
 alter table public.transactions add column if not exists remarks text;
+alter table public.transactions add column if not exists transaction_timestamp timestamptz;
 alter table public.transactions add column if not exists reversed_at timestamptz;
 alter table public.transactions add column if not exists reversed_by uuid references auth.users(id) on delete set null;
 alter table public.transactions add column if not exists deleted_at timestamptz;
@@ -81,6 +82,7 @@ create sequence if not exists public.upi_seq start 1;
 create or replace function public.create_business_txn(
   p_service_type text,
   p_transaction_date date,
+  p_transaction_timestamp timestamptz,
   p_customer_id uuid,
   p_customer_mobile text,
   p_reference text,
@@ -155,14 +157,15 @@ begin
   end if;
 
   insert into public.transactions (
-    transaction_number, service_type, direction, transaction_date, customer_id,
+    transaction_number, service_type, direction, transaction_date, transaction_timestamp, customer_id,
     customer_mobile, reference, remarks, status,
     bank_id, portal_id, merchant_qr_id, aadhaar_last4, transfer_method,
     sender_name, sender_mobile, beneficiary_name, beneficiary_mobile,
     beneficiary_bank, beneficiary_ifsc, beneficiary_account, upi_id,
     amount, service_fee, portal_commission, created_by
   ) values (
-    v_number, p_service_type, v_direction, p_transaction_date, p_customer_id,
+    v_number, p_service_type, v_direction, p_transaction_date,
+    coalesce(p_transaction_timestamp, p_transaction_date::timestamptz), p_customer_id,
     p_customer_mobile, nullif(p_reference, ''), p_remarks, p_status,
     p_bank_id, p_portal_id, p_merchant_qr_id, p_aadhaar_last4, p_transfer_method,
     p_sender_name, p_sender_mobile, p_beneficiary_name, p_beneficiary_mobile,
@@ -188,6 +191,7 @@ $$;
 create or replace function public.update_business_txn(
   p_txn_id uuid,
   p_transaction_date date,
+  p_transaction_timestamp timestamptz,
   p_customer_id uuid,
   p_customer_mobile text,
   p_reference text,
@@ -231,6 +235,7 @@ begin
 
   update public.transactions set
     transaction_date = p_transaction_date,
+    transaction_timestamp = coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
     customer_id = p_customer_id,
     customer_mobile = p_customer_mobile,
     reference = nullif(p_reference, ''),

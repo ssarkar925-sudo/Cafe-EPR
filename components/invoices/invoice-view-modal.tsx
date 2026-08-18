@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
+import Modal from "@/components/ui/modal";
 import { statusBadge, type InvoiceRow } from "./invoices-client";
 import { logAudit } from "@/lib/audit";
 
@@ -138,194 +139,192 @@ export default function InvoiceViewModal({
   const dueNum = detail ? Number(detail.due) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              {detail?.invoice_number ?? "Loading..."}
-            </h2>
-            <p className="mt-0.5 text-sm text-slate-500">
-              {detail?.invoice_date ?? ""} &middot;{" "}
-              {detail?.customers?.name ?? "Walk-in customer"}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 text-sm">
-              <a
-                href={`/receipt/${invoiceId}`}
-                target="_blank"
-                className="rounded-lg border border-slate-200 px-2.5 py-1 text-blue-600 transition hover:bg-blue-50"
-              >
-                80mm
-              </a>
-              <a
-                href={`/receipt/${invoiceId}/a4`}
-                target="_blank"
-                className="rounded-lg border border-slate-200 px-2.5 py-1 text-blue-600 transition hover:bg-blue-50"
-              >
-                A4 / PDF
-              </a>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-600"
-            >
-              &times;
-            </button>
-          </div>
+    <Modal
+      onClose={onClose}
+      title={detail?.invoice_number ?? "Loading..."}
+      subtitle={
+        <>
+          {detail?.invoice_date ?? ""} &middot;{" "}
+          {detail?.customers?.name ?? "Walk-in customer"}
+        </>
+      }
+      icon="M7 3h10a1 1 0 0 1 1 1v17l-3-2-2 2-3-2-3 2-3-2V4a1 1 0 0 1 1-1Z"
+      accent="blue"
+      size="xl"
+      headerRight={
+        <div className="mr-2 flex items-center gap-1 text-xs">
+          <a
+            href={`/receipt/${invoiceId}`}
+            target="_blank"
+            className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-blue-600 transition hover:bg-blue-50"
+          >
+            80mm
+          </a>
+          <a
+            href={`/receipt/${invoiceId}/a4`}
+            target="_blank"
+            className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-blue-600 transition hover:bg-blue-50"
+          >
+            A4 / PDF
+          </a>
         </div>
-
-        {detail && (
-          <>
-            <div className="mt-4">{statusBadge(detail.status)}</div>
-
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500">
-                    <th className="py-2 pr-4 font-medium">Item</th>
-                    <th className="py-2 pr-4 font-medium">Qty</th>
-                    <th className="py-2 pr-4 font-medium">Rate</th>
-                    <th className="py-2 font-medium">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it) => (
-                    <tr key={it.id} className="border-b border-slate-100">
-                      <td className="py-2 pr-4 text-slate-900">
-                        {it.products?.name ?? it.services?.name ?? it.description ?? "-"}
-                      </td>
-                      <td className="py-2 pr-4 text-slate-700">
-                        {it.qty}
-                        {Number(it.returned_qty) > 0 && (
-                          <span className="ml-1 text-xs text-rose-600">
-                            ({Number(it.returned_qty)} returned)
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-4 text-slate-700">{inr(it.rate)}</td>
-                      <td className="py-2 text-slate-900">{inr(it.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-3 space-y-1 text-sm">
-              <div className="flex justify-between text-slate-700">
-                <span>Subtotal</span>
-                <span>{inr(detail.subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Discount</span>
-                <span>{inr(detail.discount)}</span>
-              </div>
-              <div className="flex justify-between font-medium text-slate-900">
-                <span>Total</span>
-                <span>{inr(detail.total)}</span>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Paid</span>
-                <span>{inr(detail.paid)}</span>
-              </div>
-              <div className="flex justify-between font-semibold text-slate-900">
-                <span>Due</span>
-                <span>{inr(detail.due)}</span>
-              </div>
-              {Number(detail.returned) > 0 && (
-                <div className="flex justify-between text-rose-600">
-                  <span>Returned</span>
-                  <span>- {inr(detail.returned)}</span>
-                </div>
-              )}
-              {Number(detail.refunded) > 0 && (
-                <div className="flex justify-between text-violet-600">
-                  <span>Refunded</span>
-                  <span>- {inr(detail.refunded)}</span>
-                </div>
-              )}
-            </div>
-
-            {payments.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-medium text-slate-900">Payments</h3>
-                <div className="mt-2 space-y-1 text-sm">
-                  {payments.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex justify-between text-slate-700"
-                    >
-                      <span>
-                        {p.method.toUpperCase()} &middot;{" "}
-                        {new Date(p.received_at).toLocaleString("en-IN")}
-                      </span>
-                      <span className="font-medium">{inr(p.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {detail.status !== "cancelled" && (
-              <div className="mt-5 rounded-lg bg-slate-50 p-4">
-                {dueNum > 0 ? (
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">
-                      Record Payment
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <SearchableSelect
-                        value={payMethod}
-                        onChange={setPayMethod}
-                        options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
-                        searchPlaceholder="Search method…"
-                        showClear={false}
-                        className="w-28"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={payAmount}
-                        onChange={(e) => setPayAmount(e.target.value)}
-                        placeholder={String(Number(detail.due))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                      />
-                      <button
-                        onClick={recordPayment}
-                        disabled={busy}
-                        className="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {busy ? "..." : "Pay"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-emerald-700">Fully paid.</p>
-                )}
-              </div>
-            )}
-
-            {error && (
-              <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+      }
+      footer={
+        detail && detail.status !== "cancelled" ? (
+          <div className="flex items-center justify-between gap-3">
+            {error ? (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
               </p>
+            ) : (
+              <p className="text-xs text-slate-400">
+                {Number(detail.due) > 0
+                  ? `${inr(detail.due)} outstanding on this invoice`
+                  : "Invoice settled"}
+              </p>
             )}
+            <button
+              onClick={returnInvoice}
+              className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+            >
+              Return Items
+            </button>
+          </div>
+        ) : undefined
+      }
+    >
+      {detail && (
+        <>
+          <div>{statusBadge(detail.status)}</div>
 
-            {detail.status !== "cancelled" && (
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={returnInvoice}
-                  className="rounded-lg border border-rose-200 px-3 py-2 text-sm text-rose-600 transition hover:bg-rose-50"
-                >
-                  Return Items
-                </button>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="py-2 pr-4 font-medium">Item</th>
+                  <th className="py-2 pr-4 font-medium">Qty</th>
+                  <th className="py-2 pr-4 font-medium">Rate</th>
+                  <th className="py-2 font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it) => (
+                  <tr key={it.id} className="border-b border-slate-100">
+                    <td className="py-2 pr-4 text-slate-900">
+                      {it.products?.name ?? it.services?.name ?? it.description ?? "-"}
+                    </td>
+                    <td className="py-2 pr-4 text-slate-700">
+                      {it.qty}
+                      {Number(it.returned_qty) > 0 && (
+                        <span className="ml-1 text-xs text-rose-600">
+                          ({Number(it.returned_qty)} returned)
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 text-slate-700">{inr(it.rate)}</td>
+                    <td className="py-2 text-slate-900">{inr(it.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-3 space-y-1 text-sm">
+            <div className="flex justify-between text-slate-700">
+              <span>Subtotal</span>
+              <span>{inr(detail.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-slate-700">
+              <span>Discount</span>
+              <span>{inr(detail.discount)}</span>
+            </div>
+            <div className="flex justify-between font-medium text-slate-900">
+              <span>Total</span>
+              <span>{inr(detail.total)}</span>
+            </div>
+            <div className="flex justify-between text-slate-700">
+              <span>Paid</span>
+              <span>{inr(detail.paid)}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-slate-900">
+              <span>Due</span>
+              <span>{inr(detail.due)}</span>
+            </div>
+            {Number(detail.returned) > 0 && (
+              <div className="flex justify-between text-rose-600">
+                <span>Returned</span>
+                <span>- {inr(detail.returned)}</span>
               </div>
             )}
-          </>
-        )}
-      </div>
-    </div>
+            {Number(detail.refunded) > 0 && (
+              <div className="flex justify-between text-violet-600">
+                <span>Refunded</span>
+                <span>- {inr(detail.refunded)}</span>
+              </div>
+            )}
+          </div>
+
+          {payments.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-slate-900">Payments</h3>
+              <div className="mt-2 space-y-1 text-sm">
+                {payments.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex justify-between text-slate-700"
+                  >
+                    <span>
+                      {p.method.toUpperCase()} &middot;{" "}
+                      {new Date(p.received_at).toLocaleString("en-IN")}
+                    </span>
+                    <span className="font-medium">{inr(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {detail.status !== "cancelled" && (
+            <div className="mt-5 rounded-lg bg-slate-50 p-4 dark:bg-white/5">
+              {dueNum > 0 ? (
+                <div>
+                  <p className="text-sm font-medium text-slate-900">
+                    Record Payment
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <SearchableSelect
+                      value={payMethod}
+                      onChange={setPayMethod}
+                      options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
+                      searchPlaceholder="Search method…"
+                      showClear={false}
+                      className="w-28"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value)}
+                      placeholder={String(Number(detail.due))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    />
+                    <button
+                      onClick={recordPayment}
+                      disabled={busy}
+                      className="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {busy ? "..." : "Pay"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-emerald-700">Fully paid.</p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Modal>
   );
 }

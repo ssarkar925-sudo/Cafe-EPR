@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Modal from "@/components/ui/modal";
 import { logAudit } from "@/lib/audit";
 
 export default function AvatarModal({
@@ -91,16 +92,43 @@ export default function AvatarModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/70 p-4 backdrop-blur-md"
-      onClick={onClose}
+    <Modal
+      noHeader
+      onClose={onClose}
+      size="sm"
+      bodyClassName="p-0"
+      footer={
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || uploading || preview === avatarUrl}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl"
-      >
-        <div className="bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#020617] px-6 pb-6 pt-8 text-center">
-          <div className="relative mx-auto h-28 w-28">
+      <div className="relative bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#020617] px-6 pb-6 pt-8 text-center">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-slate-300 transition hover:bg-white/20 hover:text-white"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+        <div className="relative mx-auto h-28 w-28">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400 via-indigo-500 to-purple-500 opacity-70 blur-lg" />
             {preview ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -175,26 +203,7 @@ export default function AvatarModal({
               {toast.text}
             </div>
           )}
-
-          <div className="mt-5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving || uploading || preview === avatarUrl}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
