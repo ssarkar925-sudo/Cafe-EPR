@@ -8,6 +8,19 @@ import { logAudit } from "@/lib/audit";
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 30 * 1000;
 const LOCK_KEY = "sccomm-login-lock";
+const CONFIG_ERR =
+  "App configuration error — Supabase environment variables are missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and redeploy.";
+
+function clientOrNull(): ReturnType<typeof createClient> | null {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return null;
+  }
+  try {
+    return createClient();
+  } catch {
+    return null;
+  }
+}
 
 const FEATURES = [
   { title: "Point of Sale", desc: "Invoices & quick sales in one tap" },
@@ -48,7 +61,11 @@ export default function LoginPage() {
   const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
 
   async function beginMfa(): Promise<boolean> {
-    const supabase = createClient();
+    const supabase = clientOrNull();
+    if (!supabase) {
+      setError(CONFIG_ERR);
+      return false;
+    }
     const { data: factors, error: fErr } = await supabase.auth.mfa.listFactors();
     if (fErr || !factors) {
       setError(fErr?.message ?? "2FA check failed.");
@@ -81,7 +98,12 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
+    const supabase = clientOrNull();
+    if (!supabase) {
+      setError(CONFIG_ERR);
+      setLoading(false);
+      return;
+    }
     let challengeId = mfaChallengeId;
     if (!challengeId) {
       const { data: challenge, error: cErr } = await supabase.auth.mfa.challenge({
@@ -134,7 +156,12 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
+    const supabase = clientOrNull();
+    if (!supabase) {
+      setError(CONFIG_ERR);
+      setLoading(false);
+      return;
+    }
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -226,7 +253,11 @@ export default function LoginPage() {
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const supabase = createClient();
+    const supabase = clientOrNull();
+    if (!supabase) {
+      setError(CONFIG_ERR);
+      return;
+    }
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
       redirectTo: `${window.location.origin}/auth/confirm-reset`,
     });
