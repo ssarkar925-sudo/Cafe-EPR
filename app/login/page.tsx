@@ -194,7 +194,15 @@ export default function LoginPage() {
       /* ignore */
     }
 
-    if (!data.session) {
+    // 2FA is required when GoTrue returns no session (weak session) OR when the
+    // returned session is only aal1 while the user has verified aal2 (TOTP) factors.
+    let mfaRequired = !data.session;
+    if (!mfaRequired) {
+      const { data: aal, error: aalErr } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      mfaRequired = !aalErr && aal?.nextLevel === "aal2";
+    }
+    if (mfaRequired) {
       const started = await beginMfa();
       setLoading(false);
       if (started) {
