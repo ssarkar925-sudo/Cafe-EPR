@@ -612,7 +612,7 @@ export default function BusinessClient({
             </div>
           </div>
           {groups.length > 0 ? (
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
+            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100">
               <table className="min-w-full divide-y divide-slate-100 text-sm">
                 <thead className="bg-slate-50">
                   <tr>

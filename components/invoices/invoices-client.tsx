@@ -484,18 +484,18 @@ export default function InvoicesClient({
                 </div>
 
                 {/* Amounts */}
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-                  <div>
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100 sm:gap-3">
+                  <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</p>
-                    <p className="mt-0.5 text-sm font-bold text-slate-900">{inr(total)}</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">{inr(total)}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Paid</p>
-                    <p className="mt-0.5 text-sm font-bold text-emerald-600">{inr(paid)}</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-emerald-600">{inr(paid)}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Due</p>
-                    <p className="mt-0.5 text-sm font-bold text-rose-600">{inr(due)}</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-rose-600">{inr(due)}</p>
                   </div>
                 </div>
 

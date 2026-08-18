@@ -276,7 +276,7 @@ export default function ReportsClient({
   const tabBtn = (key: typeof tab, label: string) => (
     <button
       onClick={() => setTab(key)}
-      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+      className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
         tab === key ? "bg-[#0f172a] text-white shadow-sm" : "text-slate-500 hover:text-slate-900"
       }`}
     >
@@ -310,7 +310,7 @@ export default function ReportsClient({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-1 rounded-xl bg-slate-100 p-1">
+      <div className="mt-6 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
         {tabBtn("overview", "Overview")}
         {tabBtn("invoices", "Invoices")}
         {tabBtn("expenses", "Expenses")}

@@ -777,15 +777,15 @@ export default function CustomersClient({
                   <p className="py-8 text-center text-sm text-slate-400">No AEPS / DMT / UPI transactions.</p>
                 )
               ) : detail.ledger.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border border-slate-100">
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50">
                       <tr className="text-slate-500">
-                        <th className="px-3 py-2 font-medium">Date</th>
+                        <th className="whitespace-nowrap px-3 py-2 font-medium">Date</th>
                         <th className="px-3 py-2 font-medium">Description</th>
-                        <th className="px-3 py-2 text-right font-medium">Dr</th>
-                        <th className="px-3 py-2 text-right font-medium">Cr</th>
-                        <th className="px-3 py-2 text-right font-medium">Balance</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Dr</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Cr</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Balance</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -808,7 +808,7 @@ export default function CustomersClient({
               )}
             </div>
 
-            <div className="grid shrink-0 grid-cols-4 gap-2 border-t border-slate-100 p-5">
+            <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 p-5 sm:grid-cols-4">
               <button
                 onClick={() => setAdvanceModal({ mode: "record" })}
                 className="col-span-2 rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"

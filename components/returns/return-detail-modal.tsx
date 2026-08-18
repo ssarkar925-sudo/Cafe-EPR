@@ -148,14 +148,14 @@ export default function ReturnDetailModal({
             </div>
           )}
 
-          <div className="mt-4 overflow-hidden rounded-xl ring-1 ring-slate-200 dark:ring-white/10">
+          <div className="mt-4 overflow-x-auto rounded-xl ring-1 ring-slate-200 dark:ring-white/10">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:bg-white/5">
                   <th className="px-4 py-2.5 font-medium">Item</th>
-                  <th className="px-4 py-2.5 font-medium">Qty</th>
-                  <th className="px-4 py-2.5 font-medium">Rate</th>
-                  <th className="px-4 py-2.5 text-right font-medium">
+                  <th className="whitespace-nowrap px-4 py-2.5 font-medium">Qty</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 font-medium">Rate</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 text-right font-medium">
                     Amount
                   </th>
                 </tr>
@@ -163,17 +163,19 @@ export default function ReturnDetailModal({
               <tbody>
                 {items.map((it) => (
                   <tr key={it.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-2.5 text-slate-900">
-                      {it.products?.name ??
-                        it.services?.name ??
-                        it.invoice_items?.description ??
-                        "-"}
+                    <td className="max-w-[180px] px-4 py-2.5 text-slate-900">
+                      <span className="block truncate">
+                        {it.products?.name ??
+                          it.services?.name ??
+                          it.invoice_items?.description ??
+                          "-"}
+                      </span>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-700">{it.qty}</td>
-                    <td className="px-4 py-2.5 text-slate-700">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-700">{it.qty}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-700">
                       {inr(it.rate)}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium text-slate-900">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right font-medium text-slate-900">
                       {inr(it.amount)}
                     </td>
                   </tr>

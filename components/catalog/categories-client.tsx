@@ -149,16 +149,16 @@ export default function CategoriesClient({
         </button>
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="mt-6 grid grid-cols-3 gap-3 sm:gap-4">
         {statCards.map((c) => (
-          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500">{c.label}</p>
-                <p className="mt-1 text-xl font-bold text-slate-900">{c.value}</p>
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-medium text-slate-500 sm:text-xs">{c.label}</p>
+                <p className="mt-1 text-lg font-bold text-slate-900 sm:text-xl">{c.value}</p>
               </div>
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
+              <div className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm sm:flex`}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
                   <path d={c.icon} />
                 </svg>
