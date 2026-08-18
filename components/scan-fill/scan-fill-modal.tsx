@@ -178,6 +178,8 @@ export default function ScanFillModal({
 
   const foundCount = Object.keys(fields).length;
 
+  if (!open) return null;
+
   return (
     <Modal
       onClose={onClose}
