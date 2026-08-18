@@ -49,7 +49,10 @@ function normAmount(raw: string | undefined | null): string | null {
     .replace(/^[₹]/g, "")
     .replace(/^(Rs\.?|INR)\s*/i, "");
   const m = n.match(/(\d+(?:\.\d{1,2})?)/);
-  return m ? m[1] : null;
+  if (!m) return null;
+  const num = Number(m[1]);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return num.toFixed(2);
 }
 
 const firstMatch = (text: string, pattern: RegExp): string | null => {
@@ -75,12 +78,19 @@ export function extractAmount(text: string): string | null {
 }
 
 export function extractReference(text: string): string | null {
-  const labeled =
-    firstMatch(text, /\b(?:RRN|UTR|RRN\/UTR|Reference\s*(?:No|Number|Id|ID)?|Txn(?:saction)?\s*(?:Id|ID|No|Number)?|Ref\s*(?:No|Id)?)\s*[#:=\-]?\s*([A-Za-z0-9]{8,28})\b/i) ??
-    firstMatch(text, /\b(?:UTR\s*[#:=\-]?\s*([0-9]{12}))\b/i);
-  if (labeled) return labeled;
-  // bare 12-digit transaction id (skip when an Aadhaar is present to avoid a clash)
-  if (!/\baadhaar\b/i.test(text)) {
+  // priority: RRN → UTR → Bank Ref / Ref → Transaction ID (digits only) → bare 12-digit
+  const priority = [
+    /\bRRN\s*(?:No\.?|Number|Id|ID)?\s*[#:=\-\.]?\s*([A-Za-z0-9]{8,28})\b/i,
+    /\bUTR\s*(?:No\.?|Number|Id|ID)?\s*[#:=\-\.]?\s*([0-9]{10,28})\b/i,
+    /\b(?:Bank\s+Ref(?:erence)?|Ref(?:erence)?)\s*(?:No\.?|Number|Id|ID)?\s*[#:=\-\.]?\s*([A-Za-z0-9]{8,28})\b/i,
+    /\bTxn(?:saction)?\s*(?:No\.?|Number|Id|ID)?\s*[#:=\-\.]?\s*([0-9]{8,28})\b/i,
+  ];
+  for (const p of priority) {
+    const m = text.match(p);
+    if (m && m[1]) return clean(m[1]);
+  }
+  // bare 12-digit transaction id (skip when an Aadhaar / masked id is present to avoid a clash)
+  if (!/\baadhaar\b/i.test(text) && !/[xX*#]{2,}/.test(text)) {
     const bare = text.match(/(?<![0-9])([0-9]{12})(?![0-9])/);
     if (bare) return bare[1];
   }
@@ -88,10 +98,13 @@ export function extractReference(text: string): string | null {
 }
 
 export function extractAadhaarLast4(text: string): string | null {
-  const m = text.match(/\b(?:Aadhaar|AADHAAR|Aadhar)[^\d]{0,20}(?:[xX*#]+\s*)?([0-9]{4})(?![0-9])/);
-  if (m) return m[1];
-  const m2 = text.match(/(?:last|last4|last 4)[^\d]{0,8}(?:digit(?:s)?)?[^\d]{0,6}([0-9]{4})(?![0-9])/i);
-  return m2 ? m2[1] : null;
+  const labeled = text.match(
+    /\b(?:Aadhaar|AADHAAR|Aadhar|Customer\s*(?:ID|Id|No\.?|Number)|Cust\s*(?:ID|Id))\s*(?:No\.?|Number|ID|Id)?\s*[#:=\-]?\s*(?:[^\d]{0,20})(?:[xX*#]+\s*)*([0-9]{4})(?![0-9])/i
+  );
+  if (labeled) return labeled[1];
+  // masked number fallback: XXXX XXXX 1889 / XXXXXXXX1876 / XXXX 4521
+  const masked = text.match(/(?:[xX*#]{4}\s*){1,3}([0-9]{4})(?![0-9])/);
+  return masked ? masked[1] : null;
 }
 
 export function extractMobile(text: string): string | null {
@@ -122,23 +135,24 @@ export function extractName(text: string, kind: "to" | "from"): string | null {
       ? ["Beneficiary(?: Name)?", "Payee(?: Name)?", "Paid to", "Credit to", "Transferred to", "Account Holder"]
       : ["Sender(?: Name)?", "Payer(?: Name)?", "From Name", "From", "Debited from"];
   for (const l of labels) {
-    const m = text.match(new RegExp(`\\b${l}\\s*[#:=\\-]?\\s*([A-Z][A-Za-z]+(?:\\s+[A-Za-z]+){0,4})`));
+    const m = text.match(new RegExp(`\\b${l}\\s*[#:=\\-]?\\s*([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})`));
     if (m && m[1]) return clean(m[1]);
   }
   // "to <NAME>" / "from <NAME>" before a break, parenthetical, "on <date>" or end
   const generic =
     kind === "to"
-      ? text.match(/(?:paid\s+to|to)\s+([A-Z][A-Za-z]+(?:\s+[A-Za-z]+){0,4})(?=\s*[,;\n(]|\s+on\b|$)/)
-      : text.match(/(?:from)\s+([A-Z][A-Za-z]+(?:\s+[A-Za-z]+){0,4})(?=\s*[,;\n(]|\s+on\b|$)/);
+      ? text.match(/(?:paid\s+to|to)\s+([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})(?=\s*[,;\n(]|\s+on\b|$)/)
+      : text.match(/(?:from)\s+([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})(?=\s*[,;\n(]|\s+on\b|$)/);
   return generic ? clean(generic[1]) : null;
 }
 
 export function extractBank(text: string): string | null {
-  const labeled = firstMatch(
-    text,
-    /\b(?:Bank|Bank Name|Beneficiary Bank|Customer Bank|Issuer|Issuing Bank)\s*[#:=\-]?\s*([A-Z][A-Za-z]+(?:\s+[A-Za-z]+){0,3})/i
+  const explicit = text.match(
+    /\b(?:Bank\s*Name|Beneficiary\s*Bank|Customer\s*Bank|Issuing\s*Bank|Issuer|Bank\s*Account)\s*[#:=\-]?\s*([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,3})/i
   );
-  if (labeled) return labeled;
+  if (explicit) return explicit[1];
+  const bare = text.match(/\bBank\s*[#:=\-]?\s+(?!Ref|Name|Account|ID|Code|Address)([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,3})/i);
+  if (bare) return bare[1];
   for (const name of BANK_NAMES) {
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text)) return name;
   }
@@ -167,18 +181,36 @@ export function extractPortal(text: string): string | null {
   return m ? clean(m[1]) : null;
 }
 
-export function extractTransactionDate(text: string): string | null {
-  const m = text.match(/\b(?:on|On|Date|Dated)\s+(\d{1,2}[-/][A-Za-z]{3}[-/]\d{2,4})\b/);
-  if (!m) return null;
-  const [d, mon, y] = m[1].split(/[-/]/);
-  const months: Record<string, string> = {
-    jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
-    jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
-  };
-  const mm = months[mon.toLowerCase().slice(0, 3)];
-  if (!mm) return null;
+const MONTHS: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+};
+
+function toIso(d: string, mon: string, y: string): string | null {
+  const mm = MONTHS[mon.toLowerCase().slice(0, 3)] ?? (mon.length <= 2 ? String(Number(mon)).padStart(2, "0") : null);
+  if (!mm || Number(mm) < 1 || Number(mm) > 12) return null;
+  const dd = String(Number(d)).padStart(2, "0");
+  if (Number(dd) < 1 || Number(dd) > 31) return null;
   const yy = y.length === 2 ? "20" + y : y;
-  return `${yy}-${mm}-${String(d).padStart(2, "0")}`;
+  if (!/^\d{4}$/.test(yy) || Number(yy) < 2000) return null;
+  return `${yy}-${mm}-${dd}`;
+}
+
+export function extractTransactionDate(text: string): string | null {
+  const prefix = /\b(?:Date|Dated|Transaction\s*Date|Txn\s*Date|On)\s*[#:=\-]?\s*/i;
+  // spelled-out month: "August 18, 2026"
+  const m1 = text.match(new RegExp(prefix.source + "([A-Z][a-z]{2,8})\\s+(\\d{1,2}),\\s*(\\d{4})", "i"));
+  if (m1) return toIso(m1[2], m1[1], m1[3]);
+  // numeric dd-mm-yyyy / dd/mm/yyyy
+  const m2 = text.match(new RegExp(prefix.source + "(\\d{1,2})[-/](\\d{1,2})[-/](\\d{2,4})", "i"));
+  if (m2) return toIso(m2[1], m2[2], m2[3]);
+  // short: "18-Aug-2026"
+  const m3 = text.match(new RegExp(prefix.source + "(\\d{1,2})[-/]([A-Za-z]{3})[-/](\\d{2,4})", "i"));
+  if (m3) return toIso(m3[1], m3[2], m3[3]);
+  // bare numeric date fallback
+  const m4 = text.match(/\b(\d{1,2})-(\d{1,2})-(\d{4})\b/);
+  if (m4) return toIso(m4[1], m4[2], m4[3]);
+  return null;
 }
 
 export function detectPaymentMethod(text: string): string | null {
