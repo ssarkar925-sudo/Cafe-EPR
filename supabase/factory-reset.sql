@@ -31,7 +31,10 @@ begin
 end $$;
 
 -- 3) Remove uploaded files (shop logo, staff avatars, customer photos).
-delete from storage.objects where bucket_id in ('logos', 'avatars', 'customer-photos');
+--    NOTE: Supabase blocks direct SQL deletes on storage tables. Empty the
+--    buckets via the Storage API instead (e.g. in the dashboard, or
+--    supabase.storage.emptyBucket('logos') with the service role key).
+-- delete from storage.objects where bucket_id in ('logos', 'avatars', 'customer-photos');
 
 -- 4) Remove all auth users (profiles, notification reads, etc. cascade / set null).
 delete from auth.users;
