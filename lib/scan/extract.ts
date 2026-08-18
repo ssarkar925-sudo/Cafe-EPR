@@ -74,6 +74,12 @@ export function extractAmount(text: string): string | null {
       if (n && Number(n) > 0) return n;
     }
   }
+  // app receipts: "Paid to <name> 1,000" — the amount is the last number on that line
+  const paidTo = text.match(/\bPaid\s+to\b\s*[^\n]*?([0-9][0-9,]*\.?[0-9]*)(?=\n|$)/i);
+  if (paidTo) {
+    const n = normAmount(paidTo[1]);
+    if (n && Number(n) > 0) return n;
+  }
   return null;
 }
 
@@ -135,15 +141,22 @@ export function extractName(text: string, kind: "to" | "from"): string | null {
       ? ["Beneficiary(?: Name)?", "Payee(?: Name)?", "Paid to", "Credit to", "Transferred to", "Account Holder"]
       : ["Sender(?: Name)?", "Payer(?: Name)?", "From Name", "From", "Debited from"];
   for (const l of labels) {
-    const m = text.match(new RegExp(`\\b${l}\\s*[#:=\\-]?\\s*([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})`));
-    if (m && m[1]) return clean(m[1]);
+    const m = text.match(new RegExp(`\\b${l}\\s*[#:=\\-]?\\s*(?:[0-9.,]+\\s+)?([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})`));
+    if (m && m[1]) {
+      const v = clean(m[1]);
+      if (!/[xX*#]{2,}/.test(v) && v.length >= 2) return v;
+    }
   }
   // "to <NAME>" / "from <NAME>" before a break, parenthetical, "on <date>" or end
   const generic =
     kind === "to"
       ? text.match(/(?:paid\s+to|to)\s+([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})(?=\s*[,;\n(]|\s+on\b|$)/)
       : text.match(/(?:from)\s+([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,4})(?=\s*[,;\n(]|\s+on\b|$)/);
-  return generic ? clean(generic[1]) : null;
+  if (generic) {
+    const v = clean(generic[1]);
+    if (!/[xX*#]{2,}/.test(v) && v.length >= 2) return v;
+  }
+  return null;
 }
 
 export function extractBank(text: string): string | null {
@@ -151,7 +164,7 @@ export function extractBank(text: string): string | null {
     /\b(?:Bank\s*Name|Beneficiary\s*Bank|Customer\s*Bank|Issuing\s*Bank|Issuer|Bank\s*Account)\s*[#:=\-]?\s*([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,3})/i
   );
   if (explicit) return explicit[1];
-  const bare = text.match(/\bBank\s*[#:=\-]?\s+(?!Ref|Name|Account|ID|Code|Address)([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,3})/i);
+  const bare = text.match(/\bBank\s*[#:=\-]?\s+(?!Ref|Name|Banking|Account|ID|Code|Address)([A-Z][A-Za-z]+(?:[ ]+[A-Za-z]+){0,3})/i);
   if (bare) return bare[1];
   for (const name of BANK_NAMES) {
     if (new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text)) return name;
@@ -204,6 +217,9 @@ export function extractTransactionDate(text: string): string | null {
   // numeric dd-mm-yyyy / dd/mm/yyyy
   const m2 = text.match(new RegExp(prefix.source + "(\\d{1,2})[-/](\\d{1,2})[-/](\\d{2,4})", "i"));
   if (m2) return toIso(m2[1], m2[2], m2[3]);
+  // space-separated: "18 Aug 2026" / "18 August 2026"
+  const m2b = text.match(new RegExp(prefix.source + "(\\d{1,2})\\s+([A-Za-z]{3,9})\\s+(\\d{2,4})", "i"));
+  if (m2b) return toIso(m2b[1], m2b[2], m2b[3]);
   // short: "18-Aug-2026"
   const m3 = text.match(new RegExp(prefix.source + "(\\d{1,2})[-/]([A-Za-z]{3})[-/](\\d{2,4})", "i"));
   if (m3) return toIso(m3[1], m3[2], m3[3]);
