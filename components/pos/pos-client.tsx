@@ -1186,10 +1186,18 @@ export default function PosClient({
                       <span>+ {inr(dueCollection)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-slate-500">
-                    <span>Paid</span>
-                    <span>{inr(paid)}</span>
-                  </div>
+                  {paid > 0 && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Received</span>
+                      <span className="font-medium text-blue-600">{inr(paid)}</span>
+                    </div>
+                  )}
+                  {change > 0 && (
+                    <div className="flex justify-between text-emerald-600">
+                      <span>Change</span>
+                      <span>− {inr(change)}</span>
+                    </div>
+                  )}
                   <div className={`flex justify-between ${invoiceDue > 0 ? "text-amber-600" : "text-emerald-600"}`}>
                     <span className="font-medium">Due</span>
                     <span className="font-semibold">{inr(invoiceDue)}</span>
@@ -1564,8 +1572,8 @@ export default function PosClient({
                 <span className="font-medium text-slate-900">{inr(success.total)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
-                <span>Paid</span>
-                <span className="font-medium text-slate-900">{inr(success.paid)}</span>
+                <span>Received</span>
+                <span className="font-medium text-blue-600">{inr(Number(success.paid) + Number(success.change ?? 0))}</span>
               </div>
               {Number(success.advance_used) > 0 && (
                 <div className="flex justify-between text-slate-600">
@@ -1581,8 +1589,8 @@ export default function PosClient({
               )}
               {Number(success.change) > 0 && (
                 <div className="flex justify-between rounded-lg bg-amber-50 px-2 py-1 ring-1 ring-amber-100">
-                  <span className="font-medium text-amber-700">Change to return</span>
-                  <span className="font-bold text-amber-700">{inr(Number(success.change))}</span>
+                  <span className="font-medium text-amber-700">Change</span>
+                  <span className="font-bold text-amber-700">− {inr(Number(success.change))}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600">
