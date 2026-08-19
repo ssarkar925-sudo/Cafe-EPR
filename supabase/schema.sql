@@ -132,10 +132,12 @@ create table if not exists public.invoice_items (
   id uuid primary key default gen_random_uuid(),
   invoice_id uuid not null references public.invoices (id) on delete cascade,
   product_id uuid references public.products (id) on delete set null,
+  service_id uuid references public.services (id) on delete set null,
   description text,
   qty numeric(15,3) not null default 1,
   rate numeric(15,2) not null default 0,
-  amount numeric(15,2) not null default 0
+  amount numeric(15,2) not null default 0,
+  cost_price numeric(15,2) not null default 0
 );
 
 -- Indexes
@@ -238,6 +240,7 @@ declare
   v_qty numeric;
   v_rate numeric;
   v_amount numeric;
+  v_cost_line numeric;
   v_stock numeric;
   v_payment jsonb;
   v_method text;
@@ -269,9 +272,15 @@ begin
     v_qty := coalesce((v_item->>'qty')::numeric, 1);
     v_rate := coalesce((v_item->>'rate')::numeric, 0);
     v_amount := coalesce((v_item->>'amount')::numeric, 0);
+    -- Custom items may carry an optional cost for accurate income; catalog cost stays server-side.
+    v_cost_line := case
+      when v_product_id is null and (v_item->>'service_id')::uuid is null
+        then greatest(coalesce((v_item->>'cost_price')::numeric, 0), 0)
+      else 0
+    end;
 
-    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount)
-    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount);
+    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount, cost_price)
+    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount, v_cost_line);
 
     if v_product_id is not null then
       select stock_qty into v_stock from public.products where id = v_product_id for update;
@@ -561,6 +570,7 @@ declare
   v_qty numeric;
   v_rate numeric;
   v_amount numeric;
+  v_cost_line numeric;
   v_stock numeric;
   v_payment jsonb;
   v_method text;
@@ -592,9 +602,15 @@ begin
     v_qty := coalesce((v_item->>'qty')::numeric, 1);
     v_rate := coalesce((v_item->>'rate')::numeric, 0);
     v_amount := coalesce((v_item->>'amount')::numeric, 0);
+    -- Custom items may carry an optional cost for accurate income; catalog cost stays server-side.
+    v_cost_line := case
+      when v_product_id is null and (v_item->>'service_id')::uuid is null
+        then greatest(coalesce((v_item->>'cost_price')::numeric, 0), 0)
+      else 0
+    end;
 
-    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount)
-    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount);
+    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount, cost_price)
+    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount, v_cost_line);
 
     if v_product_id is not null then
       select stock_qty into v_stock from public.products where id = v_product_id for update;
@@ -949,6 +965,7 @@ create table if not exists public.return_items (
 alter table public.invoices add column if not exists returned numeric(15,2) not null default 0;
 alter table public.invoices add column if not exists refunded numeric(15,2) not null default 0;
 alter table public.invoice_items add column if not exists returned_qty numeric(15,3) not null default 0;
+alter table public.invoice_items add column if not exists cost_price numeric(15,2) not null default 0;
 
 create index if not exists returns_invoice_idx on public.returns (invoice_id);
 create index if not exists returns_return_date_idx on public.returns (return_date);
@@ -1139,8 +1156,8 @@ begin
     where r.status = 'completed' and i.status <> 'cancelled'
       and r.return_date between p_from and p_to;
 
-  -- COGS: sold qty (minus returned) x current cost price (products/services)
-  select coalesce(sum((ii.qty - coalesce(ii.returned_qty, 0)) * coalesce(p.cost_price, s.cost_price, 0)), 0)
+-- COGS: sold qty (minus returned) x cost price (line-level custom cost first, then catalog)
+  select coalesce(sum((ii.qty - coalesce(ii.returned_qty, 0)) * coalesce(ii.cost_price, p.cost_price, s.cost_price, 0)), 0)
     into v_cogs
     from public.invoice_items ii
     join public.invoices i on i.id = ii.invoice_id
@@ -1180,7 +1197,7 @@ begin
       from public.invoices i
       where i.status <> 'cancelled' and i.invoice_date between p_from and p_to
       union all
-      select i.invoice_date, 0, (it.qty - coalesce(it.returned_qty, 0)) * coalesce(p.cost_price, s.cost_price, 0), 0, 0
+      select i.invoice_date, 0, (it.qty - coalesce(it.returned_qty, 0)) * coalesce(it.cost_price, p.cost_price, s.cost_price, 0), 0, 0
       from public.invoice_items it
       join public.invoices i on i.id = it.invoice_id
       left join public.products p on p.id = it.product_id
@@ -1224,18 +1241,18 @@ union all
   -- Top products by gross profit
   select coalesce(jsonb_agg(to_jsonb(t) order by t.profit desc), '[]'::jsonb) into v_top
   from (
-    select coalesce(p.name, s.name) as name,
+select coalesce(p.name, s.name, ii.description) as name,
       sum((ii.qty - coalesce(ii.returned_qty, 0)) * ii.rate) as revenue,
-      sum((ii.qty - coalesce(ii.returned_qty, 0)) * coalesce(p.cost_price, s.cost_price, 0)) as cogs,
-      sum((ii.qty - coalesce(ii.returned_qty, 0)) * (ii.rate - coalesce(p.cost_price, s.cost_price, 0))) as profit,
+      sum((ii.qty - coalesce(ii.returned_qty, 0)) * coalesce(ii.cost_price, p.cost_price, s.cost_price, 0)) as cogs,
+      sum((ii.qty - coalesce(ii.returned_qty, 0)) * (ii.rate - coalesce(ii.cost_price, p.cost_price, s.cost_price, 0))) as profit,
       count(distinct i.id) as invoices
     from public.invoice_items ii
     join public.invoices i on i.id = ii.invoice_id
     left join public.products p on p.id = ii.product_id
     left join public.services s on s.id = ii.service_id
     where i.status <> 'cancelled' and i.invoice_date between p_from and p_to
-    group by coalesce(p.name, s.name)
-    having sum((ii.qty - coalesce(ii.returned_qty, 0)) * (ii.rate - coalesce(p.cost_price, s.cost_price, 0))) <> 0
+    group by coalesce(p.name, s.name, ii.description)
+    having sum((ii.qty - coalesce(ii.returned_qty, 0)) * (ii.rate - coalesce(ii.cost_price, p.cost_price, s.cost_price, 0))) <> 0
     order by profit desc
     limit 6
   ) t;
@@ -1664,7 +1681,8 @@ $$;
 -- Run this in Supabase SQL Editor (idempotent).
 -- Quick Sale: fast cash-register style sales for walk-in/local customers — no full invoice.
 -- A sale is one or more items (service/product/custom) + named payment instrument.
--- Cost is derived SERVER-SIDE from the catalog cost_price so cashiers never send cost.
+-- Cost comes from the catalog cost_price for catalog items; custom items may carry an
+-- optional cost_price so income stays accurate. Catalog cost is never sent by cashiers.
 -- Every payment writes a cash_entries 'in' row tagged with the instrument.
 
 create table if not exists public.quick_sales (
@@ -1801,8 +1819,11 @@ begin
           raise exception 'Service not found or unavailable';
         end if;
         v_l_cost := round(v_l_qty * v_l_cost, 2);
-      elsif v_l_name is null then
+elsif v_l_name is null then
         raise exception 'Each item needs a product, service or name';
+      else
+        -- custom item: optional cost price from the cashier (defaults to 0)
+        v_l_cost := round(v_l_qty * greatest(coalesce((v_line->>'cost_price')::numeric, 0), 0), 2);
       end if;
       v_amount := v_amount + v_l_amount;
       v_cost := v_cost + v_l_cost;
@@ -1854,12 +1875,14 @@ begin
       v_l_rate := coalesce((v_line->>'rate')::numeric, 0);
       v_l_amount := round(v_l_qty * v_l_rate, 2);
       v_l_cost := 0;
-      if v_l_product is not null then
+if v_l_product is not null then
         select p.cost_price into v_l_cost from public.products p where p.id = v_l_product;
         v_l_cost := round(v_l_qty * coalesce(v_l_cost, 0), 2);
       elsif v_l_service is not null then
         select s.cost_price into v_l_cost from public.services s where s.id = v_l_service;
         v_l_cost := round(v_l_qty * coalesce(v_l_cost, 0), 2);
+      else
+        v_l_cost := round(v_l_qty * greatest(coalesce((v_line->>'cost_price')::numeric, 0), 0), 2);
       end if;
       insert into public.quick_sale_items (quick_sale_id, product_id, service_id, item_name, qty, rate, amount, cost)
       values (v_id, v_l_product, v_l_service, v_l_name, v_l_qty, v_l_rate, v_l_amount, v_l_cost);

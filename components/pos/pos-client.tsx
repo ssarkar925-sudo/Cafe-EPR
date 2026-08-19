@@ -67,6 +67,7 @@ export type CartLine = {
   qty: number;
   rate: number;
   amount: number;
+  cost?: number;
 };
 
 type SaleResult = {
@@ -182,6 +183,7 @@ export default function PosClient({
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customRate, setCustomRate] = useState("");
+  const [customCost, setCustomCost] = useState("");
   const [recallOpen, setRecallOpen] = useState(false);
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
   const [draftSaved, setDraftSaved] = useState(false);
@@ -439,6 +441,7 @@ export default function PosClient({
   function addCustomItem() {
     const name = customName.trim();
     const rate = Number(customRate) || 0;
+    const cost = Number(customCost) || 0;
     if (!name || rate <= 0) {
       setError("Enter a name and a valid price.");
       return;
@@ -446,10 +449,20 @@ export default function PosClient({
     setError(null);
     setCart((prev) => [
       ...prev,
-      { key: `c-${Date.now()}`, product_id: null, service_id: null, name, qty: 1, rate, amount: rate },
+      {
+        key: `c-${Date.now()}`,
+        product_id: null,
+        service_id: null,
+        name,
+        qty: 1,
+        rate,
+        amount: rate,
+        cost: Math.max(0, cost),
+      },
     ]);
     setCustomName("");
     setCustomRate("");
+    setCustomCost("");
     setCustomOpen(false);
   }
 
@@ -568,6 +581,7 @@ export default function PosClient({
       qty: l.qty,
       rate: l.rate,
       amount: l.amount,
+      cost_price: l.product_id || l.service_id ? 0 : l.cost ?? 0,
     }));
     const pmts = payments
       .filter((p) => Number(p.amount) > 0)
@@ -1241,6 +1255,20 @@ export default function PosClient({
                   step="0.01"
                   value={customRate}
                   onChange={(e) => setCustomRate(e.target.value)}
+                  placeholder="0.00"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">
+                  Cost price (₹) <span className="font-normal text-slate-400">— optional, used for income</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={customCost}
+                  onChange={(e) => setCustomCost(e.target.value)}
                   placeholder="0.00"
                   className={inputClass}
                 />

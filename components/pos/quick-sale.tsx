@@ -113,6 +113,7 @@ export default function QuickSaleModule({
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customRate, setCustomRate] = useState("");
+  const [customCost, setCustomCost] = useState("");
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [qsNewCust, setQsNewCust] = useState({ name: "", phone: "" });
   const [qsDup, setQsDup] = useState<any>(null);
@@ -337,6 +338,7 @@ export default function QuickSaleModule({
   function addCustomItem() {
     const name = customName.trim();
     const rate = Number(customRate) || 0;
+    const cost = Number(customCost) || 0;
     if (!name || rate <= 0) {
       setError("Enter a name and a valid price.");
       return;
@@ -344,10 +346,20 @@ export default function QuickSaleModule({
     setError(null);
     setCart((prev) => [
       ...prev,
-      { key: `c-${Date.now()}`, product_id: null, service_id: null, name, qty: 1, rate, amount: rate },
+      {
+        key: `c-${Date.now()}`,
+        product_id: null,
+        service_id: null,
+        name,
+        qty: 1,
+        rate,
+        amount: rate,
+        cost: Math.max(0, cost),
+      },
     ]);
     setCustomName("");
     setCustomRate("");
+    setCustomCost("");
     setCustomOpen(false);
   }
 
@@ -526,6 +538,7 @@ export default function QuickSaleModule({
       item_name: l.product_id || l.service_id ? null : l.name,
       qty: l.qty,
       rate: l.rate,
+      cost_price: l.product_id || l.service_id ? 0 : l.cost ?? 0,
     }));
     setBusy(true);
     const { data, error: err } = await supabase.rpc("record_quick_sale", {
@@ -1300,6 +1313,12 @@ export default function QuickSaleModule({
               <div>
                 <label className={labelClass}>Price (₹) *</label>
                 <input type="number" min="0" step="0.01" value={customRate} onChange={(e) => setCustomRate(e.target.value)} placeholder="0.00" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>
+                  Cost price (₹) <span className="font-normal text-slate-400">— optional, used for income</span>
+                </label>
+                <input type="number" min="0" step="0.01" value={customCost} onChange={(e) => setCustomCost(e.target.value)} placeholder="0.00" className={inputClass} />
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
