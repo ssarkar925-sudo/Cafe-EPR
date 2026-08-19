@@ -1722,9 +1722,11 @@ create table if not exists public.quick_sale_items (
   qty numeric(15,3) not null default 1 check (qty > 0),
   rate numeric(15,2) not null default 0 check (rate >= 0),
   amount numeric(15,2) not null default 0 check (amount >= 0),
-  cost numeric(15,2) not null default 0 check (cost >= 0)
+  cost numeric(15,2) not null default 0 check (cost >= 0),
+  created_at timestamptz not null default now()
 );
 create index if not exists idx_quick_sale_items_sale on public.quick_sale_items (quick_sale_id);
+alter table public.quick_sale_items add column if not exists created_at timestamptz not null default now();
 
 alter table public.quick_sale_items enable row level security;
 drop policy if exists "quick_sale_items all" on public.quick_sale_items;
