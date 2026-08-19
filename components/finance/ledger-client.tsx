@@ -115,7 +115,10 @@ export default function LedgerClient({ customers }: { customers: LedgerCustomer[
           <SearchableSelect
             value={customerId}
             onChange={setCustomerId}
-            options={customers.map((c) => ({ value: c.id, label: `${c.name} (${c.code ?? "-"})` }))}
+            options={customers.map((c) => ({
+              value: c.id,
+              label: `${c.name} (${c.code ?? "-"})${(c as any).phone ? ` · ${(c as any).phone}` : ""}`,
+            }))}
             placeholder="Select customer…"
             searchPlaceholder="Search customer…"
             showClear={false}

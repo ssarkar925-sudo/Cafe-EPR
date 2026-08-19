@@ -27,7 +27,7 @@ export type ReturnRow = {
     due: number | string;
     returned: number | string;
     refunded: number | string;
-    customers: { name: string } | null;
+    customers: { name: string; phone?: string | null } | null;
   } | null;
 };
 
@@ -108,6 +108,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
         r.return_number.toLowerCase().includes(needle) ||
         (r.invoices?.invoice_number ?? "").toLowerCase().includes(needle) ||
         (r.invoices?.customers?.name ?? "").toLowerCase().includes(needle) ||
+        (r.invoices?.customers?.phone ?? "").toLowerCase().includes(needle) ||
         (r.reason ?? "").toLowerCase().includes(needle)
       );
     });
@@ -225,7 +226,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search return no, invoice, customer or reason…"
+              placeholder="Search return no, invoice, customer, mobile or reason…"
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
             />
           </div>
@@ -293,7 +294,12 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
                   <tr key={r.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5">
                     <td className="px-5 py-3 font-mono text-xs font-semibold text-rose-600">{r.return_number}</td>
                     <td className="px-5 py-3 font-mono text-xs text-blue-700">{r.invoices?.invoice_number ?? "-"}</td>
-                    <td className="px-5 py-3 text-slate-700 dark:text-slate-300">{r.invoices?.customers?.name ?? "Walk-in"}</td>
+                    <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
+                      {r.invoices?.customers?.name ?? "Walk-in"}
+                      {r.invoices?.customers?.phone ? (
+                        <span className="ml-1.5 text-xs text-slate-400">{r.invoices.customers.phone}</span>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-3 text-slate-500">{r.return_date}</td>
                     <td className="px-5 py-3 font-medium text-slate-900 dark:text-white">{inr(r.subtotal)}</td>
                     <td className="px-5 py-3">
@@ -354,7 +360,8 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{r.return_number}</p>
                     <p className="truncate text-xs text-slate-400">
-                      {r.invoices?.customers?.name ?? "Walk-in"} · {r.invoices?.invoice_number ?? "—"}
+                      {r.invoices?.customers?.name ?? "Walk-in"}
+                      {r.invoices?.customers?.phone ? ` · ${r.invoices.customers.phone}` : ""} · {r.invoices?.invoice_number ?? "—"}
                     </p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${typePill(hasRefund)}`}>

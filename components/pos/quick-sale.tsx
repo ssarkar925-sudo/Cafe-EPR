@@ -37,7 +37,7 @@ export type QuickSale = {
   payments: { method: string; amount: number; instrument_id?: string | null }[];
   status: string;
   created_at: string;
-  customers: { name: string } | null;
+  customers: { name: string; phone?: string | null } | null;
   products: { name: string } | null;
   services: { name: string } | null;
 };
@@ -109,6 +109,7 @@ export default function QuickSaleModule({
   const [scanOpen, setScanOpen] = useState(false);
   const [lastSale, setLastSale] = useState<QuickSale | null>(null);
   const [recentOpen, setRecentOpen] = useState(false);
+  const [recentQ, setRecentQ] = useState("");
   const [showMoneyOut, setShowMoneyOut] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
@@ -264,7 +265,7 @@ export default function QuickSaleModule({
     const { data } = await supabase
       .from("quick_sales")
       .select(
-        "id, sale_number, sale_date, customer_id, product_id, service_id, item_name, amount, cost, tendered, change_due, payments, status, created_at, customers(name), products(name), services(name)"
+        "id, sale_number, sale_date, customer_id, product_id, service_id, item_name, amount, cost, tendered, change_due, payments, status, created_at, customers(name, phone), products(name), services(name)"
       )
       .eq("sale_date", today)
       .order("created_at", { ascending: false });
@@ -1283,11 +1284,29 @@ export default function QuickSaleModule({
                 ✕
               </button>
             </div>
-            {todayList.length === 0 ? (
-              <p className="py-10 text-center text-sm text-slate-400">No quick sales recorded today yet.</p>
-            ) : (
+            <div className="mt-4">
+              <input
+                value={recentQ}
+                onChange={(e) => setRecentQ(e.target.value)}
+                placeholder="Search customer, mobile or sale number…"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+            {(() => {
+              const needle = recentQ.trim().toLowerCase();
+              const list = needle
+                ? todayList.filter((s) =>
+                    (s.customers?.name ?? "").toLowerCase().includes(needle) ||
+                    (s.customers?.phone ?? "").toLowerCase().includes(needle) ||
+                    s.sale_number.toLowerCase().includes(needle) ||
+                    (s.item_name ?? "").toLowerCase().includes(needle)
+                  )
+                : todayList;
+              return list.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-400">No matching quick sales.</p>
+              ) : (
               <div className="mt-4 max-h-[55vh] space-y-2 overflow-y-auto">
-                {todayList.slice(0, 30).map((s) => (
+                {list.slice(0, 30).map((s) => (
                   <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-900">
@@ -1296,6 +1315,7 @@ export default function QuickSaleModule({
                       </p>
                       <p className="truncate text-xs text-slate-400">
                         {s.sale_number} · {s.customers?.name ?? "Walk-in"}
+                        {s.customers?.phone ? ` · ${s.customers.phone}` : ""}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -1328,7 +1348,8 @@ export default function QuickSaleModule({
                   </div>
                 ))}
               </div>
-            )}
+              );
+            })()}
             <div className="mt-5 flex justify-end">
               <button onClick={() => setRecentOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
                 Close

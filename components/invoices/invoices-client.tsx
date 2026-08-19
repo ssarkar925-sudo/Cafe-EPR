@@ -19,7 +19,7 @@ export type InvoiceRow = {
   refunded: number | string;
   status: string;
   created_at?: string;
-  customers: { name: string } | null;
+  customers: { name: string; phone?: string | null } | null;
 };
 
 const STATUSES = ["all", "paid", "partial", "unpaid", "cancelled"] as const;
@@ -156,7 +156,8 @@ export default function InvoicesClient({
       if (!needle) return true;
       return (
         inv.invoice_number.toLowerCase().includes(needle) ||
-        (inv.customers?.name ?? "").toLowerCase().includes(needle)
+        (inv.customers?.name ?? "").toLowerCase().includes(needle) ||
+        (inv.customers?.phone ?? "").toLowerCase().includes(needle)
       );
     });
   }, [invoices, q, status]);
@@ -248,6 +249,7 @@ export default function InvoicesClient({
         invoice: r.invoice_number,
         date: r.invoice_date,
         customer: r.customers?.name ?? "Walk-in",
+        mobile: r.customers?.phone ?? "",
         total: Number(r.total),
         paid: Number(r.paid),
         due: Number(r.due),
@@ -255,14 +257,14 @@ export default function InvoicesClient({
         refunded: Number(r.refunded),
         status: r.status,
       }));
-      const headers = ["Invoice", "Date", "Customer", "Total", "Paid", "Due", "Returned", "Refunded", "Status"];
+      const headers = ["Invoice", "Date", "Customer", "Mobile", "Total", "Paid", "Due", "Returned", "Refunded", "Status"];
       const csv = (v: string | number) => {
         const s = String(v).replace(/"/g, '""');
         return /[",\n]/.test(s) ? `"${s}"` : s;
       };
       const lines = [
         headers.join(","),
-        ...rows.map((r) => [r.invoice, r.date, r.customer, r.total, r.paid, r.due, r.returned, r.refunded, r.status].map(csv).join(",")),
+        ...rows.map((r) => [r.invoice, r.date, r.customer, r.mobile, r.total, r.paid, r.due, r.returned, r.refunded, r.status].map(csv).join(",")),
       ];
       const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
@@ -377,7 +379,7 @@ export default function InvoicesClient({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search invoice no or customer…"
+            placeholder="Search invoice no, customer or mobile…"
             className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </div>
@@ -478,6 +480,9 @@ export default function InvoicesClient({
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-900">{inv.invoice_number}</p>
                       <p className="truncate text-xs text-slate-400">{customer}</p>
+                      {inv.customers?.phone && (
+                        <p className="truncate text-[11px] text-slate-300">{inv.customers.phone}</p>
+                      )}
                     </div>
                   </div>
                   {statusBadge(inv.status)}

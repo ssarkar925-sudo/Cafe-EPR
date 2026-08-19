@@ -289,7 +289,8 @@ export default function BusinessClient({
         (t.sender_name ?? "").toLowerCase().includes(needle) ||
         (t.beneficiary_name ?? "").toLowerCase().includes(needle) ||
         (t.upi_id ?? "").toLowerCase().includes(needle) ||
-        (t.customers?.name ?? "").toLowerCase().includes(needle)
+        (t.customers?.name ?? "").toLowerCase().includes(needle) ||
+        (t.customers?.phone ?? "").toLowerCase().includes(needle)
       );
     });
   }, [txns, q, statusFilter, bankFilter, portalFilter, methodFilter, customerFilter, dateFrom, dateTo]);
@@ -722,7 +723,7 @@ export default function BusinessClient({
               onChange={setCustomerFilter}
               options={[
                 { value: "", label: "All Customers" },
-                ...initialCustomers.map((c) => ({ value: c.id, label: c.name })),
+                ...initialCustomers.map((c) => ({ value: c.id, label: `${c.name}${c.phone ? ` · ${c.phone}` : ""}` })),
               ]}
               searchPlaceholder="Search customer…"
               className="w-48"

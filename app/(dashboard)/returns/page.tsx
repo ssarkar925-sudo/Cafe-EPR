@@ -14,7 +14,7 @@ export default async function ReturnsPage() {
   const { data: returns } = await supabase
     .from("returns")
     .select(
-      "id, return_number, return_date, reason, subtotal, refund, refund_method, status, created_at, invoice_id, invoices(invoice_number, total, paid, due, returned, refunded, customers(name))"
+      "id, return_number, return_date, reason, subtotal, refund, refund_method, status, created_at, invoice_id, invoices(invoice_number, total, paid, due, returned, refunded, customers(name, phone))"
     )
     .order("created_at", { ascending: false })
     .limit(300);

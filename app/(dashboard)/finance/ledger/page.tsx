@@ -13,7 +13,7 @@ export default async function LedgerPage() {
 
   const { data: customers } = await supabase
     .from("customers")
-    .select("id, name, code, balance")
+    .select("id, name, code, balance, phone")
     .eq("is_active", true)
     .order("name");
 
