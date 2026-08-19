@@ -595,6 +595,77 @@ export default function QuickSaleModule({
     refresh();
   }
 
+  async function editSale(s: QuickSale) {
+    const replaceCart = cart.length > 0
+      ? window.confirm(`Your current cart has items. Replace them with the items of ${s.sale_number}?`)
+      : true;
+    if (!replaceCart) return;
+    if (!window.confirm(`Edit ${s.sale_number} (${inr(s.amount)})?\n\nThe sale's items load into the cart and the original is cancelled — save again to record your changes.`)) {
+      return;
+    }
+
+    const { data: lines, error: loadErr } = await supabase
+      .from("quick_sale_items")
+      .select("product_id, service_id, item_name, qty, rate, amount, cost")
+      .eq("quick_sale_id", s.id)
+      .order("created_at", { ascending: true });
+    if (loadErr) {
+      setError(loadErr.message);
+      return;
+    }
+    if (!lines || lines.length === 0) {
+      setError("This sale has no line items to load.");
+      return;
+    }
+
+    const nextCart: CartLine[] = (lines as { product_id: string | null; service_id: string | null; item_name: string | null; qty: number; rate: number; amount: number; cost: number }[]).map((l) => {
+      const prod = l.product_id ? products.find((p) => p.id === l.product_id) : null;
+      const serv = l.service_id ? services.find((x) => x.id === l.service_id) : null;
+      return {
+        key: l.product_id ? `p-${l.product_id}` : l.service_id ? `s-${l.service_id}` : `c-${Date.now()}-${Math.random()}`,
+        product_id: l.product_id,
+        service_id: l.service_id,
+        name: l.item_name ?? prod?.name ?? serv?.name ?? "Custom item",
+        qty: Number(l.qty),
+        rate: Number(l.rate),
+        amount: Number(l.amount),
+        cost: Number(l.cost) || 0,
+      };
+    });
+
+    const pmts: PaymentRow[] = (s.payments ?? []).map((p) => ({
+      instrument_id: p.instrument_id ?? "",
+      method: p.method ?? "cash",
+      amount: p.amount != null ? String(p.amount) : "",
+    }));
+    if (pmts.length === 0) {
+      pmts.push({
+        instrument_id: defaultInstrument?.id ?? "",
+        method: defaultInstrument?.type ?? "cash",
+        amount: "",
+      });
+    }
+
+    const { error: cancelErr } = await supabase.rpc("cancel_quick_sale", { p_sale_id: s.id });
+    if (cancelErr) {
+      setError(cancelErr.message);
+      return;
+    }
+
+    setCart(nextCart);
+    setCustomerId(s.customer_id ?? "");
+    setPayments(pmts);
+    setRecentOpen(false);
+    setError(null);
+    logAudit({
+      action: "cancel",
+      entity: "quick_sale",
+      entity_id: s.id,
+      description: `Quick sale loaded for editing (original cancelled): ${s.sale_number}`,
+    });
+    refresh();
+  }
+
   async function addInstrument() {
     const name = newInst.name.trim();
     if (!name) {
@@ -1236,12 +1307,20 @@ export default function QuickSaleModule({
                         Receipt
                       </a>
                       {s.status === "active" ? (
-                        <button
-                          onClick={() => cancelSale(s)}
-                          className="rounded-md px-2 py-1 text-[11px] font-medium text-rose-500 hover:bg-rose-50"
-                        >
-                          Cancel
-                        </button>
+                        <>
+                          <button
+                            onClick={() => editSale(s)}
+                            className="rounded-md px-2 py-1 text-[11px] font-medium text-amber-600 hover:bg-amber-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => cancelSale(s)}
+                            className="rounded-md px-2 py-1 text-[11px] font-medium text-rose-500 hover:bg-rose-50"
+                          >
+                            Cancel
+                          </button>
+                        </>
                       ) : (
                         <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-500">Cancelled</span>
                       )}
