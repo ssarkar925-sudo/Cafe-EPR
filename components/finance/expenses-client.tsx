@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
-import ExpenseFormModal from "./expense-form-modal";
+import ExpenseFormModal, { type ExpenseSource } from "./expense-form-modal";
 import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
@@ -35,7 +35,13 @@ function categoryColor(name: string) {
   return palettes[h % palettes.length];
 }
 
-export default function ExpensesClient({ initialExpenses }: { initialExpenses: Expense[] }) {
+export default function ExpensesClient({
+  initialExpenses,
+  instruments = [],
+}: {
+  initialExpenses: Expense[];
+  instruments?: ExpenseSource[];
+}) {
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "cancelled">("all");
@@ -89,17 +95,28 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
       .slice(0, 5);
   }, [filtered]);
 
-  async function addExpense(input: { expense_date: string; category: string; amount: number; note: string }) {
+  async function addExpense(input: {
+    expense_date: string;
+    category: string;
+    amount: number;
+    note: string;
+    source: string;
+  }) {
     const { data, error } = await supabase.rpc("add_expense", {
       p_expense_date: input.expense_date,
       p_category: input.category,
       p_amount: input.amount,
       p_note: input.note,
+      p_instrument_id: input.source || null,
+      p_method: input.source ? null : "cash",
     });
     if (error) {
       showToast("error", error.message);
       return;
     }
+    const sourceName = input.source
+      ? instruments.find((i) => i.id === input.source)?.name
+      : "Cash";
     const row = {
       id: (data as { id: string }).id,
       expense_date: input.expense_date,
@@ -111,13 +128,13 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
     } as Expense;
     setExpenses((prev) => [row, ...prev]);
     setModal(false);
-    showToast("success", `Expense added — ${input.category} ${inr(input.amount)}`);
+    showToast("success", `Expense added — ${input.category} ${inr(input.amount)} (${sourceName})`);
     logAudit({
       action: "create",
       entity: "expense",
       entity_id: row.id,
-      description: `Expense added: ${input.category} ${inr(input.amount)}`,
-      details: { category: input.category, amount: input.amount, note: input.note },
+      description: `Expense added: ${input.category} ${inr(input.amount)} from ${sourceName}`,
+      details: { category: input.category, amount: input.amount, note: input.note, source: input.source },
     });
   }
 
@@ -323,7 +340,7 @@ export default function ExpensesClient({ initialExpenses }: { initialExpenses: E
         </div>
       )}
 
-      {modal && <ExpenseFormModal onClose={() => setModal(false)} onSave={addExpense} />}
+      {modal && <ExpenseFormModal instruments={instruments} onClose={() => setModal(false)} onSave={addExpense} />}
       {toastView}
     </div>
   );

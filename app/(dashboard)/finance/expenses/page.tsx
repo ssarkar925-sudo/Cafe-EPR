@@ -11,11 +11,14 @@ export default async function ExpensesPage() {
 
   const supabase = await createClient();
 
-  const { data: expenses } = await supabase
-    .from("expenses")
-    .select("*, profiles(full_name)")
-    .order("expense_date", { ascending: false })
-    .limit(300);
+  const [{ data: expenses }, { data: instruments }] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select("*, profiles(full_name)")
+      .order("expense_date", { ascending: false })
+      .limit(300),
+    supabase.from("payment_instruments").select("id, name, type").eq("is_active", true),
+  ]);
 
-  return <ExpensesClient initialExpenses={(expenses ?? []) as any} />;
+  return <ExpensesClient initialExpenses={(expenses ?? []) as any} instruments={(instruments ?? []) as any} />;
 }

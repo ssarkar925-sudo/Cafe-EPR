@@ -3,22 +3,32 @@
 import { useState } from "react";
 import Modal from "@/components/ui/modal";
 
+export type ExpenseSource = {
+  id: string;
+  name: string;
+  type: string;
+};
+
 export default function ExpenseFormModal({
+  instruments,
   onClose,
   onSave,
 }: {
+  instruments: ExpenseSource[];
   onClose: () => void;
   onSave: (input: {
     expense_date: string;
     category: string;
     amount: number;
     note: string;
+    source: string;
   }) => Promise<void>;
 }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState("general");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [source, setSource] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -29,6 +39,7 @@ export default function ExpenseFormModal({
       category,
       amount: Number(amount) || 0,
       note,
+      source,
     });
     setSaving(false);
   }
@@ -43,7 +54,7 @@ export default function ExpenseFormModal({
       onSubmit={submit}
       onClose={onClose}
       title="Add Expense"
-      subtitle="Record a cash outflow from the shop"
+      subtitle="Record a money outflow from the shop"
       icon="M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5"
       accent="rose"
       size="md"
@@ -90,6 +101,24 @@ export default function ExpenseFormModal({
               className={inputClass}
             />
           </div>
+        </div>
+        <div>
+          <label className={labelClass}>Source account (where the money comes from)</label>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Cash (till)</option>
+            {instruments.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name} · {i.type}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-400">
+            Cash is the default. Pick a bank/UPI/wallet/card account for bill payments made from that account — the cash book debits that account.
+          </p>
         </div>
         <div>
           <label className={labelClass}>Category *</label>
