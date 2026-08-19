@@ -67,6 +67,29 @@ alter table public.transactions add constraint transactions_status_check
 alter table public.transactions drop constraint if exists transactions_service_type_check;
 alter table public.transactions add constraint transactions_service_type_check
   check (service_type in ('aeps', 'dmt', 'upi'));
+
+-- ---------- Finance ledger legs (AEPS/DMT/UPI cash/bank/pool model) ----------
+alter table public.transactions add column if not exists fee_source text;
+alter table public.transactions add column if not exists paid_from text;
+alter table public.transactions add column if not exists customer_pay_method text;
+alter table public.transactions add column if not exists cash_out numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists cash_in numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists bank_out numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists bank_in numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists pool_out numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists pool_credit numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists pool_credit_type text;
+alter table public.transactions add column if not exists upi_fee numeric(15,2) not null default 0;
+
+alter table public.transactions drop constraint if exists transactions_fee_source_check;
+alter table public.transactions add constraint transactions_fee_source_check
+  check (fee_source is null or fee_source in ('cut_from_withdrawal', 'separate_cash', 'upi'));
+alter table public.transactions drop constraint if exists transactions_paid_from_check;
+alter table public.transactions add constraint transactions_paid_from_check
+  check (paid_from is null or paid_from in ('bank', 'portal'));
+alter table public.transactions drop constraint if exists transactions_pay_method_check;
+alter table public.transactions add constraint transactions_pay_method_check
+  check (customer_pay_method is null or customer_pay_method in ('cash', 'bank', 'upi', 'qr'));
 alter table public.transactions add constraint transactions_transfer_method_check
   check (transfer_method is null or transfer_method in ('bank_account', 'upi'));
 
@@ -126,6 +149,7 @@ declare
   v_pool_out numeric := 0;
   v_pool_credit numeric := 0;
   v_pool_type text;
+  v_upi_fee numeric := 0;
   v_fee numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
@@ -149,7 +173,10 @@ begin
       raise exception 'The selected portal is not available';
     end if;
     v_direction := 'out'; v_prefix := 'AEP'; v_seq := 'public.aeps_seq'; v_label := 'AEPS';
-    if coalesce(p_fee_source, 'cut_from_withdrawal') = 'separate_cash' then
+    if p_fee_source = 'upi' then
+      v_cash_out := p_amount;
+      v_upi_fee := v_fee;
+    elsif p_fee_source = 'separate_cash' then
       v_cash_out := p_amount;
       v_cash_in := v_fee;
     else
@@ -195,7 +222,7 @@ begin
     beneficiary_bank, beneficiary_ifsc, beneficiary_account, upi_id,
     amount, service_fee, portal_commission, created_by,
     fee_source, paid_from, customer_pay_method,
-    cash_out, cash_in, bank_out, bank_in, pool_out, pool_credit, pool_credit_type
+    cash_out, cash_in, bank_out, bank_in, pool_out, pool_credit, pool_credit_type, upi_fee
   ) values (
     v_number, p_service_type, v_direction, p_transaction_date,
     coalesce(p_transaction_timestamp, p_transaction_date::timestamptz), p_customer_id,
@@ -205,7 +232,7 @@ begin
     p_beneficiary_bank, p_beneficiary_ifsc, p_beneficiary_account, p_upi_id,
     p_amount, v_fee, coalesce(p_portal_commission, 0), auth.uid(),
     p_fee_source, p_paid_from, p_customer_pay_method,
-    v_cash_out, v_cash_in, v_bank_out, v_bank_in, v_pool_out, v_pool_credit, v_pool_type
+    v_cash_out, v_cash_in, v_bank_out, v_bank_in, v_pool_out, v_pool_credit, v_pool_type, v_upi_fee
   ) returning id into v_txn_id;
 
   if p_status = 'success' then
@@ -224,7 +251,8 @@ begin
       'service_type', service_type, 'direction', direction, 'status', status,
       'amount', amount, 'service_fee', service_fee, 'portal_commission', portal_commission,
       'cash_out', cash_out, 'cash_in', cash_in, 'bank_out', bank_out, 'bank_in', bank_in,
-      'pool_out', pool_out, 'pool_credit', pool_credit, 'pool_credit_type', pool_credit_type)
+      'pool_out', pool_out, 'pool_credit', pool_credit, 'pool_credit_type', pool_credit_type,
+      'upi_fee', upi_fee)
     from public.transactions where id = v_txn_id
   );
 end;
@@ -290,10 +318,14 @@ begin
     v_pool_out numeric := 0;
     v_pool_credit numeric := 0;
     v_pool_type text;
+    v_upi_fee numeric := 0;
     v_fee numeric := coalesce(p_service_fee, 0);
   begin
     if v_txn.service_type = 'aeps' then
-      if coalesce(p_fee_source, 'cut_from_withdrawal') = 'separate_cash' then
+      if p_fee_source = 'upi' then
+        v_cash_out := p_amount;
+        v_upi_fee := v_fee;
+      elsif p_fee_source = 'separate_cash' then
         v_cash_out := p_amount;
         v_cash_in := v_fee;
       else
@@ -356,6 +388,7 @@ begin
       pool_out = v_pool_out,
       pool_credit = v_pool_credit,
       pool_credit_type = v_pool_type,
+      upi_fee = v_upi_fee,
       updated_at = now()
     where id = p_txn_id;
 

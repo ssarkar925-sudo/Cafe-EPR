@@ -356,6 +356,7 @@ export default function BusinessFormModal({
                   {[
                     { value: "cut_from_withdrawal", label: "Cut from withdrawal" },
                     { value: "separate_cash", label: "Collect separately in cash" },
+                    { value: "upi", label: "Collect via UPI" },
                   ].map((o) => (
                     <button
                       key={o.value}
@@ -374,7 +375,9 @@ export default function BusinessFormModal({
                 <p className="mt-0.5 text-[11px] text-slate-400">
                   {form.fee_source === "cut_from_withdrawal"
                     ? "Cash out = withdrawal minus fee. Example: ₹1,000 withdrawal with ₹10 fee → hand over ₹990."
-                    : "Hand over the full amount and collect the fee as cash on top."}
+                    : form.fee_source === "upi"
+                      ? "Hand over the full withdrawal amount; the fee is collected separately to your UPI account."
+                      : "Hand over the full amount and collect the fee as cash on top."}
                 </p>
               </div>
             </>

@@ -1552,6 +1552,8 @@ begin
     select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
     union all
     select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
+    union all
+    select upi_fee from public.transactions where status = 'success' and upi_fee > 0
   ) t;
 
   select count(*) into v_count from public.settlements where status = 'success';
