@@ -147,6 +147,7 @@ export default function PosClient({
 
   const [mode, setMode] = useState<"invoice" | "quick">(initialMode);
   const [productState, setProductState] = useState<PosProduct[]>(products);
+  const [serviceState, setServiceState] = useState<PosService[]>(services);
   const [tab, setTab] = useState<"products" | "services">("products");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState("");
@@ -185,6 +186,7 @@ export default function PosClient({
   const [customName, setCustomName] = useState("");
   const [customRate, setCustomRate] = useState("");
   const [customCost, setCustomCost] = useState("");
+  const [customSave, setCustomSave] = useState<"none" | "product" | "service">("none");
   const [recallOpen, setRecallOpen] = useState(false);
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
   const [draftSaved, setDraftSaved] = useState(false);
@@ -210,6 +212,10 @@ export default function PosClient({
   }, [products]);
 
   useEffect(() => {
+    setServiceState(services);
+  }, [services]);
+
+  useEffect(() => {
     setHeldBills(loadHeld());
   }, []);
 
@@ -218,18 +224,18 @@ export default function PosClient({
     for (const p of productState) {
       if (p.category_id && p.categories) map.set(p.category_id, (map.get(p.category_id) ?? 0) + 1);
     }
-    for (const s of services) {
+    for (const s of serviceState) {
       if (s.category_id && s.categories) map.set(s.category_id, (map.get(s.category_id) ?? 0) + 1);
     }
     const names = new Map<string, string>();
     for (const p of productState) if (p.categories) names.set(p.category_id!, p.categories.name);
-    for (const s of services) if (s.categories) names.set(s.category_id!, s.categories.name);
+    for (const s of serviceState) if (s.categories) names.set(s.category_id!, s.categories.name);
     return Array.from(map.entries()).map(([id, count]) => ({ id, name: names.get(id) ?? "?", count }));
-  }, [productState, services]);
+  }, [productState, serviceState]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = tab === "products" ? productState : services;
+    const list = tab === "products" ? productState : serviceState;
     const out = list.filter((x: any) => {
       if (cat !== "all" && x.category_id !== cat) return false;
       if (!needle) return true;
@@ -249,7 +255,7 @@ export default function PosClient({
       sorted.sort((a: any, b: any) => Number(b.stock_qty ?? 0) - Number(a.stock_qty ?? 0));
     }
     return sorted;
-  }, [tab, q, cat, sort, productState, services]);
+  }, [tab, q, cat, sort, productState, serviceState]);
 
   const subtotal = useMemo(() => cart.reduce((sum, l) => sum + l.amount, 0), [cart]);
   const discountNum = Math.min(Math.max(Number(discount) || 0, 0), subtotal);
@@ -515,7 +521,7 @@ export default function PosClient({
     setShowMoneyOut(false);
   }
 
-  function addCustomItem() {
+  async function addCustomItem() {
     const name = customName.trim();
     const rate = Number(customRate) || 0;
     const cost = Number(customCost) || 0;
@@ -524,12 +530,61 @@ export default function PosClient({
       return;
     }
     setError(null);
+
+    let product_id: string | null = null;
+    let service_id: string | null = null;
+
+    if (customSave === "product") {
+      let code = "PRD-" + String(productState.length + 1).padStart(4, "0");
+      let n = 0;
+      for (const p of productState) {
+        const num = parseInt(String(p.code ?? "").replace(/\D/g, ""), 10);
+        if (!Number.isNaN(num)) n = Math.max(n, num);
+      }
+      code = "PRD-" + String(n + 1).padStart(4, "0");
+      const { data, error } = await supabase
+        .from("products")
+        .insert({
+          name,
+          code,
+          sale_price: rate,
+          cost_price: Math.max(0, cost),
+          stock_qty: 0,
+          is_active: true,
+        })
+        .select("id, code, name, sale_price, stock_qty, reorder_level, unit, category_id, categories(name)")
+        .single();
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      product_id = data.id;
+      setProductState((prev) => [{ ...(data as unknown as PosProduct) }, ...prev]);
+    } else if (customSave === "service") {
+      const { data, error } = await supabase
+        .from("services")
+        .insert({
+          name,
+          sale_price: rate,
+          cost_price: Math.max(0, cost),
+          is_active: true,
+        })
+        .select("id, name, sale_price, category_id, is_quick_favorite, quick_sort, categories(name)")
+        .single();
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      service_id = data.id;
+      setServiceState((prev) => [{ ...(data as unknown as PosService) }, ...prev]);
+    }
+
     setCart((prev) => [
       ...prev,
       {
         key: `c-${Date.now()}`,
-        product_id: null,
-        service_id: null,
+        product_id,
+        service_id,
         name,
         qty: 1,
         rate,
@@ -540,6 +595,7 @@ export default function PosClient({
     setCustomName("");
     setCustomRate("");
     setCustomCost("");
+    setCustomSave("none");
     setCustomOpen(false);
   }
 
@@ -825,13 +881,11 @@ export default function PosClient({
           {/* ── Categories ─────────────────────────────── */}
           <PosCategorySidebar
             categories={categories}
-            totalCount={productState.length + services.length}
+            totalCount={productState.length + serviceState.length}
             active={cat}
             onSelect={(id) => setCat(cat === id ? "all" : id)}
             onAddCustom={() => setCustomOpen(true)}
           />
-
-          {/* ── Catalog ────────────────────────────────── */}
           <div className="min-w-0">
             <PosItemToolbar
               tabs={[
@@ -1478,6 +1532,34 @@ export default function PosClient({
                   placeholder="0.00"
                   className={inputClass}
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-500">Save for next time?</label>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      { value: "none", label: "No" },
+                      { value: "product", label: "As Product" },
+                      { value: "service", label: "As Service" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setCustomSave(opt.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                        customSave === opt.value
+                          ? "border-blue-600 bg-blue-600 text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Saves this item to the catalog so it appears here next time.
+                </p>
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
