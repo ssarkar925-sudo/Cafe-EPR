@@ -79,6 +79,7 @@ type SaleResult = {
   due: number;
   status: string;
   invoice_date: string;
+  created_at?: string;
   previous_due?: number;
   advance_used?: number;
   change?: number;
@@ -1648,6 +1649,17 @@ export default function PosClient({
             </div>
             <h2 className="mt-3 text-lg font-bold text-slate-900">Sale Complete</h2>
             <p className="mt-1 font-mono text-2xl font-bold tracking-tight text-blue-600">{success.invoice_number}</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {success.created_at
+                ? new Date(success.created_at).toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : success.invoice_date}
+            </p>
             <div className="mt-4 space-y-1.5 rounded-xl bg-slate-50 p-4 text-sm">
               <div className="flex justify-between text-slate-600">
                 <span>Total</span>

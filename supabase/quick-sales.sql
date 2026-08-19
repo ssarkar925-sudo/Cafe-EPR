@@ -255,6 +255,7 @@ begin
       'margin', amount - cost,
       'tendered', tendered,
       'change_due', change_due,
+      'created_at', created_at,
       'item_count', case when v_items_mode then jsonb_array_length(p_items) else 1 end
     )
     from public.quick_sales

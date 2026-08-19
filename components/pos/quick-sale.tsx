@@ -1113,6 +1113,16 @@ export default function QuickSaleModule({
                   <p className="text-sm font-semibold text-emerald-800">
                     {lastSale.sale_number} · {inr(Number(lastSale.amount))}
                   </p>
+                  <p className="text-xs text-emerald-600">
+                    {lastSale.created_at
+                      ? new Date(lastSale.created_at).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : lastSale.sale_date}
+                  </p>
                   <div className="flex items-center gap-2">
                     <a
                       href={`/receipt/quick/${lastSale.id}`}
@@ -1316,6 +1326,16 @@ export default function QuickSaleModule({
                       <p className="truncate text-xs text-slate-400">
                         {s.sale_number} · {s.customers?.name ?? "Walk-in"}
                         {s.customers?.phone ? ` · ${s.customers.phone}` : ""}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        {s.created_at
+                          ? new Date(s.created_at).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : s.sale_date}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

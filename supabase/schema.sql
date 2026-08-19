@@ -379,6 +379,7 @@ begin
       'due', due,
       'status', status,
       'invoice_date', invoice_date,
+      'created_at', created_at,
       'previous_due', p_previous_due,
       'advance_used', p_advance_used
     )
@@ -709,6 +710,7 @@ begin
       'due', due,
       'status', status,
       'invoice_date', invoice_date,
+      'created_at', created_at,
       'previous_due', p_previous_due,
       'advance_used', p_advance_used
     )
@@ -1979,7 +1981,8 @@ if v_l_product is not null then
       'cost', cost,
       'margin', amount - cost,
       'tendered', tendered,
-      'change_due', change_due,
+'change_due', change_due,
+      'created_at', created_at,
       'item_count', case when v_items_mode then jsonb_array_length(p_items) else 1 end
     )
     from public.quick_sales
