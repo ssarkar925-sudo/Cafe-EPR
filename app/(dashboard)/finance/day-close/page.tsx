@@ -16,9 +16,11 @@ export default async function DayClosePage() {
     supabase.rpc("get_closings", { p_limit: 30 }),
   ]);
 
+  const hasOpenClose = openClose && typeof openClose === "object" && Array.isArray((openClose as any).rows) && (openClose as any).rows.length > 0;
+
   return (
     <DayCloseClient
-      initialOpenClose={(openClose as any) ?? null}
+      initialOpenClose={hasOpenClose ? (openClose as any) : null}
       initialClosings={(((closings as any)?.closings) ?? []) as any}
     />
   );

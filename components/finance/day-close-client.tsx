@@ -71,6 +71,13 @@ function fmtDate(d: string | null | undefined) {
   return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function normalizeOpenClose(oc: OpenClose): OpenClose {
+  if (!oc) return null;
+  if (typeof oc !== "object") return null;
+  if (!Array.isArray((oc as any).rows) || (oc as any).rows.length === 0) return null;
+  return oc;
+}
+
 export default function DayCloseClient({
   initialOpenClose,
   initialClosings,
@@ -78,7 +85,7 @@ export default function DayCloseClient({
   initialOpenClose: OpenClose;
   initialClosings: ClosingRecord[];
 }) {
-  const [openClose, setOpenClose] = useState<OpenClose>(initialOpenClose);
+  const [openClose, setOpenClose] = useState<OpenClose>(normalizeOpenClose(initialOpenClose));
   const [closings, setClosings] = useState<ClosingRecord[]>(initialClosings);
   const [openDate, setOpenDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
@@ -101,7 +108,7 @@ export default function DayCloseClient({
       supabase.rpc("get_open_close"),
       supabase.rpc("get_closings", { p_limit: 30 }),
     ]);
-    setOpenClose((oc as OpenClose) ?? null);
+    setOpenClose(normalizeOpenClose((oc as OpenClose) ?? null));
     setClosings((((cl as any)?.closings) ?? []) as ClosingRecord[]);
   }
 
