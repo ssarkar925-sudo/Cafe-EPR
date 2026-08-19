@@ -81,6 +81,7 @@ type SaleResult = {
   invoice_date: string;
   previous_due?: number;
   advance_used?: number;
+  change?: number;
 };
 
 type HeldBill = {
@@ -644,9 +645,26 @@ export default function PosClient({
       setError("Enter a payment amount");
       return;
     }
-    if (paid + advanceUsed > total) {
-      setError("Paid amount exceeds total");
-      return;
+
+    const dueAmt = Math.max(0, Number(total.toFixed(2)) - Number(advanceUsed.toFixed(2)));
+    const rawPmts = payments
+      .filter((p) => Number(p.amount) > 0)
+      .map((p) => ({ method: p.method, amount: Number(p.amount), instrument_id: p.instrument_id || null }));
+    let pmts = rawPmts;
+    let changeAmt = 0;
+    const pmtSum = rawPmts.reduce((s, p) => s + p.amount, 0);
+    if (pmtSum > dueAmt) {
+      changeAmt = Number((pmtSum - dueAmt).toFixed(2));
+      if (rawPmts.length === 1) {
+        pmts = [{ ...rawPmts[0], amount: dueAmt }];
+      } else {
+        const factor = dueAmt / pmtSum;
+        pmts = rawPmts.map((p) => ({ ...p, amount: Number((p.amount * factor).toFixed(2)) }));
+        const scaled = pmts.reduce((s, p) => s + p.amount, 0);
+        if (Math.abs(scaled - dueAmt) > 0.001) {
+          pmts[pmts.length - 1] = { ...pmts[pmts.length - 1], amount: Number((pmts[pmts.length - 1].amount + (dueAmt - scaled)).toFixed(2)) };
+        }
+      }
     }
 
     setBusy(true);
@@ -659,9 +677,6 @@ export default function PosClient({
       amount: l.amount,
       cost_price: l.product_id || l.service_id ? 0 : l.cost ?? 0,
     }));
-    const pmts = payments
-      .filter((p) => Number(p.amount) > 0)
-      .map((p) => ({ method: p.method, amount: Number(p.amount), instrument_id: p.instrument_id || null }));
     const today = new Date().toISOString().slice(0, 10);
 
     const { data, error } = await supabase.rpc("create_sale", {
@@ -695,7 +710,7 @@ export default function PosClient({
       )
     );
 
-    setSuccess(data as SaleResult);
+    setSuccess({ ...(data as SaleResult), change: changeAmt } as SaleResult);
     setCart([]);
     setCustomerId("");
     setDiscount("");
@@ -1562,6 +1577,12 @@ export default function PosClient({
                 <div className="flex justify-between text-slate-600">
                   <span>Previous due collected</span>
                   <span className="font-medium text-slate-900">+ {inr(Number(success.previous_due))}</span>
+                </div>
+              )}
+              {Number(success.change) > 0 && (
+                <div className="flex justify-between rounded-lg bg-amber-50 px-2 py-1 ring-1 ring-amber-100">
+                  <span className="font-medium text-amber-700">Change to return</span>
+                  <span className="font-bold text-amber-700">{inr(Number(success.change))}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600">
