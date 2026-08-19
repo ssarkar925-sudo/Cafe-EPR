@@ -1534,7 +1534,7 @@ begin
     union all
     select -amount from public.settlements where status = 'success' and from_pool = 'aeps'
     union all
-    select case when direction = 'in' then amount else -amount end
+    select case when direction = 'out' then amount else -amount end
     from public.cash_entries where method = 'aeps'
     union all
     select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'aeps'
