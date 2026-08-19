@@ -14,12 +14,14 @@ create table if not exists public.opening_balances (
   amount numeric(15,2) not null default 0 check (amount >= 0),
   as_of date not null default current_date,
   remarks text,
+  is_auto boolean not null default false,
   created_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now()
 );
 
 create index if not exists opening_balances_pool_idx on public.opening_balances (pool, as_of desc);
 create index if not exists opening_balances_instrument_idx on public.opening_balances (instrument_id);
+alter table public.opening_balances add column if not exists is_auto boolean not null default false;
 
 alter table public.opening_balances enable row level security;
 create policy "opening_balances all" on public.opening_balances for all to authenticated using (true) with check (true);
@@ -27,7 +29,7 @@ create policy "opening_balances all" on public.opening_balances for all to authe
 create table if not exists public.closings (
   id uuid primary key default gen_random_uuid(),
   closing_number text not null unique,
-  close_date date not null unique,
+  close_date date not null,
   status text not null default 'open' check (status in ('open', 'closed', 'reversed')),
   opened_by uuid references public.profiles (id) on delete set null,
   opened_at timestamptz not null default now(),
@@ -44,6 +46,9 @@ create table if not exists public.closings (
 
 create index if not exists closings_date_idx on public.closings (close_date desc);
 create index if not exists closings_status_idx on public.closings (status);
+-- One close per date; a reversed close frees its date so the day can be closed again.
+create unique index if not exists closings_close_date_unique
+  on public.closings (close_date) where status <> 'reversed';
 
 alter table public.closings enable row level security;
 create policy "closings all" on public.closings for all to authenticated using (true) with check (true);
@@ -85,7 +90,7 @@ begin
   select amount, as_of into v_pool_amount, v_pool_date
     from public.opening_balances
     where pool = p_pool and instrument_id is null and as_of <= p_as_of
-    order by as_of desc, created_at desc
+    order by as_of desc, is_auto desc, created_at desc
     limit 1;
 
   select coalesce(sum(amount), 0), max(as_of) into v_inst_total, v_inst_date
@@ -500,9 +505,9 @@ begin
   for v_row in
     select * from public.closing_balances where closing_id = p_closing_id
   loop
-    insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, created_by)
+    insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, is_auto, created_by)
     values (v_row.pool, null, v_row.final, v_close.close_date,
-            'Auto from ' || v_close.closing_number, auth.uid());
+            'Auto from ' || v_close.closing_number, true, auth.uid());
     v_result := v_result || jsonb_build_object(
       v_row.pool, jsonb_build_object('opening', v_row.opening, 'movements', v_row.movements,
                                      'adjustment', v_row.adjustment, 'final', v_row.final)
