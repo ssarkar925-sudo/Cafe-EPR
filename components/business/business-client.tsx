@@ -44,6 +44,9 @@ export type Txn = {
   amount: number | string;
   service_fee: number | string;
   portal_commission: number | string;
+  fee_source: string | null;
+  paid_from: string | null;
+  customer_pay_method: string | null;
   customers: { name: string; phone: string | null } | null;
   banks: { name: string } | null;
   portals: { name: string } | null;
@@ -380,6 +383,9 @@ export default function BusinessClient({
         amount: Number(payload.p_amount),
         service_fee: Number(payload.p_service_fee ?? 0),
         portal_commission: Number(payload.p_portal_commission ?? 0),
+        fee_source: (payload.p_fee_source as string) || null,
+        paid_from: (payload.p_paid_from as string) || null,
+        customer_pay_method: (payload.p_customer_pay_method as string) || null,
         customers: payload.p_customer_id
           ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
           : null,
@@ -434,6 +440,9 @@ export default function BusinessClient({
       amount: Number(payload.p_amount),
       service_fee: Number(payload.p_service_fee ?? 0),
       portal_commission: Number(payload.p_portal_commission ?? 0),
+      fee_source: (payload.p_fee_source as string) || null,
+      paid_from: (payload.p_paid_from as string) || null,
+      customer_pay_method: (payload.p_customer_pay_method as string) || null,
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
     setEditTxn(null);

@@ -65,6 +65,9 @@ export default function BusinessFormModal({
     reference: initial?.reference ?? "",
     status: initial?.status ?? "success",
     remarks: initial?.remarks ?? "",
+    fee_source: initial?.fee_source ?? "cut_from_withdrawal",
+    paid_from: initial?.paid_from ?? "bank",
+    customer_pay_method: initial?.customer_pay_method ?? "cash",
   }));
   const [error, setError] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
@@ -205,6 +208,9 @@ export default function BusinessFormModal({
       p_reference: form.reference.trim() || null,
       p_status: form.status,
       p_remarks: form.remarks.trim() || null,
+      p_fee_source: service === "aeps" ? form.fee_source : null,
+      p_paid_from: service === "dmt" ? form.paid_from : null,
+      p_customer_pay_method: service === "dmt" || service === "upi" ? form.customer_pay_method : null,
     });
   }
 
@@ -344,6 +350,33 @@ export default function BusinessFormModal({
                 />
                 <p className="mt-0.5 text-[11px] text-slate-400">Only the last 4 digits are stored. Never full Aadhaar.</p>
               </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Fee Handling</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: "cut_from_withdrawal", label: "Cut from withdrawal" },
+                    { value: "separate_cash", label: "Collect separately in cash" },
+                  ].map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => set("fee_source", o.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                        form.fee_source === o.value
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {form.fee_source === "cut_from_withdrawal"
+                    ? "Cash out = withdrawal minus fee. Example: ₹1,000 withdrawal with ₹10 fee → hand over ₹990."
+                    : "Hand over the full amount and collect the fee as cash on top."}
+                </p>
+              </div>
             </>
           )}
 
@@ -364,6 +397,50 @@ export default function BusinessFormModal({
                       }`}
                     >
                       {m === "upi" ? "UPI Transfer" : "Bank Account Transfer"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Money Sent From</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: "bank", label: "Our Bank Account" },
+                    { value: "portal", label: "DMT Portal Wallet" },
+                  ].map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => set("paid_from", o.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                        form.paid_from === o.value
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Customer Paid You Via</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: "cash", label: "Cash" },
+                    { value: "bank", label: "Bank / UPI" },
+                  ].map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => set("customer_pay_method", o.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                        form.customer_pay_method === o.value
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      {o.label}
                     </button>
                   ))}
                 </div>
@@ -409,6 +486,7 @@ export default function BusinessFormModal({
           )}
 
           {service === "upi" && (
+            <>
             <div className="sm:col-span-2">
               <label className={labelCls}>Merchant QR *</label>
               <SearchableSelect
@@ -425,6 +503,34 @@ export default function BusinessFormModal({
               showClear={false}
             />
             </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Customer Paid You Via</label>
+              <div className="flex gap-2">
+                {[
+                  { value: "qr", label: "UPI QR (merchant)" },
+                  { value: "cash", label: "Cash" },
+                ].map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => set("customer_pay_method", o.value)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                      form.customer_pay_method === o.value
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-600"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                {form.customer_pay_method === "qr"
+                  ? "Customer pays amount + fee to your QR; you hand out the amount in cash."
+                  : "Customer pays amount + fee in cash; you hand out the amount."}
+              </p>
+            </div>
+            </>
           )}
 
           <div>

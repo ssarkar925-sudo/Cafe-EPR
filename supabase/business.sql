@@ -103,7 +103,10 @@ create or replace function public.create_business_txn(
   p_upi_id text,
   p_amount numeric,
   p_service_fee numeric,
-  p_portal_commission numeric
+  p_portal_commission numeric,
+  p_fee_source text default null,
+  p_paid_from text default null,
+  p_customer_pay_method text default null
 )
 returns jsonb
 language plpgsql
@@ -113,10 +116,17 @@ declare
   v_txn_id uuid;
   v_number text;
   v_direction text;
-  v_cash numeric;
   v_seq text;
   v_prefix text;
   v_label text;
+  v_cash_out numeric := 0;
+  v_cash_in numeric := 0;
+  v_bank_out numeric := 0;
+  v_bank_in numeric := 0;
+  v_pool_out numeric := 0;
+  v_pool_credit numeric := 0;
+  v_pool_type text;
+  v_fee numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if p_service_type not in ('aeps', 'dmt', 'upi') then raise exception 'Invalid service type'; end if;
@@ -124,6 +134,7 @@ begin
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
   if p_service_fee is null or p_service_fee < 0 then raise exception 'Service fee cannot be negative'; end if;
   if p_portal_commission is null or p_portal_commission < 0 then raise exception 'Portal commission cannot be negative'; end if;
+  v_fee := coalesce(p_service_fee, 0);
 
   if p_service_type = 'aeps' then
     if p_bank_id is null then raise exception 'An AEPS bank is required'; end if;
@@ -138,23 +149,43 @@ begin
       raise exception 'The selected portal is not available';
     end if;
     v_direction := 'out'; v_prefix := 'AEP'; v_seq := 'public.aeps_seq'; v_label := 'AEPS';
+    if coalesce(p_fee_source, 'cut_from_withdrawal') = 'separate_cash' then
+      v_cash_out := p_amount;
+      v_cash_in := v_fee;
+    else
+      v_cash_out := p_amount - v_fee;
+    end if;
+    v_pool_credit := p_amount;
+    v_pool_type := 'aeps';
   elsif p_service_type = 'dmt' then
     if p_transfer_method not in ('bank_account', 'upi') then raise exception 'Select a transfer method'; end if;
     if p_transfer_method = 'bank_account' and (p_beneficiary_account is null or p_beneficiary_account = '') then
       raise exception 'Beneficiary account number is required';
     end if;
     v_direction := 'in'; v_prefix := 'DMT'; v_seq := 'public.dmt_seq'; v_label := 'DMT';
+    if coalesce(p_paid_from, 'bank') = 'portal' then
+      v_pool_out := p_amount;
+      v_pool_type := 'dmt';
+    else
+      v_bank_out := p_amount;
+    end if;
+    if coalesce(p_customer_pay_method, 'cash') in ('bank', 'upi') then
+      v_bank_in := p_amount + v_fee;
+    else
+      v_cash_in := p_amount + v_fee;
+    end if;
   else
     v_direction := 'out'; v_prefix := 'UPI'; v_seq := 'public.upi_seq'; v_label := 'UPI';
+    if coalesce(p_customer_pay_method, 'qr') = 'cash' then
+      v_cash_in := p_amount + v_fee;
+    else
+      v_pool_credit := p_amount + v_fee;
+      v_pool_type := 'upi_qr';
+    end if;
+    v_cash_out := p_amount;
   end if;
 
   v_number := v_prefix || '-' || lpad(nextval(v_seq)::text, 4, '0');
-
-  if p_service_type = 'dmt' then
-    v_cash := p_amount + coalesce(p_service_fee, 0);
-  else
-    v_cash := p_amount;
-  end if;
 
   insert into public.transactions (
     transaction_number, service_type, direction, transaction_date, transaction_timestamp, customer_id,
@@ -162,7 +193,9 @@ begin
     bank_id, portal_id, merchant_qr_id, aadhaar_last4, transfer_method,
     sender_name, sender_mobile, beneficiary_name, beneficiary_mobile,
     beneficiary_bank, beneficiary_ifsc, beneficiary_account, upi_id,
-    amount, service_fee, portal_commission, created_by
+    amount, service_fee, portal_commission, created_by,
+    fee_source, paid_from, customer_pay_method,
+    cash_out, cash_in, bank_out, bank_in, pool_out, pool_credit, pool_credit_type
   ) values (
     v_number, p_service_type, v_direction, p_transaction_date,
     coalesce(p_transaction_timestamp, p_transaction_date::timestamptz), p_customer_id,
@@ -170,24 +203,34 @@ begin
     p_bank_id, p_portal_id, p_merchant_qr_id, p_aadhaar_last4, p_transfer_method,
     p_sender_name, p_sender_mobile, p_beneficiary_name, p_beneficiary_mobile,
     p_beneficiary_bank, p_beneficiary_ifsc, p_beneficiary_account, p_upi_id,
-    p_amount, coalesce(p_service_fee, 0), coalesce(p_portal_commission, 0), auth.uid()
+    p_amount, v_fee, coalesce(p_portal_commission, 0), auth.uid(),
+    p_fee_source, p_paid_from, p_customer_pay_method,
+    v_cash_out, v_cash_in, v_bank_out, v_bank_in, v_pool_out, v_pool_credit, v_pool_type
   ) returning id into v_txn_id;
 
   if p_status = 'success' then
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_transaction_date, lower(p_service_type), v_direction, v_cash, v_label || ' ' || v_number, 'transaction', v_txn_id);
+    if v_cash_out > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'cash', 'out', v_cash_out, v_label || ' ' || v_number || ' cash payout', 'transaction', v_txn_id);
+    end if;
+    if v_cash_in > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'cash', 'in', v_cash_in, v_label || ' ' || v_number || ' received in cash', 'transaction', v_txn_id);
+    end if;
   end if;
 
   return (
     select jsonb_build_object('id', id, 'transaction_number', transaction_number,
       'service_type', service_type, 'direction', direction, 'status', status,
-      'amount', amount, 'service_fee', service_fee, 'portal_commission', portal_commission)
+      'amount', amount, 'service_fee', service_fee, 'portal_commission', portal_commission,
+      'cash_out', cash_out, 'cash_in', cash_in, 'bank_out', bank_out, 'bank_in', bank_in,
+      'pool_out', pool_out, 'pool_credit', pool_credit, 'pool_credit_type', pool_credit_type)
     from public.transactions where id = v_txn_id
   );
 end;
 $$;
 
--- ---------- Edit (reverses old cash entry + re-posts when amounts change) ----------
+-- ---------- Edit (reverses old cash legs + re-posts; pools/bank recompute from row) ----------
 create or replace function public.update_business_txn(
   p_txn_id uuid,
   p_transaction_date date,
@@ -211,7 +254,10 @@ create or replace function public.update_business_txn(
   p_upi_id text,
   p_amount numeric,
   p_service_fee numeric,
-  p_portal_commission numeric
+  p_portal_commission numeric,
+  p_fee_source text default null,
+  p_paid_from text default null,
+  p_customer_pay_method text default null
 )
 returns jsonb
 language plpgsql
@@ -219,9 +265,6 @@ security definer set search_path = public
 as $$
 declare
   v_txn record;
-  v_old_cash numeric;
-  v_new_cash numeric;
-  v_direction text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
@@ -229,50 +272,108 @@ begin
   if not found then raise exception 'Transaction not found'; end if;
   if v_txn.status <> 'success' then raise exception 'Only successful transactions can be edited'; end if;
 
-  v_old_cash := case when v_txn.direction = 'in' then v_txn.amount + v_txn.service_fee else v_txn.amount end;
-  v_new_cash := case when v_txn.direction = 'in' then p_amount + coalesce(p_service_fee, 0) else p_amount end;
-  v_direction := v_txn.direction;
-
-  update public.transactions set
-    transaction_date = p_transaction_date,
-    transaction_timestamp = coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
-    customer_id = p_customer_id,
-    customer_mobile = p_customer_mobile,
-    reference = nullif(p_reference, ''),
-    remarks = p_remarks,
-    bank_id = p_bank_id,
-    portal_id = p_portal_id,
-    merchant_qr_id = p_merchant_qr_id,
-    aadhaar_last4 = p_aadhaar_last4,
-    transfer_method = p_transfer_method,
-    sender_name = p_sender_name,
-    sender_mobile = p_sender_mobile,
-    beneficiary_name = p_beneficiary_name,
-    beneficiary_mobile = p_beneficiary_mobile,
-    beneficiary_bank = p_beneficiary_bank,
-    beneficiary_ifsc = p_beneficiary_ifsc,
-    beneficiary_account = p_beneficiary_account,
-    upi_id = p_upi_id,
-    amount = p_amount,
-    service_fee = coalesce(p_service_fee, 0),
-    portal_commission = coalesce(p_portal_commission, 0),
-    updated_at = now()
-  where id = p_txn_id;
-
-  if abs(v_old_cash - v_new_cash) > 0.009 then
+  -- Reverse old cash legs
+  if v_txn.cash_out > 0 then
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, lower(v_txn.service_type), case when v_direction = 'in' then 'out' else 'in' end,
-            v_old_cash, 'Corrected ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_transaction_date, lower(v_txn.service_type), v_direction, v_new_cash,
-            upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+    values (current_date, 'cash', 'in', v_txn.cash_out, 'Corrected ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
   end if;
+  if v_txn.cash_in > 0 then
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (current_date, 'cash', 'out', v_txn.cash_in, 'Corrected ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+  end if;
+
+  declare
+    v_cash_out numeric := 0;
+    v_cash_in numeric := 0;
+    v_bank_out numeric := 0;
+    v_bank_in numeric := 0;
+    v_pool_out numeric := 0;
+    v_pool_credit numeric := 0;
+    v_pool_type text;
+    v_fee numeric := coalesce(p_service_fee, 0);
+  begin
+    if v_txn.service_type = 'aeps' then
+      if coalesce(p_fee_source, 'cut_from_withdrawal') = 'separate_cash' then
+        v_cash_out := p_amount;
+        v_cash_in := v_fee;
+      else
+        v_cash_out := p_amount - v_fee;
+      end if;
+      v_pool_credit := p_amount;
+      v_pool_type := 'aeps';
+    elsif v_txn.service_type = 'dmt' then
+      if coalesce(p_paid_from, 'bank') = 'portal' then
+        v_pool_out := p_amount;
+        v_pool_type := 'dmt';
+      else
+        v_bank_out := p_amount;
+      end if;
+      if coalesce(p_customer_pay_method, 'cash') in ('bank', 'upi') then
+        v_bank_in := p_amount + v_fee;
+      else
+        v_cash_in := p_amount + v_fee;
+      end if;
+    elsif v_txn.service_type = 'upi' then
+      if coalesce(p_customer_pay_method, 'qr') = 'cash' then
+        v_cash_in := p_amount + v_fee;
+      else
+        v_pool_credit := p_amount + v_fee;
+        v_pool_type := 'upi_qr';
+      end if;
+      v_cash_out := p_amount;
+    end if;
+
+    update public.transactions set
+      transaction_date = p_transaction_date,
+      transaction_timestamp = coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
+      customer_id = p_customer_id,
+      customer_mobile = p_customer_mobile,
+      reference = nullif(p_reference, ''),
+      remarks = p_remarks,
+      bank_id = p_bank_id,
+      portal_id = p_portal_id,
+      merchant_qr_id = p_merchant_qr_id,
+      aadhaar_last4 = p_aadhaar_last4,
+      transfer_method = p_transfer_method,
+      sender_name = p_sender_name,
+      sender_mobile = p_sender_mobile,
+      beneficiary_name = p_beneficiary_name,
+      beneficiary_mobile = p_beneficiary_mobile,
+      beneficiary_bank = p_beneficiary_bank,
+      beneficiary_ifsc = p_beneficiary_ifsc,
+      beneficiary_account = p_beneficiary_account,
+      upi_id = p_upi_id,
+      amount = p_amount,
+      service_fee = v_fee,
+      portal_commission = coalesce(p_portal_commission, 0),
+      fee_source = p_fee_source,
+      paid_from = p_paid_from,
+      customer_pay_method = p_customer_pay_method,
+      cash_out = v_cash_out,
+      cash_in = v_cash_in,
+      bank_out = v_bank_out,
+      bank_in = v_bank_in,
+      pool_out = v_pool_out,
+      pool_credit = v_pool_credit,
+      pool_credit_type = v_pool_type,
+      updated_at = now()
+    where id = p_txn_id;
+
+    if v_cash_out > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'cash', 'out', v_cash_out, upper(v_txn.service_type) || ' ' || v_txn.transaction_number || ' cash payout', 'transaction', p_txn_id);
+    end if;
+    if v_cash_in > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'cash', 'in', v_cash_in, upper(v_txn.service_type) || ' ' || v_txn.transaction_number || ' received in cash', 'transaction', p_txn_id);
+    end if;
+  end;
 
   return jsonb_build_object('id', p_txn_id, 'status', 'success');
 end;
 $$;
 
--- ---------- Reverse (audited, journal never deleted) ----------
+-- ---------- Reverse (audited, reverses cash legs; pools drop off by status) ----------
 create or replace function public.reverse_business_txn(p_txn_id uuid, p_reason text)
 returns jsonb
 language plpgsql
@@ -280,7 +381,6 @@ security definer set search_path = public
 as $$
 declare
   v_txn record;
-  v_cash numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
@@ -288,11 +388,14 @@ begin
   if not found then raise exception 'Transaction not found'; end if;
   if v_txn.status <> 'success' then raise exception 'Only successful transactions can be reversed'; end if;
 
-  v_cash := case when v_txn.direction = 'in' then v_txn.amount + v_txn.service_fee else v_txn.amount end;
-
-  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-  values (current_date, lower(v_txn.service_type), case when v_txn.direction = 'in' then 'out' else 'in' end, v_cash,
-          'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+  if v_txn.cash_out > 0 then
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (current_date, 'cash', 'in', v_txn.cash_out, 'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+  end if;
+  if v_txn.cash_in > 0 then
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (current_date, 'cash', 'out', v_txn.cash_in, 'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+  end if;
 
   update public.transactions
   set status = 'reversed', reversed_at = now(), reversed_by = auth.uid(),
@@ -303,7 +406,7 @@ begin
 end;
 $$;
 
--- ---------- Delete (admin soft delete, journal reversed) ----------
+-- ---------- Delete (admin soft delete, cash legs reversed) ----------
 create or replace function public.delete_business_txn(p_txn_id uuid, p_reason text)
 returns jsonb
 language plpgsql
@@ -311,7 +414,6 @@ security definer set search_path = public
 as $$
 declare
   v_txn record;
-  v_cash numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
@@ -320,10 +422,14 @@ begin
   if v_txn.status in ('reversed', 'deleted') then raise exception 'This transaction is already closed'; end if;
 
   if v_txn.status = 'success' then
-    v_cash := case when v_txn.direction = 'in' then v_txn.amount + v_txn.service_fee else v_txn.amount end;
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, lower(v_txn.service_type), case when v_txn.direction = 'in' then 'out' else 'in' end, v_cash,
-            'Deleted ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+    if v_txn.cash_out > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (current_date, 'cash', 'in', v_txn.cash_out, 'Deleted ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+    end if;
+    if v_txn.cash_in > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (current_date, 'cash', 'out', v_txn.cash_in, 'Deleted ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+    end if;
   end if;
 
   update public.transactions
