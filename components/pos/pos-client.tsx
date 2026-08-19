@@ -10,7 +10,7 @@ import { logAudit } from "@/lib/audit";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
-import InstrumentSelect, { METHOD_ACCOUNT_TYPES, type InstrumentPick } from "./instrument-select";
+import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
 import {
   PosCategorySidebar,
   PosCategoryChips,
@@ -187,6 +187,18 @@ export default function PosClient({
   const [recallOpen, setRecallOpen] = useState(false);
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [showMoneyOut, setShowMoneyOut] = useState(false);
+  const [moPick, setMoPick] = useState<InstrumentPick>({
+    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
+    method: "cash",
+  });
+  const [moAmount, setMoAmount] = useState("");
+  const [moNote, setMoNote] = useState("");
+  const [moBusy, setMoBusy] = useState(false);
+  const [addInstOpen, setAddInstOpen] = useState(false);
+  const [newInst, setNewInst] = useState({ name: "", type: "cash" });
+  const [addingInst, setAddingInst] = useState(false);
+  const [instList, setInstList] = useState<PosInstrument[]>(instruments);
   const searchRef = useRef<HTMLInputElement>(null);
   const customerSearchRef = useRef<HTMLInputElement>(null);
 
@@ -436,6 +448,70 @@ export default function PosClient({
 
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  async function addInstrument() {
+    const name = newInst.name.trim();
+    if (!name) {
+      setError("Enter the card / account name.");
+      return;
+    }
+    setAddingInst(true);
+    const { data, error: err } = await supabase
+      .from("payment_instruments")
+      .insert({ name, type: newInst.type, is_active: true })
+      .select("id, name, type")
+      .single();
+    setAddingInst(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    const row = data as PosInstrument;
+    setInstList((prev) => [...prev, row]);
+    setMoPick({ instrument_id: row.id, method: row.type });
+    setNewInst({ name: "", type: "cash" });
+    setAddInstOpen(false);
+    logAudit({
+      action: "create",
+      entity: "payment_instrument",
+      entity_id: row.id,
+      description: `Payment account added from POS: ${row.name}`,
+    });
+  }
+
+  async function recordMoneyOut() {
+    setError(null);
+    const amt = Number(moAmount) || 0;
+    if (amt <= 0) {
+      setError("Enter the amount paid out.");
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    setMoBusy(true);
+    const { error: err } = await supabase.rpc("add_expense", {
+      p_expense_date: today,
+      p_category: "Money Out",
+      p_amount: Number(amt.toFixed(2)),
+      p_note: moNote.trim() || null,
+      p_instrument_id: moPick.instrument_id || null,
+      p_method: moPick.instrument_id ? null : moPick.method,
+    });
+    setMoBusy(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    logAudit({
+      action: "create",
+      entity: "expense",
+      entity_id: null,
+      description: `Money Out ${inr(amt)}`,
+      details: { amount: amt, note: moNote.trim() || null },
+    });
+    setMoAmount("");
+    setMoNote("");
+    setShowMoneyOut(false);
   }
 
   function addCustomItem() {
@@ -1124,6 +1200,14 @@ export default function PosClient({
                   </button>
                 </div>
                 <button
+                  onClick={() => setShowMoneyOut((v) => !v)}
+                  className={`mt-2 w-full rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                    showMoneyOut ? "bg-rose-600 text-white" : "border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                  }`}
+                >
+                  Money Out
+                </button>
+                <button
                   onClick={() => completeSale(true)}
                   disabled={payDisabled}
                   className="mt-2 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-3 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1132,6 +1216,105 @@ export default function PosClient({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showMoneyOut && (
+        <div className="mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-slate-900">Money Out</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Paid out (recharge transfer, bill payment, settlement to bank/UPI/wallet…). Recorded in the cash book as an outgoing entry against the account.
+              </p>
+            </div>
+            <button onClick={() => setShowMoneyOut(false)} className="rounded-lg px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+              ✕
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className={labelClass}>Pay from (account / card)</label>
+              <InstrumentSelect
+                instruments={instList}
+                pick={moPick}
+                onChange={(pick) => {
+                  if (pick) setMoPick(pick);
+                  else setAddInstOpen(true);
+                }}
+                enabled={enabledMethods}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Amount (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={moAmount}
+                onChange={(e) => setMoAmount(e.target.value)}
+                placeholder="0.00"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Note</label>
+              <input
+                value={moNote}
+                onChange={(e) => setMoNote(e.target.value)}
+                placeholder="e.g. Airtel recharge, Electricity bill…"
+                className={inputClass}
+              />
+            </div>
+          </div>
+          {addInstOpen && (
+            <div className="mt-4 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <input
+                  value={newInst.name}
+                  onChange={(e) => setNewInst((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Account / card name"
+                  className={inputClass}
+                />
+                <select value={newInst.type} onChange={(e) => setNewInst((p) => ({ ...p, type: e.target.value }))} className={inputClass}>
+                  {INSTRUMENT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={addInstrument}
+                    disabled={addingInst}
+                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {addingInst ? "Adding…" : "Add account"}
+                  </button>
+                  <button onClick={() => setAddInstOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              Deducts from{" "}
+              <span className="font-semibold text-slate-600">
+                {moPick.instrument_id ? instList.find((i) => i.id === moPick.instrument_id)?.name ?? "Cash" : instrumentLabel(moPick.method)}
+              </span>{" "}
+              balance (In − Out = Balance)
+            </p>
+            <button
+              onClick={recordMoneyOut}
+              disabled={moBusy}
+              className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50"
+            >
+              {moBusy ? "Recording…" : "Record money out"}
+            </button>
           </div>
         </div>
       )}
