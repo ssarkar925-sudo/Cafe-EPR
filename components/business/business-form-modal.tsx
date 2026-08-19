@@ -163,10 +163,8 @@ export default function BusinessFormModal({
       if (!form.bank_id) return setError("Please choose the customer's bank.");
       if (!form.portal_id) return setError("Please choose the AEPS portal.");
       if (!/^\d{4}$/.test(form.aadhaar_last4)) return setError("Enter the last 4 digits of Aadhaar (4 digits).");
-      if (!form.customer_id && !form.customer_mobile.trim()) return setError("Customer mobile is required.");
     }
     if (service === "dmt") {
-      if (!form.customer_id && !form.customer_mobile.trim()) return setError("Customer mobile is required.");
       if (!form.sender_name.trim()) return setError("Sender name is required.");
       if (form.transfer_method === "bank_account") {
         if (!form.beneficiary_name.trim()) return setError("Beneficiary name is required.");
@@ -179,7 +177,6 @@ export default function BusinessFormModal({
     }
     if (service === "upi") {
       if (!form.merchant_qr_id) return setError("Please choose the merchant QR.");
-      if (!form.customer_id && !form.customer_mobile.trim()) return setError("Customer mobile is required.");
     }
 
     setError("");
@@ -277,14 +274,17 @@ export default function BusinessFormModal({
             onChange={(v) => set("customer_id", v)}
             options={[
               { value: "", label: "Walk-in / no saved customer" },
-              ...customers.map((c) => ({ value: c.id, label: `${c.name} (${c.code})` })),
+              ...customers.map((c) => ({
+                value: c.id,
+                label: `${c.name} (${c.code})${c.phone ? ` · ${c.phone}` : ""}`,
+              })),
             ]}
-            searchPlaceholder="Search customer…"
+            searchPlaceholder="Search customer by name, code or mobile…"
             showClear={false}
           />
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>Customer Mobile {!form.customer_id ? "*" : "(optional)"}</label>
+            <label className={labelCls}>Customer Mobile (optional)</label>
             <input
               type="tel"
               value={form.customer_mobile}
