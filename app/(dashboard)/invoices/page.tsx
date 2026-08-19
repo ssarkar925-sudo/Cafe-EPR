@@ -14,5 +14,18 @@ export default async function InvoicesPage() {
     .order("created_at", { ascending: false })
     .limit(500);
 
-  return <InvoicesClient initialInvoices={(invoices ?? []) as any} />;
+  const { data: quickSales } = await supabase
+    .from("quick_sales")
+    .select(
+      "id, sale_number, sale_date, amount, cost, tendered, change_due, payments, status, created_at, customers(name, phone), products(name), services(name), item_name"
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  return (
+    <InvoicesClient
+      initialInvoices={(invoices ?? []) as any}
+      initialQuickSales={(quickSales ?? []) as any}
+    />
+  );
 }

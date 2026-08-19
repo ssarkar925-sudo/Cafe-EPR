@@ -22,6 +22,22 @@ export type InvoiceRow = {
   customers: { name: string; phone?: string | null } | null;
 };
 
+export type QuickSaleRow = {
+  id: string;
+  sale_number: string;
+  sale_date: string;
+  amount: number | string;
+  cost: number | string;
+  tendered: number | string | null;
+  change_due: number | string;
+  status: string;
+  created_at?: string;
+  customers: { name: string; phone?: string | null } | null;
+  products?: { name: string } | null;
+  services?: { name: string } | null;
+  item_name?: string | null;
+};
+
 const STATUSES = ["all", "paid", "partial", "unpaid", "cancelled"] as const;
 const METHODS = ["cash", "upi", "card"] as const;
 const COLLECT_TIMEOUT = 5000;
@@ -83,12 +99,17 @@ const SORT_OPTIONS = [
 
 export default function InvoicesClient({
   initialInvoices,
+  initialQuickSales = [],
 }: {
   initialInvoices: InvoiceRow[];
+  initialQuickSales?: QuickSaleRow[];
 }) {
   const [invoices, setInvoices] = useState<InvoiceRow[]>(initialInvoices);
+  const [quickSales, setQuickSales] = useState<QuickSaleRow[]>(initialQuickSales);
+  const [tab, setTab] = useState<"invoices" | "quick">("invoices");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
+  const [quickStatus, setQuickStatus] = useState<"all" | "active" | "cancelled">("all");
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState<"cards" | "list">(() => {
     try {
@@ -185,6 +206,61 @@ export default function InvoicesClient({
     return list;
   }, [filtered, sort]);
 
+  const quickStats = useMemo(() => {
+    let collected = 0,
+      cost = 0,
+      count = 0,
+      cancelled = 0;
+    for (const s of quickSales) {
+      if (s.status === "cancelled") {
+        cancelled++;
+        continue;
+      }
+      collected += Number(s.amount) || 0;
+      cost += Number(s.cost) || 0;
+      count++;
+    }
+    return { collected, cost, profit: collected - cost, count, cancelled };
+  }, [quickSales]);
+
+  const filteredQuick = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return quickSales.filter((s) => {
+      if (quickStatus !== "all" && s.status !== quickStatus) return false;
+      if (!needle) return true;
+      const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "";
+      return (
+        s.sale_number.toLowerCase().includes(needle) ||
+        item.toLowerCase().includes(needle) ||
+        (s.customers?.name ?? "").toLowerCase().includes(needle) ||
+        (s.customers?.phone ?? "").toLowerCase().includes(needle)
+      );
+    });
+  }, [quickSales, q, quickStatus]);
+
+  const sortedQuick = useMemo(() => {
+    const list = [...filteredQuick];
+    switch (sort) {
+      case "oldest":
+        list.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+        break;
+      case "amount-desc":
+        list.sort((a, b) => Number(b.amount) - Number(a.amount));
+        break;
+      case "amount-asc":
+        list.sort((a, b) => Number(a.amount) - Number(b.amount));
+        break;
+      case "customer":
+        list.sort((a, b) =>
+          (a.customers?.name ?? "Walk-in").localeCompare(b.customers?.name ?? "Walk-in")
+        );
+        break;
+      default:
+        list.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+    }
+    return list;
+  }, [filteredQuick, sort]);
+
   function handleChanged(row: InvoiceRow) {
     setInvoices((prev) => prev.map((x) => (x.id === row.id ? { ...x, ...row } : x)));
   }
@@ -245,39 +321,70 @@ export default function InvoicesClient({
   async function exportCsv() {
     setExporting(true);
     try {
-      const rows = sorted.map((r) => ({
-        invoice: r.invoice_number,
-        date: r.invoice_date,
-        customer: r.customers?.name ?? "Walk-in",
-        mobile: r.customers?.phone ?? "",
-        total: Number(r.total),
-        paid: Number(r.paid),
-        due: Number(r.due),
-        returned: Number(r.returned),
-        refunded: Number(r.refunded),
-        status: r.status,
-      }));
-      const headers = ["Invoice", "Date", "Customer", "Mobile", "Total", "Paid", "Due", "Returned", "Refunded", "Status"];
-      const csv = (v: string | number) => {
-        const s = String(v).replace(/"/g, '""');
-        return /[",\n]/.test(s) ? `"${s}"` : s;
-      };
-      const lines = [
-        headers.join(","),
-        ...rows.map((r) => [r.invoice, r.date, r.customer, r.mobile, r.total, r.paid, r.due, r.returned, r.refunded, r.status].map(csv).join(",")),
-      ];
-      const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      flash("success", `${rows.length} invoices exported`);
+      if (tab === "invoices") {
+        const rows = sorted.map((r) => ({
+          invoice: r.invoice_number,
+          date: r.invoice_date,
+          customer: r.customers?.name ?? "Walk-in",
+          mobile: r.customers?.phone ?? "",
+          total: Number(r.total),
+          paid: Number(r.paid),
+          due: Number(r.due),
+          returned: Number(r.returned),
+          refunded: Number(r.refunded),
+          status: r.status,
+        }));
+        const headers = ["Invoice", "Date", "Customer", "Mobile", "Total", "Paid", "Due", "Returned", "Refunded", "Status"];
+        const csv = (v: string | number) => {
+          const s = String(v).replace(/"/g, '""');
+          return /[",\n]/.test(s) ? `"${s}"` : s;
+        };
+        const lines = [
+          headers.join(","),
+          ...rows.map((r) => [r.invoice, r.date, r.customer, r.mobile, r.total, r.paid, r.due, r.returned, r.refunded, r.status].map(csv).join(",")),
+        ];
+        const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        flash("success", `${rows.length} invoices exported`);
+      } else {
+        const rows = sortedQuick.map((r) => ({
+          sale: r.sale_number,
+          date: r.sale_date,
+          customer: r.customers?.name ?? "Walk-in",
+          mobile: r.customers?.phone ?? "",
+          item: r.item_name ?? r.products?.name ?? r.services?.name ?? "Quick sale",
+          amount: Number(r.amount),
+          cost: Number(r.cost),
+          tendered: r.tendered != null ? Number(r.tendered) : "",
+          change: Number(r.change_due),
+          status: r.status,
+        }));
+        const headers = ["Sale", "Date", "Customer", "Mobile", "Item", "Amount", "Cost", "Tendered", "Change", "Status"];
+        const csv = (v: string | number) => {
+          const s = String(v).replace(/"/g, '""');
+          return /[",\n]/.test(s) ? `"${s}"` : s;
+        };
+        const lines = [
+          headers.join(","),
+          ...rows.map((r) => [r.sale, r.date, r.customer, r.mobile, r.item, r.amount, r.cost, r.tendered, r.change, r.status].map(csv).join(",")),
+        ];
+        const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `quick-sales-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        flash("success", `${rows.length} quick sales exported`);
+      }
       logAudit({
         action: "export",
         entity: "report",
         entity_id: null,
-        description: `Exported ${rows.length} invoices to CSV from Invoices`,
+        description: `Exported ${tab === "invoices" ? sorted.length : sortedQuick.length} ${tab} to CSV from Invoices`,
       });
     } catch (e: any) {
       flash("error", e?.message || "Export failed");
@@ -330,24 +437,86 @@ export default function InvoicesClient({
     },
   ];
 
+  const QUICK_KPI_CARDS = [
+    {
+      label: "Collected",
+      value: inr(quickStats.collected),
+      sub: `${quickStats.count} sale${quickStats.count === 1 ? "" : "s"}`,
+      icon: "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14l-3-3",
+      grad: "from-emerald-500 to-teal-600",
+      iconBg: "bg-emerald-100 text-emerald-600",
+      progress: false,
+    },
+    {
+      label: "Est. Profit",
+      value: inr(quickStats.profit),
+      sub: `On ${inr(quickStats.cost)} cost`,
+      icon: "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
+      grad: "from-blue-500 to-indigo-600",
+      iconBg: "bg-blue-100 text-blue-600",
+      progress: false,
+    },
+    {
+      label: "Cancelled",
+      value: String(quickStats.cancelled),
+      sub: `${quickStats.cancelled === 1 ? "sale" : "sales"} reversed`,
+      icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+      grad: "from-rose-500 to-pink-600",
+      iconBg: "bg-rose-100 text-rose-600",
+      progress: false,
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
-          <p className="text-sm text-slate-500">Track sales, payments and returns — every bill, every rupee.</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {tab === "invoices" ? "Invoices" : "Quick Sales"}
+          </h1>
+          <p className="text-sm text-slate-500">
+            {tab === "invoices"
+              ? "Track sales, payments and returns — every bill, every rupee."
+              : "Fast walk-in counter sales — cash-register style."}
+          </p>
         </div>
         <a
-          href="/pos"
+          href={tab === "invoices" ? "/pos" : "/pos?mode=quick"}
           className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
         >
-          + New Sale
+          + New {tab === "invoices" ? "Sale" : "Quick Sale"}
         </a>
+      </div>
+
+      {/* Tabs */}
+      <div className="mt-5 flex rounded-xl bg-slate-100 p-1 text-sm">
+        <button
+          onClick={() => setTab("invoices")}
+          className={`flex-1 rounded-lg px-4 py-2 font-medium transition ${
+            tab === "invoices" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          Invoices
+          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "invoices" ? "bg-slate-100 text-slate-500" : "bg-white/60"}`}>
+            {invoices.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setTab("quick")}
+          className={`flex-1 rounded-lg px-4 py-2 font-medium transition ${
+            tab === "quick" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          Quick Sales
+          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "quick" ? "bg-slate-100 text-slate-500" : "bg-white/60"}`}>
+            {quickSales.length}
+          </span>
+        </button>
       </div>
 
       {/* KPI cards */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        {KPI_CARDS.map((c) => (
+        {(tab === "invoices" ? KPI_CARDS : QUICK_KPI_CARDS).map((c) => (
           <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
@@ -379,7 +548,7 @@ export default function InvoicesClient({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search invoice no, customer or mobile…"
+            placeholder={tab === "invoices" ? "Search invoice no, customer or mobile…" : "Search sale no, item, customer or mobile…"}
             className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </div>
@@ -408,6 +577,7 @@ export default function InvoicesClient({
               </svg>
             </button>
           </div>
+          {tab === "invoices" ? (
           <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
             {STATUSES.map((s) => (
               <button
@@ -424,6 +594,21 @@ export default function InvoicesClient({
               </button>
             ))}
           </div>
+          ) : (
+          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+            {(["all", "active", "cancelled"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setQuickStatus(s)}
+                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
+                  quickStatus === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {s === "all" ? "All" : s}
+              </button>
+            ))}
+          </div>
+          )}
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
@@ -437,19 +622,23 @@ export default function InvoicesClient({
           </select>
           <button
             onClick={exportCsv}
-            disabled={exporting || sorted.length === 0}
+            disabled={exporting || (tab === "invoices" ? sorted.length === 0 : sortedQuick.length === 0)}
             className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
             {exporting ? "Exporting…" : "Export CSV"}
           </button>
           <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-            {sorted.length} invoice{sorted.length === 1 ? "" : "s"}
+            {tab === "invoices"
+              ? `${sorted.length} invoice${sorted.length === 1 ? "" : "s"}`
+              : `${sortedQuick.length} quick sale${sortedQuick.length === 1 ? "" : "s"}`}
           </span>
           <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-invoices-compact" />
         </div>
       </div>
 
-      {/* Cards */}
+      {/* Cards / List */}
+      {tab === "invoices" && (
+      <>
       {view === "cards" ? (
       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {sorted.map((inv) => {
@@ -757,7 +946,7 @@ export default function InvoicesClient({
               </tbody>
             </table>
           </div>
-        </div>
+</div>
       )}
 
       {sorted.length === 0 && (
@@ -770,6 +959,113 @@ export default function InvoicesClient({
             {q || status !== "all"
               ? "Try a different search or filter."
               : "Create your first sale from the Point of Sale."}
+          </p>
+        </div>
+      )}
+      </>
+      )}
+
+      {tab === "quick" && (
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {sortedQuick.map((s) => {
+            const customer = s.customers?.name ?? "Walk-in";
+            const cancelled = s.status === "cancelled";
+            const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
+            return (
+              <div
+                key={s.id}
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${
+                  cancelled ? "opacity-70" : ""
+                }`}
+              >
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${cancelled ? "bg-slate-300" : "from-emerald-500 to-teal-400"}`} />
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(customer)} text-sm font-bold text-white shadow-sm`}>
+                        {customer.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{s.sale_number}</p>
+                        <p className="truncate text-xs text-slate-400">{customer}</p>
+                        {s.customers?.phone && (
+                          <p className="truncate text-[11px] text-slate-300">{s.customers.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${
+                        cancelled ? "bg-slate-100 text-slate-500 ring-slate-200" : "bg-emerald-100 text-emerald-700 ring-emerald-200"
+                      }`}
+                    >
+                      {s.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Item</p>
+                      <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{item}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Amount</p>
+                      <p className="mt-0.5 truncate text-sm font-bold text-emerald-600">{inr(Number(s.amount))}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">{fmtDate(s.sale_date)}</span>
+                    {s.created_at && (
+                      <span className="text-slate-400">
+                        {new Date(s.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3">
+                    <button
+                      onClick={() => copyNumber(s.sale_number)}
+                      title="Copy sale number"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                        <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
+                      </svg>
+                    </button>
+                    <a
+                      href={`/receipt/quick/${s.id}`}
+                      target="_blank"
+                      title="Print 80mm receipt"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
+                      </svg>
+                    </a>
+                    <button
+                      onClick={() => copyNumber(s.sale_number)}
+                      className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "quick" && sortedQuick.length === 0 && (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 py-16 text-center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 text-slate-300">
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+          <p className="mt-3 text-sm font-medium text-slate-600">No quick sales found</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {q || quickStatus !== "all"
+              ? "Try a different search or filter."
+              : "Create your first quick sale from the Point of Sale."}
           </p>
         </div>
       )}
