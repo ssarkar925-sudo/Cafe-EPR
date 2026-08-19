@@ -186,9 +186,7 @@ begin
     v_pool_type := 'aeps';
   elsif p_service_type = 'dmt' then
     if p_transfer_method not in ('bank_account', 'upi') then raise exception 'Select a transfer method'; end if;
-    if p_transfer_method = 'bank_account' and (p_beneficiary_account is null or p_beneficiary_account = '') then
-      raise exception 'Beneficiary account number is required';
-    end if;
+    if p_reference is null or p_reference = '' then raise exception 'RRN / reference is required'; end if;
     v_direction := 'in'; v_prefix := 'DMT'; v_seq := 'public.dmt_seq'; v_label := 'DMT';
     if coalesce(p_paid_from, 'bank') = 'portal' then
       v_pool_out := p_amount;
@@ -299,6 +297,9 @@ begin
   select * into v_txn from public.transactions where id = p_txn_id for update;
   if not found then raise exception 'Transaction not found'; end if;
   if v_txn.status <> 'success' then raise exception 'Only successful transactions can be edited'; end if;
+  if v_txn.service_type = 'dmt' and (p_reference is null or p_reference = '') then
+    raise exception 'RRN / reference is required';
+  end if;
 
   -- Reverse old cash legs
   if v_txn.cash_out > 0 then

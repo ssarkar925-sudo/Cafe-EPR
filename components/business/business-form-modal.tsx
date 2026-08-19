@@ -166,14 +166,7 @@ export default function BusinessFormModal({
     }
     if (service === "dmt") {
       if (!form.sender_name.trim()) return setError("Sender name is required.");
-      if (form.transfer_method === "bank_account") {
-        if (!form.beneficiary_name.trim()) return setError("Beneficiary name is required.");
-        if (!form.beneficiary_account.trim()) return setError("Beneficiary account number is required.");
-        if (!form.beneficiary_ifsc.trim()) return setError("Beneficiary IFSC is required.");
-        if (!form.beneficiary_bank.trim()) return setError("Beneficiary bank is required.");
-      } else {
-        if (!form.upi_id.trim()) return setError("Beneficiary UPI ID is required.");
-      }
+      if (!form.reference.trim()) return setError("RRN / reference is required.");
     }
     if (service === "upi") {
       if (!form.merchant_qr_id) return setError("Please choose the merchant QR.");
@@ -385,8 +378,12 @@ export default function BusinessFormModal({
 
           {service === "dmt" && (
             <>
+              <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Transfer Details</span>
+                <div className="h-px flex-1 bg-slate-100" />
+              </div>
               <div className="sm:col-span-2">
-                <label className={labelCls}>Transfer Method *</label>
+                <label className={labelCls}>Transfer Method</label>
                 <div className="flex gap-2">
                   {["bank_account", "upi"].map((m) => (
                     <button
@@ -403,6 +400,48 @@ export default function BusinessFormModal({
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className={labelCls}>Sender Name *</label>
+                <input value={form.sender_name} onChange={(e) => set("sender_name", e.target.value)} className={input} />
+              </div>
+              <div>
+                <label className={labelCls}>Sender Mobile (optional)</label>
+                <input type="tel" value={form.sender_mobile} onChange={(e) => set("sender_mobile", e.target.value)} className={input} />
+              </div>
+              {form.transfer_method === "bank_account" ? (
+                <>
+                  <div>
+                    <label className={labelCls}>Beneficiary Name (optional)</label>
+                    <input value={form.beneficiary_name} onChange={(e) => set("beneficiary_name", e.target.value)} className={input} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Beneficiary Mobile (optional)</label>
+                    <input type="tel" value={form.beneficiary_mobile} onChange={(e) => set("beneficiary_mobile", e.target.value)} className={input} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Beneficiary Bank (optional)</label>
+                    <input value={form.beneficiary_bank} onChange={(e) => set("beneficiary_bank", e.target.value)} className={input} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Beneficiary IFSC (optional)</label>
+                    <input value={form.beneficiary_ifsc} onChange={(e) => set("beneficiary_ifsc", e.target.value.toUpperCase())} className={input} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>Beneficiary Account Number (optional)</label>
+                    <input value={form.beneficiary_account} onChange={(e) => set("beneficiary_account", e.target.value)} className={input} />
+                  </div>
+                </>
+              ) : (
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>Beneficiary UPI ID (optional)</label>
+                  <input value={form.upi_id} onChange={(e) => set("upi_id", e.target.value)} placeholder="name@upi" className={input} />
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Money Flow</span>
+                <div className="h-px flex-1 bg-slate-100" />
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Money Sent From</label>
@@ -448,43 +487,6 @@ export default function BusinessFormModal({
                   ))}
                 </div>
               </div>
-              <div>
-                <label className={labelCls}>Sender Name *</label>
-                <input value={form.sender_name} onChange={(e) => set("sender_name", e.target.value)} className={input} />
-              </div>
-              <div>
-                <label className={labelCls}>Sender Mobile</label>
-                <input type="tel" value={form.sender_mobile} onChange={(e) => set("sender_mobile", e.target.value)} className={input} />
-              </div>
-              {form.transfer_method === "bank_account" ? (
-                <>
-                  <div>
-                    <label className={labelCls}>Beneficiary Name *</label>
-                    <input value={form.beneficiary_name} onChange={(e) => set("beneficiary_name", e.target.value)} className={input} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Beneficiary Mobile</label>
-                    <input type="tel" value={form.beneficiary_mobile} onChange={(e) => set("beneficiary_mobile", e.target.value)} className={input} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Beneficiary Bank *</label>
-                    <input value={form.beneficiary_bank} onChange={(e) => set("beneficiary_bank", e.target.value)} className={input} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Beneficiary IFSC *</label>
-                    <input value={form.beneficiary_ifsc} onChange={(e) => set("beneficiary_ifsc", e.target.value.toUpperCase())} className={input} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className={labelCls}>Beneficiary Account Number *</label>
-                    <input value={form.beneficiary_account} onChange={(e) => set("beneficiary_account", e.target.value)} className={input} />
-                  </div>
-                </>
-              ) : (
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>Beneficiary UPI ID *</label>
-                  <input value={form.upi_id} onChange={(e) => set("upi_id", e.target.value)} placeholder="name@upi" className={input} />
-                </div>
-              )}
             </>
           )}
 
@@ -536,6 +538,12 @@ export default function BusinessFormModal({
             </>
           )}
 
+          {service === "dmt" && (
+            <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Amount & Fees</span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+          )}
           <div>
             <label className={labelCls}>{service === "dmt" ? "Transfer Amount *" : service === "upi" ? "UPI Amount Received *" : "Withdrawal Amount *"}</label>
             <input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} className={input} />
@@ -550,8 +558,14 @@ export default function BusinessFormModal({
               <input type="number" min="0" step="0.01" value={form.portal_commission} onChange={(e) => set("portal_commission", e.target.value)} className={input} />
             </div>
           )}
+          {service === "dmt" && (
+            <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Reference</span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+          )}
           <div>
-            <label className={labelCls}>Reference / RRN</label>
+            <label className={labelCls}>{service === "dmt" ? "RRN / Reference *" : "Reference / RRN"}</label>
             <input value={form.reference} onChange={(e) => set("reference", e.target.value)} className={input} />
           </div>
           <div className="sm:col-span-2">
