@@ -162,6 +162,7 @@ export default function DashboardClient({
   pnl,
   today,
   settlement,
+  poolBalances,
   receivables,
   transactions,
   topDebtors,
@@ -183,6 +184,7 @@ export default function DashboardClient({
   pnl: Pnl | null;
   today: string;
   settlement: Settlement | null;
+  poolBalances: Record<string, { opening: number; seed_date: string; movements: number; current: number }> | null;
   receivables: number;
   transactions: Tx[];
   topDebtors: Debtor[];
@@ -405,12 +407,12 @@ export default function DashboardClient({
   ];
 
   const moneyValues: Record<string, number> = {
-    cash: cashInHand,
-    bank: settlement?.bank ?? 0,
-    wallet: settlement?.wallet ?? 0,
-    dmt: settlement?.dmt ?? 0,
-    aeps: settlement?.aeps ?? 0,
-    upi_qr: settlement?.upi_qr ?? 0,
+    cash: poolBalances?.cash?.current ?? cashInHand,
+    bank: poolBalances?.bank?.current ?? settlement?.bank ?? 0,
+    wallet: poolBalances?.wallet?.current ?? settlement?.wallet ?? 0,
+    dmt: poolBalances?.dmt?.current ?? settlement?.dmt ?? 0,
+    aeps: poolBalances?.aeps?.current ?? settlement?.aeps ?? 0,
+    upi_qr: poolBalances?.upi_qr?.current ?? settlement?.upi_qr ?? 0,
   };
 
   const R = 52;

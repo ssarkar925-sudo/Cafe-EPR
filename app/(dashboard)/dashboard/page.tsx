@@ -63,8 +63,9 @@ export default async function DashboardPage() {
     p_to: isoToday,
   });
 
-  const [{ data: settlement }, { data: dueInvoices }, { data: txns }, { data: debtors }] = await Promise.all([
+  const [{ data: settlement }, { data: poolBalances }, { data: dueInvoices }, { data: txns }, { data: debtors }] = await Promise.all([
     supabase.rpc("get_settlement_summary"),
+    supabase.rpc("get_pool_balances"),
     supabase.from("invoices").select("due").in("status", ["unpaid", "partial"]),
     Promise.resolve({ data: financialData.transactions ?? [] }),
     supabase
@@ -104,6 +105,7 @@ export default async function DashboardPage() {
       pnl={(pnl as any) ?? null}
       today={isoToday}
       settlement={(settlement as any) ?? null}
+      poolBalances={(poolBalances as any) ?? null}
       receivables={receivables}
       transactions={(txns ?? []) as any}
       topDebtors={(debtors ?? []) as any}

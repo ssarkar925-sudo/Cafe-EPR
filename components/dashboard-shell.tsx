@@ -30,6 +30,8 @@ const PAGE_META: Record<string, { title: string; desc: string }> = {
   "/finance/expenses": { title: "Expenses", desc: "Outgoing cash entries" },
   "/finance/cashbook": { title: "Cash Book", desc: "Daily cash movements" },
   "/finance/settlements": { title: "Settlements", desc: "Bank & wallet settlements" },
+  "/finance/opening-balances": { title: "Opening Balances", desc: "Seed cash, bank, cards & floats" },
+  "/finance/day-close": { title: "Day Close", desc: "Reconcile, profit & lock the books" },
   "/finance/ledger": { title: "Ledger", desc: "Full account ledger" },
   "/reports": { title: "Reports", desc: "Sales, profit & activity" },
   "/staff": { title: "Staff", desc: "Team, roles & attendance" },
