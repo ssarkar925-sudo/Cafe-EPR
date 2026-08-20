@@ -3,11 +3,15 @@
 -- get_settlement_summary() make opening balances flow into the Settlements
 -- module, the dashboard Money Position, and day close.
 --
--- Also changed: get_pool_seed is now additive for per-account seeds. A
--- per-instrument opening_balances seed ALWAYS adds to its pool's opening
--- (previously same-day seeds were silently dropped when a pool-level seed
--- existed). This lets "opening balance" entered on a payment account
--- (Settings > Payment Accounts) auto-adjust the pool.
+-- Also here: a BACKFILL that connects Settings > Payment Accounts to the
+-- pools. Any active account that has an "opening balance" on the instrument
+-- (payment_instruments.opening_balance) but no opening_balances seed yet gets
+-- one, so adding a credit card / bank / UPI / wallet with an opening balance
+-- in Settings adjusts the pool opening. New accounts created after the
+-- frontend update auto-seed themselves via set_opening_balance.
+--
+-- Pool math: a pool-level seed (incl. day-close auto seeds) is the
+-- authoritative base; per-account seeds dated AFTER it add on top.
 -- Run in the Supabase SQL editor of project tvxehxnvuwojjbhysajp (idempotent).
 
 -- ---------- Pool seed: opening amount + seed date for a pool as of a date ----------
@@ -35,7 +39,8 @@ begin
     from public.opening_balances
     where pool = p_pool and instrument_id is not null and as_of <= p_as_of
     order by instrument_id, as_of desc, created_at desc
-  ) inst;
+  ) inst
+  where as_of > coalesce(v_pool_date, '0001-01-01'::date);
 
   return query
   select
@@ -247,3 +252,29 @@ grant execute on function public.get_pool_seed(text, date) to authenticated;
 grant execute on function public.get_pool_movements(text, date, date) to authenticated;
 grant execute on function public.get_pool_balances(date) to authenticated;
 grant execute on function public.get_settlement_summary() to authenticated;
+
+-- ---------- Backfill: connect existing Payment Accounts to the pools ----------
+-- Any active account with an opening_balance on the instrument but no seed yet
+-- gets an opening_balances row dated today (idempotent; skips already-seeded
+-- accounts so re-running does not duplicate).
+insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, created_by)
+select
+  case i.type
+    when 'cash' then 'cash'
+    when 'bank' then 'bank'
+    when 'debit_card' then 'bank'
+    when 'credit_card' then 'credit_card'
+    when 'upi' then 'upi_qr'
+    when 'wallet' then 'wallet'
+  end,
+  i.id,
+  i.opening_balance,
+  current_date,
+  'Opening balance from Payment Accounts setup',
+  i.created_by
+from public.payment_instruments i
+where i.is_active = true
+  and i.opening_balance > 0
+  and not exists (
+    select 1 from public.opening_balances ob where ob.instrument_id = i.id
+  );

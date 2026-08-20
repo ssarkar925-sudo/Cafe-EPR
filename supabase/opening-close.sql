@@ -115,7 +115,8 @@ begin
     from public.opening_balances
     where pool = p_pool and instrument_id is not null and as_of <= p_as_of
     order by instrument_id, as_of desc, created_at desc
-  ) inst;
+  ) inst
+  where as_of > coalesce(v_pool_date, '0001-01-01'::date);
 
   return query
   select
