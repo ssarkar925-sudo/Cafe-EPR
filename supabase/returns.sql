@@ -1,4 +1,4 @@
--- Returns & partial returns (audited, no hard deletes)
+﻿-- Returns & partial returns (audited, no hard deletes)
 -- Adds: returns, return_items tables + process_return RPC
 -- Supports full return, partial (line-level) return, and partial refund payment.
 
@@ -41,11 +41,17 @@ create index if not exists return_items_return_idx on public.return_items (retur
 
 alter table public.returns enable row level security;
 alter table public.return_items enable row level security;
-create policy "returns all" on public.returns for all to authenticated using (true) with check (true);
-create policy "return_items all" on public.return_items for all to authenticated using (true) with check (true);
+create policy "returns select" on public.returns for select to authenticated using (public.is_back_office());
+create policy "returns insert" on public.returns for insert to authenticated with check (public.is_back_office());
+create policy "returns update" on public.returns for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+
+create policy "return_items select" on public.return_items for select to authenticated using (public.is_back_office());
+create policy "return_items insert" on public.return_items for insert to authenticated with check (public.is_back_office());
+create policy "return_items update" on public.return_items for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- Process a return atomically: restock products, write return + items,
 -- post refund cash entry, adjust customer balance/ledger, update invoice.
+-- Back-office only; audited server-side.
 create or replace function public.process_return(
   p_invoice_id uuid,
   p_items jsonb,
@@ -72,6 +78,7 @@ declare
   v_bal numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_invoice from public.invoices where id = p_invoice_id for update;
   if not found then raise exception 'Invoice not found'; end if;
@@ -161,6 +168,13 @@ begin
       status = case when v_full then 'cancelled' else status end,
       returned_at = case when v_full then now() else returned_at end
   where id = p_invoice_id;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'return_processed', 'returns', v_return_id::text,
+    'Return ' || v_return_number || ' on ' || v_invoice.invoice_number || ' (refund ' || p_refund || ')',
+    jsonb_build_object('invoice_number', v_invoice.invoice_number, 'returned', v_returned, 'refund', p_refund)
+  );
 
   return jsonb_build_object(
     'ok', true,

@@ -27,6 +27,19 @@ as $$
 declare
   v_headers jsonb;
 begin
+  -- Brute-force guard: stop recording (and effectively stop filling the table)
+  -- once an email already has >= 5 failures in the last 15 minutes.
+  if coalesce(p_success, false) = false and exists (
+    select 1
+    from public.login_attempts
+    where email = nullif(p_email, '') and success = false
+      and created_at > now() - interval '15 minutes'
+    group by email
+    having count(*) >= 5
+  ) then
+    return;
+  end if;
+
   begin
     v_headers := nullif(current_setting('request.headers', true), '')::jsonb;
   exception when others then

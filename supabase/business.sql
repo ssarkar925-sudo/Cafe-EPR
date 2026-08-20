@@ -1,4 +1,4 @@
--- Run this in Supabase SQL Editor (idempotent).
+﻿-- Run this in Supabase SQL Editor (idempotent).
 -- AEPS / DMT / UPI module matching the previous application's structure.
 -- Only SUCCESS transactions post a cash entry (reversed/deleted reverse it).
 
@@ -100,7 +100,6 @@ create index if not exists transactions_portal_idx on public.transactions (porta
 create sequence if not exists public.aeps_seq start 1;
 create sequence if not exists public.dmt_seq start 1;
 create sequence if not exists public.upi_seq start 1;
-
 -- ---------- Create ----------
 create or replace function public.create_business_txn(
   p_service_type text,
@@ -153,6 +152,7 @@ declare
   v_fee numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_service_type not in ('aeps', 'dmt', 'upi') then raise exception 'Invalid service type'; end if;
   if p_status not in ('success', 'pending', 'failed') then raise exception 'Invalid status'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
@@ -244,6 +244,13 @@ begin
     end if;
   end if;
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'transaction_created', 'transactions', v_txn_id::text,
+    'Created ' || v_label || ' ' || v_number || ' (' || p_status || ') of ' || p_amount,
+    jsonb_build_object('service_type', p_service_type, 'amount', p_amount, 'status', p_status, 'reference', p_reference)
+  );
+
   return (
     select jsonb_build_object('id', id, 'transaction_number', transaction_number,
       'service_type', service_type, 'direction', direction, 'status', status,
@@ -293,12 +300,29 @@ declare
   v_txn record;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+  if p_service_fee is null or p_service_fee < 0 then raise exception 'Service fee cannot be negative'; end if;
+  if p_portal_commission is null or p_portal_commission < 0 then raise exception 'Portal commission cannot be negative'; end if;
 
   select * into v_txn from public.transactions where id = p_txn_id for update;
   if not found then raise exception 'Transaction not found'; end if;
   if v_txn.status <> 'success' then raise exception 'Only successful transactions can be edited'; end if;
-  if v_txn.service_type = 'dmt' and (p_reference is null or p_reference = '') then
-    raise exception 'RRN / reference is required';
+  if v_txn.service_type = 'aeps' then
+    if p_bank_id is null then raise exception 'An AEPS bank is required'; end if;
+    if p_portal_id is null then raise exception 'An AEPS portal is required'; end if;
+    if p_aadhaar_last4 is null or p_aadhaar_last4 !~ '^[0-9]{4}$' then
+      raise exception 'Aadhaar last 4 digits are required';
+    end if;
+    if not exists (select 1 from public.aeps_banks where id = p_bank_id and is_active) then
+      raise exception 'The selected bank is not available';
+    end if;
+    if not exists (select 1 from public.aeps_portals where id = p_portal_id and is_active) then
+      raise exception 'The selected portal is not available';
+    end if;
+  elsif v_txn.service_type = 'dmt' then
+    if p_transfer_method not in ('bank_account', 'upi') then raise exception 'Select a transfer method'; end if;
+    if p_reference is null or p_reference = '' then raise exception 'RRN / reference is required'; end if;
   end if;
 
   -- Reverse old cash legs
@@ -403,6 +427,13 @@ begin
     end if;
   end;
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'transaction_updated', 'transactions', p_txn_id::text,
+    'Edited ' || v_txn.transaction_number || ' to ' || p_amount,
+    jsonb_build_object('amount', p_amount, 'service_fee', p_service_fee, 'portal_commission', p_portal_commission)
+  );
+
   return jsonb_build_object('id', p_txn_id, 'status', 'success');
 end;
 $$;
@@ -417,6 +448,7 @@ declare
   v_txn record;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_txn from public.transactions where id = p_txn_id for update;
   if not found then raise exception 'Transaction not found'; end if;
@@ -436,6 +468,13 @@ begin
       remarks = trim(coalesce(remarks, '') || E'\nReversed: ' || coalesce(p_reason, 'No reason provided.'))
   where id = p_txn_id;
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'transaction_reversed', 'transactions', p_txn_id::text,
+    'Reversed ' || v_txn.transaction_number || ' of ' || v_txn.amount,
+    jsonb_build_object('reason', p_reason)
+  );
+
   return jsonb_build_object('id', p_txn_id, 'status', 'reversed');
 end;
 $$;
@@ -450,6 +489,7 @@ declare
   v_txn record;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_txn from public.transactions where id = p_txn_id for update;
   if not found then raise exception 'Transaction not found'; end if;
@@ -471,10 +511,16 @@ begin
       remarks = trim(coalesce(remarks, '') || E'\nDeleted: ' || coalesce(p_reason, 'No reason provided.'))
   where id = p_txn_id;
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'transaction_deleted', 'transactions', p_txn_id::text,
+    'Deleted ' || v_txn.transaction_number || ' of ' || v_txn.amount,
+    jsonb_build_object('reason', p_reason)
+  );
+
   return jsonb_build_object('id', p_txn_id, 'status', 'deleted');
 end;
 $$;
-
 -- ---------- Realtime publish (idempotent) ----------
 do $$
 declare t text;

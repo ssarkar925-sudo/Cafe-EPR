@@ -28,9 +28,12 @@ create table if not exists public.settlements (
 create index if not exists settlements_date_idx on public.settlements (settlement_date desc);
 create index if not exists settlements_type_idx on public.settlements (settlement_type);
 create index if not exists settlements_status_idx on public.settlements (status);
+create index if not exists settlements_pool_idx on public.settlements (from_pool, to_pool);
 
 alter table public.settlements enable row level security;
-create policy "settlements all" on public.settlements for all to authenticated using (true) with check (true);
+create policy "settlements select" on public.settlements for select to authenticated using (public.is_back_office());
+create policy "settlements insert" on public.settlements for insert to authenticated with check (public.is_back_office());
+create policy "settlements update" on public.settlements for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create sequence if not exists public.settlement_seq start 1;
 
@@ -57,6 +60,7 @@ declare
   v_cash_label text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_settlement_date is null then raise exception 'Date is required'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
 
@@ -99,6 +103,13 @@ begin
             'Settlement: ' || v_cash_label || ' (' || v_number || ')', 'settlement', v_id);
   end if;
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'settlement_created', 'settlements', v_id::text,
+    'Settlement ' || v_number || ' ' || v_from || ' -> ' || v_to || ' of ' || p_amount,
+    jsonb_build_object('type', p_settlement_type, 'amount', p_amount, 'reference', p_reference)
+  );
+
   return jsonb_build_object('id', v_id, 'settlement_number', v_number, 'status', 'success');
 end;
 $$;
@@ -115,6 +126,7 @@ declare
   v_label text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_settlement from public.settlements where id = p_settlement_id for update;
   if not found then raise exception 'Settlement not found'; end if;
@@ -137,6 +149,13 @@ begin
       remarks = trim(coalesce(remarks, '') || E'\nReversed: ' || coalesce(p_reason, 'No reason provided.'))
   where id = p_settlement_id;
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'settlement_reversed', 'settlements', p_settlement_id::text,
+    'Reversed settlement ' || v_settlement.settlement_number || ' of ' || v_settlement.amount,
+    jsonb_build_object('reason', p_reason)
+  );
+
   return jsonb_build_object('id', p_settlement_id, 'status', 'reversed');
 end;
 $$;
@@ -146,6 +165,9 @@ $$;
 -- refunds) PLUS internal transfers tracked in the settlements ledger PLUS business
 -- module legs (AEPS/DMT/UPI) posted on the transactions row. This keeps the dashboard
 -- Money Position consistent with the Cash Book for every account.
+-- The shop's OWN credit cards are used for money-out (expense): spends reduce the
+-- credit_card pool (available limit), NOT the bank pool. Customer card-machine
+-- receipts (method 'card') settle to BANK.
 create or replace function public.get_settlement_summary()
 returns jsonb
 language plpgsql
@@ -158,6 +180,7 @@ declare
   v_dmt numeric;
   v_aeps numeric;
   v_upi_qr numeric;
+  v_credit_card numeric;
   v_count bigint;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
@@ -172,12 +195,15 @@ begin
     select -amount from public.settlements where status = 'success' and from_pool = 'bank'
     union all
     select case when direction = 'in' then amount else -amount end
-    from public.cash_entries where method in ('bank', 'debit_card', 'credit_card')
+    from public.cash_entries where method in ('bank', 'debit_card', 'card')
     union all
     select bank_in from public.transactions where status = 'success' and bank_in > 0
     union all
     select -bank_out from public.transactions where status = 'success' and bank_out > 0
   ) t;
+
+  select coalesce(sum(case when direction = 'out' then -amount else amount end), 0) into v_credit_card
+  from public.cash_entries where method = 'credit_card';
 
   select coalesce(sum(x), 0) into v_wallet
   from (
@@ -239,10 +265,13 @@ begin
 
   return jsonb_build_object(
     'cash', v_cash, 'bank', v_bank, 'wallet', v_wallet,
-    'dmt', v_dmt, 'aeps', v_aeps, 'upi_qr', v_upi_qr, 'count', v_count
+    'dmt', v_dmt, 'aeps', v_aeps, 'upi_qr', v_upi_qr, 'credit_card', v_credit_card,
+    'count', v_count
   );
 end;
 $$;
+revoke all on function public.get_settlement_summary() from public, anon;
+grant execute on function public.get_settlement_summary() to authenticated;
 
 -- ---------- Realtime publish (idempotent) ----------
 do $$

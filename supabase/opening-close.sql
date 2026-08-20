@@ -10,7 +10,7 @@
 create table if not exists public.opening_balances (
   id uuid primary key default gen_random_uuid(),
   pool text not null check (pool in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card')),
-  instrument_id uuid references public.payment_instruments (id) on delete cascade,
+  instrument_id uuid references public.payment_instruments (id) on delete set null,
   amount numeric(15,2) not null default 0 check (amount >= 0),
   as_of date not null default current_date,
   remarks text,
@@ -24,7 +24,9 @@ create index if not exists opening_balances_instrument_idx on public.opening_bal
 alter table public.opening_balances add column if not exists is_auto boolean not null default false;
 
 alter table public.opening_balances enable row level security;
-create policy "opening_balances all" on public.opening_balances for all to authenticated using (true) with check (true);
+create policy "opening_balances select" on public.opening_balances for select to authenticated using (public.is_back_office());
+create policy "opening_balances insert" on public.opening_balances for insert to authenticated with check (public.is_back_office());
+create policy "opening_balances update" on public.opening_balances for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create table if not exists public.closings (
   id uuid primary key default gen_random_uuid(),
@@ -51,7 +53,9 @@ create unique index if not exists closings_close_date_unique
   on public.closings (close_date) where status <> 'reversed';
 
 alter table public.closings enable row level security;
-create policy "closings all" on public.closings for all to authenticated using (true) with check (true);
+create policy "closings select" on public.closings for select to authenticated using (public.is_back_office());
+create policy "closings insert" on public.closings for insert to authenticated with check (public.is_back_office());
+create policy "closings update" on public.closings for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create table if not exists public.closing_balances (
   id uuid primary key default gen_random_uuid(),
@@ -68,7 +72,9 @@ create table if not exists public.closing_balances (
 );
 
 alter table public.closing_balances enable row level security;
-create policy "closing_balances all" on public.closing_balances for all to authenticated using (true) with check (true);
+create policy "closing_balances select" on public.closing_balances for select to authenticated using (public.is_back_office());
+create policy "closing_balances insert" on public.closing_balances for insert to authenticated with check (public.is_back_office());
+create policy "closing_balances update" on public.closing_balances for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create sequence if not exists public.closing_seq start 1;
 
@@ -87,6 +93,7 @@ declare
   v_inst_total numeric;
   v_inst_date date;
 begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
   select amount, as_of into v_pool_amount, v_pool_date
     from public.opening_balances
     where pool = p_pool and instrument_id is null and as_of <= p_as_of
@@ -114,6 +121,9 @@ end;
 $$;
 
 -- ---------- Pool movements (single source of truth, mirrors get_settlement_summary) ----------
+-- The shop's OWN credit cards are used for money-out (expense). Those spends reduce
+-- the credit_card pool (available limit), NOT the bank pool. Customer card-machine
+-- receipts (method 'card') settle to BANK. Bank = bank + debit_card + card receipts.
 create or replace function public.get_pool_movements(p_pool text, p_from date, p_to date)
 returns numeric
 language plpgsql
@@ -121,6 +131,8 @@ security definer set search_path = public
 as $$
 declare v numeric := 0;
 begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+
   if p_pool = 'cash' then
     select coalesce(sum(case when direction = 'in' then amount else -amount end), 0) into v
     from public.cash_entries
@@ -135,7 +147,7 @@ begin
         and settlement_date > p_from and (p_to is null or settlement_date <= p_to)
       union all
       select case when direction = 'in' then amount else -amount end
-      from public.cash_entries where method in ('bank', 'debit_card', 'credit_card')
+      from public.cash_entries where method in ('bank', 'debit_card', 'card')
         and entry_date > p_from and (p_to is null or entry_date <= p_to)
       union all
       select bank_in from public.transactions where status = 'success' and bank_in > 0
@@ -144,6 +156,11 @@ begin
       select -bank_out from public.transactions where status = 'success' and bank_out > 0
         and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
     ) t;
+
+  elsif p_pool = 'credit_card' then
+    select coalesce(sum(case when direction = 'out' then -amount else amount end), 0) into v
+    from public.cash_entries
+    where method = 'credit_card' and entry_date > p_from and (p_to is null or entry_date <= p_to);
 
   elsif p_pool = 'wallet' then
     select coalesce(sum(x), 0) into v from (
@@ -280,6 +297,7 @@ declare
   v_id uuid;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_pool is null or p_pool not in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card') then
     raise exception 'Invalid pool';
   end if;
@@ -320,6 +338,7 @@ declare
   v_mov numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_close_date is null then raise exception 'Date is required'; end if;
   if exists (select 1 from public.closings where status = 'open') then
     raise exception 'An open day close already exists';
@@ -338,11 +357,7 @@ begin
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_close_date) s;
-    if v_seed = '0001-01-01'::date then
-      v_mov := 0;
-    else
-      v_mov := public.get_pool_movements(v_pool, v_seed, p_close_date);
-    end if;
+    v_mov := public.get_pool_movements(v_pool, v_seed, p_close_date);
     insert into public.closing_balances (closing_id, pool, seed_date, opening, movements, computed)
     values (v_id, v_pool, v_seed, v_opening, v_mov, v_opening + v_mov);
   end loop;
@@ -372,6 +387,7 @@ declare
   v_adjust numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_close from public.closings where status = 'open' order by opened_at desc limit 1;
   if not found then return '{}'::jsonb; end if;
@@ -384,11 +400,7 @@ begin
     from public.closing_balances
     where closing_id = v_close.id and pool = v_pool;
 
-    if v_seed = '0001-01-01'::date then
-      v_mov := 0;
-    else
-      v_mov := public.get_pool_movements(v_pool, v_seed, v_close.close_date);
-    end if;
+    v_mov := public.get_pool_movements(v_pool, v_seed, v_close.close_date);
     v_computed := v_opening + v_mov;
 
     v_rows := v_rows || jsonb_build_array(jsonb_build_object(
@@ -429,6 +441,8 @@ declare
   v_final numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if p_amount is null then raise exception 'Adjustment amount is required'; end if;
   if not exists (select 1 from public.closings where id = p_closing_id and status = 'open') then
     raise exception 'Day close not open';
   end if;
@@ -442,6 +456,13 @@ begin
     set adjustment = p_amount, final = v_final,
         remarks = coalesce(nullif(p_remarks, ''), remarks)
     where id = v_row.id;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'close_adjustment_set', 'closings', p_closing_id::text,
+    'Adjusted ' || p_pool || ' by ' || p_amount || ' on day close',
+    jsonb_build_object('pool', p_pool, 'amount', p_amount, 'remarks', p_remarks)
+  );
 
   return jsonb_build_object('closing_id', p_closing_id, 'pool', p_pool, 'adjustment', p_amount, 'final', v_final);
 end;
@@ -469,6 +490,10 @@ declare
   v_result jsonb := '{}'::jsonb;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if coalesce(p_owner_deposits, 0) < 0 or coalesce(p_owner_withdrawals, 0) < 0 then
+    raise exception 'Owner deposit/withdrawal amounts cannot be negative';
+  end if;
 
   select * into v_close from public.closings where id = p_closing_id for update;
   if not found then raise exception 'Day close not found'; end if;
@@ -477,7 +502,7 @@ begin
   for v_row in
     select * from public.closing_balances where closing_id = p_closing_id
   loop
-    if v_row.seed_date is not null and v_row.seed_date <> '0001-01-01'::date then
+    if v_row.seed_date is not null then
       update public.closing_balances
         set movements = public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
             computed = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
@@ -545,6 +570,7 @@ declare
   v_list jsonb;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select coalesce(jsonb_agg(to_jsonb(c) order by c.close_date desc), '[]'::jsonb) into v_list
   from (
@@ -563,6 +589,8 @@ end;
 $$;
 
 -- ---------- Reverse a closed day (audited, journal never deleted) ----------
+-- Also removes the auto next-day opening seeds this close posted, so a reversal
+-- fully undoes the day (the seeds are re-created when the day is closed again).
 create or replace function public.reverse_close(p_closing_id uuid, p_reason text)
 returns jsonb
 language plpgsql
@@ -572,6 +600,7 @@ declare
   v_close record;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_close from public.closings where id = p_closing_id for update;
   if not found then raise exception 'Day close not found'; end if;
@@ -581,6 +610,10 @@ begin
     set status = 'reversed', reversed_at = now(), reversed_by = auth.uid(),
         remarks = trim(coalesce(remarks, '') || E'\nReversed: ' || coalesce(p_reason, 'No reason provided.'))
     where id = p_closing_id;
+
+  -- Undo the auto opening seeds this close posted (audited via the reversal row below).
+  delete from public.opening_balances
+  where remarks = 'Auto from ' || v_close.closing_number;
 
   insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
   values (
@@ -592,3 +625,15 @@ begin
   return jsonb_build_object('id', p_closing_id, 'status', 'reversed');
 end;
 $$;
+
+-- Read RPCs: only authenticated may execute (these are security definer).
+revoke all on function public.get_pool_seed(text, date) from public, anon;
+revoke all on function public.get_pool_movements(text, date, date) from public, anon;
+revoke all on function public.get_pool_balances(date) from public, anon;
+revoke all on function public.get_open_close() from public, anon;
+revoke all on function public.get_closings(integer) from public, anon;
+grant execute on function public.get_pool_seed(text, date) to authenticated;
+grant execute on function public.get_pool_movements(text, date, date) to authenticated;
+grant execute on function public.get_pool_balances(date) to authenticated;
+grant execute on function public.get_open_close() to authenticated;
+grant execute on function public.get_closings(integer) to authenticated;

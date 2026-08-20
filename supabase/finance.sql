@@ -1,4 +1,4 @@
--- Run this in Supabase SQL Editor (idempotent).
+﻿-- Run this in Supabase SQL Editor (idempotent).
 -- Required for the Finance module: cash book, expenses, customer ledger.
 
 create table if not exists public.expenses (
@@ -27,7 +27,7 @@ create table if not exists public.cash_entries (
 
 create table if not exists public.customer_ledger (
   id uuid primary key default gen_random_uuid(),
-  customer_id uuid not null references public.customers (id) on delete cascade,
+  customer_id uuid not null references public.customers (id) on delete restrict,
   entry_date date not null default current_date,
   type text not null check (type in ('invoice', 'payment', 'return', 'opening')),
   description text,
@@ -40,19 +40,29 @@ create table if not exists public.customer_ledger (
 
 create index if not exists idx_expenses_date on public.expenses (expense_date);
 create index if not exists idx_cash_entries_date on public.cash_entries (entry_date);
+create index if not exists cash_entries_method_idx on public.cash_entries (method);
+create index if not exists cash_entries_ref_idx on public.cash_entries (ref_type, ref_id);
 create index if not exists idx_customer_ledger_customer on public.customer_ledger (customer_id);
 
 alter table public.expenses enable row level security;
 alter table public.cash_entries enable row level security;
 alter table public.customer_ledger enable row level security;
 
-create policy "expenses all" on public.expenses for all to authenticated using (true) with check (true);
-create policy "cash_entries all" on public.cash_entries for all to authenticated using (true) with check (true);
-create policy "customer_ledger all" on public.customer_ledger for all to authenticated using (true) with check (true);
+create policy "expenses select" on public.expenses for select to authenticated using (public.is_back_office());
+create policy "expenses insert" on public.expenses for insert to authenticated with check (public.is_back_office());
+create policy "expenses update" on public.expenses for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+
+create policy "cash_entries select" on public.cash_entries for select to authenticated using (public.is_back_office());
+create policy "cash_entries insert" on public.cash_entries for insert to authenticated with check (public.is_back_office());
+create policy "cash_entries update" on public.cash_entries for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+
+create policy "customer_ledger select" on public.customer_ledger for select to authenticated using (public.is_back_office());
+create policy "customer_ledger insert" on public.customer_ledger for insert to authenticated with check (public.is_back_office());
+create policy "customer_ledger update" on public.customer_ledger for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- Sale now writes cash entries + customer ledger atomically.
 -- Supports collecting a customer's previous due (non-revenue cash-in) and applying a customer's
--- advance (prepaid credit) against the bill.
+-- advance (prepaid credit) against the bill. Totals/items/payments are validated server-side.
 create or replace function public.create_sale(
   p_customer_id uuid,
   p_invoice_date date,
@@ -80,6 +90,7 @@ declare
   v_qty numeric;
   v_rate numeric;
   v_amount numeric;
+  v_cost_line numeric;
   v_stock numeric;
   v_payment jsonb;
   v_method text;
@@ -88,6 +99,22 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
+  end if;
+  -- Server-side validation of client-trusted math
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'No items in invoice';
+  end if;
+  if p_subtotal is null or p_discount is null or p_total is null then
+    raise exception 'Invoice totals are required';
+  end if;
+  if p_subtotal < 0 or p_discount < 0 or p_total < 0 then
+    raise exception 'Invalid invoice totals';
+  end if;
+  if p_discount > p_subtotal then
+    raise exception 'Discount exceeds subtotal';
+  end if;
+  if round(p_subtotal - p_discount, 2) <> round(p_total, 2) then
+    raise exception 'Total must equal subtotal minus discount';
   end if;
   if p_previous_due < 0 or p_advance_used < 0 then
     raise exception 'Invalid due/advance amounts';
@@ -111,9 +138,18 @@ begin
     v_qty := coalesce((v_item->>'qty')::numeric, 1);
     v_rate := coalesce((v_item->>'rate')::numeric, 0);
     v_amount := coalesce((v_item->>'amount')::numeric, 0);
+    if v_qty is null or v_qty <= 0 then raise exception 'Invalid item quantity'; end if;
+    if v_rate is null or v_rate < 0 then raise exception 'Invalid item rate'; end if;
+    if v_amount is null or v_amount < 0 then raise exception 'Invalid item amount'; end if;
+    -- Custom items may carry an optional cost for accurate income; catalog cost stays server-side.
+    v_cost_line := case
+      when v_product_id is null and (v_item->>'service_id')::uuid is null
+        then greatest(coalesce((v_item->>'cost_price')::numeric, 0), 0)
+      else 0
+    end;
 
-    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount)
-    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount);
+    insert into public.invoice_items (invoice_id, product_id, service_id, description, qty, rate, amount, cost_price)
+    values (v_invoice_id, v_product_id, (v_item->>'service_id')::uuid, v_item->>'description', v_qty, v_rate, v_amount, v_cost_line);
 
     if v_product_id is not null then
       select stock_qty into v_stock from public.products where id = v_product_id for update;
@@ -129,6 +165,9 @@ begin
 
   for v_payment in select * from jsonb_array_elements(p_payments)
   loop
+    if coalesce((v_payment->>'amount')::numeric, 0) < 0 then
+      raise exception 'Invalid payment amount';
+    end if;
     v_paid := v_paid + coalesce((v_payment->>'amount')::numeric, 0);
     v_method := coalesce(v_payment->>'method', 'cash');
     v_instrument_id := nullif(v_payment->>'instrument_id', '')::uuid;
@@ -212,6 +251,7 @@ begin
       'due', due,
       'status', status,
       'invoice_date', invoice_date,
+      'created_at', created_at,
       'previous_due', p_previous_due,
       'advance_used', p_advance_used
     )
@@ -220,7 +260,6 @@ begin
   );
 end;
 $$;
-
 create or replace function public.record_invoice_payment(
   p_invoice_id uuid,
   p_method text,
@@ -275,70 +314,9 @@ begin
 end;
 $$;
 
-create or replace function public.return_invoice(p_invoice_id uuid)
-returns jsonb
-language plpgsql
-security definer set search_path = public
-as $$
-declare
-  v_invoice record;
-  v_item record;
-  v_due numeric;
-  v_refund numeric;
-begin
-  if auth.uid() is null then raise exception 'Not authenticated'; end if;
-
-  select * into v_invoice from public.invoices where id = p_invoice_id for update;
-  if not found then raise exception 'Invoice not found'; end if;
-  if v_invoice.status = 'cancelled' then raise exception 'Invoice already returned'; end if;
-
-  v_due := v_invoice.total - v_invoice.paid;
-  v_refund := v_invoice.paid;
-
-  for v_item in
-    select product_id, qty from public.invoice_items
-    where invoice_id = p_invoice_id and product_id is not null
-  loop
-    update public.products
-    set stock_qty = stock_qty + v_item.qty, updated_at = now()
-    where id = v_item.product_id;
-  end loop;
-
-  if v_refund > 0 then
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, 'cash', 'out', v_refund, 'Refund ' || v_invoice.invoice_number, 'invoice', p_invoice_id);
-  end if;
-
-  if v_invoice.customer_id is not null and v_due > 0 then
-    update public.customers
-    set balance = balance - v_due, updated_at = now()
-    where id = v_invoice.customer_id;
-
-    insert into public.customer_ledger (customer_id, entry_date, type, description, credit, balance_after, ref_id)
-    values (v_invoice.customer_id, current_date, 'return', 'Return of ' || v_invoice.invoice_number, v_due,
-            (select balance from public.customers where id = v_invoice.customer_id), p_invoice_id);
-  end if;
-
-  update public.invoices
-  set status = 'cancelled',
-      paid = 0,
-      due = 0,
-      returned_at = now()
-  where id = p_invoice_id;
-
-  return (
-    select jsonb_build_object('id', id, 'invoice_number', invoice_number,
-      'status', status, 'returned_at', returned_at)
-    from public.invoices where id = p_invoice_id
-  );
-end;
-$$;
-
 -- Extend add_expense so Money Out / bill payments can be tagged to a named instrument
 -- (bank/UPI/wallet/card) or a generic method. Defaults to cash for the existing
--- Finance -> Expenses flow.
-drop function if exists public.add_expense(date, text, numeric, text);
-drop function if exists public.add_expense(date, text, numeric, text, uuid);
+-- Finance -> Expenses flow. Every expense is audited server-side.
 create or replace function public.add_expense(
   p_expense_date date,
   p_category text,
@@ -356,7 +334,7 @@ declare
   v_method text := 'cash';
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
-  if p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
   if p_category is null or p_category = '' then raise exception 'Category is required'; end if;
   if p_instrument_id is not null then
     select type into v_method from public.payment_instruments where id = p_instrument_id and is_active = true;
@@ -375,10 +353,16 @@ begin
   insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
   values (p_expense_date, v_method, 'out', p_amount, 'Expense: ' || p_category, 'expense', v_expense_id, p_instrument_id);
 
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'expense_added', 'expenses', v_expense_id::text,
+    'Expense of ' || p_amount || ' on ' || p_category || ' paid from ' || v_method,
+    jsonb_build_object('category', p_category, 'amount', p_amount, 'method', v_method, 'instrument_id', p_instrument_id)
+  );
+
   return jsonb_build_object('id', v_expense_id);
 end;
 $$;
-
 
 -- Cancel an expense (audited, no delete): reverses the cash entry using the SAME account,
 -- instrument and date the expense was originally posted from, so the cash book stays correct.
@@ -396,6 +380,7 @@ declare
   v_date date;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
 
   select * into v_expense from public.expenses where id = p_expense_id for update;
   if not found then raise exception 'Expense not found'; end if;
@@ -417,6 +402,13 @@ begin
 
   insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
   values (v_date, v_method, 'in', v_expense.amount, 'Expense cancelled: ' || v_expense.category, 'expense', p_expense_id, v_orig_instrument);
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'expense_cancelled', 'expenses', p_expense_id::text,
+    'Cancelled expense of ' || v_expense.amount || ' on ' || v_expense.category,
+    jsonb_build_object('category', v_expense.category, 'amount', v_expense.amount)
+  );
 
   return jsonb_build_object('id', p_expense_id, 'status', 'cancelled');
 end;

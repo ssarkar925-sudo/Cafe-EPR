@@ -23,6 +23,8 @@ declare
   v_categories jsonb;
   v_top jsonb;
 begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+
   -- Revenue: non-cancelled invoices in range
   select coalesce(sum(total), 0), count(*)::int
     into v_revenue, v_invoices
@@ -160,5 +162,5 @@ begin
 end;
 $$;
 
-revoke all on function public.get_pnl(date, date) from public;
+revoke all on function public.get_pnl(date, date) from public, anon;
 grant execute on function public.get_pnl(date, date) to authenticated;

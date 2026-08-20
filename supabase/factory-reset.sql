@@ -13,7 +13,9 @@ do $$
 declare
   r record;
 begin
-  for r in select tablename from pg_tables where schemaname = 'public'
+  -- audit_logs is the immutable financial trail: never wiped by a reset.
+  for r in select tablename from pg_tables
+    where schemaname = 'public' and tablename <> 'audit_logs'
   loop
     execute format('truncate table public.%I restart identity cascade', r.tablename);
   end loop;

@@ -71,3 +71,8 @@ begin
   on conflict (user_id, audit_log_id) do nothing;
 end;
 $$;
+
+revoke all on function public.unread_notifications(integer) from public, anon;
+grant execute on function public.unread_notifications(integer) to authenticated;
+revoke all on function public.mark_notifications_read(uuid[]) from public, anon;
+grant execute on function public.mark_notifications_read(uuid[]) to authenticated;
