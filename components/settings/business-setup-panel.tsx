@@ -2,12 +2,14 @@
 
 import SettingsSection from "@/components/settings/settings-section";
 import MasterClient from "@/components/business/master-client";
+import RechargeProvidersPanel from "@/components/settings/recharge-providers-panel";
 import { type MasterData } from "@/components/settings/settings-config";
 
 const SECTIONS = [
   { key: "banks", label: "Banks" },
   { key: "portals", label: "Portals" },
   { key: "merchant-qrs", label: "Merchant QRs" },
+  { key: "recharge", label: "Recharge Providers" },
 ] as const;
 
 export default function BusinessSetupPanel({
@@ -17,6 +19,8 @@ export default function BusinessSetupPanel({
   initialBanks,
   initialPortals,
   initialMerchantQrs,
+  initialRechargeProviders,
+  initialRechargeSlabs,
 }: {
   active: boolean;
   section: string;
@@ -24,6 +28,8 @@ export default function BusinessSetupPanel({
   initialBanks?: MasterData;
   initialPortals?: MasterData;
   initialMerchantQrs?: MasterData;
+  initialRechargeProviders?: any[];
+  initialRechargeSlabs?: any[];
 }) {
   return (
     <div className={active ? "mt-6" : "hidden"}>
@@ -31,7 +37,7 @@ export default function BusinessSetupPanel({
         icon="M3 21V9l9-6 9 6v12M9 21v-6h6v6"
         tone="indigo"
         title="Business Setup"
-        desc="Banks, settlement portals and merchant QR codes used by AEPS / DMT / UPI. Records with past transactions are archived (deactivated), never deleted."
+        desc="Banks, settlement portals, merchant QR codes and recharge providers used by the business modules. Records with past transactions are archived (deactivated), never deleted."
       >
         <div className="mb-2 flex gap-1 rounded-xl bg-slate-100 p-1 text-sm">
           {SECTIONS.map((s) => (
@@ -90,6 +96,12 @@ export default function BusinessSetupPanel({
               rows={initialMerchantQrs?.rows ?? []}
               usage={initialMerchantQrs?.usage ?? {}}
               display={(r) => r.display_name || r.name || ""}
+            />
+          )}
+          {section === "recharge" && (
+            <RechargeProvidersPanel
+              initialProviders={initialRechargeProviders ?? []}
+              initialSlabs={initialRechargeSlabs ?? []}
             />
           )}
         </div>

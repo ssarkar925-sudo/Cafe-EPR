@@ -59,6 +59,7 @@ const ICONS = {
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
   aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
+  recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   card: "M3 10h18M3 6h18v12H3zM7 15h4",
   arrow: "M5 12h14M13 5l7 7-7 7",
   plus: "M12 5v14M5 12h14",
@@ -73,6 +74,7 @@ const POOL_CARDS = [
   { key: "dmt", label: "DMT Float", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600" },
   { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, grad: "from-rose-500 to-pink-600" },
+  { key: "recharge", label: "Recharge Float", icon: ICONS.recharge, grad: "from-cyan-500 to-sky-600" },
   { key: "credit_card", label: "Credit Card", icon: ICONS.card, grad: "from-cyan-500 to-sky-600" },
 ];
 

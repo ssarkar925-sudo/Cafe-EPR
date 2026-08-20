@@ -21,6 +21,7 @@ export type PoolBalances = {
   dmt: PoolBal;
   aeps: PoolBal;
   upi_qr: PoolBal;
+  recharge: PoolBal;
   credit_card: PoolBal;
   total: number;
 };
@@ -50,6 +51,7 @@ const POOLS: { key: keyof PoolBalances; label: string; icon: string; grad: strin
   { key: "dmt", label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", grad: "from-violet-500 to-purple-600", hint: "Remittance float with provider" },
   { key: "aeps", label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z", grad: "from-amber-500 to-orange-600", hint: "AEPS float with provider" },
   { key: "upi_qr", label: "UPI QR", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", grad: "from-rose-500 to-pink-600", hint: "Shop UPI QR receipts" },
+  { key: "recharge", label: "Recharge Float", icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-cyan-500 to-sky-600", hint: "Float used for mobile / DTH recharge" },
 ];
 
 const INST_POOL: Record<string, string> = {

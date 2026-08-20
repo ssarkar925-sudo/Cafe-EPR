@@ -31,6 +31,8 @@ export default async function SettingsPage({
     { data: products },
     { data: catalogServices },
     { data: categories },
+    { data: rechargeProviders },
+    { data: rechargeSlabs },
   ] = await Promise.all([
     supabase.from("settings").select("*").single(),
     supabase.from("payment_instruments").select("*").order("type").order("name"),
@@ -63,6 +65,8 @@ export default async function SettingsPage({
       .order("created_at", { ascending: false })
       .limit(500),
     supabase.from("categories").select("*").order("name"),
+    supabase.from("recharge_providers").select("*").order("sort_order").order("name"),
+    supabase.from("recharge_commission_slabs").select("*"),
   ]);
 
   const bankUsage: Record<string, number> = {};
@@ -107,6 +111,8 @@ export default async function SettingsPage({
       initialBanks={{ rows: (banks ?? []) as any, usage: bankUsage }}
       initialPortals={{ rows: (portals ?? []) as any, usage: portalUsage }}
       initialMerchantQrs={{ rows: (qrs ?? []) as any, usage: qrUsage }}
+      initialRechargeProviders={(rechargeProviders ?? []) as any}
+      initialRechargeSlabs={(rechargeSlabs ?? []) as any}
       initialProducts={(products ?? []) as any}
       initialCatalogServices={(catalogServices ?? []) as any}
       initialCategories={(categories ?? []) as any}

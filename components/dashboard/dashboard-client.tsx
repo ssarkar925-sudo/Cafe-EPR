@@ -58,6 +58,7 @@ type Settlement = {
   dmt: number;
   aeps: number;
   upi_qr: number;
+  recharge: number;
   count: number;
 };
 
@@ -139,12 +140,14 @@ const MONEY_CARDS = [
   { key: "dmt", label: "DMT Float", icon: ICONS.send, gradient: "from-violet-500 to-purple-600", href: "/business/dmt" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.card, gradient: "from-amber-500 to-orange-600", href: "/business/aeps" },
   { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, gradient: "from-rose-500 to-pink-600", href: "/business/upi" },
+  { key: "recharge", label: "Recharge Float", icon: ICONS.bolt, gradient: "from-cyan-500 to-sky-600", href: "/business/recharge" },
 ];
 
 const SERVICE_META: Record<string, { label: string; grad: string; icon: string }> = {
   aeps: { label: "AEPS", grad: "from-blue-500 to-cyan-400", icon: ICONS.card },
   dmt: { label: "DMT", grad: "from-violet-500 to-purple-500", icon: ICONS.send },
   upi: { label: "UPI", grad: "from-rose-500 to-pink-500", icon: ICONS.qr },
+  recharge: { label: "Recharge", grad: "from-cyan-500 to-sky-500", icon: ICONS.bolt },
 };
 
 export default function DashboardClient({
@@ -283,7 +286,7 @@ export default function DashboardClient({
 
   const perService = useMemo(
     () =>
-      ["aeps", "dmt", "upi"].map((svc) => {
+      ["aeps", "dmt", "upi", "recharge"].map((svc) => {
         const todayRows = txnsToday.filter((t) => t.service_type === svc);
         const mtdRows = txnsMTD.filter((t) => t.service_type === svc);
         const t = bizAgg(todayRows);
@@ -378,7 +381,7 @@ export default function DashboardClient({
     },
     businessToday: {
       value: inr(businessToday.income),
-      sub: <span className="text-slate-400">{businessToday.count} AEPS/DMT/UPI · MTD {inr(businessMTD.income)}</span>,
+      sub: <span className="text-slate-400">{businessToday.count} AEPS/DMT/UPI/Recharge · MTD {inr(businessMTD.income)}</span>,
     },
     expensesToday: {
       value: inr(expensesToday),
@@ -413,6 +416,7 @@ export default function DashboardClient({
     dmt: poolBalances?.dmt?.current ?? settlement?.dmt ?? 0,
     aeps: poolBalances?.aeps?.current ?? settlement?.aeps ?? 0,
     upi_qr: poolBalances?.upi_qr?.current ?? settlement?.upi_qr ?? 0,
+    recharge: poolBalances?.recharge?.current ?? settlement?.recharge ?? 0,
   };
 
   const R = 52;
@@ -514,11 +518,11 @@ export default function DashboardClient({
         ))}
       </div>
 
-      {/* Business — AEPS / DMT / UPI */}
+      {/* Business — AEPS / DMT / UPI / Recharge */}
       <div className="mt-8 flex items-end justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Business — AEPS / DMT / UPI</h2>
-          <p className="text-xs text-slate-400">Agent banking &amp; remittance income, tracked separately from POS sales</p>
+          <h2 className="text-lg font-semibold text-slate-900">Business — AEPS / DMT / UPI / Recharge</h2>
+          <p className="text-xs text-slate-400">Agent banking, remittance &amp; recharge income, tracked separately from POS sales</p>
         </div>
         <Link href="/business/aeps" className="text-sm font-medium text-blue-600 hover:text-blue-700">
           All business →

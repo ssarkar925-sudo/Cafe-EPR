@@ -12,6 +12,8 @@ export const SETTLEMENT_TYPES = [
   { value: "bank_withdrawal", label: "Bank Withdrawal", from: "bank", to: "cash", icon: "cash", grad: "from-emerald-500 to-teal-600", desc: "Withdraw cash from the bank into the counter." },
   { value: "add_cash_to_bank", label: "Cash \u2192 Bank", from: "cash", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Deposit counter cash into the bank account." },
   { value: "cash_adjustment", label: "Cash Adjustment", from: "cash", to: "cash", icon: "cash", grad: "from-rose-500 to-pink-600", desc: "Add or remove cash during a physical count." },
+  { value: "bank_to_recharge", label: "Bank → Recharge", from: "bank", to: "recharge", icon: "recharge", grad: "from-cyan-500 to-sky-600", desc: "Load the recharge float from the bank balance." },
+  { value: "recharge_to_bank", label: "Recharge → Bank", from: "recharge", to: "bank", icon: "bank", grad: "from-slate-500 to-slate-700", desc: "Move unused recharge float back to the bank." },
 ] as const;
 
 export type SettlementType = (typeof SETTLEMENT_TYPES)[number]["value"];
@@ -23,6 +25,7 @@ export const POOL_LABEL: Record<string, string> = {
   dmt: "DMT Float",
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
+  recharge: "Recharge Float",
 };
 
 const ICONS: Record<string, string> = {
@@ -31,6 +34,7 @@ const ICONS: Record<string, string> = {
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
   aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
+  recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   arrow: "M5 12h14M13 5l7 7-7 7",
 };
 

@@ -31,6 +31,7 @@ export type Txn = {
   bank_id: string | null;
   portal_id: string | null;
   merchant_qr_id: string | null;
+  provider_id: string | null;
   aadhaar_last4: string | null;
   transfer_method: string | null;
   sender_name: string | null;
@@ -50,6 +51,7 @@ export type Txn = {
   customers: { name: string; phone: string | null } | null;
   banks: { name: string } | null;
   portals: { name: string } | null;
+  providers: { name: string } | null;
   merchant_qrs: { display_name: string; upi_id: string } | null;
   profiles: { full_name: string } | null;
 };
@@ -63,6 +65,7 @@ type Cfg = {
   groups: { value: string; label: string }[];
   bankFilter: boolean;
   portalFilter: boolean;
+  providerFilter: boolean;
   methodFilter: boolean;
   customerFilter: boolean;
   cards: Card[];
@@ -90,6 +93,7 @@ const CONFIG: Record<string, Cfg> = {
     ],
     bankFilter: true,
     portalFilter: true,
+    providerFilter: false,
     methodFilter: false,
     customerFilter: true,
     cards: [
@@ -118,6 +122,7 @@ const CONFIG: Record<string, Cfg> = {
     groups: [{ value: "none", label: "Overall totals" }, { value: "method", label: "Group by Method" }],
     bankFilter: false,
     portalFilter: false,
+    providerFilter: false,
     methodFilter: true,
     customerFilter: true,
     cards: [
@@ -146,6 +151,7 @@ const CONFIG: Record<string, Cfg> = {
     groups: [],
     bankFilter: false,
     portalFilter: false,
+    providerFilter: false,
     methodFilter: false,
     customerFilter: true,
     cards: [
@@ -161,6 +167,36 @@ const CONFIG: Record<string, Cfg> = {
       { key: "upiAmount", align: "right" },
       { key: "cashHanded", align: "right" },
       { key: "fee", align: "right" },
+      { key: "status", align: "center" },
+      { key: "actions", align: "right" },
+    ],
+  },
+  recharge: {
+    title: "Recharge — Mobile & DTH",
+    desc: "Customer pays cash; the recharge float is debited by the cost; commission is the shop's earnings.",
+    recordLabel: "Record Recharge",
+    groups: [
+      { value: "none", label: "Overall totals" },
+      { value: "provider", label: "Group by Provider" },
+    ],
+    bankFilter: false,
+    portalFilter: false,
+    providerFilter: true,
+    methodFilter: false,
+    customerFilter: true,
+    cards: [
+      { key: "count", label: "Transactions", icon: ICONS.receipt, grad: "from-blue-500 to-indigo-600" },
+      { key: "withdrawal", label: "Recharged", icon: ICONS.rupee, grad: "from-emerald-500 to-teal-600" },
+      { key: "commission", label: "Commission Earned", icon: ICONS.percent, grad: "from-amber-500 to-orange-600" },
+      { key: "net", label: "Shop Earnings", icon: ICONS.trend, grad: "from-violet-500 to-purple-600", sub: "= Commission" },
+    ],
+    tableHeaders: [
+      { key: "txn" },
+      { key: "customer" },
+      { key: "provider" },
+      { key: "date" },
+      { key: "withdrawal", align: "right" },
+      { key: "commission", align: "right" },
       { key: "status", align: "center" },
       { key: "actions", align: "right" },
     ],
@@ -220,6 +256,8 @@ export default function BusinessClient({
   initialBanks,
   initialPortals,
   initialQrs,
+  initialRechargeProviders = [],
+  initialRechargeSlabs = [],
   float = null,
 }: {
   service: string;
@@ -229,6 +267,8 @@ export default function BusinessClient({
   initialBanks: Master[];
   initialPortals: Master[];
   initialQrs: Master[];
+  initialRechargeProviders?: Master[];
+  initialRechargeSlabs?: { provider_id: string; min_amount: number | string; max_amount: number | string; commission_percent: number | string }[];
   float?: { opening: number | string; current: number | string; seed_date: string } | null;
 }) {
   const cfg = CONFIG[service];
@@ -237,6 +277,7 @@ export default function BusinessClient({
   const [statusFilter, setStatusFilter] = useState("");
   const [bankFilter, setBankFilter] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -281,6 +322,7 @@ export default function BusinessClient({
       if (statusFilter && t.status !== statusFilter) return false;
       if (bankFilter && t.bank_id !== bankFilter) return false;
       if (portalFilter && t.portal_id !== portalFilter) return false;
+      if (providerFilter && t.provider_id !== providerFilter) return false;
       if (methodFilter && t.transfer_method !== methodFilter) return false;
       if (customerFilter && t.customer_id !== customerFilter) return false;
       if (dateFrom && t.transaction_date < dateFrom) return false;
@@ -294,11 +336,12 @@ export default function BusinessClient({
         (t.sender_name ?? "").toLowerCase().includes(needle) ||
         (t.beneficiary_name ?? "").toLowerCase().includes(needle) ||
         (t.upi_id ?? "").toLowerCase().includes(needle) ||
+        (t.providers?.name ?? "").toLowerCase().includes(needle) ||
         (t.customers?.name ?? "").toLowerCase().includes(needle) ||
         (t.customers?.phone ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [txns, q, statusFilter, bankFilter, portalFilter, methodFilter, customerFilter, dateFrom, dateTo]);
+  }, [txns, q, statusFilter, bankFilter, portalFilter, providerFilter, methodFilter, customerFilter, dateFrom, dateTo]);
 
   const successOnly = useMemo(() => filtered.filter((t) => t.status === "success"), [filtered]);
 
@@ -331,6 +374,7 @@ export default function BusinessClient({
       let key = "-";
       if (groupBy === "bank") key = t.banks?.name ?? "-";
       if (groupBy === "portal") key = t.portals?.name ?? "-";
+      if (groupBy === "provider") key = t.providers?.name ?? "-";
       if (groupBy === "method") key = t.transfer_method === "upi" ? "UPI" : "Bank Account";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
@@ -350,7 +394,9 @@ export default function BusinessClient({
   const netTotal = service === "dmt" ? report.fees - report.commission : report.fees + report.commission;
 
   async function createTxn(payload: Record<string, unknown>) {
-    const { data, error } = await supabase.rpc("create_business_txn", payload);
+    const { data, error } = service === "recharge"
+      ? await supabase.rpc("create_recharge", payload)
+      : await supabase.rpc("create_business_txn", payload);
     if (error) {
       showToast("error", error.message);
       return;
@@ -372,6 +418,7 @@ export default function BusinessClient({
         bank_id: (payload.p_bank_id as string) || null,
         portal_id: (payload.p_portal_id as string) || null,
         merchant_qr_id: (payload.p_merchant_qr_id as string) || null,
+        provider_id: (payload.p_provider_id as string) || null,
         aadhaar_last4: (payload.p_aadhaar_last4 as string) || null,
         transfer_method: (payload.p_transfer_method as string) || null,
         sender_name: (payload.p_sender_name as string) || null,
@@ -384,7 +431,7 @@ export default function BusinessClient({
         upi_id: (payload.p_upi_id as string) || null,
         amount: Number(payload.p_amount),
         service_fee: Number(payload.p_service_fee ?? 0),
-        portal_commission: Number(payload.p_portal_commission ?? 0),
+        portal_commission: Number(payload.p_portal_commission ?? d.portal_commission ?? 0),
         fee_source: (payload.p_fee_source as string) || null,
         paid_from: (payload.p_paid_from as string) || null,
         customer_pay_method: (payload.p_customer_pay_method as string) || null,
@@ -393,6 +440,7 @@ export default function BusinessClient({
           : null,
         banks: (payload.p_bank_id as string) ? { name: initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-" } : null,
         portals: (payload.p_portal_id as string) ? { name: initialPortals.find((p) => p.id === payload.p_portal_id)?.name ?? "-" } : null,
+        providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
         merchant_qrs: null,
         profiles: null,
       },
@@ -414,7 +462,31 @@ export default function BusinessClient({
     const args: Record<string, unknown> = { p_txn_id: editTxn.id, ...payload };
     delete args.p_service_type;
     delete args.p_status;
-    const { error } = await supabase.rpc("update_business_txn", args);
+    if (service === "recharge") {
+      delete args.p_bank_id;
+      delete args.p_portal_id;
+      delete args.p_merchant_qr_id;
+      delete args.p_aadhaar_last4;
+      delete args.p_transfer_method;
+      delete args.p_sender_name;
+      delete args.p_sender_mobile;
+      delete args.p_beneficiary_name;
+      delete args.p_beneficiary_mobile;
+      delete args.p_beneficiary_bank;
+      delete args.p_beneficiary_ifsc;
+      delete args.p_beneficiary_account;
+      delete args.p_upi_id;
+      delete args.p_service_fee;
+      delete args.p_portal_commission;
+      delete args.p_fee_source;
+      delete args.p_paid_from;
+      delete args.p_customer_pay_method;
+    } else {
+      delete args.p_provider_id;
+    }
+    const { data, error } = service === "recharge"
+      ? await supabase.rpc("update_recharge", args)
+      : await supabase.rpc("update_business_txn", args);
     if (error) {
       showToast("error", error.message);
       return;
@@ -429,6 +501,7 @@ export default function BusinessClient({
       bank_id: (payload.p_bank_id as string) || null,
       portal_id: (payload.p_portal_id as string) || null,
       merchant_qr_id: (payload.p_merchant_qr_id as string) || null,
+      provider_id: (payload.p_provider_id as string) || null,
       aadhaar_last4: (payload.p_aadhaar_last4 as string) || null,
       transfer_method: (payload.p_transfer_method as string) || null,
       sender_name: (payload.p_sender_name as string) || null,
@@ -441,10 +514,11 @@ export default function BusinessClient({
       upi_id: (payload.p_upi_id as string) || null,
       amount: Number(payload.p_amount),
       service_fee: Number(payload.p_service_fee ?? 0),
-      portal_commission: Number(payload.p_portal_commission ?? 0),
+      portal_commission: Number(payload.p_portal_commission ?? data?.portal_commission ?? 0),
       fee_source: (payload.p_fee_source as string) || null,
       paid_from: (payload.p_paid_from as string) || null,
       customer_pay_method: (payload.p_customer_pay_method as string) || null,
+      providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
     setEditTxn(null);
@@ -638,11 +712,11 @@ export default function BusinessClient({
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      {groupBy === "bank" ? "Bank" : groupBy === "portal" ? "Portal" : "Method"}
+                      {groupBy === "bank" ? "Bank" : groupBy === "portal" ? "Portal" : groupBy === "provider" ? "Provider" : "Method"}
                     </th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Count</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      {service === "aeps" ? "Withdrawn" : "Transferred"}
+                      {service === "aeps" ? "Withdrawn" : service === "recharge" ? "Recharged" : "Transferred"}
                     </th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Fees</th>
                     {service === "aeps" && (
@@ -724,6 +798,18 @@ export default function BusinessClient({
               className="w-44"
             />
           )}
+          {cfg.providerFilter && (
+            <SearchableSelect
+              value={providerFilter}
+              onChange={setProviderFilter}
+              options={[
+                { value: "", label: "All Providers" },
+                ...initialRechargeProviders.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              searchPlaceholder="Search provider…"
+              className="w-44"
+            />
+          )}
           {cfg.methodFilter && (
             <SearchableSelect
               value={methodFilter}
@@ -790,9 +876,10 @@ export default function BusinessClient({
                     : h.key === "customer" ? "Customer"
                     : h.key === "bankPortal" ? "Bank / Portal"
                     : h.key === "date" ? "Date"
-                    : h.key === "withdrawal" ? (service === "aeps" ? "Withdrawal" : "Transfer")
+                    : h.key === "withdrawal" ? (service === "aeps" ? "Withdrawal" : service === "recharge" ? "Recharged" : "Transfer")
                     : h.key === "fee" ? (service === "aeps" ? "Fee" : "Service Fee")
                     : h.key === "commission" ? "Commission"
+                    : h.key === "provider" ? "Provider"
                     : h.key === "sender" ? "Representative"
                     : h.key === "beneficiary" ? "Beneficiary"
                     : h.key === "transfer" ? "Transfer"
@@ -822,6 +909,11 @@ export default function BusinessClient({
                   <td className="px-5 py-3 text-slate-700">
                     {t.banks?.name || "-"}
                     <p className="cell-sub text-xs text-slate-400">{t.portals?.name || "-"}</p>
+                  </td>
+                )}
+                {service === "recharge" && (
+                  <td className="px-5 py-3 text-slate-700">
+                    {t.providers?.name || "-"}
                   </td>
                 )}
                 {service === "dmt" && (
@@ -864,6 +956,12 @@ export default function BusinessClient({
                     <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.amount)}</td>
                     <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
+                  </>
+                )}
+                {service === "recharge" && (
+                  <>
+                    <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-emerald-600">{inr(t.portal_commission)}</td>
                   </>
                 )}
                 <td className="px-5 py-3 text-center">
@@ -951,17 +1049,17 @@ export default function BusinessClient({
                   </span>
                 </div>
 
-                {(t.beneficiary_name || t.banks?.name || t.portals?.name || t.upi_id) && (
+                {(t.beneficiary_name || t.banks?.name || t.portals?.name || t.providers?.name || t.upi_id) && (
                   <p className="mt-3 truncate rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500 dark:bg-white/5 dark:text-slate-400">
                     {service === "dmt"
                       ? `→ ${t.beneficiary_name ?? "-"}${t.transfer_method === "upi" && t.upi_id ? ` (${t.upi_id})` : ""}`
-                      : t.banks?.name || t.portals?.name || t.upi_id || "-"}
+                      : t.providers?.name || t.banks?.name || t.portals?.name || t.upi_id || "-"}
                   </p>
                 )}
 
                 <div className="mt-4 flex items-end justify-between">
                   <div>
-                    <p className="text-xs text-slate-400">{service === "upi" ? "Cash handed" : service === "aeps" ? "Withdrawn" : "Transferred"}</p>
+                    <p className="text-xs text-slate-400">{service === "upi" ? "Cash handed" : service === "aeps" ? "Withdrawn" : service === "recharge" ? "Recharged" : "Transferred"}</p>
                     <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{inr(t.amount)}</p>
                   </div>
                   <div className="text-right">
@@ -1010,6 +1108,8 @@ export default function BusinessClient({
           banks={initialBanks}
           portals={initialPortals}
           qrs={initialQrs}
+          rechargeProviders={initialRechargeProviders}
+          rechargeSlabs={initialRechargeSlabs}
           txns={txns}
           onClose={() => setShowCreate(false)}
           onSave={createTxn}
@@ -1024,6 +1124,8 @@ export default function BusinessClient({
           banks={initialBanks}
           portals={initialPortals}
           qrs={initialQrs}
+          rechargeProviders={initialRechargeProviders}
+          rechargeSlabs={initialRechargeSlabs}
           txns={txns}
           initial={editTxn}
           onClose={() => setEditTxn(null)}

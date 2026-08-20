@@ -34,6 +34,8 @@ export default function SettingsClient({
   initialBanks,
   initialPortals,
   initialMerchantQrs,
+  initialRechargeProviders,
+  initialRechargeSlabs,
   initialProducts = [],
   initialCatalogServices = [],
   initialCategories = [],
@@ -48,6 +50,8 @@ export default function SettingsClient({
   initialBanks?: MasterData;
   initialPortals?: MasterData;
   initialMerchantQrs?: MasterData;
+  initialRechargeProviders?: any[];
+  initialRechargeSlabs?: any[];
   initialProducts?: any[];
   initialCatalogServices?: any[];
   initialCategories?: any[];
@@ -220,6 +224,8 @@ export default function SettingsClient({
         initialBanks={initialBanks}
         initialPortals={initialPortals}
         initialMerchantQrs={initialMerchantQrs}
+        initialRechargeProviders={initialRechargeProviders}
+        initialRechargeSlabs={initialRechargeSlabs}
       />
 
       <BackupPanel active={tab === "backup"} />

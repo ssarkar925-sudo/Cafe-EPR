@@ -20,6 +20,7 @@ const ICONS: Record<string, string> = {
   aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
   upi: "M12 18h.01M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
+  recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   portals: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z",
   qrs: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
   returns: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
@@ -128,6 +129,7 @@ export default function Sidebar({
           { label: "AEPS", href: "/business/aeps", icon: "aeps" },
           { label: "DMT", href: "/business/dmt", icon: "dmt" },
           { label: "UPI", href: "/business/upi", icon: "upi" },
+          { label: "Recharge", href: "/business/recharge", icon: "recharge" },
         ],
       });
       base.push({

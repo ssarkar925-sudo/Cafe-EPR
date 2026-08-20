@@ -22,6 +22,8 @@ export default function BusinessFormModal({
   banks,
   portals,
   qrs,
+  rechargeProviders = [],
+  rechargeSlabs = [],
   txns,
   initial,
   onClose,
@@ -33,6 +35,8 @@ export default function BusinessFormModal({
   banks: Master[];
   portals: Master[];
   qrs: Master[];
+  rechargeProviders?: Master[];
+  rechargeSlabs?: { provider_id: string; min_amount: number | string; max_amount: number | string; commission_percent: number | string }[];
   txns: Txn[];
   initial?: Txn;
   onClose: () => void;
@@ -48,6 +52,7 @@ export default function BusinessFormModal({
     customer_mobile: initial?.customer_mobile ?? "",
     bank_id: initial?.bank_id ?? "",
     portal_id: initial?.portal_id ?? "",
+    provider_id: initial?.provider_id ?? "",
     merchant_qr_id: initial?.merchant_qr_id ?? "",
     aadhaar_last4: initial?.aadhaar_last4 ?? "",
     transfer_method: initial?.transfer_method ?? "bank_account",
@@ -106,6 +111,23 @@ export default function BusinessFormModal({
       advance: 0,
     };
   }, [form.customer_id, form.amount, txns, service]);
+
+  const commissionPreview = useMemo(() => {
+    if (service !== "recharge" || !form.provider_id) return null;
+    const amount = Number(form.amount);
+    if (!amount || amount <= 0) return null;
+    const slab = rechargeSlabs
+      .filter((s) => s.provider_id === form.provider_id && amount >= Number(s.min_amount) && amount <= Number(s.max_amount))
+      .sort((a, b) => Number(a.min_amount) - Number(b.min_amount))[0];
+    if (!slab) return { missing: true as const };
+    const commission = Math.round(amount * Number(slab.commission_percent)) / 100;
+    return {
+      missing: false as const,
+      percent: Number(slab.commission_percent),
+      commission,
+      cost: amount - commission,
+    };
+  }, [service, form.provider_id, form.amount, rechargeSlabs]);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -171,8 +193,27 @@ export default function BusinessFormModal({
     if (service === "upi") {
       if (!form.merchant_qr_id) return setError("Please choose the merchant QR.");
     }
+    if (service === "recharge") {
+      if (!form.provider_id) return setError("Please choose the recharge provider.");
+      if (!form.customer_mobile.trim()) return setError("Enter the recharge number (mobile number being recharged).");
+      if (!commissionPreview || commissionPreview.missing) return setError("No commission slab covers this amount for this provider. Add a slab in Settings → Business Setup → Recharge Providers.");
+    }
 
     setError("");
+    if (service === "recharge") {
+      onSave({
+        p_provider_id: form.provider_id,
+        p_transaction_date: form.transaction_timestamp.slice(0, 10),
+        p_transaction_timestamp: new Date(form.transaction_timestamp).toISOString(),
+        p_customer_id: form.customer_id || null,
+        p_customer_mobile: form.customer_mobile.trim() || null,
+        p_reference: form.reference.trim() || null,
+        p_remarks: form.remarks.trim() || null,
+        p_status: form.status,
+        p_amount: amount,
+      });
+      return;
+    }
     onSave({
       p_service_type: service,
       p_transaction_date: form.transaction_timestamp.slice(0, 10),
@@ -211,9 +252,9 @@ export default function BusinessFormModal({
     <Modal
       onClose={onClose}
       title={initial ? `Edit ${label} Transaction` : `Record ${label} Transaction`}
-      subtitle={`Numbered automatically: ${service === "aeps" ? "AEP-XXXX" : service === "dmt" ? "DMT-XXXX" : "UPI-XXXX"}.`}
-      icon={service === "aeps" ? "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 0v4M7 17a5 5 0 0 1 10 0" : service === "dmt" ? "M22 2 11 13M22 2 15 22l-4-9-9-4z" : "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-12-1 2 2 4-4"}
-      accent={service === "aeps" ? "amber" : service === "dmt" ? "violet" : "emerald"}
+      subtitle={`Numbered automatically: ${service === "aeps" ? "AEP-XXXX" : service === "dmt" ? "DMT-XXXX" : service === "upi" ? "UPI-XXXX" : "RCH-XXXX"}.`}
+      icon={service === "aeps" ? "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 0v4M7 17a5 5 0 0 1 10 0" : service === "dmt" ? "M22 2 11 13M22 2 15 22l-4-9-9-4z" : service === "upi" ? "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-12-1 2 2 4-4" : "M13 2 3 14h7l-1 8 10-12h-7l1-8Z"}
+      accent={service === "aeps" ? "amber" : service === "dmt" ? "violet" : service === "upi" ? "emerald" : "blue"}
       size="lg"
       footer={
         <div className="flex justify-end gap-2">
@@ -228,8 +269,9 @@ export default function BusinessFormModal({
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-400">
-          {service === "aeps" ? "AEPS" : service === "dmt" ? "DMT" : "UPI"} transaction
+          {service === "aeps" ? "AEPS" : service === "dmt" ? "DMT" : service === "upi" ? "UPI" : "Recharge"} transaction
         </p>
+        {service !== "recharge" && (
         <button
           onClick={() => setScanOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
@@ -239,6 +281,7 @@ export default function BusinessFormModal({
           </svg>
           Scan &amp; Fill
         </button>
+      )}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
@@ -538,6 +581,46 @@ export default function BusinessFormModal({
             </>
           )}
 
+          {service === "recharge" && (
+            <>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Provider *</label>
+              <SearchableSelect
+                value={form.provider_id}
+                onChange={(v) => set("provider_id", v)}
+                options={[
+                  { value: "", label: "Select provider" },
+                  ...rechargeProviders.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+                searchPlaceholder="Search provider…"
+                showClear={false}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Recharge Number (mobile / customer) *</label>
+              <input
+                type="tel"
+                value={form.customer_mobile}
+                onChange={(e) => set("customer_mobile", e.target.value)}
+                placeholder="98XXXXXXXX"
+                className={input}
+              />
+              <p className="mt-0.5 text-[11px] text-slate-400">The number being recharged.</p>
+            </div>
+            {commissionPreview && (
+              <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:col-span-2">
+                {commissionPreview.missing ? (
+                  <p>No commission slab covers ₹{form.amount} for this provider — add a slab in Settings.</p>
+                ) : (
+                  <p>
+                    Commission <b>{commissionPreview.percent}%</b> = <b>{inr(commissionPreview.commission)}</b> earned · Recharge float debited <b>{inr(commissionPreview.cost)}</b>
+                  </p>
+                )}
+              </div>
+            )}
+            </>
+          )}
+
           {service === "dmt" && (
             <div className="flex items-center gap-2 pt-1 sm:col-span-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Amount & Fees</span>
@@ -545,17 +628,25 @@ export default function BusinessFormModal({
             </div>
           )}
           <div>
-            <label className={labelCls}>{service === "dmt" ? "Transfer Amount *" : service === "upi" ? "UPI Amount Received *" : "Withdrawal Amount *"}</label>
+            <label className={labelCls}>{service === "dmt" ? "Transfer Amount *" : service === "upi" ? "UPI Amount Received *" : service === "recharge" ? "Recharge Amount *" : "Withdrawal Amount *"}</label>
             <input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} className={input} />
           </div>
           <div>
             <label className={labelCls}>{service === "dmt" ? "Customer Fee Charged" : "Service Fee"}</label>
-            <input type="number" min="0" step="0.01" value={form.service_fee} onChange={(e) => set("service_fee", e.target.value)} className={input} />
+            {service === "recharge" ? (
+              <input type="number" value="0" disabled className={`${input} opacity-60`} />
+            ) : (
+              <input type="number" min="0" step="0.01" value={form.service_fee} onChange={(e) => set("service_fee", e.target.value)} className={input} />
+            )}
           </div>
           {service !== "upi" && (
             <div>
               <label className={labelCls}>{service === "aeps" ? "Portal Commission" : "Portal Charge"}</label>
-              <input type="number" min="0" step="0.01" value={form.portal_commission} onChange={(e) => set("portal_commission", e.target.value)} className={input} />
+              {service === "recharge" ? (
+                <input type="number" value={commissionPreview && !commissionPreview.missing ? commissionPreview.commission : ""} disabled className={`${input} opacity-60`} placeholder="Auto from slabs" />
+              ) : (
+                <input type="number" min="0" step="0.01" value={form.portal_commission} onChange={(e) => set("portal_commission", e.target.value)} className={input} />
+              )}
             </div>
           )}
           {service === "dmt" && (
