@@ -48,9 +48,18 @@ create table if not exists public.closings (
 
 create index if not exists closings_date_idx on public.closings (close_date desc);
 create index if not exists closings_status_idx on public.closings (status);
--- One close per date; a reversed close frees its date so the day can be closed again.
+-- One close per date; a reversed/cancelled close frees its date so the day can be closed again.
+drop index if exists closings_close_date_unique;
 create unique index if not exists closings_close_date_unique
-  on public.closings (close_date) where status <> 'reversed';
+  on public.closings (close_date) where status not in ('reversed', 'cancelled');
+
+-- Track cancellation of an accidentally-opened close; allow the 'cancelled' status.
+alter table public.closings
+  add column if not exists cancelled_at timestamptz,
+  add column if not exists cancelled_by uuid references auth.users (id) on delete set null;
+alter table public.closings drop constraint if exists closings_status_check;
+alter table public.closings
+  add constraint closings_status_check check (status in ('open', 'closed', 'reversed', 'cancelled'));
 
 alter table public.closings enable row level security;
 create policy "closings select" on public.closings for select to authenticated using (public.is_back_office());
@@ -343,7 +352,7 @@ begin
   if exists (select 1 from public.closings where status = 'open') then
     raise exception 'An open day close already exists';
   end if;
-  if exists (select 1 from public.closings where close_date = p_close_date and status <> 'reversed') then
+  if exists (select 1 from public.closings where close_date = p_close_date and status not in ('reversed', 'cancelled')) then
     raise exception 'A day close already exists for this date';
   end if;
 
@@ -626,14 +635,50 @@ begin
 end;
 $$;
 
+-- ---------- Cancel an open day close (e.g. opened by mistake) ----------
+-- Audited and never deleted: the close + snapshot balances stay as a cancelled
+-- record. An open close has no financial entries yet, so nothing else reverses.
+create or replace function public.cancel_open_close(p_closing_id uuid, p_reason text default '')
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_close record;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+
+  select * into v_close from public.closings where id = p_closing_id for update;
+  if not found then raise exception 'Day close not found'; end if;
+  if v_close.status <> 'open' then raise exception 'Only an open day close can be cancelled'; end if;
+
+  update public.closings
+    set status = 'cancelled', cancelled_at = now(), cancelled_by = auth.uid(),
+        remarks = trim(coalesce(remarks, '') || E'\nCancelled: ' || coalesce(p_reason, 'No reason provided.'))
+    where id = p_closing_id;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'day_close_cancelled', 'closings', p_closing_id::text,
+    'Cancelled open day close ' || v_close.closing_number || ' for ' || v_close.close_date,
+    jsonb_build_object('reason', p_reason)
+  );
+
+  return jsonb_build_object('id', p_closing_id, 'closing_number', v_close.closing_number, 'status', 'cancelled');
+end;
+$$;
+
 -- Read RPCs: only authenticated may execute (these are security definer).
 revoke all on function public.get_pool_seed(text, date) from public, anon;
 revoke all on function public.get_pool_movements(text, date, date) from public, anon;
 revoke all on function public.get_pool_balances(date) from public, anon;
 revoke all on function public.get_open_close() from public, anon;
 revoke all on function public.get_closings(integer) from public, anon;
+revoke all on function public.cancel_open_close(uuid, text) from public, anon;
 grant execute on function public.get_pool_seed(text, date) to authenticated;
 grant execute on function public.get_pool_movements(text, date, date) to authenticated;
 grant execute on function public.get_pool_balances(date) to authenticated;
 grant execute on function public.get_open_close() to authenticated;
 grant execute on function public.get_closings(integer) to authenticated;
+grant execute on function public.cancel_open_close(uuid, text) to authenticated;

@@ -96,6 +96,8 @@ export default function DayCloseClient({
   const [reverseTarget, setReverseTarget] = useState<ClosingRecord | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [printTarget, setPrintTarget] = useState<ClosingRecord | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const { showToast, toastView } = useToast();
 
   useEffect(() => {
@@ -202,12 +204,33 @@ export default function DayCloseClient({
     await refresh();
   }
 
+  async function confirmCancel() {
+    if (!openClose) return;
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("cancel_open_close", {
+      p_closing_id: openClose.id,
+      p_reason: cancelReason.trim(),
+    });
+    setBusy(false);
+    if (error) {
+      showToast("error", error.message);
+      return;
+    }
+    showToast("info", `${openClose.closing_number} cancelled. You can re-open it anytime.`);
+    setCancelOpen(false);
+    setCancelReason("");
+    await refresh();
+  }
+
   const statusPill = (s: string) =>
     s === "closed"
       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
       : s === "open"
         ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-        : "bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-slate-400";
+        : s === "cancelled"
+          ? "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400"
+          : "bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-slate-400";
 
   return (
     <div className="space-y-6">
@@ -249,6 +272,17 @@ export default function DayCloseClient({
               </span>
               <p className="mt-1 text-sm text-slate-400">Adjust each account to the physical count, then close.</p>
             </div>
+            <button
+              onClick={() => setCancelOpen(true)}
+              disabled={busy}
+              title="Cancel this open day close"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+              Cancel close
+            </button>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
@@ -454,6 +488,36 @@ export default function DayCloseClient({
                 className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-50"
               >
                 {busy ? "Reversing..." : "Reverse Close"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {cancelOpen && openClose && (
+        <Modal onClose={() => setCancelOpen(false)} title={`Cancel ${openClose.closing_number}`} accent="rose" size="md">
+          <div className="space-y-4 p-5">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              This day close was opened but has no entries yet. Cancelling it lets you re-open the same date
+              without closing. The cancellation is audited and never deletes anything.
+            </p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Reason (optional)"
+              rows={3}
+              className={`${inputClass} resize-none`}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setCancelOpen(false)} className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10">
+                Keep open
+              </button>
+              <button
+                onClick={confirmCancel}
+                disabled={busy}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-50"
+              >
+                {busy ? "Cancelling..." : "Cancel Day Close"}
               </button>
             </div>
           </div>
