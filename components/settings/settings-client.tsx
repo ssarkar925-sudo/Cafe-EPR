@@ -203,26 +203,24 @@ export default function SettingsClient({
       <PaymentMethodsPanel initialPaymentMethods={initialPaymentMethods} active={tab === "payment-methods"} />
       <QuickFavoritesPanel initialServices={initialServices} active={tab === "quick-favorites"} />
 
-      {tab === "catalog" && (
-        <CatalogPanel
-          section={catalogSection}
-          onSection={switchCatalog}
-          initialProducts={initialProducts}
-          initialCatalogServices={initialCatalogServices}
-          initialCategories={initialCategories}
-          categoryCounts={categoryCounts}
-        />
-      )}
+      <CatalogPanel
+        active={tab === "catalog"}
+        section={catalogSection}
+        onSection={switchCatalog}
+        initialProducts={initialProducts}
+        initialCatalogServices={initialCatalogServices}
+        initialCategories={initialCategories}
+        categoryCounts={categoryCounts}
+      />
 
-      {tab === "business-setup" && (
-        <BusinessSetupPanel
-          section={bizSection}
-          onSection={switchBiz}
-          initialBanks={initialBanks}
-          initialPortals={initialPortals}
-          initialMerchantQrs={initialMerchantQrs}
-        />
-      )}
+      <BusinessSetupPanel
+        active={tab === "business-setup"}
+        section={bizSection}
+        onSection={switchBiz}
+        initialBanks={initialBanks}
+        initialPortals={initialPortals}
+        initialMerchantQrs={initialMerchantQrs}
+      />
 
       <BackupPanel active={tab === "backup"} />
       <NotificationsPanel active={tab === "notifications"} />

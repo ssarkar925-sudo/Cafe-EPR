@@ -11,12 +11,14 @@ const SECTIONS = [
 ] as const;
 
 export default function BusinessSetupPanel({
+  active,
   section,
   onSection,
   initialBanks,
   initialPortals,
   initialMerchantQrs,
 }: {
+  active: boolean;
   section: string;
   onSection: (s: string) => void;
   initialBanks?: MasterData;
@@ -24,7 +26,7 @@ export default function BusinessSetupPanel({
   initialMerchantQrs?: MasterData;
 }) {
   return (
-    <div className="mt-6">
+    <div className={active ? "mt-6" : "hidden"}>
       <SettingsSection
         icon="M3 21V9l9-6 9 6v12M9 21v-6h6v6"
         tone="indigo"

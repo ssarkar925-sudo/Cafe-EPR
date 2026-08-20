@@ -12,6 +12,7 @@ const SECTIONS = [
 ] as const;
 
 export default function CatalogPanel({
+  active,
   section,
   onSection,
   initialProducts,
@@ -19,6 +20,7 @@ export default function CatalogPanel({
   initialCategories,
   categoryCounts,
 }: {
+  active: boolean;
   section: string;
   onSection: (s: string) => void;
   initialProducts?: any[];
@@ -27,7 +29,7 @@ export default function CatalogPanel({
   categoryCounts?: Record<string, number>;
 }) {
   return (
-    <div className="mt-6">
+    <div className={active ? "mt-6" : "hidden"}>
       <SettingsSection
         icon="M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9"
         tone="violet"
