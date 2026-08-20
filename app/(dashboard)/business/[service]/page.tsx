@@ -11,6 +11,12 @@ const SERVICES: Record<string, string> = {
   upi: "UPI",
 };
 
+const SUPABASE_POOL: Record<string, string> = {
+  aeps: "aeps",
+  dmt: "dmt",
+  upi: "upi_qr",
+};
+
 export default async function BusinessServicePage({
   params,
 }: {
@@ -24,7 +30,7 @@ export default async function BusinessServicePage({
 
   const supabase = await createClient();
 
-  const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }] =
+  const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }, { data: poolBalances }] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -44,7 +50,11 @@ export default async function BusinessServicePage({
       supabase.from("aeps_banks").select("*").order("name"),
       supabase.from("aeps_portals").select("*").order("name"),
       supabase.from("upi_merchant_qrs").select("*").order("display_name"),
+      supabase.rpc("get_pool_balances"),
     ]);
+
+  const poolKey = SUPABASE_POOL[service];
+  const poolBal = (poolBalances as any)?.[poolKey] ?? null;
 
   return (
     <BusinessClient
@@ -55,6 +65,7 @@ export default async function BusinessServicePage({
       initialBanks={(banks ?? []) as any}
       initialPortals={(portals ?? []) as any}
       initialQrs={(qrs ?? []) as any}
+      float={poolBal ?? null}
     />
   );
 }

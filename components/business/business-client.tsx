@@ -220,6 +220,7 @@ export default function BusinessClient({
   initialBanks,
   initialPortals,
   initialQrs,
+  float = null,
 }: {
   service: string;
   label: string;
@@ -228,6 +229,7 @@ export default function BusinessClient({
   initialBanks: Master[];
   initialPortals: Master[];
   initialQrs: Master[];
+  float?: { opening: number | string; current: number | string; seed_date: string } | null;
 }) {
   const cfg = CONFIG[service];
   const [txns, setTxns] = useState<Txn[]>(initialTransactions);
@@ -601,6 +603,15 @@ export default function BusinessClient({
             valueClass={c.key === "net" ? "text-emerald-600" : undefined}
           />
         ))}
+        {float && (
+          <StatCard
+            label={`${label} Float / Position`}
+            value={inr(float.current)}
+            sub={`Opening ${inr(float.opening)}${float.seed_date && float.seed_date !== "0001-01-01" ? ` · ${fmtDate(float.seed_date)}` : ""}`}
+            icon={ICONS.coins}
+            grad="from-slate-700 to-slate-900"
+          />
+        )}
       </div>
 
       {cfg.groups.length > 0 && (
