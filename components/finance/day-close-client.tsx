@@ -469,7 +469,7 @@ export default function DayCloseClient({
         <Modal onClose={() => setReverseTarget(null)} title={`Reverse ${reverseTarget.closing_number}`} accent="rose" size="md">
           <div className="space-y-4 p-5">
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Reversing a day close is audited and never deletes anything. The next day&apos;s opening stays as it was.
+              Reversing a day close is audited and never deletes the close itself. The next day&apos;s opening balances auto-seeded by this close are removed — they are re-created the next time the day is closed.
             </p>
             <textarea
               value={reverseReason}

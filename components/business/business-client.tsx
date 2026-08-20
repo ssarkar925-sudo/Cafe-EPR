@@ -1036,7 +1036,7 @@ export default function BusinessClient({
       {deleteTxn && (
         <ReasonModal
           title={`Delete ${label} Transaction`}
-          note="Admin only. The posted cash entry is reversed and the record is marked deleted — it is never removed."
+          note="Admin or Manager only. The posted cash entry is reversed and the record is marked deleted — it is never removed."
           confirmLabel="Delete Transaction"
           busy={busyId === deleteTxn.id}
           reason={deleteReason}
