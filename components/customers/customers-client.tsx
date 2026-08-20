@@ -10,6 +10,7 @@ import CustomerFormModal from "./customer-form-modal";
 import CustomerPhotoModal from "./customer-photo-modal";
 import AdvanceModal from "./advance-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
 
 export type Customer = {
   id: string;
@@ -239,7 +240,7 @@ export default function CustomersClient({
   }
 
   async function saveCustomer(
-    input: {
+    raw: {
       name: string;
       phone: string;
       email: string;
@@ -249,13 +250,18 @@ export default function CustomersClient({
     },
     customer?: Customer
   ) {
+    const input = { ...raw, phone: digitsOnly(raw.phone) };
     if (customer) {
       const { error } = await supabase
         .from("customers")
         .update(input)
         .eq("id", customer.id);
       if (error) {
-        alert(error.message);
+        if (isDuplicateKeyError(error.message)) {
+          alert("A customer with this phone number already exists.");
+        } else {
+          alert(error.message);
+        }
         return;
       }
       setCustomers((prev) =>
@@ -263,17 +269,19 @@ export default function CustomersClient({
       );
       setViewing((v) => (v && v.id === customer.id ? { ...v, ...input } : v));
     } else {
-      const phone = (input.phone ?? "").trim();
-      if (phone) {
-        const { data: dup } = await supabase
-          .from("customers")
-          .select("id, name, phone")
-          .eq("phone", phone)
-          .maybeSingle();
+      if (input.phone) {
+        let dup: { id: string; name: string; phone?: string | null } | null = null;
+        try {
+          dup = await findDuplicateCustomer(supabase, input.phone);
+        } catch (e: any) {
+          alert(e.message);
+          return;
+        }
         if (dup) {
           const existing = customers.find((c) => c.id === dup.id) ?? {
             ...dup,
             code: null,
+            phone: dup.phone ?? null,
             email: null,
             address: null,
             opening_balance: 0,
@@ -299,7 +307,11 @@ export default function CustomersClient({
         .select()
         .single();
       if (error) {
-        alert(error.message);
+        if (isDuplicateKeyError(error.message)) {
+          alert("A customer with this phone number already exists.");
+        } else {
+          alert(error.message);
+        }
         return;
       }
       setCustomers((prev) => [data as Customer, ...prev]);

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
+import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
@@ -346,13 +347,15 @@ export default function PosClient({
       alert("Customer name is required.");
       return;
     }
-    const phone = newCust.phone.trim();
+    const phone = digitsOnly(newCust.phone);
     if (phone) {
-      const { data: dup } = await supabase
-        .from("customers")
-        .select("id, name, code, phone, balance")
-        .eq("phone", phone)
-        .maybeSingle();
+      let dup: { id: string; name: string } | null = null;
+      try {
+        dup = await findDuplicateCustomer(supabase, phone);
+      } catch (e: any) {
+        alert(e.message);
+        return;
+      }
       if (dup) {
         setPosDup(dup);
         return;
@@ -374,7 +377,7 @@ export default function PosClient({
       .single();
     setAddingCustomer(false);
     if (error) {
-      alert(error.message);
+      alert(isDuplicateKeyError(error.message) ? "A customer with this phone number already exists." : error.message);
       return;
     }
     const row = data as PosCustomer;
