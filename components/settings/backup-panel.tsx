@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { useToast } from "@/components/ui/use-toast";
+import Modal from "@/components/ui/modal";
 import SettingsSection from "@/components/settings/settings-section";
 
 const EXPORTS = [
@@ -12,10 +13,57 @@ const EXPORTS = [
   { key: "ledger", label: "Customer Ledger", hint: "All ledger entries" },
 ] as const;
 
+const DATA_TABLES = [
+  "settings",
+  "payment_methods",
+  "categories",
+  "brands",
+  "units",
+  "products",
+  "services",
+  "customers",
+  "invoices",
+  "invoice_items",
+  "payments",
+  "quick_sales",
+  "quick_sale_items",
+  "returns",
+  "return_items",
+  "transactions",
+  "cash_entries",
+  "expenses",
+  "settlements",
+  "payment_instruments",
+  "customer_ledger",
+  "opening_balances",
+  "closings",
+  "closing_balances",
+  "aeps_banks",
+  "aeps_portals",
+  "upi_merchant_qrs",
+] as const;
+
 export default function BackupPanel({ active }: { active: boolean }) {
   const supabase = createClient();
   const { showToast, toastView } = useToast();
   const [exporting, setExporting] = useState<string | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState<{ payload: unknown; fileName: string } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      setIsAdmin(profile?.role === "admin");
+    });
+  }, [supabase]);
 
   async function exportCsv(kind: "customers" | "invoices" | "ledger") {
     setExporting(kind);
@@ -79,6 +127,83 @@ export default function BackupPanel({ active }: { active: boolean }) {
     });
   }
 
+  async function downloadFullBackup() {
+    setBackingUp(true);
+    try {
+      const tables: Record<string, any[]> = {};
+      for (const t of DATA_TABLES) {
+        const { data, error } = await supabase.from(t).select("*");
+        if (error) throw new Error(`${t}: ${error.message}`);
+        tables[t] = data ?? [];
+      }
+      const payload = {
+        app: "sccomm-web",
+        version: 1,
+        exported_at: new Date().toISOString(),
+        tables,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast("success", "Full backup downloaded.");
+      logAudit({
+        action: "export",
+        entity: "backup",
+        entity_id: null,
+        description: "Downloaded full JSON backup from Settings → Backup & Data",
+      });
+    } catch (e: any) {
+      showToast("error", e.message || "Backup failed.");
+    } finally {
+      setBackingUp(false);
+    }
+  }
+
+  function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const payload = JSON.parse(String(reader.result));
+        if (!payload || typeof payload !== "object" || !payload.tables || typeof payload.tables !== "object") {
+          showToast("error", "Not a valid backup file.");
+          return;
+        }
+        setRestoreConfirm({ payload, fileName: f.name });
+      } catch {
+        showToast("error", "Not a valid JSON backup file.");
+      }
+    };
+    reader.readAsText(f);
+  }
+
+  async function confirmRestore() {
+    if (!restoreConfirm) return;
+    setRestoring(true);
+    try {
+      const { error } = await supabase.rpc("restore_backup", { p_payload: restoreConfirm.payload });
+      if (error) throw new Error(error.message);
+      logAudit({
+        action: "restore",
+        entity: "backup",
+        entity_id: null,
+        description: `Restored backup from ${restoreConfirm.fileName} via Settings → Backup & Data`,
+      });
+      setRestoreConfirm(null);
+      showToast("success", "Backup restored. Reloading…");
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e: any) {
+      showToast("error", e.message || "Restore failed.");
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   return (
     <div className={active ? "mt-6" : "hidden"}>
       <SettingsSection
@@ -102,7 +227,72 @@ export default function BackupPanel({ active }: { active: boolean }) {
             </button>
           ))}
         </div>
+
+        {isAdmin && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">Full backup & restore</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Download every record as a single JSON file, or restore it later to replace all current data.
+              Staff accounts and the audit trail are never touched.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={downloadFullBackup}
+                disabled={backingUp || restoring}
+                className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+              >
+                {backingUp ? "Backing up…" : "Download Full Backup (JSON)"}
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={backingUp || restoring}
+                className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50"
+              >
+                Restore from Backup…
+              </button>
+            </div>
+            <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onFileChosen} />
+          </div>
+        )}
       </SettingsSection>
+
+      {restoreConfirm && (
+        <Modal
+          onClose={() => (restoring ? undefined : setRestoreConfirm(null))}
+          title="Restore Backup?"
+          accent="rose"
+          size="md"
+          footer={
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRestoreConfirm(null)}
+                disabled={restoring}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRestore}
+                disabled={restoring}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50"
+              >
+                {restoring ? "Restoring…" : "Restore Backup"}
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            This will <b>replace all current data</b> — customers, catalog, invoices, payments, cash,
+            transactions, expenses, settlements, closing &amp; opening balances, and AEPS/DMT/UPI masters —
+            with the contents of <b>{restoreConfirm.fileName}</b>.
+          </p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Your staff accounts and the audit trail are kept. This cannot be undone.
+          </p>
+        </Modal>
+      )}
 
       {toastView}
     </div>
