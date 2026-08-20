@@ -2,6 +2,12 @@
 -- The pool functions below (from opening-close.sql) plus a seed-aware
 -- get_settlement_summary() make opening balances flow into the Settlements
 -- module, the dashboard Money Position, and day close.
+--
+-- Also changed: get_pool_seed is now additive for per-account seeds. A
+-- per-instrument opening_balances seed ALWAYS adds to its pool's opening
+-- (previously same-day seeds were silently dropped when a pool-level seed
+-- existed). This lets "opening balance" entered on a payment account
+-- (Settings > Payment Accounts) auto-adjust the pool.
 -- Run in the Supabase SQL editor of project tvxehxnvuwojjbhysajp (idempotent).
 
 -- ---------- Pool seed: opening amount + seed date for a pool as of a date ----------
@@ -29,8 +35,7 @@ begin
     from public.opening_balances
     where pool = p_pool and instrument_id is not null and as_of <= p_as_of
     order by instrument_id, as_of desc, created_at desc
-  ) inst
-  where as_of > coalesce(v_pool_date, '0001-01-01'::date);
+  ) inst;
 
   return query
   select

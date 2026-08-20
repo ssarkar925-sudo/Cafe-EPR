@@ -284,7 +284,7 @@ export default function OpeningBalancesClient({
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white">Per-Account Opening (bank / card / UPI / wallet)</h3>
         <p className="mt-0.5 text-xs text-slate-400">
-          Add or update individual accounts. These add to the pool&apos;s opening; a pool-level seed stays authoritative.
+          Add or update individual accounts. Each account&apos;s opening adds to its pool&apos;s opening balance.
         </p>
         {initialInstruments.length === 0 ? (
           <p className="mt-4 text-sm text-slate-400">No payment instruments yet. Add bank accounts / credit cards in Settings.</p>

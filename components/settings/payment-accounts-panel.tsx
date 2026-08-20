@@ -29,6 +29,15 @@ const EMPTY_FORM: InstForm = {
   notes: "",
 };
 
+const INST_POOL: Record<string, string> = {
+  cash: "cash",
+  bank: "bank",
+  debit_card: "bank",
+  credit_card: "credit_card",
+  upi: "upi_qr",
+  wallet: "wallet",
+};
+
 const ADD_ICON = "M12 5v14M5 12h14";
 
 export default function PaymentAccountsPanel({
@@ -142,20 +151,39 @@ export default function PaymentAccountsPanel({
         })
         .select("*")
         .single();
-      setAddingInst(false);
       if (error) {
+        setAddingInst(false);
         showToast("error", error.message);
         return;
       }
       const row = data as InstrumentRow;
       setInstruments((prev) => [...prev, row]);
-      showToast("success", `${name} added.`);
+      const ob = Number(instForm.opening_balance) || 0;
+      const pool = INST_POOL[type];
+      const typeLabel = INSTRUMENT_TYPES.find((t) => t.value === type)?.label ?? type;
+      if (ob > 0 && pool) {
+        const { error: seedErr } = await supabase.rpc("set_opening_balance", {
+          p_pool: pool,
+          p_amount: ob,
+          p_as_of: new Date().toISOString().slice(0, 10),
+          p_instrument_id: row.id,
+          p_remarks: `Opening balance for ${name}`,
+        });
+        if (seedErr) {
+          showToast("error", `${name} added, but its opening balance was not seeded (${seedErr.message}).`);
+        } else {
+          showToast("success", `${name} added. Opening balance seeded into the ${typeLabel} pool.`);
+        }
+      } else {
+        showToast("success", `${name} added.`);
+      }
       logAudit({
         action: "create",
         entity: "payment_instrument",
         entity_id: row.id,
-        description: `Payment account added: ${name} (${type})`,
+        description: `Payment account added: ${name} (${type})${ob > 0 && pool ? `, opening balance ${ob} seeded to ${pool}` : ""}`,
       });
+      setAddingInst(false);
     }
     setInstModal(null);
   }
@@ -371,6 +399,9 @@ export default function PaymentAccountsPanel({
                     onChange={(e) => updateForm({ opening_balance: e.target.value })}
                     className={inputClass}
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Seeds the {INSTRUMENT_TYPES.find((t) => t.value === instForm.type)?.label ?? instForm.type} pool opening — shown in Opening Balances, dashboard and Settlements.
+                  </p>
                 </div>
               ) : (
                 <div>
