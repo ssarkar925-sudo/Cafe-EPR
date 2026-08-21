@@ -253,6 +253,21 @@ begin
         and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
     ) t;
 
+  elsif p_pool = 'recharge' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
   else
     v := 0;
   end if;

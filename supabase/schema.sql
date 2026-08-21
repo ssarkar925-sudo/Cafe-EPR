@@ -1107,6 +1107,21 @@ begin
         and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
     ) t;
 
+  elsif p_pool = 'recharge' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
+        and settlement_date > p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
+        and settlement_date > p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
   else
     v := 0;
   end if;
@@ -1131,7 +1146,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'recharge', 'credit_card']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_as_of) s;
@@ -1223,7 +1238,7 @@ begin
   values (v_num, p_close_date, 'open', auth.uid())
   returning id into v_id;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'recharge', 'credit_card']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_close_date) s;
@@ -1266,7 +1281,7 @@ begin
   if not found then return '{}'::jsonb; end if;
 
   v_rows := '[]'::jsonb;
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'recharge', 'credit_card']
   loop
     select coalesce(opening, 0), coalesce(seed_date, '0001-01-01'::date), coalesce(adjustment, 0)
       into v_opening, v_seed, v_adjust
@@ -3131,6 +3146,21 @@ begin
         and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
     ) t;
 
+  elsif p_pool = 'recharge' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
+        and settlement_date > p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
+        and settlement_date > p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date > p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
   else
     v := 0;
   end if;
@@ -3168,7 +3198,7 @@ begin
   if not found then return '{}'::jsonb; end if;
 
   v_rows := '[]'::jsonb;
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'recharge', 'credit_card']
   loop
     select coalesce(opening, 0), coalesce(seed_date, '0001-01-01'::date), coalesce(adjustment, 0)
       into v_opening, v_seed, v_adjust
@@ -3712,7 +3742,7 @@ begin
   values (v_num, p_close_date, 'open', auth.uid())
   returning id into v_id;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'recharge', 'credit_card']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_close_date) s;
