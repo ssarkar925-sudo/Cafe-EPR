@@ -480,7 +480,6 @@ export default function BusinessClient({
       delete args.p_portal_commission;
       delete args.p_fee_source;
       delete args.p_paid_from;
-      delete args.p_customer_pay_method;
     } else {
       delete args.p_provider_id;
     }
