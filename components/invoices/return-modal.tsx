@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
-import SearchableSelect from "@/components/ui/searchable-select";
 import Modal from "@/components/ui/modal";
 import { logAudit } from "@/lib/audit";
 import type { InvoiceRow } from "./invoices-client";
@@ -19,8 +18,6 @@ type Item = {
   products: { name: string } | null;
   services: { name: string } | null;
 };
-
-const METHODS = ["cash", "upi", "card"] as const;
 
 export default function ReturnModal({
   invoiceId,
@@ -38,7 +35,6 @@ export default function ReturnModal({
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({});
   const [reason, setReason] = useState("");
   const [refund, setRefund] = useState<string>("");
-  const [method, setMethod] = useState<string>("cash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,7 +113,6 @@ export default function ReturnModal({
       p_invoice_id: invoiceId,
       p_items: payload,
       p_refund: refundNum,
-      p_refund_method: refundNum > 0 ? method : "cash",
       p_reason: reason,
     });
     setBusy(false);
@@ -363,14 +358,6 @@ export default function ReturnModal({
                       </button>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
-                      <SearchableSelect
-                        value={method}
-                        onChange={setMethod}
-                        options={METHODS.map((m) => ({ value: m, label: m.toUpperCase() }))}
-                        searchPlaceholder="Search method…"
-                        showClear={false}
-                        className="w-28"
-                      />
                       <input
                         type="number"
                         min={0}
@@ -383,8 +370,9 @@ export default function ReturnModal({
                       />
                     </div>
                     <p className="mt-1 text-[11px] text-slate-400">
-                      Leave at 0 for a no-money return. Refund cannot exceed{" "}
-                      {inr(maxRefund)}.
+                      Leave at 0 for a no-money return. The refund is automatically split
+                      across the original payment methods (cash/card/bank/UPI…). Cannot
+                      exceed {inr(maxRefund)}.
                     </p>
                   </div>
 

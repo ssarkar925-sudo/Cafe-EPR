@@ -68,6 +68,7 @@ declare
   v_method text;
   v_instrument_id uuid;
   v_cust_balance numeric;
+  v_calc_subtotal numeric := 0;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -81,6 +82,22 @@ begin
   if (p_previous_due > 0 or p_advance_used > 0) and p_customer_id is null then
     raise exception 'Customer is required for due/advance adjustments';
   end if;
+
+  -- Server-side totals: derive subtotal from the item lines. Client-sent p_subtotal /
+  -- p_total are never trusted (a tampered client could record any total).
+  select coalesce(sum(round(coalesce((v_j->>'amount')::numeric, 0), 2)), 0)
+    into v_calc_subtotal
+  from jsonb_array_elements(p_items) v_j;
+
+  if p_discount is null or p_discount < 0 then
+    raise exception 'Invalid discount';
+  end if;
+  if p_discount > v_calc_subtotal then
+    raise exception 'Discount cannot exceed subtotal';
+  end if;
+
+  p_subtotal := round(v_calc_subtotal, 2);
+  p_total := round(v_calc_subtotal - p_discount, 2);
 
   v_invoice_number := 'INV-' || lpad(nextval('public.invoice_number_seq')::text, 4, '0');
 

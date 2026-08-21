@@ -12,7 +12,7 @@ create table if not exists public.returns (
   reason text,
   subtotal numeric(15,2) not null default 0,
   refund numeric(15,2) not null default 0,
-  refund_method text check (refund_method in ('cash','upi','card')),
+  refund_method text check (refund_method in ('cash','upi','card','bank','wallet','debit_card','credit_card','split')),
   status text not null default 'completed' check (status in ('completed','cancelled')),
   created_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),
@@ -76,6 +76,7 @@ declare
   v_return_number text;
   v_full boolean := true;
   v_bal numeric;
+  v_refund_method_label text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
@@ -112,7 +113,7 @@ begin
   if p_refund > least(v_invoice.paid, v_returned) then
     raise exception 'Refund cannot exceed the amount collected on returned items';
   end if;
-  if p_refund > 0 and p_refund_method not in ('cash','upi','card') then
+  if p_refund > 0 and p_refund_method not in ('cash','upi','card','bank','wallet','debit_card','credit_card') then
     raise exception 'Invalid refund method';
   end if;
 
@@ -120,7 +121,7 @@ begin
 
   insert into public.returns (return_number, invoice_id, reason, subtotal, refund, refund_method, status, created_by)
   values (v_return_number, p_invoice_id, nullif(p_reason, ''), v_returned, p_refund,
-          case when p_refund > 0 then p_refund_method end, 'completed', auth.uid())
+          case when p_refund > 0 then v_refund_method_label end, 'completed', auth.uid())
   returning id into v_return_id;
 
   for v_ri in select * from jsonb_array_elements(p_items)
@@ -142,8 +143,38 @@ begin
   end loop;
 
   if p_refund > 0 then
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, p_refund_method, 'out', p_refund, 'Refund ' || v_invoice.invoice_number || ' (' || v_return_number || ')', 'return', v_return_id);
+    -- Method-aware refund: reverse the original tender legs in the same proportions
+    -- (and to the same instruments) so each cash pool is credited back correctly.
+    declare
+      v_leg record;
+      v_remaining numeric := p_refund;
+      v_leg_refund numeric;
+      v_first_method text := null;
+      v_method_count int := 0;
+    begin
+      for v_leg in
+        select method, instrument_id, amount from public.payments
+        where invoice_id = p_invoice_id and amount > 0
+        order by amount desc
+      loop
+        exit when v_remaining <= 0.005;
+        v_leg_refund := round(least(v_leg.amount, v_remaining), 2);
+        if v_leg_refund > 0 then
+          insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
+          values (current_date, v_leg.method, 'out', v_leg_refund, 'Refund ' || v_invoice.invoice_number || ' (' || v_return_number || ')', 'return', v_return_id, v_leg.instrument_id);
+          if v_first_method is null then v_first_method := v_leg.method; end if;
+          v_method_count := v_method_count + 1;
+          v_remaining := round(v_remaining - v_leg_refund, 2);
+        end if;
+      end loop;
+      if v_remaining > 0.005 then
+        insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+        values (current_date, coalesce(p_refund_method, 'cash'), 'out', round(v_remaining, 2), 'Refund ' || v_invoice.invoice_number || ' (' || v_return_number || ')', 'return', v_return_id);
+        v_first_method := coalesce(p_refund_method, 'cash');
+        v_method_count := v_method_count + 1;
+      end if;
+      v_refund_method_label := case when v_method_count > 1 then 'split' else coalesce(v_first_method, 'cash') end;
+    end;
   end if;
 
   select bool_and(coalesce(i.returned_qty, 0) >= i.qty) into v_full
