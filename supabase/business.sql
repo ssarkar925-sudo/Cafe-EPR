@@ -93,6 +93,7 @@ alter table public.transactions add constraint transactions_paid_from_check
 alter table public.transactions drop constraint if exists transactions_pay_method_check;
 alter table public.transactions add constraint transactions_pay_method_check
   check (customer_pay_method is null or customer_pay_method in ('cash', 'bank', 'upi', 'qr', 'due'));
+alter table public.transactions drop constraint if exists transactions_transfer_method_check;
 alter table public.transactions add constraint transactions_transfer_method_check
   check (transfer_method is null or transfer_method in ('bank_account', 'upi'));
 
