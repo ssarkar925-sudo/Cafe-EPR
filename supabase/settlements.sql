@@ -9,7 +9,7 @@ create table if not exists public.settlements (
   settlement_number text not null unique,
   settlement_type text not null check (settlement_type in (
     'aeps_to_bank', 'bank_to_dmt', 'wallet_to_dmt', 'upi_qr_to_wallet',
-    'wallet_to_bank', 'bank_withdrawal', 'add_cash_to_bank', 'cash_adjustment'
+    'upi_qr_to_bank', 'wallet_to_bank', 'bank_withdrawal', 'add_cash_to_bank', 'cash_adjustment'
   )),
   settlement_date date not null default current_date,
   from_pool text not null check (from_pool in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr')),
@@ -72,6 +72,8 @@ begin
     v_from := 'wallet'; v_to := 'dmt'; v_prefix := 'WTD'; v_cash_dir := null;
   elsif p_settlement_type = 'upi_qr_to_wallet' then
     v_from := 'upi_qr'; v_to := 'wallet'; v_prefix := 'UQW'; v_cash_dir := null;
+  elsif p_settlement_type = 'upi_qr_to_bank' then
+    v_from := 'upi_qr'; v_to := 'bank'; v_prefix := 'UQB'; v_cash_dir := null;
   elsif p_settlement_type = 'wallet_to_bank' then
     v_from := 'wallet'; v_to := 'bank'; v_prefix := 'WTB'; v_cash_dir := null;
   elsif p_settlement_type = 'bank_withdrawal' then

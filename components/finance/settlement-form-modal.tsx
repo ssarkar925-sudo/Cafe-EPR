@@ -8,6 +8,7 @@ export const SETTLEMENT_TYPES = [
   { value: "bank_to_dmt", label: "Bank \u2192 DMT", from: "bank", to: "dmt", icon: "dmt", grad: "from-violet-500 to-purple-600", desc: "Load DMT float from the bank balance." },
   { value: "wallet_to_dmt", label: "Wallet \u2192 DMT", from: "wallet", to: "dmt", icon: "dmt", grad: "from-fuchsia-500 to-pink-600", desc: "Fund the DMT float from the digital wallet." },
   { value: "upi_qr_to_wallet", label: "UPI QR \u2192 Wallet", from: "upi_qr", to: "wallet", icon: "qr", grad: "from-teal-500 to-emerald-600", desc: "Move money received on the shop UPI QR into the wallet." },
+  { value: "upi_qr_to_bank", label: "UPI QR \u2192 Bank", from: "upi_qr", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Settle the merchant QR wallet balance into the bank account." },
   { value: "wallet_to_bank", label: "Wallet \u2192 Bank", from: "wallet", to: "bank", icon: "bank", grad: "from-amber-500 to-orange-600", desc: "Transfer wallet balance to the bank account." },
   { value: "bank_withdrawal", label: "Bank Withdrawal", from: "bank", to: "cash", icon: "cash", grad: "from-emerald-500 to-teal-600", desc: "Withdraw cash from the bank into the counter." },
   { value: "add_cash_to_bank", label: "Cash \u2192 Bank", from: "cash", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Deposit counter cash into the bank account." },

@@ -139,7 +139,7 @@ const MONEY_CARDS = [
   { key: "wallet", label: "Cash in Wallet", icon: ICONS.wallet, gradient: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
   { key: "dmt", label: "DMT Float", icon: ICONS.send, gradient: "from-violet-500 to-purple-600", href: "/business/dmt" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.card, gradient: "from-amber-500 to-orange-600", href: "/business/aeps" },
-  { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, gradient: "from-rose-500 to-pink-600", href: "/business/upi" },
+  { key: "upi_qr", label: "UPI QR Wallet", icon: ICONS.qr, gradient: "from-rose-500 to-pink-600", href: "/business/upi" },
   { key: "recharge", label: "Recharge Float", icon: ICONS.bolt, gradient: "from-cyan-500 to-sky-600", href: "/business/recharge" },
 ];
 
