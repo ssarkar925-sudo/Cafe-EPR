@@ -179,115 +179,28 @@ language plpgsql
 security definer set search_path = public
 as $$
 declare
-  v_cash numeric;
-  v_bank numeric;
-  v_wallet numeric;
-  v_dmt numeric;
-  v_aeps numeric;
-  v_upi_qr numeric;
-  v_credit_card numeric;
-  v_recharge numeric;
+  v_pool text;
+  v_opening numeric;
+  v_seed date;
+  v_mov numeric;
   v_count bigint;
+  v_result jsonb := '{}'::jsonb;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
-  select coalesce(sum(case when direction = 'in' then amount else -amount end), 0) into v_cash
-  from public.cash_entries where method = 'cash';
-
-  select coalesce(sum(x), 0) into v_bank
-  from (
-    select amount as x from public.settlements where status = 'success' and to_pool = 'bank'
-    union all
-    select -amount from public.settlements where status = 'success' and from_pool = 'bank'
-    union all
-    select case when direction = 'in' then amount else -amount end
-    from public.cash_entries where method in ('bank', 'debit_card', 'card')
-    union all
-    select bank_in from public.transactions where status = 'success' and bank_in > 0
-    union all
-    select -bank_out from public.transactions where status = 'success' and bank_out > 0
-  ) t;
-
-  select coalesce(sum(case when direction = 'out' then -amount else amount end), 0) into v_credit_card
-  from public.cash_entries where method = 'credit_card';
-
-  select coalesce(sum(x), 0) into v_wallet
-  from (
-    select amount as x from public.settlements where status = 'success' and to_pool = 'wallet'
-    union all
-    select -amount from public.settlements where status = 'success' and from_pool = 'wallet'
-    union all
-    select case when direction = 'in' then amount else -amount end
-    from public.cash_entries where method = 'wallet'
-  ) t;
-
-  select coalesce(sum(x), 0) into v_dmt
-  from (
-    select amount as x from public.settlements where status = 'success' and to_pool = 'dmt'
-    union all
-    select -amount from public.settlements where status = 'success' and from_pool = 'dmt'
-    union all
-    select case when direction = 'in' then amount else -amount end
-    from public.cash_entries where method = 'dmt'
-    union all
-    select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'dmt'
-    union all
-    select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'dmt'
-  ) t;
-
-  select coalesce(sum(x), 0) into v_aeps
-  from (
-    select amount as x from public.settlements where status = 'success' and to_pool = 'aeps'
-    union all
-    select -amount from public.settlements where status = 'success' and from_pool = 'aeps'
-    union all
-    -- Legacy AEPS payouts were posted as cash_entries method='aeps' direction='out';
-    -- an 'out' payout means the provider owes the shop that amount, so add it.
-    select case when direction = 'out' then amount else -amount end
-    from public.cash_entries where method = 'aeps'
-    union all
-    select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'aeps'
-    union all
-    select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'aeps'
-  ) t;
-
-  select coalesce(sum(x), 0) into v_upi_qr
-  from (
-    select amount as x from public.settlements where status = 'success' and to_pool = 'upi_qr'
-    union all
-    select -amount from public.settlements where status = 'success' and from_pool = 'upi_qr'
-    union all
-    select case when direction = 'in' then amount else -amount end
-    from public.cash_entries where method = 'upi'
-    union all
-    select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
-    union all
-    select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
-    union all
-    select upi_fee from public.transactions where status = 'success' and upi_fee > 0
-  ) t;
-
-  select coalesce(sum(x), 0) into v_recharge
-  from (
-    select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
-    union all
-    select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
-    union all
-    select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'recharge'
-    union all
-    select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'recharge'
-  ) t;
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
+  loop
+    select s.opening, s.seed_date into v_opening, v_seed
+    from public.get_pool_seed(v_pool, current_date) s;
+    v_mov := public.get_pool_movements(v_pool, v_seed, null);
+    v_result := v_result || jsonb_build_object(v_pool, v_opening + v_mov);
+  end loop;
 
   select count(*) into v_count from public.settlements where status = 'success';
 
-  return jsonb_build_object(
-    'cash', v_cash, 'bank', v_bank, 'wallet', v_wallet,
-    'dmt', v_dmt, 'aeps', v_aeps, 'upi_qr', v_upi_qr, 'credit_card', v_credit_card,
-    'recharge', v_recharge,
-    'count', v_count
-  );
+  return v_result || jsonb_build_object('count', v_count);
 end;
-$$;
+$$
 revoke all on function public.get_settlement_summary() from public, anon;
 grant execute on function public.get_settlement_summary() to authenticated;
 
