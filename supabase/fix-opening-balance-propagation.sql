@@ -189,7 +189,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_as_of) s;
@@ -230,7 +230,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, current_date) s;

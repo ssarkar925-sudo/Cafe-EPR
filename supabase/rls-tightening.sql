@@ -31,6 +31,7 @@ $$;
 
 -- ============ Financial / back-office tables: read+write back-office, NO delete ============
 
+alter table public.transactions enable row level security;
 drop policy if exists "transactions all" on public.transactions;
 drop policy if exists "transactions back_office" on public.transactions;
 create policy "transactions select" on public.transactions for select to authenticated using (public.is_back_office());

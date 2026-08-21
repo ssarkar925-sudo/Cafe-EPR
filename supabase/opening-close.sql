@@ -9,7 +9,7 @@
 
 create table if not exists public.opening_balances (
   id uuid primary key default gen_random_uuid(),
-  pool text not null check (pool in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card')),
+  pool text not null check (pool in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge')),
   instrument_id uuid references public.payment_instruments (id) on delete set null,
   amount numeric(15,2) not null default 0 check (amount >= 0),
   as_of date not null default current_date,
@@ -69,7 +69,7 @@ create policy "closings update" on public.closings for update to authenticated u
 create table if not exists public.closing_balances (
   id uuid primary key default gen_random_uuid(),
   closing_id uuid not null references public.closings (id) on delete cascade,
-  pool text not null check (pool in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card')),
+  pool text not null check (pool in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge')),
   seed_date date,
   opening numeric(15,2) not null default 0,
   movements numeric(15,2) not null default 0,
@@ -268,7 +268,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_as_of) s;
@@ -307,7 +307,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
-  if p_pool is null or p_pool not in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card') then
+  if p_pool is null or p_pool not in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge') then
     raise exception 'Invalid pool';
   end if;
   if p_amount is null or p_amount < 0 then raise exception 'Opening balance cannot be negative'; end if;
@@ -362,7 +362,7 @@ begin
   values (v_num, p_close_date, 'open', auth.uid())
   returning id into v_id;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_close_date) s;
@@ -402,7 +402,7 @@ begin
   if not found then return '{}'::jsonb; end if;
 
   v_rows := '[]'::jsonb;
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select coalesce(opening, 0), coalesce(seed_date, '0001-01-01'::date), coalesce(adjustment, 0)
       into v_opening, v_seed, v_adjust
@@ -682,3 +682,4 @@ grant execute on function public.get_pool_balances(date) to authenticated;
 grant execute on function public.get_open_close() to authenticated;
 grant execute on function public.get_closings(integer) to authenticated;
 grant execute on function public.cancel_open_close(uuid, text) to authenticated;
+

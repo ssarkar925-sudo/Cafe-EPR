@@ -80,7 +80,7 @@ begin
   return jsonb_build_object(
     'percent', v_percent,
     'commission', v_commission,
-    'cost', p_amount - v_commission
+    'cost', round(p_amount - v_commission, 2)
   );
 end;
 $$;

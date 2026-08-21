@@ -97,6 +97,7 @@ create policy "quick_sale_items insert" on public.quick_sale_items for insert to
 create policy "quick_sale_items update" on public.quick_sale_items for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- ---- Back-office financial tables: keep read/write but REMOVE delete ----
+alter table public.transactions enable row level security;
 drop policy if exists "transactions back_office" on public.transactions;
 drop policy if exists "transactions all" on public.transactions;
 create policy "transactions select" on public.transactions for select to authenticated using (public.is_back_office());
@@ -393,7 +394,7 @@ begin
   if not found then return '{}'::jsonb; end if;
 
   v_rows := '[]'::jsonb;
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select coalesce(opening, 0), coalesce(seed_date, '0001-01-01'::date), coalesce(adjustment, 0)
       into v_opening, v_seed, v_adjust
@@ -882,7 +883,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
-  if p_pool is null or p_pool not in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card') then
+  if p_pool is null or p_pool not in ('cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge') then
     raise exception 'Invalid pool';
   end if;
   if p_amount is null or p_amount < 0 then raise exception 'Opening balance cannot be negative'; end if;
@@ -937,7 +938,7 @@ begin
   values (v_num, p_close_date, 'open', auth.uid())
   returning id into v_id;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
   loop
     select s.opening, s.seed_date into v_opening, v_seed
     from public.get_pool_seed(v_pool, p_close_date) s;
@@ -2359,3 +2360,4 @@ $$;
 
 revoke all on function public.cancel_open_close(uuid, text) from public, anon;
 grant execute on function public.cancel_open_close(uuid, text) to authenticated;
+
