@@ -1,59 +1,16 @@
--- Fix: opening balances were only visible on the Opening Balances page.
--- The pool functions below (from opening-close.sql) plus a seed-aware
--- get_settlement_summary() make opening balances flow into the Settlements
--- module, the dashboard Money Position, and day close.
+-- Run this in Supabase SQL Editor (idempotent). Fixes settlement balances.
 --
--- Also here: a BACKFILL that connects Settings > Payment Accounts to the
--- pools. Any active account that has an "opening balance" on the instrument
--- (payment_instruments.opening_balance) but no opening_balances seed yet gets
--- one, so adding a credit card / bank / UPI / wallet with an opening balance
--- in Settings adjusts the pool opening. New accounts created after the
--- frontend update auto-seed themselves via set_opening_balance.
+-- ROOT CAUSE: get_pool_movements used `settlement_date > p_from` (strict) where p_from is
+-- the opening-balance seed date. A settlement recorded ON the same date as the opening
+-- balance was therefore excluded, so AEPS->Bank (or any same-day transfer) never moved the
+-- pool balances shown on the dashboard / day close. This hit every pool, not just AEPS.
 --
--- Pool math: a pool-level seed (incl. day-close auto seeds) is the
--- authoritative base; per-account seeds dated AFTER it add on top.
--- Run in the Supabase SQL editor of project tvxehxnvuwojjbhysajp (idempotent).
+-- FIX:
+--   1. Make the seed-date boundary inclusive (>= p_from) so same-day movements count.
+--   2. The auto day-close seed is stamped as_of close_date + 1 day, so the inclusive
+--      boundary does NOT double-count the closed day's movements (they are already inside
+--      the seeded final balance).
 
--- ---------- Pool seed: opening amount + seed date for a pool as of a date ----------
-create or replace function public.get_pool_seed(p_pool text, p_as_of date)
-returns table (opening numeric, seed_date date)
-language plpgsql
-security definer set search_path = public
-as $$
-declare
-  v_pool_amount numeric;
-  v_pool_date date;
-  v_inst_total numeric;
-  v_inst_date date;
-begin
-  if auth.uid() is null then raise exception 'Not authenticated'; end if;
-  select amount, as_of into v_pool_amount, v_pool_date
-    from public.opening_balances
-    where pool = p_pool and instrument_id is null and as_of <= p_as_of
-    order by as_of desc, is_auto desc, created_at desc
-    limit 1;
-
-  select coalesce(sum(amount), 0), max(as_of) into v_inst_total, v_inst_date
-  from (
-    select distinct on (instrument_id) amount, as_of
-    from public.opening_balances
-    where pool = p_pool and instrument_id is not null and as_of <= p_as_of
-    order by instrument_id, as_of desc, created_at desc
-  ) inst
-  where as_of > coalesce(v_pool_date, '0001-01-01'::date);
-
-  return query
-  select
-    coalesce(v_pool_amount, 0) + coalesce(v_inst_total, 0) as opening,
-    case
-      when v_pool_date is not null then v_pool_date
-      when v_inst_date is not null then v_inst_date
-      else '0001-01-01'::date
-    end as seed_date;
-end;
-$$;
-
--- ---------- Pool movements (single source of truth) ----------
 create or replace function public.get_pool_movements(p_pool text, p_from date, p_to date)
 returns numeric
 language plpgsql
@@ -165,6 +122,21 @@ begin
         and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
     ) t;
 
+  elsif p_pool = 'recharge' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
   else
     v := 0;
   end if;
@@ -172,109 +144,102 @@ begin
   return v;
 end;
 $$;
+revoke all on function public.get_pool_movements(text, date, date) from public, anon;
+grant execute on function public.get_pool_movements(text, date, date) to authenticated;
 
--- ---------- Pool balances for KPI cards (opening seed + post-seed movements) ----------
-create or replace function public.get_pool_balances(p_as_of date default current_date)
+-- ---------- close_day: auto next-day opening seed stamped as_of close_date + 1 ----------
+-- (keeps the inclusive boundary above from double-counting the closed day's movements)
+create or replace function public.close_day(
+  p_closing_id uuid,
+  p_owner_deposits numeric default 0,
+  p_owner_withdrawals numeric default 0,
+  p_remarks text default null
+)
 returns jsonb
 language plpgsql
 security definer set search_path = public
 as $$
 declare
-  v_result jsonb := '{}'::jsonb;
+  v_close record;
   v_pool text;
-  v_opening numeric;
-  v_seed date;
-  v_mov numeric;
-  v_total numeric := 0;
+  v_open_total numeric := 0;
+  v_final_total numeric := 0;
+  v_net numeric;
+  v_check numeric;
+  v_row record;
+  v_result jsonb := '{}'::jsonb;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if coalesce(p_owner_deposits, 0) < 0 or coalesce(p_owner_withdrawals, 0) < 0 then
+    raise exception 'Owner deposit/withdrawal amounts cannot be negative';
+  end if;
 
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
+  select * into v_close from public.closings where id = p_closing_id for update;
+  if not found then raise exception 'Day close not found'; end if;
+  if v_close.status <> 'open' then raise exception 'Day close is not open'; end if;
+
+  for v_row in
+    select * from public.closing_balances where closing_id = p_closing_id
   loop
-    select s.opening, s.seed_date into v_opening, v_seed
-    from public.get_pool_seed(v_pool, p_as_of) s;
+    if v_row.seed_date is not null then
+      update public.closing_balances
+        set movements = public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
+            computed = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
+            final = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date) + v_row.adjustment
+        where id = v_row.id;
+    end if;
+  end loop;
 
-    v_mov := public.get_pool_movements(v_pool, v_seed, null);
+  select coalesce(sum(opening), 0), coalesce(sum(final), 0)
+    into v_open_total, v_final_total
+    from public.closing_balances where closing_id = p_closing_id;
 
-    v_total := v_total + v_opening + v_mov;
+  v_net := coalesce((select (public.get_pnl(v_close.close_date, v_close.close_date)->>'net_profit')::numeric), 0);
+  v_check := v_final_total - v_open_total - v_net - coalesce(p_owner_deposits, 0) + coalesce(p_owner_withdrawals, 0);
+
+  update public.closings
+    set status = 'closed', closed_by = auth.uid(), closed_at = now(),
+        net_profit = v_net,
+        owner_deposits = coalesce(p_owner_deposits, 0),
+        owner_withdrawals = coalesce(p_owner_withdrawals, 0),
+        balance_check = v_check,
+        remarks = coalesce(nullif(p_remarks, ''), remarks)
+    where id = p_closing_id;
+
+  for v_row in
+    select * from public.closing_balances where closing_id = p_closing_id
+  loop
+    insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, is_auto, created_by)
+    values (v_row.pool, null, v_row.final, v_close.close_date + interval '1 day',
+            'Auto from ' || v_close.closing_number, true, auth.uid());
     v_result := v_result || jsonb_build_object(
-      v_pool, jsonb_build_object(
-        'opening', v_opening,
-        'seed_date', v_seed,
-        'movements', v_mov,
-        'current', v_opening + v_mov
-      )
+      v_row.pool, jsonb_build_object('opening', v_row.opening, 'movements', v_row.movements,
+                                     'adjustment', v_row.adjustment, 'final', v_row.final)
     );
   end loop;
 
-  return v_result || jsonb_build_object('total', v_total);
-end;
-$$;
-
--- ---------- Settlement summary: seed-aware pool positions ----------
--- Was: movement-only totals. Now each pool = opening seed + movements after the
--- seed date, matching get_pool_balances, so the Settlements cards and the
--- dashboard Money Position (which falls back to this) include opening balances.
-create or replace function public.get_settlement_summary()
-returns jsonb
-language plpgsql
-security definer set search_path = public
-as $$
-declare
-  v_pool text;
-  v_opening numeric;
-  v_seed date;
-  v_mov numeric;
-  v_count bigint;
-  v_result jsonb := '{}'::jsonb;
-begin
-  if auth.uid() is null then raise exception 'Not authenticated'; end if;
-
-  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card']
-  loop
-    select s.opening, s.seed_date into v_opening, v_seed
-    from public.get_pool_seed(v_pool, current_date) s;
-    v_mov := public.get_pool_movements(v_pool, v_seed, null);
-    v_result := v_result || jsonb_build_object(v_pool, v_opening + v_mov);
-  end loop;
-
-  select count(*) into v_count from public.settlements where status = 'success';
-
-  return v_result || jsonb_build_object('count', v_count);
-end;
-$$;
-
-revoke all on function public.get_pool_seed(text, date) from public, anon;
-revoke all on function public.get_pool_movements(text, date, date) from public, anon;
-revoke all on function public.get_pool_balances(date) from public, anon;
-revoke all on function public.get_settlement_summary() from public, anon;
-grant execute on function public.get_pool_seed(text, date) to authenticated;
-grant execute on function public.get_pool_movements(text, date, date) to authenticated;
-grant execute on function public.get_pool_balances(date) to authenticated;
-grant execute on function public.get_settlement_summary() to authenticated;
-
--- ---------- Backfill: connect existing Payment Accounts to the pools ----------
--- Any active account with an opening_balance on the instrument but no seed yet
--- gets an opening_balances row dated today (idempotent; skips already-seeded
--- accounts so re-running does not duplicate).
-insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, created_by)
-select
-  case i.type
-    when 'cash' then 'cash'
-    when 'bank' then 'bank'
-    when 'debit_card' then 'bank'
-    when 'credit_card' then 'credit_card'
-    when 'upi' then 'upi_qr'
-    when 'wallet' then 'wallet'
-  end,
-  i.id,
-  i.opening_balance,
-  current_date,
-  'Opening balance from Payment Accounts setup',
-  i.created_by
-from public.payment_instruments i
-where i.is_active = true
-  and i.opening_balance > 0
-  and not exists (
-    select 1 from public.opening_balances ob where ob.instrument_id = i.id
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'day_close_completed', 'closings', p_closing_id::text,
+    'Closed ' || v_close.closing_number || ' for ' || v_close.close_date ||
+    ' | net profit ' || v_net || ' | balance check ' || v_check,
+    jsonb_build_object('net_profit', v_net, 'balance_check', v_check,
+                       'owner_deposits', p_owner_deposits, 'owner_withdrawals', p_owner_withdrawals)
   );
+
+  return jsonb_build_object(
+    'id', p_closing_id,
+    'closing_number', v_close.closing_number,
+    'close_date', v_close.close_date,
+    'status', 'closed',
+    'net_profit', v_net,
+    'balance_check', v_check,
+    'pools', v_result
+  );
+end;
+$$;
+
+-- Re-grant close_day (signature unchanged).
+revoke all on function public.close_day(uuid, numeric, numeric, text) from public, anon;
+grant execute on function public.close_day(uuid, numeric, numeric, text) to authenticated;
