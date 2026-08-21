@@ -186,6 +186,7 @@ declare
   v_aeps numeric;
   v_upi_qr numeric;
   v_credit_card numeric;
+  v_recharge numeric;
   v_count bigint;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
@@ -266,11 +267,23 @@ begin
     select upi_fee from public.transactions where status = 'success' and upi_fee > 0
   ) t;
 
+  select coalesce(sum(x), 0) into v_recharge
+  from (
+    select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
+    union all
+    select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
+    union all
+    select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+    union all
+    select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'recharge'
+  ) t;
+
   select count(*) into v_count from public.settlements where status = 'success';
 
   return jsonb_build_object(
     'cash', v_cash, 'bank', v_bank, 'wallet', v_wallet,
     'dmt', v_dmt, 'aeps', v_aeps, 'upi_qr', v_upi_qr, 'credit_card', v_credit_card,
+    'recharge', v_recharge,
     'count', v_count
   );
 end;
