@@ -24,8 +24,11 @@ create index if not exists opening_balances_instrument_idx on public.opening_bal
 alter table public.opening_balances add column if not exists is_auto boolean not null default false;
 
 alter table public.opening_balances enable row level security;
+drop policy if exists "opening_balances select" on public.opening_balances;
 create policy "opening_balances select" on public.opening_balances for select to authenticated using (public.is_back_office());
+drop policy if exists "opening_balances insert" on public.opening_balances;
 create policy "opening_balances insert" on public.opening_balances for insert to authenticated with check (public.is_back_office());
+drop policy if exists "opening_balances update" on public.opening_balances;
 create policy "opening_balances update" on public.opening_balances for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create table if not exists public.closings (
@@ -62,8 +65,11 @@ alter table public.closings
   add constraint closings_status_check check (status in ('open', 'closed', 'reversed', 'cancelled'));
 
 alter table public.closings enable row level security;
+drop policy if exists "closings select" on public.closings;
 create policy "closings select" on public.closings for select to authenticated using (public.is_back_office());
+drop policy if exists "closings insert" on public.closings;
 create policy "closings insert" on public.closings for insert to authenticated with check (public.is_back_office());
+drop policy if exists "closings update" on public.closings;
 create policy "closings update" on public.closings for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create table if not exists public.closing_balances (
@@ -81,8 +87,11 @@ create table if not exists public.closing_balances (
 );
 
 alter table public.closing_balances enable row level security;
+drop policy if exists "closing_balances select" on public.closing_balances;
 create policy "closing_balances select" on public.closing_balances for select to authenticated using (public.is_back_office());
+drop policy if exists "closing_balances insert" on public.closing_balances;
 create policy "closing_balances insert" on public.closing_balances for insert to authenticated with check (public.is_back_office());
+drop policy if exists "closing_balances update" on public.closing_balances;
 create policy "closing_balances update" on public.closing_balances for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create sequence if not exists public.closing_seq start 1;

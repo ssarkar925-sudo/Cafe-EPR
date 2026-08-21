@@ -31,14 +31,22 @@ create index if not exists recharge_providers_active_idx on public.recharge_prov
 alter table public.recharge_providers enable row level security;
 alter table public.recharge_commission_slabs enable row level security;
 
+drop policy if exists "recharge providers select" on public.recharge_providers;
 create policy "recharge providers select" on public.recharge_providers for select to authenticated using (true);
+drop policy if exists "recharge providers insert" on public.recharge_providers;
 create policy "recharge providers insert" on public.recharge_providers for insert to authenticated with check (public.is_back_office());
+drop policy if exists "recharge providers update" on public.recharge_providers;
 create policy "recharge providers update" on public.recharge_providers for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+drop policy if exists "recharge providers delete" on public.recharge_providers;
 create policy "recharge providers delete" on public.recharge_providers for delete to authenticated using (public.is_admin());
 
+drop policy if exists "recharge slabs select" on public.recharge_commission_slabs;
 create policy "recharge slabs select" on public.recharge_commission_slabs for select to authenticated using (true);
+drop policy if exists "recharge slabs insert" on public.recharge_commission_slabs;
 create policy "recharge slabs insert" on public.recharge_commission_slabs for insert to authenticated with check (public.is_back_office());
+drop policy if exists "recharge slabs update" on public.recharge_commission_slabs;
 create policy "recharge slabs update" on public.recharge_commission_slabs for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+drop policy if exists "recharge slabs delete" on public.recharge_commission_slabs;
 create policy "recharge slabs delete" on public.recharge_commission_slabs for delete to authenticated using (public.is_admin());
 
 -- ---------- 2. Extend transactions with the provider + service type ----------

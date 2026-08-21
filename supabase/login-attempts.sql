@@ -16,6 +16,7 @@ create index if not exists login_attempts_email_idx on public.login_attempts (em
 create index if not exists login_attempts_created_idx on public.login_attempts (created_at desc);
 
 alter table public.login_attempts enable row level security;
+drop policy if exists "login_attempts no direct read" on public.login_attempts;
 create policy "login_attempts no direct read" on public.login_attempts
   for select using (false);
 

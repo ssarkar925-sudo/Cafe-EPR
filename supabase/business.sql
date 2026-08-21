@@ -1,4 +1,4 @@
-﻿-- Run this in Supabase SQL Editor (idempotent).
+-- Run this in Supabase SQL Editor (idempotent).
 -- AEPS / DMT / UPI module matching the previous application's structure.
 -- Only SUCCESS transactions post a cash entry (reversed/deleted reverse it).
 
@@ -12,6 +12,7 @@ create table if not exists public.aeps_banks (
 );
 create index if not exists aeps_banks_active_idx on public.aeps_banks (is_active);
 alter table public.aeps_banks enable row level security;
+drop policy if exists "aeps_banks all" on public.aeps_banks;
 create policy "aeps_banks all" on public.aeps_banks for all to authenticated using (true) with check (true);
 
 create table if not exists public.aeps_portals (
@@ -24,6 +25,7 @@ create table if not exists public.aeps_portals (
 );
 create index if not exists aeps_portals_active_idx on public.aeps_portals (is_active);
 alter table public.aeps_portals enable row level security;
+drop policy if exists "aeps_portals all" on public.aeps_portals;
 create policy "aeps_portals all" on public.aeps_portals for all to authenticated using (true) with check (true);
 
 create table if not exists public.upi_merchant_qrs (
@@ -35,6 +37,7 @@ create table if not exists public.upi_merchant_qrs (
 );
 create index if not exists upi_merchant_qrs_active_idx on public.upi_merchant_qrs (is_active);
 alter table public.upi_merchant_qrs enable row level security;
+drop policy if exists "upi_merchant_qrs all" on public.upi_merchant_qrs;
 create policy "upi_merchant_qrs all" on public.upi_merchant_qrs for all to authenticated using (true) with check (true);
 
 -- ---------- Extend transactions to match the previous models ----------

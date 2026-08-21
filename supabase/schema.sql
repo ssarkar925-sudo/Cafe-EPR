@@ -84,6 +84,7 @@ values
 on conflict (method) do update set label = excluded.label, sort_order = excluded.sort_order;
 
 alter table public.payment_methods enable row level security;
+drop policy if exists "payment_methods all" on public.payment_methods;
 create policy "payment_methods all" on public.payment_methods for all to authenticated using (true) with check (true);
 
 -- Catalog master lists (Brands / Units). Reference data only; never referenced by invoices.
@@ -104,9 +105,11 @@ create table if not exists public.units (
 );
 
 alter table public.brands enable row level security;
+drop policy if exists "brands all" on public.brands;
 create policy "brands all" on public.brands for all to authenticated using (true) with check (true);
 
 alter table public.units enable row level security;
+drop policy if exists "units all" on public.units;
 create policy "units all" on public.units for all to authenticated using (true) with check (true);
 
 -- Payment accounts (Settings -> Payment Accounts): flexible detail payload + opening balance.
@@ -155,15 +158,24 @@ alter table public.customers enable row level security;
 alter table public.invoices enable row level security;
 alter table public.invoice_items enable row level security;
 
+drop policy if exists "profiles select" on public.profiles;
 create policy "profiles select" on public.profiles for select to authenticated using (true);
+drop policy if exists "profiles insert" on public.profiles;
 create policy "profiles insert" on public.profiles for insert to authenticated with check (true);
+drop policy if exists "profiles update" on public.profiles;
 create policy "profiles update" on public.profiles for update to authenticated using (true) with check (true);
 
+drop policy if exists "categories all" on public.categories;
 create policy "categories all" on public.categories for all to authenticated using (true) with check (true);
+drop policy if exists "products all" on public.products;
 create policy "products all" on public.products for all to authenticated using (true) with check (true);
+drop policy if exists "services all" on public.services;
 create policy "services all" on public.services for all to authenticated using (true) with check (true);
+drop policy if exists "customers all" on public.customers;
 create policy "customers all" on public.customers for all to authenticated using (true) with check (true);
+drop policy if exists "invoices all" on public.invoices;
 create policy "invoices all" on public.invoices for all to authenticated using (true) with check (true);
+drop policy if exists "invoice_items all" on public.invoice_items;
 create policy "invoice_items all" on public.invoice_items for all to authenticated using (true) with check (true);
 
 -- Auto-create profile on signup. The first-ever user becomes admin automatically;
@@ -208,6 +220,7 @@ create sequence if not exists public.invoice_number_seq;
 create index if not exists idx_payments_invoice on public.payments (invoice_id);
 
 alter table public.payments enable row level security;
+drop policy if exists "payments all" on public.payments;
 create policy "payments all" on public.payments for all to authenticated using (true) with check (true);
 
 -- Atomic sale: invoice + items + stock deduction + payments + customer balance in ONE transaction.
@@ -537,8 +550,11 @@ alter table public.expenses enable row level security;
 alter table public.cash_entries enable row level security;
 alter table public.customer_ledger enable row level security;
 
+drop policy if exists "expenses all" on public.expenses;
 create policy "expenses all" on public.expenses for all to authenticated using (true) with check (true);
+drop policy if exists "cash_entries all" on public.cash_entries;
 create policy "cash_entries all" on public.cash_entries for all to authenticated using (true) with check (true);
+drop policy if exists "customer_ledger all" on public.customer_ledger;
 create policy "customer_ledger all" on public.customer_ledger for all to authenticated using (true) with check (true);
 
 -- Sale now writes cash entries + customer ledger atomically.
@@ -894,6 +910,7 @@ create index if not exists opening_balances_instrument_idx on public.opening_bal
 alter table public.opening_balances add column if not exists is_auto boolean not null default false;
 
 alter table public.opening_balances enable row level security;
+drop policy if exists "opening_balances all" on public.opening_balances;
 create policy "opening_balances all" on public.opening_balances for all to authenticated using (true) with check (true);
 
 create table if not exists public.closings (
@@ -921,6 +938,7 @@ create unique index if not exists closings_close_date_unique
   on public.closings (close_date) where status <> 'reversed';
 
 alter table public.closings enable row level security;
+drop policy if exists "closings all" on public.closings;
 create policy "closings all" on public.closings for all to authenticated using (true) with check (true);
 
 create table if not exists public.closing_balances (
@@ -938,6 +956,7 @@ create table if not exists public.closing_balances (
 );
 
 alter table public.closing_balances enable row level security;
+drop policy if exists "closing_balances all" on public.closing_balances;
 create policy "closing_balances all" on public.closing_balances for all to authenticated using (true) with check (true);
 
 create sequence if not exists public.closing_seq start 1;
@@ -1510,6 +1529,7 @@ insert into public.settings (id, shop_name) values (1, 'SCC OMM Cafe')
 on conflict (id) do nothing;
 
 alter table public.settings enable row level security;
+drop policy if exists "settings all" on public.settings;
 create policy "settings all" on public.settings for all to authenticated using (true) with check (true);
 
 -- Storage bucket for the shop logo
@@ -1570,7 +1590,9 @@ create index if not exists return_items_return_idx on public.return_items (retur
 
 alter table public.returns enable row level security;
 alter table public.return_items enable row level security;
+drop policy if exists "returns all" on public.returns;
 create policy "returns all" on public.returns for all to authenticated using (true) with check (true);
+drop policy if exists "return_items all" on public.return_items;
 create policy "return_items all" on public.return_items for all to authenticated using (true) with check (true);
 
 -- Process a return atomically: restock products, write return + items,
@@ -1913,6 +1935,7 @@ create index if not exists audit_logs_user_idx on public.audit_logs (user_id);
 
 alter table public.audit_logs enable row level security;
 
+drop policy if exists "audit_logs all" on public.audit_logs;
 create policy "audit_logs all" on public.audit_logs
   for all to authenticated using (true) with check (true);
 
@@ -1950,6 +1973,7 @@ create index if not exists settlements_type_idx on public.settlements (settlemen
 create index if not exists settlements_status_idx on public.settlements (status);
 
 alter table public.settlements enable row level security;
+drop policy if exists "settlements all" on public.settlements;
 create policy "settlements all" on public.settlements for all to authenticated using (true) with check (true);
 
 create sequence if not exists public.settlement_seq start 1;
@@ -2754,9 +2778,13 @@ create policy "profiles update" on public.profiles
 
 -- ---- settings: read all, write back-office only ----
 drop policy if exists "settings all" on public.settings;
+drop policy if exists "settings select" on public.settings;
 create policy "settings select" on public.settings for select to authenticated using (true);
+drop policy if exists "settings insert" on public.settings;
 create policy "settings insert" on public.settings for insert to authenticated with check (public.is_back_office());
+drop policy if exists "settings update" on public.settings;
 create policy "settings update" on public.settings for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+drop policy if exists "settings delete" on public.settings;
 create policy "settings delete" on public.settings for delete to authenticated using (public.is_back_office());
 
 -- ---- Financial tables: no direct DELETE (RPCs handle all writes) ----
@@ -2764,87 +2792,132 @@ create policy "settings delete" on public.settings for delete to authenticated u
 -- REST write cannot be abused by staff. Security-definer RPCs bypass RLS.
 
 drop policy if exists "invoices all" on public.invoices;
+drop policy if exists "invoices select" on public.invoices;
 create policy "invoices select" on public.invoices for select to authenticated using (true);
+drop policy if exists "invoices insert" on public.invoices;
 create policy "invoices insert" on public.invoices for insert to authenticated with check (public.is_back_office());
+drop policy if exists "invoices update" on public.invoices;
 create policy "invoices update" on public.invoices for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "invoice_items all" on public.invoice_items;
+drop policy if exists "invoice_items select" on public.invoice_items;
 create policy "invoice_items select" on public.invoice_items for select to authenticated using (true);
+drop policy if exists "invoice_items insert" on public.invoice_items;
 create policy "invoice_items insert" on public.invoice_items for insert to authenticated with check (public.is_back_office());
+drop policy if exists "invoice_items update" on public.invoice_items;
 create policy "invoice_items update" on public.invoice_items for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "payments all" on public.payments;
+drop policy if exists "payments select" on public.payments;
 create policy "payments select" on public.payments for select to authenticated using (true);
+drop policy if exists "payments insert" on public.payments;
 create policy "payments insert" on public.payments for insert to authenticated with check (public.is_back_office());
+drop policy if exists "payments update" on public.payments;
 create policy "payments update" on public.payments for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "quick_sales all" on public.quick_sales;
+drop policy if exists "quick_sales select" on public.quick_sales;
 create policy "quick_sales select" on public.quick_sales for select to authenticated using (true);
+drop policy if exists "quick_sales insert" on public.quick_sales;
 create policy "quick_sales insert" on public.quick_sales for insert to authenticated with check (public.is_back_office());
+drop policy if exists "quick_sales update" on public.quick_sales;
 create policy "quick_sales update" on public.quick_sales for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "quick_sale_items all" on public.quick_sale_items;
+drop policy if exists "quick_sale_items select" on public.quick_sale_items;
 create policy "quick_sale_items select" on public.quick_sale_items for select to authenticated using (true);
+drop policy if exists "quick_sale_items insert" on public.quick_sale_items;
 create policy "quick_sale_items insert" on public.quick_sale_items for insert to authenticated with check (public.is_back_office());
+drop policy if exists "quick_sale_items update" on public.quick_sale_items;
 create policy "quick_sale_items update" on public.quick_sale_items for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- ---- Back-office financial tables: keep read/write but REMOVE delete ----
 drop policy if exists "transactions back_office" on public.transactions;
 drop policy if exists "transactions all" on public.transactions;
+drop policy if exists "transactions select" on public.transactions;
 create policy "transactions select" on public.transactions for select to authenticated using (public.is_back_office());
+drop policy if exists "transactions insert" on public.transactions;
 create policy "transactions insert" on public.transactions for insert to authenticated with check (public.is_back_office());
+drop policy if exists "transactions update" on public.transactions;
 create policy "transactions update" on public.transactions for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "cash_entries back_office" on public.cash_entries;
 drop policy if exists "cash_entries all" on public.cash_entries;
+drop policy if exists "cash_entries select" on public.cash_entries;
 create policy "cash_entries select" on public.cash_entries for select to authenticated using (public.is_back_office());
+drop policy if exists "cash_entries insert" on public.cash_entries;
 create policy "cash_entries insert" on public.cash_entries for insert to authenticated with check (public.is_back_office());
+drop policy if exists "cash_entries update" on public.cash_entries;
 create policy "cash_entries update" on public.cash_entries for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "expenses back_office" on public.expenses;
 drop policy if exists "expenses all" on public.expenses;
+drop policy if exists "expenses select" on public.expenses;
 create policy "expenses select" on public.expenses for select to authenticated using (public.is_back_office());
+drop policy if exists "expenses insert" on public.expenses;
 create policy "expenses insert" on public.expenses for insert to authenticated with check (public.is_back_office());
+drop policy if exists "expenses update" on public.expenses;
 create policy "expenses update" on public.expenses for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "customer_ledger back_office" on public.customer_ledger;
 drop policy if exists "customer_ledger all" on public.customer_ledger;
+drop policy if exists "customer_ledger select" on public.customer_ledger;
 create policy "customer_ledger select" on public.customer_ledger for select to authenticated using (public.is_back_office());
+drop policy if exists "customer_ledger insert" on public.customer_ledger;
 create policy "customer_ledger insert" on public.customer_ledger for insert to authenticated with check (public.is_back_office());
+drop policy if exists "customer_ledger update" on public.customer_ledger;
 create policy "customer_ledger update" on public.customer_ledger for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "settlements back_office" on public.settlements;
 drop policy if exists "settlements all" on public.settlements;
+drop policy if exists "settlements select" on public.settlements;
 create policy "settlements select" on public.settlements for select to authenticated using (public.is_back_office());
+drop policy if exists "settlements insert" on public.settlements;
 create policy "settlements insert" on public.settlements for insert to authenticated with check (public.is_back_office());
+drop policy if exists "settlements update" on public.settlements;
 create policy "settlements update" on public.settlements for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "returns back_office" on public.returns;
 drop policy if exists "returns all" on public.returns;
+drop policy if exists "returns select" on public.returns;
 create policy "returns select" on public.returns for select to authenticated using (public.is_back_office());
+drop policy if exists "returns insert" on public.returns;
 create policy "returns insert" on public.returns for insert to authenticated with check (public.is_back_office());
+drop policy if exists "returns update" on public.returns;
 create policy "returns update" on public.returns for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "return_items back_office" on public.return_items;
 drop policy if exists "return_items all" on public.return_items;
+drop policy if exists "return_items select" on public.return_items;
 create policy "return_items select" on public.return_items for select to authenticated using (public.is_back_office());
+drop policy if exists "return_items insert" on public.return_items;
 create policy "return_items insert" on public.return_items for insert to authenticated with check (public.is_back_office());
+drop policy if exists "return_items update" on public.return_items;
 create policy "return_items update" on public.return_items for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- ---- Day-close tables: back-office only, no delete ----
 drop policy if exists "opening_balances all" on public.opening_balances;
+drop policy if exists "opening_balances select" on public.opening_balances;
 create policy "opening_balances select" on public.opening_balances for select to authenticated using (public.is_back_office());
+drop policy if exists "opening_balances insert" on public.opening_balances;
 create policy "opening_balances insert" on public.opening_balances for insert to authenticated with check (public.is_back_office());
+drop policy if exists "opening_balances update" on public.opening_balances;
 create policy "opening_balances update" on public.opening_balances for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "closings all" on public.closings;
+drop policy if exists "closings select" on public.closings;
 create policy "closings select" on public.closings for select to authenticated using (public.is_back_office());
+drop policy if exists "closings insert" on public.closings;
 create policy "closings insert" on public.closings for insert to authenticated with check (public.is_back_office());
+drop policy if exists "closings update" on public.closings;
 create policy "closings update" on public.closings for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 drop policy if exists "closing_balances all" on public.closing_balances;
+drop policy if exists "closing_balances select" on public.closing_balances;
 create policy "closing_balances select" on public.closing_balances for select to authenticated using (public.is_back_office());
+drop policy if exists "closing_balances insert" on public.closing_balances;
 create policy "closing_balances insert" on public.closing_balances for insert to authenticated with check (public.is_back_office());
+drop policy if exists "closing_balances update" on public.closing_balances;
 create policy "closing_balances update" on public.closing_balances for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- ---- audit_logs: append-only. INSERT by anyone (actions logged client+server),
@@ -2854,23 +2927,33 @@ drop policy if exists "audit_logs insert" on public.audit_logs;
 drop policy if exists "audit_logs select" on public.audit_logs;
 drop policy if exists "audit_logs update" on public.audit_logs;
 drop policy if exists "audit_logs delete" on public.audit_logs;
+drop policy if exists "audit_logs insert" on public.audit_logs;
 create policy "audit_logs insert" on public.audit_logs
   for insert to authenticated with check (true);
+drop policy if exists "audit_logs select" on public.audit_logs;
 create policy "audit_logs select" on public.audit_logs
   for select to authenticated using (public.is_back_office());
 
 -- ---- payment_methods: read all (POS), write back-office (settings) ----
 drop policy if exists "payment_methods all" on public.payment_methods;
+drop policy if exists "payment_methods select" on public.payment_methods;
 create policy "payment_methods select" on public.payment_methods for select to authenticated using (true);
+drop policy if exists "payment_methods insert" on public.payment_methods;
 create policy "payment_methods insert" on public.payment_methods for insert to authenticated with check (public.is_back_office());
+drop policy if exists "payment_methods update" on public.payment_methods;
 create policy "payment_methods update" on public.payment_methods for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+drop policy if exists "payment_methods delete" on public.payment_methods;
 create policy "payment_methods delete" on public.payment_methods for delete to authenticated using (public.is_back_office());
 
 -- ---- payment_instruments: read/insert all (POS adds at till), update/delete back-office ----
 drop policy if exists "payment_instruments all" on public.payment_instruments;
+drop policy if exists "payment_instruments select" on public.payment_instruments;
 create policy "payment_instruments select" on public.payment_instruments for select to authenticated using (true);
+drop policy if exists "payment_instruments insert" on public.payment_instruments;
 create policy "payment_instruments insert" on public.payment_instruments for insert to authenticated with check (true);
+drop policy if exists "payment_instruments update" on public.payment_instruments;
 create policy "payment_instruments update" on public.payment_instruments for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
+drop policy if exists "payment_instruments delete" on public.payment_instruments;
 create policy "payment_instruments delete" on public.payment_instruments for delete to authenticated using (public.is_back_office());
 
 -- ---- Storage: customer photos readable by authenticated only (not public);

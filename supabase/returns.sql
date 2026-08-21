@@ -1,4 +1,4 @@
-﻿-- Returns & partial returns (audited, no hard deletes)
+-- Returns & partial returns (audited, no hard deletes)
 -- Adds: returns, return_items tables + process_return RPC
 -- Supports full return, partial (line-level) return, and partial refund payment.
 
@@ -41,12 +41,22 @@ create index if not exists return_items_return_idx on public.return_items (retur
 
 alter table public.returns enable row level security;
 alter table public.return_items enable row level security;
+drop policy if exists "returns select" on public.returns;
+drop policy if exists "returns insert" on public.returns;
+drop policy if exists "returns update" on public.returns;
 create policy "returns select" on public.returns for select to authenticated using (public.is_back_office());
+drop policy if exists "returns insert" on public.returns;
 create policy "returns insert" on public.returns for insert to authenticated with check (public.is_back_office());
+drop policy if exists "returns update" on public.returns;
 create policy "returns update" on public.returns for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
+drop policy if exists "return_items select" on public.return_items;
+drop policy if exists "return_items insert" on public.return_items;
+drop policy if exists "return_items update" on public.return_items;
 create policy "return_items select" on public.return_items for select to authenticated using (public.is_back_office());
+drop policy if exists "return_items insert" on public.return_items;
 create policy "return_items insert" on public.return_items for insert to authenticated with check (public.is_back_office());
+drop policy if exists "return_items update" on public.return_items;
 create policy "return_items update" on public.return_items for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- Process a return atomically: restock products, write return + items,

@@ -16,6 +16,7 @@ insert into public.settings (id, shop_name) values (1, 'SCC OMM Cafe')
 on conflict (id) do nothing;
 
 alter table public.settings enable row level security;
+drop policy if exists "settings all" on public.settings;
 create policy "settings all" on public.settings for all to authenticated using (true) with check (true);
 
 -- Storage bucket for the shop logo

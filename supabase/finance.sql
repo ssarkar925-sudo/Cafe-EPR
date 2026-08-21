@@ -1,4 +1,4 @@
-﻿-- Run this in Supabase SQL Editor (idempotent).
+-- Run this in Supabase SQL Editor (idempotent).
 -- Required for the Finance module: cash book, expenses, customer ledger.
 
 create table if not exists public.expenses (
@@ -48,16 +48,25 @@ alter table public.expenses enable row level security;
 alter table public.cash_entries enable row level security;
 alter table public.customer_ledger enable row level security;
 
+drop policy if exists "expenses select" on public.expenses;
 create policy "expenses select" on public.expenses for select to authenticated using (public.is_back_office());
+drop policy if exists "expenses insert" on public.expenses;
 create policy "expenses insert" on public.expenses for insert to authenticated with check (public.is_back_office());
+drop policy if exists "expenses update" on public.expenses;
 create policy "expenses update" on public.expenses for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
+drop policy if exists "cash_entries select" on public.cash_entries;
 create policy "cash_entries select" on public.cash_entries for select to authenticated using (public.is_back_office());
+drop policy if exists "cash_entries insert" on public.cash_entries;
 create policy "cash_entries insert" on public.cash_entries for insert to authenticated with check (public.is_back_office());
+drop policy if exists "cash_entries update" on public.cash_entries;
 create policy "cash_entries update" on public.cash_entries for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
+drop policy if exists "customer_ledger select" on public.customer_ledger;
 create policy "customer_ledger select" on public.customer_ledger for select to authenticated using (public.is_back_office());
+drop policy if exists "customer_ledger insert" on public.customer_ledger;
 create policy "customer_ledger insert" on public.customer_ledger for insert to authenticated with check (public.is_back_office());
+drop policy if exists "customer_ledger update" on public.customer_ledger;
 create policy "customer_ledger update" on public.customer_ledger for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 -- Sale now writes cash entries + customer ledger atomically.

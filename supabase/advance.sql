@@ -1,4 +1,4 @@
-﻿-- Allow 'advance' entries in the customer ledger
+-- Allow 'advance' entries in the customer ledger
 alter table public.customer_ledger drop constraint if exists customer_ledger_type_check;
 alter table public.customer_ledger
   add constraint customer_ledger_type_check

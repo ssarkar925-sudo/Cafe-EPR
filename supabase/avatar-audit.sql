@@ -33,5 +33,6 @@ create index if not exists audit_logs_user_idx on public.audit_logs (user_id);
 
 alter table public.audit_logs enable row level security;
 
+drop policy if exists "audit_logs all" on public.audit_logs;
 create policy "audit_logs all" on public.audit_logs
   for all to authenticated using (true) with check (true);

@@ -31,8 +31,11 @@ create index if not exists settlements_status_idx on public.settlements (status)
 create index if not exists settlements_pool_idx on public.settlements (from_pool, to_pool);
 
 alter table public.settlements enable row level security;
+drop policy if exists "settlements select" on public.settlements;
 create policy "settlements select" on public.settlements for select to authenticated using (public.is_back_office());
+drop policy if exists "settlements insert" on public.settlements;
 create policy "settlements insert" on public.settlements for insert to authenticated with check (public.is_back_office());
+drop policy if exists "settlements update" on public.settlements;
 create policy "settlements update" on public.settlements for update to authenticated using (public.is_back_office()) with check (public.is_back_office());
 
 create sequence if not exists public.settlement_seq start 1;
