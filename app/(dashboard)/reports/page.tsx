@@ -56,7 +56,6 @@ export default async function ReportsPage() {
       supabase
         .from("cash_entries")
         .select("id, entry_date, method, direction, amount, description, payment_instruments(name, type)")
-        .eq("direction", "in")
         .order("entry_date", { ascending: false })
         .limit(1000),
       supabase

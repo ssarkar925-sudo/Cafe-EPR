@@ -352,73 +352,6 @@ begin
         and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
       union all
       select case when direction = 'in' then amount else -amount end
-      from public.cash_entries where method = 'wallet'
-        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
-    ) t;
-
-  elsif p_pool = 'dmt' then
-    select coalesce(sum(x), 0) into v from (
-      select amount as x from public.settlements where status = 'success' and to_pool = 'dmt'
-        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
-      union all
-      select -amount from public.settlements where status = 'success' and from_pool = 'dmt'
-        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
-      union all
-      select case when direction = 'in' then amount else -amount end
-      from public.cash_entries where method = 'dmt'
-        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
-      union all
-      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'dmt'
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-      union all
-      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'dmt'
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-    ) t;
-
-  elsif p_pool = 'aeps' then
-    select coalesce(sum(x), 0) into v from (
-      select amount as x from public.settlements where status = 'success' and to_pool = 'aeps'
-        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
-      union all
-      select -amount from public.settlements where status = 'success' and from_pool = 'aeps'
-        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
-      union all
-      select case when direction = 'out' then amount else -amount end
-      from public.cash_entries where method = 'aeps'
-        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
-      union all
-      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'aeps'
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-      union all
-      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'aeps'
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-    ) t;
-
-  elsif p_pool = 'upi_qr' then
-    select coalesce(sum(x), 0) into v from (
-      select amount as x from public.settlements where status = 'success' and to_pool = 'upi_qr'
-        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
-      union all
-      select -amount from public.settlements where status = 'success' and from_pool = 'upi_qr'
-        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
-      union all
-      select case when direction = 'in' then amount else -amount end
-      from public.cash_entries where method = 'upi'
-        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
-      union all
-      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-      union all
-      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-      union all
-      select upi_fee from public.transactions where status = 'success' and upi_fee > 0
-        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
-    ) t;
-
-  elsif p_pool = 'recharge' then
-    select coalesce(sum(x), 0) into v from (
-      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
         and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
       union all
       select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
@@ -667,7 +600,7 @@ begin
     where status = 'active' and sale_date between p_from and p_to), 0);
 
   -- Commission income: successful AEPS/DMT/UPI transactions in range
-  select coalesce(sum(commission + service_fee), 0) into v_commission
+  select coalesce(sum(coalesce(portal_commission, 0) + coalesce(service_fee, 0)), 0) into v_commission
     from public.transactions
     where status = 'success' and transaction_date between p_from and p_to;
 
@@ -711,7 +644,7 @@ begin
       where r.status = 'completed' and i.status <> 'cancelled'
         and r.return_date between p_from and p_to
       union all
-      select transaction_date, 0, 0, 0, commission + service_fee
+      select transaction_date, 0, 0, 0, coalesce(portal_commission, 0) + coalesce(service_fee, 0)
       from public.transactions
       where status = 'success' and transaction_date between p_from and p_to
       union all
@@ -1163,8 +1096,14 @@ begin
     v_from := 'wallet'; v_to := 'dmt'; v_prefix := 'WTD'; v_cash_dir := null;
   elsif p_settlement_type = 'upi_qr_to_wallet' then
     v_from := 'upi_qr'; v_to := 'wallet'; v_prefix := 'UQW'; v_cash_dir := null;
+  elsif p_settlement_type = 'upi_qr_to_bank' then
+    v_from := 'upi_qr'; v_to := 'bank'; v_prefix := 'UQB'; v_cash_dir := null;
   elsif p_settlement_type = 'wallet_to_bank' then
     v_from := 'wallet'; v_to := 'bank'; v_prefix := 'WTB'; v_cash_dir := null;
+  elsif p_settlement_type = 'bank_to_recharge' then
+    v_from := 'bank'; v_to := 'recharge'; v_prefix := 'BTR'; v_cash_dir := null;
+  elsif p_settlement_type = 'recharge_to_bank' then
+    v_from := 'recharge'; v_to := 'bank'; v_prefix := 'RTB'; v_cash_dir := null;
   elsif p_settlement_type = 'bank_withdrawal' then
     v_from := 'bank'; v_to := 'cash'; v_prefix := 'BWD'; v_cash_dir := 'in'; v_cash_label := 'Bank Withdrawal';
   elsif p_settlement_type = 'add_cash_to_bank' then
@@ -1430,7 +1369,8 @@ begin
     else
       v_cash_out := p_amount - v_fee;
     end if;
-    v_pool_out := p_amount + coalesce(p_portal_commission, 0);
+    v_pool_credit := p_amount + coalesce(p_portal_commission, 0);
+    v_pool_out := 0;
     v_pool_type := 'aeps';
   elsif p_service_type = 'dmt' then
     if p_transfer_method not in ('bank_account', 'upi') then raise exception 'Select a transfer method'; end if;
@@ -1604,7 +1544,8 @@ begin
       else
         v_cash_out := p_amount - v_fee;
       end if;
-      v_pool_out := p_amount + coalesce(p_portal_commission, 0);
+      v_pool_credit := p_amount + coalesce(p_portal_commission, 0);
+      v_pool_out := 0;
       v_pool_type := 'aeps';
     elsif v_txn.service_type = 'dmt' then
       if coalesce(p_paid_from, 'bank') = 'portal' then
@@ -2157,6 +2098,71 @@ begin
   );
 end;
 $$;
+
+-- ---------- record_invoice_payment: multi-method & instrument support ----------
+create or replace function public.record_invoice_payment(
+  p_invoice_id uuid,
+  p_method text,
+  p_amount numeric,
+  p_instrument_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_invoice record;
+  v_due numeric;
+  v_method text;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+  v_method := lower(coalesce(nullif(p_method, ''), 'cash'));
+  if p_instrument_id is not null then
+    select type into v_method from public.payment_instruments where id = p_instrument_id and is_active = true;
+    if v_method is null then raise exception 'Unknown payment instrument'; end if;
+  elsif v_method not in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card') then
+    raise exception 'Invalid payment method';
+  end if;
+
+  select * into v_invoice from public.invoices where id = p_invoice_id for update;
+  if not found then raise exception 'Invoice not found'; end if;
+  if v_invoice.status = 'cancelled' then raise exception 'Cannot pay a returned invoice'; end if;
+
+  v_due := v_invoice.total - v_invoice.paid;
+  if p_amount > v_due then raise exception 'Payment exceeds outstanding due'; end if;
+
+  insert into public.payments (invoice_id, method, amount, instrument_id)
+  values (p_invoice_id, v_method, p_amount, p_instrument_id);
+
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id, instrument_id)
+  values (current_date, v_method, 'in', p_amount, 'Payment ' || v_invoice.invoice_number, 'invoice', p_invoice_id, p_instrument_id);
+
+  update public.invoices
+  set paid = paid + p_amount,
+      due = due - p_amount,
+      status = case when due - p_amount <= 0 then 'paid' else 'partial' end
+  where id = p_invoice_id;
+
+  if v_invoice.customer_id is not null then
+    update public.customers
+    set balance = balance - p_amount, updated_at = now()
+    where id = v_invoice.customer_id;
+
+    insert into public.customer_ledger (customer_id, entry_date, type, description, credit, balance_after, ref_id)
+    values (v_invoice.customer_id, current_date, 'payment', 'Payment on ' || v_invoice.invoice_number, p_amount,
+            (select balance from public.customers where id = v_invoice.customer_id), p_invoice_id);
+  end if;
+
+  return (
+    select jsonb_build_object('id', id, 'invoice_number', invoice_number,
+      'total', total, 'paid', paid, 'due', due, 'status', status)
+    from public.invoices where id = p_invoice_id
+  );
+end;
+$$;
+revoke all on function public.record_invoice_payment(uuid, text, numeric, uuid) from public, anon;
+grant execute on function public.record_invoice_payment(uuid, text, numeric, uuid) to authenticated;
 
 -- ---------- record_advance / return_advance: optional payment method ----------
 drop function if exists public.record_advance(uuid, numeric, date, text);

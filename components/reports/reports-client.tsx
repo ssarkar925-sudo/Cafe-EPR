@@ -164,8 +164,6 @@ export default function ReportsClient({
     };
   }, [validQuick]);
 
-  const net = totalSales - totalReturns - totalExpenses + quickSummary.amount - quickSummary.cost;
-
   const validTxns = useMemo(
     () =>
       transactions.filter(
@@ -182,6 +180,8 @@ export default function ReportsClient({
       income: validTxns.reduce((s, t) => s + Number(t.service_fee) + Number(t.portal_commission), 0),
     };
   }, [validTxns]);
+
+  const net = totalSales - totalReturns - totalExpenses + quickSummary.amount - quickSummary.cost + txnSummary.income;
 
   const dayTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -247,8 +247,9 @@ export default function ReportsClient({
     const map = new Map<string, { name: string; type: string; in: number }>();
     for (const ce of cashEntries) {
       if (ce.entry_date < range.from || ce.entry_date > range.to) continue;
-      const name = ce.payment_instruments?.name ?? "Unassigned";
-      const cur = map.get(name) ?? { name, type: ce.payment_instruments?.type ?? "other", in: 0 };
+      if (ce.direction !== "in") continue;
+      const name = ce.payment_instruments?.name ?? "Counter Cash";
+      const cur = map.get(name) ?? { name, type: ce.payment_instruments?.type ?? "cash", in: 0 };
       cur.in += Number(ce.amount);
       map.set(name, cur);
     }
@@ -265,7 +266,7 @@ export default function ReportsClient({
     { label: "Returns", value: totalReturns, icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5", grad: "from-amber-500 to-orange-600", sub: `${validReturns.length} returns` },
     { label: "Expenses", value: totalExpenses, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5", grad: "from-rose-500 to-pink-600", sub: `${activeExpenses.length} entries` },
     { label: "Quick Sales", value: quickSummary.amount, icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-teal-500 to-emerald-600", sub: `${quickSummary.count} sales · ${inr(quickSummary.amount - quickSummary.cost)} margin` },
-    { label: "Net", value: net, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600", sub: "Sales + quick margin − returns − expenses" },
+    { label: "Net Profit", value: net, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600", sub: "Sales + quick margin + business income − returns − expenses" },
   ];
 
   const recentInvoices = invoices.filter((i) => i.status !== "cancelled" && i.invoice_date >= range.from && i.invoice_date <= range.to).slice(0, 8);
@@ -797,7 +798,8 @@ export default function ReportsClient({
                     const open = openInst === r.name;
                     const detail = cashEntries.filter(
                       (ce) =>
-                        (ce.payment_instruments?.name ?? "Unassigned") === r.name &&
+                        (ce.payment_instruments?.name ?? "Counter Cash") === r.name &&
+                        ce.direction === "in" &&
                         ce.entry_date >= range.from &&
                         ce.entry_date <= range.to
                     );
