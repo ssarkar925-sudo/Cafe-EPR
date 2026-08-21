@@ -50,9 +50,12 @@ export default async function PosPage({
         .eq("is_active", true),
       supabase
         .from("invoices")
-        .select("total")
+        .select(
+          "id, invoice_number, invoice_date, customer_id, discount, total, status, customers(name), invoice_items(product_id, service_id, description, qty, rate, amount), payments(method, instrument_id, amount)"
+        )
         .eq("invoice_date", today)
-        .in("status", ["paid", "partial"]),
+        .order("created_at", { ascending: false })
+        .limit(500),
       supabase
         .from("quick_sales")
         .select(
@@ -62,11 +65,9 @@ export default async function PosPage({
         .order("created_at", { ascending: false }),
     ]);
 
-  const salesTodayCount = (todaysInvoices ?? []).length;
-  const salesTodayAmount = (todaysInvoices ?? []).reduce(
-    (s, i) => s + Number(i.total),
-    0
-  );
+  const activeInvoices = (todaysInvoices ?? []).filter((i: any) => i.status !== "cancelled");
+  const salesTodayCount = activeInvoices.length;
+  const salesTodayAmount = activeInvoices.reduce((s: number, i: any) => s + Number(i.total), 0);
   const enabledMethods = (paymentMethods ?? []).map((p: any) => p.method);
 
   return (
@@ -82,6 +83,7 @@ export default async function PosPage({
       todayQuickSales={(todaysQuick ?? []) as any}
       enabledMethods={enabledMethods}
       canViewProfit={canViewProfit}
+      todayInvoices={(todaysInvoices ?? []) as any}
     />
   );
 }

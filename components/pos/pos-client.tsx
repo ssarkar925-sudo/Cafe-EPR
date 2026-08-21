@@ -9,6 +9,7 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
+import Modal from "@/components/ui/modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
 import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
@@ -58,6 +59,26 @@ export type PosInstrument = {
   id: string;
   name: string;
   type: string;
+};
+
+export type PosInvoice = {
+  id: string;
+  invoice_number: string;
+  invoice_date: string;
+  customer_id: string | null;
+  discount: number | string;
+  total: number | string;
+  status: string;
+  customers: { name: string | null } | null;
+  invoice_items: {
+    product_id: string | null;
+    service_id: string | null;
+    description: string | null;
+    qty: number | string;
+    rate: number | string;
+    amount: number | string;
+  }[];
+  payments: { method: string; instrument_id: string | null; amount: number | string }[];
 };
 
 export type CartLine = {
@@ -131,6 +152,7 @@ export default function PosClient({
   todayQuickSales = [],
   enabledMethods,
   canViewProfit = true,
+  todayInvoices = [],
 }: {
   products: PosProduct[];
   services: PosService[];
@@ -143,6 +165,7 @@ export default function PosClient({
   todayQuickSales?: QuickSale[];
   enabledMethods?: string[];
   canViewProfit?: boolean;
+  todayInvoices?: PosInvoice[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -204,6 +227,8 @@ export default function PosClient({
   const [newInst, setNewInst] = useState({ name: "", type: "cash" });
   const [addingInst, setAddingInst] = useState(false);
   const [instList, setInstList] = useState<PosInstrument[]>(instruments);
+  const [showEditList, setShowEditList] = useState(false);
+  const [editing, setEditing] = useState<PosInvoice | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const customerSearchRef = useRef<HTMLInputElement>(null);
 
@@ -739,19 +764,40 @@ export default function PosClient({
     }));
     const today = new Date().toISOString().slice(0, 10);
 
-    const { data, error } = await supabase.rpc("create_sale", {
-      p_customer_id: customerId || null,
-      p_invoice_date: today,
-      p_subtotal: Number(subtotal.toFixed(2)),
-      p_discount: discountNum,
-      p_total: Number(total.toFixed(2)),
-      p_payments: pmts,
-      p_items: items,
-      p_previous_due: Number(dueCollection.toFixed(2)),
-      p_previous_due_method: duePick.method,
-      p_previous_due_instrument_id: duePick.instrument_id || null,
-      p_advance_used: Number(advanceUsed.toFixed(2)),
-    });
+    let data: any = null;
+    let error: { message: string } | null = null;
+
+    if (editing) {
+      const res = await supabase.rpc("edit_invoice", {
+        p_invoice_id: editing.id,
+        p_customer_id: customerId || null,
+        p_invoice_date: today,
+        p_subtotal: Number(subtotal.toFixed(2)),
+        p_discount: discountNum,
+        p_total: Number(total.toFixed(2)),
+        p_payments: pmts,
+        p_items: items,
+        p_reason: "",
+      });
+      data = res.data;
+      error = res.error as { message: string } | null;
+    } else {
+      const res = await supabase.rpc("create_sale", {
+        p_customer_id: customerId || null,
+        p_invoice_date: today,
+        p_subtotal: Number(subtotal.toFixed(2)),
+        p_discount: discountNum,
+        p_total: Number(total.toFixed(2)),
+        p_payments: pmts,
+        p_items: items,
+        p_previous_due: Number(dueCollection.toFixed(2)),
+        p_previous_due_method: duePick.method,
+        p_previous_due_instrument_id: duePick.instrument_id || null,
+        p_advance_used: Number(advanceUsed.toFixed(2)),
+      });
+      data = res.data;
+      error = res.error as { message: string } | null;
+    }
 
     setBusy(false);
 
@@ -771,6 +817,7 @@ export default function PosClient({
     );
 
     setSuccess({ ...(data as SaleResult), change: changeAmt } as SaleResult);
+    const editedNumber = editing?.invoice_number;
     setCart([]);
     setCustomerId("");
     setDiscount("");
@@ -779,18 +826,64 @@ export default function PosClient({
     setUseAdvance(false);
     setDueAmount("");
     setAdvanceAmount("");
+    setEditing(null);
     logAudit({
-      action: "create",
+      action: editing ? "update" : "create",
       entity: "invoice",
       entity_id: (data as SaleResult)?.id ?? null,
-      description: `Sale created (${inr(total)})${customerId ? " for a customer" : ""}`,
-      details: { invoice_number: (data as SaleResult)?.invoice_number ?? null, total: Number(total.toFixed(2)) },
+      description: editing
+        ? `Invoice edited (${editedNumber} -> ${(data as SaleResult)?.invoice_number}) ${inr(total)}`
+        : `Sale created (${inr(total)})${customerId ? " for a customer" : ""}`,
+      details: {
+        invoice_number: (data as SaleResult)?.invoice_number ?? null,
+        total: Number(total.toFixed(2)),
+        ...(editing ? { old_invoice_number: editedNumber } : {}),
+      },
     });
 
     if (print) {
       const id = (data as SaleResult)?.id;
       if (id) window.open(`/receipt/${id}`, "_blank", "noopener");
     }
+  }
+
+  function loadInvoiceForEdit(inv: PosInvoice) {
+    const lines: CartLine[] = (inv.invoice_items ?? []).map((it) => {
+      const key = it.product_id
+        ? `p-${it.product_id}`
+        : it.service_id
+        ? `s-${it.service_id}`
+        : `c-${Math.random().toString(36).slice(2)}`;
+      return {
+        key,
+        product_id: it.product_id,
+        service_id: it.service_id,
+        name: it.description ?? "Item",
+        qty: Number(it.qty) || 1,
+        rate: Number(it.rate) || 0,
+        amount: Number(it.amount) || 0,
+      };
+    });
+    setCart(lines);
+    setCustomerId(inv.customer_id || "");
+    setDiscount(String(Number(inv.discount) || 0));
+    const loadedPayments = (inv.payments ?? []).map((p) => {
+      let instrument_id = p.instrument_id || "";
+      let method = p.method;
+      if (!instrument_id) {
+        const match = instruments.find((i) => i.type === p.method);
+        instrument_id = match?.id ?? defaultInstrument?.id ?? "";
+        if (match) method = match.type;
+      }
+      return { instrument_id, method, amount: String(Number(p.amount) || 0) };
+    });
+    setPayments(
+      loadedPayments.length > 0
+        ? loadedPayments
+        : [{ instrument_id: defaultInstrument?.id ?? "", method: defaultInstrument?.type ?? "cash", amount: "" }]
+    );
+    setEditing(inv);
+    setShowEditList(false);
   }
 
   const labelClass = "mb-1 block text-xs font-semibold text-slate-500";
@@ -858,12 +951,20 @@ export default function PosClient({
             ))}
           </div>
           {mode === "invoice" && (
-            <Link
-              href="/invoices"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Today's Sales
-            </Link>
+            <>
+              <button
+                onClick={() => setShowEditList(true)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Edit Sale
+              </button>
+              <Link
+                href="/invoices"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Today's Sales
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -878,6 +979,21 @@ export default function PosClient({
           enabledMethods={enabledMethods}
           canViewProfit={canViewProfit}
         />
+      )}
+
+      {mode === "invoice" && editing && (
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5">
+          <p className="text-sm text-amber-800">
+            Editing <span className="font-semibold">{editing.invoice_number}</span> — saving will reverse the
+            original and create a corrected invoice (audited).
+          </p>
+          <button
+            onClick={() => setEditing(null)}
+            className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
+          >
+            Cancel edit
+          </button>
+        </div>
       )}
 
       {mode === "invoice" && (
@@ -1582,6 +1698,60 @@ export default function PosClient({
             </div>
           </div>
         </div>
+      )}
+
+      {showEditList && (
+        <Modal
+          onClose={() => setShowEditList(false)}
+          size="xl"
+          header={
+            <div className="px-6 py-5">
+              <h2 className="text-lg font-bold text-slate-900">Edit a Sale</h2>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Select today&apos;s invoice to load it into the cart. Saving will reverse the original and create a corrected invoice.
+              </p>
+            </div>
+          }
+          footer={
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowEditList(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-white"
+              >
+                Close
+              </button>
+            </div>
+          }
+        >
+          {todayInvoices.filter((i: PosInvoice) => i.status !== "cancelled").length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">No editable invoices for today yet.</p>
+          ) : (
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
+              {todayInvoices
+                .filter((i: PosInvoice) => i.status !== "cancelled")
+                .map((inv: PosInvoice) => (
+                  <div
+                    key={inv.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">{inv.invoice_number}</p>
+                      <p className="text-xs text-slate-500">
+                        {inv.customers?.name || "Walk-in"} · {inr(Number(inv.total))} ·{" "}
+                        <span className="capitalize">{inv.status}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => loadInvoiceForEdit(inv)}
+                      className="shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:from-blue-700 hover:to-indigo-700"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+        </Modal>
       )}
 
       {recallOpen && (
