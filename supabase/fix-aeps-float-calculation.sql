@@ -904,3 +904,223 @@ $$;
 revoke all on function public.record_invoice_payment(uuid, text, numeric, uuid) from public, anon;
 grant execute on function public.record_invoice_payment(uuid, text, numeric, uuid) to authenticated;
 
+-- 9. Day Close Live View & Adjustment procedures
+create or replace function public.get_open_close()
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_close record;
+  v_rows jsonb;
+  v_pool text;
+  v_opening numeric;
+  v_seed date;
+  v_mov numeric;
+  v_computed numeric;
+  v_adjust numeric;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+
+  select * into v_close from public.closings where status = 'open' order by opened_at desc limit 1;
+  if not found then return '{}'::jsonb; end if;
+
+  v_rows := '[]'::jsonb;
+  foreach v_pool in array array['cash', 'bank', 'wallet', 'dmt', 'aeps', 'upi_qr', 'credit_card', 'recharge']
+  loop
+    select coalesce(opening, 0), coalesce(seed_date, '0001-01-01'::date), coalesce(adjustment, 0)
+      into v_opening, v_seed, v_adjust
+    from public.closing_balances
+    where closing_id = v_close.id and pool = v_pool;
+
+    v_mov := public.get_pool_movements(v_pool, v_seed, v_close.close_date);
+    v_computed := v_opening + v_mov;
+
+    update public.closing_balances
+      set movements = v_mov,
+          computed = v_computed,
+          final = v_computed + coalesce(v_adjust, 0)
+      where closing_id = v_close.id and pool = v_pool;
+
+    v_rows := v_rows || jsonb_build_array(jsonb_build_object(
+      'pool', v_pool,
+      'seed_date', v_seed,
+      'opening', v_opening,
+      'movements', v_mov,
+      'computed', v_computed,
+      'adjustment', v_adjust,
+      'final', v_computed + v_adjust
+    ));
+  end loop;
+
+  return jsonb_build_object(
+    'id', v_close.id,
+    'closing_number', v_close.closing_number,
+    'close_date', v_close.close_date,
+    'status', v_close.status,
+    'opened_at', v_close.opened_at,
+    'rows', v_rows
+  );
+end;
+$$;
+revoke all on function public.get_open_close() from public, anon;
+grant execute on function public.get_open_close() to authenticated;
+
+create or replace function public.set_close_adjustment(
+  p_closing_id uuid,
+  p_pool text,
+  p_amount numeric,
+  p_remarks text default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_close record;
+  v_row record;
+  v_mov numeric;
+  v_computed numeric;
+  v_final numeric;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if p_amount is null then raise exception 'Adjustment amount is required'; end if;
+
+  select * into v_close from public.closings where id = p_closing_id and status = 'open';
+  if not found then
+    raise exception 'Day close not open';
+  end if;
+
+  select * into v_row from public.closing_balances
+    where closing_id = p_closing_id and pool = p_pool for update;
+  if not found then raise exception 'Pool not found in close'; end if;
+
+  v_mov := public.get_pool_movements(p_pool, coalesce(v_row.seed_date, '0001-01-01'::date), v_close.close_date);
+  v_computed := v_row.opening + v_mov;
+  v_final := v_computed + p_amount;
+
+  update public.closing_balances
+    set movements = v_mov,
+        computed = v_computed,
+        adjustment = p_amount,
+        final = v_final,
+        remarks = coalesce(nullif(p_remarks, ''), remarks)
+    where id = v_row.id;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'close_adjustment_set', 'closings', p_closing_id::text,
+    'Adjusted ' || p_pool || ' by ' || p_amount || ' on day close',
+    jsonb_build_object('pool', p_pool, 'amount', p_amount, 'remarks', p_remarks)
+  );
+
+  return jsonb_build_object('closing_id', p_closing_id, 'pool', p_pool, 'adjustment', p_amount, 'final', v_final);
+end;
+$$;
+revoke all on function public.set_close_adjustment(uuid, text, numeric, text) from public, anon;
+grant execute on function public.set_close_adjustment(uuid, text, numeric, text) to authenticated;
+
+create or replace function public.close_day(
+  p_closing_id uuid,
+  p_owner_deposits numeric default 0,
+  p_owner_withdrawals numeric default 0,
+  p_remarks text default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_close record;
+  v_pool text;
+  v_open_total numeric := 0;
+  v_final_total numeric := 0;
+  v_net numeric;
+  v_check numeric;
+  v_row record;
+  v_result jsonb := '{}'::jsonb;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if coalesce(p_owner_deposits, 0) < 0 or coalesce(p_owner_withdrawals, 0) < 0 then
+    raise exception 'Owner deposit/withdrawal amounts cannot be negative';
+  end if;
+
+  select * into v_close from public.closings where id = p_closing_id for update;
+  if not found then raise exception 'Day close not found'; end if;
+  if v_close.status <> 'open' then raise exception 'Day close is not open'; end if;
+
+  for v_row in
+    select * from public.closing_balances where closing_id = p_closing_id
+  loop
+    if v_row.seed_date is not null then
+      update public.closing_balances
+        set movements = public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
+            computed = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
+            final = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date) + coalesce(v_row.adjustment, 0)
+        where id = v_row.id;
+    end if;
+  end loop;
+
+  select coalesce(sum(opening), 0), coalesce(sum(final), 0)
+    into v_open_total, v_final_total
+  from public.closing_balances where closing_id = p_closing_id;
+
+  v_net := coalesce((select (public.get_pnl(v_close.close_date, v_close.close_date)->>'net_profit')::numeric), 0);
+  v_check := v_final_total - v_open_total - v_net - coalesce(p_owner_deposits, 0) + coalesce(p_owner_withdrawals, 0);
+
+  update public.closings
+    set status = 'closed', closed_by = auth.uid(), closed_at = now(),
+        net_profit = v_net,
+        owner_deposits = coalesce(p_owner_deposits, 0),
+        owner_withdrawals = coalesce(p_owner_withdrawals, 0),
+        balance_check = v_check,
+        remarks = coalesce(nullif(p_remarks, ''), remarks)
+    where id = p_closing_id;
+
+  for v_row in
+    select * from public.closing_balances where closing_id = p_closing_id
+  loop
+    insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, is_auto, created_by)
+    values (v_row.pool, null, v_row.final, (v_close.close_date + interval '1 day')::date,
+            'Auto from ' || v_close.closing_number, true, auth.uid());
+    v_result := v_result || jsonb_build_object(
+      v_row.pool, jsonb_build_object('opening', v_row.opening, 'movements', v_row.movements,
+                                     'adjustment', v_row.adjustment, 'final', v_row.final)
+    );
+  end loop;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'day_close_completed', 'closings', p_closing_id::text,
+    'Closed ' || v_close.closing_number || ' for ' || v_close.close_date ||
+    ' | net profit ' || v_net || ' | balance check ' || v_check,
+    jsonb_build_object('net_profit', v_net, 'balance_check', v_check,
+                       'owner_deposits', p_owner_deposits, 'owner_withdrawals', p_owner_withdrawals)
+  );
+
+  return jsonb_build_object(
+    'id', p_closing_id,
+    'closing_number', v_close.closing_number,
+    'close_date', v_close.close_date,
+    'status', 'closed',
+    'net_profit', v_net,
+    'balance_check', v_check,
+    'pools', v_result
+  );
+end;
+$$;
+revoke all on function public.close_day(uuid, numeric, numeric, text) from public, anon;
+grant execute on function public.close_day(uuid, numeric, numeric, text) to authenticated;
+
+-- 10. Automatically synchronize any currently open day close balances
+update public.closing_balances cb
+set movements = public.get_pool_movements(cb.pool, cb.seed_date, c.close_date),
+    computed = cb.opening + public.get_pool_movements(cb.pool, cb.seed_date, c.close_date),
+    final = cb.opening + public.get_pool_movements(cb.pool, cb.seed_date, c.close_date) + coalesce(cb.adjustment, 0)
+from public.closings c
+where c.id = cb.closing_id and c.status = 'open';
+
+

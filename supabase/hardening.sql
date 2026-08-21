@@ -352,6 +352,73 @@ begin
         and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
       union all
       select case when direction = 'in' then amount else -amount end
+      from public.cash_entries where method = 'wallet'
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'dmt' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'dmt'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'dmt'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries where method = 'dmt'
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'dmt'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'dmt'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'aeps' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'aeps'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'aeps'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries where method = 'aeps'
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'aeps'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'aeps'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'upi_qr' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'upi_qr'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'upi_qr'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries where method = 'upi'
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+      union all
+      select pool_credit from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions where status = 'success' and pool_credit_type = 'upi_qr'
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select upi_fee from public.transactions where status = 'success' and upi_fee > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'recharge' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
         and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
       union all
       select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
@@ -410,6 +477,12 @@ begin
 
     v_mov := public.get_pool_movements(v_pool, v_seed, v_close.close_date);
     v_computed := v_opening + v_mov;
+
+    update public.closing_balances
+      set movements = v_mov,
+          computed = v_computed,
+          final = v_computed + coalesce(v_adjust, 0)
+      where closing_id = v_close.id and pool = v_pool;
 
     v_rows := v_rows || jsonb_build_array(jsonb_build_object(
       'pool', v_pool,
@@ -902,13 +975,18 @@ language plpgsql
 security definer set search_path = public
 as $$
 declare
+  v_close record;
   v_row record;
+  v_mov numeric;
+  v_computed numeric;
   v_final numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_amount is null then raise exception 'Adjustment amount is required'; end if;
-  if not exists (select 1 from public.closings where id = p_closing_id and status = 'open') then
+
+  select * into v_close from public.closings where id = p_closing_id and status = 'open';
+  if not found then
     raise exception 'Day close not open';
   end if;
 
@@ -916,9 +994,15 @@ begin
     where closing_id = p_closing_id and pool = p_pool for update;
   if not found then raise exception 'Pool not found in close'; end if;
 
-  v_final := v_row.computed + p_amount;
+  v_mov := public.get_pool_movements(p_pool, coalesce(v_row.seed_date, '0001-01-01'::date), v_close.close_date);
+  v_computed := v_row.opening + v_mov;
+  v_final := v_computed + p_amount;
+
   update public.closing_balances
-    set adjustment = p_amount, final = v_final,
+    set movements = v_mov,
+        computed = v_computed,
+        adjustment = p_amount,
+        final = v_final,
         remarks = coalesce(nullif(p_remarks, ''), remarks)
     where id = v_row.id;
 
@@ -971,7 +1055,7 @@ begin
       update public.closing_balances
         set movements = public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
             computed = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date),
-            final = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date) + v_row.adjustment
+            final = v_row.opening + public.get_pool_movements(v_row.pool, v_row.seed_date, v_close.close_date) + coalesce(v_row.adjustment, 0)
         where id = v_row.id;
     end if;
   end loop;
@@ -996,7 +1080,7 @@ begin
     select * from public.closing_balances where closing_id = p_closing_id
   loop
     insert into public.opening_balances (pool, instrument_id, amount, as_of, remarks, is_auto, created_by)
-    values (v_row.pool, null, v_row.final, v_close.close_date,
+    values (v_row.pool, null, v_row.final, (v_close.close_date + interval '1 day')::date,
             'Auto from ' || v_close.closing_number, true, auth.uid());
     v_result := v_result || jsonb_build_object(
       v_row.pool, jsonb_build_object('opening', v_row.opening, 'movements', v_row.movements,
