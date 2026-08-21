@@ -54,7 +54,7 @@ alter table public.transactions add column if not exists provider_id uuid refere
 
 alter table public.transactions drop constraint if exists transactions_service_type_check;
 alter table public.transactions add constraint transactions_service_type_check
-  check (service_type in ('aeps', 'dmt', 'upi', 'recharge'));
+  check (service_type in ('aeps', 'dmt', 'upi', 'recharge', 'recharge_due', 'due'));
 
 create sequence if not exists public.recharge_seq start 1;
 grant usage, select on sequence public.recharge_seq to authenticated;

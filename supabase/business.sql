@@ -69,7 +69,7 @@ alter table public.transactions add constraint transactions_status_check
   check (status in ('success', 'pending', 'failed', 'reversed', 'deleted'));
 alter table public.transactions drop constraint if exists transactions_service_type_check;
 alter table public.transactions add constraint transactions_service_type_check
-  check (service_type in ('aeps', 'dmt', 'upi'));
+  check (service_type in ('aeps', 'dmt', 'upi', 'recharge', 'recharge_due', 'due'));
 
 -- ---------- Finance ledger legs (AEPS/DMT/UPI cash/bank/pool model) ----------
 alter table public.transactions add column if not exists fee_source text;
