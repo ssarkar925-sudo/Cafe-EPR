@@ -102,7 +102,7 @@ begin
       else
         v_cash_out := p_amount - v_fee;
       end if;
-      v_pool_credit := p_amount;
+      v_pool_out := p_amount + coalesce(p_portal_commission, 0);
       v_pool_type := 'aeps';
     elsif v_txn.service_type = 'dmt' then
       if coalesce(p_paid_from, 'bank') = 'portal' then
