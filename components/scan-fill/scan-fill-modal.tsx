@@ -108,20 +108,29 @@ export default function ScanFillModal({
   async function startCamera() {
     setError(null);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("This browser can't access the camera. Use Upload screenshot instead.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
-      }
       setCamOn(true);
     } catch {
       setError("Camera unavailable. Use Upload screenshot instead.");
     }
   }
+
+  // Attach the stream only after the <video> element is mounted (camOn true),
+  // otherwise videoRef.current is null and the preview stays black on mobile.
+  useEffect(() => {
+    if (camOn && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camOn]);
 
   function capture() {
     const video = videoRef.current;
