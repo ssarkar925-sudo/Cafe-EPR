@@ -96,6 +96,11 @@ revoke all on function public.get_recharge_commission(uuid, numeric) from public
 grant execute on function public.get_recharge_commission(uuid, numeric) to authenticated;
 
 -- ---------- 4. Create recharge ----------
+-- Drop any prior overloads so re-running this file is idempotent (signature
+-- changed when extra params were briefly added then removed).
+drop function if exists public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric);
+drop function if exists public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text);
+
 create or replace function public.create_recharge(
   p_provider_id uuid,
   p_transaction_date date,
@@ -176,6 +181,11 @@ revoke all on function public.create_recharge(uuid, date, timestamptz, uuid, tex
 grant execute on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric) to authenticated;
 
 -- ---------- 5. Edit recharge (reverses old cash leg, recomputes commission) ----------
+-- Drop any prior overloads (a 10-param version with p_customer_pay_method was
+-- created while the Due option existed; it must be removed to avoid ambiguity).
+drop function if exists public.update_recharge(uuid, uuid, date, timestamptz, uuid, text, text, text, numeric);
+drop function if exists public.update_recharge(uuid, uuid, date, timestamptz, uuid, text, text, text, numeric, text);
+
 create or replace function public.update_recharge(
   p_txn_id uuid,
   p_provider_id uuid,
