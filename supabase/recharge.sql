@@ -56,9 +56,10 @@ alter table public.transactions drop constraint if exists transactions_service_t
 alter table public.transactions add constraint transactions_service_type_check
   check (service_type in ('aeps', 'dmt', 'upi', 'recharge'));
 
--- Allow the recharge "due" (credit) payment method
-alter table public.transactions drop constraint if exists transactions_customer_pay_method_check;
-alter table public.transactions add constraint transactions_customer_pay_method_check
+-- Allow the recharge "due" (credit) payment method. Note: business.sql already created
+-- the constraint named transactions_pay_method_check — redefine THAT one to include 'due'.
+alter table public.transactions drop constraint if exists transactions_pay_method_check;
+alter table public.transactions add constraint transactions_pay_method_check
   check (customer_pay_method is null or customer_pay_method in ('cash', 'bank', 'upi', 'qr', 'due'));
 
 -- Allow the recharge_due ledger entry type
