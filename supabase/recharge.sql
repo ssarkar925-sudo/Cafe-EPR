@@ -144,7 +144,7 @@ begin
     coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
     p_customer_id, p_customer_mobile, nullif(p_reference, ''), p_remarks, p_status,
     p_provider_id, p_amount, 0, v_commission, auth.uid(),
-    0, p_amount, v_cost, v_cost, 'recharge'
+    0, p_amount, v_cost, 0, 'recharge'
   ) returning id into v_txn_id;
 
   if p_status = 'success' then
@@ -233,7 +233,8 @@ begin
     portal_commission = v_commission,
     cash_in = p_amount,
     pool_out = v_cost,
-    pool_credit = v_cost,
+    pool_credit = 0,
+    pool_credit_type = 'recharge',
     updated_at = now()
   where id = p_txn_id;
 
