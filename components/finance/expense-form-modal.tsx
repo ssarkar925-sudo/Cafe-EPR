@@ -9,32 +9,38 @@ export type ExpenseSource = {
   type: string;
 };
 
+export type ExpenseDraft = {
+  id?: string;
+  expense_date: string;
+  category: string;
+  amount: number | string;
+  note: string | null;
+  source: string;
+};
+
 export default function ExpenseFormModal({
   instruments,
   onClose,
   onSave,
+  initial,
 }: {
   instruments: ExpenseSource[];
   onClose: () => void;
-  onSave: (input: {
-    expense_date: string;
-    category: string;
-    amount: number;
-    note: string;
-    source: string;
-  }) => Promise<void>;
+  onSave: (input: ExpenseDraft) => Promise<void>;
+  initial?: Partial<ExpenseDraft>;
 }) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [category, setCategory] = useState("general");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  const [source, setSource] = useState("");
+  const [date, setDate] = useState(initial?.expense_date ?? new Date().toISOString().slice(0, 10));
+  const [category, setCategory] = useState(initial?.category ?? "general");
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [source, setSource] = useState(initial?.source ?? "");
   const [saving, setSaving] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     await onSave({
+      id: initial?.id,
       expense_date: date,
       category,
       amount: Number(amount) || 0,
@@ -53,8 +59,8 @@ export default function ExpenseFormModal({
       as="form"
       onSubmit={submit}
       onClose={onClose}
-      title="Add Expense"
-      subtitle="Record a money outflow from the shop"
+      title={initial ? "Edit Expense" : "Add Expense"}
+      subtitle={initial ? "Update the expense and its cash-book entry" : "Record a money outflow from the shop"}
       icon="M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5"
       accent="rose"
       size="md"
@@ -72,7 +78,7 @@ export default function ExpenseFormModal({
             disabled={saving}
             className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Add expense"}
+            {saving ? "Saving..." : initial ? "Save changes" : "Add expense"}
           </button>
         </div>
       }

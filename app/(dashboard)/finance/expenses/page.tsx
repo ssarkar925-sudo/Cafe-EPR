@@ -20,5 +20,24 @@ export default async function ExpensesPage() {
     supabase.from("payment_instruments").select("id, name, type").eq("is_active", true),
   ]);
 
-  return <ExpensesClient initialExpenses={(expenses ?? []) as any} instruments={(instruments ?? []) as any} />;
+  let enriched = (expenses ?? []) as any[];
+  const ids = enriched.map((e: any) => e.id);
+  if (ids.length) {
+    const { data: ces } = await supabase
+      .from("cash_entries")
+      .select("ref_id, instrument_id, method")
+      .eq("ref_type", "expense")
+      .in("ref_id", ids)
+      .order("created_at", { ascending: true });
+    const byId = new Map<string, any>();
+    for (const ce of (ces ?? []) as any[]) {
+      if (!byId.has(ce.ref_id)) byId.set(ce.ref_id, ce);
+    }
+    enriched = enriched.map((e: any) => {
+      const ce = byId.get(e.id);
+      return { ...e, source: ce?.instrument_id ?? "", method: ce?.method ?? "cash" };
+    });
+  }
+
+  return <ExpensesClient initialExpenses={enriched as any} instruments={(instruments ?? []) as any} />;
 }

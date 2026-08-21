@@ -17,6 +17,7 @@ export type Expense = {
   amount: number | string;
   note: string | null;
   status: string;
+  source?: string;
   profiles: { full_name: string } | null;
 };
 
@@ -48,6 +49,7 @@ export default function ExpensesClient({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [modal, setModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [compact, setCompact] = useState(false);
   const { showToast, toastView } = useToast();
@@ -95,13 +97,48 @@ export default function ExpensesClient({
       .slice(0, 5);
   }, [filtered]);
 
-  async function addExpense(input: {
+  async function saveExpense(input: {
+    id?: string;
     expense_date: string;
     category: string;
-    amount: number;
-    note: string;
+    amount: number | string;
+    note: string | null;
     source: string;
   }) {
+    if (input.id) {
+      const { error } = await supabase.rpc("update_expense", {
+        p_expense_id: input.id,
+        p_expense_date: input.expense_date,
+        p_category: input.category,
+        p_amount: input.amount,
+        p_note: input.note,
+        p_instrument_id: input.source || null,
+        p_method: input.source ? null : "cash",
+      });
+      if (error) {
+        showToast("error", error.message);
+        return;
+      }
+      setExpenses((prev) =>
+        prev.map((e) =>
+          e.id === input.id
+            ? { ...e, expense_date: input.expense_date, category: input.category, amount: input.amount, note: input.note, source: input.source }
+            : e
+        )
+      );
+      setModal(false);
+      setEditTarget(null);
+      showToast("success", `Expense updated — ${input.category} ${inr(input.amount)}`);
+      logAudit({
+        action: "update",
+        entity: "expense",
+        entity_id: input.id,
+        description: `Expense updated: ${input.category} ${inr(input.amount)}`,
+        details: { category: input.category, amount: input.amount, note: input.note, source: input.source },
+      });
+      return;
+    }
+
     const { data, error } = await supabase.rpc("add_expense", {
       p_expense_date: input.expense_date,
       p_category: input.category,
@@ -124,6 +161,7 @@ export default function ExpensesClient({
       amount: input.amount,
       note: input.note,
       status: "active",
+      source: input.source,
       profiles: null,
     } as Expense;
     setExpenses((prev) => [row, ...prev]);
@@ -136,6 +174,11 @@ export default function ExpensesClient({
       description: `Expense added: ${input.category} ${inr(input.amount)} from ${sourceName}`,
       details: { category: input.category, amount: input.amount, note: input.note, source: input.source },
     });
+  }
+
+  function startEdit(e: Expense) {
+    setEditTarget(e);
+    setModal(true);
   }
 
   async function cancelExpense(id: string) {
@@ -183,7 +226,10 @@ export default function ExpensesClient({
             CSV
           </button>
           <button
-            onClick={() => setModal(true)}
+            onClick={() => {
+              setEditTarget(null);
+              setModal(true);
+            }}
             className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
@@ -299,17 +345,25 @@ export default function ExpensesClient({
                     {e.status}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-right">
-                  {e.status === "active" && (
-                    <button
-                      onClick={() => cancelExpense(e.id)}
-                      disabled={busyId === e.id}
-                      className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-500/30 dark:bg-transparent dark:hover:bg-rose-500/10"
-                    >
-                      {busyId === e.id ? "…" : "Cancel"}
-                    </button>
-                  )}
-                </td>
+                 <td className="px-5 py-3 text-right">
+                   {e.status === "active" && (
+                     <div className="flex justify-end gap-2">
+                       <button
+                         onClick={() => startEdit(e)}
+                         className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5"
+                       >
+                         Edit
+                       </button>
+                       <button
+                         onClick={() => cancelExpense(e.id)}
+                         disabled={busyId === e.id}
+                         className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-500/30 dark:bg-transparent dark:hover:bg-rose-500/10"
+                       >
+                         {busyId === e.id ? "…" : "Cancel"}
+                       </button>
+                     </div>
+                   )}
+                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
@@ -340,7 +394,17 @@ export default function ExpensesClient({
         </div>
       )}
 
-      {modal && <ExpenseFormModal instruments={instruments} onClose={() => setModal(false)} onSave={addExpense} />}
+      {modal && (
+        <ExpenseFormModal
+          instruments={instruments}
+          onClose={() => {
+            setModal(false);
+            setEditTarget(null);
+          }}
+          onSave={saveExpense}
+          initial={editTarget ?? undefined}
+        />
+      )}
       {toastView}
     </div>
   );
