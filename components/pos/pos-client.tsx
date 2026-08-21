@@ -190,7 +190,7 @@ export default function PosClient({
     { instrument_id: string; method: string; amount: string }[]
   >([
     {
-      instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
+      instrument_id: instruments.find((i) => i.type === "cash")?.id ?? "",
       method: "cash",
       amount: "",
     },
@@ -199,7 +199,7 @@ export default function PosClient({
   const [scanOpen, setScanOpen] = useState(false);
   const [dueAmount, setDueAmount] = useState("");
   const [duePick, setDuePick] = useState<InstrumentPick>({
-    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
+    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? "",
     method: "cash",
   });
   const [useAdvance, setUseAdvance] = useState(false);
@@ -217,7 +217,7 @@ export default function PosClient({
   const [draftSaved, setDraftSaved] = useState(false);
   const [showMoneyOut, setShowMoneyOut] = useState(false);
   const [moPick, setMoPick] = useState<InstrumentPick>({
-    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
+    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? "",
     method: "cash",
   });
   const [moAmount, setMoAmount] = useState("");
@@ -291,7 +291,7 @@ export default function PosClient({
 
   const paid = useMemo(() => payments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [payments]);
 
-  const defaultInstrument = instruments.find((i) => i.type === "cash") ?? instruments[0];
+  const defaultInstrument = instruments.find((i) => i.type === "cash") ?? ({ id: "", name: "Cash", type: "cash" } as PosInstrument);
 
   const methodList = useMemo(() => {
     const all = Object.keys(METHOD_BTN);

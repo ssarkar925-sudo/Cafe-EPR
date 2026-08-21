@@ -100,7 +100,7 @@ export default function QuickSaleModule({
   const [customerId, setCustomerId] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([
     {
-      instrument_id: instrumentList.find((i) => i.type === "cash")?.id ?? instrumentList[0]?.id ?? "",
+      instrument_id: instrumentList.find((i) => i.type === "cash")?.id ?? "",
       method: "cash",
       amount: "",
     },
@@ -144,7 +144,7 @@ export default function QuickSaleModule({
   }
 
   const [moPick, setMoPick] = useState<InstrumentPick>({
-    instrument_id: instrumentList.find((i) => i.type === "cash")?.id ?? instrumentList[0]?.id ?? "",
+    instrument_id: instrumentList.find((i) => i.type === "cash")?.id ?? "",
     method: "cash",
   });
   const [moAmount, setMoAmount] = useState("");
@@ -155,7 +155,7 @@ export default function QuickSaleModule({
   const [newInst, setNewInst] = useState({ name: "", type: "cash" });
   const [addingInst, setAddingInst] = useState(false);
 
-  const defaultInstrument = instrumentList.find((i) => i.type === "cash") ?? instrumentList[0];
+  const defaultInstrument = instrumentList.find((i) => i.type === "cash") ?? ({ id: "", name: "Cash", type: "cash" } as PosInstrument);
 
   useEffect(() => {
     setHeld(loadHeld());
