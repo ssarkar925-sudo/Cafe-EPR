@@ -56,17 +56,6 @@ alter table public.transactions drop constraint if exists transactions_service_t
 alter table public.transactions add constraint transactions_service_type_check
   check (service_type in ('aeps', 'dmt', 'upi', 'recharge'));
 
--- Allow the recharge "due" (credit) payment method. Note: business.sql already created
--- the constraint named transactions_pay_method_check — redefine THAT one to include 'due'.
-alter table public.transactions drop constraint if exists transactions_pay_method_check;
-alter table public.transactions add constraint transactions_pay_method_check
-  check (customer_pay_method is null or customer_pay_method in ('cash', 'bank', 'upi', 'qr', 'due'));
-
--- Allow the recharge_due ledger entry type
-alter table public.customer_ledger drop constraint if exists customer_ledger_type_check;
-alter table public.customer_ledger add constraint customer_ledger_type_check
-  check (type in ('invoice', 'payment', 'return', 'opening', 'recharge_due'));
-
 create sequence if not exists public.recharge_seq start 1;
 grant usage, select on sequence public.recharge_seq to authenticated;
 
@@ -116,8 +105,7 @@ create or replace function public.create_recharge(
   p_reference text,
   p_remarks text,
   p_status text default 'success',
-  p_amount numeric default null,
-  p_customer_pay_method text default 'cash'
+  p_amount numeric default null
 )
 returns jsonb
 language plpgsql
@@ -129,20 +117,12 @@ declare
   v_commission numeric;
   v_cost numeric;
   v_provider_name text;
-  v_cash_in numeric;
-  v_cust_balance numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_status not in ('success', 'pending', 'failed') then raise exception 'Invalid status'; end if;
   if p_provider_id is null then raise exception 'A recharge provider is required'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
-  if p_customer_pay_method is null or p_customer_pay_method not in ('cash', 'bank', 'upi', 'qr', 'due') then
-    raise exception 'Invalid customer payment method';
-  end if;
-  if p_customer_pay_method = 'due' and p_customer_id is null then
-    raise exception 'Select a customer to record a due (credit) recharge';
-  end if;
 
   select name into v_provider_name from public.recharge_providers
   where id = p_provider_id and is_active;
@@ -152,49 +132,34 @@ begin
          (get_recharge_commission(p_provider_id, p_amount)->>'cost')::numeric
   into v_commission, v_cost;
 
-  -- The recharge float is debited by the cost; cash is received only when paid now.
-  v_cash_in := case when p_customer_pay_method = 'due' then 0 else p_amount end;
-
   v_number := 'RCH-' || lpad(nextval('public.recharge_seq')::text, 4, '0');
 
   insert into public.transactions (
     transaction_number, service_type, direction, transaction_date, transaction_timestamp,
     customer_id, customer_mobile, reference, remarks, status,
     provider_id, amount, service_fee, portal_commission, created_by,
-    cash_out, cash_in, pool_out, pool_credit, pool_credit_type, customer_pay_method
+    cash_out, cash_in, pool_out, pool_credit, pool_credit_type
   ) values (
     v_number, 'recharge', 'in', p_transaction_date,
     coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
     p_customer_id, p_customer_mobile, nullif(p_reference, ''), p_remarks, p_status,
     p_provider_id, p_amount, 0, v_commission, auth.uid(),
-    0, v_cash_in, v_cost, 0, null, p_customer_pay_method
+    0, p_amount, v_cost, v_cost, 'recharge'
   ) returning id into v_txn_id;
 
   if p_status = 'success' then
-    if p_customer_pay_method = 'due' then
-      -- Customer owes the face amount; recharge float is still debited by cost.
-      select balance into v_cust_balance from public.customers where id = p_customer_id for update;
-      v_cust_balance := coalesce(v_cust_balance, 0) + p_amount;
-      update public.customers set balance = v_cust_balance, updated_at = now() where id = p_customer_id;
-      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_id)
-      values (p_customer_id, p_transaction_date, 'recharge_due',
-              'Recharge due ' || v_number || ' (' || v_provider_name || ')', p_amount, 0, v_cust_balance, v_txn_id);
-    else
-      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-      values (p_transaction_date, p_customer_pay_method, 'in', p_amount,
-              'Recharge ' || v_number || ' received in cash', 'transaction', v_txn_id);
-    end if;
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (p_transaction_date, 'cash', 'in', p_amount,
+            'Recharge ' || v_number || ' received in cash', 'transaction', v_txn_id);
   end if;
 
   insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
   values (
     auth.uid(), null, 'transaction_created', 'transactions', v_txn_id::text,
     'Created Recharge ' || v_number || ' (' || p_status || ') of ' || p_amount ||
-    ' via ' || v_provider_name || ' | commission ' || v_commission ||
-    ' | paid: ' || p_customer_pay_method,
+    ' via ' || v_provider_name || ' | commission ' || v_commission,
     jsonb_build_object('service_type', 'recharge', 'provider', v_provider_name,
-                       'amount', p_amount, 'commission', v_commission, 'cost', v_cost,
-                       'status', p_status, 'customer_pay_method', p_customer_pay_method)
+                       'amount', p_amount, 'commission', v_commission, 'cost', v_cost, 'status', p_status)
   );
 
   return (
@@ -202,15 +167,15 @@ begin
       'service_type', service_type, 'direction', direction, 'status', status,
       'amount', amount, 'service_fee', service_fee, 'portal_commission', portal_commission,
       'cash_in', cash_in, 'pool_out', pool_out, 'pool_credit', pool_credit,
-      'pool_credit_type', pool_credit_type, 'customer_pay_method', customer_pay_method)
+      'pool_credit_type', pool_credit_type)
     from public.transactions where id = v_txn_id
   );
 end;
 $$;
-revoke all on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text) from public, anon;
-grant execute on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text) to authenticated;
+revoke all on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric) from public, anon;
+grant execute on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric) to authenticated;
 
--- ---------- 5. Edit recharge (reverses old cash leg / due, recomputes commission) ----------
+-- ---------- 5. Edit recharge (reverses old cash leg, recomputes commission) ----------
 create or replace function public.update_recharge(
   p_txn_id uuid,
   p_provider_id uuid,
@@ -220,8 +185,7 @@ create or replace function public.update_recharge(
   p_customer_mobile text,
   p_reference text,
   p_remarks text,
-  p_amount numeric,
-  p_customer_pay_method text default 'cash'
+  p_amount numeric
 )
 returns jsonb
 language plpgsql
@@ -232,23 +196,15 @@ declare
   v_commission numeric;
   v_cost numeric;
   v_provider_name text;
-  v_cash_in numeric;
-  v_cust_balance numeric;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
-  if p_customer_pay_method is null or p_customer_pay_method not in ('cash', 'bank', 'upi', 'qr', 'due') then
-    raise exception 'Invalid customer payment method';
-  end if;
 
   select * into v_txn from public.transactions where id = p_txn_id for update;
   if not found then raise exception 'Transaction not found'; end if;
   if v_txn.status <> 'success' then raise exception 'Only successful transactions can be edited'; end if;
   if v_txn.service_type <> 'recharge' then raise exception 'Not a recharge transaction'; end if;
-  if p_customer_pay_method = 'due' and p_customer_id is null then
-    raise exception 'Select a customer to record a due (credit) recharge';
-  end if;
 
   select name into v_provider_name from public.recharge_providers
   where id = p_provider_id and is_active;
@@ -258,22 +214,12 @@ begin
          (get_recharge_commission(p_provider_id, p_amount)->>'cost')::numeric
   into v_commission, v_cost;
 
-  -- Reverse old cash leg / old customer due
+  -- Reverse old cash leg
   if v_txn.cash_in > 0 then
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (current_date, coalesce(v_txn.customer_pay_method, 'cash'), 'out', v_txn.cash_in,
+    values (current_date, 'cash', 'out', v_txn.cash_in,
             'Corrected Recharge ' || v_txn.transaction_number, 'transaction', p_txn_id);
   end if;
-  if v_txn.customer_pay_method = 'due' and v_txn.customer_id is not null then
-    select balance into v_cust_balance from public.customers where id = v_txn.customer_id for update;
-    v_cust_balance := coalesce(v_cust_balance, 0) - v_txn.amount;
-    update public.customers set balance = v_cust_balance, updated_at = now() where id = v_txn.customer_id;
-    insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_id)
-    values (v_txn.customer_id, current_date, 'recharge_due',
-            'Recharge due reversed ' || v_txn.transaction_number, 0, v_txn.amount, v_cust_balance, p_txn_id);
-  end if;
-
-  v_cash_in := case when p_customer_pay_method = 'due' then 0 else p_amount end;
 
   update public.transactions set
     transaction_date = p_transaction_date,
@@ -285,42 +231,29 @@ begin
     provider_id = p_provider_id,
     amount = p_amount,
     portal_commission = v_commission,
-    cash_in = v_cash_in,
+    cash_in = p_amount,
     pool_out = v_cost,
-    pool_credit = 0,
-    pool_credit_type = null,
-    customer_pay_method = p_customer_pay_method,
+    pool_credit = v_cost,
     updated_at = now()
   where id = p_txn_id;
 
-  -- Re-apply new cash leg / customer due
-  if p_customer_pay_method = 'due' then
-    select balance into v_cust_balance from public.customers where id = p_customer_id for update;
-    v_cust_balance := coalesce(v_cust_balance, 0) + p_amount;
-    update public.customers set balance = v_cust_balance, updated_at = now() where id = p_customer_id;
-    insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_id)
-    values (p_customer_id, p_transaction_date, 'recharge_due',
-            'Recharge due ' || v_txn.transaction_number || ' (' || v_provider_name || ')', p_amount, 0, v_cust_balance, p_txn_id);
-  else
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_transaction_date, p_customer_pay_method, 'in', p_amount,
-            'Recharge ' || v_txn.transaction_number || ' received in cash', 'transaction', p_txn_id);
-  end if;
+  insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+  values (p_transaction_date, 'cash', 'in', p_amount,
+          'Recharge ' || v_txn.transaction_number || ' received in cash', 'transaction', p_txn_id);
 
   insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
   values (
     auth.uid(), null, 'transaction_updated', 'transactions', p_txn_id::text,
     'Edited ' || v_txn.transaction_number || ' to ' || p_amount ||
-    ' via ' || v_provider_name || ' | commission ' || v_commission ||
-    ' | paid: ' || p_customer_pay_method,
-    jsonb_build_object('amount', p_amount, 'commission', v_commission, 'cost', v_cost, 'customer_pay_method', p_customer_pay_method)
+    ' via ' || v_provider_name || ' | commission ' || v_commission,
+    jsonb_build_object('amount', p_amount, 'commission', v_commission, 'cost', v_cost)
   );
 
   return jsonb_build_object('id', p_txn_id, 'status', 'success');
 end;
 $$;
-revoke all on function public.update_recharge(uuid, uuid, date, timestamptz, uuid, text, text, text, numeric, text) from public, anon;
-grant execute on function public.update_recharge(uuid, uuid, date, timestamptz, uuid, text, text, text, numeric, text) to authenticated;
+revoke all on function public.update_recharge(uuid, uuid, date, timestamptz, uuid, text, text, text, numeric) from public, anon;
+grant execute on function public.update_recharge(uuid, uuid, date, timestamptz, uuid, text, text, text, numeric) to authenticated;
 
 -- ---------- 6. Settlements: allow the recharge pool + load/unload types ----------
 alter table public.settlements drop constraint if exists settlements_settlement_type_check;

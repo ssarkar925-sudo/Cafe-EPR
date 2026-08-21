@@ -196,7 +196,6 @@ export default function BusinessFormModal({
     if (service === "recharge") {
       if (!form.provider_id) return setError("Please choose the recharge provider.");
       if (!form.customer_mobile.trim()) return setError("Enter the recharge number (mobile number being recharged).");
-      if (form.customer_pay_method === "due" && !form.customer_id) return setError("Select a customer to record a due (credit) recharge.");
       if (!commissionPreview || commissionPreview.missing) return setError("No commission slab covers this amount for this provider. Add a slab in Settings → Business Setup → Recharge Providers.");
     }
 
@@ -212,7 +211,6 @@ export default function BusinessFormModal({
         p_remarks: form.remarks.trim() || null,
         p_status: form.status,
         p_amount: amount,
-        p_customer_pay_method: form.customer_pay_method,
       });
       return;
     }
@@ -608,34 +606,6 @@ export default function BusinessFormModal({
                 className={input}
               />
               <p className="mt-0.5 text-[11px] text-slate-400">The number being recharged.</p>
-            </div>
-            <div className="sm:col-span-2">
-              <label className={labelCls}>Customer Paid You Via</label>
-              <div className="flex gap-2">
-                {[
-                  { value: "cash", label: "Cash" },
-                  { value: "bank", label: "Bank / UPI" },
-                  { value: "due", label: "Due (Credit)" },
-                ].map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => set("customer_pay_method", o.value)}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
-                      form.customer_pay_method === o.value
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-slate-200 bg-white text-slate-600"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-0.5 text-[11px] text-slate-400">
-                {form.customer_pay_method === "due"
-                  ? "Customer pays later. The recharge float is still debited by the cost and the amount is added to the customer's due balance."
-                  : "Customer pays now; cash / bank is received (recharge float debited by the cost)."}
-              </p>
             </div>
             {commissionPreview && (
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:col-span-2">
