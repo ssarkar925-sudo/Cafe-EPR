@@ -8,6 +8,7 @@ import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
+import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import Modal from "@/components/ui/modal";
 import type { ScanFields } from "@/lib/scan/extract";
@@ -209,6 +210,7 @@ export default function PosClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SaleResult | null>(null);
+  const [waStatus, setWaStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customRate, setCustomRate] = useState("");
@@ -836,12 +838,20 @@ export default function PosClient({
     );
 
     const selCust = customers.find((c) => c.id === customerId);
-    setSuccess({
+    const saleRes: SaleResult = {
       ...(data as SaleResult),
       change: changeAmt,
       customer_name: selCust?.name ?? null,
       customer_phone: selCust?.phone ?? null,
-    } as SaleResult);
+    };
+    setSuccess(saleRes);
+    setWaStatus("idle");
+
+    const waCfg = getWhatsAppConfig();
+    if (waCfg.provider !== "off" && waCfg.auto_send_pos && selCust?.phone) {
+      handleSendInvoiceWhatsApp(saleRes);
+    }
+
     const editedNumber = editing?.invoice_number;
     setCart([]);
     setCustomerId("");
@@ -869,6 +879,23 @@ export default function PosClient({
     if (print) {
       const id = (data as SaleResult)?.id;
       if (id) window.open(`/receipt/${id}`, "_blank", "noopener");
+    }
+  }
+
+  async function handleSendInvoiceWhatsApp(s: SaleResult) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/receipt/${s.id}`;
+    const phone = s.customer_phone || "";
+    const statusText = s.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(s.due)}`;
+    const msg = `🧾 *INVOICE: ${s.invoice_number}*\n📅 Date: ${s.invoice_date}\n${s.customer_name ? `👤 Customer: ${s.customer_name}\n` : ""}───────────────\n💰 Total Bill: ${inr(s.total)}\n💳 Amount Received: ${inr(Number(s.paid) + Number(s.change ?? 0))}\n${statusText}\n───────────────\n📄 View / Download Online Receipt:\n${receiptUrl}\n\nThank you for your business!`;
+
+    setWaStatus("sending");
+    const res = await sendWhatsAppMessage({ phone, message: msg });
+    if (res.ok) {
+      setWaStatus("sent");
+    } else {
+      setWaStatus("idle");
+      window.open(res.fallbackUrl, "_blank", "noopener");
     }
   }
 
@@ -1895,28 +1922,21 @@ export default function PosClient({
               </div>
             </div>
             <div className="mt-5 grid grid-cols-1 gap-2">
-              {(() => {
-                const origin = typeof window !== "undefined" ? window.location.origin : "";
-                const receiptUrl = `${origin}/receipt/${success.id}`;
-                const phone = (success.customer_phone || "").replace(/[^0-9]/g, "");
-                const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-                const statusText = success.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(success.due)}`;
-                const msg = `🧾 *INVOICE: ${success.invoice_number}*\n📅 Date: ${success.invoice_date}\n${success.customer_name ? `👤 Customer: ${success.customer_name}\n` : ""}───────────────\n💰 Total Bill: ${inr(success.total)}\n💳 Amount Received: ${inr(Number(success.paid) + Number(success.change ?? 0))}\n${statusText}\n───────────────\n📄 View / Download Online Receipt:\n${receiptUrl}\n\nThank you for your business!`;
-                const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-                return (
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                    </svg>
-                    Share on WhatsApp
-                  </a>
-                );
-              })()}
+              <button
+                type="button"
+                onClick={() => handleSendInvoiceWhatsApp(success)}
+                disabled={waStatus === "sending"}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 ${
+                  waStatus === "sent"
+                    ? "bg-emerald-700 hover:bg-emerald-800"
+                    : "bg-emerald-600 hover:bg-emerald-500"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                </svg>
+                {waStatus === "sending" ? "Sending WhatsApp..." : waStatus === "sent" ? "✓ WhatsApp Sent Successfully" : "Send on WhatsApp"}
+              </button>
               <a
                 href={`/receipt/${success.id}`}
                 target="_blank"

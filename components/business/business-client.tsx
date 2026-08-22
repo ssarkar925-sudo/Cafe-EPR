@@ -12,6 +12,7 @@ import ViewToggle from "@/components/ui/view-toggle";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
+import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
 
 export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
@@ -402,11 +403,10 @@ export default function BusinessClient({
       return;
     }
     const d = data as Record<string, unknown>;
-    setTxns((prev) => [
-      {
-        id: d.id as string,
-        transaction_number: d.transaction_number as string,
-        service_type: service,
+    const newTxn: Txn = {
+      id: d.id as string,
+      transaction_number: d.transaction_number as string,
+      service_type: service,
         direction: d.direction as string,
         transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) as string,
         transaction_timestamp: (payload.p_transaction_timestamp as string) || null,
@@ -443,11 +443,16 @@ export default function BusinessClient({
         providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
         merchant_qrs: null,
         profiles: null,
-      },
-      ...prev,
-    ]);
+      };
+    setTxns((prev) => [newTxn, ...prev]);
     setShowCreate(false);
     showToast("success", `${service.toUpperCase()} ${inr(Number(payload.p_amount))} recorded — ${d.transaction_number}`);
+
+    const waCfg = getWhatsAppConfig();
+    if (waCfg.provider !== "off" && waCfg.auto_send_business && (newTxn.customer_mobile || newTxn.sender_mobile || newTxn.customers?.phone)) {
+      handleSendWhatsAppTxn(newTxn);
+    }
+
     logAudit({
       action: "create",
       entity: "transaction",
@@ -455,6 +460,22 @@ export default function BusinessClient({
       description: `${service.toUpperCase()} ${(d.direction as string) ?? ""} ${inr(Number(payload.p_amount))} created`,
       details: { transaction_number: d.transaction_number as string, service_type: service, amount: payload.p_amount },
     });
+  }
+
+  async function handleSendWhatsAppTxn(t: Txn) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/business/receipt/${t.id}`;
+    const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
+    const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
+    const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View Receipt:\n${receiptUrl}\n\nThank you!`;
+
+    showToast("info", "Sending WhatsApp receipt...");
+    const res = await sendWhatsAppMessage({ phone: rawPhone, message: msg });
+    if (res.ok) {
+      showToast("success", "✓ WhatsApp receipt sent successfully!");
+    } else {
+      window.open(res.fallbackUrl, "_blank", "noopener");
+    }
   }
 
   async function saveEdit(payload: Record<string, unknown>) {
@@ -989,25 +1010,15 @@ export default function BusinessClient({
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></svg>
                       A4 / PDF
                     </a>
-                    <a
-                      href={(() => {
-                        const origin = typeof window !== "undefined" ? window.location.origin : "";
-                        const receiptUrl = `${origin}/business/receipt/${t.id}`;
-                        const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
-                        const phone = rawPhone.replace(/[^0-9]/g, "");
-                        const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-                        const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
-                        const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View Receipt:\n${receiptUrl}\n\nThank you!`;
-                        return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-                      })()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Share Receipt on WhatsApp"
+                    <button
+                      type="button"
+                      onClick={() => handleSendWhatsAppTxn(t)}
+                      title="Send Receipt via WhatsApp"
                       className={`${actionBtn} text-emerald-600 hover:bg-emerald-50`}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                       WhatsApp
-                    </a>
+                    </button>
                     {t.status === "success" && (
                       <>
                         <button onClick={() => setEditTxn(t)} title="Edit" className={`${actionBtn} text-slate-600 hover:bg-slate-50`}>
@@ -1106,24 +1117,14 @@ export default function BusinessClient({
                     >
                       A4 / PDF
                     </a>
-                    <a
-                      href={(() => {
-                        const origin = typeof window !== "undefined" ? window.location.origin : "";
-                        const receiptUrl = `${origin}/business/receipt/${t.id}`;
-                        const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
-                        const phone = rawPhone.replace(/[^0-9]/g, "");
-                        const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-                        const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
-                        const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View Receipt:\n${receiptUrl}\n\nThank you!`;
-                        return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-                      })()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Share on WhatsApp"
+                    <button
+                      type="button"
+                      onClick={() => handleSendWhatsAppTxn(t)}
+                      title="Send Receipt via WhatsApp"
                       className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition hover:bg-emerald-100"
                     >
                       WhatsApp
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>

@@ -10,6 +10,7 @@ import CompactToggle from "@/components/ui/compact-toggle";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 export type LedgerCustomer = {
   id: string;
@@ -389,17 +390,32 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
                 Adjust / Correct
               </button>
 
-              <a
-                href={whatsappLink}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!selected) return;
+                  const phone = (selected.phone || "").replace(/[^0-9]/g, "");
+                  let agingTxt = "";
+                  if (agingSummary.d30_plus > 0 || agingSummary.d16_30 > 0) {
+                    agingTxt = `\n• Overdue (>15 days): ${inr(agingSummary.d16_30 + agingSummary.d30_plus)}`;
+                  }
+                  const msg = `Dear ${selected.name},\n\nHere is your current Account Statement with Cafe:\n• Total Debited/Invoiced: ${inr(summary.debit)}\n• Total Paid: ${inr(summary.credit)}\n• Current Outstanding Due: ${inr(Number(selected.balance))}${agingTxt}\n\nPlease clear your balance at your earliest convenience.\nThank you!`;
+
+                  showToast("info", "Sending statement via WhatsApp...");
+                  const res = await sendWhatsAppMessage({ phone, message: msg });
+                  if (res.ok) {
+                    showToast("success", `✓ Statement sent to ${selected.name} via WhatsApp!`);
+                  } else {
+                    window.open(res.fallbackUrl, "_blank", "noopener");
+                  }
+                }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                   <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                 </svg>
                 WhatsApp Statement
-              </a>
+              </button>
 
               <button
                 type="button"

@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import InvoiceViewModal from "./invoice-view-modal";
 import ReturnModal from "./return-modal";
 import CompactToggle from "@/components/ui/compact-toggle";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 export type InvoiceRow = {
   id: string;
@@ -133,6 +134,22 @@ export default function InvoicesClient({
   function flash(type: "success" | "error", text: string) {
     setToast({ type, text });
     setTimeout(() => setToast(null), 3200);
+  }
+
+  async function handleSendInvoiceWhatsApp(inv: InvoiceRow) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/receipt/${inv.id}`;
+    const phone = inv.customers?.phone || "";
+    const statusText = inv.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(inv.due))}`;
+    const msg = `🧾 *INVOICE: ${inv.invoice_number}*\n📅 Date: ${inv.invoice_date}\n${inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(inv.total))}\n💳 Paid: ${inr(Number(inv.paid))}\n${statusText}\n───────────────\n📄 View / Download Receipt:\n${receiptUrl}\n\nThank you!`;
+
+    flash("success", "Sending WhatsApp invoice...");
+    const res = await sendWhatsAppMessage({ phone, message: msg });
+    if (res.ok) {
+      flash("success", `✓ Invoice ${inv.invoice_number} sent via WhatsApp!`);
+    } else {
+      window.open(res.fallbackUrl, "_blank", "noopener");
+    }
   }
 
   useEffect(() => {
@@ -742,25 +759,16 @@ export default function InvoicesClient({
                       <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
                     </svg>
                   </a>
-                  <a
-                    href={(() => {
-                      const origin = typeof window !== "undefined" ? window.location.origin : "";
-                      const receiptUrl = `${origin}/receipt/${inv.id}`;
-                      const phone = (inv.customers?.phone || "").replace(/[^0-9]/g, "");
-                      const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-                      const statusText = inv.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(inv.due))}`;
-                      const msg = `🧾 *INVOICE: ${inv.invoice_number}*\n📅 Date: ${inv.invoice_date}\n${inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(inv.total))}\n💳 Paid: ${inr(Number(inv.paid))}\n${statusText}\n───────────────\n📄 View / Download Receipt:\n${receiptUrl}\n\nThank you!`;
-                      return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-                    })()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Share Invoice on WhatsApp"
+                  <button
+                    type="button"
+                    onClick={() => handleSendInvoiceWhatsApp(inv)}
+                    title="Send Invoice on WhatsApp"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                       <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                     </svg>
-                  </a>
+                  </button>
                   <button
                     onClick={() => setViewId(inv.id)}
                     className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
@@ -904,25 +912,16 @@ export default function InvoicesClient({
                                 <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
                               </svg>
                             </a>
-                            <a
-                              href={(() => {
-                                const origin = typeof window !== "undefined" ? window.location.origin : "";
-                                const receiptUrl = `${origin}/receipt/${inv.id}`;
-                                const phone = (inv.customers?.phone || "").replace(/[^0-9]/g, "");
-                                const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-                                const statusText = inv.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(inv.due))}`;
-                                const msg = `🧾 *INVOICE: ${inv.invoice_number}*\n📅 Date: ${inv.invoice_date}\n${inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(inv.total))}\n💳 Paid: ${inr(Number(inv.paid))}\n${statusText}\n───────────────\n📄 View / Download Receipt:\n${receiptUrl}\n\nThank you!`;
-                                return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-                              })()}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Share Invoice on WhatsApp"
+                            <button
+                              type="button"
+                              onClick={() => handleSendInvoiceWhatsApp(inv)}
+                              title="Send Invoice on WhatsApp"
                               className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                               </svg>
-                            </a>
+                            </button>
                             <button
                               onClick={() => setViewId(inv.id)}
                               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
