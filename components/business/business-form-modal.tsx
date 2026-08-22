@@ -46,13 +46,32 @@ export default function BusinessFormModal({
   onSave: (payload: Record<string, unknown>) => void;
 }) {
   const supabase = createClient();
+  const [loadedPaymentAccounts, setLoadedPaymentAccounts] = useState(paymentAccounts ?? []);
+
+  useEffect(() => {
+    if (loadedPaymentAccounts.length === 0) {
+      supabase
+        .from("payment_instruments")
+        .select("id, name, type, account_number, is_active")
+        .order("name")
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setLoadedPaymentAccounts(data);
+          }
+        });
+    }
+  }, [loadedPaymentAccounts.length, supabase]);
+
   const bankAccounts = useMemo(() => {
-    const banksOnly = (paymentAccounts ?? []).filter(
+    const banksOnly = (loadedPaymentAccounts ?? []).filter(
       (p) => p.type === "bank" || p.type === "debit_card" || p.type === "account"
     );
     if (banksOnly.length > 0) return banksOnly;
-    return (paymentAccounts ?? []).filter((p) => p.type !== "cash" && p.type !== "upi");
-  }, [paymentAccounts]);
+    const nonCash = (loadedPaymentAccounts ?? []).filter((p) => p.type !== "cash" && p.type !== "upi");
+    if (nonCash.length > 0) return nonCash;
+    if (loadedPaymentAccounts.length > 0) return loadedPaymentAccounts;
+    return banks.map((b) => ({ id: b.id, name: b.name, type: "bank", account_number: "" }));
+  }, [loadedPaymentAccounts, banks]);
   const [form, setForm] = useState(() => ({
     transaction_timestamp: initial?.transaction_timestamp
       ? toLocalInput(initial.transaction_timestamp)
@@ -551,29 +570,57 @@ export default function BusinessFormModal({
                     </button>
                   ))}
                 </div>
-                {form.paid_from === "bank" && bankAccounts.length > 0 && (
-                  <div className="mt-2">
-                    <label className={labelCls}>Select Payment Account Bank (Source Account)</label>
-                    <SearchableSelect
-                      value={form.bank_id}
-                      onChange={(v) => set("bank_id", v)}
-                      options={bankAccounts.map((b) => ({
-                        value: b.id,
-                        label: `${b.name}${b.account_number ? ` (A/C: …${b.account_number.slice(-4)})` : ""}`,
-                      }))}
-                      placeholder="Choose Payment Account Bank..."
-                    />
+                {form.paid_from === "bank" && (
+                  <div className="mt-2.5">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className={labelCls}>Select Source Bank Account</label>
+                      <a href="/settings" target="_blank" className="text-[11px] font-medium text-blue-600 hover:underline">
+                        + Manage Accounts
+                      </a>
+                    </div>
+                    {bankAccounts.length > 0 ? (
+                      <SearchableSelect
+                        value={form.bank_id}
+                        onChange={(v) => set("bank_id", v)}
+                        options={bankAccounts.map((b) => ({
+                          value: b.id,
+                          label: `${b.name}${b.account_number ? ` (A/C: …${b.account_number.slice(-4)})` : ""}`,
+                        }))}
+                        placeholder="Choose Bank Account..."
+                      />
+                    ) : (
+                      <input
+                        value={form.bank_id}
+                        onChange={(e) => set("bank_id", e.target.value)}
+                        placeholder="Enter source bank account name (e.g. SBI, HDFC)..."
+                        className={input}
+                      />
+                    )}
                   </div>
                 )}
-                {form.paid_from === "portal" && portals.length > 0 && (
-                  <div className="mt-2">
-                    <label className={labelCls}>Select DMT Portal (optional)</label>
-                    <SearchableSelect
-                      value={form.portal_id}
-                      onChange={(v) => set("portal_id", v)}
-                      options={portals.map((p) => ({ value: p.id, label: p.name }))}
-                      placeholder="Choose DMT Portal..."
-                    />
+                {form.paid_from === "portal" && (
+                  <div className="mt-2.5">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className={labelCls}>Select DMT Portal</label>
+                      <a href="/business/portals" target="_blank" className="text-[11px] font-medium text-blue-600 hover:underline">
+                        + Manage Portals
+                      </a>
+                    </div>
+                    {portals.length > 0 ? (
+                      <SearchableSelect
+                        value={form.portal_id}
+                        onChange={(v) => set("portal_id", v)}
+                        options={portals.map((p) => ({ value: p.id, label: p.name }))}
+                        placeholder="Choose DMT Portal..."
+                      />
+                    ) : (
+                      <input
+                        value={form.portal_id}
+                        onChange={(e) => set("portal_id", e.target.value)}
+                        placeholder="Enter portal name (e.g. Spice Money, PayNearby)..."
+                        className={input}
+                      />
+                    )}
                   </div>
                 )}
               </div>
