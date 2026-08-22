@@ -25,6 +25,7 @@ export default function BusinessFormModal({
   qrs,
   rechargeProviders = [],
   rechargeSlabs = [],
+  paymentAccounts = [],
   txns,
   initial,
   onClose,
@@ -38,12 +39,20 @@ export default function BusinessFormModal({
   qrs: Master[];
   rechargeProviders?: Master[];
   rechargeSlabs?: { provider_id: string; min_amount: number | string; max_amount: number | string; commission_percent: number | string }[];
+  paymentAccounts?: { id: string; name: string; type: string; account_number?: string; is_active?: boolean }[];
   txns: Txn[];
   initial?: Txn;
   onClose: () => void;
   onSave: (payload: Record<string, unknown>) => void;
 }) {
   const supabase = createClient();
+  const bankAccounts = useMemo(() => {
+    const banksOnly = (paymentAccounts ?? []).filter(
+      (p) => p.type === "bank" || p.type === "debit_card" || p.type === "account"
+    );
+    if (banksOnly.length > 0) return banksOnly;
+    return (paymentAccounts ?? []).filter((p) => p.type !== "cash" && p.type !== "upi");
+  }, [paymentAccounts]);
   const [form, setForm] = useState(() => ({
     transaction_timestamp: initial?.transaction_timestamp
       ? toLocalInput(initial.transaction_timestamp)
@@ -542,14 +551,17 @@ export default function BusinessFormModal({
                     </button>
                   ))}
                 </div>
-                {form.paid_from === "bank" && banks.length > 0 && (
+                {form.paid_from === "bank" && bankAccounts.length > 0 && (
                   <div className="mt-2">
-                    <label className={labelCls}>Select Source Bank Account (optional)</label>
+                    <label className={labelCls}>Select Payment Account Bank (Source Account)</label>
                     <SearchableSelect
                       value={form.bank_id}
                       onChange={(v) => set("bank_id", v)}
-                      options={banks.map((b) => ({ value: b.id, label: b.name }))}
-                      placeholder="Choose our Bank Account..."
+                      options={bankAccounts.map((b) => ({
+                        value: b.id,
+                        label: `${b.name}${b.account_number ? ` (A/C: …${b.account_number.slice(-4)})` : ""}`,
+                      }))}
+                      placeholder="Choose Payment Account Bank..."
                     />
                   </div>
                 )}
@@ -801,7 +813,7 @@ export default function BusinessFormModal({
                     <span className="text-sm font-bold">{inr(Number(form.amount) || 0)}</span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                    Sent from <b>{form.paid_from === "portal" ? "DMT Portal Wallet" : "Our Bank Account"}</b> to beneficiary
+                    Sent from <b>{form.paid_from === "portal" ? (portals.find(p => p.id === form.portal_id)?.name ? `DMT Portal (${portals.find(p => p.id === form.portal_id)?.name})` : "DMT Portal Wallet") : (bankAccounts.find(b => b.id === form.bank_id)?.name ? `Payment Account (${bankAccounts.find(b => b.id === form.bank_id)?.name})` : "Our Bank Account")}</b> to beneficiary
                   </p>
                 </div>
                 <div className="rounded-lg bg-white/90 p-2.5 shadow-xs dark:bg-slate-900/80">

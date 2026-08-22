@@ -37,7 +37,7 @@ export default async function BusinessServicePage({
       ? "*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)"
       : "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)";
 
-  const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }, { data: poolBalances }, { data: rechargeProviders }, { data: rechargeSlabs }] =
+  const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }, { data: poolBalances }, { data: rechargeProviders }, { data: rechargeSlabs }, { data: paymentInstruments }] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -62,6 +62,10 @@ export default async function BusinessServicePage({
       service === "recharge"
         ? supabase.from("recharge_commission_slabs").select("*")
         : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("payment_instruments")
+        .select("id, name, type, account_number, is_active")
+        .order("name"),
     ]);
 
   const poolKey = SUPABASE_POOL[service];
@@ -78,6 +82,7 @@ export default async function BusinessServicePage({
       initialQrs={(qrs ?? []) as any}
       initialRechargeProviders={(rechargeProviders ?? []) as any}
       initialRechargeSlabs={(rechargeSlabs ?? []) as any}
+      initialPaymentInstruments={(paymentInstruments ?? []) as any}
       float={poolBal ?? null}
     />
   );

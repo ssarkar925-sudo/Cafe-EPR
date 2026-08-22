@@ -266,6 +266,7 @@ export default function BusinessClient({
   initialQrs,
   initialRechargeProviders = [],
   initialRechargeSlabs = [],
+  initialPaymentInstruments = [],
   float = null,
 }: {
   service: string;
@@ -277,6 +278,7 @@ export default function BusinessClient({
   initialQrs: Master[];
   initialRechargeProviders?: Master[];
   initialRechargeSlabs?: { provider_id: string; min_amount: number | string; max_amount: number | string; commission_percent: number | string }[];
+  initialPaymentInstruments?: { id: string; name: string; type: string; account_number?: string; is_active?: boolean }[];
   float?: { opening: number | string; current: number | string; seed_date: string } | null;
 }) {
   const cfg = CONFIG[service];
@@ -990,11 +992,17 @@ export default function BusinessClient({
               value={bankFilter}
               onChange={setBankFilter}
               options={[
-                { value: "", label: "All Banks" },
-                ...initialBanks.filter((b) => b.name).map((b) => ({ value: b.id, label: b.name })),
+                { value: "", label: service === "dmt" ? "All Payment Accounts" : "All Banks" },
+                ...(service === "dmt"
+                  ? (initialPaymentInstruments.filter((p) => p.type !== "cash" && p.type !== "upi").length > 0
+                      ? initialPaymentInstruments.filter((p) => p.type !== "cash" && p.type !== "upi")
+                      : initialPaymentInstruments
+                    ).map((b) => ({ value: b.id, label: `${b.name}${b.account_number ? ` (…${b.account_number.slice(-4)})` : ""}` }))
+                  : initialBanks.filter((b) => b.name).map((b) => ({ value: b.id, label: b.name }))
+                ),
               ]}
-              searchPlaceholder="Search bank…"
-              className="w-44"
+              searchPlaceholder={service === "dmt" ? "Search payment account…" : "Search bank…"}
+              className="w-48"
             />
           )}
           {cfg.portalFilter && (
@@ -1374,6 +1382,7 @@ export default function BusinessClient({
           qrs={initialQrs}
           rechargeProviders={initialRechargeProviders}
           rechargeSlabs={initialRechargeSlabs}
+          paymentAccounts={initialPaymentInstruments}
           txns={txns}
           onClose={() => setShowCreate(false)}
           onSave={createTxn}
@@ -1390,6 +1399,7 @@ export default function BusinessClient({
           qrs={initialQrs}
           rechargeProviders={initialRechargeProviders}
           rechargeSlabs={initialRechargeSlabs}
+          paymentAccounts={initialPaymentInstruments}
           txns={txns}
           initial={editTxn}
           onClose={() => setEditTxn(null)}
