@@ -10,6 +10,7 @@ import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/cu
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { PosProduct, PosService, PosCustomer, PosInstrument, CartLine } from "./pos-client";
+import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
 import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
 import {
   PosCategorySidebar,
@@ -109,6 +110,9 @@ export default function QuickSaleModule({
   const [error, setError] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [lastSale, setLastSale] = useState<QuickSale | null>(null);
+  const [waStatus, setWaStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [waModalSale, setWaModalSale] = useState<QuickSale | null>(null);
+  const [waCustomPhone, setWaCustomPhone] = useState("");
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentQ, setRecentQ] = useState("");
   const [showMoneyOut, setShowMoneyOut] = useState(false);
@@ -560,6 +564,10 @@ export default function QuickSaleModule({
       return;
     }
     const sale = data as unknown as QuickSale;
+    const custObj = customers.find((c) => c.id === customerId);
+    if (custObj?.phone) {
+      sale.customers = { name: custObj.name, phone: custObj.phone };
+    }
     setLastSale(sale);
     setCart([]);
     setCustomerId("");
@@ -578,8 +586,45 @@ export default function QuickSaleModule({
       details: { sale_number: (data as any)?.sale_number ?? null, amount: Number(total.toFixed(2)) },
     });
     refresh();
+
+    // WhatsApp Automation check
+    const waCfg = getWhatsAppConfig();
+    if (waCfg.auto_send_pos && custObj?.phone) {
+      handleSendQuickSaleWhatsApp(sale, custObj.phone);
+    }
+
     if (print && sale.id) {
       window.open(`/receipt/quick/${sale.id}`, "_blank", "noopener");
+    }
+  }
+
+  async function handleSendQuickSaleWhatsApp(s: QuickSale, phoneOverride?: string) {
+    const custPhone = phoneOverride || s.customers?.phone || "";
+    if (!custPhone.trim()) {
+      setWaModalSale(s);
+      setWaCustomPhone("");
+      return;
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/receipt/quick/${s.id}`;
+    const custName = s.customers?.name || "";
+    const itemName = s.item_name || s.products?.name || s.services?.name || "Quick Sale item";
+
+    const msg = `⚡ *QUICK SALE RECEIPT: ${s.sale_number}*\n📅 Date: ${s.sale_date}\n${custName ? `👤 Customer: ${custName}\n` : ""}───────────────\n📦 Items: ${itemName}\n💰 Total Amount: ${inr(s.amount)}\n💳 Tendered: ${inr(Number(s.tendered || s.amount))}\n${Number(s.change_due || 0) > 0 ? `💵 Change Returned: ${inr(s.change_due)}\n` : ""}✅ Status: Paid in Full\n───────────────\n📄 View / Download Online Receipt:\n${receiptUrl}\n\nThank you for visiting us!`;
+
+    setWaStatus("sending");
+    const res = await sendWhatsAppMessage({ phone: custPhone, message: msg });
+    if (res.ok) {
+      setWaStatus("sent");
+      setTimeout(() => setWaStatus("idle"), 3000);
+    } else {
+      setWaStatus("idle");
+      if (res.fallbackUrl) {
+        window.open(res.fallbackUrl, "_blank", "noopener");
+      }
+    }
+    if (waModalSale) {
+      setWaModalSale(null);
     }
   }
 
@@ -1112,30 +1157,53 @@ export default function QuickSaleModule({
               </div>
 
               {lastSale && lastSale.status === "active" && (
-                <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-2.5 ring-1 ring-emerald-100">
-                  <p className="text-sm font-semibold text-emerald-800">
-                    {lastSale.sale_number} · {inr(Number(lastSale.amount))}
-                  </p>
-                  <p className="text-xs text-emerald-600">
-                    {lastSale.created_at
-                      ? new Date(lastSale.created_at).toLocaleString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : lastSale.sale_date}
-                  </p>
-                  <div className="flex items-center gap-2">
+                <div className="mt-3 flex flex-col gap-2 rounded-xl bg-emerald-50 p-3 ring-1 ring-emerald-200/70 dark:bg-emerald-950/30 dark:ring-emerald-900/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                        ✓ {lastSale.sale_number} · {inr(Number(lastSale.amount))}
+                      </p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                        {lastSale.customers?.name ? `${lastSale.customers.name} · ` : ""}
+                        {lastSale.created_at
+                          ? new Date(lastSale.created_at).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : lastSale.sale_date}
+                      </p>
+                    </div>
+                    <button onClick={() => setLastSale(null)} className="text-xs font-medium text-slate-400 hover:text-slate-700 dark:hover:text-white" title="Dismiss">
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 border-t border-emerald-100 dark:border-emerald-900/40">
                     <a
                       href={`/receipt/quick/${lastSale.id}`}
                       target="_blank"
-                      className="text-xs font-semibold text-emerald-700 hover:underline"
+                      className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 dark:bg-slate-900 dark:text-emerald-300"
                     >
-                      Receipt
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                        <rect x="6" y="14" width="12" height="8" />
+                      </svg>
+                      Print
                     </a>
-                    <button onClick={() => setLastSale(null)} className="text-xs font-medium text-emerald-700 hover:underline">
-                      Dismiss
+                    <button
+                      type="button"
+                      onClick={() => handleSendQuickSaleWhatsApp(lastSale)}
+                      disabled={waStatus === "sending"}
+                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 hover:brightness-110 disabled:opacity-60"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                        <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
+                        <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
+                      </svg>
+                      {waStatus === "sending" ? "Sending..." : waStatus === "sent" ? "Sent ✓" : "WhatsApp"}
                     </button>
                   </div>
                 </div>
@@ -1345,10 +1413,22 @@ export default function QuickSaleModule({
                       <a
                         href={`/receipt/quick/${s.id}`}
                         target="_blank"
-                        className="rounded-md px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50"
+                        className="rounded-md px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
                       >
                         Receipt
                       </a>
+                      <button
+                        type="button"
+                        onClick={() => handleSendQuickSaleWhatsApp(s)}
+                        title="Send WhatsApp Receipt"
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3">
+                          <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
+                          <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
+                        </svg>
+                        WhatsApp
+                      </button>
                       {s.status === "active" ? (
                         <>
                           <button
@@ -1527,6 +1607,67 @@ export default function QuickSaleModule({
         onClose={() => setScanOpen(false)}
         onApply={applyPaymentScan}
       />
+
+      {/* WhatsApp Custom Phone Modal */}
+      {waModalSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/60 p-4 backdrop-blur-sm" onClick={() => setWaModalSale(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                  <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
+                  <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
+                </svg>
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Send WhatsApp Receipt</h3>
+                <p className="text-xs text-slate-400">{waModalSale.sale_number} · {inr(waModalSale.amount)}</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Customer Mobile Number *
+              </label>
+              <input
+                type="tel"
+                autoFocus
+                placeholder="e.g. 9876543210"
+                value={waCustomPhone}
+                onChange={(e) => setWaCustomPhone(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && waCustomPhone.trim()) {
+                    e.preventDefault();
+                    handleSendQuickSaleWhatsApp(waModalSale, waCustomPhone);
+                  }
+                }}
+                className={inputClass}
+              />
+              <p className="mt-1 text-[11px] text-slate-400">
+                Receipt link and bill breakdown will be sent automatically.
+              </p>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setWaModalSale(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSendQuickSaleWhatsApp(waModalSale, waCustomPhone)}
+                disabled={!waCustomPhone.trim() || waStatus === "sending"}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {waStatus === "sending" ? "Sending..." : "Send Receipt"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
