@@ -62,11 +62,15 @@ export default function SettlementFormModal({
   open,
   onClose,
   busy,
+  initialType,
+  initialAmount,
   onSave,
 }: {
   open: boolean;
   onClose: () => void;
   busy: boolean;
+  initialType?: SettlementType;
+  initialAmount?: string | number;
   onSave: (payload: {
     p_settlement_type: string;
     p_settlement_date: string;
@@ -76,9 +80,9 @@ export default function SettlementFormModal({
     p_direction: string;
   }) => void;
 }) {
-  const [type, setType] = useState<SettlementType>("bank_withdrawal");
+  const [type, setType] = useState<SettlementType>(() => initialType ?? "bank_withdrawal");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(() => initialAmount ? String(initialAmount) : "");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
   const [direction, setDirection] = useState<"in" | "out">("in");

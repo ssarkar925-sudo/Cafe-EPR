@@ -37,6 +37,7 @@ export type SettlementSummary = {
   aeps: number;
   upi_qr: number;
   credit_card: number;
+  recharge?: number;
   count: number;
 };
 
@@ -119,6 +120,7 @@ export default function SettlementsClient({
   const [to, setTo] = useState("");
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [formPreset, setFormPreset] = useState<{ type?: any; amount?: string | number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [reverseTarget, setReverseTarget] = useState<SettlementRow | null>(null);
   const [reason, setReason] = useState("");
@@ -290,51 +292,140 @@ export default function SettlementsClient({
 
       {/* Smart Float Health & Settlement Assistant */}
       {summary && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 p-5 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/60 pb-3 dark:border-white/10">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                </svg>
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Smart Settlement Assistant</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Intelligent float routing recommendations &amp; 1-click transfers</p>
+        <div className="mt-6 space-y-3">
+          {/* Active Float Health Trigger Alerts */}
+          {(((summary.recharge ?? 0) < 1000) || (summary.dmt < 3000) || (summary.aeps > 50000) || (summary.upi_qr > 10000)) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {(summary.recharge ?? 0) < 1000 && (
+                <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/90 p-3 shadow-sm dark:border-rose-900/40 dark:bg-rose-950/30">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-rose-800 dark:text-rose-300">⚠️ Low Recharge Float</p>
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400">Current: {inr(summary.recharge ?? 0)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormPreset({ type: "bank_to_recharge", amount: "5000" });
+                      setShowForm(true);
+                    }}
+                    className="shrink-0 rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-500"
+                  >
+                    +₹5k Bank
+                  </button>
+                </div>
+              )}
+
+              {summary.dmt < 3000 && (
+                <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/90 p-3 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-amber-800 dark:text-amber-300">⚠️ Low DMT Float</p>
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">Current: {inr(summary.dmt)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormPreset({ type: "bank_to_dmt", amount: "10000" });
+                      setShowForm(true);
+                    }}
+                    className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-500"
+                  >
+                    +₹10k Bank
+                  </button>
+                </div>
+              )}
+
+              {summary.aeps > 50000 && (
+                <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/90 p-3 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-blue-800 dark:text-blue-300">💰 AEPS Pool Accumulated</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400">Current: {inr(summary.aeps)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormPreset({ type: "aeps_to_bank", amount: Math.floor(summary.aeps) });
+                      setShowForm(true);
+                    }}
+                    className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500"
+                  >
+                    Settle to Bank
+                  </button>
+                </div>
+              )}
+
+              {summary.upi_qr > 10000 && (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 p-3 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">📱 UPI QR Accumulated</p>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Current: {inr(summary.upi_qr)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormPreset({ type: "upi_qr_to_bank", amount: Math.floor(summary.upi_qr) });
+                      setShowForm(true);
+                    }}
+                    className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+                  >
+                    Sweep to Bank
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 p-5 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/60 pb-3 dark:border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Smart Settlement Assistant</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Intelligent float routing recommendations &amp; 1-click transfers</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormPreset(null);
+                    setShowForm(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500"
+                >
+                  <Icon d={ICONS.plus} className="h-3.5 w-3.5" />
+                  Custom Transfer
+                </button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500"
-              >
-                <Icon d={ICONS.plus} className="h-3.5 w-3.5" />
-                Custom Transfer
-              </button>
-            </div>
-          </div>
 
-          <div className="mt-3.5 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quick Presets:</span>
-            {[
-              { label: "⚡ AEPS → Bank", type: "aeps_to_bank", desc: `Settle AEPS Float (${inr(summary.aeps)})` },
-              { label: "⚡ UPI QR → Bank", type: "upi_qr_to_bank", desc: `Settle UPI QR (${inr(summary.upi_qr)})` },
-              { label: "⚡ Bank → DMT", type: "bank_to_dmt", desc: "Top up DMT Float" },
-              { label: "⚡ Bank → Recharge", type: "bank_to_recharge", desc: "Top up Recharge Float" },
-              { label: "⚡ Bank Withdrawal", type: "bank_withdrawal", desc: "Withdraw Cash for Drawer" },
-              { label: "⚡ Cash → Bank", type: "add_cash_to_bank", desc: "Deposit Counter Cash" },
-            ].map((p) => (
-              <button
-                key={p.type}
-                type="button"
-                onClick={() => setShowForm(true)}
-                title={p.desc}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-blue-900/20"
-              >
-                {p.label}
-              </button>
-            ))}
+            <div className="mt-3.5 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quick Presets:</span>
+              {[
+                { label: "⚡ AEPS → Bank", type: "aeps_to_bank", amount: Math.max(0, Math.floor(summary.aeps)), desc: `Settle AEPS Float (${inr(summary.aeps)})` },
+                { label: "⚡ UPI QR → Bank", type: "upi_qr_to_bank", amount: Math.max(0, Math.floor(summary.upi_qr)), desc: `Settle UPI QR (${inr(summary.upi_qr)})` },
+                { label: "⚡ Bank → DMT", type: "bank_to_dmt", amount: 10000, desc: "Top up DMT Float" },
+                { label: "⚡ Bank → Recharge", type: "bank_to_recharge", amount: 5000, desc: "Top up Recharge Float" },
+                { label: "⚡ Bank Withdrawal", type: "bank_withdrawal", amount: "", desc: "Withdraw Cash for Drawer" },
+                { label: "⚡ Cash → Bank", type: "add_cash_to_bank", amount: "", desc: "Deposit Counter Cash" },
+              ].map((p) => (
+                <button
+                  key={p.type}
+                  type="button"
+                  onClick={() => {
+                    setFormPreset({ type: p.type, amount: p.amount });
+                    setShowForm(true);
+                  }}
+                  title={p.desc}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-blue-900/20"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -454,7 +545,12 @@ export default function SettlementsClient({
       <SettlementFormModal
         open={showForm}
         busy={saving}
-        onClose={() => setShowForm(false)}
+        initialType={formPreset?.type}
+        initialAmount={formPreset?.amount}
+        onClose={() => {
+          setShowForm(false);
+          setFormPreset(null);
+        }}
         onSave={create}
       />
 

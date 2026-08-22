@@ -299,19 +299,44 @@ export default function DayCloseClient({
               <path d="M21 12a9 9 0 1 1-9-9M21 3l-9 9M15 3h6v6" />
             </svg>
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">No open day close</h3>
+          <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">No open day close shift</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
-            Open a new day close to reconcile cash, bank, wallet, floats and credit limit for a date.
+            Start today&apos;s shift to begin tracking cash movements, sales, and multi-pool liquidity.
           </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <input type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} className={`${inputClass} w-44`} />
+
+          {closings.length > 0 && (
+            <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-1.5 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-300">
+              <span className="font-medium">Previous closed shift:</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{closings[0].closing_number} ({fmtDate(closings[0].close_date)})</span>
+              <span>· Auto-carryforward ready</span>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button
-              onClick={openDay}
+              onClick={() => {
+                setOpenDate(new Date().toISOString().slice(0, 10));
+                openDay();
+              }}
               disabled={busy}
-              className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:brightness-110 disabled:opacity-50"
             >
-              {busy ? "Opening..." : "Open Day Close"}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+              {busy ? "Opening..." : "⚡ Auto-Open Today's Shift"}
             </button>
+
+            <div className="flex items-center gap-2">
+              <input type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} className={`${inputClass} w-40 text-xs`} />
+              <button
+                onClick={openDay}
+                disabled={busy}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+              >
+                Custom Date
+              </button>
+            </div>
           </div>
         </div>
       ) : (
