@@ -531,7 +531,36 @@ export default function BusinessClient({
         }
       }
     } else {
-      const res = await supabase.rpc("create_business_txn", payload);
+      const rpcPayload = {
+        p_service_type: service,
+        p_transaction_date: payload.p_transaction_date,
+        p_transaction_timestamp: payload.p_transaction_timestamp,
+        p_customer_id: payload.p_customer_id || null,
+        p_customer_mobile: payload.p_customer_mobile || null,
+        p_reference: payload.p_reference || null,
+        p_remarks: payload.p_remarks || null,
+        p_status: payload.p_status || "success",
+        p_bank_id: payload.p_bank_id || null,
+        p_portal_id: payload.p_portal_id || null,
+        p_merchant_qr_id: payload.p_merchant_qr_id || null,
+        p_aadhaar_last4: payload.p_aadhaar_last4 || null,
+        p_transfer_method: payload.p_transfer_method || null,
+        p_sender_name: payload.p_sender_name || null,
+        p_sender_mobile: payload.p_sender_mobile || null,
+        p_beneficiary_name: payload.p_beneficiary_name || null,
+        p_beneficiary_mobile: payload.p_beneficiary_mobile || null,
+        p_beneficiary_bank: payload.p_beneficiary_bank || null,
+        p_beneficiary_ifsc: payload.p_beneficiary_ifsc || null,
+        p_beneficiary_account: payload.p_beneficiary_account || null,
+        p_upi_id: payload.p_upi_id || null,
+        p_amount: payload.p_amount,
+        p_service_fee: payload.p_service_fee ?? 0,
+        p_portal_commission: payload.p_portal_commission ?? 0,
+        p_fee_source: payload.p_fee_source || null,
+        p_paid_from: payload.p_paid_from || null,
+        p_customer_pay_method: payload.p_customer_pay_method || null,
+      };
+      const res = await supabase.rpc("create_business_txn", rpcPayload);
       data = res.data;
       error = res.error;
     }
@@ -545,50 +574,50 @@ export default function BusinessClient({
       id: d.id as string,
       transaction_number: d.transaction_number as string,
       service_type: service,
-        direction: d.direction as string,
-        transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) as string,
-        transaction_timestamp: (payload.p_transaction_timestamp as string) || null,
-        customer_id: (payload.p_customer_id as string) || null,
-        customer_mobile: (payload.p_customer_mobile as string) || null,
-        reference: (payload.p_reference as string) || null,
-        status: d.status as string,
-        bank_id: (payload.p_bank_id as string) || null,
-        portal_id: (payload.p_portal_id as string) || null,
-        merchant_qr_id: (payload.p_merchant_qr_id as string) || null,
-        provider_id: (payload.p_provider_id as string) || null,
-        aadhaar_last4: (payload.p_aadhaar_last4 as string) || null,
-        transfer_method: (payload.p_transfer_method as string) || null,
-        sender_name: (payload.p_sender_name as string) || null,
-        sender_mobile: (payload.p_sender_mobile as string) || null,
-        beneficiary_name: (payload.p_beneficiary_name as string) || null,
-        beneficiary_mobile: (payload.p_beneficiary_mobile as string) || null,
-        beneficiary_bank: (payload.p_beneficiary_bank as string) || null,
-        beneficiary_ifsc: (payload.p_beneficiary_ifsc as string) || null,
-        beneficiary_account: (payload.p_beneficiary_account as string) || null,
-        upi_id: (payload.p_upi_id as string) || null,
-        amount: Number(payload.p_amount),
-        service_fee: Number(payload.p_service_fee ?? 0),
-        portal_commission: Number(payload.p_portal_commission ?? d.portal_commission ?? 0),
-        fee_source: (payload.p_fee_source as string) || null,
-        paid_from: (payload.p_paid_from as string) || null,
-        customer_pay_method: (payload.p_customer_pay_method as string) || null,
-        customers: payload.p_customer_id
-          ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
-          : null,
-        remarks: (payload.p_remarks as string) || null,
-        banks: (payload.p_bank_id as string || (payload.payment_account_name as string))
-          ? {
-              name:
-                service === "dmt"
-                  ? (payload.payment_account_name as string) || initialPaymentInstruments.find((b) => b.id === (payload.payment_account_id || payload.p_bank_id))?.name || "-"
-                  : initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-",
-            }
-          : null,
-        portals: (payload.p_portal_id as string) ? { name: initialPortals.find((p) => p.id === payload.p_portal_id)?.name ?? "-" } : null,
-        providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
-        merchant_qrs: null,
-        profiles: null,
-      };
+      direction: d.direction as string,
+      transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) as string,
+      transaction_timestamp: (payload.p_transaction_timestamp as string) || null,
+      customer_id: (payload.p_customer_id as string) || null,
+      customer_mobile: (payload.p_customer_mobile as string) || null,
+      reference: (payload.p_reference as string) || null,
+      status: d.status as string,
+      bank_id: (payload.p_bank_id as string) || null,
+      portal_id: (payload.p_portal_id as string) || null,
+      merchant_qr_id: (payload.p_merchant_qr_id as string) || null,
+      provider_id: (payload.p_provider_id as string) || null,
+      aadhaar_last4: (payload.p_aadhaar_last4 as string) || null,
+      transfer_method: (payload.p_transfer_method as string) || null,
+      sender_name: (payload.p_sender_name as string) || null,
+      sender_mobile: (payload.p_sender_mobile as string) || null,
+      beneficiary_name: (payload.p_beneficiary_name as string) || null,
+      beneficiary_mobile: (payload.p_beneficiary_mobile as string) || null,
+      beneficiary_bank: (payload.p_beneficiary_bank as string) || null,
+      beneficiary_ifsc: (payload.p_beneficiary_ifsc as string) || null,
+      beneficiary_account: (payload.p_beneficiary_account as string) || null,
+      upi_id: (payload.p_upi_id as string) || null,
+      amount: Number(payload.p_amount),
+      service_fee: Number(payload.p_service_fee ?? 0),
+      portal_commission: Number(payload.p_portal_commission ?? d.portal_commission ?? 0),
+      fee_source: (payload.p_fee_source as string) || null,
+      paid_from: (payload.p_paid_from as string) || null,
+      customer_pay_method: (payload.p_customer_pay_method as string) || null,
+      customers: payload.p_customer_id
+        ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
+        : null,
+      remarks: (payload.p_remarks as string) || null,
+      banks: (payload.p_bank_id as string || (payload.payment_account_name as string))
+        ? {
+            name:
+              service === "dmt"
+                ? (payload.payment_account_name as string) || initialPaymentInstruments.find((b) => b.id === (payload.payment_account_id || payload.p_bank_id))?.name || "-"
+                : initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-",
+          }
+        : null,
+      portals: (payload.p_portal_id as string) ? { name: initialPortals.find((p) => p.id === payload.p_portal_id)?.name ?? "-" } : null,
+      providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
+      merchant_qrs: null,
+      profiles: null,
+    };
     setTxns((prev) => [newTxn, ...prev]);
     setShowCreate(false);
     showToast("success", `${service.toUpperCase()} ${inr(Number(payload.p_amount))} recorded — ${d.transaction_number}`);
@@ -625,42 +654,29 @@ export default function BusinessClient({
 
   async function saveEdit(payload: Record<string, unknown>) {
     if (!editTxn) return;
-    const args: Record<string, unknown> = { p_txn_id: editTxn.id, ...payload };
-    delete args.p_service_type;
-    delete args.p_status;
-    if (service === "recharge") {
-      delete args.p_bank_id;
-      delete args.p_portal_id;
-      delete args.p_merchant_qr_id;
-      delete args.p_aadhaar_last4;
-      delete args.p_transfer_method;
-      delete args.p_sender_name;
-      delete args.p_sender_mobile;
-      delete args.p_beneficiary_name;
-      delete args.p_beneficiary_mobile;
-      delete args.p_beneficiary_bank;
-      delete args.p_beneficiary_ifsc;
-      delete args.p_beneficiary_account;
-      delete args.p_upi_id;
-      delete args.p_service_fee;
-      delete args.p_portal_commission;
-      delete args.p_fee_source;
-      delete args.p_paid_from;
-      delete args.p_customer_pay_method;
-    } else {
-      delete args.p_provider_id;
-    }
     let data: any = null;
     let error: any = null;
 
     if (service === "recharge") {
-      const res = await supabase.rpc("update_recharge", args);
+      const rechargeArgs = {
+        p_txn_id: editTxn.id,
+        p_provider_id: payload.p_provider_id,
+        p_transaction_date: payload.p_transaction_date,
+        p_transaction_timestamp: payload.p_transaction_timestamp,
+        p_customer_id: payload.p_customer_id || null,
+        p_customer_mobile: payload.p_customer_mobile || null,
+        p_reference: payload.p_reference || null,
+        p_remarks: payload.p_remarks || null,
+        p_amount: payload.p_amount,
+        p_customer_pay_method: payload.p_customer_pay_method || "cash",
+      };
+      const res = await supabase.rpc("update_recharge", rechargeArgs);
       data = res.data;
       error = res.error;
 
       if (error && (error.message?.includes("schema cache") || error.code === "PGRST202" || error.message?.includes("function public.update_recharge"))) {
-        const provId = args.p_provider_id as string;
-        const amt = Number(args.p_amount) || 0;
+        const provId = rechargeArgs.p_provider_id as string;
+        const amt = Number(rechargeArgs.p_amount) || 0;
         let comm = 0;
         if (provId) {
           const { data: slabs } = await supabase.from("recharge_commission_slabs").select("*").eq("provider_id", provId);
@@ -684,7 +700,7 @@ export default function BusinessClient({
           cash_in: amt,
           pool_out: cost,
           updated_at: new Date().toISOString(),
-        }).eq("id", args.p_txn_id).select().single();
+        }).eq("id", editTxn.id).select().single();
 
         if (updErr) {
           showToast("error", updErr.message);
@@ -694,7 +710,35 @@ export default function BusinessClient({
         error = null;
       }
     } else {
-      const res = await supabase.rpc("update_business_txn", args);
+      const updateArgs = {
+        p_txn_id: editTxn.id,
+        p_transaction_date: payload.p_transaction_date,
+        p_transaction_timestamp: payload.p_transaction_timestamp,
+        p_customer_id: payload.p_customer_id || null,
+        p_customer_mobile: payload.p_customer_mobile || null,
+        p_reference: payload.p_reference || null,
+        p_remarks: payload.p_remarks || null,
+        p_bank_id: payload.p_bank_id || null,
+        p_portal_id: payload.p_portal_id || null,
+        p_merchant_qr_id: payload.p_merchant_qr_id || null,
+        p_aadhaar_last4: payload.p_aadhaar_last4 || null,
+        p_transfer_method: payload.p_transfer_method || null,
+        p_sender_name: payload.p_sender_name || null,
+        p_sender_mobile: payload.p_sender_mobile || null,
+        p_beneficiary_name: payload.p_beneficiary_name || null,
+        p_beneficiary_mobile: payload.p_beneficiary_mobile || null,
+        p_beneficiary_bank: payload.p_beneficiary_bank || null,
+        p_beneficiary_ifsc: payload.p_beneficiary_ifsc || null,
+        p_beneficiary_account: payload.p_beneficiary_account || null,
+        p_upi_id: payload.p_upi_id || null,
+        p_amount: payload.p_amount,
+        p_service_fee: payload.p_service_fee ?? 0,
+        p_portal_commission: payload.p_portal_commission ?? 0,
+        p_fee_source: payload.p_fee_source || null,
+        p_paid_from: payload.p_paid_from || null,
+        p_customer_pay_method: payload.p_customer_pay_method || null,
+      };
+      const res = await supabase.rpc("update_business_txn", updateArgs);
       data = res.data;
       error = res.error;
     }
