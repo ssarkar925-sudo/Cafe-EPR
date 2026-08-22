@@ -176,8 +176,15 @@ export default function PosClient({
   const [mode, setMode] = useState<"invoice" | "quick">(initialMode);
   const [productState, setProductState] = useState<PosProduct[]>(products);
   const [serviceState, setServiceState] = useState<PosService[]>(services);
-  const [tab, setTab] = useState<"products" | "services">("products");
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [tab, setTab] = useState<"services" | "products">("services");
+  const [view, setView] = useState<"grid" | "list">(() => {
+    try {
+      return localStorage.getItem("sccomm-pos-view") === "grid" ? "grid" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const [favOnly, setFavOnly] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [sort, setSort] = useState<"name" | "low" | "high" | "stock">("name");
@@ -198,6 +205,13 @@ export default function PosClient({
       amount: "",
     },
   ]);
+
+  function switchView(v: "grid" | "list") {
+    setView(v);
+    try {
+      localStorage.setItem("sccomm-pos-view", v);
+    } catch {}
+  }
   const [collectDue, setCollectDue] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [dueAmount, setDueAmount] = useState("");
@@ -250,6 +264,14 @@ export default function PosClient({
     setHeldBills(loadHeld());
   }, []);
 
+  const favServices = useMemo(
+    () =>
+      serviceState
+        .filter((s) => s.is_quick_favorite)
+        .sort((a, b) => (a.quick_sort ?? 0) - (b.quick_sort ?? 0)),
+    [serviceState]
+  );
+
   const categories = useMemo(() => {
     const map = new Map<string, number>();
     for (const p of productState) {
@@ -266,7 +288,7 @@ export default function PosClient({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = tab === "products" ? productState : serviceState;
+    const list: (PosProduct | PosService)[] = tab === "services" ? (favOnly ? favServices : serviceState) : productState;
     const out = list.filter((x: any) => {
       if (cat !== "all" && x.category_id !== cat) return false;
       if (!needle) return true;
@@ -285,8 +307,8 @@ export default function PosClient({
     } else if (sort === "stock") {
       sorted.sort((a: any, b: any) => Number(b.stock_qty ?? 0) - Number(a.stock_qty ?? 0));
     }
-    return sorted;
-  }, [tab, q, cat, sort, productState, serviceState]);
+    return sorted as BrowserItem[];
+  }, [tab, q, cat, sort, favOnly, favServices, productState, serviceState]);
 
   const subtotal = useMemo(() => cart.reduce((sum, l) => sum + l.amount, 0), [cart]);
   const discountNum = Math.min(Math.max(Number(discount) || 0, 0), subtotal);
@@ -1061,24 +1083,24 @@ export default function PosClient({
           <div className="min-w-0">
             <PosItemToolbar
               tabs={[
-                { value: "products", label: "Products" },
                 { value: "services", label: "Services" },
+                { value: "products", label: "Products" },
               ]}
               activeTab={tab}
               onTab={(t) => setTab(t as typeof tab)}
               searchRef={searchRef}
-              placeholder="Search by name or code…  (Ctrl+K)"
+              placeholder="Search services, products…  (Ctrl+K)"
               q={q}
               onQ={setQ}
               sort={sort}
               onSort={(v) => setSort(v as typeof sort)}
               view={view}
-              onView={setView}
+              onView={switchView}
             />
 
             <PosCategoryChips
               categories={categories}
-              totalCount={productState.length + services.length}
+              totalCount={productState.length + serviceState.length}
               active={cat}
               onSelect={(id) => setCat(cat === id ? "all" : id)}
               customBtn={
@@ -1091,6 +1113,22 @@ export default function PosClient({
                   </svg>
                   Custom item
                 </button>
+              }
+              extraChips={
+                tab === "services" ? (
+                  <button
+                    onClick={() => setFavOnly((v) => !v)}
+                    title="Show quick favourites only"
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      favOnly ? "bg-amber-500 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="mr-1 inline h-3 w-3 -translate-y-px">
+                      <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z" />
+                    </svg>
+                    Favourites
+                  </button>
+                ) : null
               }
             />
 
