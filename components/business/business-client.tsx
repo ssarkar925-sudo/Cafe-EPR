@@ -622,6 +622,43 @@ export default function BusinessClient({
     setShowCreate(false);
     showToast("success", `${service.toUpperCase()} ${inr(Number(payload.p_amount))} recorded — ${d.transaction_number}`);
 
+    // Synchronize DMT bank debit and customer collection in cash_entries & payment accounts
+    if (service === "dmt" && d.status === "success") {
+      const entryDate = ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const isBank = (payload.p_paid_from ?? "bank") === "bank";
+      const bankInstId = (payload.payment_account_id as string) || (payload.p_bank_id as string) || null;
+      const bankInstName = (payload.payment_account_name as string) || (bankInstId ? initialPaymentInstruments.find((p) => p.id === bankInstId)?.name : null) || "Our Bank Account";
+
+      // 1. Debit money out from Bank Account
+      if (isBank && bankInstId) {
+        await supabase.from("cash_entries").insert({
+          entry_date: entryDate,
+          method: "bank",
+          direction: "out",
+          amount: Number(payload.p_amount),
+          description: `DMT ${d.transaction_number} transfer sent from ${bankInstName}`,
+          ref_type: "transaction",
+          ref_id: d.id as string,
+          instrument_id: bankInstId,
+        });
+      }
+
+      // 2. Tag customer money in to appropriate payment instrument
+      const payMethod = (payload.p_customer_pay_method as string) || "cash";
+      const totalIn = Number(payload.p_amount) + Number(payload.p_service_fee ?? 0);
+      if (totalIn > 0 && payMethod !== "due") {
+        const targetInst = initialPaymentInstruments.find((p) => p.type === (payMethod === "cash" ? "cash" : payMethod === "upi" ? "upi" : "bank"));
+        if (targetInst) {
+          await supabase
+            .from("cash_entries")
+            .update({ instrument_id: targetInst.id, method: payMethod })
+            .eq("ref_type", "transaction")
+            .eq("ref_id", d.id as string)
+            .eq("direction", "in");
+        }
+      }
+    }
+
     const waCfg = getWhatsAppConfig();
     if (waCfg.provider !== "off" && waCfg.auto_send_business && (newTxn.customer_mobile || newTxn.sender_mobile || newTxn.customers?.phone)) {
       handleSendWhatsAppTxn(newTxn);
@@ -785,6 +822,46 @@ export default function BusinessClient({
       providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
+
+    // Synchronize DMT cash_entries on edit
+    if (service === "dmt") {
+      const entryDate = ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+      const isBank = (payload.p_paid_from ?? "bank") === "bank";
+      const bankInstId = (payload.payment_account_id as string) || (payload.p_bank_id as string) || null;
+      const bankInstName = (payload.payment_account_name as string) || (bankInstId ? initialPaymentInstruments.find((p) => p.id === bankInstId)?.name : null) || "Our Bank Account";
+
+      await supabase.from("cash_entries").delete().eq("ref_type", "transaction").eq("ref_id", editTxn.id);
+
+      if (isBank && bankInstId) {
+        await supabase.from("cash_entries").insert({
+          entry_date: entryDate,
+          method: "bank",
+          direction: "out",
+          amount: Number(payload.p_amount),
+          description: `DMT ${editTxn.transaction_number} transfer sent from ${bankInstName}`,
+          ref_type: "transaction",
+          ref_id: editTxn.id,
+          instrument_id: bankInstId,
+        });
+      }
+
+      const payMethod = (payload.p_customer_pay_method as string) || "cash";
+      const totalIn = Number(payload.p_amount) + Number(payload.p_service_fee ?? 0);
+      if (totalIn > 0 && payMethod !== "due") {
+        const targetInst = initialPaymentInstruments.find((p) => p.type === (payMethod === "cash" ? "cash" : payMethod === "upi" ? "upi" : "bank"));
+        await supabase.from("cash_entries").insert({
+          entry_date: entryDate,
+          method: payMethod,
+          direction: "in",
+          amount: totalIn,
+          description: `DMT ${editTxn.transaction_number} collected from customer (${payMethod})`,
+          ref_type: "transaction",
+          ref_id: editTxn.id,
+          instrument_id: targetInst?.id || null,
+        });
+      }
+    }
+
     setEditTxn(null);
     showToast("success", `Transaction ${editTxn.transaction_number} updated`);
     logAudit({
@@ -808,6 +885,30 @@ export default function BusinessClient({
       showToast("error", error.message);
       return;
     }
+
+    if (reverseTxn.service_type === "dmt") {
+      const { data: oldEntries } = await supabase
+        .from("cash_entries")
+        .select("*")
+        .eq("ref_type", "transaction")
+        .eq("ref_id", reverseTxn.id);
+
+      if (oldEntries && oldEntries.length > 0) {
+        for (const ce of oldEntries) {
+          await supabase.from("cash_entries").insert({
+            entry_date: new Date().toISOString().slice(0, 10),
+            method: ce.method,
+            direction: ce.direction === "out" ? "in" : "out",
+            amount: ce.amount,
+            description: `Reversed DMT ${reverseTxn.transaction_number} (${ce.direction === "out" ? "refund to bank" : "return customer cash"})`,
+            ref_type: "transaction",
+            ref_id: reverseTxn.id,
+            instrument_id: ce.instrument_id,
+          });
+        }
+      }
+    }
+
     setTxns((prev) => prev.map((t) => (t.id === reverseTxn.id ? { ...t, status: "reversed" } : t)));
     setReverseTxn(null);
     setReverseReason("");
@@ -833,6 +934,9 @@ export default function BusinessClient({
       showToast("error", error.message);
       return;
     }
+
+    await supabase.from("cash_entries").delete().eq("ref_type", "transaction").eq("ref_id", deleteTxn.id);
+
     setTxns((prev) => prev.map((t) => (t.id === deleteTxn.id ? { ...t, status: "deleted" } : t)));
     setDeleteTxn(null);
     setDeleteReason("");
