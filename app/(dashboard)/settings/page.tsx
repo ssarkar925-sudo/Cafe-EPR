@@ -82,17 +82,36 @@ export default async function SettingsPage({
     if (t.merchant_qr_id) qrUsage[t.merchant_qr_id] = (qrUsage[t.merchant_qr_id] ?? 0) + 1;
   }
 
-  // Current account balance = opening_balance + net cash-book flow tagged to the instrument.
+  const POOL_MAP: Record<string, string> = {
+    cash: "cash", bank: "bank", debit_card: "bank",
+    credit_card: "credit_card", upi: "upi_qr", wallet: "wallet",
+  };
+
+  // Current account balance = pool-aware balance (includes opening_balances seeds + day-close + settlements + all movements)
+  const { data: poolData } = await supabase.rpc("get_pool_balances");
+  const pool = (poolData ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
+
+  const countPerPool: Record<string, number> = {};
+  for (const i of (instruments ?? []) as any[]) {
+    const p = POOL_MAP[i.type] ?? i.type;
+    countPerPool[p] = (countPerPool[p] ?? 0) + 1;
+  }
+
   const balMap: Record<string, number> = {};
   for (const e of (instBal ?? []) as { instrument_id: string | null; direction: string; amount: number | string }[]) {
     if (!e.instrument_id) continue;
     const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
     balMap[e.instrument_id] = (balMap[e.instrument_id] ?? 0) + delta;
   }
-  const accounts = (instruments ?? []).map((i: any) => ({
-    ...i,
-    balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
-  }));
+
+  const accounts = (instruments ?? []).map((i: any) => {
+    const poolKey = POOL_MAP[i.type] ?? i.type;
+    const poolEntry = pool[poolKey];
+    if (poolEntry && countPerPool[poolKey] === 1) {
+      return { ...i, balance: poolEntry.current ?? (poolEntry.opening + poolEntry.movements) };
+    }
+    return { ...i, balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0) };
+  });
 
   const categoryCounts: Record<string, number> = {};
   for (const p of (products ?? []) as { category_id: string | null }[]) {

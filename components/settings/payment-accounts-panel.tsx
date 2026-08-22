@@ -61,23 +61,62 @@ export default function PaymentAccountsPanel({
     setInstruments(initialInstruments);
   }, [initialInstruments]);
 
+  // Maps instrument type → pool key used by get_pool_balances RPC
+  const POOL_MAP: Record<string, string> = {
+    cash: "cash",
+    bank: "bank",
+    debit_card: "bank",
+    credit_card: "credit_card",
+    upi: "upi_qr",
+    wallet: "wallet",
+  };
+
   const refreshLiveBalances = useCallback(async () => {
-    const [{ data: insts }, { data: ces }] = await Promise.all([
+    // Fetch instruments, pool balances (includes day-close seeds + ALL sources),
+    // and per-instrument tagged cash_entries (fallback for multi-account pools)
+    const [{ data: insts }, poolResult, { data: ces }] = await Promise.all([
       supabase.from("payment_instruments").select("*").order("type").order("name"),
+      supabase.rpc("get_pool_balances"),
       supabase.from("cash_entries").select("instrument_id, direction, amount").not("instrument_id", "is", null),
     ]);
 
     if (!insts) return;
+
+    // Parse pool balances from RPC (includes opening seeds + day-close + all movements)
+    const pool = (poolResult.data ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
+
+    // Count how many instruments share each pool (to detect multi-account pools)
+    const countPerPool: Record<string, number> = {};
+    for (const i of insts as InstrumentRow[]) {
+      const p = POOL_MAP[i.type] ?? i.type;
+      countPerPool[p] = (countPerPool[p] ?? 0) + 1;
+    }
+
+    // Build instrument-tagged cash_entries map (fallback for multi-account pools)
     const balMap: Record<string, number> = {};
     for (const e of (ces ?? []) as { instrument_id: string | null; direction: string; amount: number | string }[]) {
       if (!e.instrument_id) continue;
       const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
       balMap[e.instrument_id] = (balMap[e.instrument_id] ?? 0) + delta;
     }
-    const updated = (insts as InstrumentRow[]).map((i) => ({
-      ...i,
-      balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
-    }));
+
+    const updated = (insts as InstrumentRow[]).map((i) => {
+      const poolKey = POOL_MAP[i.type] ?? i.type;
+      const poolEntry = pool[poolKey];
+
+      // Single account for this pool type: use pool balance directly
+      // (most accurate — includes day-close seeds, settlements, ALL sources)
+      if (poolEntry && countPerPool[poolKey] === 1) {
+        return { ...i, balance: poolEntry.current ?? poolEntry.opening + poolEntry.movements };
+      }
+
+      // Multiple accounts for this pool: use instrument-tagged cash_entries
+      // (less complete but won't wrongly assign one account's movements to another)
+      return {
+        ...i,
+        balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
+      };
+    });
     setInstruments(updated);
   }, [supabase]);
 
