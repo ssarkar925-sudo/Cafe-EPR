@@ -196,6 +196,9 @@ export default function BusinessFormModal({
     if (service === "recharge") {
       if (!form.provider_id) return setError("Please choose the recharge provider.");
       if (!form.customer_mobile.trim()) return setError("Enter the recharge number (mobile number being recharged).");
+      if (form.customer_pay_method === "due" && !form.customer_id) {
+        return setError("Please select a customer from the top dropdown to mark this recharge as Due (Credit).");
+      }
       if (!commissionPreview || commissionPreview.missing) return setError("No commission slab covers this amount for this provider. Add a slab in Settings → Business Setup → Recharge Providers.");
     }
 
@@ -211,6 +214,7 @@ export default function BusinessFormModal({
         p_remarks: form.remarks.trim() || null,
         p_status: form.status,
         p_amount: amount,
+        p_customer_pay_method: form.customer_pay_method || "cash",
       });
       return;
     }
@@ -514,6 +518,7 @@ export default function BusinessFormModal({
                   {[
                     { value: "cash", label: "Cash" },
                     { value: "bank", label: "Bank / UPI" },
+                    { value: "due", label: "Due (Credit)" },
                   ].map((o) => (
                     <button
                       key={o.value}
@@ -521,7 +526,9 @@ export default function BusinessFormModal({
                       onClick={() => set("customer_pay_method", o.value)}
                       className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
                         form.customer_pay_method === o.value
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          ? o.value === "due"
+                            ? "border-rose-500 bg-rose-50 text-rose-700"
+                            : "border-blue-500 bg-blue-50 text-blue-700"
                           : "border-slate-200 bg-white text-slate-600"
                       }`}
                     >
@@ -529,6 +536,11 @@ export default function BusinessFormModal({
                     </button>
                   ))}
                 </div>
+                {form.customer_pay_method === "due" && (
+                  <p className="mt-1 text-xs font-medium text-rose-600">
+                    Transfer amount + fee will be added to the selected customer's outstanding Due.
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -606,6 +618,36 @@ export default function BusinessFormModal({
                 className={input}
               />
               <p className="mt-0.5 text-[11px] text-slate-400">The number being recharged.</p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Customer Paid You Via</label>
+              <div className="flex gap-2">
+                {[
+                  { value: "cash", label: "Cash" },
+                  { value: "bank", label: "Bank / UPI" },
+                  { value: "due", label: "Due (Credit)" },
+                ].map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => set("customer_pay_method", o.value)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                      form.customer_pay_method === o.value
+                        ? o.value === "due"
+                          ? "border-rose-500 bg-rose-50 text-rose-700"
+                          : "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-600"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {form.customer_pay_method === "due" && (
+                <p className="mt-1 text-xs font-medium text-rose-600">
+                  Recharge of ₹{form.amount || "0"} will be added to the selected customer's outstanding Due (Khata).
+                </p>
+              )}
             </div>
             {commissionPreview && (
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:col-span-2">

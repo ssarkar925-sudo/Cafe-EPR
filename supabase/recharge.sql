@@ -110,7 +110,8 @@ create or replace function public.create_recharge(
   p_reference text,
   p_remarks text,
   p_status text default 'success',
-  p_amount numeric default null
+  p_amount numeric default null,
+  p_customer_pay_method text default 'cash'
 )
 returns jsonb
 language plpgsql
@@ -122,12 +123,26 @@ declare
   v_commission numeric;
   v_cost numeric;
   v_provider_name text;
+  v_cash_in numeric := 0;
+  v_bank_in numeric := 0;
+  v_pay_method text;
+  v_prev_bal numeric := 0;
+  v_new_bal numeric := 0;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
   if p_status not in ('success', 'pending', 'failed') then raise exception 'Invalid status'; end if;
   if p_provider_id is null then raise exception 'A recharge provider is required'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+
+  v_pay_method := coalesce(p_customer_pay_method, 'cash');
+  if v_pay_method not in ('cash', 'bank', 'due') then
+    v_pay_method := 'cash';
+  end if;
+
+  if v_pay_method = 'due' and p_customer_id is null then
+    raise exception 'Please select a customer from the list to mark this recharge as Due (Credit).';
+  end if;
 
   select name into v_provider_name from public.recharge_providers
   where id = p_provider_id and is_active;
@@ -139,46 +154,69 @@ begin
 
   v_number := 'RCH-' || lpad(nextval('public.recharge_seq')::text, 4, '0');
 
+  if v_pay_method = 'cash' then
+    v_cash_in := p_amount;
+  elsif v_pay_method = 'bank' then
+    v_bank_in := p_amount;
+  else
+    v_cash_in := 0;
+    v_bank_in := 0;
+  end if;
+
   insert into public.transactions (
     transaction_number, service_type, direction, transaction_date, transaction_timestamp,
     customer_id, customer_mobile, reference, remarks, status,
     provider_id, amount, service_fee, portal_commission, created_by,
-    cash_out, cash_in, pool_out, pool_credit, pool_credit_type
+    cash_out, cash_in, bank_out, bank_in, pool_out, pool_credit, pool_credit_type,
+    customer_pay_method
   ) values (
     v_number, 'recharge', 'in', p_transaction_date,
     coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
     p_customer_id, p_customer_mobile, nullif(p_reference, ''), p_remarks, p_status,
     p_provider_id, p_amount, 0, v_commission, auth.uid(),
-    0, p_amount, v_cost, 0, 'recharge'
+    0, v_cash_in, 0, v_bank_in, v_cost, 0, 'recharge',
+    v_pay_method
   ) returning id into v_txn_id;
 
   if p_status = 'success' then
-    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
-    values (p_transaction_date, 'cash', 'in', p_amount,
-            'Recharge ' || v_number || ' received in cash', 'transaction', v_txn_id);
+    if v_pay_method = 'cash' then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'cash', 'in', p_amount,
+              'Recharge ' || v_number || ' received in cash', 'transaction', v_txn_id);
+    elsif v_pay_method = 'bank' then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'bank', 'in', p_amount,
+              'Recharge ' || v_number || ' received via Bank/UPI', 'transaction', v_txn_id);
+    elsif v_pay_method = 'due' and p_customer_id is not null then
+      select coalesce(balance, 0) into v_prev_bal from public.customers where id = p_customer_id;
+      v_new_bal := v_prev_bal + p_amount;
+      update public.customers set balance = v_new_bal where id = p_customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_type, ref_id)
+      values (p_customer_id, p_transaction_date, 'recharge', 'Recharge ' || v_number || ' on credit', p_amount, 0, v_new_bal, 'transaction', v_txn_id);
+    end if;
   end if;
 
   insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
   values (
     auth.uid(), null, 'transaction_created', 'transactions', v_txn_id::text,
     'Created Recharge ' || v_number || ' (' || p_status || ') of ' || p_amount ||
-    ' via ' || v_provider_name || ' | commission ' || v_commission,
+    ' via ' || v_provider_name || ' | payment: ' || v_pay_method || ' | commission ' || v_commission,
     jsonb_build_object('service_type', 'recharge', 'provider', v_provider_name,
-                       'amount', p_amount, 'commission', v_commission, 'cost', v_cost, 'status', p_status)
+                       'amount', p_amount, 'commission', v_commission, 'cost', v_cost, 'status', p_status, 'customer_pay_method', v_pay_method)
   );
 
   return (
     select jsonb_build_object('id', id, 'transaction_number', transaction_number,
       'service_type', service_type, 'direction', direction, 'status', status,
       'amount', amount, 'service_fee', service_fee, 'portal_commission', portal_commission,
-      'cash_in', cash_in, 'pool_out', pool_out, 'pool_credit', pool_credit,
-      'pool_credit_type', pool_credit_type)
+      'cash_in', cash_in, 'bank_in', bank_in, 'pool_out', pool_out, 'pool_credit', pool_credit,
+      'pool_credit_type', pool_credit_type, 'customer_pay_method', customer_pay_method)
     from public.transactions where id = v_txn_id
   );
 end;
 $$;
-revoke all on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric) from public, anon;
-grant execute on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric) to authenticated;
+revoke all on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text) from public, anon;
+grant execute on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text) to authenticated;
 
 -- ---------- 5. Edit recharge (reverses old cash leg, recomputes commission) ----------
 -- Drop any prior overloads (a 10-param version with p_customer_pay_method was

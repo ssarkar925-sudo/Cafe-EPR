@@ -1421,6 +1421,8 @@ declare
   v_pool_type text;
   v_upi_fee numeric := 0;
   v_fee numeric;
+  v_prev_bal numeric := 0;
+  v_new_bal numeric := 0;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if not public.is_back_office() then raise exception 'Forbidden'; end if;
@@ -1468,6 +1470,10 @@ begin
     end if;
     if coalesce(p_customer_pay_method, 'cash') in ('bank', 'upi') then
       v_bank_in := p_amount + v_fee;
+    elsif coalesce(p_customer_pay_method, 'cash') = 'due' then
+      if p_customer_id is null then raise exception 'Please select a customer to mark this DMT transfer as Due.'; end if;
+      v_cash_in := 0;
+      v_bank_in := 0;
     else
       v_cash_in := p_amount + v_fee;
     end if;
@@ -1513,6 +1519,17 @@ begin
     if v_cash_in > 0 then
       insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
       values (p_transaction_date, 'cash', 'in', v_cash_in, v_label || ' ' || v_number || ' received in cash', 'transaction', v_txn_id);
+    end if;
+    if v_bank_in > 0 then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'bank', 'in', v_bank_in, v_label || ' ' || v_number || ' received via Bank/UPI', 'transaction', v_txn_id);
+    end if;
+    if coalesce(p_customer_pay_method, 'cash') = 'due' and p_customer_id is not null then
+      select coalesce(balance, 0) into v_prev_bal from public.customers where id = p_customer_id;
+      v_new_bal := v_prev_bal + (p_amount + v_fee);
+      update public.customers set balance = v_new_bal where id = p_customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_type, ref_id)
+      values (p_customer_id, p_transaction_date, p_service_type, v_label || ' ' || v_number || ' on credit', p_amount + v_fee, 0, v_new_bal, 'transaction', v_txn_id);
     end if;
   end if;
 
@@ -1711,6 +1728,124 @@ begin
 end;
 $$;
 
+-- ---------- 5. Create Recharge: back-office + credit due support + float accounting ----------
+create or replace function public.create_recharge(
+  p_provider_id uuid,
+  p_transaction_date date,
+  p_transaction_timestamp timestamptz,
+  p_customer_id uuid,
+  p_customer_mobile text,
+  p_reference text,
+  p_remarks text,
+  p_status text default 'success',
+  p_amount numeric default null,
+  p_customer_pay_method text default 'cash'
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_txn_id uuid;
+  v_number text;
+  v_commission numeric;
+  v_cost numeric;
+  v_provider_name text;
+  v_cash_in numeric := 0;
+  v_bank_in numeric := 0;
+  v_pay_method text;
+  v_prev_bal numeric := 0;
+  v_new_bal numeric := 0;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if p_status not in ('success', 'pending', 'failed') then raise exception 'Invalid status'; end if;
+  if p_provider_id is null then raise exception 'A recharge provider is required'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+
+  v_pay_method := coalesce(p_customer_pay_method, 'cash');
+  if v_pay_method not in ('cash', 'bank', 'due') then
+    v_pay_method := 'cash';
+  end if;
+
+  if v_pay_method = 'due' and p_customer_id is null then
+    raise exception 'Please select a customer from the list to mark this recharge as Due (Credit).';
+  end if;
+
+  select name into v_provider_name from public.recharge_providers
+  where id = p_provider_id and is_active;
+  if not found then raise exception 'The selected provider is not available'; end if;
+
+  select (get_recharge_commission(p_provider_id, p_amount)->>'commission')::numeric,
+         (get_recharge_commission(p_provider_id, p_amount)->>'cost')::numeric
+  into v_commission, v_cost;
+
+  v_number := 'RCH-' || lpad(nextval('public.recharge_seq')::text, 4, '0');
+
+  if v_pay_method = 'cash' then
+    v_cash_in := p_amount;
+  elsif v_pay_method = 'bank' then
+    v_bank_in := p_amount;
+  else
+    v_cash_in := 0;
+    v_bank_in := 0;
+  end if;
+
+  insert into public.transactions (
+    transaction_number, service_type, direction, transaction_date, transaction_timestamp,
+    customer_id, customer_mobile, reference, remarks, status,
+    provider_id, amount, service_fee, portal_commission, created_by,
+    cash_out, cash_in, bank_out, bank_in, pool_out, pool_credit, pool_credit_type,
+    customer_pay_method
+  ) values (
+    v_number, 'recharge', 'in', p_transaction_date,
+    coalesce(p_transaction_timestamp, p_transaction_date::timestamptz),
+    p_customer_id, p_customer_mobile, nullif(p_reference, ''), p_remarks, p_status,
+    p_provider_id, p_amount, 0, v_commission, auth.uid(),
+    0, v_cash_in, 0, v_bank_in, v_cost, 0, 'recharge',
+    v_pay_method
+  ) returning id into v_txn_id;
+
+  if p_status = 'success' then
+    if v_pay_method = 'cash' then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'cash', 'in', p_amount,
+              'Recharge ' || v_number || ' received in cash', 'transaction', v_txn_id);
+    elsif v_pay_method = 'bank' then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'bank', 'in', p_amount,
+              'Recharge ' || v_number || ' received via Bank/UPI', 'transaction', v_txn_id);
+    elsif v_pay_method = 'due' and p_customer_id is not null then
+      select coalesce(balance, 0) into v_prev_bal from public.customers where id = p_customer_id;
+      v_new_bal := v_prev_bal + p_amount;
+      update public.customers set balance = v_new_bal where id = p_customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_type, ref_id)
+      values (p_customer_id, p_transaction_date, 'recharge', 'Recharge ' || v_number || ' on credit', p_amount, 0, v_new_bal, 'transaction', v_txn_id);
+    end if;
+  end if;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'transaction_created', 'transactions', v_txn_id::text,
+    'Created Recharge ' || v_number || ' (' || p_status || ') of ' || p_amount ||
+    ' via ' || v_provider_name || ' | payment: ' || v_pay_method || ' | commission ' || v_commission,
+    jsonb_build_object('service_type', 'recharge', 'provider', v_provider_name,
+                       'amount', p_amount, 'commission', v_commission, 'cost', v_cost, 'status', p_status, 'customer_pay_method', v_pay_method)
+  );
+
+  return (
+    select jsonb_build_object('id', id, 'transaction_number', transaction_number,
+      'service_type', service_type, 'direction', direction, 'status', status,
+      'amount', amount, 'service_fee', service_fee, 'portal_commission', portal_commission,
+      'cash_in', cash_in, 'bank_in', bank_in, 'pool_out', pool_out, 'pool_credit', pool_credit,
+      'pool_credit_type', pool_credit_type, 'customer_pay_method', customer_pay_method)
+    from public.transactions where id = v_txn_id
+  );
+end;
+$$;
+revoke all on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text) from public, anon;
+grant execute on function public.create_recharge(uuid, date, timestamptz, uuid, text, text, text, text, numeric, text) to authenticated;
+
 -- ---------- Reverse transaction: back-office + audit ----------
 create or replace function public.reverse_business_txn(p_txn_id uuid, p_reason text)
 returns jsonb
@@ -1734,6 +1869,23 @@ begin
   if v_txn.cash_in > 0 then
     insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
     values (current_date, 'cash', 'out', v_txn.cash_in, 'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+  end if;
+  if v_txn.bank_in > 0 then
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (current_date, 'bank', 'out', v_txn.bank_in, 'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number, 'transaction', p_txn_id);
+  end if;
+  if coalesce(v_txn.customer_pay_method, '') = 'due' and v_txn.customer_id is not null then
+    declare
+      v_pbal numeric := 0;
+      v_nbal numeric := 0;
+      v_rev_amt numeric := coalesce(v_txn.amount, 0) + coalesce(v_txn.service_fee, 0);
+    begin
+      select coalesce(balance, 0) into v_pbal from public.customers where id = v_txn.customer_id;
+      v_nbal := v_pbal - v_rev_amt;
+      update public.customers set balance = v_nbal where id = v_txn.customer_id;
+      insert into public.customer_ledger (customer_id, entry_date, type, description, debit, credit, balance_after, ref_type, ref_id)
+      values (v_txn.customer_id, current_date, 'adjustment', 'Reversed ' || upper(v_txn.service_type) || ' ' || v_txn.transaction_number || ' on credit', 0, v_rev_amt, v_nbal, 'transaction', p_txn_id);
+    end;
   end if;
 
   update public.transactions
