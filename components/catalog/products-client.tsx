@@ -427,6 +427,8 @@ export default function ProductsClient({
         <ProductFormModal
           state={modal}
           categories={categories}
+          suggestedCode={nextCode()}
+          nextCode={nextCode}
           onClose={() => setModal(null)}
           onSave={saveProduct}
         />
