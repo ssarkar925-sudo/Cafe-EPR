@@ -208,6 +208,7 @@ export default function PnlClient({
           sub={pnl ? `${inr(pnl.revenue)} gross − ${inr(pnl.returns)} returns` : ""}
           icon="M6 3h12M6 8h12M6 13h8a4 4 0 0 0 0-8H6v17"
           grad="from-blue-500 to-indigo-600"
+          href="/invoices"
         />
         <StatCard
           label="COGS"
@@ -215,6 +216,7 @@ export default function PnlClient({
           sub="Cost of goods & services sold"
           icon="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z M3.3 7 12 12l8.7-5M12 22V12"
           grad="from-amber-500 to-orange-600"
+          href="/catalog/products"
         />
         <StatCard
           label="Gross Profit"
@@ -223,6 +225,7 @@ export default function PnlClient({
           icon="M23 6l-9.5 9.5-5-5L1 18M17 6h6v6"
           grad={pnl && pnl.gross_profit >= 0 ? "from-emerald-500 to-teal-600" : "from-rose-500 to-pink-600"}
           valueClass={pnl && pnl.gross_profit >= 0 ? "text-emerald-600" : "text-rose-600"}
+          href="/reports"
         />
         <StatCard
           label="Net Profit"
@@ -231,6 +234,7 @@ export default function PnlClient({
           icon="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2"
           grad={pnl && pnl.net_profit >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-pink-600"}
           valueClass={pnl && pnl.net_profit >= 0 ? "text-violet-600" : "text-rose-600"}
+          href="/finance/expenses"
         />
       </div>
 

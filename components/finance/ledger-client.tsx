@@ -490,6 +490,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
           sub="Sales & advances billed"
           icon="M12 15V3m0 12 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
           grad="from-rose-500 to-pink-600"
+          onClick={() => setQ(q === "invoice" ? "" : "invoice")}
         />
         <StatCard
           label="Total Credited"
@@ -497,6 +498,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
           sub="Payments received"
           icon="M12 3v12m0 0 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
           grad="from-emerald-500 to-teal-600"
+          onClick={() => setQ(q === "payment" ? "" : "payment")}
         />
         <StatCard
           label="Closing Balance"
@@ -504,6 +506,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
           sub="Current net due position"
           icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
           grad={Number(summary.closing) > 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"}
+          onClick={() => setQ("")}
         />
         <StatCard
           label="Entries"
@@ -511,6 +514,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
           sub={`${filtered.length} of ${rows.length} rows`}
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-violet-500 to-purple-600"
+          onClick={() => setQ("")}
         />
       </div>
 

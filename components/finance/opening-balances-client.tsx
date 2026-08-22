@@ -195,6 +195,7 @@ export default function OpeningBalancesClient({
           icon="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
           grad="from-slate-500 to-slate-700"
           sub="Sum of opening seeds"
+          href="/finance/day-close"
         />
         <StatCard
           label="Current Position"
@@ -202,6 +203,7 @@ export default function OpeningBalancesClient({
           icon="M18 20V10M12 20V4M6 20v-6"
           grad="from-blue-600 to-indigo-600"
           sub="Opening + movements"
+          href="/finance/settlements"
         />
       </div>
 

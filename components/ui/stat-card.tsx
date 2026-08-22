@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export default function StatCard({
@@ -9,6 +10,7 @@ export default function StatCard({
   icon,
   grad = "from-blue-600 to-indigo-600",
   onClick,
+  href,
   trend,
   valueClass,
 }: {
@@ -18,16 +20,12 @@ export default function StatCard({
   icon: string;
   grad?: string;
   onClick?: () => void;
+  href?: string;
   trend?: { dir: "up" | "down" | "flat"; text: string } | null;
   valueClass?: string;
 }) {
-  return (
-    <div
-      onClick={onClick}
-      className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition dark:border-white/10 dark:bg-slate-900 ${
-        onClick ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg" : ""
-      }`}
-    >
+  const content = (
+    <>
       <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${grad}`} />
       <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-gradient-to-br from-slate-100 to-transparent blur-2xl" />
       <div className="relative flex items-center justify-between">
@@ -63,6 +61,24 @@ export default function StatCard({
         )}
         {sub}
       </div>
+    </>
+  );
+
+  const className = `group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition dark:border-white/10 dark:bg-slate-900 ${
+    onClick || href ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg" : ""
+  }`;
+
+  if (href) {
+    return (
+      <Link href={href} onClick={onClick} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div onClick={onClick} className={className}>
+      {content}
     </div>
   );
 }

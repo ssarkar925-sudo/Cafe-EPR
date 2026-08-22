@@ -263,8 +263,15 @@ export default function ProductsClient({
             onClick={() => {
               if (c.label === "Low Stock") setStatus("low_stock");
               else if (c.label === "Active") setStatus("active");
+              else if (c.label === "Total Products") {
+                setStatus("all");
+                setCat("all");
+                setQ("");
+              } else {
+                setStatus("all");
+              }
             }}
-            className="relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+            className="relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">

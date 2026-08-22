@@ -247,6 +247,7 @@ export default function ExpensesClient({
           sub="Active expenses only"
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-blue-500 to-indigo-600"
+          onClick={() => setStatus("active")}
         />
         <StatCard
           label="Active Spend"
@@ -254,6 +255,7 @@ export default function ExpensesClient({
           sub={`${summary.activeCount} expenses`}
           icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
           grad="from-rose-500 to-pink-600"
+          onClick={() => setStatus("active")}
         />
         <StatCard
           label="Cancelled"
@@ -261,6 +263,7 @@ export default function ExpensesClient({
           sub="Reversed to cash"
           icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
           grad="from-slate-500 to-slate-600"
+          onClick={() => setStatus("cancelled")}
         />
         <StatCard
           label="Average / Active"
@@ -268,6 +271,7 @@ export default function ExpensesClient({
           sub="Per expense record"
           icon="M3 7v6h6M3.5 13a9 9 0 1 0 0-6"
           grad="from-violet-500 to-purple-600"
+          onClick={() => setStatus("all")}
         />
       </div>
 

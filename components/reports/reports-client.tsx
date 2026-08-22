@@ -261,12 +261,54 @@ export default function ReportsClient({
   }, [cashEntries, instruments, range]);
 
   const KPI_CARDS = [
-    { label: "Sales", value: totalSales, icon: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9", grad: "from-emerald-500 to-teal-600", sub: `${validInvoices.length} invoices` },
-    { label: "Collected", value: totalPaid, icon: "M20 6 9 17l-5-5", grad: "from-blue-500 to-indigo-600", sub: `${inr(totalSales - totalPaid)} outstanding` },
-    { label: "Returns", value: totalReturns, icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5", grad: "from-amber-500 to-orange-600", sub: `${validReturns.length} returns` },
-    { label: "Expenses", value: totalExpenses, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5", grad: "from-rose-500 to-pink-600", sub: `${activeExpenses.length} entries` },
-    { label: "Quick Sales", value: quickSummary.amount, icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-teal-500 to-emerald-600", sub: `${quickSummary.count} sales · ${inr(quickSummary.amount - quickSummary.cost)} margin` },
-    { label: "Net Profit", value: net, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600", sub: "Sales + quick margin + business income − returns − expenses" },
+    {
+      label: "Sales",
+      value: totalSales,
+      icon: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9",
+      grad: "from-emerald-500 to-teal-600",
+      sub: `${validInvoices.length} invoices`,
+      onClick: () => setTab("invoices"),
+    },
+    {
+      label: "Collected",
+      value: totalPaid,
+      icon: "M20 6 9 17l-5-5",
+      grad: "from-blue-500 to-indigo-600",
+      sub: `${inr(totalSales - totalPaid)} outstanding`,
+      onClick: () => setTab("accounts"),
+    },
+    {
+      label: "Returns",
+      value: totalReturns,
+      icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+      grad: "from-amber-500 to-orange-600",
+      sub: `${validReturns.length} returns`,
+      onClick: () => setTab("returns"),
+    },
+    {
+      label: "Expenses",
+      value: totalExpenses,
+      icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5",
+      grad: "from-rose-500 to-pink-600",
+      sub: `${activeExpenses.length} entries`,
+      onClick: () => setTab("expenses"),
+    },
+    {
+      label: "Quick Sales",
+      value: quickSummary.amount,
+      icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+      grad: "from-teal-500 to-emerald-600",
+      sub: `${quickSummary.count} sales · ${inr(quickSummary.amount - quickSummary.cost)} margin`,
+      onClick: () => setTab("quick"),
+    },
+    {
+      label: "Net Profit",
+      value: net,
+      icon: "M3 3v18h18M7 14l4-4 3 3 5-6",
+      grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600",
+      sub: "Sales + quick margin + business income − returns − expenses",
+      onClick: () => setTab("business"),
+    },
   ];
 
   const recentInvoices = invoices.filter((i) => i.status !== "cancelled" && i.invoice_date >= range.from && i.invoice_date <= range.to).slice(0, 8);
@@ -325,11 +367,15 @@ export default function ReportsClient({
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
             {KPI_CARDS.map((c) => (
-              <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div
+                key={c.label}
+                onClick={c.onClick}
+                className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
                 <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-slate-500">{c.label}</p>
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
                       <path d={c.icon} />
                     </svg>

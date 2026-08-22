@@ -69,14 +69,14 @@ const ICONS = {
 };
 
 const POOL_CARDS = [
-  { key: "cash", label: "Cash in Hand", icon: ICONS.cash, grad: "from-indigo-500 to-violet-600" },
-  { key: "bank", label: "Bank Balance", icon: ICONS.bank, grad: "from-blue-500 to-indigo-600" },
-  { key: "wallet", label: "Wallet Balance", icon: ICONS.wallet, grad: "from-emerald-500 to-teal-600" },
-  { key: "dmt", label: "DMT Float", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600" },
-  { key: "aeps", label: "AEPS Float", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600" },
-  { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, grad: "from-rose-500 to-pink-600" },
-  { key: "recharge", label: "Recharge Float", icon: ICONS.recharge, grad: "from-cyan-500 to-sky-600" },
-  { key: "credit_card", label: "Credit Card", icon: ICONS.card, grad: "from-cyan-500 to-sky-600" },
+  { key: "cash", label: "Cash in Hand", icon: ICONS.cash, grad: "from-indigo-500 to-violet-600", href: "/finance/cashbook" },
+  { key: "bank", label: "Bank Balance", icon: ICONS.bank, grad: "from-blue-500 to-indigo-600", href: "/finance/cashbook" },
+  { key: "wallet", label: "Wallet Balance", icon: ICONS.wallet, grad: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
+  { key: "dmt", label: "DMT Float", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", href: "/business/dmt" },
+  { key: "aeps", label: "AEPS Float", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", href: "/business/aeps" },
+  { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", href: "/business/upi" },
+  { key: "recharge", label: "Recharge Float", icon: ICONS.recharge, grad: "from-cyan-500 to-sky-600", href: "/business/recharge" },
+  { key: "credit_card", label: "Credit Card", icon: ICONS.card, grad: "from-cyan-500 to-sky-600", href: "/business/credit_card" },
 ];
 
 function Icon({ d, className }: { d: string; className?: string }) {
@@ -286,6 +286,7 @@ export default function SettlementsClient({
             value={inr((summary as any)?.[c.key] ?? 0)}
             icon={c.icon}
             grad={c.grad}
+            href={c.href}
           />
         ))}
       </div>

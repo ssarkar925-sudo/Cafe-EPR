@@ -572,12 +572,14 @@ export default function DayCloseClient({
               value={inr(Number(deposits) || 0)}
               icon="M12 5v14M5 12h14"
               grad="from-emerald-500 to-teal-600"
+              href="/finance/settlements"
             />
             <StatCard
               label="Owner Withdrawals (cash taken out)"
               value={inr(Number(withdrawals) || 0)}
               icon="M5 12h14M12 5l-7 7 7 7"
               grad="from-rose-500 to-red-600"
+              href="/finance/settlements"
             />
             <StatCard
               label="Current Opening (next day auto)"
@@ -585,6 +587,7 @@ export default function DayCloseClient({
               icon="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
               grad="from-blue-600 to-indigo-600"
               sub="Closing balances roll into tomorrow"
+              href="/finance/opening-balances"
             />
           </div>
 

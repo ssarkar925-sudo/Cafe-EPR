@@ -141,6 +141,12 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
           sub={`${filtered.length} in current view`}
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-blue-500 to-indigo-600"
+          onClick={() => {
+            setAction("all");
+            setEntity("all");
+            setDate("");
+            setQ("");
+          }}
         />
         <StatCard
           label="Today"
@@ -148,6 +154,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
           sub="Newest activity"
           icon="M12 15v3m-6-6h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-emerald-500 to-teal-600"
+          onClick={() => setDate(new Date().toISOString().slice(0, 10))}
         />
         <StatCard
           label="Creates"
@@ -155,6 +162,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
           sub={`${stats.updates} updates`}
           icon="M12 5v14M5 12h14"
           grad="from-violet-500 to-purple-600"
+          onClick={() => setAction("create")}
         />
         <StatCard
           label="Reversals / Cancels"
@@ -162,6 +170,7 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
           sub="Financial safeguards"
           icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
           grad="from-rose-500 to-pink-600"
+          onClick={() => setAction(actions.includes("cancel") ? "cancel" : "reverse")}
         />
       </div>
 

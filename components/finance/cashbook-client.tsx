@@ -161,6 +161,7 @@ export default function CashbookClient({
           sub={`${filtered.filter((e) => e.direction === "in").length} entries`}
           icon="M12 15V3m0 12 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
           grad="from-emerald-500 to-teal-600"
+          onClick={() => setDirection(direction === "in" ? "all" : "in")}
         />
         <StatCard
           label="Total Out"
@@ -168,6 +169,7 @@ export default function CashbookClient({
           sub={`${filtered.filter((e) => e.direction === "out").length} entries`}
           icon="M12 3v12m0 0 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
           grad="from-rose-500 to-pink-600"
+          onClick={() => setDirection(direction === "out" ? "all" : "out")}
         />
         <StatCard
           label="Closing Balance"
@@ -175,6 +177,7 @@ export default function CashbookClient({
           sub={net < 0 ? "Cash shortfall" : "Net cash position"}
           icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
           grad={net < 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"}
+          onClick={() => setDirection("all")}
         />
         <StatCard
           label="Entries"
@@ -182,6 +185,11 @@ export default function CashbookClient({
           sub={`${totals.totalIn > 0 ? inr(totals.totalIn) : "₹0"} in · ${totals.totalOut > 0 ? inr(totals.totalOut) : "₹0"} out`}
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-violet-500 to-purple-600"
+          onClick={() => {
+            setDirection("all");
+            setMethod("all");
+            setQ("");
+          }}
         />
       </div>
 

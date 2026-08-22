@@ -841,17 +841,34 @@ export default function BusinessClient({
       </div>
 
       <div className={`mt-6 grid grid-cols-2 gap-4 ${cfg.cards.length >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
-        {cfg.cards.map((c) => (
-          <StatCard
-            key={c.key}
-            label={c.label}
-            value={cardValue(c.key)}
-            sub={c.sub}
-            icon={c.icon}
-            grad={c.grad}
-            valueClass={c.key === "net" ? "text-emerald-600" : undefined}
-          />
-        ))}
+        {cfg.cards.map((c) => {
+          const handleClick = () => {
+            if (c.key === "success") setStatusFilter(statusFilter === "success" ? "" : "success");
+            else if (c.key === "pending") setStatusFilter(statusFilter === "pending" ? "" : "pending");
+            else if (c.key === "failed") setStatusFilter(statusFilter === "failed" ? "" : "failed");
+            else if (c.key === "today") {
+              setDateFrom(today);
+              setDateTo(today);
+            } else {
+              setStatusFilter("");
+              setQ("");
+              setDateFrom("");
+              setDateTo("");
+            }
+          };
+          return (
+            <StatCard
+              key={c.key}
+              label={c.label}
+              value={cardValue(c.key)}
+              sub={c.sub}
+              icon={c.icon}
+              grad={c.grad}
+              valueClass={c.key === "net" ? "text-emerald-600" : undefined}
+              onClick={handleClick}
+            />
+          );
+        })}
         {float && (
           <StatCard
             label={`${label} Float / Position`}
@@ -859,6 +876,7 @@ export default function BusinessClient({
             sub={`Opening ${inr(float.opening)}${float.seed_date && float.seed_date !== "0001-01-01" ? ` · ${fmtDate(float.seed_date)}` : ""}`}
             icon={ICONS.coins}
             grad="from-slate-700 to-slate-900"
+            href="/finance/opening-balances"
           />
         )}
       </div>

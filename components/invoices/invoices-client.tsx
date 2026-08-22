@@ -697,7 +697,8 @@ export default function InvoicesClient({
           return (
             <div
               key={inv.id}
-              className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${
+              onClick={() => setViewId(inv.id)}
+              className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 ${
                 cancelled ? "opacity-70" : ""
               }`}
             >
@@ -710,7 +711,7 @@ export default function InvoicesClient({
                       {customer.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-900">{inv.invoice_number}</p>
+                      <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{inv.invoice_number}</p>
                       <p className="truncate text-xs text-slate-400">{customer}</p>
                       {inv.customers?.phone && (
                         <p className="truncate text-[11px] text-slate-300">{inv.customers.phone}</p>
@@ -721,28 +722,28 @@ export default function InvoicesClient({
                 </div>
 
                 {/* Amounts */}
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100 sm:gap-3">
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100 sm:gap-3 dark:bg-slate-800/60 dark:ring-white/5">
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</p>
-                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">{inr(total)}</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900 dark:text-white">{inr(total)}</p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Paid</p>
-                    <p className="mt-0.5 truncate text-sm font-bold text-emerald-600">{inr(paid)}</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">{inr(paid)}</p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Due</p>
-                    <p className="mt-0.5 truncate text-sm font-bold text-rose-600">{inr(due)}</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-rose-600 dark:text-rose-400">{inr(due)}</p>
                   </div>
                 </div>
 
                 {/* Progress */}
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-medium text-slate-500">{pct}% collected</span>
+                    <span className="font-medium text-slate-500 dark:text-slate-400">{pct}% collected</span>
                     <span className="text-slate-400">{fmtDate(inv.invoice_date)}</span>
                   </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                     <div className={`h-full rounded-full ${BAR_STYLE[inv.status]}`} style={{ width: `${cancelled ? 0 : pct}%` }} />
                   </div>
                 </div>
@@ -752,24 +753,27 @@ export default function InvoicesClient({
                   {(hasReturn || hasRefund) && (
                     <>
                       {hasReturn && (
-                        <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">Returned {inr(inv.returned)}</span>
+                        <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 dark:bg-rose-950/40 dark:text-rose-300">Returned {inr(inv.returned)}</span>
                       )}
                       {hasRefund && (
-                        <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600">Refunded {inr(inv.refunded)}</span>
+                        <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">Refunded {inr(inv.refunded)}</span>
                       )}
                     </>
                   )}
                   {collectable && (
-                    <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">{inr(due)} to collect</span>
+                    <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-950/40 dark:text-amber-300">{inr(due)} to collect</span>
                   )}
                 </div>
 
                 {/* Actions */}
-                <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3">
+                <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 dark:border-white/5">
                   <button
-                    onClick={() => copyNumber(inv.invoice_number)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyNumber(inv.invoice_number);
+                    }}
                     title="Copy invoice number"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                       <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
@@ -778,6 +782,7 @@ export default function InvoicesClient({
                   <a
                     href={`/receipt/${inv.id}/a4`}
                     target="_blank"
+                    onClick={(e) => e.stopPropagation()}
                     title="Print A4 Invoice / PDF"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                   >
@@ -787,23 +792,30 @@ export default function InvoicesClient({
                   </a>
                   <button
                     type="button"
-                    onClick={() => handleSendInvoiceWhatsApp(inv)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSendInvoiceWhatsApp(inv);
+                    }}
                     title="Send Invoice on WhatsApp"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                       <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                     </svg>
                   </button>
                   <button
-                    onClick={() => setViewId(inv.id)}
-                    className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewId(inv.id);
+                    }}
+                    className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                   >
                     View
                   </button>
                   {collectable && (
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setCollectMethod("cash");
                         setCollectId(inv.id);
                       }}
@@ -882,14 +894,20 @@ export default function InvoicesClient({
                   const hasRefund = Number(inv.refunded) > 0;
                   return (
                     <Fragment key={inv.id}>
-                      <tr className="border-b border-slate-100 transition hover:bg-slate-50/60">
+                      <tr
+                        onClick={() => setViewId(inv.id)}
+                        className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-slate-800/60"
+                      >
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-slate-900">{inv.invoice_number}</p>
+                            <p className="font-semibold text-slate-900 dark:text-white">{inv.invoice_number}</p>
                             <button
-                              onClick={() => copyNumber(inv.invoice_number)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyNumber(inv.invoice_number);
+                              }}
                               title="Copy invoice number"
-                              className="text-slate-300 transition hover:text-slate-600"
+                              className="text-slate-300 transition hover:text-slate-600 dark:hover:text-slate-200"
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
                                 <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
@@ -897,10 +915,10 @@ export default function InvoicesClient({
                             </button>
                             <div className="cell-sub flex flex-wrap gap-1">
                               {hasReturn && (
-                                <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">R {inr(inv.returned)}</span>
+                                <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 dark:bg-rose-950/40 dark:text-rose-300">R {inr(inv.returned)}</span>
                               )}
                               {hasRefund && (
-                                <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600">RF {inr(inv.refunded)}</span>
+                                <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">RF {inr(inv.refunded)}</span>
                               )}
                             </div>
                           </div>
@@ -910,27 +928,28 @@ export default function InvoicesClient({
                             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(customer)} text-[11px] font-bold text-white`}>
                               {customer.slice(0, 1).toUpperCase()}
                             </div>
-                            <span className="max-w-[140px] truncate text-slate-600">{customer}</span>
+                            <span className="max-w-[140px] truncate text-slate-600 dark:text-slate-300">{customer}</span>
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">{fmtDate(inv.invoice_date)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">{fmtDate(inv.invoice_date)}</td>
                         <td className="px-4 py-3 text-right">
-                          <p className="font-semibold text-slate-900">{inr(total)}</p>
-                          <div className="cell-sub ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100">
+                          <p className="font-semibold text-slate-900 dark:text-white">{inr(total)}</p>
+                          <div className="cell-sub ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                             <div
                               className={`h-full rounded-full ${BAR_STYLE[inv.status] ?? "bg-slate-300"}`}
                               style={{ width: `${cancelled ? 0 : pct}%` }}
                             />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{inr(paid)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-rose-600">{inr(due)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{inr(paid)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-rose-600 dark:text-rose-400">{inr(due)}</td>
                         <td className="px-4 py-3">{statusBadge(inv.status)}</td>
                         <td className="px-5 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             <a
                               href={`/receipt/${inv.id}/a4`}
                               target="_blank"
+                              onClick={(e) => e.stopPropagation()}
                               title="Print A4 Invoice / PDF"
                               className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                             >
@@ -940,23 +959,30 @@ export default function InvoicesClient({
                             </a>
                             <button
                               type="button"
-                              onClick={() => handleSendInvoiceWhatsApp(inv)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendInvoiceWhatsApp(inv);
+                              }}
                               title="Send Invoice on WhatsApp"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                               </svg>
                             </button>
                             <button
-                              onClick={() => setViewId(inv.id)}
-                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewId(inv.id);
+                              }}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                             >
                               View
                             </button>
                             {collectable && (
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setCollectMethod("cash");
                                   setCollectId(inv.id);
                                 }}
@@ -1039,7 +1065,8 @@ export default function InvoicesClient({
                 return (
                   <div
                     key={s.id}
-                    className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 ${
+                    onClick={() => setQuickViewId(s.id)}
+                    className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 ${
                       cancelled ? "opacity-70" : ""
                     }`}
                   >
@@ -1089,7 +1116,10 @@ export default function InvoicesClient({
 
                       <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 dark:border-white/5">
                         <button
-                          onClick={() => copyNumber(s.sale_number)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyNumber(s.sale_number);
+                          }}
                           title="Copy sale number"
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                         >
@@ -1100,6 +1130,7 @@ export default function InvoicesClient({
                         <a
                           href={`/receipt/quick/${s.id}`}
                           target="_blank"
+                          onClick={(e) => e.stopPropagation()}
                           title="Print 80mm receipt"
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                         >
@@ -1109,7 +1140,10 @@ export default function InvoicesClient({
                         </a>
                         <button
                           type="button"
-                          onClick={() => handleSendQuickSaleWhatsApp(s)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendQuickSaleWhatsApp(s);
+                          }}
                           title="Send receipt on WhatsApp"
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                         >
@@ -1119,7 +1153,10 @@ export default function InvoicesClient({
                           </svg>
                         </button>
                         <button
-                          onClick={() => setQuickViewId(s.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuickViewId(s.id);
+                          }}
                           className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                         >
                           View
@@ -1151,12 +1188,19 @@ export default function InvoicesClient({
                       const cancelled = s.status === "cancelled";
                       const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
                       return (
-                        <tr key={s.id} className="transition hover:bg-slate-50/60 dark:hover:bg-white/5">
+                        <tr
+                          key={s.id}
+                          onClick={() => setQuickViewId(s.id)}
+                          className="cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        >
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-slate-900 dark:text-white">{s.sale_number}</p>
                               <button
-                                onClick={() => copyNumber(s.sale_number)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyNumber(s.sale_number);
+                                }}
                                 title="Copy sale number"
                                 className="text-slate-300 transition hover:text-slate-600 dark:hover:text-slate-200"
                               >
@@ -1207,6 +1251,7 @@ export default function InvoicesClient({
                               <a
                                 href={`/receipt/quick/${s.id}`}
                                 target="_blank"
+                                onClick={(e) => e.stopPropagation()}
                                 title="Print 80mm receipt"
                                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                               >
@@ -1216,7 +1261,10 @@ export default function InvoicesClient({
                               </a>
                               <button
                                 type="button"
-                                onClick={() => handleSendQuickSaleWhatsApp(s)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSendQuickSaleWhatsApp(s);
+                                }}
                                 title="Send receipt on WhatsApp"
                                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                               >
@@ -1226,7 +1274,10 @@ export default function InvoicesClient({
                                 </svg>
                               </button>
                               <button
-                                onClick={() => setQuickViewId(s.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickViewId(s.id);
+                                }}
                                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                               >
                                 View

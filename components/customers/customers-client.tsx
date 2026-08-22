@@ -382,10 +382,47 @@ export default function CustomersClient({
   };
 
   const KPI_CARDS = [
-    { label: "Total Customers", value: String(stats.total), icon: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87", grad: "from-blue-500 to-indigo-600" },
-    { label: "Active", value: String(stats.active), icon: "M20 6 9 17l-5-5", grad: "from-emerald-500 to-teal-600" },
-    { label: "Receivables", value: inr(stats.receivables), icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", grad: "from-rose-500 to-pink-600" },
-    { label: "Advances", value: inr(stats.advances), icon: "M3 17l6-6 4 4 8-8M15 7h6v6", grad: "from-violet-500 to-purple-600" },
+    {
+      label: "Total Customers",
+      value: String(stats.total),
+      icon: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87",
+      grad: "from-blue-500 to-indigo-600",
+      onClick: () => {
+        setStatus("all");
+        setBalFilter("all");
+        setQ("");
+      },
+    },
+    {
+      label: "Active",
+      value: String(stats.active),
+      icon: "M20 6 9 17l-5-5",
+      grad: "from-emerald-500 to-teal-600",
+      onClick: () => {
+        setStatus("active");
+        setBalFilter("all");
+      },
+    },
+    {
+      label: "Receivables",
+      value: inr(stats.receivables),
+      icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2",
+      grad: "from-rose-500 to-pink-600",
+      onClick: () => {
+        setStatus("all");
+        setBalFilter("owing");
+      },
+    },
+    {
+      label: "Advances",
+      value: inr(stats.advances),
+      icon: "M3 17l6-6 4 4 8-8M15 7h6v6",
+      grad: "from-violet-500 to-purple-600",
+      onClick: () => {
+        setStatus("all");
+        setBalFilter("advance");
+      },
+    },
   ];
 
   return (
@@ -405,11 +442,15 @@ export default function CustomersClient({
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {KPI_CARDS.map((c) => (
-          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            key={c.label}
+            onClick={c.onClick}
+            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-slate-500">{c.label}</p>
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
                 <Icon d={c.icon} className="h-4 w-4" />
               </div>
             </div>

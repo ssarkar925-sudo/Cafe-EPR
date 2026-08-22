@@ -170,18 +170,21 @@ export default function MasterClient({
           value={String(list.length)}
           icon="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
           grad="from-blue-500 to-indigo-600"
+          onClick={() => setQ("")}
         />
         <StatCard
           label="Active"
           value={String(activeCount)}
           icon="M20 6 9 17l-5-5"
           grad="from-emerald-500 to-teal-600"
+          onClick={() => setQ("")}
         />
         <StatCard
           label="Inactive"
           value={String(list.length - activeCount)}
           icon="M6 18 18 6M6 6l12 12"
           grad="from-violet-500 to-purple-600"
+          onClick={() => setQ("")}
         />
       </div>
 

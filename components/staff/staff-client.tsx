@@ -157,11 +157,47 @@ export default function StaffClient({
   }
 
   const KPI_CARDS = [
-    { label: "Team Members", value: String(stats.total), icon: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", grad: "from-blue-500 to-indigo-600" },
-    { label: "Active", value: String(stats.active), icon: "M20 6 9 17l-5-5", grad: "from-emerald-500 to-teal-600" },
-    { label: "Admins", value: String(stats.admin), icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7 6a9 9 0 0 0-14 0", grad: "from-rose-500 to-pink-600" },
-    { label: "Managers", value: String(stats.manager), icon: "M3 21V9l9-6 9 6v12M9 21v-6h6v6", grad: "from-amber-500 to-orange-600" },
-    { label: "Staff", value: String(stats.staff), icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", grad: "from-violet-500 to-purple-600" },
+    {
+      label: "Team Members",
+      value: String(stats.total),
+      icon: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+      grad: "from-blue-500 to-indigo-600",
+      onClick: () => {
+        setRoleFilter("all");
+        setQ("");
+      },
+    },
+    {
+      label: "Active",
+      value: String(stats.active),
+      icon: "M20 6 9 17l-5-5",
+      grad: "from-emerald-500 to-teal-600",
+      onClick: () => {
+        setRoleFilter("all");
+        setQ("");
+      },
+    },
+    {
+      label: "Admins",
+      value: String(stats.admin),
+      icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7 6a9 9 0 0 0-14 0",
+      grad: "from-rose-500 to-pink-600",
+      onClick: () => setRoleFilter("admin"),
+    },
+    {
+      label: "Managers",
+      value: String(stats.manager),
+      icon: "M3 21V9l9-6 9 6v12M9 21v-6h6v6",
+      grad: "from-amber-500 to-orange-600",
+      onClick: () => setRoleFilter("manager"),
+    },
+    {
+      label: "Staff",
+      value: String(stats.staff),
+      icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+      grad: "from-violet-500 to-purple-600",
+      onClick: () => setRoleFilter("staff"),
+    },
   ];
 
   return (
@@ -182,7 +218,14 @@ export default function StaffClient({
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {KPI_CARDS.map((c) => (
-          <StatCard key={c.label} label={c.label} value={c.value} icon={c.icon} grad={c.grad} />
+          <StatCard
+            key={c.label}
+            label={c.label}
+            value={c.value}
+            icon={c.icon}
+            grad={c.grad}
+            onClick={c.onClick}
+          />
         ))}
       </div>
 

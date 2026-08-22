@@ -185,6 +185,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
           sub={`${filtered.length} shown`}
           icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
           grad="from-rose-500 to-pink-600"
+          onClick={() => setQ("")}
         />
         <StatCard
           label="Refunded"
@@ -192,6 +193,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
           sub={`${stats.refundCount} cash refunds`}
           icon="M3 7v6h6M3.5 13a9 9 0 1 0 0-6"
           grad="from-violet-500 to-purple-600"
+          onClick={() => setQ("refund")}
         />
         <StatCard
           label="Credit / Adjusted"
@@ -199,6 +201,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
           sub="No-money returns"
           icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
           grad="from-amber-500 to-orange-600"
+          onClick={() => setQ("credit")}
         />
         <StatCard
           label="This Month"
@@ -207,6 +210,7 @@ export default function ReturnsClient({ initialReturns }: { initialReturns: Retu
           trend={monthTrend === null ? null : { dir: monthTrend >= 0 ? "up" : "down", text: `${Math.abs(monthTrend)}% vs last month` }}
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-blue-500 to-indigo-600"
+          onClick={() => setQ(new Date().toISOString().slice(0, 7))}
         />
       </div>
 
