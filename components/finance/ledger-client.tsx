@@ -91,7 +91,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
         .order("created_at", { ascending: false }),
       supabase
         .from("customers")
-        .select("id, name, code, phone, balance, credit_limit")
+        .select("id, name, code, phone, balance")
         .eq("id", cId)
         .single(),
       supabase

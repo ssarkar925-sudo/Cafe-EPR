@@ -157,7 +157,7 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
     },
     _customer?: Customer
   ) {
-    const { error } = await supabase
+    let { error } = await supabase
       .from("customers")
       .update({
         name: input.name,
@@ -168,6 +168,21 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
         credit_limit: input.credit_limit ?? 0,
       })
       .eq("id", cust.id);
+
+    if (error && error.message.includes("credit_limit")) {
+      const res = await supabase
+        .from("customers")
+        .update({
+          name: input.name,
+          phone: input.phone,
+          email: input.email,
+          address: input.address,
+          customer_type: input.customer_type,
+        })
+        .eq("id", cust.id);
+      error = res.error;
+    }
+
     if (error) {
       alert(error.message);
       return;

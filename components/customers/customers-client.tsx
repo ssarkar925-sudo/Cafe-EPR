@@ -253,10 +253,15 @@ export default function CustomersClient({
   ) {
     const input = { ...raw, phone: digitsOnly(raw.phone) };
     if (customer) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from("customers")
         .update(input)
         .eq("id", customer.id);
+      if (error && error.message.includes("credit_limit")) {
+        const { credit_limit, ...rest } = input as any;
+        const res = await supabase.from("customers").update(rest).eq("id", customer.id);
+        error = res.error;
+      }
       if (error) {
         if (isDuplicateKeyError(error.message)) {
           alert("A customer with this phone number already exists.");
@@ -302,11 +307,17 @@ export default function CustomersClient({
         balance: input.opening_balance,
         is_active: true,
       };
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("customers")
         .insert(payload)
         .select()
         .single();
+      if (error && error.message.includes("credit_limit")) {
+        const { credit_limit, ...rest } = payload as any;
+        const res = await supabase.from("customers").insert(rest).select().single();
+        data = res.data;
+        error = res.error;
+      }
       if (error) {
         if (isDuplicateKeyError(error.message)) {
           alert("A customer with this phone number already exists.");
