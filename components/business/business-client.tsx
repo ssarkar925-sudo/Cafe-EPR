@@ -278,7 +278,7 @@ export default function BusinessClient({
   initialQrs: Master[];
   initialRechargeProviders?: Master[];
   initialRechargeSlabs?: { provider_id: string; min_amount: number | string; max_amount: number | string; commission_percent: number | string }[];
-  initialPaymentInstruments?: { id: string; name: string; type: string; account_number?: string; is_active?: boolean }[];
+  initialPaymentInstruments?: { id: string; name: string; type: string; details?: any; is_active?: boolean }[];
   float?: { opening: number | string; current: number | string; seed_date: string } | null;
 }) {
   const cfg = CONFIG[service];
@@ -564,7 +564,14 @@ export default function BusinessClient({
         customers: payload.p_customer_id
           ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
           : null,
-        banks: (payload.p_bank_id as string) ? { name: initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-" } : null,
+        banks: (payload.p_bank_id as string)
+          ? {
+              name:
+                service === "dmt"
+                  ? initialPaymentInstruments.find((b) => b.id === payload.p_bank_id)?.name ?? "-"
+                  : initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-",
+            }
+          : null,
         portals: (payload.p_portal_id as string) ? { name: initialPortals.find((p) => p.id === payload.p_portal_id)?.name ?? "-" } : null,
         providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
         merchant_qrs: null,
@@ -711,6 +718,14 @@ export default function BusinessClient({
       fee_source: (payload.p_fee_source as string) || null,
       paid_from: (payload.p_paid_from as string) || null,
       customer_pay_method: (payload.p_customer_pay_method as string) || null,
+      banks: (payload.p_bank_id as string)
+        ? {
+            name:
+              service === "dmt"
+                ? initialPaymentInstruments.find((b) => b.id === payload.p_bank_id)?.name ?? "-"
+                : initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-",
+          }
+        : null,
       providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
@@ -994,15 +1009,28 @@ export default function BusinessClient({
               options={[
                 { value: "", label: service === "dmt" ? "All Payment Accounts" : "All Banks" },
                 ...(service === "dmt"
-                  ? (initialPaymentInstruments.filter((p) => p.type !== "cash" && p.type !== "upi").length > 0
-                      ? initialPaymentInstruments.filter((p) => p.type !== "cash" && p.type !== "upi")
-                      : initialPaymentInstruments
-                    ).map((b) => ({ value: b.id, label: `${b.name}${b.account_number ? ` (…${b.account_number.slice(-4)})` : ""}` }))
+                  ? initialPaymentInstruments.map((b) => {
+                      const accNum = b.details?.account_number
+                        ? ` (…${String(b.details.account_number).slice(-4)})`
+                        : "";
+                      const typeIcon =
+                        b.type === "cash"
+                          ? "💵"
+                          : b.type === "upi"
+                          ? "📱"
+                          : b.type === "wallet"
+                          ? "👛"
+                          : "🏦";
+                      return {
+                        value: b.id,
+                        label: `${typeIcon} ${b.name}${accNum}`,
+                      };
+                    })
                   : initialBanks.filter((b) => b.name).map((b) => ({ value: b.id, label: b.name }))
                 ),
               ]}
               searchPlaceholder={service === "dmt" ? "Search payment account…" : "Search bank…"}
-              className="w-48"
+              className="w-52"
             />
           )}
           {cfg.portalFilter && (
@@ -1172,7 +1200,7 @@ export default function BusinessClient({
                       <p className="cell-sub text-[11px] text-slate-500 font-medium">
                         {(t.paid_from ?? "bank") === "portal"
                           ? `🌐 ${t.portals?.name || "Portal Wallet"}`
-                          : `🏦 ${t.banks?.name || "Bank Account"}`}
+                          : `🏦 ${initialPaymentInstruments.find((p) => p.id === t.bank_id)?.name || t.banks?.name || "Bank Account"}`}
                       </p>
                     </td>
                     <td className="px-5 py-3 text-right font-medium">
@@ -1306,7 +1334,7 @@ export default function BusinessClient({
                       <p className="text-[11px] text-slate-500 font-medium">
                         {(t.paid_from ?? "bank") === "portal"
                           ? `🌐 ${t.portals?.name || "DMT Portal Wallet"}`
-                          : `🏦 ${t.banks?.name || "Our Bank Account"}`}
+                          : `🏦 ${initialPaymentInstruments.find((p) => p.id === t.bank_id)?.name || t.banks?.name || "Our Bank Account"}`}
                       </p>
                     </div>
                     <div>

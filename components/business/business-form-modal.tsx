@@ -39,7 +39,7 @@ export default function BusinessFormModal({
   qrs: Master[];
   rechargeProviders?: Master[];
   rechargeSlabs?: { provider_id: string; min_amount: number | string; max_amount: number | string; commission_percent: number | string }[];
-  paymentAccounts?: { id: string; name: string; type: string; account_number?: string; is_active?: boolean }[];
+  paymentAccounts?: { id: string; name: string; type: string; details?: any; is_active?: boolean }[];
   txns: Txn[];
   initial?: Txn;
   onClose: () => void;
@@ -49,29 +49,20 @@ export default function BusinessFormModal({
   const [loadedPaymentAccounts, setLoadedPaymentAccounts] = useState(paymentAccounts ?? []);
 
   useEffect(() => {
-    if (loadedPaymentAccounts.length === 0) {
-      supabase
-        .from("payment_instruments")
-        .select("id, name, type, account_number, is_active")
-        .order("name")
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            setLoadedPaymentAccounts(data);
-          }
-        });
-    }
-  }, [loadedPaymentAccounts.length, supabase]);
+    supabase
+      .from("payment_instruments")
+      .select("*")
+      .order("name")
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setLoadedPaymentAccounts(data);
+        }
+      });
+  }, [supabase]);
 
   const bankAccounts = useMemo(() => {
-    const banksOnly = (loadedPaymentAccounts ?? []).filter(
-      (p) => p.type === "bank" || p.type === "debit_card" || p.type === "account"
-    );
-    if (banksOnly.length > 0) return banksOnly;
-    const nonCash = (loadedPaymentAccounts ?? []).filter((p) => p.type !== "cash" && p.type !== "upi");
-    if (nonCash.length > 0) return nonCash;
-    if (loadedPaymentAccounts.length > 0) return loadedPaymentAccounts;
-    return banks.map((b) => ({ id: b.id, name: b.name, type: "bank", account_number: "" }));
-  }, [loadedPaymentAccounts, banks]);
+    return loadedPaymentAccounts;
+  }, [loadedPaymentAccounts]);
   const [form, setForm] = useState(() => ({
     transaction_timestamp: initial?.transaction_timestamp
       ? toLocalInput(initial.transaction_timestamp)
@@ -582,11 +573,26 @@ export default function BusinessFormModal({
                       <SearchableSelect
                         value={form.bank_id}
                         onChange={(v) => set("bank_id", v)}
-                        options={bankAccounts.map((b) => ({
-                          value: b.id,
-                          label: `${b.name}${b.account_number ? ` (A/C: …${b.account_number.slice(-4)})` : ""}`,
-                        }))}
-                        placeholder="Choose Bank Account..."
+                        options={bankAccounts.map((b) => {
+                          const accNum = b.details?.account_number
+                            ? ` (A/C: …${String(b.details.account_number).slice(-4)})`
+                            : b.details?.upi_id
+                            ? ` (${b.details.upi_id})`
+                            : "";
+                          const typeIcon =
+                            b.type === "cash"
+                              ? "💵"
+                              : b.type === "upi"
+                              ? "📱"
+                              : b.type === "wallet"
+                              ? "👛"
+                              : "🏦";
+                          return {
+                            value: b.id,
+                            label: `${typeIcon} ${b.name}${accNum}`,
+                          };
+                        })}
+                        placeholder="Choose Payment Account (Bank / Drawer)..."
                       />
                     ) : (
                       <input

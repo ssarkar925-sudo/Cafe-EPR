@@ -64,7 +64,7 @@ export default async function BusinessServicePage({
         : Promise.resolve({ data: null, error: null }),
       supabase
         .from("payment_instruments")
-        .select("id, name, type, account_number, is_active")
+        .select("*")
         .order("name"),
     ]);
 
