@@ -20,6 +20,8 @@ const EMPTY_FORM: InstForm = {
   name: "",
   type: "bank",
   opening_balance: "0",
+  credit_limit: "",
+  used_limit: "0",
   bank_name: "",
   account_number: "",
   ifsc: "",
@@ -87,6 +89,8 @@ export default function PaymentAccountsPanel({
       name: row.name,
       type: row.type,
       opening_balance: String(Number(row.opening_balance ?? 0)),
+      credit_limit: d.credit_limit ? String(d.credit_limit) : "",
+      used_limit: d.used_limit ? String(d.used_limit) : "0",
       bank_name: d.bank_name ?? "",
       account_number: d.account_number ?? "",
       ifsc: d.ifsc ?? "",
@@ -114,10 +118,25 @@ export default function PaymentAccountsPanel({
     } else if (type === "upi") {
       details.upi_id = instForm.upi_id.trim();
       details.linked = instForm.linked.trim();
-    } else if (type === "debit_card" || type === "credit_card") {
+    } else if (type === "debit_card") {
       details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
+      details.bank_name = instForm.bank_name.trim();
+    } else if (type === "credit_card") {
+      const fullLimit = Number(instForm.credit_limit) || 0;
+      const usedLimit = Number(instForm.used_limit) || 0;
+      details.credit_limit = String(fullLimit);
+      details.used_limit = String(usedLimit);
+      details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
+      details.bank_name = instForm.bank_name.trim();
     }
     details.notes = instForm.notes.trim();
+
+    // Calculated opening balance
+    const openingBal =
+      type === "credit_card"
+        ? Math.max(0, (Number(instForm.credit_limit) || 0) - (Number(instForm.used_limit) || 0))
+        : Number(instForm.opening_balance) || 0;
+
     setAddingInst(true);
     if (instModal.mode === "edit" && instModal.row) {
       const { error } = await supabase
@@ -147,7 +166,7 @@ export default function PaymentAccountsPanel({
           name,
           type,
           details,
-          opening_balance: Number(instForm.opening_balance) || 0,
+          opening_balance: openingBal,
         })
         .select("*")
         .single();
@@ -158,16 +177,15 @@ export default function PaymentAccountsPanel({
       }
       const row = data as InstrumentRow;
       setInstruments((prev) => [...prev, row]);
-      const ob = Number(instForm.opening_balance) || 0;
       const pool = INST_POOL[type];
       const typeLabel = INSTRUMENT_TYPES.find((t) => t.value === type)?.label ?? type;
-      if (ob > 0 && pool) {
+      if (openingBal > 0 && pool) {
         const { error: seedErr } = await supabase.rpc("set_opening_balance", {
           p_pool: pool,
-          p_amount: ob,
+          p_amount: openingBal,
           p_as_of: new Date().toISOString().slice(0, 10),
           p_instrument_id: row.id,
-          p_remarks: `Opening balance for ${name}`,
+          p_remarks: `Opening available balance for ${name}`,
         });
         if (seedErr) {
           showToast("error", `${name} added, but its opening balance was not seeded (${seedErr.message}).`);
@@ -181,7 +199,7 @@ export default function PaymentAccountsPanel({
         action: "create",
         entity: "payment_instrument",
         entity_id: row.id,
-        description: `Payment account added: ${name} (${type})${ob > 0 && pool ? `, opening balance ${ob} seeded to ${pool}` : ""}`,
+        description: `Payment account added: ${name} (${type})${openingBal > 0 && pool ? `, opening balance ${openingBal} seeded to ${pool}` : ""}`,
       });
       setAddingInst(false);
     }
@@ -232,24 +250,36 @@ export default function PaymentAccountsPanel({
       return parts.join(" · ");
     }
     if (row.type === "upi") return d.upi_id || "";
-    if (row.type === "debit_card" || row.type === "credit_card") return d.card_last4 ? "•••• " + d.card_last4 : "";
+    if (row.type === "debit_card") {
+      const parts: string[] = [];
+      if (d.bank_name) parts.push(d.bank_name);
+      if (d.card_last4) parts.push("•••• " + d.card_last4);
+      return parts.join(" · ") || "Debit Card";
+    }
+    if (row.type === "credit_card") {
+      const parts: string[] = [];
+      if (d.bank_name) parts.push(d.bank_name);
+      if (d.card_last4) parts.push("•••• " + d.card_last4);
+      if (d.credit_limit) parts.push("Limit " + inr(Number(d.credit_limit)));
+      return parts.join(" · ") || "Credit Card";
+    }
     return d.notes || "—";
   }
 
   return (
     <div className={active ? "mt-6" : "hidden"}>
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-white/5">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Payment Accounts</h2>
-            <p className="mt-0.5 text-sm text-slate-500">
-              Manage the cash, bank, UPI, wallet and card accounts used at the till.
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Payment Accounts</h2>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              Manage cash drawers, bank accounts, UPI handles, and credit cards with live credit limit tracking.
             </p>
           </div>
           <button
             type="button"
             onClick={openInstCreate}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 hover:brightness-110"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-4 w-4">
               <path d={ADD_ICON} />
@@ -261,11 +291,11 @@ export default function PaymentAccountsPanel({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:border-white/5 dark:bg-white/5">
                 <th className="px-5 py-2.5">Type</th>
                 <th className="px-4 py-2.5">Account name</th>
                 <th className="px-4 py-2.5">Details</th>
-                <th className="px-4 py-2.5 text-right">Balance</th>
+                <th className="px-4 py-2.5 text-right">Balance / Limits</th>
                 <th className="px-4 py-2.5">Status</th>
                 <th className="px-5 py-2.5 text-right">Actions</th>
               </tr>
@@ -273,18 +303,44 @@ export default function PaymentAccountsPanel({
             <tbody>
               {instruments.map((row) => {
                 const label = INSTRUMENT_TYPES.find((t) => t.value === row.type)?.label ?? row.type;
+                const totalLimit = Number(row.details?.credit_limit || 0);
+                const currentBal = Number(row.balance) || 0;
+                const usedLimit = totalLimit > 0 ? Math.max(0, totalLimit - currentBal) : 0;
+                const usedPercent = totalLimit > 0 ? Math.min(100, Math.round((usedLimit / totalLimit) * 100)) : 0;
+
                 return (
-                  <tr key={row.id} className={`border-b border-slate-50 ${row.is_active ? "" : "bg-slate-50/50"}`}>
+                  <tr key={row.id} className={`border-b border-slate-50 dark:border-white/5 ${row.is_active ? "" : "bg-slate-50/50 dark:bg-white/5"}`}>
                     <td className="px-5 py-3">
                       <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ${TYPE_STYLE[row.type]}`}>{label}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`font-medium ${row.is_active ? "text-slate-900" : "text-slate-400 line-through"}`}>{row.name}</span>
+                      <span className={`font-medium ${row.is_active ? "text-slate-900 dark:text-white" : "text-slate-400 line-through"}`}>{row.name}</span>
                     </td>
-                    <td className="max-w-[220px] truncate px-4 py-3 text-xs text-slate-500">{instSummary(row)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-800">{inr(Number(row.balance) || 0)}</td>
+                    <td className="max-w-[240px] truncate px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{instSummary(row)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {row.type === "credit_card" && totalLimit > 0 ? (
+                        <div className="space-y-1">
+                          <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                            {inr(currentBal)} <span className="text-[10px] font-normal uppercase text-slate-400">Available</span>
+                          </div>
+                          <div className="flex items-center justify-end gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                            <span>Used: <strong className="text-rose-600 dark:text-rose-400">{inr(usedLimit)}</strong> / {inr(totalLimit)}</span>
+                          </div>
+                          <div className="h-1.5 w-28 ml-auto overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div
+                              className={`h-full transition-all ${
+                                usedPercent > 85 ? "bg-rose-500" : usedPercent > 50 ? "bg-amber-500" : "bg-emerald-500"
+                              }`}
+                              style={{ width: `${usedPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{inr(currentBal)}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${row.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${row.is_active ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}>
                         {row.is_active ? "Active" : "Disabled"}
                       </span>
                     </td>
@@ -293,7 +349,7 @@ export default function PaymentAccountsPanel({
                         <button
                           type="button"
                           onClick={() => openInstEdit(row)}
-                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
                           title="Edit account"
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -303,7 +359,7 @@ export default function PaymentAccountsPanel({
                         <button
                           type="button"
                           onClick={() => requestDeleteInstrument(row)}
-                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
                           title="Delete account"
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -313,7 +369,7 @@ export default function PaymentAccountsPanel({
                         <button
                           type="button"
                           onClick={() => toggleInstrument(row)}
-                          className={`relative ml-1 h-5 w-9 shrink-0 rounded-full transition ${row.is_active ? "bg-emerald-500" : "bg-slate-300"}`}
+                          className={`relative ml-1 h-5 w-9 shrink-0 rounded-full transition ${row.is_active ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"}`}
                           title={row.is_active ? "Disable account" : "Enable account"}
                         >
                           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${row.is_active ? "left-[18px]" : "left-0.5"}`} />
@@ -326,7 +382,7 @@ export default function PaymentAccountsPanel({
               {instruments.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center text-sm text-slate-400">
-                    No payment accounts yet — add your bank, card, UPI and wallet names above.
+                    No payment accounts yet — add your cash, bank, credit card, UPI and wallet accounts above.
                   </td>
                 </tr>
               )}
@@ -340,7 +396,7 @@ export default function PaymentAccountsPanel({
           onClose={() => setInstModal(null)}
           as="div"
           title={instModal.mode === "create" ? "Add Payment Account" : "Edit Payment Account"}
-          subtitle="Accounts appear in POS and Quick Sale as payment destinations."
+          subtitle="Accounts appear in POS, Invoices, Expenses, and Settlements with live balance/limit tracking."
           icon="M3 9a2 2 0 0 1 2-2h2l2-3h6l2 3h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9ZM3 14h6m0 0 2-2m-2 2 2 2"
           accent="emerald"
           size="lg"
@@ -348,34 +404,35 @@ export default function PaymentAccountsPanel({
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setInstModal(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
               >
                 Cancel
               </button>
               <button
                 onClick={saveInstrument}
                 disabled={addingInst || !instForm.name.trim()}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {addingInst ? "Saving…" : "Save Changes"}
               </button>
             </div>
           }
         >
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <label className={labelClass}>Account name *</label>
+              <label className={labelClass}>Account Name *</label>
               <input
                 autoFocus
                 value={instForm.name}
                 onChange={(e) => updateForm({ name: e.target.value })}
-                placeholder="e.g. Cash in Hand, PhonePe, HDFC Savings"
+                placeholder="e.g. HDFC Regalia Credit Card, ICICI Coral, Main Cash Drawer"
                 className={inputClass}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Account type</label>
+                <label className={labelClass}>Account Type</label>
                 <select
                   value={instForm.type}
                   onChange={(e) => updateForm({ type: e.target.value as InstrumentRow["type"] })}
@@ -388,44 +445,103 @@ export default function PaymentAccountsPanel({
                   ))}
                 </select>
               </div>
-              {instModal.mode === "create" ? (
+
+              {/* For standard accounts (non-credit-card) */}
+              {instForm.type !== "credit_card" && (
                 <div>
-                  <label className={labelClass}>Opening balance (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={instForm.opening_balance}
-                    onChange={(e) => updateForm({ opening_balance: e.target.value })}
-                    className={inputClass}
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Seeds the {INSTRUMENT_TYPES.find((t) => t.value === instForm.type)?.label ?? instForm.type} pool opening — shown in Opening Balances, dashboard and Settlements.
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <label className={labelClass}>Current balance</label>
-                  <div className={`${inputClass} flex items-center bg-slate-50 font-semibold text-slate-700`}>
-                    {inr(Number(instModal.row?.balance) || 0)}
-                  </div>
+                  {instModal.mode === "create" ? (
+                    <div>
+                      <label className={labelClass}>Opening Balance (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={instForm.opening_balance}
+                        onChange={(e) => updateForm({ opening_balance: e.target.value })}
+                        className={inputClass}
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Seeds the {INSTRUMENT_TYPES.find((t) => t.value === instForm.type)?.label ?? instForm.type} pool opening balance.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className={labelClass}>Current Balance</label>
+                      <div className={`${inputClass} flex items-center bg-slate-50 font-semibold text-slate-700 dark:bg-white/5 dark:text-white`}>
+                        {inr(Number(instModal.row?.balance) || 0)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
+            {/* Credit Card Specific Full Limit & Used Limit Section */}
+            {instForm.type === "credit_card" && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-4 dark:border-rose-900/30 dark:bg-rose-950/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-600 text-white shadow-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-rose-900 dark:text-rose-300">
+                    Credit Card Limit Management
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Full Credit Limit (₹) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={instForm.credit_limit}
+                      onChange={(e) => updateForm({ credit_limit: e.target.value })}
+                      placeholder="e.g. 100000"
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Total approved limit on this card.</p>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Currently Used / Outstanding Limit (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={instForm.used_limit}
+                      onChange={(e) => updateForm({ used_limit: e.target.value })}
+                      placeholder="0.00"
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Initial outstanding balance already spent.</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between rounded-xl bg-white p-3 shadow-sm dark:bg-slate-900 border border-rose-100 dark:border-white/5">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Calculated Available Credit Limit:</span>
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    {inr(Math.max(0, (Number(instForm.credit_limit) || 0) - (Number(instForm.used_limit) || 0)))}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {instForm.type === "bank" && (
               <>
                 <div>
-                  <label className={labelClass}>Bank name</label>
-                  <input value={instForm.bank_name} onChange={(e) => updateForm({ bank_name: e.target.value })} placeholder="e.g. HDFC Bank" className={inputClass} />
+                  <label className={labelClass}>Bank Name</label>
+                  <input value={instForm.bank_name} onChange={(e) => updateForm({ bank_name: e.target.value })} placeholder="e.g. HDFC Bank, SBI" className={inputClass} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>Account number / reference</label>
-                    <input value={instForm.account_number} onChange={(e) => updateForm({ account_number: e.target.value })} placeholder="Only last 4 shown in list" className={inputClass} />
+                    <label className={labelClass}>Account Number / Reference</label>
+                    <input value={instForm.account_number} onChange={(e) => updateForm({ account_number: e.target.value })} placeholder="Account number" className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>IFSC</label>
+                    <label className={labelClass}>IFSC Code</label>
                     <input value={instForm.ifsc} onChange={(e) => updateForm({ ifsc: e.target.value })} placeholder="HDFC0001234" className={inputClass} />
                   </div>
                 </div>
@@ -433,38 +549,48 @@ export default function PaymentAccountsPanel({
             )}
 
             {instForm.type === "upi" && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>UPI ID</label>
+                  <label className={labelClass}>UPI ID / VPA</label>
                   <input value={instForm.upi_id} onChange={(e) => updateForm({ upi_id: e.target.value })} placeholder="shop@okhdfcbank" className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Linked / remarks</label>
-                  <input value={instForm.linked} onChange={(e) => updateForm({ linked: e.target.value })} placeholder="e.g. Merchant QR" className={inputClass} />
+                  <label className={labelClass}>Linked QR / Remarks</label>
+                  <input value={instForm.linked} onChange={(e) => updateForm({ linked: e.target.value })} placeholder="e.g. Counter QR Stand" className={inputClass} />
                 </div>
               </div>
             )}
 
             {(instForm.type === "debit_card" || instForm.type === "credit_card") && (
-              <div>
-                <label className={labelClass}>Card number (last 4 digits only)</label>
-                <input
-                  value={instForm.card_last4}
-                  onChange={(e) => updateForm({ card_last4: e.target.value })}
-                  maxLength={4}
-                  placeholder="1234"
-                  className={inputClass}
-                />
-                <p className="mt-1 text-[11px] text-slate-400">Full card numbers are never stored.</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>Card Issuer / Bank Name</label>
+                  <input
+                    value={instForm.bank_name}
+                    onChange={(e) => updateForm({ bank_name: e.target.value })}
+                    placeholder="e.g. HDFC, Axis, SBI, ICICI"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Card Number (Last 4 Digits)</label>
+                  <input
+                    value={instForm.card_last4}
+                    onChange={(e) => updateForm({ card_last4: e.target.value })}
+                    maxLength={4}
+                    placeholder="1234"
+                    className={`${inputClass} font-mono`}
+                  />
+                </div>
               </div>
             )}
 
             <div>
-              <label className={labelClass}>Notes</label>
+              <label className={labelClass}>Notes &amp; Description</label>
               <textarea
                 value={instForm.notes}
                 onChange={(e) => updateForm({ notes: e.target.value })}
-                placeholder="e.g. Main cash drawer at the counter"
+                placeholder="e.g. Credit card used for vendor inventory purchases and shop utility bills."
                 rows={2}
                 className={inputClass}
               />

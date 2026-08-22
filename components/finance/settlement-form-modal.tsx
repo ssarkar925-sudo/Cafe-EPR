@@ -15,6 +15,8 @@ export const SETTLEMENT_TYPES = [
   { value: "cash_adjustment", label: "Cash Adjustment", from: "cash", to: "cash", icon: "cash", grad: "from-rose-500 to-pink-600", desc: "Add or remove cash during a physical count." },
   { value: "bank_to_recharge", label: "Bank → Recharge", from: "bank", to: "recharge", icon: "recharge", grad: "from-cyan-500 to-sky-600", desc: "Load the recharge float from the bank balance." },
   { value: "recharge_to_bank", label: "Recharge → Bank", from: "recharge", to: "bank", icon: "bank", grad: "from-slate-500 to-slate-700", desc: "Move unused recharge float back to the bank." },
+  { value: "bank_to_credit_card", label: "Bank → Credit Card (Bill Payment)", from: "bank", to: "credit_card", icon: "card", grad: "from-blue-500 to-indigo-600", desc: "Pay credit card bill from bank. Restores available credit limit." },
+  { value: "credit_card_to_bank", label: "Credit Card → Bank (Card Advance)", from: "credit_card", to: "bank", icon: "card", grad: "from-cyan-500 to-sky-600", desc: "Transfer funds from credit card to bank. Uses credit limit." },
 ] as const;
 
 export type SettlementType = (typeof SETTLEMENT_TYPES)[number]["value"];
@@ -27,6 +29,7 @@ export const POOL_LABEL: Record<string, string> = {
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
   recharge: "Recharge Float",
+  credit_card: "Credit Card",
 };
 
 const ICONS: Record<string, string> = {
@@ -36,6 +39,7 @@ const ICONS: Record<string, string> = {
   aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
   recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+  card: "M3 10h18M3 6h18v12H3zM7 15h4",
   arrow: "M5 12h14M13 5l7 7-7 7",
 };
 

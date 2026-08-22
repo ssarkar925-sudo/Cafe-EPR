@@ -43,6 +43,8 @@ export type InstForm = {
   name: string;
   type: InstrumentRow["type"];
   opening_balance: string;
+  credit_limit: string;
+  used_limit: string;
   bank_name: string;
   account_number: string;
   ifsc: string;
