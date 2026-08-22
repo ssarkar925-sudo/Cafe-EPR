@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import PrintButton from "@/components/receipt/print-button";
+import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,21 @@ export default async function QuickReceiptPage({
     .eq("quick_sale_id", id);
   const { data: settings } = await supabase.from("settings").select("*").single();
 
+  const { data: defaultMerchantQr } = await supabase
+    .from("upi_merchant_qrs")
+    .select("upi_id")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  const { data: upiInstrument } = await supabase
+    .from("payment_instruments")
+    .select("account_number")
+    .eq("type", "upi")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
   const cur = settings?.currency_symbol || "₹";
   const money = (n: number | string) =>
     cur +
@@ -41,6 +57,24 @@ export default async function QuickReceiptPage({
   const itemsRows = (items ?? []) as any[];
   const paymentsRows = (sale.payments ?? []) as any[];
   const itemsCount = itemsRows.reduce((s, it) => s + Number(it.qty || 0), 0);
+
+  // UPI QR Code calculation
+  const upiId =
+    (settings as any)?.upi_id ||
+    defaultMerchantQr?.upi_id ||
+    upiInstrument?.account_number ||
+    "";
+
+  const upiString = upiId
+    ? generateUpiString({
+        upiId,
+        name: settings?.shop_name || "Shop",
+        amount: Number(sale.amount),
+        note: `Receipt ${sale.sale_number}`,
+      })
+    : "";
+
+  const qrDataUrl = upiString ? await generateQrDataUrl(upiString, { width: 140 }) : "";
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 print:bg-white print:p-0">
@@ -126,6 +160,22 @@ export default async function QuickReceiptPage({
             <p className="mt-2 rounded border border-rose-300 bg-rose-50 p-1 text-center font-bold text-rose-600">
               CANCELLED
             </p>
+          )}
+
+          {qrDataUrl && (
+            <>
+              <div className="my-2 border-t border-dashed border-slate-400" />
+              <div className="flex flex-col items-center justify-center text-center py-1">
+                <img
+                  src={qrDataUrl}
+                  alt="Scan to Pay via UPI"
+                  className="h-28 w-28 object-contain"
+                />
+                <p className="mt-1 font-bold text-[11px]">SCAN &amp; PAY VIA UPI</p>
+                {upiId && <p className="text-[10px] text-slate-600">UPI: {upiId}</p>}
+                <p className="text-[9px] text-slate-500">GPay · PhonePe · Paytm · BHIM</p>
+              </div>
+            </>
           )}
 
           {settings?.receipt_footer && (

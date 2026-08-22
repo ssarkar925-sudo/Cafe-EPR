@@ -23,6 +23,8 @@ export type ShopForm = {
   setTaxRate: (v: string) => void;
   logoUrl: string | null;
   setLogoUrl: (v: string | null) => void;
+  upiId?: string;
+  setUpiId?: (v: string) => void;
 };
 
 export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }) {
@@ -48,6 +50,8 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
     setTaxRate,
     logoUrl,
     setLogoUrl,
+    upiId = "",
+    setUpiId = () => {},
   } = form;
 
   async function uploadLogo(file: File) {
@@ -199,6 +203,26 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
               placeholder={"Thank you for shopping!\nVisit again"}
               className={inputClass}
             />
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          icon="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z"
+          tone="emerald"
+          title="UPI Payment QR Code"
+          desc="Set your default Shop UPI ID for dynamic QR codes generated on invoices and receipts."
+        >
+          <div>
+            <label className={labelClass}>Shop UPI ID (VPA)</label>
+            <input
+              value={upiId}
+              onChange={(e) => setUpiId(e.target.value)}
+              placeholder="e.g. 9876543210@upi or storename@okaxis"
+              className={inputClass}
+            />
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              When configured, all A4 tax invoices, downloadable PDFs, and 80mm thermal receipts automatically print a dynamic UPI QR code with pre-filled invoice amount.
+            </p>
           </div>
         </SettingsSection>
       </div>

@@ -86,6 +86,13 @@ export default function SettingsClient({
   const [taxRate, setTaxRate] = useState(
     initial && initial.tax_rate != null ? String(Number(initial.tax_rate)) : "0"
   );
+  const [upiId, setUpiId] = useState(() => {
+    try {
+      return (initial as any)?.upi_id ?? localStorage.getItem("sccomm-shop-upi-id") ?? "";
+    } catch {
+      return (initial as any)?.upi_id ?? "";
+    }
+  });
   const [saving, setSaving] = useState(false);
 
   const dirty = useMemo(
@@ -97,8 +104,9 @@ export default function SettingsClient({
       currency !== (initial?.currency_symbol ?? "₹") ||
       logoUrl !== (initial?.logo_url ?? null) ||
       gstin !== (initial?.gstin ?? "") ||
-      taxRate !== (initial?.tax_rate != null ? String(Number(initial.tax_rate)) : "0"),
-    [initial, shopName, phone, address, footer, currency, logoUrl, gstin, taxRate]
+      taxRate !== (initial?.tax_rate != null ? String(Number(initial.tax_rate)) : "0") ||
+      upiId !== ((initial as any)?.upi_id ?? ""),
+    [initial, shopName, phone, address, footer, currency, logoUrl, gstin, taxRate, upiId]
   );
 
   const isFormTab = tab === "general" || tab === "receipt" || tab === "tax";
@@ -145,20 +153,29 @@ export default function SettingsClient({
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const { error } = await supabase
-      .from("settings")
-      .upsert({
-        id: 1,
-        shop_name: shopName.trim() || "Cafe ERP",
-        phone,
-        address,
-        receipt_footer: footer,
-        currency_symbol: currency,
-        logo_url: logoUrl,
-        gstin: gstin.trim() || null,
-        tax_rate: Number(taxRate) || 0,
-      })
-      .single();
+    try {
+      localStorage.setItem("sccomm-shop-upi-id", upiId.trim());
+    } catch {}
+
+    const payload: any = {
+      id: 1,
+      shop_name: shopName.trim() || "Cafe ERP",
+      phone,
+      address,
+      receipt_footer: footer,
+      currency_symbol: currency,
+      logo_url: logoUrl,
+      gstin: gstin.trim() || null,
+      tax_rate: Number(taxRate) || 0,
+      upi_id: upiId.trim() || null,
+    };
+
+    let { error } = await supabase.from("settings").upsert(payload).single();
+    if (error && error.message?.includes("upi_id")) {
+      delete payload.upi_id;
+      const res = await supabase.from("settings").upsert(payload).single();
+      error = res.error;
+    }
     setSaving(false);
     if (error) {
       showToast("error", error.message);
@@ -339,6 +356,7 @@ export default function SettingsClient({
                 gstin, setGstin,
                 taxRate, setTaxRate,
                 logoUrl, setLogoUrl,
+                upiId, setUpiId,
               }}
             />
             <button type="submit" id="save-settings" className="hidden" />

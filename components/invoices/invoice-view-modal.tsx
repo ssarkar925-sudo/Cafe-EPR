@@ -7,6 +7,7 @@ import SearchableSelect from "@/components/ui/searchable-select";
 import Modal from "@/components/ui/modal";
 import { statusBadge, type InvoiceRow } from "./invoices-client";
 import { logAudit } from "@/lib/audit";
+import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
 
 type Detail = {
   id: string;
@@ -56,7 +57,8 @@ export default function InvoiceViewModal({
   onClose: () => void;
   onChanged: (row: InvoiceRow) => void;
   onReturn?: (invoiceId: string) => void;
-}) {  const supabase = createClient();
+}) {
+  const supabase = createClient();
 
   const [detail, setDetail] = useState<Detail | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -65,9 +67,12 @@ export default function InvoiceViewModal({
   const [payAmount, setPayAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [upiId, setUpiId] = useState<string>("");
+  const [showQr, setShowQr] = useState<boolean>(true);
 
   async function load() {
-    const [inv, its, pays] = await Promise.all([
+    const [inv, its, pays, sets, defaultQr, upiInst] = await Promise.all([
       supabase
         .from("invoices")
         .select("*, customers(name)")
@@ -82,10 +87,32 @@ export default function InvoiceViewModal({
         .select("*")
         .eq("invoice_id", invoiceId)
         .order("received_at", { ascending: true }),
+      supabase.from("settings").select("*").single(),
+      supabase.from("upi_merchant_qrs").select("upi_id").eq("is_active", true).limit(1).maybeSingle(),
+      supabase.from("payment_instruments").select("account_number").eq("type", "upi").eq("is_active", true).limit(1).maybeSingle(),
     ]);
     if (inv.data) setDetail(inv.data as Detail);
     setItems((its.data ?? []) as Item[]);
     setPayments((pays.data ?? []) as Payment[]);
+
+    const computedUpi =
+      (sets.data as any)?.upi_id ||
+      defaultQr.data?.upi_id ||
+      upiInst.data?.account_number ||
+      "";
+    setUpiId(computedUpi);
+
+    if (computedUpi && inv.data) {
+      const targetAmt = Number(inv.data.due) > 0 ? Number(inv.data.due) : Number(inv.data.total);
+      const str = generateUpiString({
+        upiId: computedUpi,
+        name: sets.data?.shop_name || "Shop",
+        amount: targetAmt,
+        note: `Invoice ${inv.data.invoice_number}`,
+      });
+      const dataUrl = await generateQrDataUrl(str, { width: 160 });
+      setQrDataUrl(dataUrl);
+    }
   }
 
   useEffect(() => {
@@ -281,6 +308,45 @@ export default function InvoiceViewModal({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {qrDataUrl && detail.status !== "cancelled" && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-800/60">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  📱 UPI Payment QR ({Number(detail.due) > 0 ? `Due: ${inr(detail.due)}` : `Total: ${inr(detail.total)}`})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowQr((v) => !v)}
+                  className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {showQr ? "Hide QR" : "Show QR"}
+                </button>
+              </div>
+              {showQr && (
+                <div className="mt-2.5 flex items-center gap-4">
+                  <img
+                    src={qrDataUrl}
+                    alt="UPI Payment QR"
+                    className="h-24 w-24 rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      Scan with GPay, PhonePe, Paytm or any UPI App
+                    </p>
+                    {upiId && (
+                      <p className="mt-1 font-mono text-[11px] text-blue-600 dark:text-blue-400">
+                        {upiId}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Pre-filled with {detail.invoice_number}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import A4Actions from "@/components/pdf/a4-actions";
+import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,21 @@ export default async function ReceiptA4Page({
     .select("*")
     .single();
 
+  const { data: defaultMerchantQr } = await supabase
+    .from("upi_merchant_qrs")
+    .select("upi_id, display_name")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  const { data: upiInstrument } = await supabase
+    .from("payment_instruments")
+    .select("account_number")
+    .eq("type", "upi")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
   const cur = settings?.currency_symbol || "₹";
   const money = (n: number | string) =>
     cur +
@@ -47,6 +63,25 @@ export default async function ReceiptA4Page({
 
   const itemsRows = (items ?? []) as any[];
   const paymentsRows = (payments ?? []) as any[];
+
+  // UPI QR Code calculation
+  const upiId =
+    (settings as any)?.upi_id ||
+    defaultMerchantQr?.upi_id ||
+    upiInstrument?.account_number ||
+    "";
+
+  const targetAmount = Number(invoice.due) > 0 ? Number(invoice.due) : Number(invoice.total);
+  const upiString = upiId
+    ? generateUpiString({
+        upiId,
+        name: settings?.shop_name || "Shop",
+        amount: targetAmount,
+        note: `Invoice ${invoice.invoice_number}`,
+      })
+    : "";
+
+  const qrDataUrl = upiString ? await generateQrDataUrl(upiString, { width: 180 }) : "";
 
   return (
     <div className="min-h-screen bg-slate-200 p-6 print:bg-white print:p-0">
@@ -60,7 +95,7 @@ export default async function ReceiptA4Page({
           <h1 className="text-lg font-semibold text-slate-900">A4 Print / PDF</h1>
           <A4Actions
             variant="invoice"
-            data={{ invoice, items: itemsRows, payments: paymentsRows, settings }}
+            data={{ invoice, items: itemsRows, payments: paymentsRows, settings, qrDataUrl, upiId }}
             filename={`${invoice.invoice_number}.pdf`}
           />
         </div>
@@ -158,6 +193,37 @@ export default async function ReceiptA4Page({
                   <span className="font-medium text-slate-900">{money(p.amount)}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {qrDataUrl && (
+          <div className="mt-8 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="flex items-center gap-4">
+              <img
+                src={qrDataUrl}
+                alt="Scan to Pay via UPI"
+                className="h-28 w-28 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+              />
+              <div>
+                <p className="font-bold text-slate-900">Scan &amp; Pay with Any UPI App</p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Google Pay · PhonePe · Paytm · BHIM · Any UPI App
+                </p>
+                {upiId && (
+                  <p className="mt-1 font-mono text-xs font-semibold text-blue-700">
+                    UPI ID: {upiId}
+                  </p>
+                )}
+                <p className="mt-1 text-xs font-medium text-slate-700">
+                  Amount: <span className="font-bold text-slate-900">{money(targetAmount)}</span>
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                Instant UPI Payment
+              </span>
             </div>
           </div>
         )}

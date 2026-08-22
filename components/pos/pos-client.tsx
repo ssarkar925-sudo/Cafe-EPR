@@ -2041,7 +2041,7 @@ export default function PosClient({
               </a>
               <button
                 onClick={() => setSuccess(null)}
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
               >
                 New Sale
               </button>

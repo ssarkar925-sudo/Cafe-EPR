@@ -1,6 +1,6 @@
 "use client";
 
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 
 const C = { border: "0.75", borderColor: "#cbd5e1" };
 
@@ -27,6 +27,11 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   grandRow: { flexDirection: "row", justifyContent: "space-between", fontWeight: "bold", borderTop: "1", borderTopColor: "#0f172a", marginTop: 2, paddingTop: 4 },
   payments: { marginTop: 10 },
+  qrBox: { flexDirection: "row", alignItems: "center", border: "0.5", borderColor: "#cbd5e1", borderRadius: 4, padding: 8, marginTop: 14, backgroundColor: "#f8fafc" },
+  qrImg: { width: 60, height: 60, marginRight: 10, backgroundColor: "#ffffff" },
+  qrTitle: { fontSize: 9, fontWeight: "bold", color: "#0f172a" },
+  qrSub: { fontSize: 7, color: "#64748b", marginTop: 1 },
+  qrUpi: { fontSize: 8, fontWeight: "bold", color: "#1d4ed8", marginTop: 2 },
   footer: { position: "absolute", bottom: 30, left: 36, right: 36, textAlign: "center", fontSize: 8, color: "#64748b", borderTop: "0.5", borderTopColor: "#cbd5e1", paddingTop: 6 },
 });
 
@@ -35,9 +40,11 @@ export type InvoicePdfData = {
   items: any[];
   payments: any[];
   settings: any;
+  qrDataUrl?: string;
+  upiId?: string;
 };
 
-export default function InvoicePdf({ invoice, items, payments, settings }: InvoicePdfData) {
+export default function InvoicePdf({ invoice, items, payments, settings, qrDataUrl, upiId }: InvoicePdfData) {
   const cur = settings?.currency_symbol || "₹";
   const money = (n: number | string) =>
     cur +
@@ -136,6 +143,20 @@ export default function InvoicePdf({ invoice, items, payments, settings }: Invoi
                 <Text>{money(p.amount)}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {qrDataUrl && (
+          <View style={styles.qrBox}>
+            <Image src={qrDataUrl} style={styles.qrImg} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.qrTitle}>Scan &amp; Pay via Any UPI App</Text>
+              <Text style={styles.qrSub}>Google Pay · PhonePe · Paytm · BHIM · Any UPI App</Text>
+              {upiId && <Text style={styles.qrUpi}>UPI ID: {upiId}</Text>}
+              <Text style={{ fontSize: 7, color: "#475569", marginTop: 2 }}>
+                Instant payment for this invoice ({invoice.invoice_number})
+              </Text>
+            </View>
           </View>
         )}
 

@@ -6,6 +6,7 @@ import { inr } from "@/lib/format";
 import Modal from "@/components/ui/modal";
 import { logAudit } from "@/lib/audit";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
 
 type Detail = {
   id: string;
@@ -49,31 +50,59 @@ export default function QuickSaleViewModal({
   const [cancelling, setCancelling] = useState(false);
   const [waSending, setWaSending] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [upiId, setUpiId] = useState<string>("");
 
   useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
       setError(null);
-      const { data: s, error: sErr } = await supabase
-        .from("quick_sales")
-        .select("*, customers(name, phone, address)")
-        .eq("id", saleId)
-        .single();
-      if (sErr) {
+      const [sRes, itmsRes, setsRes, defaultQrRes, upiInstRes] = await Promise.all([
+        supabase
+          .from("quick_sales")
+          .select("*, customers(name, phone, address)")
+          .eq("id", saleId)
+          .single(),
+        supabase
+          .from("quick_sale_items")
+          .select("*, products(name, unit), services(name)")
+          .eq("quick_sale_id", saleId),
+        supabase.from("settings").select("*").single(),
+        supabase.from("upi_merchant_qrs").select("upi_id").eq("is_active", true).limit(1).maybeSingle(),
+        supabase.from("payment_instruments").select("account_number").eq("type", "upi").eq("is_active", true).limit(1).maybeSingle(),
+      ]);
+
+      if (sRes.error) {
         if (active) {
-          setError(sErr.message);
+          setError(sRes.error.message);
           setLoading(false);
         }
         return;
       }
-      const { data: itms } = await supabase
-        .from("quick_sale_items")
-        .select("*, products(name, unit), services(name)")
-        .eq("quick_sale_id", saleId);
+
       if (active) {
-        setDetail(s as Detail);
-        setItems((itms ?? []) as LineItem[]);
+        setDetail(sRes.data as Detail);
+        setItems((itmsRes.data ?? []) as LineItem[]);
+
+        const computedUpi =
+          (setsRes.data as any)?.upi_id ||
+          defaultQrRes.data?.upi_id ||
+          upiInstRes.data?.account_number ||
+          "";
+        setUpiId(computedUpi);
+
+        if (computedUpi && sRes.data) {
+          const str = generateUpiString({
+            upiId: computedUpi,
+            name: setsRes.data?.shop_name || "Shop",
+            amount: Number(sRes.data.amount),
+            note: `Receipt ${sRes.data.sale_number}`,
+          });
+          const dataUrl = await generateQrDataUrl(str, { width: 150 });
+          setQrDataUrl(dataUrl);
+        }
+
         setLoading(false);
       }
     }
@@ -235,6 +264,29 @@ export default function QuickSaleViewModal({
               </div>
             )}
           </div>
+
+          {qrDataUrl && detail.status !== "cancelled" && (
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-slate-800/50">
+              <img
+                src={qrDataUrl}
+                alt="UPI Payment QR"
+                className="h-20 w-20 rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-white">
+                  📱 Scan &amp; Pay via UPI ({inr(Number(detail.amount))})
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  GPay · PhonePe · Paytm · BHIM
+                </p>
+                {upiId && (
+                  <p className="mt-1 font-mono text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                    {upiId}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
