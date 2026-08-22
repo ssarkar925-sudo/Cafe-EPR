@@ -59,6 +59,7 @@ type Settlement = {
   aeps: number;
   upi_qr: number;
   recharge: number;
+  credit_card?: number;
   count: number;
 };
 
@@ -418,6 +419,7 @@ export default function DashboardClient({
     aeps: poolBalances?.aeps?.current ?? settlement?.aeps ?? 0,
     upi_qr: poolBalances?.upi_qr?.current ?? settlement?.upi_qr ?? 0,
     recharge: poolBalances?.recharge?.current ?? settlement?.recharge ?? 0,
+    credit_card: poolBalances?.credit_card?.current ?? settlement?.credit_card ?? 0,
   };
 
   const R = 52;
