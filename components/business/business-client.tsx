@@ -468,7 +468,17 @@ export default function BusinessClient({
               method: "bank",
               direction: "in",
               amount: amt,
-              description: `Recharge ${nextNum} received via Bank/UPI`,
+              description: `Recharge ${nextNum} received in Bank account`,
+              ref_type: "transaction",
+              ref_id: inserted.id,
+            });
+          } else if (payMethod === "upi" || payMethod === "upi_qr") {
+            await supabase.from("cash_entries").insert({
+              entry_date: inserted.transaction_date,
+              method: "upi",
+              direction: "in",
+              amount: amt,
+              description: `Recharge ${nextNum} received via Shop UPI QR`,
               ref_type: "transaction",
               ref_id: inserted.id,
             });

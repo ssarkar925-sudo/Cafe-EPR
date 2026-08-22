@@ -545,24 +545,30 @@ export default function BusinessFormModal({
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Customer Paid You Via</label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { value: "cash", label: "Cash" },
-                    { value: "bank", label: "Bank / UPI" },
-                    { value: "due", label: "Due (Credit)" },
+                    { value: "cash", label: "Cash", icon: "💵" },
+                    { value: "bank", label: "Bank Transfer", icon: "🏦" },
+                    { value: "upi", label: "UPI QR", icon: "📱" },
+                    { value: "due", label: "Due (Credit)", icon: "📋" },
                   ].map((o) => (
                     <button
                       key={o.value}
                       type="button"
                       onClick={() => set("customer_pay_method", o.value)}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                      className={`rounded-xl border px-2.5 py-2 text-center text-xs font-semibold transition ${
                         form.customer_pay_method === o.value
                           ? o.value === "due"
-                            ? "border-rose-500 bg-rose-50 text-rose-700"
-                            : "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-white text-slate-600"
+                            ? "border-rose-500 bg-rose-50 text-rose-700 shadow-sm dark:bg-rose-950/40 dark:text-rose-300"
+                            : o.value === "upi"
+                            ? "border-pink-500 bg-pink-50 text-pink-700 shadow-sm dark:bg-pink-950/40 dark:text-pink-300"
+                            : o.value === "bank"
+                            ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-950/40 dark:text-blue-300"
+                            : "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
                       }`}
                     >
+                      <span className="block text-sm mb-0.5">{o.icon}</span>
                       {o.label}
                     </button>
                   ))}
@@ -570,6 +576,16 @@ export default function BusinessFormModal({
                 {form.customer_pay_method === "due" && (
                   <p className="mt-1 text-xs font-medium text-rose-600">
                     Transfer amount + fee will be added to the selected customer's outstanding Due.
+                  </p>
+                )}
+                {form.customer_pay_method === "bank" && (
+                  <p className="mt-1 text-xs font-medium text-blue-600">
+                    Amount received will increase your Bank balance.
+                  </p>
+                )}
+                {form.customer_pay_method === "upi" && (
+                  <p className="mt-1 text-xs font-medium text-pink-600">
+                    Amount received on merchant QR will increase your UPI QR balance.
                   </p>
                 )}
               </div>
@@ -652,24 +668,30 @@ export default function BusinessFormModal({
             </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>Customer Paid You Via</label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  { value: "cash", label: "Cash" },
-                  { value: "bank", label: "Bank / UPI" },
-                  { value: "due", label: "Due (Credit)" },
+                  { value: "cash", label: "Cash", icon: "💵" },
+                  { value: "bank", label: "Bank Transfer", icon: "🏦" },
+                  { value: "upi", label: "UPI QR", icon: "📱" },
+                  { value: "due", label: "Due (Credit)", icon: "📋" },
                 ].map((o) => (
                   <button
                     key={o.value}
                     type="button"
                     onClick={() => set("customer_pay_method", o.value)}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                    className={`rounded-xl border px-2.5 py-2 text-center text-xs font-semibold transition ${
                       form.customer_pay_method === o.value
                         ? o.value === "due"
-                          ? "border-rose-500 bg-rose-50 text-rose-700"
-                          : "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-slate-200 bg-white text-slate-600"
+                          ? "border-rose-500 bg-rose-50 text-rose-700 shadow-sm dark:bg-rose-950/40 dark:text-rose-300"
+                          : o.value === "upi"
+                          ? "border-pink-500 bg-pink-50 text-pink-700 shadow-sm dark:bg-pink-950/40 dark:text-pink-300"
+                          : o.value === "bank"
+                          ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-950/40 dark:text-blue-300"
+                          : "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
                     }`}
                   >
+                    <span className="block text-sm mb-0.5">{o.icon}</span>
                     {o.label}
                   </button>
                 ))}
@@ -677,6 +699,16 @@ export default function BusinessFormModal({
               {form.customer_pay_method === "due" && (
                 <p className="mt-1 text-xs font-medium text-rose-600">
                   Recharge of ₹{form.amount || "0"} will be added to the selected customer's outstanding Due (Khata).
+                </p>
+              )}
+              {form.customer_pay_method === "bank" && (
+                <p className="mt-1 text-xs font-medium text-blue-600">
+                  Recharge of ₹{form.amount || "0"} received in Bank account will increase your Bank balance.
+                </p>
+              )}
+              {form.customer_pay_method === "upi" && (
+                <p className="mt-1 text-xs font-medium text-pink-600">
+                  Recharge of ₹{form.amount || "0"} received on merchant QR will increase your UPI QR balance.
                 </p>
               )}
             </div>

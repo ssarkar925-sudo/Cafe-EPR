@@ -128,7 +128,7 @@ begin
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
 
   v_pay_method := coalesce(p_customer_pay_method, 'cash');
-  if v_pay_method not in ('cash', 'bank', 'due') then
+  if v_pay_method not in ('cash', 'bank', 'upi', 'due') then
     v_pay_method := 'cash';
   end if;
 
@@ -183,7 +183,11 @@ begin
     elsif v_pay_method = 'bank' then
       insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
       values (p_transaction_date, 'bank', 'in', p_amount,
-              'Recharge ' || v_number || ' received via Bank/UPI', 'transaction', v_txn_id);
+              'Recharge ' || v_number || ' received in Bank account', 'transaction', v_txn_id);
+    elsif v_pay_method in ('upi', 'upi_qr') then
+      insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+      values (p_transaction_date, 'upi', 'in', p_amount,
+              'Recharge ' || v_number || ' received via Shop UPI QR', 'transaction', v_txn_id);
     elsif v_pay_method = 'due' and p_customer_id is not null then
       select coalesce(balance, 0) into v_prev_bal from public.customers where id = p_customer_id;
       v_new_bal := v_prev_bal + p_amount;
