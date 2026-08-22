@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import { useToast } from "@/components/ui/use-toast";
 import SecurityPanel from "@/components/settings/security-panel";
@@ -60,6 +61,7 @@ export default function SettingsClient({
   initialTab?: string;
   initialSection?: string;
 }) {
+  useRealtime(["payment_instruments", "cash_entries", "opening_balances", "transactions", "expenses", "settlements"]);
   const supabase = createClient();
   const { showToast, toastView } = useToast();
 

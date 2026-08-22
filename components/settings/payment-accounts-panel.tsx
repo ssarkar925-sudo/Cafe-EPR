@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
@@ -56,6 +56,45 @@ export default function PaymentAccountsPanel({
   const [instModal, setInstModal] = useState<{ mode: "create" | "edit"; row: InstrumentRow | null } | null>(null);
   const [instForm, setInstForm] = useState<InstForm>(EMPTY_FORM);
   const [deleteInst, setDeleteInst] = useState<{ row: InstrumentRow; referenced: boolean } | null>(null);
+
+  useEffect(() => {
+    setInstruments(initialInstruments);
+  }, [initialInstruments]);
+
+  const refreshLiveBalances = useCallback(async () => {
+    const [{ data: insts }, { data: ces }] = await Promise.all([
+      supabase.from("payment_instruments").select("*").order("type").order("name"),
+      supabase.from("cash_entries").select("instrument_id, direction, amount").not("instrument_id", "is", null),
+    ]);
+
+    if (!insts) return;
+    const balMap: Record<string, number> = {};
+    for (const e of (ces ?? []) as { instrument_id: string | null; direction: string; amount: number | string }[]) {
+      if (!e.instrument_id) continue;
+      const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
+      balMap[e.instrument_id] = (balMap[e.instrument_id] ?? 0) + delta;
+    }
+    const updated = (insts as InstrumentRow[]).map((i) => ({
+      ...i,
+      balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
+    }));
+    setInstruments(updated);
+  }, [supabase]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("payment-accounts-live-" + Math.random().toString(36).slice(2))
+      .on("postgres_changes", { event: "*", schema: "public", table: "cash_entries" }, refreshLiveBalances)
+      .on("postgres_changes", { event: "*", schema: "public", table: "payment_instruments" }, refreshLiveBalances)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refreshLiveBalances)
+      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, refreshLiveBalances)
+      .on("postgres_changes", { event: "*", schema: "public", table: "settlements" }, refreshLiveBalances)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, refreshLiveBalances]);
 
   function updateForm(patch: Partial<InstForm>) {
     setInstForm((prev) => ({ ...prev, ...patch }));
