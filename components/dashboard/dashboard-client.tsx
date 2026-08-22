@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRealtime } from "@/lib/supabase/realtime";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 type Inv = {
   id: string;
@@ -825,18 +826,26 @@ export default function DashboardClient({
                     <span className="truncate text-sm text-slate-700">{d.name}</span>
                     <div className="flex items-center gap-1.5">
                       <span className="shrink-0 font-medium text-rose-600">{inr(Number(d.balance))}</span>
-                      <a
-                        href={`https://wa.me/?text=${encodeURIComponent(`Dear ${d.name}, gentle reminder that your outstanding balance at our store is ${inr(Number(d.balance))}. Please clear at your convenience. Thank you!`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const msg = `Dear ${d.name}, gentle reminder that your outstanding balance at our store is ${inr(Number(d.balance))}. Please clear at your convenience. Thank you!`;
+                          const res = await sendWhatsAppMessage({ phone: "", message: msg });
+                          if (res.ok) {
+                            alert(`✓ WhatsApp reminder sent to ${d.name}!`);
+                          } else {
+                            window.open(res.fallbackUrl, "_blank", "noopener");
+                          }
+                        }}
                         title="Send WhatsApp payment reminder"
                         className="rounded-md p-1 text-emerald-600 transition hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
                           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                         </svg>
-                      </a>
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -873,7 +882,7 @@ export default function DashboardClient({
             )}
           </Link>
 
-          <Link href="/catalog/products" className="group block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+          <Link href="/catalog/products?status=low_stock" className="group block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-semibold text-slate-900">Inventory Alerts</h2>

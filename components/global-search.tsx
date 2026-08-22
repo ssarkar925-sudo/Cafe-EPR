@@ -91,7 +91,7 @@ export default function GlobalSearch({
           type: "Product",
           title: p.name as string,
           subtitle: (p.code as string) ?? "",
-          href: "/catalog/products",
+          href: `/catalog/products?q=${encodeURIComponent(p.name as string)}`,
         });
       for (const s of servs.data ?? [])
         out.push({
@@ -105,7 +105,7 @@ export default function GlobalSearch({
           type: "Invoice",
           title: i.invoice_number as string,
           subtitle: `${(i as any).customers?.name ?? "Walk-in"} · ${inr(Number(i.total))}`,
-          href: "/invoices",
+          href: `/invoices?q=${encodeURIComponent(i.invoice_number as string)}`,
         });
 
       setResults(out);

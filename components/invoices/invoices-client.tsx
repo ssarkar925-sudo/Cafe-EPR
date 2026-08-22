@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
@@ -105,11 +106,18 @@ export default function InvoicesClient({
   initialInvoices: InvoiceRow[];
   initialQuickSales?: QuickSaleRow[];
 }) {
+  const searchParams = useSearchParams();
+  const initialStatusParam = searchParams?.get("status");
+  const initialQParam = searchParams?.get("q") || "";
   const [invoices, setInvoices] = useState<InvoiceRow[]>(initialInvoices);
   const [quickSales, setQuickSales] = useState<QuickSaleRow[]>(initialQuickSales);
   const [tab, setTab] = useState<"invoices" | "quick">("invoices");
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
+  const [q, setQ] = useState(initialQParam);
+  const [status, setStatus] = useState<(typeof STATUSES)[number]>(
+    initialStatusParam && (STATUSES as readonly string[]).includes(initialStatusParam)
+      ? (initialStatusParam as (typeof STATUSES)[number])
+      : "all"
+  );
   const [quickStatus, setQuickStatus] = useState<"all" | "active" | "cancelled">("all");
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState<"cards" | "list">(() => {

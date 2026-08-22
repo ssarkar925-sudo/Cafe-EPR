@@ -121,6 +121,14 @@ export default function Sidebar({
         title: "Customer Management",
         items: [{ label: "Customers", href: "/customers", icon: "customers" }],
       },
+      {
+        title: "Catalog & Inventory",
+        items: [
+          { label: "Products & Stock", href: "/catalog/products", icon: "products" },
+          { label: "Services", href: "/catalog/services", icon: "services" },
+          { label: "Categories", href: "/catalog/categories", icon: "categories" },
+        ],
+      },
     ];
     if (!isStaff) {
       base.push({

@@ -323,6 +323,12 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
               >
                 View Invoices
               </button>
+              <Link
+                href={`/finance/ledger?customer=${cust.id}`}
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                📒 Full Ledger &amp; Dues
+              </Link>
             </div>
           </div>
         </div>

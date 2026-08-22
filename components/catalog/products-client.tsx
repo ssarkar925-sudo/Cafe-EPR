@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import ProductFormModal from "./product-form-modal";
@@ -56,10 +57,15 @@ export default function ProductsClient({
   categories: CategoryRef[];
   embedded?: boolean;
 }) {
+  const searchParams = useSearchParams();
+  const initialStatusParam = searchParams?.get("status");
+  const initialQParam = searchParams?.get("q") || "";
   const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQParam);
   const [cat, setCat] = useState("all");
-  const [status, setStatus] = useState<"all" | "active" | "inactive" | "low_stock">("all");
+  const [status, setStatus] = useState<"all" | "active" | "inactive" | "low_stock">(
+    initialStatusParam === "low_stock" ? "low_stock" : "all"
+  );
   const [modal, setModal] = useState<ModalState>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
