@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import InvoiceViewModal from "./invoice-view-modal";
+import QuickSaleViewModal from "./quick-sale-view-modal";
 import ReturnModal from "./return-modal";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
@@ -122,12 +123,13 @@ export default function InvoicesClient({
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState<"cards" | "list">(() => {
     try {
-      return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "cards";
+      return localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list";
     } catch {
-      return "cards";
+      return "list";
     }
   });
   const [viewId, setViewId] = useState<string | null>(null);
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [returnId, setReturnId] = useState<string | null>(null);
   const [collectId, setCollectId] = useState<string | null>(null);
   const [collectMethod, setCollectMethod] = useState<string>("cash");
@@ -155,6 +157,22 @@ export default function InvoicesClient({
     const res = await sendWhatsAppMessage({ phone, message: msg });
     if (res.ok) {
       flash("success", `✓ Invoice ${inv.invoice_number} sent via WhatsApp!`);
+    } else {
+      window.open(res.fallbackUrl, "_blank", "noopener");
+    }
+  }
+
+  async function handleSendQuickSaleWhatsApp(s: QuickSaleRow) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/receipt/quick/${s.id}`;
+    const phone = s.customers?.phone || "";
+    const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
+    const msg = `🧾 *RECEIPT: ${s.sale_number}*\n📅 Date: ${fmtDate(s.sale_date)}\n👤 Customer: ${s.customers?.name ?? "Walk-in"}\n───────────────\n📦 Item: ${item}\n💰 Amount Paid: ${inr(Number(s.amount))}\n───────────────\n📄 View / Download Receipt:\n${receiptUrl}\n\nThank you for your business!`;
+
+    flash("success", "Sending WhatsApp receipt...");
+    const res = await sendWhatsAppMessage({ phone, message: msg });
+    if (res.ok) {
+      flash("success", `✓ Receipt ${s.sale_number} sent via WhatsApp!`);
     } else {
       window.open(res.fallbackUrl, "_blank", "noopener");
     }
@@ -1011,94 +1029,219 @@ export default function InvoicesClient({
       )}
 
       {tab === "quick" && (
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {sortedQuick.map((s) => {
-            const customer = s.customers?.name ?? "Walk-in";
-            const cancelled = s.status === "cancelled";
-            const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
-            return (
-              <div
-                key={s.id}
-                className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${
-                  cancelled ? "opacity-70" : ""
-                }`}
-              >
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${cancelled ? "bg-slate-300" : "from-emerald-500 to-teal-400"}`} />
-                <div className="flex flex-1 flex-col p-5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(customer)} text-sm font-bold text-white shadow-sm`}>
-                        {customer.slice(0, 1).toUpperCase()}
+        <>
+          {view === "cards" ? (
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {sortedQuick.map((s) => {
+                const customer = s.customers?.name ?? "Walk-in";
+                const cancelled = s.status === "cancelled";
+                const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
+                return (
+                  <div
+                    key={s.id}
+                    className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 ${
+                      cancelled ? "opacity-70" : ""
+                    }`}
+                  >
+                    <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${cancelled ? "bg-slate-300 dark:bg-slate-700" : "from-emerald-500 to-teal-400"}`} />
+                    <div className="flex flex-1 flex-col p-5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(customer)} text-sm font-bold text-white shadow-sm`}>
+                            {customer.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{s.sale_number}</p>
+                            <p className="truncate text-xs text-slate-400">{customer}</p>
+                            {s.customers?.phone && (
+                              <p className="truncate text-[11px] text-slate-400">{s.customers.phone}</p>
+                            )}
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${
+                            cancelled ? "bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-white/10" : "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40"
+                          }`}
+                        >
+                          {s.status}
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-900">{s.sale_number}</p>
-                        <p className="truncate text-xs text-slate-400">{customer}</p>
-                        {s.customers?.phone && (
-                          <p className="truncate text-[11px] text-slate-300">{s.customers.phone}</p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-white/5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Item</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-white">{item}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Amount</p>
+                          <p className="mt-0.5 truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">{inr(Number(s.amount))}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">{fmtDate(s.sale_date)}</span>
+                        {s.created_at && (
+                          <span className="text-slate-400">
+                            {new Date(s.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
                         )}
                       </div>
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${
-                        cancelled ? "bg-slate-100 text-slate-500 ring-slate-200" : "bg-emerald-100 text-emerald-700 ring-emerald-200"
-                      }`}
-                    >
-                      {s.status}
-                    </span>
-                  </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Item</p>
-                      <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{item}</p>
+                      <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 dark:border-white/5">
+                        <button
+                          onClick={() => copyNumber(s.sale_number)}
+                          title="Copy sale number"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                            <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
+                          </svg>
+                        </button>
+                        <a
+                          href={`/receipt/quick/${s.id}`}
+                          target="_blank"
+                          title="Print 80mm receipt"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                            <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
+                          </svg>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleSendQuickSaleWhatsApp(s)}
+                          title="Send receipt on WhatsApp"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                            <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
+                            <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setQuickViewId(s.id)}
+                          className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          View
+                        </button>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Amount</p>
-                      <p className="mt-0.5 truncate text-sm font-bold text-emerald-600">{inr(Number(s.amount))}</p>
-                    </div>
                   </div>
-
-                  <div className="mt-3 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">{fmtDate(s.sale_date)}</span>
-                    {s.created_at && (
-                      <span className="text-slate-400">
-                        {new Date(s.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3">
-                    <button
-                      onClick={() => copyNumber(s.sale_number)}
-                      title="Copy sale number"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                        <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
-                      </svg>
-                    </button>
-                    <a
-                      href={`/receipt/quick/${s.id}`}
-                      target="_blank"
-                      title="Print 80mm receipt"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
-                      </svg>
-                    </a>
-                    <button
-                      onClick={() => copyNumber(s.sale_number)}
-                      className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className={`mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900 ${compact ? "table-compact" : ""}`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
+                    <tr>
+                      <th className="px-5 py-3">Sale #</th>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Item</th>
+                      <th className="px-4 py-3">Date & Time</th>
+                      <th className="px-4 py-3 text-right">Amount</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-5 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {sortedQuick.map((s) => {
+                      const customer = s.customers?.name ?? "Walk-in";
+                      const cancelled = s.status === "cancelled";
+                      const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
+                      return (
+                        <tr key={s.id} className="transition hover:bg-slate-50/60 dark:hover:bg-white/5">
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-slate-900 dark:text-white">{s.sale_number}</p>
+                              <button
+                                onClick={() => copyNumber(s.sale_number)}
+                                title="Copy sale number"
+                                className="text-slate-300 transition hover:text-slate-600 dark:hover:text-slate-200"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                  <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(customer)} text-[11px] font-bold text-white`}>
+                                {customer.slice(0, 1).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="max-w-[140px] truncate font-medium text-slate-700 dark:text-slate-200">{customer}</p>
+                                {s.customers?.phone && (
+                                  <p className="text-[11px] text-slate-400">{s.customers.phone}</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="max-w-[200px] truncate px-4 py-3 font-medium text-slate-900 dark:text-white">
+                            {item}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                            <div>{fmtDate(s.sale_date)}</div>
+                            {s.created_at && (
+                              <div className="text-[11px] text-slate-400">
+                                {new Date(s.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            {inr(Number(s.amount))}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${
+                                cancelled ? "bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-white/10" : "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40"
+                              }`}
+                            >
+                              {s.status}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <a
+                                href={`/receipt/quick/${s.id}`}
+                                target="_blank"
+                                title="Print 80mm receipt"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                  <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
+                                </svg>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleSendQuickSaleWhatsApp(s)}
+                                title="Send receipt on WhatsApp"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                                  <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
+                                  <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => setQuickViewId(s.id)}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                              >
+                                View
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {tab === "quick" && sortedQuick.length === 0 && (
@@ -1128,6 +1271,15 @@ export default function InvoicesClient({
           onClose={() => setViewId(null)}
           onChanged={handleChanged}
           onReturn={setReturnId}
+        />
+      )}
+      {quickViewId && (
+        <QuickSaleViewModal
+          saleId={quickViewId}
+          onClose={() => setQuickViewId(null)}
+          onCancelled={(id) => {
+            setQuickSales((prev) => prev.map((s) => (s.id === id ? { ...s, status: "cancelled" } : s)));
+          }}
         />
       )}
 
