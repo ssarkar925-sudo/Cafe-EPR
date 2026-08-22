@@ -542,6 +542,28 @@ export default function BusinessFormModal({
                     </button>
                   ))}
                 </div>
+                {form.paid_from === "bank" && banks.length > 0 && (
+                  <div className="mt-2">
+                    <label className={labelCls}>Select Source Bank Account (optional)</label>
+                    <SearchableSelect
+                      value={form.bank_id}
+                      onChange={(v) => set("bank_id", v)}
+                      options={banks.map((b) => ({ value: b.id, label: b.name }))}
+                      placeholder="Choose our Bank Account..."
+                    />
+                  </div>
+                )}
+                {form.paid_from === "portal" && portals.length > 0 && (
+                  <div className="mt-2">
+                    <label className={labelCls}>Select DMT Portal (optional)</label>
+                    <SearchableSelect
+                      value={form.portal_id}
+                      onChange={(v) => set("portal_id", v)}
+                      options={portals.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder="Choose DMT Portal..."
+                    />
+                  </div>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Customer Paid You Via</label>

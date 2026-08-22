@@ -120,9 +120,14 @@ const CONFIG: Record<string, Cfg> = {
     title: "DMT — Money Transfer",
     desc: "Remittances to beneficiaries through Bank Account or DMT Portal.",
     recordLabel: "Record Transfer",
-    groups: [{ value: "none", label: "Overall totals" }, { value: "method", label: "Group by Method" }],
-    bankFilter: false,
-    portalFilter: false,
+    groups: [
+      { value: "none", label: "Overall totals" },
+      { value: "bank", label: "Group by Bank" },
+      { value: "portal", label: "Group by Portal" },
+      { value: "method", label: "Group by Method" },
+    ],
+    bankFilter: true,
+    portalFilter: true,
     providerFilter: false,
     methodFilter: true,
     customerFilter: true,
@@ -1156,7 +1161,11 @@ export default function BusinessClient({
                   <>
                     <td className="px-5 py-3 text-right font-medium">
                       <p className="font-bold text-rose-600 dark:text-rose-400">{inr(t.amount)}</p>
-                      <p className="cell-sub text-[11px] text-slate-400">{(t.paid_from ?? "bank") === "portal" ? "🌐 Portal" : "🏦 Bank"}</p>
+                      <p className="cell-sub text-[11px] text-slate-500 font-medium">
+                        {(t.paid_from ?? "bank") === "portal"
+                          ? `🌐 ${t.portals?.name || "Portal Wallet"}`
+                          : `🏦 ${t.banks?.name || "Bank Account"}`}
+                      </p>
                     </td>
                     <td className="px-5 py-3 text-right font-medium">
                       <p className="font-bold text-emerald-600 dark:text-emerald-400">{inr(Number(t.amount) + Number(t.service_fee))}</p>
@@ -1286,7 +1295,11 @@ export default function BusinessClient({
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-500">📤 Money Out (Sent)</p>
                       <p className="mt-0.5 text-base font-bold text-rose-600 dark:text-rose-400">{inr(t.amount)}</p>
-                      <p className="text-[11px] text-slate-400">{(t.paid_from ?? "bank") === "portal" ? "DMT Portal Wallet" : "Our Bank Account"}</p>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        {(t.paid_from ?? "bank") === "portal"
+                          ? `🌐 ${t.portals?.name || "DMT Portal Wallet"}`
+                          : `🏦 ${t.banks?.name || "Our Bank Account"}`}
+                      </p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">📥 Money In (Recv)</p>
