@@ -141,7 +141,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
       return;
     }
     setPayBusy(true);
-    const { error } = await supabase.rpc("adjust_customer_ledger", {
+    let { error } = await supabase.rpc("adjust_customer_ledger", {
       p_customer_id: customerId,
       p_entry_date: payDate,
       p_type: "payment",
@@ -150,6 +150,50 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
       p_method: payMethod,
       p_description: payRemarks.trim() || `Payment received via ${payMethod.toUpperCase()}`,
     });
+
+    // Resilient fallback if RPC function is not yet created in Supabase
+    if (error && (error.message.includes("Could not find the function") || error.code === "PGRST202")) {
+      const currentBal = Number(selected?.balance ?? 0);
+      const newBal = currentBal - amt;
+      const { error: custErr } = await supabase
+        .from("customers")
+        .update({ balance: newBal, updated_at: new Date().toISOString() })
+        .eq("id", customerId);
+      if (custErr) {
+        setPayBusy(false);
+        showToast("error", custErr.message);
+        return;
+      }
+      const { data: lEntry, error: ledgErr } = await supabase
+        .from("customer_ledger")
+        .insert({
+          customer_id: customerId,
+          entry_date: payDate,
+          type: "payment",
+          description: payRemarks.trim() || `Payment received (${payMethod.toUpperCase()})`,
+          debit: 0,
+          credit: amt,
+          balance_after: newBal,
+        })
+        .select("id")
+        .single();
+      if (ledgErr) {
+        setPayBusy(false);
+        showToast("error", ledgErr.message);
+        return;
+      }
+      await supabase.from("cash_entries").insert({
+        entry_date: payDate,
+        method: payMethod,
+        direction: "in",
+        amount: amt,
+        description: `Payment received from ${selected?.name || "Customer"}`,
+        ref_type: "customer_payment",
+        ref_id: lEntry?.id || customerId,
+      });
+      error = null;
+    }
+
     setPayBusy(false);
     if (error) {
       showToast("error", error.message);
@@ -173,15 +217,48 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
       return;
     }
     setAdjustBusy(true);
-    const { error } = await supabase.rpc("adjust_customer_ledger", {
+    const desc = `${adjustType === "discount" ? "Discount/Write-off" : adjustType === "opening" ? "Opening Balance Correction" : "Adjustment"}: ${adjustRemarks.trim()}`;
+    let { error } = await supabase.rpc("adjust_customer_ledger", {
       p_customer_id: customerId,
       p_entry_date: adjustDate,
       p_type: "adjustment",
       p_direction: adjustDirection,
       p_amount: amt,
       p_method: "cash",
-      p_description: `${adjustType === "discount" ? "Discount/Write-off" : adjustType === "opening" ? "Opening Balance Correction" : "Adjustment"}: ${adjustRemarks.trim()}`,
+      p_description: desc,
     });
+
+    // Resilient fallback if RPC function is not yet created in Supabase
+    if (error && (error.message.includes("Could not find the function") || error.code === "PGRST202")) {
+      const isCredit = adjustDirection === "credit";
+      const currentBal = Number(selected?.balance ?? 0);
+      const newBal = isCredit ? currentBal - amt : currentBal + amt;
+      const { error: custErr } = await supabase
+        .from("customers")
+        .update({ balance: newBal, updated_at: new Date().toISOString() })
+        .eq("id", customerId);
+      if (custErr) {
+        setAdjustBusy(false);
+        showToast("error", custErr.message);
+        return;
+      }
+      const { error: ledgErr } = await supabase.from("customer_ledger").insert({
+        customer_id: customerId,
+        entry_date: adjustDate,
+        type: "adjustment",
+        description: desc,
+        debit: isCredit ? 0 : amt,
+        credit: isCredit ? amt : 0,
+        balance_after: newBal,
+      });
+      if (ledgErr) {
+        setAdjustBusy(false);
+        showToast("error", ledgErr.message);
+        return;
+      }
+      error = null;
+    }
+
     setAdjustBusy(false);
     if (error) {
       showToast("error", error.message);
