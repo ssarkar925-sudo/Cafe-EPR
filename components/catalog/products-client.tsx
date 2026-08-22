@@ -59,7 +59,7 @@ export default function ProductsClient({
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
-  const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
+  const [status, setStatus] = useState<"all" | "active" | "inactive" | "low_stock">("all");
   const [modal, setModal] = useState<ModalState>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -70,6 +70,7 @@ export default function ProductsClient({
     return products.filter((p) => {
       if (status === "active" && !p.is_active) return false;
       if (status === "inactive" && p.is_active) return false;
+      if (status === "low_stock" && (!p.is_active || Number(p.stock_qty) > Number(p.reorder_level))) return false;
       if (cat !== "all" && p.category_id !== cat) return false;
       if (!needle) return true;
       return (
@@ -196,6 +197,31 @@ export default function ProductsClient({
     },
   ];
 
+  function exportReorderPo() {
+    const lowItems = products.filter((p) => p.is_active && Number(p.stock_qty) <= Number(p.reorder_level));
+    if (lowItems.length === 0) {
+      alert("All products have healthy stock levels. No reorder needed!");
+      return;
+    }
+    const rows = [
+      ["Item Code", "Product Name", "Current Stock", "Reorder Level", "Suggested Order Qty", "Est. Unit Cost", "Est. Total Cost"],
+      ...lowItems.map((p) => {
+        const cur = Number(p.stock_qty);
+        const reorder = Number(p.reorder_level);
+        const orderQty = Math.max(10, reorder * 2 - cur);
+        const cost = Number(p.cost_price);
+        return [p.code ?? "-", p.name, cur, reorder, orderQty, cost, orderQty * cost];
+      }),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `purchase-order-draft-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  }
+
   return (
     <div className={embedded ? "max-w-none" : "mx-auto max-w-6xl px-4 py-8 lg:px-8"}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -203,17 +229,37 @@ export default function ProductsClient({
           <h1 className="text-2xl font-bold text-slate-900">Products</h1>
           <p className="text-sm text-slate-500">Saleable items with stock tracking.</p>
         </div>
-        <button
-          onClick={() => setModal({ mode: "create" })}
-          className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
-        >
-          + Add Product
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {stats.low > 0 && (
+            <button
+              onClick={exportReorderPo}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              📦 Export Reorder PO Draft ({stats.low} items)
+            </button>
+          )}
+          <button
+            onClick={() => setModal({ mode: "create" })}
+            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          >
+            + Add Product
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map((c) => (
-          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            key={c.label}
+            onClick={() => {
+              if (c.label === "Low Stock") setStatus("low_stock");
+              else if (c.label === "Active") setStatus("active");
+            }}
+            className="relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+          >
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
               <div>
@@ -256,7 +302,7 @@ export default function ProductsClient({
           className="w-52"
         />
         <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
-          {(["all", "active", "inactive"] as const).map((s) => (
+          {(["all", "active", "inactive", "low_stock"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatus(s)}
@@ -266,7 +312,7 @@ export default function ProductsClient({
                   : "text-slate-500"
               }`}
             >
-              {s[0].toUpperCase() + s.slice(1)}
+              {s === "low_stock" ? "Low Stock" : s[0].toUpperCase() + s.slice(1)}
             </button>
           ))}
         </div>

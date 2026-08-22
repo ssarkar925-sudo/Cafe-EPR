@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
 import Modal from "@/components/ui/modal";
@@ -42,6 +43,7 @@ export default function BusinessFormModal({
   onClose: () => void;
   onSave: (payload: Record<string, unknown>) => void;
 }) {
+  const supabase = createClient();
   const [form, setForm] = useState(() => ({
     transaction_timestamp: initial?.transaction_timestamp
       ? toLocalInput(initial.transaction_timestamp)
@@ -170,7 +172,7 @@ export default function BusinessFormModal({
     setForm((prev) => ({ ...prev, ...updates }));
   }
 
-  function submit() {
+  async function submit() {
     const amount = Number(form.amount);
     const fee = Number(form.service_fee || 0);
     const commission = Number(form.portal_commission || 0);
@@ -212,6 +214,23 @@ export default function BusinessFormModal({
       if (!form.provider_id) return setError("Please choose the recharge provider.");
       if (!form.customer_mobile.trim()) return setError("Enter the recharge number (mobile number being recharged).");
       if (!commissionPreview || commissionPreview.missing) return setError("No commission slab covers this amount for this provider. Add a slab in Settings → Business Setup → Recharge Providers.");
+    }
+
+    // Zero-Click Automated Duplicate RRN / Reference Guard
+    if (form.reference && form.reference.trim()) {
+      const { data: dupTx } = await supabase
+        .from("transactions")
+        .select("id, transaction_number, transaction_date, amount, service_type")
+        .eq("reference", form.reference.trim())
+        .limit(1);
+
+      if (dupTx && dupTx.length > 0 && (!initial || dupTx[0].id !== initial.id)) {
+        const tx = dupTx[0];
+        const proceed = window.confirm(
+          `⚠️ Duplicate Reference / RRN Detected!\n\nReference "${form.reference.trim()}" is already used on ${tx.service_type.toUpperCase()} #${tx.transaction_number} on ${tx.transaction_date} (₹${tx.amount}).\n\nProceed and record anyway?`
+        );
+        if (!proceed) return;
+      }
     }
 
     setError("");
