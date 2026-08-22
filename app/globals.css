@@ -29,11 +29,51 @@
 :root {
   --brand-500: #2563eb;
   --brand-600: #1d4ed8;
+  --accent-color: #2563eb;
+}
+
+/* Custom Accent Color Overrides */
+[data-accent="emerald"] {
+  --brand-500: #059669;
+  --brand-600: #047857;
+  --accent-color: #059669;
+}
+[data-accent="violet"] {
+  --brand-500: #7c3aed;
+  --brand-600: #6d28d9;
+  --accent-color: #7c3aed;
+}
+[data-accent="amber"] {
+  --brand-500: #d97706;
+  --brand-600: #b45309;
+  --accent-color: #d97706;
+}
+[data-accent="rose"] {
+  --brand-500: #e11d48;
+  --brand-600: #be123c;
+  --accent-color: #e11d48;
+}
+[data-accent="cyan"] {
+  --brand-500: #0891b2;
+  --brand-600: #0e7490;
+  --accent-color: #0891b2;
 }
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
   @apply dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* Font scale modifier */
+html.font-scale-large {
+  font-size: 106%;
+}
+
+/* Density compact modifier */
+html.density-compact .table td,
+html.density-compact table td {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
 }
 
 /* Dark theme: remap the slate ramp + white so the whole app inverts. */

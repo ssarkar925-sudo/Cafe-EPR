@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./sidebar";
 import GlobalSearch from "./global-search";
 import NotificationBell from "./notification-bell";
+import ThemeToggle from "./theme-toggle";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -173,6 +174,9 @@ export default function DashboardShell({
           </svg>
         </button>
         <div className="lg:hidden">
+          <ThemeToggle />
+        </div>
+        <div className="lg:hidden">
           <NotificationBell role={role} />
         </div>
         <Avatar name={name} avatarUrl={avatarUrl} size="h-8 w-8" />
@@ -180,15 +184,15 @@ export default function DashboardShell({
 
       <main className={`transition-all duration-300 ${collapsed ? "lg:pl-[76px]" : "lg:pl-72"}`}>
         {/* Desktop top header: title · global search · settings/profile */}
-        <header className="sticky top-0 z-20 hidden h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur lg:flex">
+        <header className="sticky top-0 z-20 hidden h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur lg:flex dark:border-white/10 dark:bg-slate-900/80">
           <div className="w-52 shrink-0">
-            <h1 className="truncate text-lg font-bold text-slate-900">{meta.title}</h1>
+            <h1 className="truncate text-lg font-bold text-slate-900 dark:text-white">{meta.title}</h1>
             {meta.desc && <p className="truncate text-[11px] text-slate-400">{meta.desc}</p>}
           </div>
 
           <button
             onClick={() => setSearchOpen(true)}
-            className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-500 shadow-sm transition hover:border-blue-400 hover:shadow focus:border-blue-400 focus:outline-none"
+            className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-500 shadow-sm transition hover:border-blue-400 hover:shadow focus:border-blue-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-slate-400">
               <circle cx="11" cy="11" r="7" />
@@ -197,19 +201,20 @@ export default function DashboardShell({
             <span className="flex-1 text-left text-slate-400">
               Search products, services, invoices, customers…
             </span>
-            <kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+            <kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 dark:border-white/10 dark:bg-white/5">
               Ctrl K
             </kbd>
           </button>
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ThemeToggle />
             <div className="hidden lg:block">
               <NotificationBell role={role} />
             </div>
             <Link
               href="/settings"
               title="Settings"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
                 <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
