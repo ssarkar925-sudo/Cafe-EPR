@@ -156,7 +156,15 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
             <View style={styles.sectionTitle} />
             <View style={styles.row}>
               <Text style={styles.label}>Money Sent From</Text>
-              <Text>{(txn.paid_from ?? "bank") === "portal" ? "DMT Portal Wallet" : "Bank Account"}</Text>
+              <Text>
+                {(txn.paid_from ?? "bank") === "portal"
+                  ? `DMT Portal Wallet${txn.portals?.name ? ` (${txn.portals.name})` : ""}`
+                  : txn.remarks?.match(/\[Account:\s*([^\]]+)\]/)?.[1]
+                  ? `Our Bank (${txn.remarks.match(/\[Account:\s*([^\]]+)\]/)[1]})`
+                  : txn.banks?.name
+                  ? `Our Bank (${txn.banks.name})`
+                  : "Our Bank Account"}
+              </Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Customer Paid Via</Text>

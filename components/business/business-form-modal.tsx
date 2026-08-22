@@ -268,13 +268,19 @@ export default function BusinessFormModal({
       });
       return;
     }
+    const selAccount = bankAccounts.find((b) => b.id === form.bank_id);
+    let finalRemarks = form.remarks.trim();
+    if (service === "dmt" && form.paid_from === "bank" && selAccount) {
+      finalRemarks = finalRemarks ? `${finalRemarks} [Account: ${selAccount.name}]` : `[Account: ${selAccount.name}]`;
+    }
+
     onSave({
       p_service_type: service,
       p_transaction_date: form.transaction_timestamp.slice(0, 10),
       p_transaction_timestamp: new Date(form.transaction_timestamp).toISOString(),
       p_customer_id: form.customer_id || null,
       p_customer_mobile: form.customer_mobile.trim() || null,
-      p_bank_id: form.bank_id || null,
+      p_bank_id: service === "aeps" ? (form.bank_id || null) : null,
       p_portal_id: form.portal_id || null,
       p_merchant_qr_id: form.merchant_qr_id || null,
       p_aadhaar_last4: form.aadhaar_last4 || null,
@@ -292,10 +298,12 @@ export default function BusinessFormModal({
       p_portal_commission: commission,
       p_reference: form.reference.trim() || null,
       p_status: form.status,
-      p_remarks: form.remarks.trim() || null,
+      p_remarks: finalRemarks || null,
       p_fee_source: service === "aeps" ? form.fee_source : null,
       p_paid_from: service === "dmt" ? form.paid_from : null,
       p_customer_pay_method: service === "dmt" || service === "upi" ? form.customer_pay_method : null,
+      payment_account_id: form.bank_id || null,
+      payment_account_name: selAccount?.name || null,
     });
   }
 

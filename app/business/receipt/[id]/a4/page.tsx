@@ -181,7 +181,15 @@ export default async function BusinessReceiptA4Page({
               )}
               <div className="flex justify-between border-b border-slate-100 py-1.5">
                 <span className="text-slate-600">Money Sent From</span>
-                <span className="font-medium text-slate-900">{(txn.paid_from ?? "bank") === "portal" ? "DMT Portal Wallet" : "Bank Account"}</span>
+                <span className="font-medium text-slate-900">
+                  {(txn.paid_from ?? "bank") === "portal"
+                    ? `DMT Portal Wallet${txn.portals?.name ? ` (${txn.portals.name})` : ""}`
+                    : txn.remarks?.match(/\[Account:\s*([^\]]+)\]/)?.[1]
+                    ? `Our Bank (${txn.remarks.match(/\[Account:\s*([^\]]+)\]/)[1]})`
+                    : txn.banks?.name
+                    ? `Our Bank (${txn.banks.name})`
+                    : "Our Bank Account"}
+                </span>
               </div>
               <div className="flex justify-between border-b border-slate-100 py-1.5">
                 <span className="text-slate-600">Customer Paid Via</span>

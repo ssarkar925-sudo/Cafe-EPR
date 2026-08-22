@@ -326,6 +326,18 @@ export default function BusinessClient({
     }
   }
 
+  function getDmtBankName(t: Txn) {
+    if ((t.paid_from ?? "bank") === "portal") {
+      return `🌐 ${t.portals?.name || "DMT Portal Wallet"}`;
+    }
+    const match = t.remarks?.match(/\[Account:\s*([^\]]+)\]/);
+    if (match?.[1]) return `🏦 ${match[1]}`;
+    const inst = initialPaymentInstruments.find((p) => p.id === t.bank_id);
+    if (inst) return `🏦 ${inst.name}`;
+    if (t.banks?.name && t.banks.name !== "-") return `🏦 ${t.banks.name}`;
+    return "🏦 Our Bank Account";
+  }
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return txns.filter((t) => {
@@ -539,7 +551,6 @@ export default function BusinessClient({
         customer_id: (payload.p_customer_id as string) || null,
         customer_mobile: (payload.p_customer_mobile as string) || null,
         reference: (payload.p_reference as string) || null,
-        remarks: (payload.p_remarks as string) || null,
         status: d.status as string,
         bank_id: (payload.p_bank_id as string) || null,
         portal_id: (payload.p_portal_id as string) || null,
@@ -564,11 +575,12 @@ export default function BusinessClient({
         customers: payload.p_customer_id
           ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
           : null,
-        banks: (payload.p_bank_id as string)
+        remarks: (payload.p_remarks as string) || null,
+        banks: (payload.p_bank_id as string || (payload.payment_account_name as string))
           ? {
               name:
                 service === "dmt"
-                  ? initialPaymentInstruments.find((b) => b.id === payload.p_bank_id)?.name ?? "-"
+                  ? (payload.payment_account_name as string) || initialPaymentInstruments.find((b) => b.id === (payload.payment_account_id || payload.p_bank_id))?.name || "-"
                   : initialBanks.find((b) => b.id === payload.p_bank_id)?.name ?? "-",
             }
           : null,
@@ -1198,9 +1210,7 @@ export default function BusinessClient({
                     <td className="px-5 py-3 text-right font-medium">
                       <p className="font-bold text-rose-600 dark:text-rose-400">{inr(t.amount)}</p>
                       <p className="cell-sub text-[11px] text-slate-500 font-medium">
-                        {(t.paid_from ?? "bank") === "portal"
-                          ? `🌐 ${t.portals?.name || "Portal Wallet"}`
-                          : `🏦 ${initialPaymentInstruments.find((p) => p.id === t.bank_id)?.name || t.banks?.name || "Bank Account"}`}
+                        {getDmtBankName(t)}
                       </p>
                     </td>
                     <td className="px-5 py-3 text-right font-medium">
@@ -1332,9 +1342,7 @@ export default function BusinessClient({
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-500">📤 Money Out (Sent)</p>
                       <p className="mt-0.5 text-base font-bold text-rose-600 dark:text-rose-400">{inr(t.amount)}</p>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        {(t.paid_from ?? "bank") === "portal"
-                          ? `🌐 ${t.portals?.name || "DMT Portal Wallet"}`
-                          : `🏦 ${initialPaymentInstruments.find((p) => p.id === t.bank_id)?.name || t.banks?.name || "Our Bank Account"}`}
+                        {getDmtBankName(t)}
                       </p>
                     </div>
                     <div>

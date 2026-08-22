@@ -186,7 +186,15 @@ export default async function BusinessReceiptPage({
               </div>
               <div className="flex justify-between">
                 <span>Paid From</span>
-                <span>{(txn.paid_from ?? "bank") === "portal" ? "Portal Wallet" : "Bank Account"}</span>
+                <span>
+                  {(txn.paid_from ?? "bank") === "portal"
+                    ? `Portal (${txn.portals?.name || "Wallet"})`
+                    : txn.remarks?.match(/\[Account:\s*([^\]]+)\]/)?.[1]
+                    ? `Bank (${txn.remarks.match(/\[Account:\s*([^\]]+)\]/)[1]})`
+                    : txn.banks?.name
+                    ? `Bank (${txn.banks.name})`
+                    : "Bank Account"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Service Fee</span>
