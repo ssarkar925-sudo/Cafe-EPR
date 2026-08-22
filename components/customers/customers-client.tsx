@@ -22,6 +22,7 @@ export type Customer = {
   opening_balance: number | string;
   balance: number | string;
   customer_type: string | null;
+  credit_limit?: number | string | null;
   avatar_url: string | null;
   is_active: boolean;
   created_at: string;

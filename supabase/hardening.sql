@@ -2536,8 +2536,9 @@ alter table public.returns drop constraint if exists returns_invoice_id_fkey;
 alter table public.returns add constraint returns_invoice_id_fkey
   foreign key (invoice_id) references public.invoices (id) on delete restrict;
 
--- =================== Section 7: missing indexes ===================
+-- =================== Section 7: missing indexes & columns ===================
 
+alter table public.customers add column if not exists credit_limit numeric default 0;
 create index if not exists customers_phone_idx on public.customers (phone);
 create index if not exists transactions_customer_idx on public.transactions (customer_id);
 create index if not exists transactions_merchant_qr_idx on public.transactions (merchant_qr_id);

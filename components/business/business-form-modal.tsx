@@ -193,12 +193,24 @@ export default function BusinessFormModal({
     if (service === "upi") {
       if (!form.merchant_qr_id) return setError("Please choose the merchant QR.");
     }
+    if (form.customer_pay_method === "due") {
+      if (!form.customer_id) {
+        return setError("Please select a customer from the top dropdown to mark this transaction as Due (Credit).");
+      }
+      if (selectedCustomer && Number((selectedCustomer as any).credit_limit || 0) > 0) {
+        const totalDueAfter = Number((selectedCustomer as any).balance || 0) + amount + fee;
+        if (totalDueAfter > Number((selectedCustomer as any).credit_limit)) {
+          const allow = window.confirm(
+            `⚠️ Credit Limit Alert: Customer's total due will be ₹${totalDueAfter.toFixed(2)}, which exceeds their credit limit of ₹${Number((selectedCustomer as any).credit_limit)}. Proceed anyway?`
+          );
+          if (!allow) return;
+        }
+      }
+    }
+
     if (service === "recharge") {
       if (!form.provider_id) return setError("Please choose the recharge provider.");
       if (!form.customer_mobile.trim()) return setError("Enter the recharge number (mobile number being recharged).");
-      if (form.customer_pay_method === "due" && !form.customer_id) {
-        return setError("Please select a customer from the top dropdown to mark this recharge as Due (Credit).");
-      }
       if (!commissionPreview || commissionPreview.missing) return setError("No commission slab covers this amount for this provider. Add a slab in Settings → Business Setup → Recharge Providers.");
     }
 

@@ -20,6 +20,7 @@ export type Customer = {
   opening_balance: number | string;
   balance: number | string;
   customer_type: string | null;
+  credit_limit?: number | string | null;
   avatar_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -152,6 +153,7 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
       address: string;
       opening_balance: number;
       customer_type: string;
+      credit_limit?: number;
     },
     _customer?: Customer
   ) {
@@ -163,6 +165,7 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
         email: input.email,
         address: input.address,
         customer_type: input.customer_type,
+        credit_limit: input.credit_limit ?? 0,
       })
       .eq("id", cust.id);
     if (error) {
@@ -435,7 +438,7 @@ function OverviewTab({
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-4">
         <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
-          <h3 className="text-sm font-semibold text-slate-900">Balance</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Balance & Credit Limit</h3>
           <div className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between text-slate-600">
               <span>Current balance</span>
@@ -443,6 +446,28 @@ function OverviewTab({
                 {bal > 0 ? inr(bal) + " due" : bal < 0 ? inr(Math.abs(bal)) + " advance" : "Settled"}
               </span>
             </div>
+            <div className="flex justify-between text-slate-600">
+              <span>Credit Limit</span>
+              <span className="font-semibold text-slate-800">
+                {Number(cust.credit_limit || 0) > 0 ? inr(cust.credit_limit || 0) : "Unlimited / None"}
+              </span>
+            </div>
+            {Number(cust.credit_limit || 0) > 0 && bal > 0 && (
+              <div className="pt-1">
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Credit used</span>
+                  <span className={bal > Number(cust.credit_limit) ? "font-bold text-rose-600" : "font-medium"}>
+                    {Math.min(100, Math.round((bal / Number(cust.credit_limit)) * 100))}%
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className={`h-full rounded-full ${bal > Number(cust.credit_limit) ? "bg-rose-500" : "bg-blue-500"}`}
+                    style={{ width: `${Math.min(100, (bal / Number(cust.credit_limit)) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="flex justify-between text-slate-600">
               <span>Opening balance</span>
               <span>{inr(cust.opening_balance)}</span>

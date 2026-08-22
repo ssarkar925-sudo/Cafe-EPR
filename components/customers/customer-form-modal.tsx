@@ -15,6 +15,7 @@ type Props = {
       address: string;
       opening_balance: number;
       customer_type: string;
+      credit_limit?: number;
     },
     customer?: Customer
   ) => Promise<void>;
@@ -27,6 +28,9 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
   const [email, setEmail] = useState(editing?.email ?? "");
   const [address, setAddress] = useState(editing?.address ?? "");
   const [customerType, setCustomerType] = useState(editing?.customer_type ?? "retail");
+  const [creditLimit, setCreditLimit] = useState(
+    editing ? String((editing as any).credit_limit ?? "0") : "5000"
+  );
   const [opening, setOpening] = useState(
     editing ? String(editing.opening_balance) : "0"
   );
@@ -43,6 +47,7 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
         address,
         opening_balance: Number(opening) || 0,
         customer_type: customerType || "retail",
+        credit_limit: Number(creditLimit) || 0,
       },
       editing ?? undefined
     );
@@ -135,20 +140,34 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
             <option value="walk-in">Walk-in</option>
           </select>
         </div>
-        <div>
-          <label className={labelClass}>
-            Opening Balance (₹)
-            {!editing && (
-              <span className="font-normal text-slate-400"> — sets starting balance</span>
-            )}
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            value={opening}
-            onChange={(e) => setOpening(e.target.value)}
-            className={inputClass}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>
+              Credit Limit (₹)
+              <span className="font-normal text-slate-400"> (0 = No limit)</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={creditLimit}
+              onChange={(e) => setCreditLimit(e.target.value)}
+              placeholder="e.g. 5000"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>
+              Opening Balance (₹)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={opening}
+              onChange={(e) => setOpening(e.target.value)}
+              className={inputClass}
+            />
+          </div>
         </div>
       </div>
     </Modal>

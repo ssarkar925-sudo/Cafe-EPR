@@ -52,6 +52,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
     return initialCustomers[0]?.id ?? "";
   });
   const [rows, setRows] = useState<LedgerRow[]>([]);
+  const [unpaidInvoices, setUnpaidInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [compact, setCompact] = useState(false);
@@ -77,10 +78,11 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   async function loadCustomerLedger(cId: string) {
     if (!cId) {
       setRows([]);
+      setUnpaidInvoices([]);
       return;
     }
     setLoading(true);
-    const [{ data: ledgerData }, { data: custData }] = await Promise.all([
+    const [{ data: ledgerData }, { data: custData }, { data: invData }] = await Promise.all([
       supabase
         .from("customer_ledger")
         .select("*")
@@ -89,11 +91,19 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
         .order("created_at", { ascending: false }),
       supabase
         .from("customers")
-        .select("id, name, code, phone, balance")
+        .select("id, name, code, phone, balance, credit_limit")
         .eq("id", cId)
         .single(),
+      supabase
+        .from("invoices")
+        .select("id, invoice_number, total, paid, due, status, invoice_date")
+        .eq("customer_id", cId)
+        .in("status", ["unpaid", "partial"])
+        .order("invoice_date", { ascending: true })
+        .order("created_at", { ascending: true }),
     ]);
     setRows((ledgerData ?? []) as LedgerRow[]);
+    setUnpaidInvoices(invData ?? []);
     if (custData) {
       setCustomers((prev) =>
         prev.map((c) => (c.id === cId ? { ...c, balance: (custData as any).balance } : c))
@@ -107,6 +117,27 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   }, [customerId]);
 
   const selected = useMemo(() => customers.find((c) => c.id === customerId), [customers, customerId]);
+
+  const agingSummary = useMemo(() => {
+    const now = new Date().getTime();
+    let current = 0; // 0-7 days
+    let d8_15 = 0; // 8-15 days
+    let d16_30 = 0; // 16-30 days
+    let d30_plus = 0; // 30+ days
+
+    for (const inv of unpaidInvoices) {
+      const due = Number(inv.due ?? (Number(inv.total) - Number(inv.paid || 0)));
+      if (due <= 0) continue;
+      const invDate = new Date(inv.invoice_date || "").getTime();
+      const diffDays = isNaN(invDate) ? 0 : Math.max(0, Math.floor((now - invDate) / (1000 * 60 * 60 * 24)));
+      if (diffDays <= 7) current += due;
+      else if (diffDays <= 15) d8_15 += due;
+      else if (diffDays <= 30) d16_30 += due;
+      else d30_plus += due;
+    }
+    const total = current + d8_15 + d16_30 + d30_plus;
+    return { current, d8_15, d16_30, d30_plus, total, count: unpaidInvoices.length };
+  }, [unpaidInvoices]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -194,6 +225,41 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
       error = null;
     }
 
+    // Automated FIFO Invoice Allocation across unpaid/partial invoices
+    if (!error && unpaidInvoices.length > 0) {
+      let remaining = amt;
+      for (const inv of unpaidInvoices) {
+        if (remaining <= 0) break;
+        const invTotal = Number(inv.total);
+        const invPaid = Number(inv.paid || 0);
+        const invDue = Number(inv.due ?? (invTotal - invPaid));
+        if (invDue <= 0) continue;
+
+        const applied = Math.min(remaining, invDue);
+        const newPaid = invPaid + applied;
+        const newDue = Math.max(0, invTotal - newPaid);
+        const newStatus = newDue <= 0.001 ? "paid" : "partial";
+
+        await Promise.all([
+          supabase.from("payments").insert({
+            invoice_id: inv.id,
+            amount: applied,
+            method: payMethod,
+            received_at: `${payDate}T${new Date().toISOString().slice(11, 19)}`,
+            note: payRemarks.trim() ? `FIFO: ${payRemarks.trim()}` : `Auto FIFO Settlement from Customer Ledger`,
+          }),
+          supabase.from("invoices").update({
+            paid: newPaid,
+            due: newDue,
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          }).eq("id", inv.id),
+        ]);
+
+        remaining -= applied;
+      }
+    }
+
     setPayBusy(false);
     if (error) {
       showToast("error", error.message);
@@ -275,9 +341,13 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
     if (!selected) return "";
     const phone = (selected.phone || "").replace(/[^0-9]/g, "");
     const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-    const msg = `Dear ${selected.name},\n\nHere is your current Account Statement with Cafe:\n• Total Debited/Invoiced: ${inr(summary.debit)}\n• Total Paid: ${inr(summary.credit)}\n• Current Outstanding Due: ${inr(Number(selected.balance))}\n\nPlease clear your balance at your earliest convenience.\nThank you!`;
+    let agingTxt = "";
+    if (agingSummary.d30_plus > 0 || agingSummary.d16_30 > 0) {
+      agingTxt = `\n• Overdue (>15 days): ${inr(agingSummary.d16_30 + agingSummary.d30_plus)}`;
+    }
+    const msg = `Dear ${selected.name},\n\nHere is your current Account Statement with Cafe:\n• Total Debited/Invoiced: ${inr(summary.debit)}\n• Total Paid: ${inr(summary.credit)}\n• Current Outstanding Due: ${inr(Number(selected.balance))}${agingTxt}\n\nPlease clear your balance at your earliest convenience.\nThank you!`;
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
-  }, [selected, summary]);
+  }, [selected, summary, agingSummary]);
 
   const inputClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100";
@@ -416,6 +486,47 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
           grad="from-violet-500 to-purple-600"
         />
       </div>
+
+      {/* Due Aging Analysis Widget */}
+      {Number(selected?.balance ?? 0) > 0 && agingSummary.total > 0 && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Due Aging Breakdown ({agingSummary.count} unpaid bills)</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Chronological aging of customer's unpaid balances</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                0–7 Days: {inr(agingSummary.current)}
+              </span>
+              <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                8–15 Days: {inr(agingSummary.d8_15)}
+              </span>
+              <span className="rounded-lg bg-orange-50 px-2.5 py-1 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+                16–30 Days: {inr(agingSummary.d16_30)}
+              </span>
+              <span className="rounded-lg bg-rose-50 px-2.5 py-1 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                30+ Days (Critical): {inr(agingSummary.d30_plus)}
+              </span>
+            </div>
+          </div>
+          {/* Visual aging bar */}
+          <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/5">
+            {agingSummary.current > 0 && (
+              <div style={{ width: `${(agingSummary.current / agingSummary.total) * 100}%` }} className="bg-emerald-500" title={`0-7 Days: ${inr(agingSummary.current)}`} />
+            )}
+            {agingSummary.d8_15 > 0 && (
+              <div style={{ width: `${(agingSummary.d8_15 / agingSummary.total) * 100}%` }} className="bg-amber-500" title={`8-15 Days: ${inr(agingSummary.d8_15)}`} />
+            )}
+            {agingSummary.d16_30 > 0 && (
+              <div style={{ width: `${(agingSummary.d16_30 / agingSummary.total) * 100}%` }} className="bg-orange-500" title={`16-30 Days: ${inr(agingSummary.d16_30)}`} />
+            )}
+            {agingSummary.d30_plus > 0 && (
+              <div style={{ width: `${(agingSummary.d30_plus / agingSummary.total) * 100}%` }} className="bg-rose-500" title={`30+ Days: ${inr(agingSummary.d30_plus)}`} />
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="relative">

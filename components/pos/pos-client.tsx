@@ -731,6 +731,23 @@ export default function PosClient({
       return;
     }
 
+    const saleDue = Math.max(0, Number(total.toFixed(2)) - Number(paid.toFixed(2)) - Number(advanceUsed.toFixed(2)));
+    if (saleDue > 0) {
+      if (!customerId) {
+        setError("Please select a customer to mark this sale as partial/due.");
+        return;
+      }
+      if (selectedCustomer && Number((selectedCustomer as any).credit_limit || 0) > 0) {
+        const totalAfterSale = Number(selectedCustomer.balance || 0) + saleDue;
+        if (totalAfterSale > Number((selectedCustomer as any).credit_limit)) {
+          const allow = window.confirm(
+            `⚠️ Credit Limit Alert: Customer's total due will be ₹${totalAfterSale.toFixed(2)}, which exceeds their configured credit limit of ₹${Number((selectedCustomer as any).credit_limit)}. Proceed anyway?`
+          );
+          if (!allow) return;
+        }
+      }
+    }
+
     const dueAmt = Math.max(0, Number(total.toFixed(2)) - Number(advanceUsed.toFixed(2)));
     const rawPmts = payments
       .filter((p) => Number(p.amount) > 0)
