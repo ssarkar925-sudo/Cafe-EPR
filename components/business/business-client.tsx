@@ -989,6 +989,25 @@ export default function BusinessClient({
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></svg>
                       A4 / PDF
                     </a>
+                    <a
+                      href={(() => {
+                        const origin = typeof window !== "undefined" ? window.location.origin : "";
+                        const receiptUrl = `${origin}/business/receipt/${t.id}`;
+                        const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
+                        const phone = rawPhone.replace(/[^0-9]/g, "");
+                        const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
+                        const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
+                        const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View Receipt:\n${receiptUrl}\n\nThank you!`;
+                        return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Share Receipt on WhatsApp"
+                      className={`${actionBtn} text-emerald-600 hover:bg-emerald-50`}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                      WhatsApp
+                    </a>
                     {t.status === "success" && (
                       <>
                         <button onClick={() => setEditTxn(t)} title="Edit" className={`${actionBtn} text-slate-600 hover:bg-slate-50`}>
@@ -1086,6 +1105,24 @@ export default function BusinessClient({
                       className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-50 dark:border-white/10 dark:hover:bg-blue-500/10"
                     >
                       A4 / PDF
+                    </a>
+                    <a
+                      href={(() => {
+                        const origin = typeof window !== "undefined" ? window.location.origin : "";
+                        const receiptUrl = `${origin}/business/receipt/${t.id}`;
+                        const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
+                        const phone = rawPhone.replace(/[^0-9]/g, "");
+                        const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
+                        const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
+                        const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View Receipt:\n${receiptUrl}\n\nThank you!`;
+                        return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Share on WhatsApp"
+                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition hover:bg-emerald-100"
+                    >
+                      WhatsApp
                     </a>
                   </div>
                 </div>
