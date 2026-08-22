@@ -395,9 +395,107 @@ export default function BusinessClient({
   const netTotal = service === "dmt" ? report.fees - report.commission : report.fees + report.commission;
 
   async function createTxn(payload: Record<string, unknown>) {
-    const { data, error } = service === "recharge"
-      ? await supabase.rpc("create_recharge", payload)
-      : await supabase.rpc("create_business_txn", payload);
+    let data: any = null;
+    let error: any = null;
+
+    if (service === "recharge") {
+      const res = await supabase.rpc("create_recharge", payload);
+      data = res.data;
+      error = res.error;
+
+      // Resilient fallback if create_recharge RPC is missing or schema cache not reloaded
+      if (error && (error.message?.includes("schema cache") || error.code === "PGRST202" || error.message?.includes("function public.create_recharge"))) {
+        const { count } = await supabase.from("transactions").select("id", { count: "exact", head: true }).eq("service_type", "recharge");
+        const nextNum = "RCH-" + String((count ?? 0) + 1).padStart(4, "0");
+        let comm = 0;
+        const provId = payload.p_provider_id as string;
+        const amt = Number(payload.p_amount) || 0;
+        if (provId) {
+          const { data: slabs } = await supabase.from("recharge_commission_slabs").select("*").eq("provider_id", provId);
+          const slab = (slabs ?? []).find((s: any) => amt >= Number(s.min_amount) && amt <= Number(s.max_amount));
+          if (slab) {
+            comm = Math.round((amt * Number(slab.commission_percent)) / 100);
+          }
+        }
+        const cost = amt - comm;
+        const payMethod = (payload.p_customer_pay_method as string) || "cash";
+
+        const { data: inserted, error: insErr } = await supabase.from("transactions").insert({
+          transaction_number: nextNum,
+          service_type: "recharge",
+          direction: "in",
+          transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10),
+          transaction_timestamp: payload.p_transaction_timestamp || new Date().toISOString(),
+          customer_id: payload.p_customer_id || null,
+          customer_mobile: payload.p_customer_mobile || null,
+          reference: payload.p_reference || null,
+          remarks: payload.p_remarks || null,
+          status: payload.p_status || "success",
+          provider_id: payload.p_provider_id || null,
+          amount: amt,
+          service_fee: 0,
+          portal_commission: comm,
+          cash_in: payMethod === "cash" ? amt : 0,
+          bank_in: payMethod === "bank" ? amt : 0,
+          pool_out: cost,
+          pool_credit: 0,
+          pool_credit_type: "recharge",
+          customer_pay_method: payMethod,
+        }).select().single();
+
+        if (insErr) {
+          showToast("error", insErr.message);
+          return;
+        }
+
+        data = inserted;
+        error = null;
+
+        if (payload.p_status === "success" && inserted?.id) {
+          if (payMethod === "cash") {
+            await supabase.from("cash_entries").insert({
+              entry_date: inserted.transaction_date,
+              method: "cash",
+              direction: "in",
+              amount: amt,
+              description: `Recharge ${nextNum} received in cash`,
+              ref_type: "transaction",
+              ref_id: inserted.id,
+            });
+          } else if (payMethod === "bank") {
+            await supabase.from("cash_entries").insert({
+              entry_date: inserted.transaction_date,
+              method: "bank",
+              direction: "in",
+              amount: amt,
+              description: `Recharge ${nextNum} received via Bank/UPI`,
+              ref_type: "transaction",
+              ref_id: inserted.id,
+            });
+          } else if (payMethod === "due" && payload.p_customer_id) {
+            const { data: cust } = await supabase.from("customers").select("balance").eq("id", payload.p_customer_id).single();
+            const newBal = Number(cust?.balance || 0) + amt;
+            await supabase.from("customers").update({ balance: newBal }).eq("id", payload.p_customer_id);
+            await supabase.from("customer_ledger").insert({
+              customer_id: payload.p_customer_id,
+              entry_date: inserted.transaction_date,
+              type: "recharge",
+              description: `Recharge ${nextNum} on credit`,
+              debit: amt,
+              credit: 0,
+              balance_after: newBal,
+              ref_type: "transaction",
+              ref_id: inserted.id,
+            });
+          }
+        }
+      }
+    } else {
+      const res = await supabase.rpc("create_business_txn", payload);
+      data = res.data;
+      error = res.error;
+    }
+
     if (error) {
       showToast("error", error.message);
       return;
@@ -505,9 +603,55 @@ export default function BusinessClient({
     } else {
       delete args.p_provider_id;
     }
-    const { data, error } = service === "recharge"
-      ? await supabase.rpc("update_recharge", args)
-      : await supabase.rpc("update_business_txn", args);
+    let data: any = null;
+    let error: any = null;
+
+    if (service === "recharge") {
+      const res = await supabase.rpc("update_recharge", args);
+      data = res.data;
+      error = res.error;
+
+      if (error && (error.message?.includes("schema cache") || error.code === "PGRST202" || error.message?.includes("function public.update_recharge"))) {
+        const provId = args.p_provider_id as string;
+        const amt = Number(args.p_amount) || 0;
+        let comm = 0;
+        if (provId) {
+          const { data: slabs } = await supabase.from("recharge_commission_slabs").select("*").eq("provider_id", provId);
+          const slab = (slabs ?? []).find((s: any) => amt >= Number(s.min_amount) && amt <= Number(s.max_amount));
+          if (slab) {
+            comm = Math.round((amt * Number(slab.commission_percent)) / 100);
+          }
+        }
+        const cost = amt - comm;
+
+        const { data: updated, error: updErr } = await supabase.from("transactions").update({
+          transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10),
+          transaction_timestamp: payload.p_transaction_timestamp || new Date().toISOString(),
+          customer_id: payload.p_customer_id || null,
+          customer_mobile: payload.p_customer_mobile || null,
+          reference: payload.p_reference || null,
+          remarks: payload.p_remarks || null,
+          provider_id: payload.p_provider_id || null,
+          amount: amt,
+          portal_commission: comm,
+          cash_in: amt,
+          pool_out: cost,
+          updated_at: new Date().toISOString(),
+        }).eq("id", args.p_txn_id).select().single();
+
+        if (updErr) {
+          showToast("error", updErr.message);
+          return;
+        }
+        data = updated;
+        error = null;
+      }
+    } else {
+      const res = await supabase.rpc("update_business_txn", args);
+      data = res.data;
+      error = res.error;
+    }
+
     if (error) {
       showToast("error", error.message);
       return;
