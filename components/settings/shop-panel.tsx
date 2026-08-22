@@ -156,10 +156,39 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
 
       <div className={`mt-6 space-y-6 ${tab === "receipt" ? "" : "hidden"}`}>
         <SettingsSection
+          icon="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"
+          tone="blue"
+          title="Default POS Print Layout"
+          desc="Choose whether Pay & Print generates full A4 Tax Invoices / PDF or 80mm roll receipts."
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border-2 border-blue-500 bg-blue-50/40 p-4 dark:border-blue-600 dark:bg-blue-950/20">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📄</span>
+                <span className="font-bold text-slate-900 dark:text-white">A4 Tax Invoice / PDF (Default)</span>
+                <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">Active</span>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                Full-page professional A4 tax invoice with shop letterhead, GSTIN, customer details, HSN table, and PDF download.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🧾</span>
+                <span className="font-bold text-slate-900 dark:text-white">80mm Thermal Receipt</span>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                Compact slip for fast thermal roll POS printers.
+              </p>
+            </div>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
           icon="M6 2h12a1 1 0 0 1 1 1v18l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L5 21V3a1 1 0 0 1 1-1Z"
           tone="violet"
-          title="Receipt"
-          desc="Tail line printed on every 80mm receipt."
+          title="Receipt & Invoice Footer"
+          desc="Custom tail note printed at the bottom of bills and receipts."
         >
           <div>
             <label className={labelClass}>Receipt footer</label>

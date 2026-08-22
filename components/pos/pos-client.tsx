@@ -206,6 +206,21 @@ export default function PosClient({
     },
   ]);
 
+  const [printFormat, setPrintFormat] = useState<"a4" | "thermal">(() => {
+    try {
+      return localStorage.getItem("sccomm-pos-print-format") === "thermal" ? "thermal" : "a4";
+    } catch {
+      return "a4";
+    }
+  });
+
+  function updatePrintFormat(fmt: "a4" | "thermal") {
+    setPrintFormat(fmt);
+    try {
+      localStorage.setItem("sccomm-pos-print-format", fmt);
+    } catch {}
+  }
+
   function switchView(v: "grid" | "list") {
     setView(v);
     try {
@@ -900,7 +915,10 @@ export default function PosClient({
 
     if (print) {
       const id = (data as SaleResult)?.id;
-      if (id) window.open(`/receipt/${id}`, "_blank", "noopener");
+      if (id) {
+        const printUrl = printFormat === "thermal" ? `/receipt/${id}` : `/receipt/${id}/a4`;
+        window.open(printUrl, "_blank", "noopener");
+      }
     }
   }
 
@@ -1494,12 +1512,40 @@ export default function PosClient({
                 >
                   Money Out
                 </button>
+                <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 p-1.5 ring-1 ring-slate-200/80 dark:bg-slate-800/60 dark:ring-white/10">
+                  <span className="pl-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Print Format:</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => updatePrintFormat("a4")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        printFormat === "a4"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      📄 A4 / PDF (Default)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updatePrintFormat("thermal")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        printFormat === "thermal"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      🧾 80mm Roll
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => completeSale(true)}
                   disabled={payDisabled}
                   className="mt-2 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-3 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {busy ? "Completing sale…" : `Pay & Print · ${inr(total)}`}
+                  {busy ? "Completing sale…" : `Pay & Print (${printFormat === "thermal" ? "80mm" : "A4/PDF"}) · ${inr(total)}`}
                 </button>
               </div>
             </div>
@@ -1976,18 +2022,22 @@ export default function PosClient({
                 {waStatus === "sending" ? "Sending WhatsApp..." : waStatus === "sent" ? "✓ WhatsApp Sent Successfully" : "Send on WhatsApp"}
               </button>
               <a
-                href={`/receipt/${success.id}`}
-                target="_blank"
-                className="rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                Print Receipt (80mm)
-              </a>
-              <a
                 href={`/receipt/${success.id}/a4`}
                 target="_blank"
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
-                A4 Print / Download PDF
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                </svg>
+                Print A4 Invoice / Download PDF (Default)
+              </a>
+              <a
+                href={`/receipt/${success.id}`}
+                target="_blank"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+              >
+                Print 80mm Thermal Receipt
               </a>
               <button
                 onClick={() => setSuccess(null)}
