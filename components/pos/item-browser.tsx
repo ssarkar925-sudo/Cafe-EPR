@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { inr } from "@/lib/format";
 
 // ── Shared visual building blocks for the POS / Quick Sale screens ──────────
@@ -162,7 +160,7 @@ export function PosItemToolbar({
   tabs: { value: string; label: string }[];
   activeTab: string;
   onTab: (t: string) => void;
-  searchRef?: React.RefObject<HTMLInputElement | null>;
+  searchRef?: RefObject<HTMLInputElement | null>;
   placeholder: string;
   q: string;
   onQ: (v: string) => void;
@@ -267,7 +265,7 @@ export function PosCategoryChips({
           active === "all" ? "bg-[#0f172a] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
         }`}
       >
-        All
+        All <span className="opacity-60">· {totalCount}</span>
       </button>
       {categories.map((c) => (
         <button
@@ -434,7 +432,7 @@ export function CustomerSelector({
   value: string;
   onChange: (id: string) => void;
   onAddCustomer: () => void;
-  searchRef?: React.RefObject<HTMLInputElement | null>;
+  searchRef?: RefObject<HTMLInputElement | null>;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
