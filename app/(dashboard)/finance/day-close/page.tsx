@@ -11,9 +11,10 @@ export default async function DayClosePage() {
 
   const supabase = await createClient();
 
-  const [{ data: openClose }, { data: closings }] = await Promise.all([
+  const [{ data: openClose }, { data: closings }, { data: settings }] = await Promise.all([
     supabase.rpc("get_open_close"),
     supabase.rpc("get_closings", { p_limit: 30 }),
+    supabase.from("settings").select("*").single(),
   ]);
 
   const hasOpenClose = openClose && typeof openClose === "object" && Array.isArray((openClose as any).rows) && (openClose as any).rows.length > 0;
@@ -22,6 +23,7 @@ export default async function DayClosePage() {
     <DayCloseClient
       initialOpenClose={hasOpenClose ? (openClose as any) : null}
       initialClosings={(((closings as any)?.closings) ?? []) as any}
+      settings={settings ?? null}
     />
   );
 }

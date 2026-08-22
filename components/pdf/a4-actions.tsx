@@ -4,6 +4,7 @@ import { useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import InvoicePdf, { type InvoicePdfData } from "./invoice-pdf";
 import BusinessPdf, { type BusinessPdfData } from "./business-pdf";
+import DayClosePdf, { type DayClosePdfData } from "./day-close-pdf";
 
 export default function A4Actions({
   variant,
@@ -11,8 +12,8 @@ export default function A4Actions({
   filename,
   showFees = false,
 }: {
-  variant: "invoice" | "business";
-  data: InvoicePdfData | BusinessPdfData;
+  variant: "invoice" | "business" | "day_close";
+  data: InvoicePdfData | BusinessPdfData | DayClosePdfData;
   filename: string;
   showFees?: boolean;
 }) {
@@ -24,6 +25,8 @@ export default function A4Actions({
       const el =
         variant === "invoice" ? (
           <InvoicePdf {...(data as InvoicePdfData)} />
+        ) : variant === "day_close" ? (
+          <DayClosePdf {...(data as DayClosePdfData)} />
         ) : (
           <BusinessPdf {...(data as BusinessPdfData)} showFees={showFees} />
         );

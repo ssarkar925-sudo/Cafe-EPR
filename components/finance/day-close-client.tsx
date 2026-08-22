@@ -7,6 +7,7 @@ import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import A4Actions from "@/components/pdf/a4-actions";
 
 type CloseRow = {
   pool: string;
@@ -84,9 +85,11 @@ function normalizeOpenClose(oc: OpenClose): OpenClose {
 export default function DayCloseClient({
   initialOpenClose,
   initialClosings,
+  settings,
 }: {
   initialOpenClose: OpenClose;
   initialClosings: ClosingRecord[];
+  settings?: any;
 }) {
   const [openClose, setOpenClose] = useState<OpenClose>(normalizeOpenClose(initialOpenClose));
   const [closings, setClosings] = useState<ClosingRecord[]>(initialClosings);
@@ -662,7 +665,7 @@ export default function DayCloseClient({
                           onClick={() => setPrintTarget(c)}
                           className="rounded-lg px-2 py-1 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10"
                         >
-                          View
+                          Certificate / Print
                         </button>
                         {c.status === "closed" && (
                           <button
@@ -742,48 +745,123 @@ export default function DayCloseClient({
       )}
 
       {printTarget && (
-        <Modal onClose={() => setPrintTarget(null)} title={`${printTarget.closing_number} · ${fmtDate(printTarget.close_date)}`} accent="blue" size="lg">
-          <div className="space-y-4 p-5">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs uppercase text-slate-400 dark:border-white/10">
-                    <th className="py-2 pr-3">Account</th>
-                    <th className="py-2 pr-3 text-right">Opening</th>
-                    <th className="py-2 pr-3 text-right">Movements</th>
-                    <th className="py-2 pr-3 text-right">Adjust</th>
-                    <th className="py-2 text-right">Closing</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(printTarget.balances ?? []).map((b) => (
-                    <tr key={b.id} className="border-b border-slate-50 last:border-0 dark:border-white/5">
-                      <td className="py-2 pr-3 font-medium text-slate-800 dark:text-white">{POOL_LABEL[b.pool] ?? b.pool}</td>
-                      <td className="py-2 pr-3 text-right text-slate-600 dark:text-slate-300">{inr(b.opening)}</td>
-                      <td className="py-2 pr-3 text-right text-slate-600 dark:text-slate-300">{inr(b.movements)}</td>
-                      <td className="py-2 pr-3 text-right text-slate-600 dark:text-slate-300">{inr(b.adjustment)}</td>
-                      <td className="py-2 text-right font-bold text-slate-900 dark:text-white">{inr(b.final)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <Modal onClose={() => setPrintTarget(null)} title={`Handover Certificate · ${printTarget.closing_number}`} accent="blue" size="lg">
+          <div className="space-y-5 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-white/10">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Store End-of-Day Handover Certificate</h2>
+                <p className="text-xs text-slate-500">
+                  Shift #{printTarget.closing_number} · Date: {fmtDate(printTarget.close_date)} · Status: {printTarget.status.toUpperCase()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <A4Actions
+                  variant="day_close"
+                  data={{
+                    closing: {
+                      closing_number: printTarget.closing_number,
+                      close_date: printTarget.close_date,
+                      status: printTarget.status,
+                      opened_at: printTarget.opened_at,
+                      closed_at: printTarget.closed_at,
+                      net_profit: printTarget.net_profit,
+                      owner_deposits: printTarget.owner_deposits,
+                      owner_withdrawals: printTarget.owner_withdrawals,
+                      balance_check: printTarget.balance_check,
+                      remarks: printTarget.remarks,
+                      rows: printTarget.balances ?? [],
+                    },
+                    settings,
+                  }}
+                  filename={`Handover_${printTarget.closing_number}_${printTarget.close_date}.pdf`}
+                />
+                <a
+                  href={`/receipt/day-close/${printTarget.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  Full Page A4 ↗
+                </a>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                <p className="text-xs text-slate-400">Net Profit</p>
-                <p className={`text-lg font-bold ${printTarget.net_profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{inr(printTarget.net_profit)}</p>
+
+            {/* Account Balances Table */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Multi-Channel Liquidity &amp; Account Balances</h4>
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-100 bg-slate-50 dark:border-white/5 dark:bg-white/5">
+                    <tr>
+                      <th className="px-3 py-2">Channel / Asset Pool</th>
+                      <th className="px-3 py-2 text-right">Opening</th>
+                      <th className="px-3 py-2 text-right">Movements</th>
+                      <th className="px-3 py-2 text-right">Adjustment</th>
+                      <th className="px-3 py-2 text-right">Closing Position</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {(printTarget.balances ?? []).map((b) => (
+                      <tr key={b.id}>
+                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">{POOL_LABEL[b.pool] ?? b.pool}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(b.opening)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(b.movements)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(b.adjustment)}</td>
+                        <td className="px-3 py-2 text-right font-bold text-slate-900 dark:text-white">{inr(b.final)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t border-slate-200 bg-slate-50 font-bold dark:border-white/10 dark:bg-white/5">
+                    <tr>
+                      <td className="px-3 py-2">TOTAL NET LIQUID POSITION</td>
+                      <td className="px-3 py-2 text-right">{inr((printTarget.balances ?? []).reduce((s, b) => s + Number(b.opening || 0), 0))}</td>
+                      <td className="px-3 py-2 text-right">{inr((printTarget.balances ?? []).reduce((s, b) => s + Number(b.movements || 0), 0))}</td>
+                      <td className="px-3 py-2 text-right">{inr((printTarget.balances ?? []).reduce((s, b) => s + Number(b.adjustment || 0), 0))}</td>
+                      <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{inr((printTarget.balances ?? []).reduce((s, b) => s + Number(b.final || 0), 0))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                <p className="text-xs text-slate-400">Balance Check</p>
-                <p className={`text-lg font-bold ${Math.abs(printTarget.balance_check) < 0.01 ? "text-slate-500" : "text-rose-500"}`}>{inr(printTarget.balance_check)}</p>
+            </div>
+
+            {/* Reconciliation Cards */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Financial Reconciliation &amp; Audit</h4>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-semibold uppercase text-slate-400">Net Shift Profit</p>
+                  <p className={`text-base font-bold ${printTarget.net_profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    {inr(printTarget.net_profit)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-semibold uppercase text-slate-400">Owner Inflows</p>
+                  <p className="text-base font-bold text-slate-800 dark:text-white">{inr(printTarget.owner_deposits)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-semibold uppercase text-slate-400">Owner Withdrawals</p>
+                  <p className="text-base font-bold text-slate-800 dark:text-white">{inr(printTarget.owner_withdrawals)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[10px] font-semibold uppercase text-slate-400">Balance Check</p>
+                  <p className={`text-base font-bold ${Math.abs(printTarget.balance_check) < 0.01 ? "text-slate-500" : "text-rose-500"}`}>
+                    {inr(printTarget.balance_check)}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                <p className="text-xs text-slate-400">Owner Deposits</p>
-                <p className="text-lg font-bold text-slate-800 dark:text-white">{inr(printTarget.owner_deposits)}</p>
+            </div>
+
+            {/* Handover Signatures */}
+            <div className="grid grid-cols-2 gap-6 border-t border-dashed border-slate-200 pt-6 dark:border-white/10">
+              <div className="text-center">
+                <div className="mx-auto h-10 w-44 border-b border-slate-400" />
+                <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Cashier / Operator Signature</p>
+                <p className="text-[10px] text-slate-400">Handed Over By</p>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                <p className="text-xs text-slate-400">Owner Withdrawals</p>
-                <p className="text-lg font-bold text-slate-800 dark:text-white">{inr(printTarget.owner_withdrawals)}</p>
+              <div className="text-center">
+                <div className="mx-auto h-10 w-44 border-b border-slate-400" />
+                <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Store Manager / Auditor Signature</p>
+                <p className="text-[10px] text-slate-400">Verified &amp; Received</p>
               </div>
             </div>
           </div>
@@ -791,24 +869,38 @@ export default function DayCloseClient({
       )}
 
       {handoverModal && openClose && (
-        <Modal onClose={() => setHandoverModal(false)} title={`Shift Handover Slip · ${openClose.closing_number}`} accent="emerald" size="lg">
-          <div className="space-y-6 p-6">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-white/10">
+        <Modal onClose={() => setHandoverModal(false)} title={`Shift Handover Certificate · ${openClose.closing_number}`} accent="emerald" size="lg">
+          <div className="space-y-5 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-white/10">
               <div>
                 <h2 className="text-base font-bold text-slate-900 dark:text-white">Store End-of-Day Handover Certificate</h2>
                 <p className="text-xs text-slate-500">Closing #{openClose.closing_number} · Date: {fmtDate(openClose.close_date)}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <path d="M6 14h12v8H6z" />
-                </svg>
-                Print Shift Slip
-              </button>
+              <div className="flex items-center gap-2">
+                <A4Actions
+                  variant="day_close"
+                  data={{
+                    closing: {
+                      closing_number: openClose.closing_number,
+                      close_date: openClose.close_date,
+                      status: openClose.status,
+                      rows: openClose.rows,
+                    },
+                    denominations,
+                    physicalCashTotal,
+                    settings,
+                  }}
+                  filename={`Handover_${openClose.closing_number}_${openClose.close_date}.pdf`}
+                />
+                <a
+                  href={`/receipt/day-close/${openClose.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  Full Page A4 ↗
+                </a>
+              </div>
             </div>
 
             {/* Account Balances Breakdown */}
