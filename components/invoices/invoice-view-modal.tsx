@@ -179,20 +179,20 @@ export default function InvoiceViewModal({
       accent="blue"
       size="xl"
       headerRight={
-        <div className="mr-2 flex items-center gap-1 text-xs">
-          <a
-            href={`/receipt/${invoiceId}`}
-            target="_blank"
-            className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-blue-600 transition hover:bg-blue-50"
-          >
-            80mm
-          </a>
+        <div className="mr-2 flex items-center gap-1.5 text-xs">
           <a
             href={`/receipt/${invoiceId}/a4`}
             target="_blank"
-            className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-blue-600 transition hover:bg-blue-50"
+            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
-            A4 / PDF
+            📄 A4 / PDF (Default)
+          </a>
+          <a
+            href={`/receipt/${invoiceId}`}
+            target="_blank"
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            🧾 80mm
           </a>
         </div>
       }

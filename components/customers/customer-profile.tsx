@@ -565,8 +565,8 @@ function SalesTab({ invoices, inr }: { invoices: any[]; inr: (n: number | string
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="text-sm font-semibold text-slate-900">{inr(inv.total)}</span>
-            <Link href={`/receipt/${inv.id}`} target="_blank" className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50">
-              Print
+            <Link href={`/receipt/${inv.id}/a4`} target="_blank" className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50">
+              Print A4
             </Link>
           </div>
         </div>
@@ -606,8 +606,8 @@ function InvoicesTab({ invoices, inr }: { invoices: any[]; inr: (n: number | str
               <td className="px-3 py-2.5 text-right text-emerald-600">{inr(inv.paid)}</td>
               <td className="px-3 py-2.5 text-right text-rose-600">{inr(inv.due)}</td>
               <td className="px-3 py-2.5 text-right">
-                <Link href={`/receipt/${inv.id}`} target="_blank" className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50">
-                  Print
+                <Link href={`/receipt/${inv.id}/a4`} target="_blank" className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50">
+                  Print A4
                 </Link>
               </td>
             </tr>

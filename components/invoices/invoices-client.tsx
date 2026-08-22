@@ -776,10 +776,10 @@ export default function InvoicesClient({
                     </svg>
                   </button>
                   <a
-                    href={`/receipt/${inv.id}`}
+                    href={`/receipt/${inv.id}/a4`}
                     target="_blank"
-                    title="Print 80mm receipt"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                    title="Print A4 Invoice / PDF"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                       <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
@@ -929,10 +929,10 @@ export default function InvoicesClient({
                         <td className="px-5 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             <a
-                              href={`/receipt/${inv.id}`}
+                              href={`/receipt/${inv.id}/a4`}
                               target="_blank"
-                              title="Print 80mm receipt"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                              title="Print A4 Invoice / PDF"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                                 <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />

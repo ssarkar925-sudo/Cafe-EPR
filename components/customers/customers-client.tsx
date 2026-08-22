@@ -756,11 +756,11 @@ export default function CustomersClient({
                         <div className="flex shrink-0 items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900">{inr(inv.total)}</span>
                           <Link
-                            href={`/receipt/${inv.id}`}
+                            href={`/receipt/${inv.id}/a4`}
                             target="_blank"
                             className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50"
                           >
-                            Print
+                            Print A4
                           </Link>
                         </div>
                       </div>
