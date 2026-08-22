@@ -2653,3 +2653,90 @@ $$;
 revoke all on function public.cancel_open_close(uuid, text) from public, anon;
 grant execute on function public.cancel_open_close(uuid, text) to authenticated;
 
+-- ============================================================================
+-- SECTION 11: Customer Ledger Payment & Due Adjustment Suite
+-- ============================================================================
+
+alter table public.customer_ledger drop constraint if exists customer_ledger_type_check;
+alter table public.customer_ledger
+  add constraint customer_ledger_type_check
+  check (type in ('invoice', 'payment', 'return', 'opening', 'advance', 'adjustment', 'recharge', 'dmt', 'upi', 'aeps'));
+
+-- Atomically adjusts a customer's ledger: records payment, advance, or manual balance adjustment
+create or replace function public.adjust_customer_ledger(
+  p_customer_id uuid,
+  p_entry_date date,
+  p_type text, -- 'payment', 'advance', 'adjustment'
+  p_direction text, -- 'credit' (customer pays / reduces due) or 'debit' (adds to due)
+  p_amount numeric,
+  p_method text default 'cash',
+  p_description text default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_prev_bal numeric := 0;
+  v_new_bal numeric := 0;
+  v_name text;
+  v_debit numeric := 0;
+  v_credit numeric := 0;
+  v_method text;
+  v_ledger_id uuid;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if not public.is_back_office() then raise exception 'Forbidden'; end if;
+  if p_customer_id is null then raise exception 'Customer is required'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be greater than zero'; end if;
+  
+  v_method := coalesce(nullif(p_method, ''), 'cash');
+  if v_method not in ('cash', 'upi', 'card', 'bank', 'wallet', 'debit_card', 'credit_card') then
+    v_method := 'cash';
+  end if;
+
+  select coalesce(balance, 0), name into v_prev_bal, v_name
+  from public.customers where id = p_customer_id for update;
+  if not found then raise exception 'Customer not found'; end if;
+
+  if p_direction = 'credit' then
+    v_credit := p_amount;
+    v_new_bal := v_prev_bal - p_amount;
+  else
+    v_debit := p_amount;
+    v_new_bal := v_prev_bal + p_amount;
+  end if;
+
+  update public.customers
+  set balance = v_new_bal, updated_at = now()
+  where id = p_customer_id;
+
+  insert into public.customer_ledger (
+    customer_id, entry_date, type, description, debit, credit, balance_after
+  ) values (
+    p_customer_id, coalesce(p_entry_date, current_date), coalesce(p_type, 'adjustment'),
+    coalesce(p_description, case when p_direction = 'credit' then 'Payment received (' || upper(v_method) || ')' else 'Manual debit adjustment' end),
+    v_debit, v_credit, v_new_bal
+  ) returning id into v_ledger_id;
+
+  -- Record into cash_entries if money was received as payment/advance
+  if p_direction = 'credit' and coalesce(p_type, '') in ('payment', 'advance') then
+    insert into public.cash_entries (entry_date, method, direction, amount, description, ref_type, ref_id)
+    values (coalesce(p_entry_date, current_date), v_method, 'in', p_amount, 'Payment received from ' || v_name || ' (' || coalesce(p_description, 'Ledger settlement') || ')', 'customer_payment', v_ledger_id);
+  end if;
+
+  insert into public.audit_logs (user_id, user_name, action, entity, entity_id, description, details)
+  values (
+    auth.uid(), null, 'customer_ledger_adjusted', 'customers', p_customer_id::text,
+    'Adjusted ledger for ' || v_name || ' by ' || p_amount || ' (' || p_direction || ')',
+    jsonb_build_object('customer_id', p_customer_id, 'amount', p_amount, 'direction', p_direction, 'type', p_type, 'new_balance', v_new_bal)
+  );
+
+  return jsonb_build_object('ok', true, 'balance', v_new_bal, 'ledger_id', v_ledger_id);
+end;
+$$;
+
+revoke all on function public.adjust_customer_ledger(uuid, date, text, text, numeric, text, text) from public, anon;
+grant execute on function public.adjust_customer_ledger(uuid, date, text, text, numeric, text, text) to authenticated;
+
+

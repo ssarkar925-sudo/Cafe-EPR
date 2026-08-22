@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
@@ -17,5 +18,9 @@ export default async function LedgerPage() {
     .eq("is_active", true)
     .order("name");
 
-  return <LedgerClient customers={(customers ?? []) as any} />;
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading ledger…</div>}>
+      <LedgerClient customers={(customers ?? []) as any} />
+    </Suspense>
+  );
 }
