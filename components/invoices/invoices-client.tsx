@@ -148,10 +148,10 @@ export default function InvoicesClient({
 
   async function handleSendInvoiceWhatsApp(inv: InvoiceRow) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const receiptUrl = `${origin}/receipt/${inv.id}`;
+    const receiptUrl = `${origin}/receipt/${inv.id}/a4`;
     const phone = inv.customers?.phone || "";
     const statusText = inv.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(inv.due))}`;
-    const msg = `🧾 *INVOICE: ${inv.invoice_number}*\n📅 Date: ${inv.invoice_date}\n${inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(inv.total))}\n💳 Paid: ${inr(Number(inv.paid))}\n${statusText}\n───────────────\n📄 View / Download Receipt:\n${receiptUrl}\n\nThank you!`;
+    const msg = `🧾 *TAX INVOICE: ${inv.invoice_number}*\n📅 Date: ${inv.invoice_date}\n${inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(inv.total))}\n💳 Paid: ${inr(Number(inv.paid))}\n${statusText}\n───────────────\n📄 View / Download A4 Invoice (PDF):\n${receiptUrl}\n\nThank you for your business!`;
 
     flash("success", "Sending WhatsApp invoice...");
     const res = await sendWhatsAppMessage({ phone, message: msg });

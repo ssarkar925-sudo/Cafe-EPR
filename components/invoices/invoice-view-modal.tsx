@@ -8,6 +8,7 @@ import Modal from "@/components/ui/modal";
 import { statusBadge, type InvoiceRow } from "./invoices-client";
 import { logAudit } from "@/lib/audit";
 import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 type Detail = {
   id: string;
@@ -22,7 +23,7 @@ type Detail = {
   returned: number | string;
   refunded: number | string;
   status: string;
-  customers: { name: string } | null;
+  customers: { name: string; phone?: string } | null;
 };
 
 type Item = {
@@ -75,7 +76,7 @@ export default function InvoiceViewModal({
     const [inv, its, pays, sets, defaultQr, upiInst] = await Promise.all([
       supabase
         .from("invoices")
-        .select("*, customers(name)")
+        .select("*, customers(name, phone)")
         .eq("id", invoiceId)
         .single(),
       supabase
@@ -110,8 +111,23 @@ export default function InvoiceViewModal({
         amount: targetAmt,
         note: `Invoice ${inv.data.invoice_number}`,
       });
-      const dataUrl = await generateQrDataUrl(str, { width: 160 });
-      setQrDataUrl(dataUrl);
+      if (str) {
+        generateQrDataUrl(str, { width: 220 }).then(setQrDataUrl);
+      }
+    }
+  }
+
+  async function handleSendWhatsApp() {
+    if (!detail) return;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/receipt/${detail.id}/a4`;
+    const phone = detail.customers?.phone || "";
+    const statusText = detail.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(detail.due))}`;
+    const msg = `🧾 *TAX INVOICE: ${detail.invoice_number}*\n📅 Date: ${detail.invoice_date}\n${detail.customers?.name ? `👤 Customer: ${detail.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(detail.total))}\n💳 Paid: ${inr(Number(detail.paid))}\n${statusText}\n───────────────\n📄 View / Download A4 Invoice (PDF):\n${receiptUrl}\n\nThank you for your business!`;
+
+    const res = await sendWhatsAppMessage({ phone, message: msg });
+    if (!res.ok) {
+      window.open(res.fallbackUrl, "_blank", "noopener");
     }
   }
 
@@ -121,42 +137,62 @@ export default function InvoiceViewModal({
     load();
   }, [invoiceId]);
 
-  async function recordPayment() {
-    setError(null);
-    const amt = Number(payAmount) || 0;
-    if (amt <= 0) {
-      setError("Enter an amount");
-      return;
-    }
+  async function recordPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!detail || !payAmount || Number(payAmount) <= 0) return;
     setBusy(true);
-    const { data, error } = await supabase.rpc("record_invoice_payment", {
-      p_invoice_id: invoiceId,
-      p_method: payMethod,
-      p_amount: amt,
+    setError(null);
+
+    const amt = Number(payAmount);
+    const prevPaid = Number(detail.paid) || 0;
+    const total = Number(detail.total) || 0;
+    const newPaid = prevPaid + amt;
+    const newDue = Math.max(0, total - newPaid);
+    const newStatus = newDue <= 0 ? "paid" : "partial";
+
+    const { error: pErr } = await supabase.from("payments").insert({
+      invoice_id: invoiceId,
+      customer_id: detail.customer_id,
+      amount: amt,
+      method: payMethod,
     });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
+    if (pErr) {
+      setError(pErr.message);
+      setBusy(false);
       return;
     }
-    const r = data as { paid: number; due: number; status: string };
-    if (detail) {
-      const updated = { ...detail, paid: r.paid, due: r.due, status: r.status };
-      setDetail(updated);
-      onChanged(updated);
+
+    const { data: updated, error: iErr } = await supabase
+      .from("invoices")
+      .update({ paid: newPaid, due: newDue, status: newStatus })
+      .eq("id", invoiceId)
+      .select("*, customers(name)")
+      .single();
+
+    if (iErr) {
+      setError(iErr.message);
+      setBusy(false);
+      return;
     }
-    setPayAmount("");
-    load();
-    logAudit({
+
+    await logAudit({
       action: "payment",
       entity: "invoice",
       entity_id: invoiceId,
       description: `Payment of ${inr(amt)} received (${payMethod})`,
-      details: { invoice_number: detail?.invoice_number ?? null, method: payMethod, amount: amt },
+      details: { amount: amt, method: payMethod, invoice_number: detail.invoice_number },
     });
+
+    setPayAmount("");
+    setBusy(false);
+    if (updated) {
+      setDetail(updated as Detail);
+      onChanged(updated as InvoiceRow);
+    }
+    load();
   }
 
-  async function returnInvoice() {
+  function returnInvoice() {
     if (!onReturn) return;
     setError(null);
     onReturn(invoiceId);
@@ -179,7 +215,18 @@ export default function InvoiceViewModal({
       accent="blue"
       size="xl"
       headerRight={
-        <div className="mr-2 flex items-center gap-1.5 text-xs">
+        <div className="mr-2 flex flex-wrap items-center gap-1.5 text-xs">
+          <button
+            type="button"
+            onClick={handleSendWhatsApp}
+            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            title="Send A4 Invoice on WhatsApp"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            WhatsApp
+          </button>
           <a
             href={`/receipt/${invoiceId}/a4`}
             target="_blank"

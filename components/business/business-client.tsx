@@ -945,10 +945,10 @@ export default function BusinessClient({
 
   async function handleSendWhatsAppTxn(t: Txn) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const receiptUrl = `${origin}/business/receipt/${t.id}`;
+    const receiptUrl = `${origin}/business/receipt/${t.id}/a4`;
     const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
     const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
-    const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View Receipt:\n${receiptUrl}\n\nThank you!`;
+    const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View / Download A4 Receipt (PDF):\n${receiptUrl}\n\nThank you!`;
 
     showToast("info", "Sending WhatsApp receipt...");
     const res = await sendWhatsAppMessage({ phone: rawPhone, message: msg });

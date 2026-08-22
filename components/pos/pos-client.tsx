@@ -924,10 +924,10 @@ export default function PosClient({
 
   async function handleSendInvoiceWhatsApp(s: SaleResult) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const receiptUrl = `${origin}/receipt/${s.id}`;
+    const receiptUrl = `${origin}/receipt/${s.id}/a4`;
     const phone = s.customer_phone || "";
     const statusText = s.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(s.due)}`;
-    const msg = `🧾 *INVOICE: ${s.invoice_number}*\n📅 Date: ${s.invoice_date}\n${s.customer_name ? `👤 Customer: ${s.customer_name}\n` : ""}───────────────\n💰 Total Bill: ${inr(s.total)}\n💳 Amount Received: ${inr(Number(s.paid) + Number(s.change ?? 0))}\n${statusText}\n───────────────\n📄 View / Download Online Receipt:\n${receiptUrl}\n\nThank you for your business!`;
+    const msg = `🧾 *TAX INVOICE: ${s.invoice_number}*\n📅 Date: ${s.invoice_date}\n${s.customer_name ? `👤 Customer: ${s.customer_name}\n` : ""}───────────────\n💰 Total Bill: ${inr(s.total)}\n💳 Amount Received: ${inr(Number(s.paid) + Number(s.change ?? 0))}\n${statusText}\n───────────────\n📄 View / Download A4 Invoice (PDF):\n${receiptUrl}\n\nThank you for your business!`;
 
     setWaStatus("sending");
     const res = await sendWhatsAppMessage({ phone, message: msg });
