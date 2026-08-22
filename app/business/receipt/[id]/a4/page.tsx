@@ -179,21 +179,31 @@ export default async function BusinessReceiptA4Page({
                   </div>
                 </>
               )}
-              <div className="flex justify-between py-1.5 font-bold text-slate-900">
-                <span>Transferred Amount</span>
-                <span>{money(txn.amount)}</span>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Money Sent From</span>
+                <span className="font-medium text-slate-900">{(txn.paid_from ?? "bank") === "portal" ? "DMT Portal Wallet" : "Bank Account"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Customer Paid Via</span>
+                <span className="font-medium capitalize text-slate-900">{txn.customer_pay_method || "Cash"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Transfer (Money Out)</span>
+                <span className="font-semibold text-rose-600">{money(txn.amount)}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Customer Fee</span>
+                <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
+              </div>
+              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                <span>Total Collected from Customer</span>
+                <span className="text-emerald-700">{money(Number(txn.amount) + Number(txn.service_fee))}</span>
               </div>
               {showFees && (
-                <>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-slate-600">Customer Fee</span>
-                    <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
-                  </div>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-slate-600">Portal Charge</span>
-                    <span className="font-medium text-slate-900">{money(txn.portal_commission)}</span>
-                  </div>
-                </>
+                <div className="flex justify-between py-1 text-xs text-slate-400">
+                  <span>Portal Charge</span>
+                  <span>{money(txn.portal_commission)}</span>
+                </div>
               )}
             </>
           )}

@@ -118,7 +118,7 @@ const CONFIG: Record<string, Cfg> = {
   },
   dmt: {
     title: "DMT — Money Transfer",
-    desc: "Remittances to beneficiaries through the portal.",
+    desc: "Remittances to beneficiaries through Bank Account or DMT Portal.",
     recordLabel: "Record Transfer",
     groups: [{ value: "none", label: "Overall totals" }, { value: "method", label: "Group by Method" }],
     bankFilter: false,
@@ -128,9 +128,10 @@ const CONFIG: Record<string, Cfg> = {
     customerFilter: true,
     cards: [
       { key: "count", label: "Transactions", icon: ICONS.receipt, grad: "from-blue-500 to-indigo-600" },
-      { key: "withdrawal", label: "Transferred", icon: ICONS.rupee, grad: "from-emerald-500 to-teal-600" },
-      { key: "fees", label: "Shop Income", icon: ICONS.coins, grad: "from-amber-500 to-orange-600", sub: "= Customer Fee charged" },
-      { key: "net", label: "Net Contribution", icon: ICONS.trend, grad: "from-rose-500 to-pink-600", sub: "Customer Fee − Portal Charge" },
+      { key: "moneyOut", label: "Money Out (Transfer)", icon: ICONS.rupee, grad: "from-rose-500 to-pink-600", sub: "Bank & Portal Debited" },
+      { key: "moneyIn", label: "Money In (Customer)", icon: ICONS.rupee, grad: "from-emerald-500 to-teal-600", sub: "Transfer + Customer Fee" },
+      { key: "fees", label: "Customer Fee", icon: ICONS.coins, grad: "from-amber-500 to-orange-600", sub: "Gross Service Charge" },
+      { key: "net", label: "Shop Net Profit", icon: ICONS.trend, grad: "from-violet-500 to-purple-600", sub: "Customer Fee − Portal Charge" },
     ],
     tableHeaders: [
       { key: "txn" },
@@ -138,8 +139,9 @@ const CONFIG: Record<string, Cfg> = {
       { key: "sender" },
       { key: "beneficiary" },
       { key: "date" },
-      { key: "transfer", align: "right" },
-      { key: "income", align: "right" },
+      { key: "moneyOut", align: "right" },
+      { key: "moneyIn", align: "right" },
+      { key: "fee", align: "right" },
       { key: "net", align: "right" },
       { key: "status", align: "center" },
       { key: "actions", align: "right" },
@@ -348,11 +350,18 @@ export default function BusinessClient({
 
   const report = useMemo(() => {
     const rows = successOnly;
+    const withdrawal = rows.reduce((s, t) => s + Number(t.amount), 0);
+    const fees = rows.reduce((s, t) => s + Number(t.service_fee), 0);
+    const commission = rows.reduce((s, t) => s + Number(t.portal_commission), 0);
+    const moneyOut = withdrawal;
+    const moneyIn = rows.reduce((s, t) => s + Number(t.amount) + Number(t.service_fee), 0);
     return {
       count: rows.length,
-      withdrawal: rows.reduce((s, t) => s + Number(t.amount), 0),
-      fees: rows.reduce((s, t) => s + Number(t.service_fee), 0),
-      commission: rows.reduce((s, t) => s + Number(t.portal_commission), 0),
+      withdrawal,
+      fees,
+      commission,
+      moneyOut,
+      moneyIn,
     };
   }, [successOnly]);
 
@@ -384,6 +393,8 @@ export default function BusinessClient({
       label,
       count: rows.length,
       withdrawal: rows.reduce((s, t) => s + Number(t.amount), 0),
+      moneyOut: rows.reduce((s, t) => s + Number(t.amount), 0),
+      moneyIn: rows.reduce((s, t) => s + Number(t.amount) + Number(t.service_fee), 0),
       fees: rows.reduce((s, t) => s + Number(t.service_fee), 0),
       commission: rows.reduce((s, t) => s + Number(t.portal_commission), 0),
       net: service === "dmt"
@@ -763,6 +774,8 @@ export default function BusinessClient({
   const cardValue = (key: string) => {
     if (key === "count") return String(report.count);
     if (key === "withdrawal") return inr(report.withdrawal);
+    if (key === "moneyOut") return inr(report.moneyOut);
+    if (key === "moneyIn") return inr(report.moneyIn);
     if (key === "fees") return inr(report.fees);
     if (key === "commission") return inr(report.commission);
     return inr(netTotal);
@@ -1070,6 +1083,8 @@ export default function BusinessClient({
                     : h.key === "bankPortal" ? "Bank / Portal"
                     : h.key === "date" ? "Date"
                     : h.key === "withdrawal" ? (service === "aeps" ? "Withdrawal" : service === "recharge" ? "Recharged" : "Transfer")
+                    : h.key === "moneyOut" ? "Money Out (Transfer)"
+                    : h.key === "moneyIn" ? "Money In (Customer)"
                     : h.key === "fee" ? (service === "aeps" ? "Fee" : "Service Fee")
                     : h.key === "commission" ? "Commission"
                     : h.key === "provider" ? "Provider"
@@ -1139,9 +1154,16 @@ export default function BusinessClient({
                 )}
                 {service === "dmt" && (
                   <>
-                    <td className="px-5 py-3 text-right font-medium text-slate-900">{inr(t.amount)}</td>
-                    <td className="px-5 py-3 text-right text-slate-700">{inr(t.service_fee)}</td>
-                    <td className="px-5 py-3 text-right font-medium text-[13px]">{inr(Number(t.service_fee) - Number(t.portal_commission))}</td>
+                    <td className="px-5 py-3 text-right font-medium">
+                      <p className="font-bold text-rose-600 dark:text-rose-400">{inr(t.amount)}</p>
+                      <p className="cell-sub text-[11px] text-slate-400">{(t.paid_from ?? "bank") === "portal" ? "🌐 Portal" : "🏦 Bank"}</p>
+                    </td>
+                    <td className="px-5 py-3 text-right font-medium">
+                      <p className="font-bold text-emerald-600 dark:text-emerald-400">{inr(Number(t.amount) + Number(t.service_fee))}</p>
+                      <p className="cell-sub text-[11px] text-slate-400 capitalize">{t.customer_pay_method === "due" ? "📋 Due" : t.customer_pay_method === "upi" ? "📱 UPI" : t.customer_pay_method === "bank" ? "🏦 Bank" : "💵 Cash"}</p>
+                    </td>
+                    <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">{inr(t.service_fee)}</td>
+                    <td className="px-5 py-3 text-right font-bold text-violet-600 dark:text-violet-400 text-[13px]">{inr(Number(t.service_fee) - Number(t.portal_commission))}</td>
                   </>
                 )}
                 {service === "upi" && (
@@ -1259,18 +1281,37 @@ export default function BusinessClient({
                   </p>
                 )}
 
-                <div className="mt-4 flex items-end justify-between">
-                  <div>
-                    <p className="text-xs text-slate-400">{service === "upi" ? "Cash handed" : service === "aeps" ? "Withdrawn" : service === "recharge" ? "Recharged" : "Transferred"}</p>
-                    <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{inr(t.amount)}</p>
+                {service === "dmt" ? (
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-white/5">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-500">📤 Money Out (Sent)</p>
+                      <p className="mt-0.5 text-base font-bold text-rose-600 dark:text-rose-400">{inr(t.amount)}</p>
+                      <p className="text-[11px] text-slate-400">{(t.paid_from ?? "bank") === "portal" ? "DMT Portal Wallet" : "Our Bank Account"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500">📥 Money In (Recv)</p>
+                      <p className="mt-0.5 text-base font-bold text-emerald-600 dark:text-emerald-400">{inr(Number(t.amount) + Number(t.service_fee))}</p>
+                      <p className="text-[11px] text-slate-400 capitalize">{t.customer_pay_method === "due" ? "Customer Due" : t.customer_pay_method === "upi" ? "UPI QR" : t.customer_pay_method === "bank" ? "Bank Transfer" : "Cash Received"}</p>
+                    </div>
+                    <div className="col-span-2 mt-1 flex items-center justify-between border-t border-slate-200/60 pt-2 text-xs dark:border-white/10">
+                      <span className="text-slate-500 dark:text-slate-400">Customer Fee: <b>{inr(t.service_fee)}</b></span>
+                      <span className="font-semibold text-violet-600 dark:text-violet-400">Net Profit: {inr(Number(t.service_fee) - Number(t.portal_commission))}</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-400">Shop income</p>
-                    <p className="text-sm font-semibold text-emerald-600">
-                      {inr(service === "dmt" ? Number(t.service_fee) - Number(t.portal_commission) : Number(t.service_fee) + Number(t.portal_commission))}
-                    </p>
+                ) : (
+                  <div className="mt-4 flex items-end justify-between">
+                    <div>
+                      <p className="text-xs text-slate-400">{service === "upi" ? "Cash handed" : service === "aeps" ? "Withdrawn" : "Recharged"}</p>
+                      <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{inr(t.amount)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">Shop income</p>
+                      <p className="text-sm font-semibold text-emerald-600">
+                        {inr(Number(t.service_fee) + Number(t.portal_commission))}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
                   <span className="text-xs text-slate-400">{fmtDateTime(t)}</span>

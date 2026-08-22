@@ -177,7 +177,14 @@ export default function ReportsClient({
       principal: validTxns.reduce((s, t) => s + Number(t.amount), 0),
       fees: validTxns.reduce((s, t) => s + Number(t.service_fee), 0),
       commission: validTxns.reduce((s, t) => s + Number(t.portal_commission), 0),
-      income: validTxns.reduce((s, t) => s + Number(t.service_fee) + Number(t.portal_commission), 0),
+      income: validTxns.reduce(
+        (s, t) =>
+          s +
+          (t.service_type === "dmt"
+            ? Number(t.service_fee) - Number(t.portal_commission)
+            : Number(t.service_fee) + Number(t.portal_commission)),
+        0
+      ),
     };
   }, [validTxns]);
 
@@ -760,7 +767,8 @@ export default function ReportsClient({
                     <th className="py-2 pr-4 font-medium">Date</th>
                     <th className="py-2 pr-4 font-medium">Customer</th>
                     <th className="py-2 pr-4 font-medium">Reference</th>
-                    <th className="py-2 pr-4 text-right font-medium">Amount</th>
+                    <th className="py-2 pr-4 text-right font-medium">Money Out</th>
+                    <th className="py-2 pr-4 text-right font-medium">Money In</th>
                     <th className="py-2 pr-4 text-right font-medium">Fee</th>
                     <th className="py-2 pr-4 text-right font-medium">Commission</th>
                     <th className="py-2 font-medium">Status</th>
@@ -776,7 +784,8 @@ export default function ReportsClient({
                       <td className="py-2.5 pr-4 text-slate-500">{t.transaction_date}</td>
                       <td className="py-2.5 pr-4 text-slate-700">{t.customer_mobile || "-"}</td>
                       <td className="py-2.5 pr-4 text-slate-500">{t.reference || "-"}</td>
-                      <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(t.amount))}</td>
+                      <td className="py-2.5 pr-4 text-right font-medium text-rose-600">{inr(Number(t.amount))}</td>
+                      <td className="py-2.5 pr-4 text-right font-medium text-emerald-600">{inr(t.service_type === "dmt" ? Number(t.amount) + Number(t.service_fee) : Number(t.amount))}</td>
                       <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(t.service_fee))}</td>
                       <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(t.portal_commission))}</td>
                       <td className="py-2.5">

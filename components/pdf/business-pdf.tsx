@@ -154,21 +154,31 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
               </>
             )}
             <View style={styles.sectionTitle} />
-            <View style={styles.moneyRow}>
-              <Text>Transferred Amount</Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Money Sent From</Text>
+              <Text>{(txn.paid_from ?? "bank") === "portal" ? "DMT Portal Wallet" : "Bank Account"}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Customer Paid Via</Text>
+              <Text>{txn.customer_pay_method || "Cash"}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Transfer (Money Out)</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Customer Fee</Text>
+              <Text>{money(txn.service_fee)}</Text>
+            </View>
+            <View style={styles.moneyRow}>
+              <Text>Total Collected from Customer</Text>
+              <Text>{money(Number(txn.amount) + Number(txn.service_fee))}</Text>
+            </View>
             {showFees && (
-              <>
-                <View style={styles.row}>
-                  <Text style={styles.label}>Customer Fee</Text>
-                  <Text>{money(txn.service_fee)}</Text>
-                </View>
-                <View style={styles.row}>
-                  <Text style={styles.label}>Portal Charge</Text>
-                  <Text>{money(txn.portal_commission)}</Text>
-                </View>
-              </>
+              <View style={styles.row}>
+                <Text style={styles.label}>Portal Charge</Text>
+                <Text>{money(txn.portal_commission)}</Text>
+              </View>
             )}
           </>
         )}

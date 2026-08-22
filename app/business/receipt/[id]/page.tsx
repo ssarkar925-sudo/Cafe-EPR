@@ -180,21 +180,32 @@ export default async function BusinessReceiptPage({
                 </>
               )}
               <div className="my-1 border-t border-dashed border-slate-400" />
+              <div className="flex justify-between">
+                <span>Transfer (Money Out)</span>
+                <span className="font-semibold">{money(txn.amount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Paid From</span>
+                <span>{(txn.paid_from ?? "bank") === "portal" ? "Portal Wallet" : "Bank Account"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Service Fee</span>
+                <span>{money(txn.service_fee)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Customer Paid Via</span>
+                <span className="capitalize">{txn.customer_pay_method || "Cash"}</span>
+              </div>
+              <div className="my-1 border-t border-dashed border-slate-400" />
               <div className="flex justify-between text-sm font-bold">
-                <span>TRANSFERRED</span>
-                <span>{money(txn.amount)}</span>
+                <span>TOTAL COLLECTED</span>
+                <span>{money(Number(txn.amount) + Number(txn.service_fee))}</span>
               </div>
               {showFees && (
-                <>
-                  <div className="flex justify-between">
-                    <span>Customer Fee</span>
-                    <span>{money(txn.service_fee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Portal Charge</span>
-                    <span>{money(txn.portal_commission)}</span>
-                  </div>
-                </>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Portal Charge</span>
+                  <span>{money(txn.portal_commission)}</span>
+                </div>
               )}
             </>
           )}

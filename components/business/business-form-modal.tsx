@@ -764,6 +764,36 @@ export default function BusinessFormModal({
             <label className={labelCls}>{service === "dmt" ? "RRN / Reference *" : "Reference / RRN"}</label>
             <input value={form.reference} onChange={(e) => set("reference", e.target.value)} className={input} />
           </div>
+          {service === "dmt" && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3.5 sm:col-span-2 dark:border-violet-900/40 dark:bg-violet-950/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">DMT Money Flow Summary</span>
+                <span className="text-xs font-semibold text-violet-600 dark:text-violet-400">
+                  Shop Net Profit: {inr(Math.max(0, Number(form.service_fee || 0) - Number(form.portal_commission || 0)))}
+                </span>
+              </div>
+              <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs">
+                <div className="rounded-lg bg-white/90 p-2.5 shadow-xs dark:bg-slate-900/80">
+                  <div className="flex items-center justify-between font-semibold text-rose-600 dark:text-rose-400">
+                    <span>📤 Money Out (Debited):</span>
+                    <span className="text-sm font-bold">{inr(Number(form.amount) || 0)}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Sent from <b>{form.paid_from === "portal" ? "DMT Portal Wallet" : "Our Bank Account"}</b> to beneficiary
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/90 p-2.5 shadow-xs dark:bg-slate-900/80">
+                  <div className="flex items-center justify-between font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span>📥 Money In (Collected):</span>
+                    <span className="text-sm font-bold">{inr((Number(form.amount) || 0) + (Number(form.service_fee) || 0))}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Collected via <b>{form.customer_pay_method === "due" ? "Due (Credit)" : form.customer_pay_method === "upi" ? "UPI QR" : form.customer_pay_method === "bank" ? "Bank Transfer" : "Cash"}</b> ({inr(Number(form.amount) || 0)} transfer + {inr(Number(form.service_fee) || 0)} fee)
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="sm:col-span-2">
             <label className={labelCls}>Remarks</label>
             <textarea rows={2} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className={input} />
