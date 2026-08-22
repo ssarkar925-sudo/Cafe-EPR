@@ -19,7 +19,7 @@ export default async function DashboardLayout({
     supabase.from("settings").select("shop_name, logo_url").single(),
   ]);
 
-  const role = await getUserRole();
+  const role = (profile?.role as string) ?? "staff";
 
   if (profile && profile.is_active === false) {
     return (

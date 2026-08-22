@@ -146,8 +146,7 @@ export default function LoginPage() {
       description: `Signed in with 2FA as ${data.user?.email ?? email}`,
     });
 
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = "/dashboard";
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -246,8 +245,7 @@ export default function LoginPage() {
       description: `Signed in as ${data.user?.email ?? email}`,
     });
 
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = "/dashboard";
   }
 
   async function handleReset(e: React.FormEvent) {

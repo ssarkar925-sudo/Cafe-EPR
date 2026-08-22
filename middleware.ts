@@ -10,11 +10,16 @@ function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+function hasAuthCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Missing Supabase env vars must never crash the Edge runtime (would 500 the
-  // whole app as MIDDLEWARE_INVOCATION_FAILED). Fall back to a hard gate.
+  // Missing Supabase env vars fallback
   if (!SUPABASE_URL || !SUPABASE_ANON) {
     if (isPublic(pathname)) return NextResponse.next();
     const loginUrl = request.nextUrl.clone();
@@ -23,6 +28,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Fast-path 1: Public APIs and confirmation routes don't need auth checks
+  if (pathname.startsWith("/api") || pathname === "/auth/confirm-reset" || pathname === "/logout") {
+    return NextResponse.next();
+  }
+
+  const hasCookie = hasAuthCookie(request);
+
+  // Fast-path 2: Visiting login page with NO auth cookie -> render immediately (0ms latency)
+  if (pathname === "/login" && !hasCookie) {
+    return NextResponse.next();
+  }
+
+  // Fast-path 3: Visiting protected page with NO auth cookie -> redirect to login immediately without network call
+  if (!isPublic(pathname) && !hasCookie) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Active session exists: create Supabase client for validation/refresh
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
@@ -42,7 +68,6 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Session refresh + validation. Never let a transient failure take the app down.
   let user: { id: string } | null = null;
   try {
     const {
@@ -53,16 +78,11 @@ export async function middleware(request: NextRequest) {
     user = null;
   }
 
-  // Server-side 2FA enforcement: if the user has a verified MFA factor but the
-  // access token is only aal1 (password-only session), refuse access. The login
-  // page completes the challenge so the aal2 session can be issued.
   function b64decode(input: string): string {
     const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
     return atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
   }
   function extractAccessToken(): string | null {
-    // @supabase/ssr stores the session as `base64-<base64url(json session)>`,
-    // possibly chunked across the auth-token cookie and `.0`, `.1`, ...
     const chunks: string[] = [];
     for (let i = 0; i < 6; i++) {
       const name = `${cookiePrefix}${i === 0 ? "" : "." + i}`;
