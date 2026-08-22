@@ -135,12 +135,13 @@ const HERO_CARDS = [
 
 const MONEY_CARDS = [
   { key: "cash", label: "Cash in Hand", icon: ICONS.wallet, gradient: "from-indigo-500 to-violet-600", href: "/finance/cashbook" },
-  { key: "bank", label: "Cash in Bank", icon: ICONS.bank, gradient: "from-blue-500 to-indigo-600", href: "/finance/settlements" },
-  { key: "wallet", label: "Cash in Wallet", icon: ICONS.wallet, gradient: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
+  { key: "bank", label: "Bank Account", icon: ICONS.bank, gradient: "from-blue-500 to-indigo-600", href: "/finance/settlements" },
+  { key: "wallet", label: "Digital Wallet", icon: ICONS.wallet, gradient: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
   { key: "dmt", label: "DMT Float", icon: ICONS.send, gradient: "from-violet-500 to-purple-600", href: "/business/dmt" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.card, gradient: "from-amber-500 to-orange-600", href: "/business/aeps" },
   { key: "upi_qr", label: "UPI QR Wallet", icon: ICONS.qr, gradient: "from-rose-500 to-pink-600", href: "/business/upi" },
   { key: "recharge", label: "Recharge Float", icon: ICONS.bolt, gradient: "from-cyan-500 to-sky-600", href: "/business/recharge" },
+  { key: "credit_card", label: "Credit Card Limit", icon: ICONS.card, gradient: "from-slate-600 to-slate-800", href: "/finance/opening-balances" },
 ];
 
 const SERVICE_META: Record<string, { label: string; grad: string; icon: string }> = {
@@ -493,29 +494,35 @@ export default function DashboardClient({
         ))}
       </div>
 
-      {/* Money Position */}
+      {/* Money Position — 8-Pool Liquidity Matrix */}
       <div className="mt-8 flex items-end justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Money Position</h2>
-          <p className="text-xs text-slate-400">Where your money sits right now · receivables {inr(receivables)}</p>
+          <h2 className="text-lg font-semibold text-slate-900">Executive Liquidity Matrix</h2>
+          <p className="text-xs text-slate-400">Live positions across all 8 liquid accounts · Total receivables {inr(receivables)}</p>
         </div>
         <Link href="/finance/settlements" className="text-sm font-medium text-blue-600 hover:text-blue-700">
-          Settlements →
+          Settlement Hub →
         </Link>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {MONEY_CARDS.map((c) => (
-          <Link key={c.key} href={c.href} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.gradient}`} />
-            <div className="flex items-center gap-2">
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${c.gradient} text-white shadow`}>
-                <Icon path={c.icon} className="h-4 w-4" />
-              </span>
-              <p className="text-xs font-medium text-slate-500">{c.label}</p>
-            </div>
-            <p className="mt-3 text-lg font-bold text-slate-900">{inr(moneyValues[c.key])}</p>
-          </Link>
-        ))}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        {MONEY_CARDS.map((c) => {
+          const val = moneyValues[c.key] ?? 0;
+          return (
+            <Link key={c.key} href={c.href} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.gradient}`} />
+              <div className="flex items-center justify-between">
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${c.gradient} text-white shadow-sm`}>
+                  <Icon path={c.icon} className="h-3.5 w-3.5" />
+                </span>
+                <span className={`rounded-full px-1.5 py-0.2 text-[9px] font-semibold ${val < 0 ? "bg-rose-100 text-rose-700" : val === 0 ? "bg-slate-100 text-slate-500" : "bg-emerald-100 text-emerald-700"}`}>
+                  {val < 0 ? "Deficit" : val === 0 ? "Zero" : "Active"}
+                </span>
+              </div>
+              <p className="mt-2 text-xs font-medium text-slate-500">{c.label}</p>
+              <p className={`mt-0.5 text-base font-bold ${val < 0 ? "text-rose-600" : "text-slate-900"}`}>{inr(val)}</p>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Business — AEPS / DMT / UPI / Recharge */}
@@ -814,7 +821,21 @@ export default function DashboardClient({
                 {topDebtors.map((d) => (
                   <li key={d.name} className="flex items-center justify-between gap-3">
                     <span className="truncate text-sm text-slate-700">{d.name}</span>
-                    <span className="shrink-0 font-medium text-rose-600">{inr(Number(d.balance))}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="shrink-0 font-medium text-rose-600">{inr(Number(d.balance))}</span>
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(`Dear ${d.name}, gentle reminder that your outstanding balance at our store is ${inr(Number(d.balance))}. Please clear at your convenience. Thank you!`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title="Send WhatsApp payment reminder"
+                        className="rounded-md p-1 text-emerald-600 transition hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                        </svg>
+                      </a>
+                    </div>
                   </li>
                 ))}
               </ul>

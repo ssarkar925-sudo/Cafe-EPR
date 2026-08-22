@@ -31,6 +31,19 @@ const METHOD_COLOR: Record<string, string> = {
   credit_card: "bg-cyan-100 text-cyan-700",
 };
 
+function getOriginBadge(e: CashEntry) {
+  const d = (e.description ?? "").toLowerCase();
+  if (d.includes("quick sale") || d.includes("qs-")) return { label: "Quick Sale", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" };
+  if (d.includes("sale inv-") || d.includes("sale") || d.includes("invoice")) return { label: "POS Sale", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" };
+  if (d.includes("aeps")) return { label: "AEPS", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+  if (d.includes("dmt")) return { label: "DMT", color: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" };
+  if (d.includes("settlement")) return { label: "Settlement", color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" };
+  if (d.includes("expense")) return { label: "Expense", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" };
+  if (d.includes("advance")) return { label: "Advance", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" };
+  if (d.includes("refund") || d.includes("return")) return { label: "Refund", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" };
+  return { label: "General", color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" };
+}
+
 export default function CashbookClient({
   initialEntries,
   instruments,
@@ -41,6 +54,7 @@ export default function CashbookClient({
   const [method, setMethod] = useState("all");
   const [account, setAccount] = useState("all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");
+  const [scope, setScope] = useState<"all" | "cash" | "digital">("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [preset, setPreset] = useState("all");
@@ -71,6 +85,8 @@ export default function CashbookClient({
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return initialEntries.filter((e) => {
+      if (scope === "cash" && e.method !== "cash") return false;
+      if (scope === "digital" && e.method === "cash") return false;
       if (method !== "all" && e.method !== method) return false;
       if (account !== "all" && (e.payment_instruments?.name ?? "Unassigned") !== account) return false;
       if (direction !== "all" && e.direction !== direction) return false;
@@ -79,7 +95,18 @@ export default function CashbookClient({
       if (needle && !(e.description ?? "").toLowerCase().includes(needle) && !e.method.includes(needle)) return false;
       return true;
     });
-  }, [initialEntries, method, account, direction, from, to, q]);
+  }, [initialEntries, scope, method, account, direction, from, to, q]);
+
+  const physicalCashStats = useMemo(() => {
+    const cashEntries = initialEntries.filter((e) => {
+      if (from && e.entry_date < from) return false;
+      if (to && e.entry_date > to) return false;
+      return e.method === "cash";
+    });
+    const inAmt = cashEntries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount), 0);
+    const outAmt = cashEntries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount), 0);
+    return { inAmt, outAmt, balance: inAmt - outAmt, count: cashEntries.length };
+  }, [initialEntries, from, to]);
 
   const totals = useMemo(() => {
     let balance = 0;
@@ -245,12 +272,58 @@ export default function CashbookClient({
         </div>
       </div>
 
+      {/* Channel Scope Selector */}
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
+        <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold dark:bg-white/5">
+          <button
+            type="button"
+            onClick={() => setScope("all")}
+            className={`rounded-lg px-3.5 py-1.5 transition ${
+              scope === "all" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            All Accounts
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope("cash")}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
+              scope === "cash" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <span>💵</span> Physical Cash Drawer
+            {scope !== "cash" && physicalCashStats.balance !== 0 && (
+              <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                {inr(physicalCashStats.balance)}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope("digital")}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
+              scope === "digital" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <span>💳</span> Digital &amp; Bank Channels
+          </button>
+        </div>
+
+        {scope === "cash" && (
+          <div className="flex items-center gap-4 text-xs">
+            <span className="text-slate-400">Drawer In: <strong className="text-emerald-600">+{inr(physicalCashStats.inAmt)}</strong></span>
+            <span className="text-slate-400">Drawer Out: <strong className="text-rose-600">-{inr(physicalCashStats.outAmt)}</strong></span>
+            <span className="font-bold text-slate-700 dark:text-slate-200">Current In-Drawer Cash: <strong className="text-slate-900 dark:text-white">{inr(physicalCashStats.balance)}</strong></span>
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
         <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
           <thead>
             <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
               <th className="px-5 py-3 font-medium">Date</th>
-              <th className="px-5 py-3 font-medium">Description</th>
+              <th className="px-5 py-3 font-medium">Origin &amp; Description</th>
               <th className="px-5 py-3 font-medium">Method</th>
               <th className="px-5 py-3 text-right font-medium">In</th>
               <th className="px-5 py-3 text-right font-medium">Out</th>
@@ -258,29 +331,39 @@ export default function CashbookClient({
             </tr>
           </thead>
           <tbody>
-            {[...totals.rows].reverse().map((e) => (
-              <tr key={e.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5">
-                <td className="px-5 py-3 text-slate-500">{e.entry_date}</td>
-                <td className="px-5 py-3 text-slate-900 dark:text-white">{e.description || "-"}</td>
-                <td className="px-5 py-3">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${METHOD_COLOR[e.method] || "bg-slate-100 text-slate-600"}`}>
-                    {e.method.toUpperCase()}
-                  </span>
-                  {e.payment_instruments?.name && (
-                    <span className="cell-sub ml-1.5 text-[11px] text-slate-400">{e.payment_instruments.name}</span>
-                  )}
-                </td>
-                <td className="px-5 py-3 text-right font-medium text-emerald-600">
-                  {e.direction === "in" ? `+${inr(e.amount)}` : ""}
-                </td>
-                <td className="px-5 py-3 text-right font-medium text-rose-600">
-                  {e.direction === "out" ? `-${inr(e.amount)}` : ""}
-                </td>
-                <td className={`px-5 py-3 text-right font-semibold ${e.balance < 0 ? "text-rose-600" : "text-slate-900 dark:text-white"}`}>
-                  {inr(e.balance)}
-                </td>
-              </tr>
-            ))}
+            {[...totals.rows].reverse().map((e) => {
+              const badge = getOriginBadge(e);
+              return (
+                <tr key={e.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5">
+                  <td className="px-5 py-3 text-slate-500">{e.entry_date}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badge.color}`}>
+                        {badge.label}
+                      </span>
+                      <span className="text-slate-900 dark:text-white">{e.description || "-"}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${METHOD_COLOR[e.method] || "bg-slate-100 text-slate-600"}`}>
+                      {e.method.toUpperCase()}
+                    </span>
+                    {e.payment_instruments?.name && (
+                      <span className="cell-sub ml-1.5 text-[11px] text-slate-400">{e.payment_instruments.name}</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-right font-medium text-emerald-600">
+                    {e.direction === "in" ? `+${inr(e.amount)}` : ""}
+                  </td>
+                  <td className="px-5 py-3 text-right font-medium text-rose-600">
+                    {e.direction === "out" ? `-${inr(e.amount)}` : ""}
+                  </td>
+                  <td className={`px-5 py-3 text-right font-semibold ${e.balance < 0 ? "text-rose-600" : "text-slate-900 dark:text-white"}`}>
+                    {inr(e.balance)}
+                  </td>
+                </tr>
+              );
+            })}
             {totals.rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-5 py-12 text-center text-slate-500">

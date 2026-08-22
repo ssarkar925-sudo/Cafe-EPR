@@ -98,8 +98,19 @@ export default function DayCloseClient({
   const [reverseTarget, setReverseTarget] = useState<ClosingRecord | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [printTarget, setPrintTarget] = useState<ClosingRecord | null>(null);
+  const [handoverModal, setHandoverModal] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [denominations, setDenominations] = useState<Record<string, string>>({
+    n500: "",
+    n200: "",
+    n100: "",
+    n50: "",
+    n20: "",
+    n10: "",
+    n5: "",
+    coins: "",
+  });
   const { showToast, toastView } = useToast();
 
   useEffect(() => {
@@ -125,6 +136,44 @@ export default function DayCloseClient({
     const final = rows.reduce((s, r) => s + Number(r.final), 0);
     return { opening, computed, adjustments, final };
   }, [openClose]);
+
+  const physicalCashTotal = useMemo(() => {
+    return (
+      (Number(denominations.n500) || 0) * 500 +
+      (Number(denominations.n200) || 0) * 200 +
+      (Number(denominations.n100) || 0) * 100 +
+      (Number(denominations.n50) || 0) * 50 +
+      (Number(denominations.n20) || 0) * 20 +
+      (Number(denominations.n10) || 0) * 10 +
+      (Number(denominations.n5) || 0) * 5 +
+      (Number(denominations.coins) || 0)
+    );
+  }, [denominations]);
+
+  const cashRow = useMemo(() => openClose?.rows.find((r) => r.pool === "cash") ?? null, [openClose]);
+  const cashVariance = useMemo(() => {
+    if (!cashRow) return 0;
+    return physicalCashTotal - Number(cashRow.computed);
+  }, [cashRow, physicalCashTotal]);
+
+  async function applyCashDenominationVariance() {
+    if (!openClose || !cashRow) return;
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("set_close_adjustment", {
+      p_closing_id: openClose.id,
+      p_pool: "cash",
+      p_amount: cashVariance,
+      p_remarks: `Physical: ₹${physicalCashTotal.toLocaleString("en-IN")} vs System: ₹${Number(cashRow.computed).toLocaleString("en-IN")}`,
+    });
+    setBusy(false);
+    if (error) {
+      showToast("error", error.message);
+      return;
+    }
+    showToast("success", `Physical cash count ₹${physicalCashTotal.toLocaleString("en-IN")} applied to drawer.`);
+    await refresh();
+  }
 
   async function openDay() {
     if (!openDate) return;
@@ -354,6 +403,117 @@ export default function DayCloseClient({
             </table>
           </div>
 
+          {/* Physical Cash Denomination Counter & Variance Reconciler */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <rect width="20" height="12" x="2" y="6" rx="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <path d="M6 12h.01M18 12h.01" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Drawer Denomination Counter</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Count physical currency notes in the counter drawer to verify against computed cash</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHandoverModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                    <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <path d="M6 14h12v8H6z" />
+                  </svg>
+                  Preview Handover Slip
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              {[
+                { key: "n500", label: "₹500", mult: 500 },
+                { key: "n200", label: "₹200", mult: 200 },
+                { key: "n100", label: "₹100", mult: 100 },
+                { key: "n50", label: "₹50", mult: 50 },
+                { key: "n20", label: "₹20", mult: 20 },
+                { key: "n10", label: "₹10", mult: 10 },
+                { key: "n5", label: "₹5", mult: 5 },
+                { key: "coins", label: "Coins", mult: 1 },
+              ].map((d) => {
+                const count = Number(denominations[d.key]) || 0;
+                const subtotal = count * d.mult;
+                return (
+                  <div key={d.key} className="rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:border-white/5 dark:bg-white/5">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <span>{d.label}</span>
+                      <span className="text-[11px] text-slate-400">×{count}</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      value={denominations[d.key] ?? ""}
+                      onChange={(e) => setDenominations((prev) => ({ ...prev, [d.key]: e.target.value }))}
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <div className="mt-1 text-right text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      {inr(subtotal)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Reconciliation Comparison Bar */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3.5 dark:bg-white/5">
+              <div className="flex flex-wrap items-center gap-6 text-sm">
+                <div>
+                  <span className="text-xs text-slate-400">Physical Cash Count:</span>
+                  <p className="font-bold text-slate-900 dark:text-white">{inr(physicalCashTotal)}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400">System Computed Cash:</span>
+                  <p className="font-bold text-slate-900 dark:text-white">{inr(Number(cashRow?.computed ?? 0))}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400">Physical vs System Variance:</span>
+                  <p
+                    className={`font-bold ${
+                      Math.abs(cashVariance) < 0.01
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : cashVariance > 0
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-rose-600 dark:text-rose-400"
+                    }`}
+                  >
+                    {Math.abs(cashVariance) < 0.01
+                      ? "✓ Exact Match"
+                      : cashVariance > 0
+                        ? `+${inr(cashVariance)} (Surplus)`
+                        : `${inr(cashVariance)} (Shortage)`}
+                  </p>
+                </div>
+              </div>
+
+              {physicalCashTotal > 0 && Math.abs(cashVariance) >= 0.01 && (
+                <button
+                  type="button"
+                  onClick={applyCashDenominationVariance}
+                  disabled={busy}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  Apply Physical Count to Drawer (Set Adj to {cashVariance > 0 ? `+${inr(cashVariance)}` : inr(cashVariance)})
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="grid gap-4 lg:grid-cols-3">
             <StatCard
               label="Owner Deposits (extra cash/bank put in)"
@@ -569,6 +729,112 @@ export default function DayCloseClient({
               <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                 <p className="text-xs text-slate-400">Owner Withdrawals</p>
                 <p className="text-lg font-bold text-slate-800 dark:text-white">{inr(printTarget.owner_withdrawals)}</p>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {handoverModal && openClose && (
+        <Modal onClose={() => setHandoverModal(false)} title={`Shift Handover Slip · ${openClose.closing_number}`} accent="emerald" size="lg">
+          <div className="space-y-6 p-6">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-white/10">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Store End-of-Day Handover Certificate</h2>
+                <p className="text-xs text-slate-500">Closing #{openClose.closing_number} · Date: {fmtDate(openClose.close_date)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                  <path d="M6 14h12v8H6z" />
+                </svg>
+                Print Shift Slip
+              </button>
+            </div>
+
+            {/* Account Balances Breakdown */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Account &amp; Pool Balances</h4>
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-100 bg-slate-50 dark:border-white/5 dark:bg-white/5">
+                    <tr>
+                      <th className="px-3 py-2">Pool / Account</th>
+                      <th className="px-3 py-2 text-right">Opening</th>
+                      <th className="px-3 py-2 text-right">Movements</th>
+                      <th className="px-3 py-2 text-right">Adjustment</th>
+                      <th className="px-3 py-2 text-right">Closing Position</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {openClose.rows.map((r) => (
+                      <tr key={r.pool}>
+                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">{POOL_LABEL[r.pool] ?? r.pool}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(r.opening)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(r.movements)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(r.adjustment)}</td>
+                        <td className="px-3 py-2 text-right font-bold text-slate-900 dark:text-white">{inr(r.final)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {totals && (
+                    <tfoot className="border-t border-slate-200 bg-slate-50 font-bold dark:border-white/10 dark:bg-white/5">
+                      <tr>
+                        <td className="px-3 py-2">Total Liquid Position</td>
+                        <td className="px-3 py-2 text-right">{inr(totals.opening)}</td>
+                        <td className="px-3 py-2 text-right">{inr(totals.computed - totals.opening)}</td>
+                        <td className="px-3 py-2 text-right">{inr(totals.adjustments)}</td>
+                        <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{inr(totals.final)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* Cash Drawer Denominations */}
+            {physicalCashTotal > 0 && (
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Physical Cash Drawer Denominations</h4>
+                <div className="mt-2 grid grid-cols-4 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-white/10 dark:bg-white/5">
+                  {[
+                    { label: "₹500", count: Number(denominations.n500) || 0, val: (Number(denominations.n500) || 0) * 500 },
+                    { label: "₹200", count: Number(denominations.n200) || 0, val: (Number(denominations.n200) || 0) * 200 },
+                    { label: "₹100", count: Number(denominations.n100) || 0, val: (Number(denominations.n100) || 0) * 100 },
+                    { label: "₹50", count: Number(denominations.n50) || 0, val: (Number(denominations.n50) || 0) * 50 },
+                    { label: "₹20", count: Number(denominations.n20) || 0, val: (Number(denominations.n20) || 0) * 20 },
+                    { label: "₹10", count: Number(denominations.n10) || 0, val: (Number(denominations.n10) || 0) * 10 },
+                    { label: "₹5", count: Number(denominations.n5) || 0, val: (Number(denominations.n5) || 0) * 5 },
+                    { label: "Coins", count: Number(denominations.coins) || 0, val: Number(denominations.coins) || 0 },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between rounded-lg bg-white p-2 dark:bg-slate-900">
+                      <span className="font-semibold text-slate-600 dark:text-slate-400">{item.label} × {item.count}</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{inr(item.val)}</span>
+                    </div>
+                  ))}
+                  <div className="col-span-4 mt-1 flex items-center justify-between border-t border-slate-200 pt-2 font-bold text-slate-900 dark:border-white/10 dark:text-white">
+                    <span>Physical Cash Counted:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">{inr(physicalCashTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Handover Signatures */}
+            <div className="grid grid-cols-2 gap-6 border-t border-dashed border-slate-200 pt-8 dark:border-white/10">
+              <div className="text-center">
+                <div className="mx-auto h-12 w-48 border-b border-slate-400" />
+                <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300">Cashier / Operator Signature</p>
+                <p className="text-[10px] text-slate-400">Handed Over</p>
+              </div>
+              <div className="text-center">
+                <div className="mx-auto h-12 w-48 border-b border-slate-400" />
+                <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300">Store Manager / Auditor Signature</p>
+                <p className="text-[10px] text-slate-400">Verified &amp; Received</p>
               </div>
             </div>
           </div>
