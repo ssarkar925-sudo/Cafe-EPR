@@ -622,95 +622,9 @@ export default function BusinessClient({
     setShowCreate(false);
     showToast("success", `${service.toUpperCase()} ${inr(Number(payload.p_amount))} recorded — ${d.transaction_number}`);
 
-    // Synchronize DMT bank debit and customer collection in cash_entries & payment accounts
-    if (service === "dmt" && d.status === "success") {
-      const entryDate = ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-      const isBank = (payload.p_paid_from ?? "bank") === "bank";
-      const bankInstId = (payload.payment_account_id as string) || (payload.p_bank_id as string) || null;
-      const bankInstName = (payload.payment_account_name as string) || (bankInstId ? initialPaymentInstruments.find((p) => p.id === bankInstId)?.name : null) || "Our Bank Account";
-
-      // 1. Debit money out from Bank Account (deduplicate / check existing)
-      if (isBank && bankInstId) {
-        const { data: existingOut } = await supabase
-          .from("cash_entries")
-          .select("id")
-          .eq("ref_type", "transaction")
-          .eq("ref_id", d.id as string)
-          .eq("direction", "out");
-
-        if (existingOut && existingOut.length > 0) {
-          await supabase
-            .from("cash_entries")
-            .update({
-              entry_date: entryDate,
-              method: "bank",
-              amount: Number(payload.p_amount),
-              description: `DMT ${d.transaction_number} transfer sent from ${bankInstName}`,
-              instrument_id: bankInstId,
-            })
-            .eq("id", existingOut[0].id);
-
-          if (existingOut.length > 1) {
-            for (let i = 1; i < existingOut.length; i++) {
-              await supabase.from("cash_entries").delete().eq("id", existingOut[i].id);
-            }
-          }
-        } else {
-          await supabase.from("cash_entries").insert({
-            entry_date: entryDate,
-            method: "bank",
-            direction: "out",
-            amount: Number(payload.p_amount),
-            description: `DMT ${d.transaction_number} transfer sent from ${bankInstName}`,
-            ref_type: "transaction",
-            ref_id: d.id as string,
-            instrument_id: bankInstId,
-          });
-        }
-      }
-
-      // 2. Tag customer money in to appropriate payment instrument
-      const payMethod = (payload.p_customer_pay_method as string) || "cash";
-      const totalIn = Number(payload.p_amount) + Number(payload.p_service_fee ?? 0);
-      if (totalIn > 0 && payMethod !== "due") {
-        const targetInst = initialPaymentInstruments.find((p) => p.type === (payMethod === "cash" ? "cash" : payMethod === "upi" ? "upi" : "bank"));
-        const { data: existingIn } = await supabase
-          .from("cash_entries")
-          .select("id")
-          .eq("ref_type", "transaction")
-          .eq("ref_id", d.id as string)
-          .eq("direction", "in");
-
-        if (existingIn && existingIn.length > 0) {
-          await supabase
-            .from("cash_entries")
-            .update({
-              entry_date: entryDate,
-              instrument_id: targetInst?.id || null,
-              method: payMethod,
-              amount: totalIn,
-              description: `DMT ${d.transaction_number} collected from customer (${payMethod})`,
-            })
-            .eq("id", existingIn[0].id);
-
-          if (existingIn.length > 1) {
-            for (let i = 1; i < existingIn.length; i++) {
-              await supabase.from("cash_entries").delete().eq("id", existingIn[i].id);
-            }
-          }
-        } else {
-          await supabase.from("cash_entries").insert({
-            entry_date: entryDate,
-            method: payMethod,
-            direction: "in",
-            amount: totalIn,
-            description: `DMT ${d.transaction_number} collected from customer (${payMethod})`,
-            ref_type: "transaction",
-            ref_id: d.id as string,
-            instrument_id: targetInst?.id || null,
-          });
-        }
-      }
+    // Synchronize Cashbook & Payment Accounts for all transaction types
+    if (d.status === "success") {
+      await syncCashbookForTxn(service, d.transaction_number as string, d.id as string, payload, initialPaymentInstruments);
     }
 
     const waCfg = getWhatsAppConfig();
@@ -725,6 +639,308 @@ export default function BusinessClient({
       description: `${service.toUpperCase()} ${(d.direction as string) ?? ""} ${inr(Number(payload.p_amount))} created`,
       details: { transaction_number: d.transaction_number as string, service_type: service, amount: payload.p_amount },
     });
+  }
+
+  async function syncCashbookForTxn(
+    svc: string,
+    txnNo: string,
+    txnId: string,
+    payload: Record<string, unknown>,
+    instruments: { id: string; name: string; type: string }[]
+  ) {
+    const entryDate = ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const defaultCash = instruments.find((p) => p.type === "cash");
+    const defaultUpi = instruments.find((p) => p.type === "upi");
+    const amt = Number(payload.p_amount) || 0;
+    const fee = Number(payload.p_service_fee ?? 0) || 0;
+
+    const { data: existing } = await supabase
+      .from("cash_entries")
+      .select("id, direction, method")
+      .eq("ref_type", "transaction")
+      .eq("ref_id", txnId);
+
+    const existingOut = (existing ?? []).filter((e) => e.direction === "out");
+    const existingIn = (existing ?? []).filter((e) => e.direction === "in");
+
+    if (svc === "dmt") {
+      const isBank = (payload.p_paid_from ?? "bank") === "bank";
+      const bankInstId = (payload.payment_account_id as string) || (payload.p_bank_id as string) || null;
+      const bankInstName = (payload.payment_account_name as string) || (bankInstId ? instruments.find((p) => p.id === bankInstId)?.name : null) || "Our Bank Account";
+
+      if (isBank && bankInstId) {
+        if (existingOut.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: "bank",
+              amount: amt,
+              description: `DMT ${txnNo} transfer sent from ${bankInstName}`,
+              instrument_id: bankInstId,
+            })
+            .eq("id", existingOut[0].id);
+          if (existingOut.length > 1) {
+            for (let i = 1; i < existingOut.length; i++) {
+              await supabase.from("cash_entries").delete().eq("id", existingOut[i].id);
+            }
+          }
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: "bank",
+            direction: "out",
+            amount: amt,
+            description: `DMT ${txnNo} transfer sent from ${bankInstName}`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: bankInstId,
+          });
+        }
+      } else if (!isBank && existingOut.length > 0) {
+        for (const ce of existingOut) {
+          await supabase.from("cash_entries").delete().eq("id", ce.id);
+        }
+      }
+
+      const payMethod = (payload.p_customer_pay_method as string) || "cash";
+      const totalIn = amt + fee;
+      const targetInst = instruments.find((p) => p.type === (payMethod === "cash" ? "cash" : payMethod === "upi" ? "upi" : "bank"));
+      if (totalIn > 0 && payMethod !== "due") {
+        if (existingIn.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: payMethod,
+              amount: totalIn,
+              description: `DMT ${txnNo} collected from customer (${payMethod})`,
+              instrument_id: targetInst?.id || null,
+            })
+            .eq("id", existingIn[0].id);
+          if (existingIn.length > 1) {
+            for (let i = 1; i < existingIn.length; i++) {
+              await supabase.from("cash_entries").delete().eq("id", existingIn[i].id);
+            }
+          }
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: payMethod,
+            direction: "in",
+            amount: totalIn,
+            description: `DMT ${txnNo} collected from customer (${payMethod})`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: targetInst?.id || null,
+          });
+        }
+      } else if (existingIn.length > 0) {
+        for (const ce of existingIn) {
+          await supabase.from("cash_entries").delete().eq("id", ce.id);
+        }
+      }
+    } else if (svc === "aeps") {
+      const feeSrc = (payload.p_fee_source as string) || "deducted_from_cash";
+      const cashOutAmt = feeSrc === "upi" || feeSrc === "separate_cash" ? amt : amt - fee;
+
+      if (cashOutAmt > 0) {
+        if (existingOut.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: "cash",
+              amount: cashOutAmt,
+              description: `AEPS ${txnNo} cash payout`,
+              instrument_id: defaultCash?.id || null,
+            })
+            .eq("id", existingOut[0].id);
+          if (existingOut.length > 1) {
+            for (let i = 1; i < existingOut.length; i++) {
+              await supabase.from("cash_entries").delete().eq("id", existingOut[i].id);
+            }
+          }
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: "cash",
+            direction: "out",
+            amount: cashOutAmt,
+            description: `AEPS ${txnNo} cash payout`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: defaultCash?.id || null,
+          });
+        }
+      }
+
+      if (fee > 0 && (feeSrc === "separate_cash" || feeSrc === "upi")) {
+        const feeMethod = feeSrc === "upi" ? "upi" : "cash";
+        const feeInst = feeSrc === "upi" ? defaultUpi : defaultCash;
+        if (existingIn.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: feeMethod,
+              amount: fee,
+              description: `AEPS ${txnNo} fee collected (${feeMethod.toUpperCase()})`,
+              instrument_id: feeInst?.id || null,
+            })
+            .eq("id", existingIn[0].id);
+          if (existingIn.length > 1) {
+            for (let i = 1; i < existingIn.length; i++) {
+              await supabase.from("cash_entries").delete().eq("id", existingIn[i].id);
+            }
+          }
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: feeMethod,
+            direction: "in",
+            amount: fee,
+            description: `AEPS ${txnNo} fee collected (${feeMethod.toUpperCase()})`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: feeInst?.id || null,
+          });
+        }
+      } else if (existingIn.length > 0) {
+        for (const ce of existingIn) {
+          await supabase.from("cash_entries").delete().eq("id", ce.id);
+        }
+      }
+    } else if (svc === "upi") {
+      const custMethod = (payload.p_customer_pay_method as string) || "qr";
+      const totalIn = amt + fee;
+
+      if (custMethod === "cash") {
+        if (existingIn.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: "cash",
+              amount: totalIn,
+              description: `UPI ${txnNo} received in cash`,
+              instrument_id: defaultCash?.id || null,
+            })
+            .eq("id", existingIn[0].id);
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: "cash",
+            direction: "in",
+            amount: totalIn,
+            description: `UPI ${txnNo} received in cash`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: defaultCash?.id || null,
+          });
+        }
+
+        if (existingOut.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: "upi",
+              amount: amt,
+              description: `UPI ${txnNo} transfer sent`,
+              instrument_id: defaultUpi?.id || null,
+            })
+            .eq("id", existingOut[0].id);
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: "upi",
+            direction: "out",
+            amount: amt,
+            description: `UPI ${txnNo} transfer sent`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: defaultUpi?.id || null,
+          });
+        }
+      } else {
+        if (existingIn.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: "upi",
+              amount: totalIn,
+              description: `UPI ${txnNo} received via QR`,
+              instrument_id: defaultUpi?.id || null,
+            })
+            .eq("id", existingIn[0].id);
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: "upi",
+            direction: "in",
+            amount: totalIn,
+            description: `UPI ${txnNo} received via QR`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: defaultUpi?.id || null,
+          });
+        }
+
+        if (existingOut.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: "cash",
+              amount: amt,
+              description: `UPI ${txnNo} cash payout`,
+              instrument_id: defaultCash?.id || null,
+            })
+            .eq("id", existingOut[0].id);
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: "cash",
+            direction: "out",
+            amount: amt,
+            description: `UPI ${txnNo} cash payout`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: defaultCash?.id || null,
+          });
+        }
+      }
+    } else if (svc === "recharge") {
+      const payMethod = (payload.p_customer_pay_method as string) || "cash";
+      const targetInst = instruments.find((p) => p.type === (payMethod === "cash" ? "cash" : payMethod === "upi" ? "upi" : "bank"));
+      if (amt > 0 && payMethod !== "due") {
+        if (existingIn.length > 0) {
+          await supabase
+            .from("cash_entries")
+            .update({
+              entry_date: entryDate,
+              method: payMethod,
+              amount: amt,
+              description: `Recharge ${txnNo} collected from customer (${payMethod})`,
+              instrument_id: targetInst?.id || null,
+            })
+            .eq("id", existingIn[0].id);
+        } else {
+          await supabase.from("cash_entries").insert({
+            entry_date: entryDate,
+            method: payMethod,
+            direction: "in",
+            amount: amt,
+            description: `Recharge ${txnNo} collected from customer (${payMethod})`,
+            ref_type: "transaction",
+            ref_id: txnId,
+            instrument_id: targetInst?.id || null,
+          });
+        }
+      }
+    }
   }
 
   async function handleSendWhatsAppTxn(t: Txn) {
@@ -877,105 +1093,8 @@ export default function BusinessClient({
     };
     setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
 
-    // Synchronize DMT cash_entries on edit (safe update-if-exists & deduplication)
-    if (service === "dmt") {
-      const entryDate = ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-      const isBank = (payload.p_paid_from ?? "bank") === "bank";
-      const bankInstId = (payload.payment_account_id as string) || (payload.p_bank_id as string) || null;
-      const bankInstName = (payload.payment_account_name as string) || (bankInstId ? initialPaymentInstruments.find((p) => p.id === bankInstId)?.name : null) || "Our Bank Account";
-
-      // 1. Bank Outflow
-      const { data: existingOut } = await supabase
-        .from("cash_entries")
-        .select("id")
-        .eq("ref_type", "transaction")
-        .eq("ref_id", editTxn.id)
-        .eq("direction", "out");
-
-      if (isBank && bankInstId) {
-        if (existingOut && existingOut.length > 0) {
-          await supabase
-            .from("cash_entries")
-            .update({
-              entry_date: entryDate,
-              method: "bank",
-              amount: Number(payload.p_amount),
-              description: `DMT ${editTxn.transaction_number} transfer sent from ${bankInstName}`,
-              instrument_id: bankInstId,
-            })
-            .eq("id", existingOut[0].id);
-
-          if (existingOut.length > 1) {
-            for (let i = 1; i < existingOut.length; i++) {
-              await supabase.from("cash_entries").delete().eq("id", existingOut[i].id);
-            }
-          }
-        } else {
-          await supabase.from("cash_entries").insert({
-            entry_date: entryDate,
-            method: "bank",
-            direction: "out",
-            amount: Number(payload.p_amount),
-            description: `DMT ${editTxn.transaction_number} transfer sent from ${bankInstName}`,
-            ref_type: "transaction",
-            ref_id: editTxn.id,
-            instrument_id: bankInstId,
-          });
-        }
-      } else if (!isBank && existingOut && existingOut.length > 0) {
-        for (const ce of existingOut) {
-          await supabase.from("cash_entries").delete().eq("id", ce.id);
-        }
-      }
-
-      // 2. Customer Inflow
-      const payMethod = (payload.p_customer_pay_method as string) || "cash";
-      const totalIn = Number(payload.p_amount) + Number(payload.p_service_fee ?? 0);
-      const targetInst = initialPaymentInstruments.find((p) => p.type === (payMethod === "cash" ? "cash" : payMethod === "upi" ? "upi" : "bank"));
-
-      const { data: existingIn } = await supabase
-        .from("cash_entries")
-        .select("id")
-        .eq("ref_type", "transaction")
-        .eq("ref_id", editTxn.id)
-        .eq("direction", "in");
-
-      if (totalIn > 0 && payMethod !== "due") {
-        if (existingIn && existingIn.length > 0) {
-          await supabase
-            .from("cash_entries")
-            .update({
-              entry_date: entryDate,
-              method: payMethod,
-              amount: totalIn,
-              description: `DMT ${editTxn.transaction_number} collected from customer (${payMethod})`,
-              instrument_id: targetInst?.id || null,
-            })
-            .eq("id", existingIn[0].id);
-
-          if (existingIn.length > 1) {
-            for (let i = 1; i < existingIn.length; i++) {
-              await supabase.from("cash_entries").delete().eq("id", existingIn[i].id);
-            }
-          }
-        } else {
-          await supabase.from("cash_entries").insert({
-            entry_date: entryDate,
-            method: payMethod,
-            direction: "in",
-            amount: totalIn,
-            description: `DMT ${editTxn.transaction_number} collected from customer (${payMethod})`,
-            ref_type: "transaction",
-            ref_id: editTxn.id,
-            instrument_id: targetInst?.id || null,
-          });
-        }
-      } else if (existingIn && existingIn.length > 0) {
-        for (const ce of existingIn) {
-          await supabase.from("cash_entries").delete().eq("id", ce.id);
-        }
-      }
-    }
+    // Synchronize Cashbook & Payment Accounts on edit
+    await syncCashbookForTxn(service, editTxn.transaction_number, editTxn.id, payload, initialPaymentInstruments);
 
     setEditTxn(null);
     showToast("success", `Transaction ${editTxn.transaction_number} updated`);

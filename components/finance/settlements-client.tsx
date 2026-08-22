@@ -185,6 +185,54 @@ export default function SettlementsClient({
       showToast("error", error.message);
       return;
     }
+
+    const sType = payload.p_settlement_type;
+    const sId = (data as any)?.id;
+    const sNum = (data as any)?.settlement_number;
+    if (sId) {
+      if (sType === "aeps_to_bank" || sType === "upi_qr_to_bank" || sType === "wallet_to_bank" || sType === "recharge_to_bank") {
+        await supabase.from("cash_entries").insert({
+          entry_date: payload.p_settlement_date,
+          method: "bank",
+          direction: "in",
+          amount: payload.p_amount,
+          description: `Settlement: ${sNum} settled to Bank`,
+          ref_type: "settlement",
+          ref_id: sId,
+        });
+      } else if (sType === "bank_to_dmt" || sType === "bank_to_recharge") {
+        await supabase.from("cash_entries").insert({
+          entry_date: payload.p_settlement_date,
+          method: "bank",
+          direction: "out",
+          amount: payload.p_amount,
+          description: `Settlement: ${sNum} sent from Bank`,
+          ref_type: "settlement",
+          ref_id: sId,
+        });
+      } else if (sType === "bank_withdrawal") {
+        await supabase.from("cash_entries").insert({
+          entry_date: payload.p_settlement_date,
+          method: "bank",
+          direction: "out",
+          amount: payload.p_amount,
+          description: `Settlement: ${sNum} Bank Withdrawal`,
+          ref_type: "settlement",
+          ref_id: sId,
+        });
+      } else if (sType === "add_cash_to_bank") {
+        await supabase.from("cash_entries").insert({
+          entry_date: payload.p_settlement_date,
+          method: "bank",
+          direction: "in",
+          amount: payload.p_amount,
+          description: `Settlement: ${sNum} Cash deposited to Bank`,
+          ref_type: "settlement",
+          ref_id: sId,
+        });
+      }
+    }
+
     logAudit({
       action: "create",
       entity: "settlement",
@@ -213,6 +261,9 @@ export default function SettlementsClient({
       setReason("");
       return;
     }
+
+    await supabase.from("cash_entries").delete().eq("ref_type", "settlement").eq("ref_id", reverseTarget.id);
+
     logAudit({
       action: "reverse",
       entity: "settlement",

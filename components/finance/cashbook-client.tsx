@@ -35,11 +35,17 @@ function getOriginBadge(e: CashEntry) {
   const d = (e.description ?? "").toLowerCase();
   if (d.includes("quick sale") || d.includes("qs-")) return { label: "Quick Sale", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" };
   if (d.includes("sale inv-") || d.includes("sale") || d.includes("invoice")) return { label: "POS Sale", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" };
-  if (d.includes("aeps")) return { label: "AEPS", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
-  if (d.includes("dmt")) return { label: "DMT", color: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" };
+  if (d.includes("aeps") && (d.includes("payout") || e.direction === "out")) return { label: "AEPS Payout", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+  if (d.includes("aeps") && d.includes("fee")) return { label: "AEPS Fee", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+  if (d.includes("dmt") && (d.includes("transfer") || d.includes("debited") || e.direction === "out")) return { label: "DMT Out (Bank)", color: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" };
+  if (d.includes("dmt") && (d.includes("collected") || e.direction === "in")) return { label: "DMT In (Customer)", color: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" };
+  if (d.includes("upi") && (d.includes("payout") || e.direction === "out")) return { label: "UPI Cash Out", color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" };
+  if (d.includes("upi") && (d.includes("received") || d.includes("qr") || e.direction === "in")) return { label: "UPI QR In", color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" };
+  if (d.includes("recharge") || d.includes("rcg")) return { label: "Recharge", color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" };
   if (d.includes("settlement")) return { label: "Settlement", color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400" };
   if (d.includes("expense")) return { label: "Expense", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" };
   if (d.includes("advance")) return { label: "Advance", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" };
+  if (d.includes("previous due") || d.includes("due")) return { label: "Due Collected", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" };
   if (d.includes("refund") || d.includes("return")) return { label: "Refund", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" };
   return { label: "General", color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" };
 }
@@ -54,7 +60,7 @@ export default function CashbookClient({
   const [method, setMethod] = useState("all");
   const [account, setAccount] = useState("all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");
-  const [scope, setScope] = useState<"all" | "cash" | "digital">("all");
+  const [scope, setScope] = useState<"all" | "cash" | "bank" | "digital">("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [preset, setPreset] = useState("all");
@@ -86,7 +92,8 @@ export default function CashbookClient({
     const needle = q.trim().toLowerCase();
     return initialEntries.filter((e) => {
       if (scope === "cash" && e.method !== "cash") return false;
-      if (scope === "digital" && e.method === "cash") return false;
+      if (scope === "bank" && !["bank", "debit_card"].includes(e.method)) return false;
+      if (scope === "digital" && ["cash", "bank", "debit_card"].includes(e.method)) return false;
       if (method !== "all" && e.method !== method) return false;
       if (account !== "all" && (e.payment_instruments?.name ?? "Unassigned") !== account) return false;
       if (direction !== "all" && e.direction !== direction) return false;
@@ -97,15 +104,31 @@ export default function CashbookClient({
     });
   }, [initialEntries, scope, method, account, direction, from, to, q]);
 
-  const physicalCashStats = useMemo(() => {
-    const cashEntries = initialEntries.filter((e) => {
+  const channelStats = useMemo(() => {
+    const inDate = (e: CashEntry) => {
       if (from && e.entry_date < from) return false;
       if (to && e.entry_date > to) return false;
-      return e.method === "cash";
-    });
-    const inAmt = cashEntries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount), 0);
-    const outAmt = cashEntries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount), 0);
-    return { inAmt, outAmt, balance: inAmt - outAmt, count: cashEntries.length };
+      return true;
+    };
+    const periodEntries = initialEntries.filter(inDate);
+
+    const cashEntries = periodEntries.filter((e) => e.method === "cash");
+    const cashIn = cashEntries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount), 0);
+    const cashOut = cashEntries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount), 0);
+
+    const bankEntries = periodEntries.filter((e) => ["bank", "debit_card"].includes(e.method));
+    const bankIn = bankEntries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount), 0);
+    const bankOut = bankEntries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount), 0);
+
+    const digiEntries = periodEntries.filter((e) => !["cash", "bank", "debit_card"].includes(e.method));
+    const digiIn = digiEntries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount), 0);
+    const digiOut = digiEntries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount), 0);
+
+    return {
+      cash: { inAmt: cashIn, outAmt: cashOut, balance: cashIn - cashOut, count: cashEntries.length },
+      bank: { inAmt: bankIn, outAmt: bankOut, balance: bankIn - bankOut, count: bankEntries.length },
+      digital: { inAmt: digiIn, outAmt: digiOut, balance: digiIn - digiOut, count: digiEntries.length },
+    };
   }, [initialEntries, from, to]);
 
   const totals = useMemo(() => {
@@ -138,9 +161,9 @@ export default function CashbookClient({
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Cash Book</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Cash Book &amp; Financial Ledger</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Every cash movement across invoices, business, expenses and settlements — in one place.
+            Unified money trail across Cash Drawer, Bank Accounts, UPI/Digital, POS, DMT, AEPS, Recharge &amp; Expenses.
           </p>
         </div>
         <button
@@ -156,41 +179,114 @@ export default function CashbookClient({
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Total In"
+          label="Total Inflow (Cashbook In)"
           value={inr(totals.totalIn)}
-          sub={`${filtered.filter((e) => e.direction === "in").length} entries`}
+          sub={`${filtered.filter((e) => e.direction === "in").length} receipts / collections`}
           icon="M12 15V3m0 12 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
           grad="from-emerald-500 to-teal-600"
           onClick={() => setDirection(direction === "in" ? "all" : "in")}
         />
         <StatCard
-          label="Total Out"
+          label="Total Outflow (Cashbook Out)"
           value={inr(totals.totalOut)}
-          sub={`${filtered.filter((e) => e.direction === "out").length} entries`}
+          sub={`${filtered.filter((e) => e.direction === "out").length} payouts / transfers`}
           icon="M12 3v12m0 0 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
           grad="from-rose-500 to-pink-600"
           onClick={() => setDirection(direction === "out" ? "all" : "out")}
         />
         <StatCard
-          label="Closing Balance"
+          label="Closing Net Position"
           value={inr(net)}
-          sub={net < 0 ? "Cash shortfall" : "Net cash position"}
+          sub={net < 0 ? "Net outflow position" : "Net inflow / surplus"}
           icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
           grad={net < 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"}
           onClick={() => setDirection("all")}
         />
         <StatCard
-          label="Entries"
-          value={String(filtered.length)}
+          label={scope === "all" ? "All Channels" : scope === "cash" ? "💵 Cash Drawer" : scope === "bank" ? "🏦 Bank Channels" : "📱 Digital & UPI"}
+          value={String(filtered.length) + " Entries"}
           sub={`${totals.totalIn > 0 ? inr(totals.totalIn) : "₹0"} in · ${totals.totalOut > 0 ? inr(totals.totalOut) : "₹0"} out`}
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-violet-500 to-purple-600"
           onClick={() => {
             setDirection("all");
             setMethod("all");
+            setScope("all");
             setQ("");
           }}
         />
+      </div>
+
+      {/* 3 Channels Live Summary Ribbon */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div
+          onClick={() => setScope("cash")}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition ${
+            scope === "cash"
+              ? "border-emerald-500 bg-emerald-50/50 dark:border-emerald-500/50 dark:bg-emerald-950/20 shadow-sm"
+              : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+              <span>💵</span> Physical Cash Drawer
+            </span>
+            <span className={`text-xs font-bold ${channelStats.cash.balance >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+              {inr(channelStats.cash.balance)}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+            <span>In: <strong className="text-emerald-600">+{inr(channelStats.cash.inAmt)}</strong></span>
+            <span>Out: <strong className="text-rose-600">-{inr(channelStats.cash.outAmt)}</strong></span>
+            <span>{channelStats.cash.count} txns</span>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setScope("bank")}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition ${
+            scope === "bank"
+              ? "border-sky-500 bg-sky-50/50 dark:border-sky-500/50 dark:bg-sky-950/20 shadow-sm"
+              : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+              <span>🏦</span> Bank Channels
+            </span>
+            <span className={`text-xs font-bold ${channelStats.bank.balance >= 0 ? "text-sky-600" : "text-rose-600"}`}>
+              {inr(channelStats.bank.balance)}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+            <span>In: <strong className="text-emerald-600">+{inr(channelStats.bank.inAmt)}</strong></span>
+            <span>Out: <strong className="text-rose-600">-{inr(channelStats.bank.outAmt)}</strong></span>
+            <span>{channelStats.bank.count} txns</span>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setScope("digital")}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition ${
+            scope === "digital"
+              ? "border-violet-500 bg-violet-50/50 dark:border-violet-500/50 dark:bg-violet-950/20 shadow-sm"
+              : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+              <span>📱</span> Digital &amp; UPI Channels
+            </span>
+            <span className={`text-xs font-bold ${channelStats.digital.balance >= 0 ? "text-violet-600" : "text-rose-600"}`}>
+              {inr(channelStats.digital.balance)}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+            <span>In: <strong className="text-emerald-600">+{inr(channelStats.digital.inAmt)}</strong></span>
+            <span>Out: <strong className="text-rose-600">-{inr(channelStats.digital.outAmt)}</strong></span>
+            <span>{channelStats.digital.count} txns</span>
+          </div>
+        </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
@@ -209,7 +305,7 @@ export default function CashbookClient({
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search description or method…"
+              placeholder="Search description, DMT, AEPS, Settlement, Invoice, or method…"
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
             />
           </div>
@@ -280,7 +376,7 @@ export default function CashbookClient({
         </div>
       </div>
 
-      {/* Channel Scope Selector */}
+      {/* Channel Scope Selector Tabs */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
         <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold dark:bg-white/5">
           <button
@@ -290,7 +386,7 @@ export default function CashbookClient({
               scope === "all" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            All Accounts
+            All Channels ({initialEntries.length})
           </button>
           <button
             type="button"
@@ -300,30 +396,41 @@ export default function CashbookClient({
             }`}
           >
             <span>💵</span> Physical Cash Drawer
-            {scope !== "cash" && physicalCashStats.balance !== 0 && (
-              <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                {inr(physicalCashStats.balance)}
-              </span>
-            )}
+            <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${
+              scope === "cash" ? "bg-emerald-700 text-white" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+            }`}>
+              {inr(channelStats.cash.balance)}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope("bank")}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
+              scope === "bank" ? "bg-sky-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <span>🏦</span> Bank Accounts
+            <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${
+              scope === "bank" ? "bg-sky-700 text-white" : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+            }`}>
+              {inr(channelStats.bank.balance)}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setScope("digital")}
             className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
-              scope === "digital" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              scope === "digital" ? "bg-violet-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            <span>💳</span> Digital &amp; Bank Channels
+            <span>📱</span> Digital &amp; UPI
+            <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${
+              scope === "digital" ? "bg-violet-700 text-white" : "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300"
+            }`}>
+              {inr(channelStats.digital.balance)}
+            </span>
           </button>
         </div>
-
-        {scope === "cash" && (
-          <div className="flex items-center gap-4 text-xs">
-            <span className="text-slate-400">Drawer In: <strong className="text-emerald-600">+{inr(physicalCashStats.inAmt)}</strong></span>
-            <span className="text-slate-400">Drawer Out: <strong className="text-rose-600">-{inr(physicalCashStats.outAmt)}</strong></span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">Current In-Drawer Cash: <strong className="text-slate-900 dark:text-white">{inr(physicalCashStats.balance)}</strong></span>
-          </div>
-        )}
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
@@ -332,7 +439,7 @@ export default function CashbookClient({
             <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
               <th className="px-5 py-3 font-medium">Date</th>
               <th className="px-5 py-3 font-medium">Origin &amp; Description</th>
-              <th className="px-5 py-3 font-medium">Method</th>
+              <th className="px-5 py-3 font-medium">Channel / Method</th>
               <th className="px-5 py-3 text-right font-medium">In</th>
               <th className="px-5 py-3 text-right font-medium">Out</th>
               <th className="px-5 py-3 text-right font-medium">Balance</th>
@@ -357,7 +464,7 @@ export default function CashbookClient({
                       {e.method.toUpperCase()}
                     </span>
                     {e.payment_instruments?.name && (
-                      <span className="cell-sub ml-1.5 text-[11px] text-slate-400">{e.payment_instruments.name}</span>
+                      <span className="cell-sub ml-1.5 text-[11px] text-slate-400 font-medium">🏦 {e.payment_instruments.name}</span>
                     )}
                   </td>
                   <td className="px-5 py-3 text-right font-medium text-emerald-600">
