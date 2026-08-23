@@ -110,61 +110,77 @@ export async function POST(req: Request) {
       }
 
       const targetUrl = `${gatewayUrl}/send-message`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout for Render spin-up
+      
+      // Resilient fetch with automatic wake-up retry (up to 60s for Render free-tier cold starts)
+      async function attemptSend(attempt = 1): Promise<{ ok: boolean; status: number; data: any; error?: string }> {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for Render cold wake-up
 
-      try {
-        const res = await fetch(targetUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Bypass-Tunnel-Reminder": "true",
-            ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
-          },
-          body: JSON.stringify({
-            phone,
-            number: phone,
-            message,
-            text: message,
-          }),
-          signal: controller.signal,
-        });
+        try {
+          const res = await fetch(targetUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Bypass-Tunnel-Reminder": "true",
+              ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
+            },
+            body: JSON.stringify({
+              phone,
+              number: phone,
+              message,
+              text: message,
+            }),
+            signal: controller.signal,
+          });
 
-        clearTimeout(timeout);
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          return NextResponse.json(
-            { success: false, error: data?.error || `Gateway returned HTTP ${res.status}` },
-            { status: 400 }
-          );
+          clearTimeout(timeout);
+          const data = await res.json().catch(() => ({}));
+          return { ok: res.ok, status: res.status, data, error: data?.error };
+        } catch (err: any) {
+          clearTimeout(timeout);
+          if (attempt === 1 && !isLocal) {
+            // Give Render container 5s to finish booting and retry once
+            await new Promise((r) => setTimeout(r, 5000));
+            return attemptSend(2);
+          }
+          return { ok: false, status: 502, data: null, error: err.message };
         }
+      }
 
-        if (data?.status === "dispatched_mock") {
+      const result = await attemptSend(1);
+
+      if (!result.ok) {
+        if (result.status === 502 || !result.data) {
           return NextResponse.json(
             {
               success: false,
-              error: `Gateway is running at ${gatewayUrl}, but WhatsApp is not linked yet. Please open ${gatewayUrl} in your browser and scan the QR code with WhatsApp.`,
+              error: `Could not connect to WhatsApp Gateway at ${gatewayUrl}. Please ensure your service is running (or wait 20s if Render Cloud is waking up).`,
             },
-            { status: 400 }
+            { status: 502 }
           );
         }
 
-        return NextResponse.json({
-          success: true,
-          provider: "local_gateway",
-          data,
-        });
-      } catch (err: any) {
-        clearTimeout(timeout);
+        return NextResponse.json(
+          { success: false, error: result.error || `Gateway returned HTTP ${result.status}` },
+          { status: 400 }
+        );
+      }
+
+      if (result.data?.status === "dispatched_mock") {
         return NextResponse.json(
           {
             success: false,
-            error: `Could not connect to WhatsApp Gateway at ${gatewayUrl}. Please ensure your service is running (or wait 15s if Render Cloud is waking up).`,
+            error: `Gateway is running at ${gatewayUrl}, but WhatsApp is not linked yet. Please open ${gatewayUrl} in your browser and scan the QR code with WhatsApp.`,
           },
-          { status: 502 }
+          { status: 400 }
         );
       }
+
+      return NextResponse.json({
+        success: true,
+        provider: "local_gateway",
+        data: result.data,
+      });
     }
 
     // 3. UltraMsg Gateway

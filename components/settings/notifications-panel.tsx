@@ -14,6 +14,7 @@ import {
   saveCloudWhatsAppConfig,
   saveWhatsAppConfig,
   sendWhatsAppMessage,
+  startGatewayHeartbeat,
   type WhatsAppConfig,
   type WhatsAppProvider,
   type WhatsAppTemplates,
@@ -96,6 +97,7 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
     // 1. Initial quick load from local
     const cfg = getWhatsAppConfig();
     setConfig(cfg);
+    startGatewayHeartbeat();
 
     // 2. Fetch and sync from Supabase Cloud DB for multi-device sync
     fetchCloudWhatsAppConfig().then((cloudCfg) => {
@@ -517,6 +519,50 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
                     />
                   </div>
+                </div>
+
+                {/* 24/7 Keep-Alive & Prevent Sleep Banner */}
+                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 text-xs text-blue-900 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-blue-950 dark:text-blue-100">
+                      <span>💓 24/7 Keep-Alive &amp; Prevent Sleep:</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      ● Client Heartbeat Active
+                    </span>
+                  </div>
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    Render free tier sleeps after 15 minutes of inactivity. To keep your Render cloud gateway awake <strong>24/7 forever (100% free)</strong>:
+                  </p>
+                  <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-white p-2 border border-blue-100 dark:bg-slate-900 dark:border-white/10">
+                    <span className="font-mono text-[11px] text-blue-700 dark:text-blue-300 truncate">
+                      {(config.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com").replace(/\/$/, "")}/health
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${(config.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com").replace(/\/$/, "")}/health`;
+                          navigator.clipboard.writeText(url);
+                          alert("✓ Webhook URL copied! Paste into cron-job.org or uptimerobot.com to keep Render awake 24/7!");
+                        }}
+                        className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-blue-700"
+                      >
+                        Copy Ping URL
+                      </button>
+                      <a
+                        href="https://cron-job.org/en/signup/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                      >
+                        Setup Free Cron Ping ↗
+                      </a>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                    💡 If running locally on PC: Double-click <code>scripts/start-whatsapp-background.vbs</code> to run silently in the background on Windows startup.
+                  </p>
                 </div>
               </div>
             )}

@@ -169,15 +169,38 @@ async function initTunnel() {
   }
 }
 
-// Keep-Alive Self Ping on Render to prevent free-tier 15-minute sleep
+// Keep-Alive Ping on Render & Cloud to prevent 15-minute sleep
 function startRenderKeepAlive() {
   setInterval(async () => {
     try {
       const target = process.env.RENDER_EXTERNAL_URL || tunnelUrl || `http://localhost:${PORT}`;
-      await fetch(`${target}/health`).catch(() => {});
-      console.log(`💓 [Keep-Alive] Self-ping sent to ${target}/health (24/7 Active).`);
-    } catch {}
-  }, 8 * 60 * 1000); // Every 8 minutes
+      
+      // 1. Ping self health
+      await fetch(`${target}/health`, { headers: { "Bypass-Tunnel-Reminder": "true" } }).catch(() => {});
+      
+      // 2. Outbound ping to Supabase or public DNS so Render sees real outbound network traffic
+      if (supabaseUrl && supabaseKey) {
+        await fetch(`${supabaseUrl}/rest/v1/whatsapp_templates?id=eq.default&select=id`, {
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+        }).catch(() => {});
+      } else {
+        await fetch("https://api.ipify.org?format=json").catch(() => {});
+      }
+
+      // 3. Socket WebSocket ping to prevent WhatsApp disconnect
+      if (sock && isConnected) {
+        try {
+          if (sock.ws && typeof sock.ws.ping === "function") {
+            sock.ws.ping();
+          }
+        } catch {}
+      }
+
+      console.log(`💓 [24/7 Keep-Alive] Gateway heartbeat active. Prevented sleep.`);
+    } catch (e) {
+      console.warn("⚠️ Keep-alive error:", e.message);
+    }
+  }, 2 * 60 * 1000); // Every 2 minutes
 }
 
 async function initWhatsApp() {
@@ -220,7 +243,7 @@ async function initWhatsApp() {
       browser: Browsers ? Browsers.windows("Desktop") : ["Smart Business Suite", "Chrome", "1.0.0"],
       syncFullHistory: false,
       markOnlineOnConnect: true,
-      keepAliveIntervalMs: 25000,
+      keepAliveIntervalMs: 10000,
       defaultQueryTimeoutMs: 60000,
       connectTimeoutMs: 60000,
       retryRequestDelayMs: 500,
@@ -529,8 +552,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Health / Status JSON
-  if (urlPath === "/health" || urlPath === "/status") {
+  // Health / Status / Keep-Alive JSON
+  if (urlPath === "/health" || urlPath === "/status" || urlPath === "/ping" || urlPath === "/keepalive") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
@@ -540,6 +563,7 @@ const server = http.createServer(async (req, res) => {
         port: PORT,
         userPhone,
         tunnelUrl,
+        timestamp: new Date().toISOString(),
       })
     );
     return;

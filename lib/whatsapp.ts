@@ -258,6 +258,28 @@ export async function saveCloudWhatsAppConfig(cfg: WhatsAppConfig): Promise<{ su
   }
 }
 
+// Client-side automatic keep-alive ping to keep Render and local gateway awake 24/7
+let keepAliveTimer: any = null;
+export function startGatewayHeartbeat() {
+  if (typeof window === "undefined" || keepAliveTimer) return;
+
+  const ping = async () => {
+    try {
+      const cfg = getWhatsAppConfig();
+      if (cfg.provider === "local_gateway" && cfg.gateway_url) {
+        const url = cfg.gateway_url.replace(/\/$/, "");
+        fetch(`${url}/health`, {
+          mode: "no-cors",
+          headers: { "Bypass-Tunnel-Reminder": "true" },
+        }).catch(() => {});
+      }
+    } catch {}
+  };
+
+  ping();
+  keepAliveTimer = setInterval(ping, 3 * 60 * 1000); // Heartbeat every 3 minutes
+}
+
 export function formatWhatsAppPhone(rawPhone: string): string {
   const digits = String(rawPhone || "").replace(/\D/g, "");
   if (digits.length === 10) return `91${digits}`;
