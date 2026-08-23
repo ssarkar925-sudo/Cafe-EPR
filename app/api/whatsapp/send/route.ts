@@ -78,6 +78,7 @@ export async function POST(req: Request) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Bypass-Tunnel-Reminder": "true",
             ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
           },
           body: JSON.stringify({

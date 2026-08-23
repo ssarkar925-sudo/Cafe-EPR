@@ -5,9 +5,9 @@
  * 
  * Features:
  * - Live Web Dashboard at http://localhost:3001 (Scan QR code in browser!)
+ * - Automatic Secure HTTPS Public Tunnel (Localtunnel) for Cloud/Vercel sites
  * - Terminal QR Code support
  * - Automatic Reconnection & Persistent Authentication (auth_info_baileys/)
- * - Direct Client Browser CORS & Private Network Access (PNA) for Vercel cloud
  * - Background Invoice & Receipt Auto-Delivery
  * ==============================================================================
  */
@@ -25,6 +25,33 @@ let qrCodeRaw = "";
 let qrDataUrl = "";
 let lastStatus = "Initializing...";
 let userPhone = "";
+let tunnelUrl = "";
+
+// Initialize Localtunnel for HTTPS access from Vercel
+async function initTunnel() {
+  try {
+    const localtunnel = require("localtunnel");
+    console.log("🌐 Creating secure HTTPS cloud tunnel for Vercel...");
+    const tunnel = await localtunnel({ port: PORT });
+    tunnelUrl = tunnel.url;
+    console.log("\n========================================================");
+    console.log(`🚀 SECURE HTTPS TUNNEL LIVE: ${tunnelUrl}`);
+    console.log("👉 Paste this HTTPS URL into Vercel Settings -> Gateway API URL!");
+    console.log("========================================================\n");
+
+    tunnel.on("close", () => {
+      console.log("⚠️ Tunnel closed. Re-opening in 5 seconds...");
+      tunnelUrl = "";
+      setTimeout(initTunnel, 5000);
+    });
+
+    tunnel.on("error", (err) => {
+      console.log("⚠️ Tunnel error:", err.message);
+    });
+  } catch (err) {
+    console.log("⚠️ Could not create localtunnel:", err.message);
+  }
+}
 
 async function initWhatsApp() {
   try {
@@ -109,14 +136,14 @@ async function initWhatsApp() {
         console.log("\n========================================================");
         console.log(`✅ WHATSAPP CONNECTED SUCCESSFULLY (${lastStatus})!`);
         console.log("📡 Ready to send automated invoices & receipts in background.");
-        console.log(`⚡ Web Dashboard: http://localhost:${PORT}`);
+        console.log(`⚡ Local Screen: http://localhost:${PORT}`);
+        if (tunnelUrl) console.log(`🌐 Cloud Vercel URL: ${tunnelUrl}`);
         console.log("========================================================\n");
       }
     });
   } catch (err) {
     lastStatus = "Baileys not installed";
-    console.log("⚠️ Baileys library not detected or error initializing:", err.message);
-    console.log("👉 Run in terminal: npm install @whiskeysockets/baileys qrcode-terminal pino");
+    console.log("⚠️ Baileys library error:", err.message);
   }
 }
 
@@ -154,7 +181,7 @@ function getDashboardHtml() {
       border: 1px solid #334155;
       border-radius: 24px;
       padding: 32px;
-      max-width: 520px;
+      max-width: 540px;
       width: 100%;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
       text-align: center;
@@ -177,7 +204,7 @@ function getDashboardHtml() {
     .dot-online { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
     .dot-waiting { background: #eab308; box-shadow: 0 0 10px #eab308; }
     h1 { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
-    p.sub { font-size: 13px; color: #94a3b8; margin-top: 6px; margin-bottom: 24px; }
+    p.sub { font-size: 13px; color: #94a3b8; margin-top: 6px; margin-bottom: 20px; }
     .qr-container {
       background: #ffffff;
       padding: 16px;
@@ -200,6 +227,43 @@ function getDashboardHtml() {
     }
     .instructions ol { padding-left: 18px; }
     .instructions li { margin-bottom: 6px; }
+    .tunnel-box {
+      background: #0f172a;
+      border: 1px solid #2563eb;
+      border-radius: 16px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+    .tunnel-title { font-size: 11px; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tunnel-url {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(30, 41, 59, 0.8);
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #334155;
+      word-break: break-all;
+    }
+    .copy-btn {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-left: 8px;
+      white-space: nowrap;
+    }
+    .tunnel-desc { font-size: 11px; color: #94a3b8; line-height: 1.4; }
     .status-box {
       background: rgba(30, 41, 59, 0.7);
       border: 1px solid #334155;
@@ -237,10 +301,10 @@ function getDashboardHtml() {
 
     ${
       isConnected
-        ? `<div style="padding: 24px 0;">
-            <div style="width: 72px; height: 72px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 32px;">✓</div>
-            <h3 style="color: #ffffff; font-size: 18px; font-weight: 700;">Ready to Send Invoices</h3>
-            <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">Connected to WhatsApp: <strong style="color: #f8fafc;">+${userPhone || "Linked Store Phone"}</strong></p>
+        ? `<div style="padding: 16px 0 24px;">
+            <div style="width: 64px; height: 64px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 28px;">✓</div>
+            <h3 style="color: #ffffff; font-size: 17px; font-weight: 700;">Ready to Send Invoices</h3>
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Connected to WhatsApp: <strong style="color: #f8fafc;">+${userPhone || "Linked Store Phone"}</strong></p>
           </div>`
         : qrDataUrl
         ? `<div class="qr-container">
@@ -251,23 +315,35 @@ function getDashboardHtml() {
             <ol>
               <li>Open <strong>WhatsApp</strong> on your phone.</li>
               <li>Tap <strong>Settings</strong> (or 3 dots) → <strong>Linked Devices</strong>.</li>
-              <li>Tap <strong>Link a Device</strong> and point your camera at this QR code.</li>
+              <li>Tap <strong>Link a Device</strong> and scan this QR code.</li>
             </ol>
           </div>`
         : `<div class="status-box">${lastStatus}</div>`
     }
 
+    ${
+      tunnelUrl
+        ? `<div class="tunnel-box">
+            <div class="tunnel-title">🌐 Cloud / Vercel HTTPS Gateway URL:</div>
+            <div class="tunnel-url">
+              <span id="tUrl">${tunnelUrl}</span>
+              <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('tUrl').innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000);">Copy</button>
+            </div>
+            <p class="tunnel-desc">💡 Paste this HTTPS URL in <strong>Settings → Notifications → Gateway API URL</strong> on your Vercel website so Vercel can deliver WhatsApp messages directly to this PC!</p>
+          </div>`
+        : `<div class="status-box">Creating secure HTTPS cloud tunnel... (refresh in 3s)</div>`
+    }
+
     <div class="status-box">
-      <div>Port: <strong>http://localhost:${PORT}</strong></div>
+      <div>Local Port: <strong>http://localhost:${PORT}</strong></div>
       <div style="margin-top: 4px;">Status: <strong>${lastStatus}</strong></div>
     </div>
 
-    <button class="btn" onclick="window.location.reload()">↻ Refresh Status</button>
+    <button class="btn" onclick="window.location.reload()">↻ Refresh Dashboard</button>
   </div>
 
   <script>
-    // Auto refresh if waiting for QR
-    ${!isConnected ? "setTimeout(() => window.location.reload(), 4000);" : ""}
+    ${!isConnected || !tunnelUrl ? "setTimeout(() => window.location.reload(), 4000);" : ""}
   </script>
 </body>
 </html>`;
@@ -275,18 +351,17 @@ function getDashboardHtml() {
 
 // HTTP API Server
 const server = http.createServer(async (req, res) => {
-  // CORS + Private Network Access (PNA) Headers so cloud apps (Vercel) can call localhost
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-api-key, Access-Control-Request-Private-Network");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-api-key, Access-Control-Request-Private-Network, Bypass-Tunnel-Reminder");
   res.setHeader("Access-Control-Allow-Private-Network", "true");
 
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, x-api-key, Access-Control-Request-Private-Network",
-      "Access-Control-Allow-Private-Network": "true",
+      "Access-Control-Allow-Headers": "Content-Type, x-api-key, Access-Control-Request-Private-Network, Bypass-Tunnel-Reminder",
+      "Access-Control-Allow-Private-Network", "true",
     });
     res.end();
     return;
@@ -309,7 +384,7 @@ const server = http.createServer(async (req, res) => {
         service: "sccomm-whatsapp-gateway",
         port: PORT,
         userPhone,
-        hasQr: Boolean(qrDataUrl),
+        tunnelUrl,
       })
     );
     return;
@@ -382,5 +457,6 @@ server.listen(PORT, () => {
   console.log(`⚡ Local WhatsApp Gateway running on http://localhost:${PORT}`);
   console.log(`🌐 Open in browser to scan QR code: http://localhost:${PORT}`);
   console.log("========================================================");
+  initTunnel();
   initWhatsApp();
 });
