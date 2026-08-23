@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchCloudWhatsAppConfig } from "@/lib/whatsapp";
 
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
 const WARN_MS = 60 * 1000;
@@ -30,6 +31,9 @@ export default function SessionGuard() {
   }
 
   useEffect(() => {
+    // Silently sync WhatsApp templates & settings from Supabase Cloud on every device
+    fetchCloudWhatsAppConfig().catch(() => {});
+
     if (signingOut.current) return;
 
     function bump() {

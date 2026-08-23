@@ -115,6 +115,25 @@ export const DEFAULT_WA_CONFIG: WhatsAppConfig = {
   templates: DEFAULT_WA_TEMPLATES,
 };
 
+export const SQL_TEMPLATES_MIGRATION = `-- WhatsApp Templates Multi-Device Sync Migration
+-- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/tvxehxnvuwojjbhysajp/sql
+
+create table if not exists public.whatsapp_templates (
+  id text primary key default 'default',
+  templates jsonb not null default '{}'::jsonb,
+  config jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.whatsapp_templates enable row level security;
+create policy "whatsapp_templates select" on public.whatsapp_templates for select to authenticated using (true);
+create policy "whatsapp_templates insert" on public.whatsapp_templates for insert to authenticated with check (true);
+create policy "whatsapp_templates update" on public.whatsapp_templates for update to authenticated using (true);
+create policy "whatsapp_templates public read" on public.whatsapp_templates for select to anon using (true);
+
+alter table public.settings add column if not exists whatsapp_config jsonb;
+`;
+
 export function getWhatsAppConfig(): WhatsAppConfig {
   if (typeof window === "undefined") return DEFAULT_WA_CONFIG;
   try {
@@ -137,6 +156,106 @@ export function getWhatsAppConfig(): WhatsAppConfig {
 export function saveWhatsAppConfig(cfg: WhatsAppConfig): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(WA_CONFIG_KEY, JSON.stringify(cfg));
+}
+
+/**
+ * Fetch WhatsApp config and custom templates from Supabase Cloud
+ * Updates local cache and returns the synchronized config across devices
+ */
+export async function fetchCloudWhatsAppConfig(): Promise<WhatsAppConfig> {
+  const localCfg = getWhatsAppConfig();
+  if (typeof window === "undefined") return localCfg;
+
+  try {
+    const supabase = createClient();
+
+    // 1. Try public.whatsapp_templates table
+    const { data: tmplRow, error: tmplErr } = await supabase
+      .from("whatsapp_templates")
+      .select("*")
+      .eq("id", "default")
+      .maybeSingle();
+
+    if (tmplRow && (tmplRow.templates || tmplRow.config)) {
+      const merged: WhatsAppConfig = {
+        ...DEFAULT_WA_CONFIG,
+        ...(tmplRow.config || {}),
+        ...localCfg,
+        templates: {
+          ...DEFAULT_WA_TEMPLATES,
+          ...(tmplRow.templates || {}),
+          ...(tmplRow.config?.templates || {}),
+        },
+      };
+      saveWhatsAppConfig(merged);
+      return merged;
+    }
+
+    // 2. Fallback: Check public.settings.whatsapp_config
+    if (tmplErr) {
+      const { data: setRow } = await supabase
+        .from("settings")
+        .select("whatsapp_config")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (setRow?.whatsapp_config) {
+        const merged: WhatsAppConfig = {
+          ...DEFAULT_WA_CONFIG,
+          ...setRow.whatsapp_config,
+          templates: {
+            ...DEFAULT_WA_TEMPLATES,
+            ...(setRow.whatsapp_config.templates || {}),
+          },
+        };
+        saveWhatsAppConfig(merged);
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn("fetchCloudWhatsAppConfig fallback to local:", err);
+  }
+
+  return localCfg;
+}
+
+/**
+ * Save WhatsApp config & custom templates to both localStorage AND Supabase Cloud database
+ * Ensures all staff devices stay synchronized
+ */
+export async function saveCloudWhatsAppConfig(cfg: WhatsAppConfig): Promise<{ success: boolean; error?: string }> {
+  // 1. Always save locally first for immediate responsiveness
+  saveWhatsAppConfig(cfg);
+
+  try {
+    const supabase = createClient();
+
+    // 2. Upsert into public.whatsapp_templates table
+    const { error: tmplErr } = await supabase
+      .from("whatsapp_templates")
+      .upsert({
+        id: "default",
+        templates: cfg.templates || DEFAULT_WA_TEMPLATES,
+        config: cfg,
+        updated_at: new Date().toISOString(),
+      });
+
+    // 3. Also try updating settings.whatsapp_config as fallback
+    try {
+      await supabase
+        .from("settings")
+        .update({ whatsapp_config: cfg })
+        .eq("id", 1);
+    } catch {}
+
+    if (tmplErr) {
+      return { success: false, error: tmplErr.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to sync with cloud database" };
+  }
 }
 
 export function formatWhatsAppPhone(rawPhone: string): string {

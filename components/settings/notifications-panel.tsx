@@ -7,8 +7,11 @@ import {
   DEFAULT_WA_CONFIG,
   DEFAULT_WA_TEMPLATES,
   GATEWAY_PRESETS,
+  SQL_TEMPLATES_MIGRATION,
   checkGatewayHealth,
+  fetchCloudWhatsAppConfig,
   getWhatsAppConfig,
+  saveCloudWhatsAppConfig,
   saveWhatsAppConfig,
   sendWhatsAppMessage,
   type WhatsAppConfig,
@@ -53,6 +56,9 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
   const [subTab, setSubTab] = useState<"gateway" | "templates" | "history">("gateway");
   const [config, setConfig] = useState<WhatsAppConfig>(DEFAULT_WA_CONFIG);
   const [saved, setSaved] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<"idle" | "saving" | "synced" | "local_only">("idle");
+  const [hasCloudTable, setHasCloudTable] = useState<boolean | null>(null);
+  const [copiedSql, setCopiedSql] = useState(false);
   const [activeTemplateKey, setActiveTemplateKey] = useState<keyof WhatsAppTemplates>("pos_invoice");
   const [testPhone, setTestPhone] = useState("");
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
@@ -87,17 +93,41 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
   }
 
   useEffect(() => {
+    // 1. Initial quick load from local
     const cfg = getWhatsAppConfig();
     setConfig(cfg);
-    if (cfg.provider === "local_gateway") {
-      testGatewayConnection(cfg.gateway_url);
-    }
+
+    // 2. Fetch and sync from Supabase Cloud DB for multi-device sync
+    fetchCloudWhatsAppConfig().then((cloudCfg) => {
+      setConfig(cloudCfg);
+      setHasCloudTable(true);
+      if (cloudCfg.provider === "local_gateway") {
+        testGatewayConnection(cloudCfg.gateway_url);
+      }
+    }).catch(() => {
+      setHasCloudTable(false);
+      if (cfg.provider === "local_gateway") {
+        testGatewayConnection(cfg.gateway_url);
+      }
+    });
   }, []);
 
-  function handleSave(updates: Partial<WhatsAppConfig>) {
+  async function handleSave(updates: Partial<WhatsAppConfig>) {
     const updated = { ...config, ...updates };
     setConfig(updated);
-    saveWhatsAppConfig(updated);
+    setCloudSyncStatus("saving");
+
+    const res = await saveCloudWhatsAppConfig(updated);
+    if (res.success) {
+      setCloudSyncStatus("synced");
+      setHasCloudTable(true);
+    } else {
+      setCloudSyncStatus("local_only");
+      if (res.error?.includes("PGRST205") || res.error?.includes("whatsapp_templates")) {
+        setHasCloudTable(false);
+      }
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -618,9 +648,45 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
           icon="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
           tone="emerald"
           title="Custom WhatsApp Message Templates"
-          desc="Customize the exact wording, branding, and variables included in automated WhatsApp messages."
+          desc="Customize the exact wording, branding, and variables included in automated WhatsApp messages. Synced across all devices."
         >
           <div className="space-y-6">
+            {/* Cloud Sync Status Banner */}
+            {hasCloudTable === false ? (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💾</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">Local Device Templates Active</h4>
+                      <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-400">
+                        Template edits are saved on this computer. To sync custom templates with other phones &amp; PCs in your store, run the SQL script in Supabase SQL Editor.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(SQL_TEMPLATES_MIGRATION);
+                      setCopiedSql(true);
+                      setTimeout(() => setCopiedSql(false), 3000);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+                  >
+                    {copiedSql ? "✓ SQL Copied to Clipboard!" : "📋 Copy Supabase SQL"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/50 px-3.5 py-2 text-xs text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="font-semibold">Multi-Device Cloud Sync Active: All custom templates are automatically synced across staff devices.</span>
+                </div>
+                <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">Supabase Connected</span>
+              </div>
+            )}
+
             {/* Template Selector */}
             <div className="flex flex-wrap gap-2">
               {TEMPLATE_KEYS.map((t) => (
