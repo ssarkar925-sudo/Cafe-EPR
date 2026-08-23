@@ -1,5 +1,5 @@
-import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import PrintButton from "@/components/receipt/print-button";
 import FeesToggle from "@/components/business/fees-toggle";
 
@@ -21,12 +21,7 @@ export default async function BusinessReceiptPage({
   const { id } = await params;
   const sp = await searchParams;
   const showFees = sp?.show_fees === "1";
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const supabase = createAdminClient();
 
   const { data: txn } = await supabase.rpc("get_transaction_receipt", {
     p_id: id,

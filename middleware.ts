@@ -4,7 +4,14 @@ import { NextResponse, type NextRequest } from "next/server";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-const PUBLIC_PATHS = ["/login", "/auth/confirm-reset", "/logout", "/api"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/confirm-reset",
+  "/logout",
+  "/api",
+  "/receipt",
+  "/business/receipt",
+];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -28,8 +35,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Fast-path 1: Public APIs and confirmation routes don't need auth checks
-  if (pathname.startsWith("/api") || pathname === "/auth/confirm-reset" || pathname === "/logout") {
+  // Fast-path 1: Public APIs, customer receipts, and confirmation routes don't need auth checks
+  if (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/receipt") ||
+    pathname.startsWith("/business/receipt") ||
+    pathname === "/auth/confirm-reset" ||
+    pathname === "/logout"
+  ) {
     return NextResponse.next();
   }
 

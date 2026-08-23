@@ -1,5 +1,5 @@
-import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import A4Actions from "@/components/pdf/a4-actions";
 import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
 import { numberToWordsInr } from "@/lib/format";
@@ -12,12 +12,7 @@ export default async function ReceiptA4Page({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const supabase = createAdminClient();
 
   const { data: invoice } = await supabase
     .from("invoices")
