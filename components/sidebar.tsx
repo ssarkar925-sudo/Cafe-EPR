@@ -98,7 +98,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [openSections, setOpenSections] = useState<Set<string>>(
-    () => new Set(["Main", "Customer Management"])
+    () => new Set(["Main", "Business", "Customer Management", "Finance", "Catalog & Inventory", "Administrative"])
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(avatarUrl);
@@ -107,6 +107,7 @@ export default function Sidebar({
   const isAdmin = role === "admin";
 
   const sections: NavSection[] = useMemo(() => {
+    // 1. Main
     const main: NavItem[] = [
       { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
       { label: "Point of Sale", href: "/pos", icon: "pos" },
@@ -115,21 +116,10 @@ export default function Sidebar({
       main.push({ label: "Returns", href: "/returns", icon: "returns" });
     }
     main.push({ label: "Invoices", href: "/invoices", icon: "invoices" });
-    const base: NavSection[] = [
-      { title: "Main", items: main },
-      {
-        title: "Customer Management",
-        items: [{ label: "Customers", href: "/customers", icon: "customers" }],
-      },
-      {
-        title: "Catalog & Inventory",
-        items: [
-          { label: "Products & Stock", href: "/catalog/products", icon: "products" },
-          { label: "Services", href: "/catalog/services", icon: "services" },
-          { label: "Categories", href: "/catalog/categories", icon: "categories" },
-        ],
-      },
-    ];
+
+    const base: NavSection[] = [{ title: "Main", items: main }];
+
+    // 2. Business
     if (!isStaff) {
       base.push({
         title: "Business",
@@ -140,6 +130,16 @@ export default function Sidebar({
           { label: "Recharge", href: "/business/recharge", icon: "recharge" },
         ],
       });
+    }
+
+    // 3. Customer Management
+    base.push({
+      title: "Customer Management",
+      items: [{ label: "Customers", href: "/customers", icon: "customers" }],
+    });
+
+    // 4. Finance
+    if (!isStaff) {
       base.push({
         title: "Finance",
         items: [
@@ -154,6 +154,18 @@ export default function Sidebar({
         ],
       });
     }
+
+    // 5. Catalog & Inventory
+    base.push({
+      title: "Catalog & Inventory",
+      items: [
+        { label: "Products & Stock", href: "/catalog/products", icon: "products" },
+        { label: "Services", href: "/catalog/services", icon: "services" },
+        { label: "Categories", href: "/catalog/categories", icon: "categories" },
+      ],
+    });
+
+    // 6. Administrative
     if (isAdmin) {
       base.push({
         title: "Administrative",
