@@ -489,6 +489,8 @@ export default function SettlementsClient({
                 { label: "⚡ UPI QR → Bank", type: "upi_qr_to_bank", amount: Math.max(0, Math.floor(summary.upi_qr)), desc: `Settle UPI QR (${inr(summary.upi_qr)})` },
                 { label: "⚡ Bank → DMT", type: "bank_to_dmt", amount: 10000, desc: "Top up DMT Float" },
                 { label: "⚡ Bank → Recharge", type: "bank_to_recharge", amount: 5000, desc: "Top up Recharge Float" },
+                { label: "⚡ Bank → Credit Card", type: "bank_to_credit_card", amount: "", desc: "Pay Credit Card Bill from Bank" },
+                { label: "⚡ Cash → Credit Card", type: "cash_to_credit_card", amount: "", desc: "Pay Credit Card Bill with Cash" },
                 { label: "⚡ Bank Withdrawal", type: "bank_withdrawal", amount: "", desc: "Withdraw Cash for Drawer" },
                 { label: "⚡ Cash → Bank", type: "add_cash_to_bank", amount: "", desc: "Deposit Counter Cash" },
               ].map((p) => (

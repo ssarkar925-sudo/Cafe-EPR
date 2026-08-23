@@ -4,14 +4,17 @@ import { useState } from "react";
 import Modal from "@/components/ui/modal";
 
 export const SETTLEMENT_TYPES = [
-  { value: "aeps_to_bank", label: "AEPS \u2192 Bank", from: "aeps", to: "bank", icon: "aeps", grad: "from-blue-500 to-indigo-600", desc: "AEPS portal settlement credited to the bank account." },
-  { value: "bank_to_dmt", label: "Bank \u2192 DMT", from: "bank", to: "dmt", icon: "dmt", grad: "from-violet-500 to-purple-600", desc: "Load DMT float from the bank balance." },
-  { value: "wallet_to_dmt", label: "Wallet \u2192 DMT", from: "wallet", to: "dmt", icon: "dmt", grad: "from-fuchsia-500 to-pink-600", desc: "Fund the DMT float from the digital wallet." },
-  { value: "upi_qr_to_wallet", label: "UPI QR \u2192 Wallet", from: "upi_qr", to: "wallet", icon: "qr", grad: "from-teal-500 to-emerald-600", desc: "Move money received on the shop UPI QR into the wallet." },
-  { value: "upi_qr_to_bank", label: "UPI QR \u2192 Bank", from: "upi_qr", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Settle the merchant QR wallet balance into the bank account." },
-  { value: "wallet_to_bank", label: "Wallet \u2192 Bank", from: "wallet", to: "bank", icon: "bank", grad: "from-amber-500 to-orange-600", desc: "Transfer wallet balance to the bank account." },
+  { value: "aeps_to_bank", label: "AEPS → Bank", from: "aeps", to: "bank", icon: "aeps", grad: "from-blue-500 to-indigo-600", desc: "AEPS portal settlement credited to the bank account." },
+  { value: "bank_to_dmt", label: "Bank → DMT", from: "bank", to: "dmt", icon: "dmt", grad: "from-violet-500 to-purple-600", desc: "Load DMT float from the bank balance." },
+  { value: "wallet_to_dmt", label: "Wallet → DMT", from: "wallet", to: "dmt", icon: "dmt", grad: "from-fuchsia-500 to-pink-600", desc: "Fund the DMT float from the digital wallet." },
+  { value: "upi_qr_to_wallet", label: "UPI QR → Wallet", from: "upi_qr", to: "wallet", icon: "qr", grad: "from-teal-500 to-emerald-600", desc: "Move money received on the shop UPI QR into the wallet." },
+  { value: "upi_qr_to_bank", label: "UPI QR → Bank", from: "upi_qr", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Settle the merchant QR wallet balance into the bank account." },
+  { value: "wallet_to_bank", label: "Wallet → Bank", from: "wallet", to: "bank", icon: "bank", grad: "from-amber-500 to-orange-600", desc: "Transfer wallet balance to the bank account." },
+  { value: "bank_to_credit_card", label: "Bank → Credit Card (Bill Payment)", from: "bank", to: "credit_card", icon: "card", grad: "from-cyan-500 to-sky-600", desc: "Pay Credit Card bill from bank account to restore available credit limit." },
+  { value: "cash_to_credit_card", label: "Cash → Credit Card (Bill Payment)", from: "cash", to: "credit_card", icon: "card", grad: "from-emerald-500 to-cyan-600", desc: "Pay Credit Card bill using counter cash to restore available credit limit." },
+  { value: "credit_card_to_bank", label: "Credit Card → Bank (Cash Advance)", from: "credit_card", to: "bank", icon: "bank", grad: "from-blue-600 to-indigo-700", desc: "Transfer credit card payout/advance to bank account." },
   { value: "bank_withdrawal", label: "Bank Withdrawal", from: "bank", to: "cash", icon: "cash", grad: "from-emerald-500 to-teal-600", desc: "Withdraw cash from the bank into the counter." },
-  { value: "add_cash_to_bank", label: "Cash \u2192 Bank", from: "cash", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Deposit counter cash into the bank account." },
+  { value: "add_cash_to_bank", label: "Cash → Bank", from: "cash", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Deposit counter cash into the bank account." },
   { value: "cash_adjustment", label: "Cash Adjustment", from: "cash", to: "cash", icon: "cash", grad: "from-rose-500 to-pink-600", desc: "Add or remove cash during a physical count." },
   { value: "bank_to_recharge", label: "Bank → Recharge", from: "bank", to: "recharge", icon: "recharge", grad: "from-cyan-500 to-sky-600", desc: "Load the recharge float from the bank balance." },
   { value: "recharge_to_bank", label: "Recharge → Bank", from: "recharge", to: "bank", icon: "bank", grad: "from-slate-500 to-slate-700", desc: "Move unused recharge float back to the bank." },
@@ -27,15 +30,17 @@ export const POOL_LABEL: Record<string, string> = {
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
   recharge: "Recharge Float",
+  credit_card: "Credit Card",
 };
 
 const ICONS: Record<string, string> = {
   bank: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01",
   cash: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01",
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
-  aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
+  aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
   recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+  card: "M3 10h18M3 6h18v12H3zM7 15h4",
   arrow: "M5 12h14M13 5l7 7-7 7",
 };
 
