@@ -42,13 +42,33 @@ export default async function BusinessReceiptA4Page({
   const title = SERVICE_TITLE[service] || txn.service_type.toUpperCase();
 
   return (
-    <div className="min-h-screen bg-slate-200 p-6 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8 print:min-h-0 print:bg-white print:p-0">
       <style>{`
-        @page { size: A4; margin: 15mm; }
-        @media print { body { background: #fff !important; } }
+        @page { size: A4 portrait; margin: 8mm 10mm; }
+        @media print {
+          html, body {
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print\\:hidden { display: none !important; }
+          .a4-print-card {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+          }
+        }
       `}</style>
 
-      <div className="mx-auto max-w-[800px] rounded-lg bg-white p-8 shadow-lg print:max-w-none print:rounded-none print:p-0 print:shadow-none">
+      <div className="a4-print-card mx-auto max-w-[800px] rounded-2xl border border-slate-200 bg-white p-8 md:p-10 shadow-xl print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
         <div className="mb-6 flex items-center justify-between print:hidden">
           <h1 className="text-lg font-semibold text-slate-900">A4 Print / PDF</h1>
           <div className="flex items-center gap-3">

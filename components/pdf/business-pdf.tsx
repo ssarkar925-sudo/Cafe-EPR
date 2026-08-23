@@ -29,10 +29,11 @@ export type BusinessPdfData = {
 };
 
 export default function BusinessPdf({ txn, settings, showFees = false }: BusinessPdfData) {
-  const cur = settings?.currency_symbol || "₹";
+  const rawCur = settings?.currency_symbol || "Rs.";
+  const cur = rawCur === "₹" ? "Rs. " : (rawCur.trim() + " ");
   const money = (n: number | string) =>
     cur +
-    Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const service = txn.service_type as keyof typeof SERVICE_TITLE;
   const title = SERVICE_TITLE[service] || String(txn.service_type).toUpperCase();

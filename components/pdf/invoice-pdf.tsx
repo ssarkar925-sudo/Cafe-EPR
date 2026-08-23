@@ -331,7 +331,8 @@ export default function InvoicePdf({
   qrDataUrl,
   upiId,
 }: InvoicePdfData) {
-  const cur = settings?.currency_symbol || "₹";
+  const rawCur = settings?.currency_symbol || "Rs.";
+  const cur = rawCur === "₹" ? "Rs. " : (rawCur.trim() + " ");
   const money = (n: number | string | undefined | null) =>
     cur +
     Number(n || 0).toLocaleString("en-IN", {

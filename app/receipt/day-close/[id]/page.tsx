@@ -81,16 +81,33 @@ export default async function DayCloseA4Page({
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8 print:min-h-0 print:bg-white print:p-0">
       <style>{`
-        @page { size: A4 portrait; margin: 12mm; }
+        @page { size: A4 portrait; margin: 8mm 10mm; }
         @media print {
-          body { background: #fff !important; color: #000 !important; }
+          html, body {
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           .print\\:hidden { display: none !important; }
+          .a4-print-card {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+          }
         }
       `}</style>
 
-      <div className="mx-auto max-w-[800px] rounded-2xl border border-slate-200 bg-white p-8 shadow-xl print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
+      <div className="a4-print-card mx-auto max-w-[800px] rounded-2xl border border-slate-200 bg-white p-8 shadow-xl print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
         <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 print:hidden">
           <div>
             <h1 className="text-lg font-bold text-slate-900">Handover Certificate A4 Print / PDF</h1>

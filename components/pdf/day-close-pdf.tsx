@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
@@ -242,7 +242,8 @@ export default function DayClosePdf({
   physicalCashTotal = 0,
   settings,
 }: DayClosePdfData) {
-  const cur = settings?.currency_symbol || "₹";
+  const rawCur = settings?.currency_symbol || "Rs.";
+  const cur = rawCur === "₹" ? "Rs. " : (rawCur.trim() + " ");
   const money = (n: number | string | undefined | null) =>
     cur +
     Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -254,13 +255,13 @@ export default function DayClosePdf({
   const totFinal = rows.reduce((s, r) => s + Number(r.final || 0), 0);
 
   const denomItems = [
-    { label: "₹500", count: Number(denominations.n500) || 0, mult: 500 },
-    { label: "₹200", count: Number(denominations.n200) || 0, mult: 200 },
-    { label: "₹100", count: Number(denominations.n100) || 0, mult: 100 },
-    { label: "₹50", count: Number(denominations.n50) || 0, mult: 50 },
-    { label: "₹20", count: Number(denominations.n20) || 0, mult: 20 },
-    { label: "₹10", count: Number(denominations.n10) || 0, mult: 10 },
-    { label: "₹5", count: Number(denominations.n5) || 0, mult: 5 },
+    { label: "Rs. 500", count: Number(denominations.n500) || 0, mult: 500 },
+    { label: "Rs. 200", count: Number(denominations.n200) || 0, mult: 200 },
+    { label: "Rs. 100", count: Number(denominations.n100) || 0, mult: 100 },
+    { label: "Rs. 50", count: Number(denominations.n50) || 0, mult: 50 },
+    { label: "Rs. 20", count: Number(denominations.n20) || 0, mult: 20 },
+    { label: "Rs. 10", count: Number(denominations.n10) || 0, mult: 10 },
+    { label: "Rs. 5", count: Number(denominations.n5) || 0, mult: 5 },
     { label: "Coins", count: Number(denominations.coins) || 0, mult: 1 },
   ];
 
