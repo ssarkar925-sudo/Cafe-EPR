@@ -259,14 +259,14 @@ export default function InvoiceViewModal({
             target="_blank"
             className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
-            📄 A4 / PDF (Default)
+            📄 Invoice (A4)
           </a>
           <a
             href={`/receipt/${invoiceId}`}
             target="_blank"
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
           >
-            🧾 80mm
+            🧾 Receipt (80mm)
           </a>
         </div>
       }

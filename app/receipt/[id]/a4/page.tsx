@@ -123,14 +123,15 @@ export default async function ReceiptA4Page({
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700">A4</span>
             <div>
-              <h1 className="text-sm font-bold text-slate-900">Tax Invoice / Receipt</h1>
-              <p className="text-xs text-slate-500">#{invoice.invoice_number} · Standard Customer A4 Format</p>
+              <h1 className="text-sm font-bold text-slate-900">Tax Invoice (A4)</h1>
+              <p className="text-xs text-slate-500">#{invoice.invoice_number} · Standard Customer Invoice</p>
             </div>
           </div>
           <A4Actions
             variant="invoice"
             data={{ invoice, items: itemsRows, payments: paymentsRows, settings, qrDataUrl, upiId }}
             filename={invoice.invoice_number + ".pdf"}
+            receiptUrl={`/receipt/${id}`}
           />
         </div>
 

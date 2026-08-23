@@ -70,7 +70,10 @@ export default async function BusinessReceiptA4Page({
 
       <div className="a4-print-card mx-auto max-w-[800px] rounded-2xl border border-slate-200 bg-white p-8 md:p-10 shadow-xl print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
         <div className="mb-6 flex items-center justify-between print:hidden">
-          <h1 className="text-lg font-semibold text-slate-900">A4 Print / PDF</h1>
+          <div>
+            <h1 className="text-sm font-bold text-slate-900">Transaction Invoice (A4)</h1>
+            <p className="text-xs text-slate-500">#{txn.transaction_number} · Standard Customer Invoice</p>
+          </div>
           <div className="flex items-center gap-3">
             <FeesToggle showFees={showFees} />
             <A4Actions
@@ -78,6 +81,7 @@ export default async function BusinessReceiptA4Page({
               data={{ txn, settings }}
               showFees={showFees}
               filename={`${txn.transaction_number}.pdf`}
+              receiptUrl={`/business/receipt/${id}${showFees ? "?show_fees=1" : ""}`}
             />
           </div>
         </div>

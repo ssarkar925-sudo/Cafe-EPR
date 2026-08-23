@@ -225,7 +225,6 @@ export const tabMeta: Record<string, { title: string; desc: string; group: strin
   receipt: { title: "Invoice & Receipt Templates", desc: "Customize default POS print layout (A4 Tax Invoice or 80mm Thermal Receipt), footer note, and dynamic UPI QR code.", group: "Store & Receipts" },
   tax: { title: "Tax & GST Configuration", desc: "Manage your GST registration number and default tax rates for billing.", group: "Store & Receipts" },
   "payment-accounts": { title: "Payment Accounts & Drawers", desc: "Manage named cash registers, bank accounts, UPI IDs, and digital wallets.", group: "Payments & POS Desk" },
-  "payment-methods": { title: "Payment Methods & Tender Order", desc: "Control which payment methods are accepted at the counter and their display priority.", group: "Payments & POS Desk" },
   "quick-favorites": { title: "Quick Sale Counter Favorites", desc: "Configure popular 1-click service buttons for instant counter billing.", group: "Payments & POS Desk" },
   catalog: { title: "Catalog Management", desc: "Manage sellable products, service pricelists, and item category classifications.", group: "Business & Remittance" },
   "business-setup": { title: "Business Setup & Providers", desc: "Configure AEPS portals, bank integrations, merchant QR codes, and recharge commission slabs.", group: "Business & Remittance" },

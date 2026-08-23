@@ -193,7 +193,7 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
             >
               <div className="flex items-center gap-2">
                 <span className="text-base">📄</span>
-                <span className="font-bold text-slate-900 dark:text-white">A4 Tax Invoice / PDF</span>
+                <span className="font-bold text-slate-900 dark:text-white">A4 Tax Invoice</span>
                 {printFormat === "a4" && (
                   <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
                     Active (Default)
@@ -201,7 +201,7 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
                 )}
               </div>
               <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                Full-page professional A4 tax invoice with shop letterhead, GSTIN, customer details, HSN table, and PDF download.
+                Full-page professional A4 invoice with letterhead, GSTIN, customer details, HSN table, dynamic UPI QR code, and PDF download.
               </p>
             </button>
 
@@ -224,7 +224,7 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
                 )}
               </div>
               <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                Compact slip for fast thermal roll POS printers.
+                Compact slip for fast 80mm thermal roll POS printers with dynamic UPI QR code and item summary.
               </p>
             </button>
           </div>

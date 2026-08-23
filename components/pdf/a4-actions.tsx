@@ -11,11 +11,13 @@ export default function A4Actions({
   data,
   filename,
   showFees = false,
+  receiptUrl,
 }: {
   variant: "invoice" | "business" | "day_close";
   data: InvoicePdfData | BusinessPdfData | DayClosePdfData;
   filename: string;
   showFees?: boolean;
+  receiptUrl?: string;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -45,19 +47,28 @@ export default function A4Actions({
   }
 
   return (
-    <div className="flex flex-wrap gap-2 print:hidden">
+    <div className="flex flex-wrap items-center gap-2 print:hidden">
+      {receiptUrl && (
+        <a
+          href={receiptUrl}
+          target="_blank"
+          className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          🧾 View Receipt (80mm)
+        </a>
+      )}
       <button
         onClick={() => window.print()}
-        className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1e293b]"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"
       >
-        Print A4
+        🖨️ Print Invoice (A4)
       </button>
       <button
         onClick={downloadPdf}
         disabled={busy}
-        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
       >
-        {busy ? "Generating…" : "Download PDF"}
+        {busy ? "Generating PDF…" : "📥 Download PDF"}
       </button>
     </div>
   );
