@@ -27,8 +27,14 @@ let lastStatus = "Initializing...";
 let userPhone = "";
 let tunnelUrl = "";
 
-// Initialize Localtunnel for HTTPS access from Vercel
+// Initialize Localtunnel for HTTPS access from Vercel (skipped on Render)
 async function initTunnel() {
+  if (process.env.RENDER || process.env.RENDER_EXTERNAL_URL) {
+    tunnelUrl = process.env.RENDER_EXTERNAL_URL || `https://${process.env.RENDER_SERVICE_NAME || "sccomm-whatsapp-gateway"}.onrender.com`;
+    console.log(`🌐 Running on Render Cloud at: ${tunnelUrl}`);
+    return;
+  }
+
   try {
     const localtunnel = require("localtunnel");
     console.log("🌐 Creating secure HTTPS cloud tunnel for Vercel...");
@@ -452,7 +458,7 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "Endpoint not found" }));
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log("========================================================");
   console.log(`⚡ Local WhatsApp Gateway running on http://localhost:${PORT}`);
   console.log(`🌐 Open in browser to scan QR code: http://localhost:${PORT}`);

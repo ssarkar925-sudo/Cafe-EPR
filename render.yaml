@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: sccomm-whatsapp-gateway
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: node scripts/whatsapp-gateway.js
+    envVars:
+      - key: NODE_ENV
+        value: production
