@@ -207,7 +207,14 @@ export default function SettlementsClient({
   }) => {
     setSaving(true);
     const supabase = createClient();
-    const { data, error } = await supabase.rpc("create_settlement", payload);
+    const { data, error } = await supabase.rpc("create_settlement", {
+      p_settlement_type: payload.p_settlement_type,
+      p_settlement_date: payload.p_settlement_date,
+      p_amount: payload.p_amount,
+      p_reference: payload.p_reference,
+      p_remarks: payload.p_remarks,
+      p_direction: payload.p_direction,
+    });
     setSaving(false);
     if (error) {
       showToast("error", error.message);
