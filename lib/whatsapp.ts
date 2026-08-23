@@ -27,6 +27,25 @@ export type WhatsAppConfig = {
 
 const WA_CONFIG_KEY = "sccomm_whatsapp_config";
 
+export const GATEWAY_PRESETS = [
+  {
+    id: "local" as const,
+    label: "Local PC Gateway",
+    url: "http://localhost:3001",
+    desc: "Running on this PC via PM2/Node (Fast, 100% Free)",
+    icon: "💻",
+    badge: "Local PC",
+  },
+  {
+    id: "render" as const,
+    label: "Render Cloud Gateway",
+    url: "https://sccomm-whatsapp-gateway.onrender.com",
+    desc: "24/7 Cloud Service (Works even when PC is off)",
+    icon: "☁️",
+    badge: "Cloud 24/7",
+  },
+] as const;
+
 export const DEFAULT_WA_TEMPLATES: WhatsAppTemplates = {
   pos_invoice: `🧾 *TAX INVOICE: {invoice_number}*
 📅 Date: {invoice_date}
@@ -184,6 +203,128 @@ export async function logWhatsAppMessage(entry: WhatsAppLogEntry): Promise<void>
   }
 }
 
+// Check gateway connection health and live status (works for both local PC and cloud)
+export async function checkGatewayHealth(targetUrl?: string): Promise<{
+  ok: boolean;
+  status: "connected" | "waiting_for_qr" | "offline" | "waking_up" | "error";
+  connected: boolean;
+  phone?: string;
+  service?: string;
+  error?: string;
+  isLocal?: boolean;
+}> {
+  const config = getWhatsAppConfig();
+  const rawUrl = targetUrl || config.gateway_url || "http://localhost:3001";
+  const gatewayUrl = rawUrl.trim().replace(/\/$/, "");
+  const isLocal = gatewayUrl.includes("localhost") || gatewayUrl.includes("127.0.0.1");
+
+  // If local PC gateway, test directly from the browser client
+  if (isLocal) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${gatewayUrl}/health`, {
+        headers: { "Bypass-Tunnel-Reminder": "true" },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return {
+          ok: true,
+          status: data.connected ? "connected" : "waiting_for_qr",
+          connected: Boolean(data.connected),
+          phone: data.userPhone || "",
+          service: data.service,
+          isLocal: true,
+        };
+      }
+      return {
+        ok: false,
+        status: "error",
+        connected: false,
+        error: `Local Gateway returned HTTP ${res.status}`,
+        isLocal: true,
+      };
+    } catch (err: any) {
+      return {
+        ok: false,
+        status: "offline",
+        connected: false,
+        error: `Cannot connect to Local PC Gateway at ${gatewayUrl}. Please ensure your local PM2 or Node.js background service is running on port 3001.`,
+        isLocal: true,
+      };
+    }
+  }
+
+  // If public Cloud Gateway (e.g. Render), attempt direct browser fetch, then fallback to server proxy
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`${gatewayUrl}/health`, {
+      headers: { "Bypass-Tunnel-Reminder": "true" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      return {
+        ok: true,
+        status: data.connected ? "connected" : "waiting_for_qr",
+        connected: Boolean(data.connected),
+        phone: data.userPhone || "",
+        service: data.service,
+        isLocal: false,
+      };
+    }
+  } catch {
+    // Attempt through server API route (helps if Render is sleeping or CORS is blocked)
+  }
+
+  try {
+    const res = await fetch("/api/whatsapp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: "0000000000",
+        message: "__PING_HEALTH_CHECK__",
+        config: {
+          ...config,
+          provider: "local_gateway",
+          gateway_url: gatewayUrl,
+        },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.data) {
+      const isConn = Boolean(data.data.connected);
+      return {
+        ok: true,
+        status: isConn ? "connected" : "waiting_for_qr",
+        connected: isConn,
+        phone: data.data.userPhone || "",
+        service: data.data.service,
+        isLocal: false,
+      };
+    }
+    return {
+      ok: false,
+      status: "offline",
+      connected: false,
+      error: data?.error || `Could not connect to Cloud Gateway at ${gatewayUrl}.`,
+      isLocal: false,
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      status: "offline",
+      connected: false,
+      error: err?.message || `Could not connect to Cloud Gateway at ${gatewayUrl}.`,
+      isLocal: false,
+    };
+  }
+}
+
 export async function sendWhatsAppMessage({
   phone,
   message,
@@ -217,12 +358,15 @@ export async function sendWhatsAppMessage({
     return { ok: false, fallbackUrl };
   }
 
-  // If using local_gateway, attempt direct browser-to-gateway communication first
+  // Local or Cloud Baileys Gateway
   if (config.provider === "local_gateway") {
     const gatewayUrl = (config.gateway_url?.trim() || "http://localhost:3001").replace(/\/$/, "");
+    const isLocal = gatewayUrl.includes("localhost") || gatewayUrl.includes("127.0.0.1");
+
+    // 1. Direct browser-to-gateway request
     try {
       const directController = new AbortController();
-      const directTimeout = setTimeout(() => directController.abort(), 5000);
+      const directTimeout = setTimeout(() => directController.abort(), isLocal ? 6000 : 10000);
 
       const directRes = await fetch(`${gatewayUrl}/send-message`, {
         method: "POST",
@@ -233,7 +377,9 @@ export async function sendWhatsAppMessage({
         },
         body: JSON.stringify({
           phone: formatWhatsAppPhone(phone),
+          number: formatWhatsAppPhone(phone),
           message,
+          text: message,
         }),
         signal: directController.signal,
       });
@@ -241,6 +387,22 @@ export async function sendWhatsAppMessage({
 
       const directData = await directRes.json().catch(() => ({}));
       if (directRes.ok && directData.success) {
+        if (directData.status === "dispatched_mock") {
+          const warnMsg = `Gateway active at ${gatewayUrl}, but WhatsApp is waiting for QR scan. Scan QR code to link your phone.`;
+          logWhatsAppMessage({
+            recipient_phone: phone,
+            recipient_name: recipientName,
+            message_type: messageType,
+            ref_id: refId,
+            ref_number: refNumber,
+            message_text: message,
+            status: "failed",
+            provider: "local_gateway",
+            error_message: warnMsg,
+          });
+          return { ok: false, fallbackUrl, error: warnMsg };
+        }
+
         logWhatsAppMessage({
           recipient_phone: phone,
           recipient_name: recipientName,
@@ -254,10 +416,26 @@ export async function sendWhatsAppMessage({
         return { ok: true, fallbackUrl };
       }
     } catch {
-      // Direct local fetch failed, fall through to server route
+      // If Local PC Gateway failed from browser, do not proxy to Vercel (Vercel can't reach user's localhost)
+      if (isLocal) {
+        const localError = `Could not connect to Local WhatsApp Gateway at ${gatewayUrl}. Please ensure your background service (PM2) is running on this PC, or switch to Render Cloud Gateway in Settings.`;
+        logWhatsAppMessage({
+          recipient_phone: phone,
+          recipient_name: recipientName,
+          message_type: messageType,
+          ref_id: refId,
+          ref_number: refNumber,
+          message_text: message,
+          status: "failed",
+          provider: "local_gateway",
+          error_message: localError,
+        });
+        return { ok: false, fallbackUrl, error: localError };
+      }
     }
   }
 
+  // Server API proxy route (handles Meta, UltraMsg, and Cloud Render gateways)
   try {
     const res = await fetch("/api/whatsapp/send", {
       method: "POST",
@@ -269,9 +447,9 @@ export async function sendWhatsAppMessage({
       }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
-      const errorMsg = data.error || "Failed to send message";
+      const errorMsg = data?.error || "Failed to send message";
       logWhatsAppMessage({
         recipient_phone: phone,
         recipient_name: recipientName,

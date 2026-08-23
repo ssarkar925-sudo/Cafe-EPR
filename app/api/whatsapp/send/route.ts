@@ -65,13 +65,53 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Local / Self-Hosted Gateway (e.g. Baileys / WPPConnect / http://localhost:3001)
+    // 2. Local / Self-Hosted Gateway (e.g. Baileys / Render Cloud / http://localhost:3001)
     if (config.provider === "local_gateway") {
       const gatewayUrl = (config.gateway_url?.trim() || "http://localhost:3001").replace(/\/$/, "");
-      const targetUrl = `${gatewayUrl}/send-message`;
+      const isLocal = gatewayUrl.includes("localhost") || gatewayUrl.includes("127.0.0.1");
 
+      // Handle ping health check
+      if (message === "__PING_HEALTH_CHECK__") {
+        if (isLocal) {
+          return NextResponse.json({
+            success: false,
+            error: "Local PC gateway must be checked directly from the browser on this machine.",
+          }, { status: 400 });
+        }
+        try {
+          const pingController = new AbortController();
+          const pingTimeout = setTimeout(() => pingController.abort(), 12000);
+          const pingRes = await fetch(`${gatewayUrl}/health`, {
+            headers: { "Bypass-Tunnel-Reminder": "true" },
+            signal: pingController.signal,
+          });
+          clearTimeout(pingTimeout);
+          const pingData = await pingRes.json().catch(() => ({}));
+          return NextResponse.json({
+            success: pingRes.ok && Boolean(pingData.connected),
+            data: pingData,
+          });
+        } catch (pingErr: any) {
+          return NextResponse.json({
+            success: false,
+            error: `Could not reach ${gatewayUrl}: ${pingErr.message}`,
+          }, { status: 502 });
+        }
+      }
+
+      if (isLocal) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Direct connection required: When using Local PC Gateway (http://localhost:3001), your browser communicates directly with the PC gateway. Please verify PM2 or Node.js is running on port 3001.`,
+          },
+          { status: 502 }
+        );
+      }
+
+      const targetUrl = `${gatewayUrl}/send-message`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout for Render spin-up
 
       try {
         const res = await fetch(targetUrl, {
@@ -95,7 +135,17 @@ export async function POST(req: Request) {
 
         if (!res.ok) {
           return NextResponse.json(
-            { success: false, error: data?.error || `Local Gateway returned HTTP ${res.status}` },
+            { success: false, error: data?.error || `Gateway returned HTTP ${res.status}` },
+            { status: 400 }
+          );
+        }
+
+        if (data?.status === "dispatched_mock") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Gateway is running at ${gatewayUrl}, but WhatsApp is not linked yet. Please open ${gatewayUrl} in your browser and scan the QR code with WhatsApp.`,
+            },
             { status: 400 }
           );
         }
@@ -110,7 +160,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             success: false,
-            error: `Could not connect to Local WhatsApp Gateway at ${gatewayUrl}. Please ensure your local background gateway service is running.`,
+            error: `Could not connect to WhatsApp Gateway at ${gatewayUrl}. Please ensure your service is running (or wait 15s if Render Cloud is waking up).`,
           },
           { status: 502 }
         );

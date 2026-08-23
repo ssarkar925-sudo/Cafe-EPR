@@ -6,6 +6,8 @@ import WhatsAppTrackerPanel from "@/components/settings/whatsapp-tracker-panel";
 import {
   DEFAULT_WA_CONFIG,
   DEFAULT_WA_TEMPLATES,
+  GATEWAY_PRESETS,
+  checkGatewayHealth,
   getWhatsAppConfig,
   saveWhatsAppConfig,
   sendWhatsAppMessage,
@@ -55,9 +57,41 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
   const [testPhone, setTestPhone] = useState("");
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [testResult, setTestResult] = useState("");
+  const [gatewayHealth, setGatewayHealth] = useState<{
+    loading: boolean;
+    status: "connected" | "waiting_for_qr" | "offline" | "waking_up" | "error" | "untested";
+    connected: boolean;
+    phone?: string;
+    error?: string;
+    isLocal?: boolean;
+    lastTested?: string;
+  }>({
+    loading: false,
+    status: "untested",
+    connected: false,
+  });
+
+  async function testGatewayConnection(urlToTest?: string) {
+    const url = urlToTest || config.gateway_url || "http://localhost:3001";
+    setGatewayHealth((prev) => ({ ...prev, loading: true, error: undefined }));
+    const res = await checkGatewayHealth(url);
+    setGatewayHealth({
+      loading: false,
+      status: res.status,
+      connected: res.connected,
+      phone: res.phone,
+      error: res.error,
+      isLocal: res.isLocal,
+      lastTested: new Date().toLocaleTimeString("en-IN"),
+    });
+  }
 
   useEffect(() => {
-    setConfig(getWhatsAppConfig());
+    const cfg = getWhatsAppConfig();
+    setConfig(cfg);
+    if (cfg.provider === "local_gateway") {
+      testGatewayConnection(cfg.gateway_url);
+    }
   }, []);
 
   function handleSave(updates: Partial<WhatsAppConfig>) {
@@ -102,7 +136,11 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
     setTestStatus("sending");
     setTestResult("");
 
-    const testMsg = "👋 *Greetings from SC Communications!*\n\n✅ Your WhatsApp automation gateway is *LIVE and Working Perfectly*.\n📅 Date: " + new Date().toLocaleDateString("en-IN") + "\n⏰ Time: " + new Date().toLocaleTimeString("en-IN") + "\n\nInvoices and receipts will now be sent directly in the background!";
+    const activeServerName = config.provider === "local_gateway"
+      ? (config.gateway_url?.includes("localhost") ? "Local PC Gateway" : "Render Cloud Gateway")
+      : config.provider.toUpperCase();
+
+    const testMsg = `👋 *Greetings from Sarkar Communication!*\n\n✅ Your WhatsApp automation gateway is *LIVE and Working Perfectly*.\n⚡ Server: ${activeServerName}\n📅 Date: ${new Date().toLocaleDateString("en-IN")}\n⏰ Time: ${new Date().toLocaleTimeString("en-IN")}\n\nInvoices and receipts will now be sent directly in the background!`;
 
     const res = await sendWhatsAppMessage({
       phone: testPhone.trim(),
@@ -113,7 +151,7 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
 
     if (res.ok) {
       setTestStatus("success");
-      setTestResult("✅ Message delivered successfully to +91 " + testPhone + "!");
+      setTestResult(`✅ Message delivered successfully via ${activeServerName} (${config.gateway_url || "Direct"}) to +91 ${testPhone}!`);
     } else {
       setTestStatus("error");
       setTestResult("❌ Failed: " + (res.error || "Gateway connection error"));
@@ -254,35 +292,159 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
             )}
 
             {config.provider === "local_gateway" && (
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-5 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <div className="space-y-4 rounded-2xl border border-blue-200 bg-blue-50/30 p-5 dark:border-blue-900/40 dark:bg-blue-950/20">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Local / Cloud Gateway Setup</h4>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Switch Gateway Server (Local PC or Cloud)</h4>
                   </div>
-                  <a
-                    href={config.gateway_url || "http://localhost:3001"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                  >
-                    📱 Open Gateway Screen &amp; Scan QR ↗
-                  </a>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => testGatewayConnection()}
+                      disabled={gatewayHealth.loading}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      {gatewayHealth.loading ? (
+                        <>
+                          <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                          Checking...
+                        </>
+                      ) : (
+                        <>🔍 Test Connection (Ping)</>
+                      )}
+                    </button>
+                    <a
+                      href={config.gateway_url || "http://localhost:3001"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+                    >
+                      📱 Open QR Dashboard ↗
+                    </a>
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Connects to your background gateway service running on Render Cloud (e.g. <code>https://...onrender.com</code>) or local PC (<code>http://localhost:3001</code>).
+
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Select your active gateway server below. You can switch between your <strong>Local PC</strong> and <strong>Render Cloud</strong> anytime with 1 click.
                 </p>
 
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* 1-Click Server Presets */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {GATEWAY_PRESETS.map((preset) => {
+                    const isActive = (config.gateway_url || "").trim().replace(/\/$/, "") === preset.url.replace(/\/$/, "");
+                    return (
+                      <div
+                        key={preset.id}
+                        onClick={() => {
+                          handleSave({ gateway_url: preset.url });
+                          testGatewayConnection(preset.url);
+                        }}
+                        className={`cursor-pointer rounded-xl border p-3.5 transition ${
+                          isActive
+                            ? "border-blue-500 bg-white shadow-md ring-2 ring-blue-500/20 dark:bg-slate-900"
+                            : "border-slate-200 bg-white/70 hover:border-slate-300 dark:border-white/10 dark:bg-slate-900/60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{preset.icon}</span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">{preset.label}</span>
+                          </div>
+                          {isActive ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                              ✓ ACTIVE SERVER
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-white/10">
+                              Switch to this
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 font-mono text-[11px] text-blue-700 dark:text-blue-400 truncate">{preset.url}</p>
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{preset.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Live Health Status Box */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Server Health &amp; WhatsApp Link:</span>
+                      {gatewayHealth.status === "connected" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          🟢 LIVE &amp; READY {gatewayHealth.phone ? `(+${gatewayHealth.phone})` : ""}
+                        </span>
+                      )}
+                      {gatewayHealth.status === "waiting_for_qr" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                          <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                          🟡 SERVER RUNNING · WAITING FOR QR SCAN
+                        </span>
+                      )}
+                      {gatewayHealth.status === "offline" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+                          <span className="h-2 w-2 rounded-full bg-rose-500"></span>
+                          🔴 OFFLINE / UNREACHABLE
+                        </span>
+                      )}
+                      {gatewayHealth.status === "untested" && !gatewayHealth.loading && (
+                        <span className="text-xs text-slate-400">Click &quot;Test Connection&quot; to verify</span>
+                      )}
+                      {gatewayHealth.loading && (
+                        <span className="text-xs font-medium text-blue-600 animate-pulse">Connecting to server...</span>
+                      )}
+                    </div>
+                    {gatewayHealth.lastTested && (
+                      <span className="text-[10px] text-slate-400">Last checked: {gatewayHealth.lastTested}</span>
+                    )}
+                  </div>
+
+                  {gatewayHealth.status === "waiting_for_qr" && (
+                    <div className="mt-2 flex items-center justify-between rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-300">
+                      <span>Server is active, but WhatsApp account is not linked. Click to scan QR code:</span>
+                      <a
+                        href={config.gateway_url || "http://localhost:3001"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 font-bold underline"
+                      >
+                        Open QR Code Dashboard ↗
+                      </a>
+                    </div>
+                  )}
+
+                  {gatewayHealth.status === "offline" && (
+                    <div className="mt-2 rounded-lg bg-rose-50 p-2.5 text-xs text-rose-800 dark:bg-rose-950/20 dark:text-rose-300">
+                      <p className="font-semibold">{gatewayHealth.error}</p>
+                      <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">
+                        • If using <strong>Local PC</strong>: Make sure <code>pm2 start scripts/whatsapp-gateway.js</code> or <code>npm run whatsapp</code> is running in your terminal.<br />
+                        • If using <strong>Render Cloud</strong>: Free tier takes ~15-20 seconds to wake up from idle sleep. Please wait a moment and test again.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom Gateway URL & Optional Key */}
+                <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Gateway API URL
+                      Gateway API URL (Active)
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. https://sccomm-whatsapp-gateway.onrender.com"
+                      placeholder="e.g. http://localhost:3001 or https://...onrender.com"
                       value={config.gateway_url || ""}
-                      onChange={(e) => handleSave({ gateway_url: e.target.value })}
+                      onChange={(e) => {
+                        handleSave({ gateway_url: e.target.value });
+                      }}
+                      onBlur={() => testGatewayConnection()}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
                     />
                   </div>
