@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "gateway": "node scripts/whatsapp-gateway.js"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",
