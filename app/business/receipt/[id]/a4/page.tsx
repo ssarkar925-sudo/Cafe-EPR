@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import A4Actions from "@/components/pdf/a4-actions";
-import FeesToggle from "@/components/business/fees-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +12,10 @@ const SERVICE_TITLE: Record<string, string> = {
 
 export default async function BusinessReceiptA4Page({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ show_fees?: string }>;
 }) {
   const { id } = await params;
-  const sp = await searchParams;
-  const showFees = sp?.show_fees === "1";
   const supabase = createAdminClient();
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -92,13 +87,11 @@ export default async function BusinessReceiptA4Page({
             <p className="text-xs text-slate-500">#{txn.transaction_number} · Standard Customer Invoice</p>
           </div>
           <div className="flex items-center gap-3">
-            <FeesToggle showFees={showFees} />
             <A4Actions
               variant="business"
               data={{ txn, settings }}
-              showFees={showFees}
               filename={`${txn.transaction_number}.pdf`}
-              receiptUrl={`/business/receipt/${id}${showFees ? "?show_fees=1" : ""}`}
+              receiptUrl={`/business/receipt/${id}`}
             />
           </div>
         </div>
@@ -131,12 +124,12 @@ export default async function BusinessReceiptA4Page({
             <div className="mt-1 space-y-0.5 text-sm">
               <div className="flex justify-between text-slate-600">
                 <span>Status</span>
-                <span className="font-medium text-slate-900 capitalize">{txn.status}</span>
+                <span className="font-bold text-emerald-700 capitalize">{txn.status}</span>
               </div>
               {txn.reference && (
                 <div className="flex justify-between text-slate-600">
-                  <span>Reference</span>
-                  <span className="font-medium text-slate-900">{txn.reference}</span>
+                  <span>Reference / UTR</span>
+                  <span className="font-semibold text-slate-900">{txn.reference}</span>
                 </div>
               )}
             </div>
@@ -151,39 +144,23 @@ export default async function BusinessReceiptA4Page({
                 <span className="font-medium text-slate-900">{txn.banks?.name || "-"}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Portal</span>
-                <span className="font-medium text-slate-900">{txn.portals?.name || "-"}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
                 <span className="text-slate-600">Aadhaar Last 4</span>
                 <span className="font-medium text-slate-900">XXXX XXXX XXXX {txn.aadhaar_last4}</span>
               </div>
-              <div className="flex justify-between py-1.5 font-bold text-slate-900">
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
                 <span>Withdrawal Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {showFees && (
-                <>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-slate-600">Service Fee</span>
-                    <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
-                  </div>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-slate-600">Portal Commission</span>
-                    <span className="font-medium text-slate-900">{money(txn.portal_commission)}</span>
-                  </div>
-                  <div className="flex justify-between py-1.5 font-bold text-slate-900">
-                    <span>Cash Handed</span>
-                    <span>{money(Number(txn.amount) - Number(txn.service_fee))}</span>
-                  </div>
-                </>
-              )}
+              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                <span>Cash Handed to Customer</span>
+                <span className="text-emerald-700">{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
+              </div>
             </>
           )}
           {service === "dmt" && (
             <>
               <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Method</span>
+                <span className="text-slate-600">Transfer Method</span>
                 <span className="font-medium text-slate-900">{txn.transfer_method === "upi" ? "UPI" : "BANK ACCOUNT"}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 py-1.5">
@@ -192,7 +169,7 @@ export default async function BusinessReceiptA4Page({
               </div>
               <div className="flex justify-between border-b border-slate-100 py-1.5">
                 <span className="text-slate-600">Beneficiary</span>
-                <span className="font-medium text-slate-900">{txn.beneficiary_name || "-"}</span>
+                <span className="font-semibold text-slate-900">{txn.beneficiary_name || "-"}</span>
               </div>
               {txn.transfer_method === "upi" ? (
                 <div className="flex justify-between border-b border-slate-100 py-1.5">
@@ -206,49 +183,25 @@ export default async function BusinessReceiptA4Page({
                     <span className="font-medium text-slate-900">{txn.beneficiary_bank}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-100 py-1.5">
-                    <span className="text-slate-600">Account</span>
+                    <span className="text-slate-600">Account Number</span>
                     <span className="font-medium text-slate-900">{txn.beneficiary_account}</span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-100 py-1.5">
-                    <span className="text-slate-600">IFSC</span>
-                    <span className="font-medium text-slate-900">{txn.beneficiary_ifsc}</span>
-                  </div>
+                  {txn.beneficiary_ifsc && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5">
+                      <span className="text-slate-600">IFSC</span>
+                      <span className="font-medium text-slate-900">{txn.beneficiary_ifsc}</span>
+                    </div>
+                  )}
                 </>
               )}
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Money Sent From</span>
-                <span className="font-medium text-slate-900">
-                  {(txn.paid_from ?? "bank") === "portal"
-                    ? `DMT Portal Wallet${txn.portals?.name ? ` (${txn.portals.name})` : ""}`
-                    : txn.remarks?.match(/\[Account:\s*([^\]]+)\]/)?.[1]
-                    ? `Our Bank (${txn.remarks.match(/\[Account:\s*([^\]]+)\]/)[1]})`
-                    : txn.banks?.name
-                    ? `Our Bank (${txn.banks.name})`
-                    : "Our Bank Account"}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Customer Paid Via</span>
-                <span className="font-medium capitalize text-slate-900">{txn.customer_pay_method || "Cash"}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Transfer (Money Out)</span>
-                <span className="font-semibold text-rose-600">{money(txn.amount)}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Customer Fee</span>
-                <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                <span>Transfer Amount</span>
+                <span className="text-rose-600">{money(txn.amount)}</span>
               </div>
               <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                <span>Total Collected from Customer</span>
-                <span className="text-emerald-700">{money(Number(txn.amount) + Number(txn.service_fee))}</span>
+                <span>Total Received from Customer</span>
+                <span className="text-emerald-700">{money(Number(txn.amount) + Number(txn.service_fee || 0))}</span>
               </div>
-              {showFees && (
-                <div className="flex justify-between py-1 text-xs text-slate-400">
-                  <span>Portal Charge</span>
-                  <span>{money(txn.portal_commission)}</span>
-                </div>
-              )}
             </>
           )}
           {service === "upi" && (
@@ -259,26 +212,34 @@ export default async function BusinessReceiptA4Page({
               </div>
               {txn.merchant_qrs?.upi_id && (
                 <div className="flex justify-between border-b border-slate-100 py-1.5">
-                  <span className="text-slate-600">UPI</span>
+                  <span className="text-slate-600">UPI ID</span>
                   <span className="font-medium text-slate-900">{txn.merchant_qrs.upi_id}</span>
                 </div>
               )}
-              <div className="flex justify-between py-1.5 font-bold text-slate-900">
-                <span>UPI Amount</span>
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                <span>Cash-out Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {showFees && (
-                <>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-slate-600">Service Fee</span>
-                    <span className="font-medium text-slate-900">{money(txn.service_fee)}</span>
-                  </div>
-                  <div className="flex justify-between py-1.5 font-bold text-slate-900">
-                    <span>Cash Handed</span>
-                    <span>{money(Number(txn.amount) - Number(txn.service_fee))}</span>
-                  </div>
-                </>
-              )}
+              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                <span>Cash Handed to Customer</span>
+                <span className="text-emerald-700">{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
+              </div>
+            </>
+          )}
+          {service === "recharge" && (
+            <>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Provider</span>
+                <span className="font-medium text-slate-900">{txn.providers?.name || "-"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Mobile / Account</span>
+                <span className="font-semibold text-slate-900">{txn.customer_mobile || "-"}</span>
+              </div>
+              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                <span>Total Amount Paid</span>
+                <span className="text-emerald-700">{money(txn.amount)}</span>
+              </div>
             </>
           )}
         </div>

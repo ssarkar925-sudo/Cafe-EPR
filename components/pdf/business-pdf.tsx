@@ -81,14 +81,10 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
 
         {service === "aeps" && (
           <>
-            <Text style={styles.sectionTitle}>AEPS Withdrawal Details</Text>
+            <Text style={styles.sectionTitle}>AEPS Cash Withdrawal Details</Text>
             <View style={styles.row}>
               <Text style={styles.label}>Bank</Text>
               <Text>{txn.banks?.name || "-"}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Portal</Text>
-              <Text>{txn.portals?.name || "-"}</Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Aadhaar Last 4</Text>
@@ -99,30 +95,18 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
               <Text>Withdrawal Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            {showFees && (
-              <>
-                <View style={styles.row}>
-                  <Text style={styles.label}>Service Fee</Text>
-                  <Text>{money(txn.service_fee)}</Text>
-                </View>
-                <View style={styles.row}>
-                  <Text style={styles.label}>Portal Commission</Text>
-                  <Text>{money(txn.portal_commission)}</Text>
-                </View>
-                <View style={styles.moneyRow}>
-                  <Text>Cash Handed</Text>
-                  <Text>{money(Number(txn.amount) - Number(txn.service_fee))}</Text>
-                </View>
-              </>
-            )}
+            <View style={styles.moneyRow}>
+              <Text>Cash Handed to Customer</Text>
+              <Text>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</Text>
+            </View>
           </>
         )}
 
         {service === "dmt" && (
           <>
-            <Text style={styles.sectionTitle}>DMT Transfer Details</Text>
+            <Text style={styles.sectionTitle}>DMT Money Transfer Details</Text>
             <View style={styles.row}>
-              <Text style={styles.label}>Method</Text>
+              <Text style={styles.label}>Transfer Method</Text>
               <Text>{txn.transfer_method === "upi" ? "UPI" : "BANK ACCOUNT"}</Text>
             </View>
             <View style={styles.row}>
@@ -145,50 +129,26 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
                   <Text>{txn.beneficiary_bank}</Text>
                 </View>
                 <View style={styles.row}>
-                  <Text style={styles.label}>Account</Text>
+                  <Text style={styles.label}>Account Number</Text>
                   <Text>{txn.beneficiary_account}</Text>
                 </View>
-                <View style={styles.row}>
-                  <Text style={styles.label}>IFSC</Text>
-                  <Text>{txn.beneficiary_ifsc}</Text>
-                </View>
+                {txn.beneficiary_ifsc && (
+                  <View style={styles.row}>
+                    <Text style={styles.label}>IFSC</Text>
+                    <Text>{txn.beneficiary_ifsc}</Text>
+                  </View>
+                )}
               </>
             )}
             <View style={styles.sectionTitle} />
             <View style={styles.row}>
-              <Text style={styles.label}>Money Sent From</Text>
-              <Text>
-                {(txn.paid_from ?? "bank") === "portal"
-                  ? `DMT Portal Wallet${txn.portals?.name ? ` (${txn.portals.name})` : ""}`
-                  : txn.remarks?.match(/\[Account:\s*([^\]]+)\]/)?.[1]
-                  ? `Our Bank (${txn.remarks.match(/\[Account:\s*([^\]]+)\]/)[1]})`
-                  : txn.banks?.name
-                  ? `Our Bank (${txn.banks.name})`
-                  : "Our Bank Account"}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Customer Paid Via</Text>
-              <Text>{txn.customer_pay_method || "Cash"}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Transfer (Money Out)</Text>
+              <Text style={styles.label}>Transfer Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Customer Fee</Text>
-              <Text>{money(txn.service_fee)}</Text>
-            </View>
             <View style={styles.moneyRow}>
-              <Text>Total Collected from Customer</Text>
-              <Text>{money(Number(txn.amount) + Number(txn.service_fee))}</Text>
+              <Text>Total Received from Customer</Text>
+              <Text>{money(Number(txn.amount) + Number(txn.service_fee || 0))}</Text>
             </View>
-            {showFees && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Portal Charge</Text>
-                <Text>{money(txn.portal_commission)}</Text>
-              </View>
-            )}
           </>
         )}
 
@@ -201,27 +161,38 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
             </View>
             {txn.merchant_qrs?.upi_id && (
               <View style={styles.row}>
-                <Text style={styles.label}>UPI</Text>
+                <Text style={styles.label}>UPI ID</Text>
                 <Text>{txn.merchant_qrs.upi_id}</Text>
               </View>
             )}
             <View style={styles.sectionTitle} />
             <View style={styles.moneyRow}>
-              <Text>UPI Amount</Text>
+              <Text>Cash-out Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            {showFees && (
-              <>
-                <View style={styles.row}>
-                  <Text style={styles.label}>Service Fee</Text>
-                  <Text>{money(txn.service_fee)}</Text>
-                </View>
-                <View style={styles.moneyRow}>
-                  <Text>Cash Handed</Text>
-                  <Text>{money(Number(txn.amount) - Number(txn.service_fee))}</Text>
-                </View>
-              </>
-            )}
+            <View style={styles.moneyRow}>
+              <Text>Cash Handed to Customer</Text>
+              <Text>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</Text>
+            </View>
+          </>
+        )}
+
+        {service === "recharge" && (
+          <>
+            <Text style={styles.sectionTitle}>Recharge Details</Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Provider</Text>
+              <Text>{txn.providers?.name || "-"}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Mobile / ID</Text>
+              <Text>{txn.customer_mobile || "-"}</Text>
+            </View>
+            <View style={styles.sectionTitle} />
+            <View style={styles.moneyRow}>
+              <Text>Total Amount Paid</Text>
+              <Text>{money(txn.amount)}</Text>
+            </View>
           </>
         )}
 

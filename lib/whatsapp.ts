@@ -122,11 +122,8 @@ create table if not exists public.whatsapp_templates (
   id text primary key default 'default',
   templates jsonb not null default '{}'::jsonb,
   config jsonb not null default '{}'::jsonb,
-  gateway_session jsonb,
   updated_at timestamptz not null default now()
 );
-
-alter table public.whatsapp_templates add column if not exists gateway_session jsonb;
 
 alter table public.whatsapp_templates enable row level security;
 create policy "whatsapp_templates select" on public.whatsapp_templates for select to authenticated using (true);

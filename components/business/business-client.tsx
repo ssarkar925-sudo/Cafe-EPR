@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+import Modal from "@/components/ui/modal";
 
 export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
@@ -306,6 +307,7 @@ export default function BusinessClient({
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [detailsTxn, setDetailsTxn] = useState<Txn | null>(null);
   const [editTxn, setEditTxn] = useState<Txn | null>(null);
   const [reverseTxn, setReverseTxn] = useState<Txn | null>(null);
   const [deleteTxn, setDeleteTxn] = useState<Txn | null>(null);
@@ -1666,6 +1668,15 @@ export default function BusinessClient({
                 </td>
                 <td className="px-5 py-3">
                   <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setDetailsTxn(t)}
+                      title="Internal Operations & Margin Breakdown"
+                      className={`${actionBtn} text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30`}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                      Ops
+                    </button>
                     <a
                       href={`/business/receipt/${t.id}`}
                       target="_blank"
@@ -1798,6 +1809,14 @@ export default function BusinessClient({
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
                   <span className="text-xs text-slate-400">{fmtDateTime(t)}</span>
                   <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setDetailsTxn(t)}
+                      title="Internal Operations & Margin Breakdown"
+                      className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300"
+                    >
+                      Ops
+                    </button>
                     <a
                       href={`/business/receipt/${t.id}`}
                       target="_blank"
@@ -1892,6 +1911,106 @@ export default function BusinessClient({
           onClose={() => setDeleteTxn(null)}
           onConfirm={deleteTxnAction}
         />
+      )}
+
+      {detailsTxn && (
+        <Modal
+          onClose={() => setDetailsTxn(null)}
+          title={`Internal Transaction Details · #${detailsTxn.transaction_number}`}
+          size="md"
+        >
+          <div className="space-y-4 text-sm">
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-white/5 space-y-2 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Service Type</span>
+                <span className="font-bold text-slate-900 dark:text-white uppercase">{detailsTxn.service_type}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Transaction No</span>
+                <span className="font-bold">{detailsTxn.transaction_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Date</span>
+                <span>{detailsTxn.transaction_date}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Status</span>
+                <span className="font-bold text-emerald-600 uppercase">{detailsTxn.status}</span>
+              </div>
+              {detailsTxn.reference && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Reference / UTR</span>
+                  <span className="font-bold">{detailsTxn.reference}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/30 dark:bg-indigo-950/20 space-y-2 text-xs">
+              <p className="font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wide">
+                Shop Operations &amp; Margin Breakdown
+              </p>
+              <div className="flex justify-between">
+                <span className="text-slate-600 dark:text-slate-400">Transaction Amount</span>
+                <span className="font-bold text-slate-900 dark:text-white">{inr(Number(detailsTxn.amount))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 dark:text-slate-400">Customer Service Fee Collected</span>
+                <span className="font-bold text-emerald-600">+{inr(Number(detailsTxn.service_fee || 0))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 dark:text-slate-400">Portal / Provider Commission</span>
+                <span className="font-bold text-emerald-600">+{inr(Number(detailsTxn.portal_commission || 0))}</span>
+              </div>
+              <div className="flex justify-between border-t border-indigo-200/60 pt-2 font-bold text-slate-900 dark:text-white">
+                <span>Net Shop Revenue / Margin</span>
+                <span className="text-emerald-700 dark:text-emerald-400">
+                  {inr(Number(detailsTxn.service_fee || 0) + Number(detailsTxn.portal_commission || 0))}
+                </span>
+              </div>
+              {detailsTxn.paid_from && (
+                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-white/10">
+                  <span className="text-slate-600 dark:text-slate-400">Paid From Source</span>
+                  <span className="font-semibold capitalize">{detailsTxn.paid_from}</span>
+                </div>
+              )}
+              {detailsTxn.customer_pay_method && (
+                <div className="flex justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Customer Paid Via</span>
+                  <span className="font-semibold capitalize">{detailsTxn.customer_pay_method}</span>
+                </div>
+              )}
+              {detailsTxn.remarks && (
+                <div className="pt-1 text-slate-500">
+                  <span className="font-semibold">Remarks:</span> {detailsTxn.remarks}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <a
+                href={`/business/receipt/${detailsTxn.id}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+              >
+                🧾 80mm Receipt
+              </a>
+              <a
+                href={`/business/receipt/${detailsTxn.id}/a4`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-500"
+              >
+                📄 A4 Invoice
+              </a>
+              <button
+                type="button"
+                onClick={() => setDetailsTxn(null)}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {waModal && (

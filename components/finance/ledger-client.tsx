@@ -57,12 +57,39 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
     }
     return initialCustomers[0]?.id ?? "";
   });
+  const [onlyDue, setOnlyDue] = useState(false);
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [compact, setCompact] = useState(false);
   const { showToast, toastView } = useToast();
+
+  const dueCustomers = useMemo(() => {
+    return customers
+      .filter((c) => Number(c.balance || 0) > 0)
+      .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
+  }, [customers]);
+
+  const totalDueOutstanding = useMemo(() => {
+    return dueCustomers.reduce((s, c) => s + Number(c.balance || 0), 0);
+  }, [dueCustomers]);
+
+  const displayedCustomers = useMemo(() => {
+    return onlyDue ? dueCustomers : customers;
+  }, [onlyDue, dueCustomers, customers]);
+
+  function handleToggleDueFilter() {
+    setOnlyDue((prev) => {
+      const next = !prev;
+      if (next && dueCustomers.length > 0) {
+        if (!dueCustomers.some((c) => c.id === customerId)) {
+          setCustomerId(dueCustomers[0].id);
+        }
+      }
+      return next;
+    });
+  }
 
   // Payment Collection Modal State
   const [payModal, setPayModal] = useState(false);
@@ -459,31 +486,86 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <SearchableSelect
-            value={customerId}
-            onChange={setCustomerId}
-            options={customers.map((c) => ({
-              value: c.id,
-              label: `${c.name} (${c.code ?? "-"})${c.phone ? ` · ${c.phone}` : ""}`,
-            }))}
-            placeholder="Select customer…"
-            searchPlaceholder="Search customer…"
-            showClear={false}
-            className="w-full max-w-sm"
-          />
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 dark:bg-white/5">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Live Balance</span>
-              <span className={`text-base font-bold ${Number(selected?.balance ?? 0) > 0 ? "text-rose-600" : Number(selected?.balance ?? 0) < 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200"}`}>
-                {inr(selected?.balance ?? 0)}
-              </span>
-              <span className="text-[11px] font-semibold text-slate-400">
-                {Number(selected?.balance ?? 0) > 0 ? "(Payable Due)" : Number(selected?.balance ?? 0) < 0 ? "(Advance Credit)" : "(Settled)"}
-              </span>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <SearchableSelect
+                value={customerId}
+                onChange={setCustomerId}
+                options={displayedCustomers.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${c.code ?? "-"})${Number(c.balance || 0) > 0 ? ` · Due: ${inr(Number(c.balance))}` : ""}${c.phone ? ` · ${c.phone}` : ""}`,
+                }))}
+                placeholder={onlyDue ? "Search pending due customers…" : "Select customer…"}
+                searchPlaceholder="Search customer…"
+                showClear={false}
+                className="w-full max-w-sm"
+              />
+
+              {/* Pending Due Fast Filter Button */}
+              <button
+                type="button"
+                onClick={handleToggleDueFilter}
+                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition shadow-sm ${
+                  onlyDue
+                    ? "bg-rose-600 text-white shadow-rose-600/20 ring-2 ring-rose-500/40"
+                    : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                }`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+                </span>
+                {onlyDue ? "Showing Due Only" : "🔴 Pending Due Customers"}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${onlyDue ? "bg-white/20 text-white" : "bg-rose-200 text-rose-900 dark:bg-rose-900/40 dark:text-rose-200"}`}>
+                  {dueCustomers.length}
+                </span>
+              </button>
             </div>
-            <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-ledger-compact" />
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 dark:bg-white/5">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Live Balance</span>
+                <span className={`text-base font-bold ${Number(selected?.balance ?? 0) > 0 ? "text-rose-600" : Number(selected?.balance ?? 0) < 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200"}`}>
+                  {inr(selected?.balance ?? 0)}
+                </span>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {Number(selected?.balance ?? 0) > 0 ? "(Payable Due)" : Number(selected?.balance ?? 0) < 0 ? "(Advance Credit)" : "(Settled)"}
+                </span>
+              </div>
+              <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-ledger-compact" />
+            </div>
           </div>
+
+          {/* Quick Pending Due Customer Bar */}
+          {dueCustomers.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-white/5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                ⚡ Quick Due ({dueCustomers.length} · Total {inr(totalDueOutstanding)}):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {dueCustomers.slice(0, 8).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setCustomerId(c.id);
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                      c.id === customerId
+                        ? "bg-rose-600 text-white shadow-sm"
+                        : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                    }`}
+                  >
+                    <span>{c.name}</span>
+                    <span className={`font-bold ${c.id === customerId ? "text-white" : "text-rose-600 dark:text-rose-400"}`}>
+                      {inr(Number(c.balance))}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
