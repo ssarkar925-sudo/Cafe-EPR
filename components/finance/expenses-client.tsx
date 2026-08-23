@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import ExpenseFormModal, { type ExpenseSource } from "./expense-form-modal";
 import StatCard from "@/components/ui/stat-card";
@@ -43,6 +44,8 @@ export default function ExpensesClient({
   initialExpenses: Expense[];
   instruments?: ExpenseSource[];
 }) {
+  useRealtime(["expenses", "cash_entries", "payment_instruments"]);
+
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "cancelled">("all");

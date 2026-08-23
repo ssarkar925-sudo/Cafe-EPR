@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
 import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
@@ -57,6 +58,8 @@ export default function CashbookClient({
   initialEntries: CashEntry[];
   instruments: { id: string; name: string; type: string }[];
 }) {
+  useRealtime(["cash_entries", "payments", "transactions", "expenses", "settlements"]);
+
   const [method, setMethod] = useState("all");
   const [account, setAccount] = useState("all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");

@@ -7,6 +7,7 @@ import Sidebar from "./sidebar";
 import GlobalSearch from "./global-search";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
+import CloudSyncBadge from "./cloud-sync-badge";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -206,7 +207,8 @@ export default function DashboardShell({
             </kbd>
           </button>
 
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2.5">
+            <CloudSyncBadge />
             <ThemeToggle />
             <div className="hidden lg:block">
               <NotificationBell role={role} />

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 import ReturnDetailModal from "./return-detail-modal";
 import StatCard from "@/components/ui/stat-card";
 import ViewToggle from "@/components/ui/view-toggle";
@@ -38,6 +39,7 @@ const TYPE_FILTERS = [
 ] as const;
 
 export default function ReturnsClient({ initialReturns }: { initialReturns: ReturnRow[] }) {
+  useRealtime(["returns", "return_items", "invoices", "payments"]);
   const [returns, setReturns] = useState<ReturnRow[]>(initialReturns);
   const [q, setQ] = useState("");
   const [type, setType] = useState<(typeof TYPE_FILTERS)[number]["key"]>("all");

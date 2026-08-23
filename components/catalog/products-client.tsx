@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import ProductFormModal from "./product-form-modal";
 import { inr } from "@/lib/format";
@@ -57,6 +58,8 @@ export default function ProductsClient({
   categories: CategoryRef[];
   embedded?: boolean;
 }) {
+  useRealtime(["products", "categories", "units", "brands"]);
+
   const searchParams = useSearchParams();
   const initialStatusParam = searchParams?.get("status");
   const initialQParam = searchParams?.get("q") || "";

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
 import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
@@ -46,6 +47,9 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   const searchParams = useSearchParams();
   const queryCustomer = searchParams?.get("customer") ?? "";
   const supabase = createClient();
+
+  useRealtime(["customer_ledger", "customers", "invoices", "payments"]);
+
   const [customers, setCustomers] = useState<LedgerCustomer[]>(initialCustomers);
   const [customerId, setCustomerId] = useState<string>(() => {
     if (queryCustomer && initialCustomers.some((c) => c.id === queryCustomer)) {

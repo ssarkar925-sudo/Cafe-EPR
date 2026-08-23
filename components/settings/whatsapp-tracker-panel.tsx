@@ -111,6 +111,22 @@ export default function WhatsAppTrackerPanel() {
 
   useEffect(() => {
     loadLogs();
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("wa-logs-realtime-" + Math.random().toString(36).slice(2))
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_logs" },
+        () => {
+          loadLogs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredLogs = useMemo(() => {

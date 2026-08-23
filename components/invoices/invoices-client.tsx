@@ -216,6 +216,60 @@ export default function InvoicesClient({
     });
   }
 
+  async function fetchLatestData() {
+    try {
+      const [invRes, qsRes] = await Promise.all([
+        supabase
+          .from("invoices")
+          .select("*, customers(name, phone)")
+          .order("invoice_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("quick_sales")
+          .select("*, customers(name, phone), products(name), services(name)")
+          .order("sale_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ]);
+      if (invRes.data) setInvoices(invRes.data as unknown as InvoiceRow[]);
+      if (qsRes.data) setQuickSales(qsRes.data as unknown as QuickSaleRow[]);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("invoices-realtime-" + Math.random().toString(36).slice(2))
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => {
+          fetchLatestData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payments" },
+        () => {
+          fetchLatestData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "quick_sales" },
+        () => {
+          fetchLatestData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
+
   useEffect(() => {
     if (!collectId) return;
     timerRef.current = window.setTimeout(() => setCollectId(null), COLLECT_TIMEOUT);

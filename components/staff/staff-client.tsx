@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
@@ -48,6 +49,8 @@ export default function StaffClient({
   initialUsers: StaffUser[];
   currentUserId: string;
 }) {
+  useRealtime(["profiles"]);
+
   const [users, setUsers] = useState<StaffUser[]>(initialUsers);
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");

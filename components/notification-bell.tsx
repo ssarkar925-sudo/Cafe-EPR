@@ -185,7 +185,6 @@ export default function NotificationBell({ role }: { role: string }) {
   }, []);
 
   useEffect(() => {
-    if (role === "staff") return;
     const channel = supabase
       .channel("notif-realtime-" + Math.random().toString(36).slice(2))
       .on(
@@ -199,11 +198,25 @@ export default function NotificationBell({ role }: { role: string }) {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => {
+          load();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "transactions" },
+        () => {
+          load();
+        }
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, role]);
+  }, [supabase]);
 
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useRealtime } from "@/lib/supabase/realtime";
 import ServiceFormModal from "./service-form-modal";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
@@ -46,6 +47,8 @@ export default function ServicesClient({
   categories: CategoryRef[];
   embedded?: boolean;
 }) {
+  useRealtime(["services", "categories"]);
+
   const [services, setServices] = useState<Service[]>(initialServices);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");

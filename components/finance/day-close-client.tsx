@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -92,6 +93,8 @@ export default function DayCloseClient({
   initialClosings: ClosingRecord[];
   settings?: any;
 }) {
+  useRealtime(["closings", "closing_balances", "cash_entries", "opening_balances", "expenses", "settlements"]);
+
   const [openClose, setOpenClose] = useState<OpenClose>(normalizeOpenClose(initialOpenClose));
   const [closings, setClosings] = useState<ClosingRecord[]>(initialClosings);
   const [openDate, setOpenDate] = useState(() => new Date().toISOString().slice(0, 10));

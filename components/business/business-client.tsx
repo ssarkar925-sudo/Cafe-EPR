@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import BusinessFormModal from "./business-form-modal";
@@ -284,6 +285,13 @@ export default function BusinessClient({
 }) {
   const cfg = CONFIG[service];
   const [txns, setTxns] = useState<Txn[]>(initialTransactions);
+
+  useRealtime(["transactions", "payment_instruments", "cash_entries", "expenses", "settlements", "customers"]);
+
+  useEffect(() => {
+    setTxns(initialTransactions);
+  }, [initialTransactions]);
+
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [bankFilter, setBankFilter] = useState("");
