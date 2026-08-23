@@ -96,3 +96,205 @@ $$;
 
 revoke all on function public.create_settlement(text, date, numeric, text, text, text) from public, anon;
 grant execute on function public.create_settlement(text, date, numeric, text, text, text) to authenticated;
+
+-- ==============================================================================
+-- Update get_pool_movements to include Credit Card settlements & bill payments
+-- ==============================================================================
+
+create or replace function public.get_pool_movements(
+  p_pool text,
+  p_from date,
+  p_to date default null
+)
+returns numeric
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v numeric := 0;
+begin
+  if p_from is null then
+    return 0;
+  end if;
+
+  if p_pool = 'cash' then
+    select coalesce(sum(case when direction = 'in' then amount else -amount end), 0) into v
+    from public.cash_entries
+    where method = 'cash'
+      and entry_date >= p_from and (p_to is null or entry_date <= p_to);
+
+  elsif p_pool = 'bank' then
+    select coalesce(sum(x), 0) into v from (
+      -- A. Settlements received into Bank (+)
+      select amount as x
+      from public.settlements
+      where status = 'success' and to_pool = 'bank'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+
+      union all
+
+      -- B. Settlements sent out of Bank (-)
+      select -amount as x
+      from public.settlements
+      where status = 'success' and from_pool = 'bank'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+
+      union all
+
+      -- C. Cash entries on Bank method
+      select case when direction = 'in' then amount else -amount end as x
+      from public.cash_entries
+      where method = 'bank'
+        and (ref_type is null or ref_type not in ('settlement', 'transaction'))
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+
+      union all
+
+      -- D. Transactions received into Bank (+)
+      select bank_in as x
+      from public.transactions
+      where status = 'success' and bank_in > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+
+      union all
+
+      -- E. Transactions sent out of Bank (-)
+      select -bank_out as x
+      from public.transactions
+      where status = 'success' and bank_out > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'credit_card' then
+    select coalesce(sum(x), 0) into v from (
+      -- Settlements: CC Bill Payments (+)
+      select amount as x from public.settlements where status = 'success' and to_pool = 'credit_card'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      -- Settlements: CC Cash Advance Out (-)
+      select -amount from public.settlements where status = 'success' and from_pool = 'credit_card'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      -- Cash entries (bill payments/expenses)
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries
+      where method = 'credit_card'
+        and (ref_type is null or ref_type not in ('settlement', 'transaction'))
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'wallet' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'wallet'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'wallet'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries
+      where method = 'wallet'
+        and (ref_type is null or ref_type not in ('settlement', 'transaction'))
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'dmt' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'dmt'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'dmt'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries
+      where method = 'dmt'
+        and (ref_type is null or ref_type not in ('settlement', 'transaction'))
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+      union all
+      select pool_credit from public.transactions
+      where status = 'success' and pool_credit_type = 'dmt' and pool_credit > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions
+      where status = 'success' and pool_credit_type = 'dmt' and pool_out > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'aeps' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'aeps'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'aeps'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'out' then amount else -amount end
+      from public.cash_entries
+      where method = 'aeps'
+        and (ref_type is null or ref_type not in ('settlement', 'transaction'))
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+      union all
+      select pool_credit from public.transactions
+      where status = 'success' and pool_credit_type = 'aeps' and pool_credit > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions
+      where status = 'success' and pool_credit_type = 'aeps' and pool_out > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'upi_qr' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'upi_qr'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'upi_qr'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select case when direction = 'in' then amount else -amount end
+      from public.cash_entries
+      where method = 'upi'
+        and (ref_type is null or ref_type not in ('settlement', 'transaction'))
+        and entry_date >= p_from and (p_to is null or entry_date <= p_to)
+      union all
+      select pool_credit from public.transactions
+      where status = 'success' and pool_credit_type = 'upi_qr' and pool_credit > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions
+      where status = 'success' and pool_credit_type = 'upi_qr' and pool_out > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select upi_fee from public.transactions
+      where status = 'success' and upi_fee > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  elsif p_pool = 'recharge' then
+    select coalesce(sum(x), 0) into v from (
+      select amount as x from public.settlements where status = 'success' and to_pool = 'recharge'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select -amount from public.settlements where status = 'success' and from_pool = 'recharge'
+        and settlement_date >= p_from and (p_to is null or settlement_date <= p_to)
+      union all
+      select pool_credit from public.transactions
+      where status = 'success' and pool_credit_type = 'recharge' and pool_credit > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+      union all
+      select -pool_out from public.transactions
+      where status = 'success' and pool_credit_type = 'recharge' and pool_out > 0
+        and transaction_date >= p_from and (p_to is null or transaction_date <= p_to)
+    ) t;
+
+  else
+    v := 0;
+  end if;
+
+  return v;
+end;
+$$;
+
+revoke all on function public.get_pool_movements(text, date, date) from public, anon;
+grant execute on function public.get_pool_movements(text, date, date) to authenticated, service_role;

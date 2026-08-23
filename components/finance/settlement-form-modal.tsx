@@ -84,6 +84,8 @@ export default function SettlementFormModal({
     p_reference: string;
     p_remarks: string;
     p_direction: string;
+    p_card_id?: string;
+    p_bank_id?: string;
   }) => void;
 }) {
   const [type, setType] = useState<SettlementType>(() => initialType ?? "bank_withdrawal");
@@ -150,6 +152,8 @@ export default function SettlementFormModal({
       p_reference: reference.trim(),
       p_remarks: remarks.trim(),
       p_direction: isAdjustment ? direction : "",
+      p_card_id: selectedCardId || undefined,
+      p_bank_id: selectedBankId || undefined,
     });
   };
 
