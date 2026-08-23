@@ -1,3 +1,7 @@
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "cmd /c ""%~dp0start-whatsapp-service.bat""", 0, False
+Set fso = CreateObject("Scripting.FileSystemObject")
+scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
+batPath = scriptDir & "\start-whatsapp-service.bat"
+WshShell.Run "cmd /c """ & batPath & """", 0, False
 Set WshShell = Nothing
+Set fso = Nothing
