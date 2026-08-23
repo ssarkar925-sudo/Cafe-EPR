@@ -152,13 +152,14 @@ export default function SettlementsClient({
 
   const refresh = async () => {
     const supabase = createClient();
-    const [{ data }, { data: sum }] = await Promise.all([
+    const [{ data }, { data: poolBalances }, { data: sum }] = await Promise.all([
       supabase
         .from("settlements")
         .select("id, settlement_number, settlement_type, settlement_date, from_pool, to_pool, direction, amount, reference, remarks, status, created_at, profiles(full_name)")
         .order("settlement_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1000),
+      supabase.rpc("get_pool_balances"),
       supabase.rpc("get_settlement_summary"),
     ]);
     const mapped = (data ?? []).map((r: any) => ({
@@ -166,7 +167,34 @@ export default function SettlementsClient({
       profiles: r.profiles?.[0] ?? null,
     }));
     setRows(mapped as SettlementRow[]);
-    setSummary((sum as SettlementSummary | null) ?? null);
+
+    const parsed: any = {
+      cash: Number(poolBalances?.cash?.current ?? 0),
+      bank: Number(poolBalances?.bank?.current ?? 0),
+      wallet: Number(poolBalances?.wallet?.current ?? 0),
+      dmt: Number(poolBalances?.dmt?.current ?? 0),
+      aeps: Number(poolBalances?.aeps?.current ?? 0),
+      upi_qr: Number(poolBalances?.upi_qr?.current ?? 0),
+      recharge: Number(poolBalances?.recharge?.current ?? 0),
+      credit_card: Number(poolBalances?.credit_card?.current ?? 0),
+      count: mapped.length,
+    };
+
+    if (Array.isArray(sum)) {
+      sum.forEach((item: any) => {
+        if (item?.pool && typeof item.available_balance === "number") {
+          parsed[item.pool] = item.available_balance;
+        }
+      });
+    } else if (sum && typeof sum === "object") {
+      Object.keys(parsed).forEach((k) => {
+        if (typeof (sum as any)[k] === "number") {
+          parsed[k] = (sum as any)[k];
+        }
+      });
+    }
+
+    setSummary(parsed as SettlementSummary);
   };
 
   const create = async (payload: {

@@ -11,7 +11,7 @@ export default async function SettlementsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: settlements }, { data: summary }] = await Promise.all([
+  const [{ data: settlements }, { data: poolBalances }, { data: summary }] = await Promise.all([
     supabase
       .from("settlements")
       .select(
@@ -20,6 +20,7 @@ export default async function SettlementsPage() {
       .order("settlement_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000),
+    supabase.rpc("get_pool_balances"),
     supabase.rpc("get_settlement_summary"),
   ]);
 
@@ -28,10 +29,36 @@ export default async function SettlementsPage() {
     profiles: r.profiles?.[0] ?? null,
   }));
 
+  const parsedSummary: any = {
+    cash: Number(poolBalances?.cash?.current ?? 0),
+    bank: Number(poolBalances?.bank?.current ?? 0),
+    wallet: Number(poolBalances?.wallet?.current ?? 0),
+    dmt: Number(poolBalances?.dmt?.current ?? 0),
+    aeps: Number(poolBalances?.aeps?.current ?? 0),
+    upi_qr: Number(poolBalances?.upi_qr?.current ?? 0),
+    recharge: Number(poolBalances?.recharge?.current ?? 0),
+    credit_card: Number(poolBalances?.credit_card?.current ?? 0),
+    count: rows.length,
+  };
+
+  if (Array.isArray(summary)) {
+    summary.forEach((item: any) => {
+      if (item?.pool && typeof item.available_balance === "number") {
+        parsedSummary[item.pool] = item.available_balance;
+      }
+    });
+  } else if (summary && typeof summary === "object") {
+    Object.keys(parsedSummary).forEach((k) => {
+      if (typeof (summary as any)[k] === "number") {
+        parsedSummary[k] = (summary as any)[k];
+      }
+    });
+  }
+
   return (
     <SettlementsClient
       initialSettlements={rows as any}
-      initialSummary={(summary as any) ?? null}
+      initialSummary={parsedSummary}
     />
   );
 }
