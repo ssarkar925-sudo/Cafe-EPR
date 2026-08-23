@@ -179,27 +179,66 @@ export type WhatsAppLogEntry = {
   created_at?: string;
 };
 
-// Log message to Supabase history tracker
+const WA_LOCAL_LOGS_KEY = "sccomm_whatsapp_local_logs";
+
+export function getLocalWhatsAppLogs(): WhatsAppLogEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(WA_LOCAL_LOGS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalWhatsAppLog(entry: WhatsAppLogEntry): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getLocalWhatsAppLogs();
+    const exists = current.some((x) => x.id === entry.id || (x.created_at === entry.created_at && x.recipient_phone === entry.recipient_phone && x.message_text === entry.message_text));
+    if (!exists) {
+      const updated = [entry, ...current].slice(0, 300);
+      localStorage.setItem(WA_LOCAL_LOGS_KEY, JSON.stringify(updated));
+    }
+  } catch (e) {
+    console.warn("Failed to save local WhatsApp log:", e);
+  }
+}
+
+// Log message to both Local Storage & Supabase history tracker
 export async function logWhatsAppMessage(entry: WhatsAppLogEntry): Promise<void> {
   if (typeof window === "undefined") return;
+
+  const enrichedEntry: WhatsAppLogEntry = {
+    ...entry,
+    id: entry.id || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "log_" + Date.now()),
+    created_at: entry.created_at || new Date().toISOString(),
+  };
+
+  // 1. Immediately persist locally (zero lag, 100% reliable)
+  saveLocalWhatsAppLog(enrichedEntry);
+
+  // 2. Also try inserting into Supabase cloud table
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     await supabase.from("whatsapp_logs").insert({
-      recipient_phone: entry.recipient_phone,
-      recipient_name: entry.recipient_name || null,
-      message_type: entry.message_type,
-      ref_id: entry.ref_id || null,
-      ref_number: entry.ref_number || null,
-      message_text: entry.message_text,
-      status: entry.status,
-      provider: entry.provider,
-      error_message: entry.error_message || null,
+      id: enrichedEntry.id,
+      recipient_phone: enrichedEntry.recipient_phone,
+      recipient_name: enrichedEntry.recipient_name || null,
+      message_type: enrichedEntry.message_type,
+      ref_id: enrichedEntry.ref_id || null,
+      ref_number: enrichedEntry.ref_number || null,
+      message_text: enrichedEntry.message_text,
+      status: enrichedEntry.status,
+      provider: enrichedEntry.provider,
+      error_message: enrichedEntry.error_message || null,
       user_id: user?.id || null,
+      created_at: enrichedEntry.created_at,
     });
   } catch (e) {
-    console.warn("Failed to log WhatsApp message history:", e);
+    // Supabase table might not be created yet, but local log is already saved
   }
 }
 

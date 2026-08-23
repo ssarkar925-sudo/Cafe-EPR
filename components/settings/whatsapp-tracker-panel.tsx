@@ -4,7 +4,33 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Modal from "@/components/ui/modal";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
-import type { WhatsAppLogEntry } from "@/lib/whatsapp";
+import { getLocalWhatsAppLogs, type WhatsAppLogEntry } from "@/lib/whatsapp";
+
+const SQL_MIGRATION = `-- WhatsApp Message History Tracker Table
+create table if not exists public.whatsapp_logs (
+  id uuid primary key default gen_random_uuid(),
+  recipient_phone text not null,
+  recipient_name text,
+  message_type text not null default 'custom',
+  ref_id text,
+  ref_number text,
+  message_text text not null,
+  status text not null default 'sent',
+  provider text not null default 'local_gateway',
+  error_message text,
+  created_at timestamptz not null default now(),
+  user_id uuid references auth.users(id) on delete set null
+);
+
+create index if not exists whatsapp_logs_created_at_idx on public.whatsapp_logs (created_at desc);
+create index if not exists whatsapp_logs_phone_idx on public.whatsapp_logs (recipient_phone);
+
+alter table public.whatsapp_logs enable row level security;
+
+create policy "whatsapp_logs read" on public.whatsapp_logs for select to authenticated using (true);
+create policy "whatsapp_logs insert" on public.whatsapp_logs for insert to authenticated with check (true);
+create policy "whatsapp_logs update" on public.whatsapp_logs for update to authenticated using (true);
+`;
 
 const TYPE_LABEL: Record<string, { label: string; color: string }> = {
   pos_invoice: { label: "POS Invoice", color: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
@@ -37,29 +63,47 @@ export default function WhatsAppTrackerPanel() {
   const [selectedLog, setSelectedLog] = useState<WhatsAppLogEntry | null>(null);
   const [resendLog, setResendLog] = useState<WhatsAppLogEntry | null>(null);
   const [stats, setStats] = useState({ total: 0, today: 0, sent: 0, failed: 0 });
+  const [hasCloudTable, setHasCloudTable] = useState<boolean | null>(null);
+  const [copiedSql, setCopiedSql] = useState(false);
 
   async function loadLogs() {
     setLoading(true);
     try {
+      const localLogs = getLocalWhatsAppLogs();
+      let combinedLogs = [...localLogs];
+
       const { data, error } = await supabase
         .from("whatsapp_logs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(150);
+        .limit(200);
 
-      if (data) {
-        setLogs(data as WhatsAppLogEntry[]);
-
-        // Calculate stats
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const total = data.length;
-        const today = data.filter((l) => l.created_at?.startsWith(todayStr)).length;
-        const sent = data.filter((l) => l.status === "sent" || l.status === "delivered").length;
-        const failed = data.filter((l) => l.status === "failed").length;
-        setStats({ total, today, sent, failed });
+      if (error) {
+        setHasCloudTable(false);
+      } else if (data) {
+        setHasCloudTable(true);
+        // Merge Supabase logs and Local logs (deduplicate)
+        const idMap = new Set(data.map((d) => d.id));
+        const missingLocal = localLogs.filter((l) => l.id && !idMap.has(l.id));
+        combinedLogs = [...(data as WhatsAppLogEntry[]), ...missingLocal];
       }
+
+      // Sort by date descending
+      combinedLogs.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+      setLogs(combinedLogs);
+
+      // Calculate stats
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const total = combinedLogs.length;
+      const today = combinedLogs.filter((l) => l.created_at?.startsWith(todayStr)).length;
+      const sent = combinedLogs.filter((l) => l.status === "sent" || l.status === "delivered").length;
+      const failed = combinedLogs.filter((l) => l.status === "failed").length;
+      setStats({ total, today, sent, failed });
     } catch (e) {
       console.warn("Could not load WhatsApp logs:", e);
+      const localLogs = getLocalWhatsAppLogs();
+      setLogs(localLogs);
     } finally {
       setLoading(false);
     }
@@ -112,6 +156,34 @@ export default function WhatsAppTrackerPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Cloud Sync Status Banner */}
+      {hasCloudTable === false && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">💾</span>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Local Device Message Tracker Active</h4>
+                <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-400">
+                  Message history is stored locally in your browser. To sync history across multiple devices in Supabase Cloud, run the SQL script in your Supabase SQL Editor.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(SQL_MIGRATION);
+                setCopiedSql(true);
+                setTimeout(() => setCopiedSql(false), 3000);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+            >
+              {copiedSql ? "✓ SQL Copied to Clipboard!" : "📋 Copy Supabase SQL"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Metric Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
