@@ -373,15 +373,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  const urlPath = (req.url || "").split("?")[0].replace(/\/$/, "") || "/";
+
   // Web Dashboard View
-  if ((req.url === "/" || req.url === "/qr") && req.method === "GET") {
+  if ((urlPath === "/" || urlPath === "/qr" || urlPath === "/dashboard") && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(getDashboardHtml());
     return;
   }
 
   // Health / Status JSON
-  if (req.url === "/health" || req.url === "/status") {
+  if (urlPath === "/health" || urlPath === "/status") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
@@ -397,7 +399,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Send Message Endpoint
-  if (req.url === "/send-message" && req.method === "POST") {
+  if ((urlPath === "/send-message" || urlPath === "/api/send") && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
       body += chunk.toString();
