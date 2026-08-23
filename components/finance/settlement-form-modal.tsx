@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "@/components/ui/modal";
+import { createClient } from "@/lib/supabase/client";
 
 export const SETTLEMENT_TYPES = [
   { value: "aeps_to_bank", label: "AEPS → Bank", from: "aeps", to: "bank", icon: "aeps", grad: "from-blue-500 to-indigo-600", desc: "AEPS portal settlement credited to the bank account." },
@@ -93,10 +94,49 @@ export default function SettlementFormModal({
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [error, setError] = useState("");
 
+  const [instruments, setInstruments] = useState<{ id: string; name: string; type: string; details?: any }[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string>("");
+  const [selectedBankId, setSelectedBankId] = useState<string>("");
+
+  useEffect(() => {
+    if (!open) return;
+    const supabase = createClient();
+    supabase
+      .from("payment_instruments")
+      .select("id, name, type, details, is_active")
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => {
+        if (data) setInstruments(data as any);
+      });
+  }, [open]);
+
   if (!open) return null;
 
   const selected = SETTLEMENT_TYPES.find((t) => t.value === type)!;
   const isAdjustment = type === "cash_adjustment";
+  const isCCRelated = type === "bank_to_credit_card" || type === "cash_to_credit_card" || type === "credit_card_to_bank";
+
+  const creditCards = instruments.filter((i) => i.type === "credit_card");
+  const bankAccounts = instruments.filter((i) => i.type === "bank" || i.type === "debit_card");
+
+  const handleSelectCreditCard = (card: { id: string; name: string; details?: any }) => {
+    setSelectedCardId(card.id);
+    const last4 = card.details?.card_last4 ? ` (ending ${card.details.card_last4})` : "";
+    const cardRef = `${card.name}${last4}`;
+    if (!reference || reference.includes("Credit Card")) {
+      setReference(`Card: ${cardRef}`);
+    }
+  };
+
+  const handleSelectBank = (bank: { id: string; name: string; details?: any }) => {
+    setSelectedBankId(bank.id);
+    const ac = bank.details?.account_number ? ` (A/C: ${bank.details.account_number.slice(-4)})` : "";
+    const bankNote = `Paid from ${bank.name}${ac}`;
+    if (!remarks) {
+      setRemarks(bankNote);
+    }
+  };
 
   const submit = () => {
     setError("");
@@ -259,28 +299,88 @@ export default function SettlementFormModal({
             </div>
           </div>
 
+          {/* Credit Card Selector for CC Bill Payment */}
+          {isCCRelated && creditCards.length > 0 && (
+            <div className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50/50 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+              <label className="text-xs font-bold uppercase tracking-wider text-cyan-800 dark:text-cyan-300">
+                💳 Select Credit Card (Bill Target):
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {creditCards.map((c) => {
+                  const active = selectedCardId === c.id;
+                  const last4 = c.details?.card_last4 ? ` •••• ${c.details.card_last4}` : "";
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleSelectCreditCard(c)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                        active
+                          ? "border-cyan-500 bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-500/30"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                      }`}
+                    >
+                      <span>💳</span>
+                      <span>{c.name}{last4}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Paid From Bank Account Selector */}
+          {(type === "bank_to_credit_card" || type === "bank_to_dmt" || type === "bank_to_recharge" || type === "bank_withdrawal") && bankAccounts.length > 0 && (
+            <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <label className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                🏦 Select Source Bank Account (Paid From):
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {bankAccounts.map((b) => {
+                  const active = selectedBankId === b.id;
+                  const ac = b.details?.account_number ? ` •••• ${b.details.account_number.slice(-4)}` : "";
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => handleSelectBank(b)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                        active
+                          ? "border-blue-500 bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/30"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                      }`}
+                    >
+                      <span>🏦</span>
+                      <span>{b.name}{ac}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="mt-4">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Reference
+              Reference / Card / UTR
             </label>
             <input
               type="text"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
-              placeholder="e.g. bank slip no. / UTR / counter count"
+              placeholder="e.g. HDFC Regalia (ending 4321) / UTR 329482934"
               className={`mt-1.5 ${inputClass}`}
             />
           </div>
 
           <div className="mt-4">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Remarks
+              Remarks / Payment Note
             </label>
             <textarea
               rows={2}
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Optional note"
+              placeholder="e.g. Paid via Netbanking / BillDesk / SBI Current A/C"
               className={`mt-1.5 ${inputClass} resize-none`}
             />
           </div>
