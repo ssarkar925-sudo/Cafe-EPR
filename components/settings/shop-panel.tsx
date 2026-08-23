@@ -32,6 +32,22 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
   const { showToast, toastView } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [printFormat, setPrintFormat] = useState<"a4" | "thermal">(() => {
+    if (typeof window === "undefined") return "a4";
+    try {
+      return localStorage.getItem("sccomm-pos-print-format") === "thermal" ? "thermal" : "a4";
+    } catch {
+      return "a4";
+    }
+  });
+
+  function selectPrintFormat(fmt: "a4" | "thermal") {
+    setPrintFormat(fmt);
+    try {
+      localStorage.setItem("sccomm-pos-print-format", fmt);
+      showToast("success", fmt === "a4" ? "Default print layout set to A4 Tax Invoice" : "Default print layout set to 80mm Thermal Receipt");
+    } catch {}
+  }
 
   const {
     shopName,
@@ -166,25 +182,51 @@ export default function ShopPanel({ tab, form }: { tab: string; form: ShopForm }
           desc="Choose whether Pay & Print generates full A4 Tax Invoices / PDF or 80mm roll receipts."
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border-2 border-blue-500 bg-blue-50/40 p-4 dark:border-blue-600 dark:bg-blue-950/20">
+            <button
+              type="button"
+              onClick={() => selectPrintFormat("a4")}
+              className={`text-left rounded-2xl p-4 transition ${
+                printFormat === "a4"
+                  ? "border-2 border-blue-500 bg-blue-50/40 dark:border-blue-600 dark:bg-blue-950/20 shadow-sm"
+                  : "border border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20"
+              }`}
+            >
               <div className="flex items-center gap-2">
                 <span className="text-base">📄</span>
-                <span className="font-bold text-slate-900 dark:text-white">A4 Tax Invoice / PDF (Default)</span>
-                <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">Active</span>
+                <span className="font-bold text-slate-900 dark:text-white">A4 Tax Invoice / PDF</span>
+                {printFormat === "a4" && (
+                  <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                    Active (Default)
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                 Full-page professional A4 tax invoice with shop letterhead, GSTIN, customer details, HSN table, and PDF download.
               </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectPrintFormat("thermal")}
+              className={`text-left rounded-2xl p-4 transition ${
+                printFormat === "thermal"
+                  ? "border-2 border-blue-500 bg-blue-50/40 dark:border-blue-600 dark:bg-blue-950/20 shadow-sm"
+                  : "border border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20"
+              }`}
+            >
               <div className="flex items-center gap-2">
                 <span className="text-base">🧾</span>
                 <span className="font-bold text-slate-900 dark:text-white">80mm Thermal Receipt</span>
+                {printFormat === "thermal" && (
+                  <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                    Active
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                 Compact slip for fast thermal roll POS printers.
               </p>
-            </div>
+            </button>
           </div>
         </SettingsSection>
 

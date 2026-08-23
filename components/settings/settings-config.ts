@@ -122,8 +122,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       },
       {
         key: "receipt",
-        label: "Thermal Receipt",
-        desc: "80mm printer footer, notes & terms",
+        label: "Invoice & Receipts",
+        desc: "A4 Tax Invoices, 80mm thermal roll & UPI QR",
         icon: "M6 2h12a1 1 0 0 1 1 1v18l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L5 21V3a1 1 0 0 1 1-1Z",
       },
       {
@@ -222,7 +222,7 @@ export const TABS = SETTINGS_GROUPS.flatMap((g) => g.items);
 
 export const tabMeta: Record<string, { title: string; desc: string; group: string }> = {
   general: { title: "Store Identity", desc: "Configure your shop name, contact number, address, and primary currency.", group: "Store & Receipts" },
-  receipt: { title: "Thermal Receipt & Printer", desc: "Customize the footer message, legal terms, and printer layout for 80mm receipts.", group: "Store & Receipts" },
+  receipt: { title: "Invoice & Receipt Templates", desc: "Customize default POS print layout (A4 Tax Invoice or 80mm Thermal Receipt), footer note, and dynamic UPI QR code.", group: "Store & Receipts" },
   tax: { title: "Tax & GST Configuration", desc: "Manage your GST registration number and default tax rates for billing.", group: "Store & Receipts" },
   "payment-accounts": { title: "Payment Accounts & Drawers", desc: "Manage named cash registers, bank accounts, UPI IDs, and digital wallets.", group: "Payments & POS Desk" },
   "payment-methods": { title: "Payment Methods & Tender Order", desc: "Control which payment methods are accepted at the counter and their display priority.", group: "Payments & POS Desk" },
