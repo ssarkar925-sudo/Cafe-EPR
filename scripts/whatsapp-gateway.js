@@ -27,11 +27,121 @@ let lastStatus = "Initializing...";
 let userPhone = "";
 let tunnelUrl = "";
 
+// Parse Supabase credentials from environment or .env.local for Cloud Session Backup
+let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+let supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+if (!supabaseUrl && fs.existsSync(path.join(__dirname, "..", ".env.local"))) {
+  try {
+    const envContent = fs.readFileSync(path.join(__dirname, "..", ".env.local"), "utf8");
+    envContent.split("\n").forEach((line) => {
+      const parts = line.split("=");
+      if (parts.length >= 2) {
+        const k = parts[0].trim();
+        const v = parts.slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+        if (k === "NEXT_PUBLIC_SUPABASE_URL") supabaseUrl = v;
+        if (k === "SUPABASE_SERVICE_ROLE_KEY" || (!supabaseKey && k === "NEXT_PUBLIC_SUPABASE_ANON_KEY")) supabaseKey = v;
+      }
+    });
+  } catch {}
+}
+
+/**
+ * Cloud Session Persistence:
+ * Restores WhatsApp Auth Session from Supabase if running on Render / ephemeral disk.
+ */
+async function restoreAuthFromCloud() {
+  if (!supabaseUrl || !supabaseKey) return false;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/whatsapp_templates?id=eq.default&select=gateway_session`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const session = data?.[0]?.gateway_session;
+    if (session && typeof session === "object" && Object.keys(session).length > 0) {
+      if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
+      for (const [file, content] of Object.entries(session)) {
+        fs.writeFileSync(path.join(AUTH_DIR, file), typeof content === "string" ? content : JSON.stringify(content), "utf8");
+      }
+      console.log("☁️ [Cloud Sync] Restored persistent WhatsApp session from Supabase Cloud!");
+      return true;
+    }
+  } catch (err) {
+    console.warn("⚠️ Cloud session restore check:", err.message);
+  }
+  return false;
+}
+
+/**
+ * Cloud Session Persistence:
+ * Backs up WhatsApp Auth Session to Supabase so Render / Server restarts NEVER lose login.
+ */
+let backupTimer = null;
+function debouncedBackupAuth() {
+  if (backupTimer) clearTimeout(backupTimer);
+  backupTimer = setTimeout(backupAuthToCloud, 4000);
+}
+
+async function backupAuthToCloud() {
+  if (!supabaseUrl || !supabaseKey) return;
+  try {
+    if (!fs.existsSync(AUTH_DIR)) return;
+    const files = {};
+    const list = fs.readdirSync(AUTH_DIR);
+    for (const file of list) {
+      if (file.endsWith(".json")) {
+        files[file] = fs.readFileSync(path.join(AUTH_DIR, file), "utf8");
+      }
+    }
+    if (Object.keys(files).length > 0) {
+      await fetch(`${supabaseUrl}/rest/v1/whatsapp_templates?id=eq.default`, {
+        method: "PATCH",
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          gateway_session: files,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      console.log("☁️ [Cloud Sync] WhatsApp credentials backed up to Supabase Cloud.");
+    }
+  } catch (err) {
+    console.warn("⚠️ Cloud session backup error:", err.message);
+  }
+}
+
+async function clearCloudSession() {
+  if (!supabaseUrl || !supabaseKey) return;
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/whatsapp_templates?id=eq.default`, {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        gateway_session: null,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch {}
+}
+
 // Initialize Localtunnel for HTTPS access from Vercel (skipped on Render)
 async function initTunnel() {
   if (process.env.RENDER || process.env.RENDER_EXTERNAL_URL) {
     tunnelUrl = process.env.RENDER_EXTERNAL_URL || `https://${process.env.RENDER_SERVICE_NAME || "sccomm-whatsapp-gateway"}.onrender.com`;
     console.log(`🌐 Running on Render Cloud at: ${tunnelUrl}`);
+    startRenderKeepAlive();
     return;
   }
 
@@ -59,6 +169,17 @@ async function initTunnel() {
   }
 }
 
+// Keep-Alive Self Ping on Render to prevent free-tier 15-minute sleep
+function startRenderKeepAlive() {
+  setInterval(async () => {
+    try {
+      const target = process.env.RENDER_EXTERNAL_URL || tunnelUrl || `http://localhost:${PORT}`;
+      await fetch(`${target}/health`).catch(() => {});
+      console.log(`💓 [Keep-Alive] Self-ping sent to ${target}/health (24/7 Active).`);
+    } catch {}
+  }, 8 * 60 * 1000); // Every 8 minutes
+}
+
 async function initWhatsApp() {
   try {
     const {
@@ -66,6 +187,7 @@ async function initWhatsApp() {
       useMultiFileAuthState,
       DisconnectReason,
       fetchLatestBaileysVersion,
+      Browsers,
     } = await import("@whiskeysockets/baileys");
     const qrcodeTerminal = (await import("qrcode-terminal")).default;
     const pino = (await import("pino")).default;
@@ -75,11 +197,15 @@ async function initWhatsApp() {
       fs.mkdirSync(AUTH_DIR, { recursive: true });
     }
 
+    // Attempt cloud session restore if local credentials are empty (e.g. Render restart/wake)
+    const credsPath = path.join(AUTH_DIR, "creds.json");
+    if (!fs.existsSync(credsPath)) {
+      console.log("🔍 Checking Supabase Cloud for backed-up WhatsApp session...");
+      await restoreAuthFromCloud();
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-    const { version } = await fetchLatestBaileysVersion().catch(() => ({
-      version: [2, 3000, 1015901307],
-      isLatest: true,
-    }));
+    const { version } = await fetchLatestBaileVersionSafe(fetchLatestBaileysVersion);
 
     lastStatus = "Starting WhatsApp socket...";
     console.log("\n========================================================");
@@ -91,12 +217,19 @@ async function initWhatsApp() {
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: "silent" }),
-      browser: ["Smart Business Suite", "Chrome", "1.0.0"],
+      browser: Browsers ? Browsers.windows("Desktop") : ["Smart Business Suite", "Chrome", "1.0.0"],
       syncFullHistory: false,
       markOnlineOnConnect: true,
+      keepAliveIntervalMs: 25000,
+      defaultQueryTimeoutMs: 60000,
+      connectTimeoutMs: 60000,
+      retryRequestDelayMs: 500,
     });
 
-    sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("creds.update", async () => {
+      await saveCreds();
+      debouncedBackupAuth();
+    });
 
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
@@ -118,19 +251,22 @@ async function initWhatsApp() {
       if (connection === "close") {
         isConnected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        lastStatus = `Disconnected: ${lastDisconnect?.error?.message || statusCode}`;
+        const isLoggedOut = statusCode === DisconnectReason?.loggedOut;
+        lastStatus = `Disconnected: ${lastDisconnect?.error?.message || statusCode || "Connection closed"}`;
 
-        console.log(`❌ Connection closed (${lastStatus}). Reconnecting: ${shouldReconnect}`);
+        console.log(`❌ Connection closed (${lastStatus}). Explicit Logout: ${isLoggedOut}`);
 
-        if (shouldReconnect) {
-          setTimeout(initWhatsApp, 4000);
-        } else {
-          console.log("⚠️ Session logged out. Removing auth directory for a fresh QR scan...");
+        if (isLoggedOut) {
+          console.log("⚠️ Session permanently logged out from phone. Removing auth directory for a fresh QR scan...");
           try {
             fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+            await clearCloudSession();
           } catch {}
           setTimeout(initWhatsApp, 2000);
+        } else {
+          // Temporary network glitch, Render sleep, or Baileys 515 restart: Always reconnect with saved auth!
+          console.log("🔄 Auto-reconnecting WhatsApp socket in 3 seconds...");
+          setTimeout(initWhatsApp, 3000);
         }
       } else if (connection === "open") {
         isConnected = true;
@@ -139,17 +275,28 @@ async function initWhatsApp() {
         userPhone = sock?.user?.id ? sock.user.id.split(":")[0] : "";
         lastStatus = `Connected as +${userPhone || "Store"}`;
 
+        // Backup auth to cloud immediately upon successful connection
+        debouncedBackupAuth();
+
         console.log("\n========================================================");
         console.log(`✅ WHATSAPP CONNECTED SUCCESSFULLY (${lastStatus})!`);
         console.log("📡 Ready to send automated invoices & receipts in background.");
         console.log(`⚡ Local Screen: http://localhost:${PORT}`);
-        if (tunnelUrl) console.log(`🌐 Cloud Vercel URL: ${tunnelUrl}`);
+        if (tunnelUrl) console.log(`🌐 Cloud Gateway URL: ${tunnelUrl}`);
         console.log("========================================================\n");
       }
     });
   } catch (err) {
-    lastStatus = "Baileys not installed";
+    lastStatus = "Baileys not initialized";
     console.log("⚠️ Baileys library error:", err.message);
+  }
+}
+
+async function fetchLatestBaileVersionSafe(fetchLatestBaileysVersion) {
+  try {
+    return await fetchLatestBaileysVersion();
+  } catch {
+    return { version: [2, 3000, 1015901307], isLatest: true };
   }
 }
 
