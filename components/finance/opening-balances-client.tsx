@@ -149,12 +149,14 @@ export default function OpeningBalancesClient({
   }
 
   async function saveSeed(pool: string, instrumentId: string | null, label: string) {
-    const amount = Number(drafts[pool] ?? "");
+    const draftKey = instrumentId ? `inst-${instrumentId}` : pool;
+    const amount = Number(drafts[draftKey] ?? "");
     if (Number.isNaN(amount) || amount < 0) {
       showToast("error", "Enter a valid opening amount.");
       return;
     }
-    setBusyKey(pool);
+    const busyId = instrumentId ? `inst-${instrumentId}` : pool;
+    setBusyKey(busyId);
     const supabase = createClient();
     const { error } = await supabase.rpc("set_opening_balance", {
       p_pool: pool,
@@ -168,12 +170,12 @@ export default function OpeningBalancesClient({
       showToast("error", error.message);
       return;
     }
-    setDrafts((d) => ({ ...d, [pool]: "" }));
+    setDrafts((d) => ({ ...d, [draftKey]: "" }));
     showToast("success", `${label} opening balance saved.`);
     await refresh();
   }
 
-  const totalSeeded = POOLS.reduce((s, p) => s + openingFor(p.key), 0);
+  const totalSeeded = POOLS.filter((p) => p.key !== "credit_card").reduce((s, p) => s + openingFor(p.key), 0);
   const totalCurrent = balances?.total ?? 0;
 
   return (
@@ -320,10 +322,10 @@ export default function OpeningBalancesClient({
                     />
                     <button
                       onClick={() => saveSeed(pool, inst.id, inst.name)}
-                      disabled={busyKey === pool}
+                      disabled={busyKey === `inst-${inst.id}`}
                       className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900"
                     >
-                      Save
+                      {busyKey === `inst-${inst.id}` ? "..." : "Save"}
                     </button>
                   </div>
                 </div>
