@@ -167,12 +167,22 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
 
           {config.provider === "local_gateway" && (
             <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-5 dark:border-blue-900/40 dark:bg-blue-950/20">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Local / Self-Hosted Gateway Setup</h4>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">Local / Self-Hosted Gateway Setup</h4>
+                </div>
+                <a
+                  href={config.gateway_url || "http://localhost:3001"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  📱 Open Gateway Screen &amp; Scan QR ↗
+                </a>
               </div>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Connects to a lightweight local background service running on your machine or LAN (e.g. Baileys / WPPConnect).
+                Connects to the background service running on your machine (e.g. Baileys / PM2). Click the button above to view your gateway status and scan the QR code.
               </p>
 
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">

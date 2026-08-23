@@ -3,25 +3,12 @@
  * Smart Business Suite - Local WhatsApp Gateway Server (100% Free Forever)
  * ==============================================================================
  * 
- * This background gateway service links your shop's WhatsApp (via QR code scan)
- * and allows your ERP to send unlimited invoices and receipts directly to customers
- * in the background without opening browser tabs or paying Meta API fees.
- *
- * ------------------------------------------------------------------------------
- * QUICK START:
- * ------------------------------------------------------------------------------
- * 1. Install gateway dependencies (in terminal):
- *    npm install @whiskeysockets/baileys qrcode-terminal pino
- *
- * 2. Start the gateway server:
- *    node scripts/whatsapp-gateway.js
- *
- * 3. Scan the QR code shown in your terminal with your phone:
- *    WhatsApp -> Linked Devices -> Link a Device.
- *
- * 4. In ERP Dashboard:
- *    Settings -> Notifications -> Select "Local Gateway"
- *    Gateway URL: http://localhost:3001
+ * Features:
+ * - Live Web Dashboard at http://localhost:3001 (Scan QR code in browser!)
+ * - Terminal QR Code support
+ * - Automatic Reconnection & Persistent Authentication (auth_info_baileys/)
+ * - Direct Client Browser CORS & Private Network Access (PNA) for Vercel cloud
+ * - Background Invoice & Receipt Auto-Delivery
  * ==============================================================================
  */
 
@@ -34,8 +21,10 @@ const AUTH_DIR = path.join(__dirname, "..", "auth_info_baileys");
 
 let sock = null;
 let isConnected = false;
-let qrCodeString = "";
-let lastDisconnectReason = "";
+let qrCodeRaw = "";
+let qrDataUrl = "";
+let lastStatus = "Initializing...";
+let userPhone = "";
 
 async function initWhatsApp() {
   try {
@@ -45,8 +34,9 @@ async function initWhatsApp() {
       DisconnectReason,
       fetchLatestBaileysVersion,
     } = await import("@whiskeysockets/baileys");
-    const qrcode = (await import("qrcode-terminal")).default;
+    const qrcodeTerminal = (await import("qrcode-terminal")).default;
     const pino = (await import("pino")).default;
+    const QRCode = require("qrcode");
 
     if (!fs.existsSync(AUTH_DIR)) {
       fs.mkdirSync(AUTH_DIR, { recursive: true });
@@ -58,6 +48,7 @@ async function initWhatsApp() {
       isLatest: true,
     }));
 
+    lastStatus = "Starting WhatsApp socket...";
     console.log("\n========================================================");
     console.log(`🚀 Starting Baileys WhatsApp Gateway (v${version.join(".")})...`);
     console.log("========================================================\n");
@@ -78,24 +69,31 @@ async function initWhatsApp() {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        qrCodeString = qr;
-        console.log("\n📱 SCAN THE QR CODE BELOW IN WHATSAPP (Linked Devices):\n");
-        qrcode.generate(qr, { small: true });
-        console.log("\nScan this QR code from WhatsApp on your phone: Settings -> Linked Devices -> Link a Device\n");
+        qrCodeRaw = qr;
+        lastStatus = "Waiting for QR Code scan...";
+        try {
+          qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 7 });
+        } catch (e) {
+          qrDataUrl = "";
+        }
+
+        console.log("\n📱 SCAN QR CODE (Open http://localhost:3001 in browser or scan terminal):\n");
+        qrcodeTerminal.generate(qr, { small: true });
+        console.log(`👉 Open http://localhost:${PORT} in your browser to view the clean QR Code screen!\n`);
       }
 
       if (connection === "close") {
         isConnected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        lastDisconnectReason = lastDisconnect?.error?.message || `Status code ${statusCode}`;
+        lastStatus = `Disconnected: ${lastDisconnect?.error?.message || statusCode}`;
 
-        console.log(`❌ Connection closed. Reason: ${lastDisconnectReason}. Reconnecting: ${shouldReconnect}`);
+        console.log(`❌ Connection closed (${lastStatus}). Reconnecting: ${shouldReconnect}`);
 
         if (shouldReconnect) {
           setTimeout(initWhatsApp, 4000);
         } else {
-          console.log("⚠️ Session logged out. Removing auth directory for a fresh QR code scan...");
+          console.log("⚠️ Session logged out. Removing auth directory for a fresh QR scan...");
           try {
             fs.rmSync(AUTH_DIR, { recursive: true, force: true });
           } catch {}
@@ -103,17 +101,22 @@ async function initWhatsApp() {
         }
       } else if (connection === "open") {
         isConnected = true;
-        qrCodeString = "";
+        qrCodeRaw = "";
+        qrDataUrl = "";
+        userPhone = sock?.user?.id ? sock.user.id.split(":")[0] : "";
+        lastStatus = `Connected as +${userPhone || "Store"}`;
+
         console.log("\n========================================================");
-        console.log("✅ WHATSAPP CONNECTED SUCCESSFULLY!");
+        console.log(`✅ WHATSAPP CONNECTED SUCCESSFULLY (${lastStatus})!`);
         console.log("📡 Ready to send automated invoices & receipts in background.");
-        console.log(`⚡ Gateway API listening on: http://localhost:${PORT}`);
+        console.log(`⚡ Web Dashboard: http://localhost:${PORT}`);
         console.log("========================================================\n");
       }
     });
   } catch (err) {
+    lastStatus = "Baileys not installed";
     console.log("⚠️ Baileys library not detected or error initializing:", err.message);
-    console.log("👉 To enable live automated sending, run: npm install @whiskeysockets/baileys qrcode-terminal pino");
+    console.log("👉 Run in terminal: npm install @whiskeysockets/baileys qrcode-terminal pino");
   }
 }
 
@@ -124,28 +127,189 @@ function formatJid(rawPhone) {
   return clean.includes("@s.whatsapp.net") ? clean : `${clean}@s.whatsapp.net`;
 }
 
+// HTML Web Dashboard
+function getDashboardHtml() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Business Suite · Local WhatsApp Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 520px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    .badge-online { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .badge-waiting { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-online { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+    .dot-waiting { background: #eab308; box-shadow: 0 0 10px #eab308; }
+    h1 { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
+    p.sub { font-size: 13px; color: #94a3b8; margin-top: 6px; margin-bottom: 24px; }
+    .qr-container {
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 18px;
+      display: inline-block;
+      margin: 0 auto 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .qr-container img { display: block; width: 240px; height: 240px; border-radius: 8px; }
+    .instructions {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: left;
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .instructions ol { padding-left: 18px; }
+    .instructions li { margin-bottom: 6px; }
+    .status-box {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 12px;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 20px;
+    }
+    .btn {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      width: 100%;
+      transition: 0.2s;
+    }
+    .btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge ${isConnected ? "badge-online" : "badge-waiting"}">
+      <div class="dot ${isConnected ? "dot-online" : "dot-waiting"}"></div>
+      ${isConnected ? "WHATSAPP CONNECTED & LIVE" : "WAITING FOR QR SCAN"}
+    </div>
+
+    <h1>Local WhatsApp Gateway</h1>
+    <p class="sub">Smart Business Suite Background Messaging Service</p>
+
+    ${
+      isConnected
+        ? `<div style="padding: 24px 0;">
+            <div style="width: 72px; height: 72px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 32px;">✓</div>
+            <h3 style="color: #ffffff; font-size: 18px; font-weight: 700;">Ready to Send Invoices</h3>
+            <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">Connected to WhatsApp: <strong style="color: #f8fafc;">+${userPhone || "Linked Store Phone"}</strong></p>
+          </div>`
+        : qrDataUrl
+        ? `<div class="qr-container">
+            <img src="${qrDataUrl}" alt="WhatsApp QR Code" />
+          </div>
+          <div class="instructions">
+            <strong>How to link your phone:</strong>
+            <ol>
+              <li>Open <strong>WhatsApp</strong> on your phone.</li>
+              <li>Tap <strong>Settings</strong> (or 3 dots) → <strong>Linked Devices</strong>.</li>
+              <li>Tap <strong>Link a Device</strong> and point your camera at this QR code.</li>
+            </ol>
+          </div>`
+        : `<div class="status-box">${lastStatus}</div>`
+    }
+
+    <div class="status-box">
+      <div>Port: <strong>http://localhost:${PORT}</strong></div>
+      <div style="margin-top: 4px;">Status: <strong>${lastStatus}</strong></div>
+    </div>
+
+    <button class="btn" onclick="window.location.reload()">↻ Refresh Status</button>
+  </div>
+
+  <script>
+    // Auto refresh if waiting for QR
+    ${!isConnected ? "setTimeout(() => window.location.reload(), 4000);" : ""}
+  </script>
+</body>
+</html>`;
+}
+
 // HTTP API Server
 const server = http.createServer(async (req, res) => {
+  // CORS + Private Network Access (PNA) Headers so cloud apps (Vercel) can call localhost
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-api-key");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-api-key, Access-Control-Request-Private-Network");
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204);
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, x-api-key, Access-Control-Request-Private-Network",
+      "Access-Control-Allow-Private-Network": "true",
+    });
     res.end();
     return;
   }
 
-  // Health / Status Check
-  if (req.url === "/health" || req.url === "/" || req.url === "/status") {
+  // Web Dashboard View
+  if ((req.url === "/" || req.url === "/qr") && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(getDashboardHtml());
+    return;
+  }
+
+  // Health / Status JSON
+  if (req.url === "/health" || req.url === "/status") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        status: isConnected ? "connected" : "waiting_for_qr_or_disconnected",
+        status: isConnected ? "connected" : "waiting_for_qr",
         connected: isConnected,
         service: "sccomm-whatsapp-gateway",
         port: PORT,
-        authDirExists: fs.existsSync(AUTH_DIR),
+        userPhone,
+        hasQr: Boolean(qrDataUrl),
       })
     );
     return;
@@ -173,13 +337,13 @@ const server = http.createServer(async (req, res) => {
         const jid = formatJid(phone);
 
         if (!isConnected || !sock) {
-          console.log(`[WhatsApp Gateway Mock/Dev] Would send to ${jid}: "${message.slice(0, 60)}..."`);
+          console.log(`[WhatsApp Gateway] ⚠️ Received message request for ${jid}, but WhatsApp is not connected yet.`);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(
             JSON.stringify({
               success: true,
-              status: "dispatched",
-              note: "Gateway received request (Connect phone via QR in terminal for live WhatsApp delivery)",
+              status: "dispatched_mock",
+              note: "Gateway active, scan QR at http://localhost:3001 to deliver live to WhatsApp",
               to: jid,
             })
           );
@@ -187,7 +351,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         // Live send through Baileys WhatsApp Socket
-        console.log(`[WhatsApp Gateway] 📤 Sending to ${jid}...`);
+        console.log(`[WhatsApp Gateway] 📤 Sending live WhatsApp message to ${jid}...`);
         const sent = await sock.sendMessage(jid, { text: message });
 
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -199,7 +363,7 @@ const server = http.createServer(async (req, res) => {
             messageId: sent?.key?.id,
           })
         );
-        console.log(`[WhatsApp Gateway] ✅ Delivered to ${jid} (ID: ${sent?.key?.id})`);
+        console.log(`[WhatsApp Gateway] ✅ Delivered to ${jid} (Message ID: ${sent?.key?.id})`);
       } catch (err) {
         console.error("[WhatsApp Gateway] ❌ Error sending:", err.message);
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -216,6 +380,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log("========================================================");
   console.log(`⚡ Local WhatsApp Gateway running on http://localhost:${PORT}`);
+  console.log(`🌐 Open in browser to scan QR code: http://localhost:${PORT}`);
   console.log("========================================================");
   initWhatsApp();
 });

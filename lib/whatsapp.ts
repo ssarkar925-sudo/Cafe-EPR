@@ -68,6 +68,37 @@ export async function sendWhatsAppMessage({
     return { ok: false, fallbackUrl };
   }
 
+  // If using local_gateway, attempt direct browser-to-gateway communication first
+  // (Allows cloud-hosted sites on Vercel to directly talk to the local PC's port 3001)
+  if (config.provider === "local_gateway") {
+    const gatewayUrl = (config.gateway_url?.trim() || "http://localhost:3001").replace(/\/$/, "");
+    try {
+      const directController = new AbortController();
+      const directTimeout = setTimeout(() => directController.abort(), 5000);
+
+      const directRes = await fetch(`${gatewayUrl}/send-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
+        },
+        body: JSON.stringify({
+          phone: formatWhatsAppPhone(phone),
+          message,
+        }),
+        signal: directController.signal,
+      });
+      clearTimeout(directTimeout);
+
+      const directData = await directRes.json().catch(() => ({}));
+      if (directRes.ok && directData.success) {
+        return { ok: true, fallbackUrl };
+      }
+    } catch (directErr: any) {
+      // Direct client fetch failed, fall through to server route
+    }
+  }
+
   try {
     const res = await fetch("/api/whatsapp/send", {
       method: "POST",
