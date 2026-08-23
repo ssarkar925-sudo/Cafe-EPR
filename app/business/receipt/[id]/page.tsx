@@ -24,10 +24,27 @@ export default async function BusinessReceiptPage({
   const showFees = sp?.show_fees === "1";
   const supabase = createAdminClient();
 
-  const { data: txn } = await supabase.rpc("get_transaction_receipt", {
-    p_id: id,
-  });
-  if (!txn) notFound();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  let txnQuery = supabase
+    .from("transactions")
+    .select("*, customers(name, phone, code, address), aeps_banks(name), aeps_portals(name), upi_merchant_qrs(upi_id, display_name), recharge_providers(name)");
+
+  if (isUuid) {
+    txnQuery = txnQuery.eq("id", id);
+  } else {
+    txnQuery = txnQuery.eq("transaction_number", id);
+  }
+
+  const { data: txnRaw } = await txnQuery.maybeSingle();
+  if (!txnRaw) notFound();
+
+  const txn: any = {
+    ...txnRaw,
+    banks: txnRaw.aeps_banks || null,
+    portals: txnRaw.aeps_portals || null,
+    merchant_qrs: txnRaw.upi_merchant_qrs || null,
+    providers: txnRaw.recharge_providers || null,
+  };
 
   const { data: settings } = await supabase.from("settings").select("*").single();
 

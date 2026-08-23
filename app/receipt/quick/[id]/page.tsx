@@ -13,17 +13,21 @@ export default async function QuickReceiptPage({
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: sale } = await supabase
-    .from("quick_sales")
-    .select("*, customers(name, phone, address)")
-    .eq("id", id)
-    .single();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  let saleQuery = supabase.from("quick_sales").select("*, customers(name, phone, address)");
+  if (isUuid) {
+    saleQuery = saleQuery.eq("id", id);
+  } else {
+    saleQuery = saleQuery.eq("sale_number", id);
+  }
+  const { data: sale } = await saleQuery.maybeSingle();
   if (!sale) notFound();
 
+  const saleId = sale.id;
   const { data: items } = await supabase
     .from("quick_sale_items")
     .select("*, products(name, unit), services(name)")
-    .eq("quick_sale_id", id);
+    .eq("quick_sale_id", saleId);
   const { data: settings } = await supabase.from("settings").select("*").single();
 
   const { data: defaultMerchantQr } = await supabase

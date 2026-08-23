@@ -14,21 +14,25 @@ export default async function ReceiptA4Page({
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: invoice } = await supabase
-    .from("invoices")
-    .select("*, customers(name, phone, address, code)")
-    .eq("id", id)
-    .single();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  let invQuery = supabase.from("invoices").select("*, customers(name, phone, address, code)");
+  if (isUuid) {
+    invQuery = invQuery.eq("id", id);
+  } else {
+    invQuery = invQuery.eq("invoice_number", id);
+  }
+  const { data: invoice } = await invQuery.maybeSingle();
   if (!invoice) notFound();
 
+  const invoiceId = invoice.id;
   const { data: items } = await supabase
     .from("invoice_items")
     .select("*, products(name, code), services(name)")
-    .eq("invoice_id", id);
+    .eq("invoice_id", invoiceId);
   const { data: payments } = await supabase
     .from("payments")
     .select("method, amount, received_at")
-    .eq("invoice_id", id);
+    .eq("invoice_id", invoiceId);
   const { data: settings } = await supabase
     .from("settings")
     .select("*")
