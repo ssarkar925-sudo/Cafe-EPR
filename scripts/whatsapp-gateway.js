@@ -367,7 +367,7 @@ const server = http.createServer(async (req, res) => {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, x-api-key, Access-Control-Request-Private-Network, Bypass-Tunnel-Reminder",
-      "Access-Control-Allow-Private-Network", "true",
+      "Access-Control-Allow-Private-Network": "true",
     });
     res.end();
     return;
