@@ -137,23 +137,57 @@ async function clearCloudSession() {
 }
 
 // Initialize Localtunnel for HTTPS access from Vercel (skipped on Render)
+async function syncTunnelUrlToCloud(url) {
+  if (!supabaseUrl || !supabaseKey || !url) return;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/whatsapp_templates?id=eq.default&select=config`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const existingCfg = data?.[0]?.config || {};
+      const updatedCfg = {
+        ...existingCfg,
+        provider: "local_gateway",
+        gateway_url: url,
+      };
+      await fetch(`${supabaseUrl}/rest/v1/whatsapp_templates?id=eq.default`, {
+        method: "PATCH",
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ config: updatedCfg, updated_at: new Date().toISOString() }),
+      });
+      console.log(`☁️ [Multi-Device Cloud Sync] Live HTTPS Gateway URL (${url}) synced to Supabase! Mobile devices & Vercel will connect automatically.`);
+    }
+  } catch (err) {
+    console.warn("⚠️ Tunnel cloud sync:", err.message);
+  }
+}
+
 async function initTunnel() {
   if (process.env.RENDER || process.env.RENDER_EXTERNAL_URL) {
     tunnelUrl = process.env.RENDER_EXTERNAL_URL || `https://${process.env.RENDER_SERVICE_NAME || "sccomm-whatsapp-gateway"}.onrender.com`;
     console.log(`🌐 Running on Render Cloud at: ${tunnelUrl}`);
     startRenderKeepAlive();
+    syncTunnelUrlToCloud(tunnelUrl);
     return;
   }
 
   try {
     const localtunnel = require("localtunnel");
-    console.log("🌐 Creating secure HTTPS cloud tunnel for Vercel...");
+    console.log("🌐 Creating secure HTTPS cloud tunnel for Mobile & Vercel devices...");
     const tunnel = await localtunnel({ port: PORT });
     tunnelUrl = tunnel.url;
     console.log("\n========================================================");
     console.log(`🚀 SECURE HTTPS TUNNEL LIVE: ${tunnelUrl}`);
-    console.log("👉 Paste this HTTPS URL into Vercel Settings -> Gateway API URL!");
+    console.log("📡 Auto-syncing to Supabase so Mobile devices connect automatically!");
     console.log("========================================================\n");
+
+    syncTunnelUrlToCloud(tunnelUrl);
 
     tunnel.on("close", () => {
       console.log("⚠️ Tunnel closed. Re-opening in 5 seconds...");
