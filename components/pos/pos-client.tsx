@@ -8,7 +8,8 @@ import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
-import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import Modal from "@/components/ui/modal";
 import type { ScanFields } from "@/lib/scan/extract";
@@ -240,6 +241,14 @@ export default function PosClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SaleResult | null>(null);
   const [waStatus, setWaStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    invNum: string;
+    refId: string;
+  } | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customRate, setCustomRate] = useState("");
@@ -922,21 +931,53 @@ export default function PosClient({
     }
   }
 
-  async function handleSendInvoiceWhatsApp(s: SaleResult) {
+  function handleSendInvoiceWhatsApp(s: SaleResult, manual = false) {
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.pos_invoice || DEFAULT_WA_TEMPLATES.pos_invoice;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const receiptUrl = `${origin}/receipt/${s.id}/a4`;
     const phone = s.customer_phone || "";
     const statusText = s.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(s.due)}`;
-    const msg = `🧾 *TAX INVOICE: ${s.invoice_number}*\n📅 Date: ${s.invoice_date}\n${s.customer_name ? `👤 Customer: ${s.customer_name}\n` : ""}───────────────\n💰 Total Bill: ${inr(s.total)}\n💳 Amount Received: ${inr(Number(s.paid) + Number(s.change ?? 0))}\n${statusText}\n───────────────\n📄 View / Download A4 Invoice (PDF):\n${receiptUrl}\n\nThank you for your business!`;
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      invoice_number: s.invoice_number,
+      invoice_date: s.invoice_date,
+      customer_name: s.customer_name || "Customer",
+      customer_name_line: s.customer_name ? `👤 Customer: ${s.customer_name}\n` : "",
+      total_amount: inr(s.total),
+      paid_amount: inr(Number(s.paid) + Number(s.change ?? 0)),
+      due_amount: inr(s.due),
+      status_line: statusText,
+      receipt_url: receiptUrl,
+    });
+
+    if (manual) {
+      setWaModal({
+        open: true,
+        phone,
+        name: s.customer_name || "Customer",
+        msg,
+        invNum: s.invoice_number,
+        refId: s.id,
+      });
+      return;
+    }
 
     setWaStatus("sending");
-    const res = await sendWhatsAppMessage({ phone, message: msg });
-    if (res.ok) {
-      setWaStatus("sent");
-    } else {
-      setWaStatus("idle");
-      window.open(res.fallbackUrl, "_blank", "noopener");
-    }
+    sendWhatsAppMessage({
+      phone,
+      message: msg,
+      recipientName: s.customer_name,
+      messageType: "pos_invoice",
+      refId: s.id,
+      refNumber: s.invoice_number,
+    }).then((res) => {
+      if (res.ok) {
+        setWaStatus("sent");
+      } else {
+        setWaStatus("idle");
+      }
+    });
   }
 
   function loadInvoiceForEdit(inv: PosInvoice) {
@@ -2008,18 +2049,13 @@ export default function PosClient({
             <div className="mt-5 grid grid-cols-1 gap-2">
               <button
                 type="button"
-                onClick={() => handleSendInvoiceWhatsApp(success)}
-                disabled={waStatus === "sending"}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 ${
-                  waStatus === "sent"
-                    ? "bg-emerald-700 hover:bg-emerald-800"
-                    : "bg-emerald-600 hover:bg-emerald-500"
-                }`}
+                onClick={() => handleSendInvoiceWhatsApp(success, true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                   <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                 </svg>
-                {waStatus === "sending" ? "Sending WhatsApp..." : waStatus === "sent" ? "✓ WhatsApp Sent Successfully" : "Send on WhatsApp"}
+                Send / Customize WhatsApp Message
               </button>
               <a
                 href={`/receipt/${success.id}/a4`}
@@ -2048,6 +2084,20 @@ export default function PosClient({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Editable WhatsApp Send Modal */}
+      {waModal && (
+        <WhatsAppSendModal
+          open={Boolean(waModal)}
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType="pos_invoice"
+          refId={waModal.refId}
+          refNumber={waModal.invNum}
+        />
       )}
 
       <ScanFillModal

@@ -9,6 +9,8 @@ import { logAudit } from "@/lib/audit";
 import CustomerFormModal from "./customer-form-modal";
 import CustomerPhotoModal from "./customer-photo-modal";
 import AdvanceModal from "./advance-modal";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 export type Customer = {
   id: string;
@@ -231,6 +233,38 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
   };
 
   const bal = Number(cust.balance);
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    refNum: string;
+    refId: string;
+  } | null>(null);
+
+  function handleSendDueReminder() {
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.due_reminder || DEFAULT_WA_TEMPLATES.due_reminder;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${origin}/customers`;
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      customer_name: cust.name,
+      invoice_number: "Account Balance",
+      invoice_date: new Date().toLocaleDateString("en-IN"),
+      due_amount: inr(bal),
+      receipt_url: receiptUrl,
+    });
+
+    setWaModal({
+      open: true,
+      phone: cust.phone || "",
+      name: cust.name,
+      msg,
+      refNum: cust.code || cust.name,
+      refId: cust.id,
+    });
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
@@ -368,7 +402,7 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
         {loading ? (
           <p className="py-10 text-center text-sm text-slate-400">Loading…</p>
         ) : tab === "overview" ? (
-          <OverviewTab cust={cust} bal={bal} stats={stats} data={data} inr={inr} />
+          <OverviewTab cust={cust} bal={bal} stats={stats} data={data} inr={inr} onSendReminder={handleSendDueReminder} />
         ) : tab === "sales" ? (
           <SalesTab invoices={data.invoices} inr={inr} />
         ) : tab === "invoices" ? (
@@ -407,6 +441,19 @@ export default function CustomerProfile({ customer }: { customer: Customer }) {
           customer={cust}
           onClose={() => setAdvanceModal(null)}
           onDone={onAdvanceDone}
+        />
+      )}
+
+      {waModal && (
+        <WhatsAppSendModal
+          open={Boolean(waModal)}
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType="due_reminder"
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
         />
       )}
     </div>
@@ -448,12 +495,14 @@ function OverviewTab({
   stats,
   data,
   inr,
+  onSendReminder,
 }: {
   cust: Customer;
   bal: number;
   stats: { sales: number; paid: number; due: number; transactions: number; businessTotal: number; businessCount: number };
   data: { invoices: any[]; ledger: any[]; transactions: any[]; returns: any[] };
   inr: (n: number | string) => string;
+  onSendReminder?: () => void;
 }) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -501,6 +550,19 @@ function OverviewTab({
               <span>Business volume (AEPS/DMT/UPI)</span>
               <span>{inr(stats.businessTotal)}</span>
             </div>
+
+            {bal > 0 && onSendReminder && (
+              <button
+                type="button"
+                onClick={onSendReminder}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                </svg>
+                Send Due Reminder on WhatsApp
+              </button>
+            )}
           </div>
         </div>
 

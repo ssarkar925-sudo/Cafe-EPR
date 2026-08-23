@@ -9,7 +9,8 @@ import InvoiceViewModal from "./invoice-view-modal";
 import QuickSaleViewModal from "./quick-sale-view-modal";
 import ReturnModal from "./return-modal";
 import CompactToggle from "@/components/ui/compact-toggle";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 export type InvoiceRow = {
   id: string;
@@ -137,6 +138,15 @@ export default function InvoicesClient({
   const [exporting, setExporting] = useState(false);
   const [compact, setCompact] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    type: "pos_invoice" | "quick_sale";
+    refNum: string;
+    refId: string;
+  } | null>(null);
   const timerRef = useRef<number | null>(null);
 
   const supabase = createClient();
@@ -146,36 +156,64 @@ export default function InvoicesClient({
     setTimeout(() => setToast(null), 3200);
   }
 
-  async function handleSendInvoiceWhatsApp(inv: InvoiceRow) {
+  function handleSendInvoiceWhatsApp(inv: InvoiceRow) {
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.pos_invoice || DEFAULT_WA_TEMPLATES.pos_invoice;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const receiptUrl = `${origin}/receipt/${inv.id}/a4`;
     const phone = inv.customers?.phone || "";
     const statusText = inv.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(inv.due))}`;
-    const msg = `🧾 *TAX INVOICE: ${inv.invoice_number}*\n📅 Date: ${inv.invoice_date}\n${inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(inv.total))}\n💳 Paid: ${inr(Number(inv.paid))}\n${statusText}\n───────────────\n📄 View / Download A4 Invoice (PDF):\n${receiptUrl}\n\nThank you for your business!`;
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      invoice_number: inv.invoice_number,
+      invoice_date: inv.invoice_date,
+      customer_name: inv.customers?.name || "Customer",
+      customer_name_line: inv.customers?.name ? `👤 Customer: ${inv.customers.name}\n` : "",
+      total_amount: inr(Number(inv.total)),
+      paid_amount: inr(Number(inv.paid)),
+      due_amount: inr(Number(inv.due)),
+      status_line: statusText,
+      receipt_url: receiptUrl,
+    });
 
-    flash("success", "Sending WhatsApp invoice...");
-    const res = await sendWhatsAppMessage({ phone, message: msg });
-    if (res.ok) {
-      flash("success", `✓ Invoice ${inv.invoice_number} sent via WhatsApp!`);
-    } else {
-      window.open(res.fallbackUrl, "_blank", "noopener");
-    }
+    setWaModal({
+      open: true,
+      phone,
+      name: inv.customers?.name || "Customer",
+      msg,
+      type: "pos_invoice",
+      refNum: inv.invoice_number,
+      refId: inv.id,
+    });
   }
 
-  async function handleSendQuickSaleWhatsApp(s: QuickSaleRow) {
+  function handleSendQuickSaleWhatsApp(s: QuickSaleRow) {
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.quick_sale || DEFAULT_WA_TEMPLATES.quick_sale;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const receiptUrl = `${origin}/receipt/quick/${s.id}`;
     const phone = s.customers?.phone || "";
     const item = s.item_name ?? s.products?.name ?? s.services?.name ?? "Quick sale";
-    const msg = `🧾 *RECEIPT: ${s.sale_number}*\n📅 Date: ${fmtDate(s.sale_date)}\n👤 Customer: ${s.customers?.name ?? "Walk-in"}\n───────────────\n📦 Item: ${item}\n💰 Amount Paid: ${inr(Number(s.amount))}\n───────────────\n📄 View / Download Receipt:\n${receiptUrl}\n\nThank you for your business!`;
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      sale_number: s.sale_number,
+      sale_date: fmtDate(s.sale_date),
+      customer_name: s.customers?.name ?? "Walk-in Customer",
+      customer_name_line: s.customers?.name ? `👤 Customer: ${s.customers.name}\n` : "",
+      item_name: item,
+      paid_amount: inr(Number(s.amount)),
+      receipt_url: receiptUrl,
+    });
 
-    flash("success", "Sending WhatsApp receipt...");
-    const res = await sendWhatsAppMessage({ phone, message: msg });
-    if (res.ok) {
-      flash("success", `✓ Receipt ${s.sale_number} sent via WhatsApp!`);
-    } else {
-      window.open(res.fallbackUrl, "_blank", "noopener");
-    }
+    setWaModal({
+      open: true,
+      phone,
+      name: s.customers?.name || "Customer",
+      msg,
+      type: "quick_sale",
+      refNum: s.sale_number,
+      refId: s.id,
+    });
   }
 
   useEffect(() => {
@@ -1331,6 +1369,19 @@ export default function InvoicesClient({
           onCancelled={(id) => {
             setQuickSales((prev) => prev.map((s) => (s.id === id ? { ...s, status: "cancelled" } : s)));
           }}
+        />
+      )}
+
+      {waModal && (
+        <WhatsAppSendModal
+          open={Boolean(waModal)}
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType={waModal.type}
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
         />
       )}
 

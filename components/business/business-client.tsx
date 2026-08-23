@@ -12,7 +12,8 @@ import ViewToggle from "@/components/ui/view-toggle";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
-import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
@@ -303,6 +304,14 @@ export default function BusinessClient({
   const [view, setView] = useState<"cards" | "list">("list");
   const [compact, setCompact] = useState(false);
   const { showToast, toastView } = useToast();
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    refNum: string;
+    refId: string;
+  } | null>(null);
 
   const supabase = createClient();
 
@@ -943,20 +952,46 @@ export default function BusinessClient({
     }
   }
 
-  async function handleSendWhatsAppTxn(t: Txn) {
+  function handleSendWhatsAppTxn(t: Txn, manual = true) {
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.banking_txn || DEFAULT_WA_TEMPLATES.banking_txn;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const receiptUrl = `${origin}/business/receipt/${t.id}/a4`;
     const rawPhone = t.customer_mobile || t.sender_mobile || t.customers?.phone || "";
     const sName = service === "aeps" ? "AEPS Cash Withdrawal" : service === "dmt" ? "Domestic Money Transfer" : service === "recharge" ? "Recharge" : "UPI Transfer";
-    const msg = `📱 *${sName.toUpperCase()} RECEIPT*\n🔢 Txn No: ${t.transaction_number}\n📅 Date: ${t.transaction_date}\n${t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : ""}───────────────\n💰 Amount: ${inr(Number(t.amount))}\n🏷️ Reference / RRN: ${t.reference || "-"}\n✅ Status: ${t.status.toUpperCase()}\n───────────────\n📄 View / Download A4 Receipt (PDF):\n${receiptUrl}\n\nThank you!`;
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      service_name: sName.toUpperCase(),
+      txn_number: t.transaction_number,
+      txn_date: t.transaction_date,
+      customer_name: t.customers?.name || "Customer",
+      customer_name_line: t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : "",
+      amount: inr(Number(t.amount)),
+      ref_number: t.reference || "-",
+      status: t.status.toUpperCase(),
+      receipt_url: receiptUrl,
+    });
 
-    showToast("info", "Sending WhatsApp receipt...");
-    const res = await sendWhatsAppMessage({ phone: rawPhone, message: msg });
-    if (res.ok) {
-      showToast("success", "✓ WhatsApp receipt sent successfully!");
-    } else {
-      window.open(res.fallbackUrl, "_blank", "noopener");
+    if (manual) {
+      setWaModal({
+        open: true,
+        phone: rawPhone,
+        name: t.customers?.name || "Customer",
+        msg,
+        refNum: t.transaction_number,
+        refId: t.id,
+      });
+      return;
     }
+
+    sendWhatsAppMessage({
+      phone: rawPhone,
+      message: msg,
+      recipientName: t.customers?.name,
+      messageType: "banking_txn",
+      refId: t.id,
+      refNumber: t.transaction_number,
+    });
   }
 
   async function saveEdit(payload: Record<string, unknown>) {
@@ -1848,6 +1883,19 @@ export default function BusinessClient({
           setReason={setDeleteReason}
           onClose={() => setDeleteTxn(null)}
           onConfirm={deleteTxnAction}
+        />
+      )}
+
+      {waModal && (
+        <WhatsAppSendModal
+          open={Boolean(waModal)}
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType="banking_txn"
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
         />
       )}
 

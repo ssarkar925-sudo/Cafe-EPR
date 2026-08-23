@@ -8,7 +8,8 @@ import Modal from "@/components/ui/modal";
 import { statusBadge, type InvoiceRow } from "./invoices-client";
 import { logAudit } from "@/lib/audit";
 import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 type Detail = {
   id: string;
@@ -71,6 +72,14 @@ export default function InvoiceViewModal({
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [upiId, setUpiId] = useState<string>("");
   const [showQr, setShowQr] = useState<boolean>(true);
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    invNum: string;
+    refId: string;
+  } | null>(null);
 
   async function load() {
     const [inv, its, pays, sets, defaultQr, upiInst] = await Promise.all([
@@ -117,18 +126,35 @@ export default function InvoiceViewModal({
     }
   }
 
-  async function handleSendWhatsApp() {
+  function handleSendWhatsApp() {
     if (!detail) return;
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.pos_invoice || DEFAULT_WA_TEMPLATES.pos_invoice;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const receiptUrl = `${origin}/receipt/${detail.id}/a4`;
     const phone = detail.customers?.phone || "";
     const statusText = detail.status === "paid" ? "✅ Fully Paid" : `⚠️ Balance Due: ${inr(Number(detail.due))}`;
-    const msg = `🧾 *TAX INVOICE: ${detail.invoice_number}*\n📅 Date: ${detail.invoice_date}\n${detail.customers?.name ? `👤 Customer: ${detail.customers.name}\n` : ""}───────────────\n💰 Total Amount: ${inr(Number(detail.total))}\n💳 Paid: ${inr(Number(detail.paid))}\n${statusText}\n───────────────\n📄 View / Download A4 Invoice (PDF):\n${receiptUrl}\n\nThank you for your business!`;
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      invoice_number: detail.invoice_number,
+      invoice_date: detail.invoice_date,
+      customer_name: detail.customers?.name || "Customer",
+      customer_name_line: detail.customers?.name ? `👤 Customer: ${detail.customers.name}\n` : "",
+      total_amount: inr(Number(detail.total)),
+      paid_amount: inr(Number(detail.paid)),
+      due_amount: inr(Number(detail.due)),
+      status_line: statusText,
+      receipt_url: receiptUrl,
+    });
 
-    const res = await sendWhatsAppMessage({ phone, message: msg });
-    if (!res.ok) {
-      window.open(res.fallbackUrl, "_blank", "noopener");
-    }
+    setWaModal({
+      open: true,
+      phone,
+      name: detail.customers?.name || "Customer",
+      msg,
+      invNum: detail.invoice_number,
+      refId: detail.id,
+    });
   }
 
   useEffect(() => {
@@ -202,6 +228,7 @@ export default function InvoiceViewModal({
   const dueNum = detail ? Number(detail.due) : 0;
 
   return (
+    <>
     <Modal
       onClose={onClose}
       title={detail?.invoice_number ?? "Loading..."}
@@ -439,5 +466,18 @@ export default function InvoiceViewModal({
         </>
       )}
     </Modal>
+    {waModal && (
+      <WhatsAppSendModal
+        open={Boolean(waModal)}
+        onClose={() => setWaModal(null)}
+        phone={waModal.phone}
+        recipientName={waModal.name}
+        initialMessage={waModal.msg}
+        messageType="pos_invoice"
+        refId={waModal.refId}
+        refNumber={waModal.invNum}
+      />
+    )}
+    </>
   );
 }

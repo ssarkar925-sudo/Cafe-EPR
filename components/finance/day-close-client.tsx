@@ -6,7 +6,8 @@ import { inr } from "@/lib/format";
 import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import A4Actions from "@/components/pdf/a4-actions";
 
 type CloseRow = {
@@ -116,6 +117,14 @@ export default function DayCloseClient({
     coins: "",
   });
   const { showToast, toastView } = useToast();
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    refNum: string;
+    refId: string;
+  } | null>(null);
 
   useEffect(() => {
     setOpenClose(initialOpenClose);
@@ -355,19 +364,29 @@ export default function DayCloseClient({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   if (!openClose) return;
-                  const rows = openClose.rows;
-                  const getRow = (p: string) => rows.find((r) => r.pool === p)?.final ?? 0;
-                  const msg = `📊 *DAY CLOSE SHIFT REPORT*\n🔢 Shift: ${openClose.closing_number} (${openClose.close_date})\n───────────────\n💵 Cash in Hand: ${inr(getRow("cash"))}\n🏦 Bank Balance: ${inr(getRow("bank"))}\n📱 UPI QR Balance: ${inr(getRow("upi_qr"))}\n⚡ DMT Float: ${inr(getRow("dmt"))}\n⚡ AEPS Float: ${inr(getRow("aeps"))}\n⚡ Recharge Float: ${inr(getRow("recharge"))}\n───────────────\n📈 Net Total Assets: ${inr(totals?.final ?? 0)}\n🔒 Status: OPEN (In Progress)`;
+                  const origin = typeof window !== "undefined" ? window.location.origin : "";
+                  const receiptUrl = `${origin}/receipt/day-close/${openClose.id}`;
+                  const cfg = getWhatsAppConfig();
+                  const template = cfg.templates?.day_close || DEFAULT_WA_TEMPLATES.day_close;
+                  const msg = renderWhatsAppTemplate(template, {
+                    shop_name: "Sarkar Communication",
+                    close_date: fmtDate(openClose.close_date),
+                    closing_number: openClose.closing_number,
+                    net_profit: inr((totals?.final ?? 0) - (totals?.opening ?? 0)),
+                    liquid_position: inr(totals?.final ?? 0),
+                    receipt_url: receiptUrl,
+                  });
 
-                  showToast("info", "Sending shift report via WhatsApp...");
-                  const res = await sendWhatsAppMessage({ phone: "", message: msg });
-                  if (res.ok) {
-                    showToast("success", "✓ Shift report sent via WhatsApp!");
-                  } else {
-                    window.open(res.fallbackUrl, "_blank", "noopener");
-                  }
+                  setWaModal({
+                    open: true,
+                    phone: "",
+                    name: "Store Owner / Manager",
+                    msg,
+                    refNum: openClose.closing_number,
+                    refId: openClose.id,
+                  });
                 }}
                 title="Share Shift Summary on WhatsApp"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"
@@ -986,6 +1005,19 @@ export default function DayCloseClient({
             </div>
           </div>
         </Modal>
+      )}
+
+      {waModal && (
+        <WhatsAppSendModal
+          open={Boolean(waModal)}
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType="day_close"
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
+        />
       )}
 
       {toastView}
