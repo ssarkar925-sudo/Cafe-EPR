@@ -424,12 +424,39 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
                     <div className="mt-2 rounded-lg bg-rose-50 p-2.5 text-xs text-rose-800 dark:bg-rose-950/20 dark:text-rose-300">
                       <p className="font-semibold">{gatewayHealth.error}</p>
                       <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">
-                        • If using <strong>Local PC</strong>: Make sure <code>pm2 start scripts/whatsapp-gateway.js</code> or <code>npm run whatsapp</code> is running in your terminal.<br />
+                        • If using <strong>Local PC</strong>: Make sure <code>node scripts/whatsapp-gateway.js</code> or <code>npm run whatsapp</code> is running in your terminal.<br />
                         • If using <strong>Render Cloud</strong>: Free tier takes ~15-20 seconds to wake up from idle sleep. Please wait a moment and test again.
                       </p>
                     </div>
                   )}
                 </div>
+
+                {/* HTTPS Mixed Content Helper Banner */}
+                {typeof window !== "undefined" && window.location.protocol === "https:" && (config.gateway_url || "").includes("localhost") && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 shadow-sm dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-100">
+                      <span>🔒 HTTPS Browser Security Notice</span>
+                    </div>
+                    <p className="mt-1 leading-relaxed text-amber-800 dark:text-amber-300">
+                      You are browsing on <strong>HTTPS</strong> (<code>https://cafeerp.vercel.app</code>). Modern browsers block insecure <code>http://localhost:3001</code> calls due to browser Mixed-Content rules.
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSave({ gateway_url: "https://sccomm-whatsapp-gateway.onrender.com" });
+                          testGatewayConnection("https://sccomm-whatsapp-gateway.onrender.com");
+                        }}
+                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+                      >
+                        ☁️ Switch to Render Cloud Gateway (Recommended)
+                      </button>
+                      <span className="text-[11px] text-amber-700 dark:text-amber-400">
+                        Works 24/7 from Vercel without PC!
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Custom Gateway URL & Optional Key */}
                 <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
