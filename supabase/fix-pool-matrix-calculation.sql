@@ -11,6 +11,15 @@
 --    and settings account balances.
 -- ==============================================================================
 
+-- Drop existing functions to allow changing return types safely
+drop function if exists public.get_settlement_summary();
+drop function if exists public.get_open_close();
+drop function if exists public.get_pool_balances(date);
+drop function if exists public.get_pool_balances();
+drop function if exists public.get_pool_movements(text, date, date);
+drop function if exists public.get_pool_seed(text, date);
+
+
 -- 1. POOL SEED FUNCTION (Authoritative Opening Balance for any pool as of date)
 create or replace function public.get_pool_seed(p_pool text, p_as_of date)
 returns table (opening numeric, seed_date date)
