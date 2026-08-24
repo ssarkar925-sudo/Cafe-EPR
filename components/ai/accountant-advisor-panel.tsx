@@ -7,14 +7,14 @@ import {
   type VerifiedFinancialContext,
   type AIAdvisorResponse,
   generateAdvisorAnswer,
+  formatInr,
 } from "@/lib/ai/advisor-engine";
 
 const SUGGESTED_QUESTIONS = [
-  "What is my current profit?",
-  "Why did profit increase/decrease?",
+  "What is my current business profit?",
+  "Why is my profit low?",
+  "Which service makes me the most profit?",
   "Which expenses are highest?",
-  "Which services generate the highest profit?",
-  "Which services have the best margin?",
   "How much money is currently tied up in AEPS/DMT/Wallet?",
   "How much customer due is outstanding?",
   "Is my cash/bank position reconciled?",
@@ -37,7 +37,7 @@ export default function AccountantAdvisorPanel({
 
   // Initial Answer
   const [currentResponse, setCurrentResponse] = useState<AIAdvisorResponse>(() => {
-    return generateAdvisorAnswer("What is my current profit?", initialContext);
+    return generateAdvisorAnswer("What is my current business profit?", initialContext);
   });
 
   // Handle Question Query
@@ -205,20 +205,26 @@ export default function AccountantAdvisorPanel({
         </form>
       </div>
 
-      {/* 5-PART STRUCTURED ANSWER CARD */}
+      {/* STRUCTURED INTENT & ANSWER CARD */}
       <div className="rounded-3xl border border-indigo-200 bg-white p-6 shadow-md dark:border-indigo-900/50 dark:bg-slate-900">
+        {/* Header with Intent Badge */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/10">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-base">
               🤖
             </span>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                {currentResponse.question}
-              </h2>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {new Date(currentResponse.timestamp).toLocaleTimeString()} · {context.periodLabel}
-              </span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {currentResponse.question}
+                </h2>
+                <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                  {currentResponse.intent}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium">
+                {currentResponse.dataSummary} · {new Date(currentResponse.timestamp).toLocaleTimeString()}
+              </p>
             </div>
           </div>
           <span className="self-start sm:self-auto inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
@@ -226,7 +232,7 @@ export default function AccountantAdvisorPanel({
           </span>
         </div>
 
-        {/* 1. Answer */}
+        {/* 1. Verified Answer */}
         <div className="mt-5 rounded-2xl bg-indigo-50/60 p-4 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
             1. Verified Answer:
@@ -236,12 +242,12 @@ export default function AccountantAdvisorPanel({
           </p>
         </div>
 
-        {/* 2. Numbers Used (Canonical) */}
+        {/* 2. Canonical Numbers Used */}
         <div className="mt-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
             2. Canonical Numbers Used:
           </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {currentResponse.numbersUsed.map((n, idx) => (
               <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-white/5 dark:bg-white/5">
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{n.label}</p>
@@ -251,27 +257,58 @@ export default function AccountantAdvisorPanel({
           </div>
         </div>
 
-        {/* 3. Why (Financial Driver) */}
+        {/* 3. Detailed Financial Analysis & Why */}
         <div className="mt-4 rounded-xl border border-slate-100 p-4 dark:border-white/5 bg-slate-50/40 dark:bg-white/5">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            3. Financial Context &amp; Why:
+            3. Deterministic Analysis &amp; Drivers:
           </p>
-          <p className="mt-1 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+          <div className="mt-1.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line font-normal">
             {currentResponse.why}
-          </p>
+          </div>
         </div>
+
+        {/* Dynamic Ranking Table (e.g. for Service Profitability) */}
+        {currentResponse.rankingTable && (
+          <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden dark:border-white/10">
+            <div className="bg-slate-100/70 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:bg-white/5 dark:text-slate-300">
+              📊 Service Profitability &amp; Margin Ranking Table
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] font-bold uppercase text-slate-400 dark:bg-white/5">
+                  <tr>
+                    {currentResponse.rankingTable.headers.map((h, i) => (
+                      <th key={i} className="p-2.5">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5 bg-white dark:bg-slate-900">
+                  {currentResponse.rankingTable.rows.map((row, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="p-2.5 font-medium text-slate-800 dark:text-slate-200">
+                          {String(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* 4. Recommended Action */}
         <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/30 dark:bg-blue-950/20">
           <p className="text-[11px] font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
             4. Recommended Action:
           </p>
-          <p className="mt-1 text-xs font-medium text-blue-950 dark:text-blue-200 leading-relaxed">
+          <p className="mt-1 text-xs font-medium text-blue-950 dark:text-blue-200 leading-relaxed whitespace-pre-line">
             {currentResponse.recommendedAction}
           </p>
         </div>
 
-        {/* 5. Audit Status */}
+        {/* 5. Self-Audit Status */}
         <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-900 p-3.5 text-white">
           <div className="flex items-center gap-2 text-xs">
             <span>🛡️</span>
@@ -461,4 +498,3 @@ export default function AccountantAdvisorPanel({
     </div>
   );
 }
-
