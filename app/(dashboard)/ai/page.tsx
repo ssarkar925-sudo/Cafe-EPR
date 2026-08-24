@@ -27,7 +27,7 @@ export default async function AIPage() {
     supabase.from("invoices").select("id, invoice_number, total_amount, paid_amount, status, payment_method, type, created_at").limit(1000),
     supabase.from("transactions").select("id, service_type, total_amount, net_earnings, status, payment_mode, created_at").limit(1000),
     supabase.from("settlements").select("id, settlement_number, from_pool, to_pool, amount, status, settlement_date, reference, remarks").order("created_at", { ascending: false }).limit(200),
-    supabase.from("cash_entries").select("id, method, direction, amount, ref_type, description, entry_date").limit(1000),
+    supabase.from("cash_entries").select("id, method, direction, amount, ref_type, ref_id, description, entry_date").limit(1000),
     supabase.from("products").select("id, name, stock_quantity, cost_price, sale_price, min_stock_alert").limit(500),
     supabase.from("expenses").select("id, amount, is_deductible, expense_date, category").limit(500),
     supabase.from("ai_document_vault").select("*").order("created_at", { ascending: false }).limit(200),

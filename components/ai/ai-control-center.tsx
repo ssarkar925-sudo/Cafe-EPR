@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { inr } from "@/lib/format";
 import { useToast } from "@/components/ui/use-toast";
 import { runSystemDiagnostic, type DiagnosticReport } from "@/lib/ai/diagnostic";
@@ -12,6 +12,7 @@ import { generatePeriodicClosing } from "@/lib/ai/periodic-closing";
 import { calculateComplianceScore, type DocumentVaultItem } from "@/lib/ai/vault";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase/client";
+import { fetchCloudWhatsAppConfig } from "@/lib/whatsapp";
 
 type TabKey =
   | "overview"
@@ -60,6 +61,28 @@ export default function AIControlCenter({
       gatewayStatus,
     })
   );
+
+  useEffect(() => {
+    fetchCloudWhatsAppConfig().then((cfg) => {
+      const isConnected = cfg.provider === "local_gateway" || Boolean(cfg.gateway_url);
+      const gw = {
+        connected: isConnected,
+        status: isConnected ? "active" : cfg.provider ?? "off",
+        url: cfg.gateway_url ?? "",
+      };
+      setDiagnosticData(
+        runSystemDiagnostic({
+          poolBalances: initialPools,
+          customers: initialCustomers,
+          invoices: initialInvoices,
+          settlements: initialSettlements,
+          cashEntries: initialCashEntries,
+          products: initialProducts,
+          gatewayStatus: gw,
+        })
+      );
+    });
+  }, [initialPools, initialCustomers, initialInvoices, initialSettlements, initialCashEntries, initialProducts]);
 
   // Document Vault State
   const [documents, setDocuments] = useState<DocumentVaultItem[]>(initialDocuments || []);

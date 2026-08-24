@@ -46,7 +46,7 @@ export function runSystemDiagnostic(params: {
   customers: { id: string; name: string; balance: number }[];
   invoices: { id: string; invoice_number: string; total_amount: number; paid_amount: number; status: string }[];
   settlements: { id: string; settlement_number: string; from_pool: string; to_pool: string; amount: number; status: string }[];
-  cashEntries: { id: string; method: string; direction: string; amount: number; ref_type: string | null }[];
+  cashEntries: { id: string; method: string; direction: string; amount: number; ref_type: string | null; ref_id?: string | null }[];
   products: { id: string; name: string; stock_quantity: number; cost_price: number; sale_price: number }[];
   gatewayStatus?: { connected: boolean; status: string; error?: string; url?: string };
 }): DiagnosticReport {
@@ -154,17 +154,19 @@ export function runSystemDiagnostic(params: {
     });
   }
 
-  // 3. Cash Entries & Double Count Guard
+  // 3. Cash Entries & Duplicate Voucher Guard
   const duplicateEntries = cashEntries.filter(
     (e, idx, arr) =>
+      Boolean(e.ref_id) &&
+      Boolean(e.ref_type) &&
       arr.findIndex(
         (x) =>
           x.id !== e.id &&
-          x.amount === e.amount &&
+          x.ref_id === e.ref_id &&
+          x.ref_type === e.ref_type &&
           x.method === e.method &&
           x.direction === e.direction &&
-          x.ref_type === e.ref_type &&
-          Boolean(x.ref_type)
+          Number(x.amount) === Number(e.amount)
       ) !== -1
   );
 
@@ -175,16 +177,16 @@ export function runSystemDiagnostic(params: {
       title: "Cashbook & Settlement Duplicate Voucher Guard",
       description: "Scans for duplicate linked entries created during inter-pool transfers.",
       status: "warn",
-      details: `${duplicateEntries.length} potential duplicate reference entries flagged.`,
+      details: `${duplicateEntries.length} duplicate voucher reference entries flagged.`,
       fixSuggestion: "Review Cashbook vouchers for duplicate settlement postings.",
     });
-    anomalies.push(`Flagged ${duplicateEntries.length} possible duplicate cashbook transactions.`);
+    anomalies.push(`Flagged ${duplicateEntries.length} duplicate cashbook transactions.`);
   } else {
     checks.push({
       id: "cash_entries_dedup",
       category: "accounting_matrix",
       title: "Cashbook Duplicate Voucher Guard",
-      description: "Zero duplicate settlement or transaction entries detected.",
+      description: "Zero duplicate settlement or transaction vouchers detected in cashbook.",
       status: "pass",
     });
   }
