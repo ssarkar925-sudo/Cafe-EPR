@@ -14,6 +14,7 @@ const SUGGESTED_QUESTIONS = [
   "What is my current business profit?",
   "Why is my profit low?",
   "Which service makes me the most profit?",
+  "How to grow my business?",
   "Which expenses are highest?",
   "How much money is currently tied up in AEPS/DMT/Wallet?",
   "How much customer due is outstanding?",

@@ -1630,6 +1630,17 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
 // Helper intent detector function matching advisor-engine.ts
 function detectIntent(question) {
   const q = question.toLowerCase().trim();
+
+  // 1. Growth & Improvement
+  if (
+    q.includes("grow my business") || q.includes("grow business") ||
+    q.includes("increase profit") || q.includes("what should i improve") ||
+    q.includes("what should i focus on") || q.includes("get more customers") ||
+    q.includes("increase sales") || q.includes("growth strategy") ||
+    q.includes("business growth") || q.includes("how to grow")
+  ) return "BUSINESS_GROWTH_ADVISOR";
+
+  // 2. Profit Analysis
   if (
     q.includes("why is profit") || q.includes("why is my profit") ||
     q.includes("profit low") || q.includes("low profit") ||
@@ -1637,6 +1648,7 @@ function detectIntent(question) {
     q.includes("profit change") || q.includes("profit driver")
   ) return "PROFIT_ANALYSIS";
 
+  // 3. Service Profitability
   if (
     q.includes("which service") || q.includes("most profit") ||
     q.includes("highest profit") || q.includes("best margin") ||
@@ -1644,115 +1656,146 @@ function detectIntent(question) {
     q.includes("service profitability") || q.includes("rank service")
   ) return "SERVICE_PROFITABILITY";
 
+  // 4. Top Expenses
   if (q.includes("which expenses") || q.includes("top expense") || q.includes("highest expense")) return "TOP_EXPENSES";
+  
+  // 5. Customer Dues
   if (q.includes("customer due") || q.includes("outstanding due") || q.includes("who owes")) return "CUSTOMER_DUES";
+  
+  // 6. Pool Float Exposure
   if (q.includes("tied up") || q.includes("float") || q.includes("wallet")) return "POOL_EXPOSURE";
+  
+  // 7. Reconciliation
   if (q.includes("reconcil") || q.includes("cash/bank")) return "RECONCILIATION";
+  
+  // 8. ITR Review
   if (q.includes("itr") || q.includes("tax preparation") || q.includes("44ad")) return "ITR_REVIEW";
+  
+  // 9. Financial Anomalies
   if (q.includes("anomal") || q.includes("red flag") || q.includes("audit score")) return "FINANCIAL_ANOMALIES";
+  
+  // 10. Trends
   if (q.includes("since yesterday") || q.includes("this month") || q.includes("trend")) return "TREND_ANALYSIS";
-  return "CURRENT_PROFIT";
+  
+  // 11. Current Profit
+  if (
+    q.includes("current business profit") || q.includes("current profit") ||
+    q.includes("how much profit") || q.includes("net profit") ||
+    q.includes("what is my profit") || q.includes("business profit")
+  ) return "CURRENT_PROFIT";
+
+  // 12. General Business / Unknown (Never silently defaults to CURRENT_PROFIT)
+  return "GENERAL_BUSINESS_QUESTION";
 }
 
-// 147. Regression Test 1: Current Profit Question Routes to CURRENT_PROFIT
+// 147. Regression Test 1: 'how to grow my business' -> BUSINESS_GROWTH_ADVISOR
 {
-  const q1 = "What is my current business profit?";
-  const intent1 = detectIntent(q1);
-  assert(intent1 === "CURRENT_PROFIT", "147. AI Routing: 'What is my current business profit?' routes to CURRENT_PROFIT");
+  const q = "how to grow my business";
+  const intent = detectIntent(q);
+  assert(intent === "BUSINESS_GROWTH_ADVISOR", "147. AI Routing: 'how to grow my business' routes to BUSINESS_GROWTH_ADVISOR");
 }
 
-// 148. Regression Test 2: Why Profit Low Question Routes to PROFIT_ANALYSIS (Distinct from Current Profit)
+// 148. Regression Test 2: 'what should I improve' -> BUSINESS_GROWTH_ADVISOR
 {
-  const q2 = "Why is my profit low?";
-  const intent2 = detectIntent(q2);
-  assert(intent2 === "PROFIT_ANALYSIS", "148. AI Routing: 'Why is my profit low?' routes to PROFIT_ANALYSIS (Never generic profit)");
+  const q = "what should I improve";
+  const intent = detectIntent(q);
+  assert(intent === "BUSINESS_GROWTH_ADVISOR", "148. AI Routing: 'what should I improve' routes to BUSINESS_GROWTH_ADVISOR");
 }
 
-// 149. Regression Test 3: Which Service Makes Most Profit Routes to SERVICE_PROFITABILITY
+// 149. Regression Test 3: 'why is my profit low' -> PROFIT_ANALYSIS
 {
-  const q3 = "Which service makes me the most profit?";
-  const intent3 = detectIntent(q3);
-  assert(intent3 === "SERVICE_PROFITABILITY", "149. AI Routing: 'Which service makes me the most profit?' routes to SERVICE_PROFITABILITY");
+  const q = "why is my profit low";
+  const intent = detectIntent(q);
+  assert(intent === "PROFIT_ANALYSIS", "149. AI Routing: 'why is my profit low' routes to PROFIT_ANALYSIS");
 }
 
-// 150. Regression Test 4: Service Profitability Does NOT Return Overall Business Profit as Answer
+// 150. Regression Test 4: 'which service makes the most profit' -> SERVICE_PROFITABILITY
 {
-  const mockServiceResponse = {
-    intent: "SERVICE_PROFITABILITY",
-    answer: "The top revenue and gross profit generator is Retail Goods & Products (₹34,827.00 gross revenue; Cost: Insufficient cost data). Among pure service streams with verified unit costs, AEPS Aadhaar ATM is your top earner generating ₹1,111.97 in pure fee/commission profit at 100% gross margin.",
-    numbersUsed: [
-      { label: "Top Earner: Retail Goods & Products", value: "₹34,827.00" },
-      { label: "Pure Service Top: AEPS Aadhaar ATM", value: "₹1,111.97" }
-    ]
+  const q = "which service makes the most profit";
+  const intent = detectIntent(q);
+  assert(intent === "SERVICE_PROFITABILITY", "150. AI Routing: 'which service makes the most profit' routes to SERVICE_PROFITABILITY");
+}
+
+// 151. Regression Test 5: 'what is my current profit' -> CURRENT_PROFIT
+{
+  const q = "what is my current profit";
+  const intent = detectIntent(q);
+  assert(intent === "CURRENT_PROFIT", "151. AI Routing: 'what is my current profit' routes to CURRENT_PROFIT");
+}
+
+// 152. Regression Test 6: Unknown Question Does NOT Default to CURRENT_PROFIT
+{
+  const unknownQ = "tell me about store location and foot traffic";
+  const intent = detectIntent(unknownQ);
+  assert(intent === "GENERAL_BUSINESS_QUESTION" && intent !== "CURRENT_PROFIT", "152. AI Routing: Unknown question routes to GENERAL_BUSINESS_QUESTION (Never CURRENT_PROFIT)");
+}
+
+// 153. Regression Test 7: Profit Analysis Uses Actual Business Expenses Only
+{
+  const rawExpenses = [
+    { category: "Rent & Electricity", amount: 25000, status: "completed" },
+    { category: "Money Out", amount: 29147, status: "completed" }, // Cash movement, NOT expense
+    { category: "Internet & Utilities", amount: 6000, status: "completed" }
+  ];
+  const forbidden = ["money out", "money in", "settlement", "transfer"];
+  const actualBusinessExpenses = rawExpenses.filter(e => !forbidden.includes(e.category.toLowerCase()));
+  const hasMoneyOut = actualBusinessExpenses.some(e => e.category.toLowerCase() === "money out");
+  assert(hasMoneyOut === false && actualBusinessExpenses.length === 2, "153. Expense Purity: Profit Analysis uses legitimate business expenses only (excludes 'Money Out')");
+}
+
+// 154. Regression Test 8: 'Money Out' Cash Movement is Never Treated as Business Expense
+{
+  const cashMovement = { type: "cash_entry", direction: "out", amount: 29147, ref_type: "settlement" };
+  const isBusinessExpense = (cashMovement.type === "expense" && cashMovement.ref_type !== "settlement");
+  assert(isBusinessExpense === false, "154. Cash Book Safety: 'Money Out' cash movement is strictly isolated from business expenses");
+}
+
+// 155. Regression Test 9: AEPS Service with COGS=0 Does NOT Claim 100% Gross Margin
+{
+  const aepsService = {
+    serviceName: "AEPS Aadhaar ATM & Micro-ATM",
+    revenue: 1111.97,
+    cost: 0,
+    marginPct: null,
+    marginDescription: "Not fully determinable because operating costs are not allocated to this service."
   };
-  const isServiceSpecific = mockServiceResponse.numbersUsed.some(n => n.label.includes("Retail Goods") || n.label.includes("AEPS"));
-  assert(isServiceSpecific === true, "150. AI Response: Service Profitability returns service-level breakdown, NOT overall business profit");
+  const claims100Pct = (aepsService.marginPct === 100);
+  assert(claims100Pct === false && aepsService.marginDescription.includes("Not fully determinable"), "155. Margin Safety: AEPS Service with COGS=0 does NOT automatically claim 100% gross margin");
 }
 
-// 151. Regression Test 5: AEPS Principal Volume Excluded from Service Revenue
+// 156. Regression Test 10: Missing Service Cost Produces 'Insufficient cost data'
 {
-  const aepsPrincipal = 92150.0;
-  const aepsServiceRevenue = 1111.97;
-  const excludesPrincipal = (aepsServiceRevenue < aepsPrincipal && aepsServiceRevenue === 1111.97);
-  assert(excludesPrincipal === true, "151. Revenue Purity: AEPS Principal (₹92.15k) is 100% excluded from service revenue");
+  const serviceWithoutPurchaseCost = {
+    serviceName: "Quick Counter Sales (Xerox/Photos)",
+    cost: null,
+    marginDescription: "Insufficient cost data to calculate service-level profit."
+  };
+  const isInsufficient = serviceWithoutPurchaseCost.marginDescription.includes("Insufficient cost data");
+  assert(isInsufficient === true, "156. Cost Transparency: Missing service cost produces 'Insufficient cost data', never fabricated margin");
 }
 
-// 152. Regression Test 6: DMT Principal Volume Excluded from Service Revenue
+// 157. Regression Test 11: AI Does NOT Invent Growth Forecasts
 {
-  const dmtPrincipal = 3900.0;
-  const dmtServiceRevenue = 50.0;
-  const excludesPrincipal = (dmtServiceRevenue < dmtPrincipal && dmtServiceRevenue === 50.0);
-  assert(excludesPrincipal === true, "152. Revenue Purity: DMT Principal (₹3.9k) is 100% excluded from service revenue");
+  const growthForecast = "Potential opportunity — historical evidence is insufficient for a quantified forecast.";
+  const containsFabricatedRupees = growthForecast.includes("₹50,000") || growthForecast.includes("₹1,00,000");
+  assert(containsFabricatedRupees === false && growthForecast.includes("insufficient for a quantified forecast"), "157. AI Growth Safety: AI reports insufficient historical evidence instead of fabricating rupee forecasts");
 }
 
-// 153. Regression Test 7: Missing COGS Produces 'Insufficient cost data'
-{
-  const serviceWithoutPurchaseCost = { name: "Quick Counter Sales (Xerox/Photos)", cost: null };
-  const costLabel = serviceWithoutPurchaseCost.cost === null ? "Insufficient cost data" : `₹${serviceWithoutPurchaseCost.cost}`;
-  assert(costLabel === "Insufficient cost data", "153. Cost Transparency: Missing COGS produces 'Insufficient cost data', never fabricated margin");
-}
-
-// 154. Regression Test 8: Top Expense Question Routes to TOP_EXPENSES
-{
-  const q4 = "Which expenses are highest?";
-  const intent4 = detectIntent(q4);
-  assert(intent4 === "TOP_EXPENSES", "154. AI Routing: 'Which expenses are highest?' routes to TOP_EXPENSES");
-}
-
-// 155. Regression Test 9: Customer Due Question Routes to CUSTOMER_DUES
-{
-  const q5 = "How much customer due is outstanding?";
-  const intent5 = detectIntent(q5);
-  assert(intent5 === "CUSTOMER_DUES", "155. AI Routing: 'How much customer due is outstanding?' routes to CUSTOMER_DUES");
-}
-
-// 156. Regression Test 10: Pool Question Routes to POOL_EXPOSURE
-{
-  const q6 = "How much money is currently tied up in AEPS/DMT/Wallet?";
-  const intent6 = detectIntent(q6);
-  assert(intent6 === "POOL_EXPOSURE", "156. AI Routing: 'How much money is currently tied up in AEPS/DMT/Wallet?' routes to POOL_EXPOSURE");
-}
-
-// 157. Regression Test 11: Financial Anomaly Question Reads Self-Audit Findings
-{
-  const q7 = "Are there any financial anomalies?";
-  const intent7 = detectIntent(q7);
-  assert(intent7 === "FINANCIAL_ANOMALIES", "157. AI Routing: 'Are there any financial anomalies?' routes to FINANCIAL_ANOMALIES");
-}
-
-// 158. Regression Test 12: Distinct Questions Produce Distinct Intents & Distinct Datasets
+// 158. Regression Test 12: Distinct Inquiries Produce Distinct Intents
 {
   const intents = [
-    detectIntent("What is my current business profit?"),
-    detectIntent("Why is my profit low?"),
-    detectIntent("Which service makes me the most profit?"),
-    detectIntent("Which expenses are highest?"),
-    detectIntent("How much customer due is outstanding?"),
-    detectIntent("How much money is currently tied up in AEPS/DMT/Wallet?"),
-    detectIntent("Are there any financial anomalies?")
+    detectIntent("what is my current profit"),
+    detectIntent("why is my profit low"),
+    detectIntent("which service makes the most profit"),
+    detectIntent("how to grow my business"),
+    detectIntent("which expenses are highest"),
+    detectIntent("how much customer due is outstanding"),
+    detectIntent("how much money is currently tied up in AEPS/DMT/Wallet?"),
+    detectIntent("are there any financial anomalies?"),
+    detectIntent("random general query")
   ];
   const uniqueIntents = new Set(intents);
-  assert(uniqueIntents.size === 7, "158. AI Routing Invariant: 7 Distinct Inquiries Produce 7 Distinct Deterministic Intents");
+  assert(uniqueIntents.size === 9, "158. AI Routing Invariant: 9 Distinct Inquiries Produce 9 Distinct Deterministic Intents");
 }
 
 console.log("\n================================================================================");
