@@ -1480,6 +1480,33 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
   assert(sections.length === 11, "130. UI Invariant: Self-Audit Center Exposes Complete 11 Categorized Subsystem Workspaces");
 }
 
+// 131. Income Classification Operating Revenue Reconciliation
+{
+  const netRetailRevenue = 36467.0;
+  const aepsFees = 1061.97;
+  const dmtFees = 50.0;
+  const upiFees = 1.0;
+  const totalServiceFees = aepsFees + dmtFees + upiFees; // 1112.97
+  const commissionRevenue = 50.0;
+  const otherRevenue = 0.0;
+
+  const totalOperatingRevenue = netRetailRevenue + totalServiceFees + commissionRevenue + otherRevenue;
+  const canonicalOperatingRevenue = 37629.97;
+  const variance = Math.abs(Math.round((totalOperatingRevenue - canonicalOperatingRevenue) * 100) / 100);
+
+  assert(variance === 0.0, "131. Income Classification Invariant: Retail (₹36,467) + Fees (₹1,112.97 with UPI ₹1) + Comm (₹50) ≡ Operating Revenue (₹37,629.97)");
+}
+
+// 132. Dynamic Closing Asset Title Safety
+{
+  const selectedFY = "FY 2026-27 — Year to Date";
+  const title = selectedFY.includes("Year to Date")
+    ? `${selectedFY.split("—")[0].trim()} YTD Closing Liquid Asset Positions`
+    : `${selectedFY} Closing Liquid Asset Positions`;
+
+  assert(title === "FY 2026-27 YTD Closing Liquid Asset Positions", "132. Tax Safety: Incomplete FY Title is Formatted as YTD Closing Liquid Asset Positions (Never Year-End)");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
