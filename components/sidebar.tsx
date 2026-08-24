@@ -150,8 +150,8 @@ export default function Sidebar({
         items: [
           { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
           { label: "Point of Sale", href: "/pos", icon: "pos" },
-          { label: "Invoices & Receipts", href: "/invoices", icon: "invoices" },
-          { label: "Returns & Credit Notes", href: "/returns", icon: "returns" },
+          { label: "Invoices", href: "/invoices", icon: "invoices" },
+          { label: "Returns", href: "/returns", icon: "returns" },
         ],
       },
 
@@ -159,20 +159,17 @@ export default function Sidebar({
       {
         title: "Operations & Services",
         items: [
-          { label: "AEPS Banking", href: "/business/aeps", icon: "aeps" },
-          { label: "DMT Money Transfer", href: "/business/dmt", icon: "dmt" },
-          { label: "UPI Collections", href: "/business/upi", icon: "upi" },
-          { label: "Recharge & Utilities", href: "/business/recharge", icon: "recharge" },
-          { label: "Bank Accounts", href: "/business/banks", icon: "banks" },
-          { label: "Third-Party Portals", href: "/business/portals", icon: "portals" },
-          { label: "Merchant QRs", href: "/business/merchant-qrs", icon: "qrs" },
+          { label: "AEPS", href: "/business/aeps", icon: "aeps" },
+          { label: "DMT", href: "/business/dmt", icon: "dmt" },
+          { label: "UPI", href: "/business/upi", icon: "upi" },
+          { label: "Recharge", href: "/business/recharge", icon: "recharge" },
         ],
       },
 
       // 3. CUSTOMER MANAGEMENT
       {
         title: "Customer Management",
-        items: [{ label: "Customers & Dues", href: "/customers", icon: "customers" }],
+        items: [{ label: "Customers", href: "/customers", icon: "customers" }],
       },
 
       // 4. FINANCE
@@ -182,11 +179,11 @@ export default function Sidebar({
           { label: "Profit & Loss", href: "/finance/pnl", icon: "pnl" },
           { label: "Cash Book", href: "/finance/cashbook", icon: "cashbook" },
           { label: "Opening Balances", href: "/finance/opening-balances", icon: "opening" },
-          { label: "Day Close & Rollover", href: "/finance/day-close", icon: "dayclose" },
-          { label: "Settlement Hub", href: "/finance/settlements", icon: "settlements" },
-          { label: "General Ledger", href: "/finance/ledger", icon: "ledger" },
-          { label: "Business Expenses", href: "/finance/expenses", icon: "expenses" },
-          { label: "Reports Hub", href: "/reports", icon: "reports" },
+          { label: "Day Close", href: "/finance/day-close", icon: "dayclose" },
+          { label: "Settlements", href: "/finance/settlements", icon: "settlements" },
+          { label: "Ledger", href: "/finance/ledger", icon: "ledger" },
+          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
+          { label: "Reports", href: "/reports", icon: "reports" },
           {
             label: "Tax Preparation / ITR",
             href: "/reports/tax-preparation",
@@ -213,24 +210,6 @@ export default function Sidebar({
             icon: "ai",
             badge: { text: "ACTIVE", tone: "indigo" },
           },
-          {
-            label: "AI Accountant",
-            href: "/ai?tab=accountant",
-            icon: "ai",
-            badge: { text: "BETA", tone: "purple" },
-          },
-          {
-            label: "Business Advisor",
-            href: "/ai?tab=reconciliation",
-            icon: "ai",
-            badge: { text: "BETA", tone: "purple" },
-          },
-          {
-            label: "Document OCR & Vault",
-            href: "/ai?tab=vault_compliance",
-            icon: "ai",
-            badge: { text: "ACTIVE", tone: "blue" },
-          },
         ],
       },
 
@@ -244,7 +223,7 @@ export default function Sidebar({
             icon: "security",
             badge: { text: "ACTIVE", tone: "emerald" },
           },
-          { label: "System Audit Log", href: "/audit", icon: "audit" },
+          { label: "Audit Log", href: "/audit", icon: "audit" },
         ],
       },
 
@@ -252,16 +231,8 @@ export default function Sidebar({
       {
         title: "Administration & Settings",
         items: [
-          { label: "Staff & Attendance", href: "/staff", icon: "staff" },
-          { label: "Catalog & Master Data", href: "/settings?tab=catalog", icon: "products" },
-          { label: "Shop Settings", href: "/settings", icon: "settings" },
-          { label: "Payment Accounts", href: "/settings?tab=accounts", icon: "banks" },
-          {
-            label: "WhatsApp Gateway",
-            href: "/settings?tab=whatsapp",
-            icon: "services",
-            badge: { text: "CONFIG", tone: "slate" },
-          },
+          { label: "Staff", href: "/staff", icon: "staff" },
+          { label: "Settings", href: "/settings", icon: "settings" },
         ],
       },
     ];
