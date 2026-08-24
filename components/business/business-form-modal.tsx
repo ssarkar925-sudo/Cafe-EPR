@@ -94,6 +94,8 @@ export default function BusinessFormModal({
     fee_source: initial?.fee_source ?? "cut_from_withdrawal",
     paid_from: initial?.paid_from ?? "bank",
     customer_pay_method: initial?.customer_pay_method ?? "cash",
+    pay_from_instrument_id: (initial as any)?.pay_from_instrument_id ?? "",
+    pay_from_method: (initial as any)?.pay_from_method ?? "bank",
   }));
   const [error, setError] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
@@ -254,6 +256,7 @@ export default function BusinessFormModal({
 
     setError("");
     if (service === "recharge") {
+      const selInst = loadedPaymentAccounts.find((a) => a.id === form.pay_from_instrument_id);
       onSave({
         p_provider_id: form.provider_id,
         p_transaction_date: form.transaction_timestamp.slice(0, 10),
@@ -265,6 +268,8 @@ export default function BusinessFormModal({
         p_status: form.status,
         p_amount: amount,
         p_customer_pay_method: form.customer_pay_method || "cash",
+        p_pay_from_instrument_id: form.pay_from_instrument_id || null,
+        p_pay_from_method: selInst?.type || form.pay_from_method || "bank",
       });
       return;
     }
@@ -807,14 +812,65 @@ export default function BusinessFormModal({
                 </p>
               )}
             </div>
+
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className={labelCls}>Funded / Paid Out From (Account / Card / Wallet / Cash) *</label>
+                <a href="/settings" target="_blank" className="text-[11px] font-medium text-blue-600 hover:underline">
+                  + Manage Accounts
+                </a>
+              </div>
+              {loadedPaymentAccounts.length > 0 ? (
+                <SearchableSelect
+                  value={form.pay_from_instrument_id}
+                  onChange={(v) => {
+                    const inst = loadedPaymentAccounts.find((i) => i.id === v);
+                    setForm((prev) => ({
+                      ...prev,
+                      pay_from_instrument_id: v,
+                      pay_from_method: inst?.type || "bank",
+                    }));
+                  }}
+                  options={[
+                    { value: "", label: "Default Bank Float" },
+                    ...loadedPaymentAccounts.map((b) => {
+                      const typeIcon = b.type === "credit_card" ? "💳" : b.type === "wallet" ? "👛" : b.type === "cash" ? "💵" : "🏦";
+                      const accNum = b.details?.account_number ? ` (••••${String(b.details.account_number).slice(-4)})` : "";
+                      return {
+                        value: b.id,
+                        label: `${typeIcon} ${b.name}${accNum} [${(b.type || 'account').replace('_', ' ').toUpperCase()}]`,
+                      };
+                    }),
+                  ]}
+                  placeholder="Select Account / Card used for this recharge..."
+                  showClear={false}
+                />
+              ) : (
+                <input
+                  value={form.pay_from_instrument_id}
+                  onChange={(e) => set("pay_from_instrument_id", e.target.value)}
+                  placeholder="Enter funding account/card..."
+                  className={input}
+                />
+              )}
+              <p className="mt-1 text-[11px] text-slate-500">
+                The net recharge cost {commissionPreview && !commissionPreview.missing ? `(₹${commissionPreview.cost})` : ""} will be debited from this specific account/card.
+              </p>
+            </div>
+
             {commissionPreview && (
-              <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:col-span-2">
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200/60 p-3 text-xs text-emerald-900 sm:col-span-2">
                 {commissionPreview.missing ? (
                   <p>No commission slab covers ₹{form.amount} for this provider — add a slab in Settings.</p>
                 ) : (
-                  <p>
-                    Commission <b>{commissionPreview.percent}%</b> = <b>{inr(commissionPreview.commission)}</b> earned · Recharge float debited <b>{inr(commissionPreview.cost)}</b>
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p>
+                      Commission <b>{commissionPreview.percent}%</b> = <b className="text-emerald-700">{inr(commissionPreview.commission)}</b> earned
+                    </p>
+                    <p className="font-semibold text-slate-700">
+                      Net Account Outflow: <span className="font-mono text-slate-900 font-bold">{inr(commissionPreview.cost)}</span>
+                    </p>
+                  </div>
                 )}
               </div>
             )}

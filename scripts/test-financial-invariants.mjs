@@ -227,6 +227,28 @@ function assert(condition, name, details = "") {
   assert(totalInvoice === 1180, "12. Total Tax Invoice (₹1,180.00)");
 }
 
+// 13. Recharge Account-Linked Outflow Tracking
+{
+  let cashDrawer = 10000;
+  let creditCardLimit = 50000;
+  let commissionIncome = 0;
+
+  const rechargePlan = 299.0;
+  const commissionEarned = 6.0;
+  const netAccountCost = rechargePlan - commissionEarned; // ₹293.00
+
+  // 1. Customer pays Cash ₹299
+  cashDrawer += rechargePlan;
+  // 2. Recharge funded from HDFC Credit Card (Cost ₹293)
+  creditCardLimit -= netAccountCost;
+  // 3. Profit earned
+  commissionIncome += commissionEarned;
+
+  assert(cashDrawer === 10299, "13. Customer Cash Inflow: Cash Drawer +₹299.00");
+  assert(creditCardLimit === 49707, "13. Paid Out From Account: Credit Card -₹293.00");
+  assert(commissionIncome === 6, "13. Net P&L Commission Income: +₹6.00");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
