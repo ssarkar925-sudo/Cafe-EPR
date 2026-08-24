@@ -11,7 +11,14 @@ export default async function SettlementsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: settlements }, { data: poolBalances }, { data: summary }] = await Promise.all([
+  const [
+    { data: settlements },
+    { data: poolBalances },
+    { data: summary },
+    { data: portals },
+    { data: qrs },
+    { data: paymentInstruments },
+  ] = await Promise.all([
     supabase
       .from("settlements")
       .select(
@@ -22,6 +29,9 @@ export default async function SettlementsPage() {
       .limit(1000),
     supabase.rpc("get_pool_balances"),
     supabase.rpc("get_settlement_summary"),
+    supabase.from("aeps_portals").select("*").order("name"),
+    supabase.from("upi_merchant_qrs").select("*").order("display_name"),
+    supabase.from("payment_instruments").select("*").eq("is_active", true).order("name"),
   ]);
 
   const rows = (settlements ?? []).map((r: any) => ({
@@ -36,7 +46,6 @@ export default async function SettlementsPage() {
     dmt: Number(poolBalances?.dmt?.current ?? 0),
     aeps: Number(poolBalances?.aeps?.current ?? 0),
     upi_qr: Number(poolBalances?.upi_qr?.current ?? 0),
-    recharge: Number(poolBalances?.recharge?.current ?? 0),
     credit_card: Number(poolBalances?.credit_card?.current ?? 0),
     count: rows.length,
   };
@@ -59,6 +68,9 @@ export default async function SettlementsPage() {
     <SettlementsClient
       initialSettlements={rows as any}
       initialSummary={parsedSummary}
+      initialPortals={(portals ?? []) as any}
+      initialQrs={(qrs ?? []) as any}
+      initialPaymentInstruments={(paymentInstruments ?? []) as any}
     />
   );
 }

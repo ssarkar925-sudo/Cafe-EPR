@@ -21,7 +21,6 @@ export type PoolBalances = {
   dmt: PoolBal;
   aeps: PoolBal;
   upi_qr: PoolBal;
-  recharge: PoolBal;
   credit_card: PoolBal;
   total: number;
 };
@@ -49,9 +48,8 @@ const POOLS: { key: keyof PoolBalances; label: string; icon: string; grad: strin
   { key: "credit_card", label: "Credit Card Limit", icon: "M2 8h20v11H2zM2 12h20M6 16h4M7 3l3 5h4l3-5", grad: "from-cyan-500 to-sky-600", hint: "Available credit limit" },
   { key: "wallet", label: "Wallet Balance", icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", grad: "from-emerald-500 to-teal-600", hint: "Digital wallet float" },
   { key: "dmt", label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", grad: "from-violet-500 to-purple-600", hint: "Remittance float with provider" },
-  { key: "aeps", label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z", grad: "from-amber-500 to-orange-600", hint: "AEPS float with provider" },
+  { key: "aeps", label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z", grad: "from-amber-500 to-orange-600", hint: "AEPS float with provider" },
   { key: "upi_qr", label: "UPI QR", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", grad: "from-rose-500 to-pink-600", hint: "Shop UPI QR receipts" },
-  { key: "recharge", label: "Recharge Float", icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-cyan-500 to-sky-600", hint: "Float used for mobile / DTH recharge" },
 ];
 
 const INST_POOL: Record<string, string> = {

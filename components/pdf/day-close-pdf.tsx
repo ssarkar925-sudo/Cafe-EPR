@@ -10,7 +10,6 @@ const POOL_LABEL: Record<string, string> = {
   aeps: "AEPS Portal Float",
   upi_qr: "UPI Merchant QR Float",
   credit_card: "Credit Card Available Limit",
-  recharge: "Recharge Service Float",
 };
 
 const C = { border: "0.75", borderColor: "#cbd5e1" };

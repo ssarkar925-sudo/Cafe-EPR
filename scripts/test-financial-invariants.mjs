@@ -65,7 +65,7 @@ function assert(condition, name, details = "") {
   assert(expectedBalance === 0, "3. Customer Ledger Balance Invariant (Debit - Credit === Balance)");
 }
 
-// 4. 8-Pool Balance Invariant
+// 4. 7-Pool Balance Sheet Invariant
 {
   const pools = {
     cash: { opening: 10000, movements: 2500, current: 12500 },
@@ -73,8 +73,7 @@ function assert(condition, name, details = "") {
     aeps: { opening: 15000, movements: 8000, current: 23000 },
     dmt: { opening: 20000, movements: -5000, current: 15000 },
     upi_qr: { opening: 5000, movements: 12000, current: 17000 },
-    recharge: { opening: 3000, movements: -1000, current: 2000 },
-    wallet: { opening: 2000, movements: 500, current: 2500 },
+    wallet: { opening: 5000, movements: -500, current: 4500 },
     credit_card: { opening: 0, movements: -4500, current: -4500 },
   };
 
@@ -85,7 +84,7 @@ function assert(condition, name, details = "") {
       break;
     }
   }
-  assert(allValid, "4. 8-Pool Balance Invariant (Opening + Movements === Current Balance)");
+  assert(allValid, "4. 7-Pool Balance Invariant (Opening + Movements === Current Balance)");
 }
 
 // 5. AEPS -> Bank Settlement Invariant

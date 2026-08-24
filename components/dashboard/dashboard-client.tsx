@@ -142,7 +142,6 @@ const MONEY_CARDS = [
   { key: "dmt", label: "DMT Float", icon: ICONS.send, gradient: "from-violet-500 to-purple-600", href: "/business/dmt" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.card, gradient: "from-amber-500 to-orange-600", href: "/business/aeps" },
   { key: "upi_qr", label: "UPI QR Wallet", icon: ICONS.qr, gradient: "from-rose-500 to-pink-600", href: "/business/upi" },
-  { key: "recharge", label: "Recharge Float", icon: ICONS.bolt, gradient: "from-cyan-500 to-sky-600", href: "/business/recharge" },
   { key: "credit_card", label: "Credit Card Limit", icon: ICONS.card, gradient: "from-slate-600 to-slate-800", href: "/finance/opening-balances" },
 ];
 
@@ -419,7 +418,6 @@ export default function DashboardClient({
     dmt: poolBalances?.dmt?.current ?? settlement?.dmt ?? 0,
     aeps: poolBalances?.aeps?.current ?? settlement?.aeps ?? 0,
     upi_qr: poolBalances?.upi_qr?.current ?? settlement?.upi_qr ?? 0,
-    recharge: poolBalances?.recharge?.current ?? settlement?.recharge ?? 0,
     credit_card: poolBalances?.credit_card?.current ?? settlement?.credit_card ?? 0,
   };
 

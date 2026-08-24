@@ -54,7 +54,6 @@ const POOL_LABEL: Record<string, string> = {
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
   credit_card: "Credit Card Limit",
-  recharge: "Recharge Float",
 };
 
 const POOL_COLOR: Record<string, string> = {
@@ -65,7 +64,6 @@ const POOL_COLOR: Record<string, string> = {
   aeps: "text-amber-600 dark:text-amber-400",
   upi_qr: "text-rose-600 dark:text-rose-400",
   credit_card: "text-cyan-600 dark:text-cyan-400",
-  recharge: "text-sky-600 dark:text-sky-400",
 };
 
 const inputClass =

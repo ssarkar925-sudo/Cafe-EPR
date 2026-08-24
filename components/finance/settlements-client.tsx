@@ -37,7 +37,6 @@ export type SettlementSummary = {
   aeps: number;
   upi_qr: number;
   credit_card: number;
-  recharge?: number;
   count: number;
 };
 
@@ -58,9 +57,8 @@ const ICONS = {
   cash: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01",
   wallet: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2",
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
-  aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
+  aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   qr: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
-  recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   card: "M3 10h18M3 6h18v12H3zM7 15h4",
   arrow: "M5 12h14M13 5l7 7-7 7",
   plus: "M12 5v14M5 12h14",
@@ -75,7 +73,6 @@ const POOL_CARDS = [
   { key: "dmt", label: "DMT Float", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", href: "/business/dmt" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", href: "/business/aeps" },
   { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", href: "/business/upi" },
-  { key: "recharge", label: "Recharge Float", icon: ICONS.recharge, grad: "from-cyan-500 to-sky-600", href: "/business/recharge" },
   { key: "credit_card", label: "Credit Card", icon: ICONS.card, grad: "from-cyan-500 to-sky-600", href: "/business/credit_card" },
 ];
 
@@ -107,9 +104,15 @@ function fmtDate(d: string) {
 export default function SettlementsClient({
   initialSettlements,
   initialSummary,
+  initialPortals = [],
+  initialQrs = [],
+  initialPaymentInstruments = [],
 }: {
   initialSettlements: SettlementRow[];
   initialSummary: SettlementSummary | null;
+  initialPortals?: { id: string; name: string }[];
+  initialQrs?: { id: string; display_name: string; upi_id?: string }[];
+  initialPaymentInstruments?: { id: string; name: string; type: string; details?: any; is_active?: boolean }[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<SettlementRow[]>(initialSettlements);
@@ -175,7 +178,6 @@ export default function SettlementsClient({
       dmt: Number(poolBalances?.dmt?.current ?? 0),
       aeps: Number(poolBalances?.aeps?.current ?? 0),
       upi_qr: Number(poolBalances?.upi_qr?.current ?? 0),
-      recharge: Number(poolBalances?.recharge?.current ?? 0),
       credit_card: Number(poolBalances?.credit_card?.current ?? 0),
       count: mapped.length,
     };
@@ -439,26 +441,8 @@ export default function SettlementsClient({
       {summary && (
         <div className="mt-6 space-y-3">
           {/* Active Float Health Trigger Alerts */}
-          {(((summary.recharge ?? 0) < 1000) || (summary.dmt < 3000) || (summary.aeps > 50000) || (summary.upi_qr > 10000)) && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {(summary.recharge ?? 0) < 1000 && (
-                <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/90 p-3 shadow-sm dark:border-rose-900/40 dark:bg-rose-950/30">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-rose-800 dark:text-rose-300">⚠️ Low Recharge Float</p>
-                    <p className="text-[11px] text-rose-600 dark:text-rose-400">Current: {inr(summary.recharge ?? 0)}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormPreset({ type: "bank_to_recharge", amount: "5000" });
-                      setShowForm(true);
-                    }}
-                    className="shrink-0 rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-500"
-                  >
-                    +₹5k Bank
-                  </button>
-                </div>
-              )}
+          {((summary.dmt < 3000) || (summary.aeps > 50000) || (summary.upi_qr > 10000)) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
               {summary.dmt < 3000 && (
                 <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/90 p-3 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
@@ -643,13 +627,13 @@ export default function SettlementsClient({
                       className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${meta?.grad ?? "from-slate-400 to-slate-500"} px-2.5 py-1 text-xs font-semibold text-white`}
                     >
                       <Icon d={ICONS.arrow} className="h-3 w-3" />
-                      {POOL_LABEL[r.from_pool]} → {POOL_LABEL[r.to_pool]}
+                      {POOL_LABEL[r.from_pool] || r.from_pool} → {POOL_LABEL[r.to_pool] || r.to_pool}
                     </span>
-                    <p className="mt-1 text-xs text-slate-500">{meta?.label}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">{r.remarks || meta?.label}</p>
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">{fmtDate(r.settlement_date)}</td>
                   <td className="cell-sub px-4 py-2.5 text-slate-500">{r.reference || "-"}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
+                  <td className="px-4 py-2.5 text-right font-semibold text-slate-900 dark:text-white">
                     {inr(r.amount)}
                   </td>
                   <td className="px-4 py-2.5 text-center">
@@ -694,6 +678,9 @@ export default function SettlementsClient({
         busy={saving}
         initialType={formPreset?.type}
         initialAmount={formPreset?.amount}
+        portals={initialPortals}
+        qrs={initialQrs}
+        paymentAccounts={initialPaymentInstruments}
         onClose={() => {
           setShowForm(false);
           setFormPreset(null);
