@@ -5,8 +5,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AvatarModal from "./profile/avatar-modal";
 
-type NavItem = { label: string; href: string; icon: string };
-type NavSection = { title: string; items: NavItem[] };
+export type BadgeTone = "emerald" | "amber" | "indigo" | "purple" | "rose" | "slate" | "blue";
+
+export type NavItem = {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: { text: string; tone: BadgeTone };
+};
+
+export type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const BADGE_STYLES: Record<BadgeTone, string> = {
+  emerald: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  amber: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  indigo: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+  purple: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+  rose: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  blue: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  slate: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+};
 
 const ICONS: Record<string, string> = {
   dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
@@ -17,10 +38,13 @@ const ICONS: Record<string, string> = {
   products: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9",
   services: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   categories: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  brands: "M7 7h10v10H7zM3 3h18v18H3z",
+  units: "M4 6h16M4 12h16M4 18h16",
   aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
   upi: "M12 18h.01M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
   recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+  banks: "M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4",
   portals: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z",
   qrs: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
   returns: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
@@ -101,7 +125,16 @@ export default function Sidebar({
   const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [openSections, setOpenSections] = useState<Set<string>>(
-    () => new Set(["Main", "AI & Intelligence", "Business", "Customer Management", "Finance", "Catalog & Inventory", "Administrative"])
+    () =>
+      new Set([
+        "Main",
+        "Operations & Services",
+        "Customer Management",
+        "Finance",
+        "AI & Intelligence",
+        "Security & Governance",
+        "Administration & Settings",
+      ])
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(avatarUrl);
@@ -110,99 +143,135 @@ export default function Sidebar({
   const isAdmin = role === "admin";
 
   const sections: NavSection[] = useMemo(() => {
-    // 1. Main
-    const main: NavItem[] = [
-      { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
-      { label: "Point of Sale", href: "/pos", icon: "pos" },
-    ];
-    if (!isStaff) {
-      main.push({ label: "Returns", href: "/returns", icon: "returns" });
-    }
-    main.push({ label: "Invoices", href: "/invoices", icon: "invoices" });
-
-    const base: NavSection[] = [{ title: "Main", items: main }];
-
-    // 2. AI & Intelligence
-    base.push({
-      title: "AI & Intelligence",
-      items: [
-        { label: "AI Control Center", href: "/ai", icon: "ai" },
-        { label: "Financial Self-Audit", href: "/ai/self-audit", icon: "ai" },
-      ],
-    });
-
-    // 2. Business
-    if (!isStaff) {
-      base.push({
-        title: "Business",
+    return [
+      // 1. MAIN
+      {
+        title: "Main",
         items: [
-          { label: "AEPS", href: "/business/aeps", icon: "aeps" },
-          { label: "DMT", href: "/business/dmt", icon: "dmt" },
-          { label: "UPI", href: "/business/upi", icon: "upi" },
-          { label: "Recharge", href: "/business/recharge", icon: "recharge" },
+          { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
+          { label: "Point of Sale", href: "/pos", icon: "pos" },
+          { label: "Invoices & Receipts", href: "/invoices", icon: "invoices" },
+          { label: "Returns & Credit Notes", href: "/returns", icon: "returns" },
         ],
-      });
-    }
+      },
 
-    // 3. Customer Management
-    base.push({
-      title: "Customer Management",
-      items: [{ label: "Customers", href: "/customers", icon: "customers" }],
-    });
+      // 2. OPERATIONS & SERVICES
+      {
+        title: "Operations & Services",
+        items: [
+          { label: "AEPS Banking", href: "/business/aeps", icon: "aeps" },
+          { label: "DMT Money Transfer", href: "/business/dmt", icon: "dmt" },
+          { label: "UPI Collections", href: "/business/upi", icon: "upi" },
+          { label: "Recharge & Utilities", href: "/business/recharge", icon: "recharge" },
+          { label: "Bank Accounts", href: "/business/banks", icon: "banks" },
+          { label: "Third-Party Portals", href: "/business/portals", icon: "portals" },
+          { label: "Merchant QRs", href: "/business/merchant-qrs", icon: "qrs" },
+        ],
+      },
 
-    // 4. Finance
-    if (!isStaff) {
-      base.push({
+      // 3. CUSTOMER MANAGEMENT
+      {
+        title: "Customer Management",
+        items: [{ label: "Customers & Dues", href: "/customers", icon: "customers" }],
+      },
+
+      // 4. FINANCE
+      {
         title: "Finance",
         items: [
           { label: "Profit & Loss", href: "/finance/pnl", icon: "pnl" },
           { label: "Cash Book", href: "/finance/cashbook", icon: "cashbook" },
           { label: "Opening Balances", href: "/finance/opening-balances", icon: "opening" },
-          { label: "Day Close", href: "/finance/day-close", icon: "dayclose" },
-          { label: "Settlements", href: "/finance/settlements", icon: "settlements" },
-          { label: "Ledger", href: "/finance/ledger", icon: "ledger" },
-          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
-          { label: "Reports", href: "/reports", icon: "reports" },
-          { label: "Tax Preparation", href: "/reports/tax-preparation", icon: "tax" },
-          { label: "GST Reports", href: "/reports/gst", icon: "tax" },
+          { label: "Day Close & Rollover", href: "/finance/day-close", icon: "dayclose" },
+          { label: "Settlement Hub", href: "/finance/settlements", icon: "settlements" },
+          { label: "General Ledger", href: "/finance/ledger", icon: "ledger" },
+          { label: "Business Expenses", href: "/finance/expenses", icon: "expenses" },
+          { label: "Reports Hub", href: "/reports", icon: "reports" },
+          {
+            label: "Tax Preparation / ITR",
+            href: "/reports/tax-preparation",
+            icon: "tax",
+            badge: { text: "FY 26-27", tone: "emerald" },
+          },
+          {
+            label: "GST Reports",
+            href: "/reports/gst",
+            icon: "tax",
+            badge: { text: "FUTURE", tone: "amber" },
+          },
         ],
-      });
-    }
+      },
 
-    // 5. Catalog & Inventory
-    base.push({
-      title: "Catalog & Inventory",
-      items: [
-        { label: "Products & Stock", href: "/catalog/products", icon: "products" },
-        { label: "Services", href: "/catalog/services", icon: "services" },
-        { label: "Categories", href: "/catalog/categories", icon: "categories" },
-      ],
-    });
-
-    // 6. Administrative
-    if (isAdmin) {
-      base.push({
-        title: "Administrative",
+      // 5. AI & INTELLIGENCE
+      {
+        title: "AI & Intelligence",
         items: [
-          { label: "Security Center", href: "/security", icon: "security" },
-          { label: "Staff", href: "/staff", icon: "staff" },
-          { label: "Audit Log", href: "/audit", icon: "audit" },
-          { label: "Settings", href: "/settings", icon: "settings" },
+          { label: "AI Control Center", href: "/ai", icon: "ai" },
+          {
+            label: "Financial Self-Audit",
+            href: "/ai/self-audit",
+            icon: "ai",
+            badge: { text: "ACTIVE", tone: "indigo" },
+          },
+          {
+            label: "AI Accountant",
+            href: "/ai?tab=accountant",
+            icon: "ai",
+            badge: { text: "BETA", tone: "purple" },
+          },
+          {
+            label: "Business Advisor",
+            href: "/ai?tab=reconciliation",
+            icon: "ai",
+            badge: { text: "BETA", tone: "purple" },
+          },
+          {
+            label: "Document OCR & Vault",
+            href: "/ai?tab=vault_compliance",
+            icon: "ai",
+            badge: { text: "ACTIVE", tone: "blue" },
+          },
         ],
-      });
-    }
-    return base;
-  }, [isStaff, isAdmin]);
+      },
+
+      // 6. SECURITY & GOVERNANCE
+      {
+        title: "Security & Governance",
+        items: [
+          {
+            label: "Security Center",
+            href: "/security",
+            icon: "security",
+            badge: { text: "ACTIVE", tone: "emerald" },
+          },
+          { label: "System Audit Log", href: "/audit", icon: "audit" },
+        ],
+      },
+
+      // 7. ADMINISTRATION & SETTINGS
+      {
+        title: "Administration & Settings",
+        items: [
+          { label: "Staff & Attendance", href: "/staff", icon: "staff" },
+          { label: "Catalog & Master Data", href: "/settings?tab=catalog", icon: "products" },
+          { label: "Shop Settings", href: "/settings", icon: "settings" },
+          { label: "Payment Accounts", href: "/settings?tab=accounts", icon: "banks" },
+          {
+            label: "WhatsApp Gateway",
+            href: "/settings?tab=whatsapp",
+            icon: "services",
+            badge: { text: "CONFIG", tone: "slate" },
+          },
+        ],
+      },
+    ];
+  }, []);
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname === href || pathname.startsWith(href + "/");
+    const cleanHref = href.split("?")[0];
+    return pathname === cleanHref || pathname.startsWith(cleanHref + "/");
   }
-
-  const allItems = useMemo(
-    () => sections.flatMap((s) => s.items),
-    [sections]
-  );
 
   const needle = query.trim().toLowerCase();
   const filteredSections = useMemo(() => {
@@ -213,7 +282,8 @@ export default function Sidebar({
         items: s.items.filter(
           (i) =>
             i.label.toLowerCase().includes(needle) ||
-            i.href.toLowerCase().includes(needle)
+            i.href.toLowerCase().includes(needle) ||
+            (i.badge && i.badge.text.toLowerCase().includes(needle))
         ),
       }))
       .filter((s) => s.items.length > 0);
@@ -248,232 +318,238 @@ export default function Sidebar({
           />
         ) : (
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-lg shadow-blue-900/40`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
+              shopName
+            )} text-sm font-bold text-white shadow-lg ring-2 ring-white/10`}
           >
-            {(shopName || "S").slice(0, 1).toUpperCase()}
+            {shopName.charAt(0).toUpperCase()}
           </div>
         )}
         {!collapsed && (
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-white">{shopName}</p>
-            <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8]">
-              Smart Business Suite
+            <h1 className="truncate text-sm font-semibold tracking-tight text-white">
+              {shopName}
+            </h1>
+            <p className="truncate text-[11px] font-medium text-slate-400">
+              CyberCafe &amp; Banking ERP
             </p>
           </div>
         )}
-        <button
-          onClick={onToggle}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden shrink-0 items-center justify-center rounded-lg p-1.5 text-[#94a3b8] transition hover:bg-white/10 hover:text-white lg:flex"
-        >
-          <Icon d={collapsed ? "m6 9 6 6 6-6" : "m18 15-6-6-6 6"} className="h-4 w-4" />
-        </button>
       </div>
 
       {!collapsed && (
-        <div className="px-3 pt-3">
+        <div className="border-b border-white/5 px-3 py-2.5">
           <div className="relative">
             <Icon
               d={ICONS.search}
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]"
+              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
             />
             <input
+              type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search menu…"
-              className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[#64748b] focus:border-blue-500/60 focus:bg-white/10 focus:ring-2 focus:ring-blue-500/20"
+              placeholder="Search 35+ modules..."
+              className="w-full rounded-lg bg-white/5 py-1.5 pl-8 pr-3 text-xs text-white placeholder-slate-400 outline-none ring-1 ring-white/10 transition focus:bg-white/10 focus:ring-blue-500"
             />
-            {needle && (
+            {query && (
               <button
+                type="button"
                 onClick={() => setQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-1.5 text-[#64748b] hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
               >
-                &times;
+                ×
               </button>
             )}
           </div>
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {collapsed ? (
-          <div className="flex flex-col items-center gap-1">
-            {allItems.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.label}
-                  onClick={onMobileClose}
-                  className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition ${
-                    active
-                      ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-900/40"
-                      : "text-[#94a3b8] hover:bg-white/10 hover:text-white"
-                  }`}
+      <nav className="flex-1 space-y-3 overflow-y-auto px-2 py-3 scrollbar-thin scrollbar-thumb-white/10">
+        {filteredSections.map((s) => {
+          const isOpen = openSections.has(s.title) || Boolean(needle);
+          return (
+            <div key={s.title}>
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(s.title)}
+                  className="flex w-full items-center justify-between px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 transition hover:text-slate-200"
                 >
-                  {active && (
-                    <span className="absolute -left-3 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-blue-400 to-indigo-500" />
-                  )}
-                  <Icon d={ICONS[item.icon]} className="h-5 w-5" />
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {filteredSections.map((section) => {
-              const isOpen = needle.length > 0 || openSections.has(section.title);
-              const anyActive = section.items.some((i) => isActive(i.href));
-              return (
-                <div key={section.title}>
-                  <button
-                    onClick={() => toggleSection(section.title)}
-                    className={`group flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider ${
-                      anyActive ? "text-blue-400" : "text-[#64748b]"
-                    } transition hover:text-[#cbd5e1]`}
-                  >
-                    <span>{section.title}</span>
-                    <Icon
-                      d={ICONS.chevron}
-                      className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        isOpen ? "rotate-0" : "-rotate-90"
-                      }`}
-                    />
-                  </button>
-                  {isOpen && (
-                    <div className="mt-0.5 space-y-0.5">
-                      {section.items.map((item) => {
-                        const active = isActive(item.href);
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={onMobileClose}
-                            className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
+                  <span>{s.title}</span>
+                  <Icon
+                    d={ICONS.chevron}
+                    className={`h-3 w-3 transition-transform ${
+                      isOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </button>
+              )}
+              {(isOpen || collapsed) && (
+                <ul className="mt-1 space-y-0.5">
+                  {s.items.map((i) => {
+                    const active = isActive(i.href);
+                    return (
+                      <li key={i.href + i.label}>
+                        <Link
+                          href={i.href}
+                          onClick={() => {
+                            if (mobileOpen) onMobileClose();
+                          }}
+                          title={collapsed ? i.label : undefined}
+                          className={`group flex items-center gap-3 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                            active
+                              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm"
+                              : "text-slate-300 hover:bg-white/5 hover:text-white"
+                          } ${collapsed ? "justify-center px-0 py-2" : ""}`}
+                        >
+                          <Icon
+                            d={ICONS[i.icon] ?? ICONS.dashboard}
+                            className={`h-4 w-4 shrink-0 transition ${
                               active
-                                ? "bg-gradient-to-r from-blue-600/20 to-indigo-600/10 font-medium text-white ring-1 ring-blue-500/30"
-                                : "text-[#94a3b8] hover:bg-white/5 hover:text-white"
+                                ? "text-white"
+                                : "text-slate-400 group-hover:text-slate-200"
                             }`}
-                          >
-                            {active && (
-                              <span className="absolute -left-3 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-blue-400 to-indigo-500" />
-                            )}
-                            <Icon
-                              d={ICONS[item.icon]}
-                              className={`h-[18px] w-[18px] ${
-                                active
-                                  ? "text-blue-400"
-                                  : "text-[#64748b] group-hover:text-[#cbd5e1]"
-                              }`}
-                            />
-                            <span className="truncate">{item.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {filteredSections.length === 0 && (
-              <p className="px-3 py-6 text-center text-sm text-[#64748b]">
-                No menu items found.
-              </p>
-            )}
-          </div>
-        )}
+                          />
+                          {!collapsed && (
+                            <div className="flex flex-1 items-center justify-between min-w-0">
+                              <span className="truncate">{i.label}</span>
+                              {i.badge && (
+                                <span
+                                  className={`ml-1.5 shrink-0 rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wide border ${
+                                    BADGE_STYLES[i.badge.tone]
+                                  }`}
+                                >
+                                  {i.badge.text}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
-      <div className="shrink-0 border-t border-white/5 p-3">
-        <div className="flex items-center gap-3">
+      <div className="border-t border-white/5 p-2">
+        <div
+          className={`flex items-center gap-2 rounded-xl bg-white/[0.03] p-2 ${
+            collapsed ? "justify-center" : ""
+          }`}
+        >
           <button
+            type="button"
             onClick={() => setProfileOpen(true)}
-            title="Change profile photo"
-            className="group relative shrink-0"
+            title="Update profile avatar"
+            className="group relative h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-lg ring-2 ring-white/10 transition hover:ring-blue-400"
           >
             {currentAvatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={currentAvatar}
-                alt=""
-                className="h-10 w-10 rounded-xl object-cover shadow-lg ring-2 ring-white/10 transition group-hover:ring-blue-400/50"
+                alt="Profile"
+                className="h-full w-full object-cover"
               />
             ) : (
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
-                  name || "User"
-                )} text-sm font-bold text-white shadow-lg transition group-hover:ring-2 group-hover:ring-blue-400/50`}
-              >
-                {(name || "U")
-                  .split(" ")
-                  .map((p) => p[0])
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase()}
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white">
+                {name.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-[#0f172a]">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="h-2 w-2">
-                <path d="M12 5v14M5 12h14" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+              <svg
+                className="h-3.5 w-3.5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
-            </span>
+            </div>
           </button>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{name}</p>
-              <p className="truncate text-[11px] text-[#94a3b8]">{email}</p>
-              <span className="mt-0.5 inline-block rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-400">
-                {role}
-              </span>
+              <p className="truncate text-xs font-semibold text-white">{name}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="rounded bg-white/10 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-slate-300">
+                  {role}
+                </span>
+                <span className="truncate text-[10px] text-slate-400">{email}</span>
+              </div>
             </div>
           )}
+          <form action="/logout" method="post">
+            <button
+              type="submit"
+              title="Sign out"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <Icon d={ICONS.logout} className="h-4 w-4" />
+            </button>
+          </form>
         </div>
-        <form action="/logout" method="post" className="mt-3">
-          <button
-            type="submit"
-            title={collapsed ? "Sign out" : undefined}
-            className={`flex w-full items-center rounded-xl bg-white/5 py-2 text-sm font-medium text-[#cbd5e1] transition hover:bg-rose-500/20 hover:text-rose-300 ${
-              collapsed ? "justify-center" : "justify-center gap-2"
+
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="mt-1.5 hidden w-full items-center justify-center rounded-lg py-1.5 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white lg:flex"
+        >
+          <Icon
+            d={ICONS.chevron}
+            className={`h-4 w-4 transition-transform duration-300 ${
+              collapsed ? "" : "rotate-180"
             }`}
-          >
-            <Icon d={ICONS.logout} className="h-4 w-4" />
-            {!collapsed && "Sign out"}
-          </button>
-        </form>
+          />
+        </button>
       </div>
+
+      <AvatarModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        name={name}
+        email={email}
+        avatarUrl={currentAvatar}
+        userId={userId}
+        onSaved={(url: string | null) => {
+          setCurrentAvatar(url);
+          window.location.reload();
+        }}
+      />
     </aside>
   );
 
   return (
     <>
-      {/* Desktop */}
-      <div className="fixed inset-y-0 left-0 z-30 hidden lg:block">
+      <div className="hidden lg:block lg:h-screen lg:sticky lg:top-0">
         {sidebar}
       </div>
 
-      {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden">
           <div
-            className="absolute inset-0 bg-[#020617]/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
             onClick={onMobileClose}
           />
-          <div className="absolute inset-y-0 left-0 w-72 shadow-2xl">
+          <div className="relative z-10 flex w-72 flex-col">
             {sidebar}
           </div>
         </div>
       )}
-
-      <AvatarModal
-        open={profileOpen}
-        name={name}
-        email={email}
-        avatarUrl={currentAvatar}
-        userId={userId}
-        onClose={() => setProfileOpen(false)}
-        onSaved={(url) => setCurrentAvatar(url)}
-      />
     </>
   );
 }

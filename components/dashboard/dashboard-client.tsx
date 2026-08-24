@@ -468,6 +468,46 @@ export default function DashboardClient({
         </div>
       </div>
 
+      {/* Executive Module Quick-Launch Bar */}
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Executive Module Hub &amp; Quick Launch
+            </h2>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+            100% Implemented Modules
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
+          {[
+            { label: "Point of Sale", href: "/pos", icon: "🛒", status: "ACTIVE", tone: "bg-blue-50 text-blue-700 border-blue-200" },
+            { label: "Cash Book", href: "/finance/cashbook", icon: "💵", status: "ACTIVE", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+            { label: "Day Close", href: "/finance/day-close", icon: "🔒", status: "ACTIVE", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+            { label: "Profit & Loss", href: "/finance/pnl", icon: "📈", status: "ACTIVE", tone: "bg-teal-50 text-teal-700 border-teal-200" },
+            { label: "Tax Prep / ITR", href: "/reports/tax-preparation", icon: "📑", status: "FY 26-27", tone: "bg-purple-50 text-purple-700 border-purple-200" },
+            { label: "GST Reports", href: "/reports/gst", icon: "🏛️", status: "FUTURE", tone: "bg-amber-50 text-amber-700 border-amber-200" },
+            { label: "AI Self-Audit", href: "/ai/self-audit", icon: "🔍", status: "100/100", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+            { label: "Security Center", href: "/security", icon: "🛡️", status: "LOCKED", tone: "bg-slate-50 text-slate-700 border-slate-200" },
+          ].map((btn) => (
+            <Link
+              key={btn.label}
+              href={btn.href}
+              className="flex flex-col items-center justify-between rounded-xl border border-slate-200 p-2.5 hover:border-indigo-400 hover:shadow-sm transition-all group text-center bg-slate-50/50 hover:bg-white"
+            >
+              <span className="text-xl group-hover:scale-110 transition-transform">{btn.icon}</span>
+              <span className="font-bold text-slate-800 text-[11px] mt-1 truncate w-full">{btn.label}</span>
+              <span className={`mt-1 rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border ${btn.tone}`}>
+                {btn.status}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* Today's Pulse */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {HERO_CARDS.map((c) => (

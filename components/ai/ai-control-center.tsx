@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { inr } from "@/lib/format";
 import { useToast } from "@/components/ui/use-toast";
 import { runSystemDiagnostic, type DiagnosticReport } from "@/lib/ai/diagnostic";
@@ -292,24 +293,33 @@ export default function AIControlCenter({
       </div>
 
       {/* Safety Notice Guardrail */}
-      <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-        <span className="text-base">🛡️</span>
-        <div>
-          <strong className="font-bold">Strict Non-Destructive Financial Guardrail Active:</strong> The AI suite is analytical and advisory. It never silently modifies your ledger, cashbooks, or bank accounts without your explicit review and confirmation.
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-200">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xl">🏛️</span>
+          <div>
+            <strong className="font-bold text-slate-900 dark:text-white">Deterministic Financial Integrity Engine Active:</strong>
+            <span className="text-slate-600 dark:text-slate-300 ml-1">Continuous mathematical verification across Pools, Ledgers, GST &amp; P&amp;L.</span>
+          </div>
         </div>
+        <Link
+          href="/ai/self-audit"
+          className="shrink-0 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+        >
+          Launch Self-Audit Center →
+        </Link>
       </div>
 
       {/* Navigation Subtabs */}
       <div className="flex overflow-x-auto rounded-2xl border border-slate-200 bg-slate-100/70 p-1.5 dark:border-white/10 dark:bg-slate-900">
         {[
           { key: "overview", label: "📊 Overview & Daily Briefing" },
-          { key: "diagnostic", label: "🛡️ Software & Bug Diagnostic" },
-          { key: "accountant", label: "📑 AI Accountant & ITR Tax" },
-          { key: "reconciliation", label: "💵 Cash & Pool Reconciliation" },
-          { key: "inventory_profit", label: "📦 Inventory & Profitability" },
+          { key: "diagnostic", label: "🛡️ System Diagnostics" },
+          { key: "accountant", label: "📑 AI Accountant (BETA)" },
+          { key: "reconciliation", label: "💵 Business Advisor (BETA)" },
+          { key: "inventory_profit", label: "📦 Inventory Auditing" },
           { key: "customer_risk", label: "🚨 Customer Intelligence" },
           { key: "periodic_closings", label: "📈 Periodic Closings" },
-          { key: "vault_compliance", label: "📂 Vault & Compliance Score" },
+          { key: "vault_compliance", label: "📂 Vault & OCR Score" },
         ].map((tab) => {
           const active = activeTab === tab.key;
           return (

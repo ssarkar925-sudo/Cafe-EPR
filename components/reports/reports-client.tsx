@@ -343,7 +343,13 @@ export default function ReportsClient({
             {range.from === "2000-01-01" ? "All time" : `${range.from} to ${range.to}`} · {validInvoices.length} invoices
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/finance/pnl"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <span>📈 Profit &amp; Loss</span>
+          </Link>
           <Link
             href="/reports/tax-preparation"
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
@@ -355,6 +361,13 @@ export default function ReportsClient({
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
           >
             <span>🏛️ GST Reports</span>
+            <span className="rounded bg-amber-400/30 px-1 text-[9px] font-bold text-amber-200">FUTURE</span>
+          </Link>
+          <Link
+            href="/ai/self-audit"
+            className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"
+          >
+            <span>🔍 Self-Audit</span>
           </Link>
           <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
             {PERIODS.map((p) => (
