@@ -145,11 +145,11 @@ export default function DayCloseClient({
 
   const totals = useMemo(() => {
     if (!openClose) return null;
-    const rows = openClose.rows;
-    const opening = rows.reduce((s, r) => s + Number(r.opening), 0);
-    const computed = rows.reduce((s, r) => s + Number(r.computed), 0);
-    const adjustments = rows.reduce((s, r) => s + Number(r.adjustment), 0);
-    const final = rows.reduce((s, r) => s + Number(r.final), 0);
+    const rows = Array.isArray(openClose.rows) ? openClose.rows : [];
+    const opening = rows.reduce((s, r) => s + Number(r.opening || 0), 0);
+    const computed = rows.reduce((s, r) => s + Number(r.computed || 0), 0);
+    const adjustments = rows.reduce((s, r) => s + Number(r.adjustment || 0), 0);
+    const final = rows.reduce((s, r) => s + Number(r.final || 0), 0);
     return { opening, computed, adjustments, final };
   }, [openClose]);
 
@@ -166,10 +166,10 @@ export default function DayCloseClient({
     );
   }, [denominations]);
 
-  const cashRow = useMemo(() => openClose?.rows.find((r) => r.pool === "cash") ?? null, [openClose]);
+  const cashRow = useMemo(() => openClose?.rows?.find((r) => r.pool === "cash") ?? null, [openClose]);
   const cashVariance = useMemo(() => {
     if (!cashRow) return 0;
-    return physicalCashTotal - Number(cashRow.computed);
+    return physicalCashTotal - Number(cashRow.computed || 0);
   }, [cashRow, physicalCashTotal]);
 
   async function applyCashDenominationVariance() {
@@ -426,7 +426,7 @@ export default function DayCloseClient({
                 </tr>
               </thead>
               <tbody>
-                {openClose.rows.map((r) => {
+                {(openClose.rows ?? []).map((r) => {
                   const draft = adjustments[r.pool]?.amount ?? "";
                   return (
                     <tr key={r.pool} className="border-b border-slate-50 last:border-0 dark:border-white/5">
@@ -940,7 +940,7 @@ export default function DayCloseClient({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                    {openClose.rows.map((r) => (
+                    {(openClose.rows ?? []).map((r) => (
                       <tr key={r.pool}>
                         <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">{POOL_LABEL[r.pool] ?? r.pool}</td>
                         <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{inr(r.opening)}</td>

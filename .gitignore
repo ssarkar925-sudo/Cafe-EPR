@@ -26,3 +26,8 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# WhatsApp Baileys session files
+auth_info_baileys/
+auth_info_baileys/**
+*.session

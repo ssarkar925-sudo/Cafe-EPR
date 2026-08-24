@@ -56,8 +56,14 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
-  // Rate-limit sensitive API & Login routes
-  if (pathname === "/login" || pathname.startsWith("/api/staff") || pathname.startsWith("/api/whatsapp")) {
+  // Rate-limit sensitive API, Login, and Public Receipt routes
+  if (
+    pathname === "/login" ||
+    pathname.startsWith("/api/staff") ||
+    pathname.startsWith("/api/whatsapp") ||
+    pathname.startsWith("/receipt") ||
+    pathname.startsWith("/business/receipt")
+  ) {
     if (!checkRateLimit(clientIp)) {
       return applySecurityHeaders(
         new NextResponse("Rate limit exceeded. Please wait 1 minute before trying again.", {
@@ -115,7 +121,7 @@ export async function middleware(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value)
         );
-        response = NextResponse.next({ request });
+        response = applySecurityHeaders(NextResponse.next({ request }));
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options)
         );
@@ -154,7 +160,14 @@ export async function middleware(request: NextRequest) {
       return null;
     }
   }
-  const cookiePrefix = `sb-${SUPABASE_URL.split("//")[1].split(".")[0]}-auth-token`;
+  let cookiePrefix = "sb-auth-token";
+  try {
+    const host = SUPABASE_URL.split("//")[1] || "";
+    const projectRef = host.split(".")[0] || "";
+    if (projectRef) cookiePrefix = `sb-${projectRef}-auth-token`;
+  } catch {
+    cookiePrefix = "sb-auth-token";
+  }
   const accessToken = extractAccessToken();
   let aal1SessionWithMfa = false;
   if (user && accessToken) {
@@ -173,13 +186,13 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   if (user && !aal1SessionWithMfa && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
   return response;

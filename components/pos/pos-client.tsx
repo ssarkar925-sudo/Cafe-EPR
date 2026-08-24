@@ -278,11 +278,23 @@ export default function PosClient({
 
   useEffect(() => {
     setProductState(products);
-  }, [products]);
+    setServiceState(services);
+    setCustList(customers);
+  }, [products, services, customers]);
 
   useEffect(() => {
-    setServiceState(services);
-  }, [services]);
+    function handleGlobalHotkeys(e: KeyboardEvent) {
+      if (e.key === "F2") {
+        e.preventDefault();
+        setMode((m) => (m === "quick" ? "invoice" : "quick"));
+      } else if (e.key === "F4") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleGlobalHotkeys);
+    return () => window.removeEventListener("keydown", handleGlobalHotkeys);
+  }, []);
 
   useEffect(() => {
     setHeldBills(loadHeld());
