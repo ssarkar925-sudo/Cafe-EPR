@@ -11,6 +11,7 @@ import { analyzeCustomerIntelligence } from "@/lib/ai/customer-intelligence";
 import { generatePeriodicClosing } from "@/lib/ai/periodic-closing";
 import { calculateComplianceScore, type DocumentVaultItem } from "@/lib/ai/vault";
 import Modal from "@/components/ui/modal";
+import { createClient } from "@/lib/supabase/client";
 
 type TabKey =
   | "overview"
@@ -142,7 +143,7 @@ export default function AIControlCenter({
   };
 
   // Add Document
-  const handleAddDocument = (e: React.FormEvent) => {
+  const handleAddDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docTitle.trim()) {
       showToast("error", "Document title is required.");
@@ -167,6 +168,20 @@ export default function AIControlCenter({
     setDocRef("");
     setDocNotes("");
     showToast("success", "Document added to AI Vault.");
+
+    // Persist to Supabase if table is migrated
+    try {
+      const supabase = createClient();
+      await supabase.from("ai_document_vault").insert({
+        title: newDoc.title,
+        category: newDoc.category,
+        document_date: newDoc.document_date,
+        amount: newDoc.amount || 0,
+        vendor_name: newDoc.vendor_name,
+        reference_number: newDoc.reference_number,
+        notes: newDoc.notes,
+      });
+    } catch {}
   };
 
   const filteredDocs = documents.filter((d) => {
