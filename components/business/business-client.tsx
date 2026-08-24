@@ -1666,7 +1666,7 @@ export default function BusinessClient({
                     <td className="px-5 py-3 text-right font-medium">
                       <p className="font-bold text-emerald-600 dark:text-emerald-400">+{inr(t.portal_commission)}</p>
                       <p className="cell-sub text-[11px] text-slate-500 font-medium capitalize">
-                        Paid: {(t as any).payment_instruments?.name || (t as any).pay_from_method?.replace('_', ' ') || "Bank"}
+                        Paid: {initialPaymentInstruments?.find((i: any) => i.id === (t as any).pay_from_instrument_id)?.name || (t as any).pay_from_method?.replace('_', ' ') || "Bank"}
                       </p>
                     </td>
                   </>

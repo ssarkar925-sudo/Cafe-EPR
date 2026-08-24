@@ -34,7 +34,8 @@ export default async function BusinessServicePage({
 
   const txnSelect =
     service === "recharge"
-      ? "*, customers(name, phone), providers:recharge_providers(name), payment_instruments(name, type), profiles(full_name)"
+      ? "*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)"
+      : "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)";
 
   const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }, { data: poolBalances }, { data: rechargeProviders }, { data: rechargeSlabs }, { data: paymentInstruments }] =
     await Promise.all([
