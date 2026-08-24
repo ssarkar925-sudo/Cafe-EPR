@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { pdf } from "@react-pdf/renderer";
-import InvoicePdf, { type InvoicePdfData } from "./invoice-pdf";
-import BusinessPdf, { type BusinessPdfData } from "./business-pdf";
-import DayClosePdf, { type DayClosePdfData } from "./day-close-pdf";
+import type { InvoicePdfData } from "./invoice-pdf";
+import type { BusinessPdfData } from "./business-pdf";
+import type { DayClosePdfData } from "./day-close-pdf";
 
 export default function A4Actions({
   variant,
@@ -24,6 +23,14 @@ export default function A4Actions({
   async function downloadPdf() {
     setBusy(true);
     try {
+      const [{ pdf }, { default: InvoicePdf }, { default: BusinessPdf }, { default: DayClosePdf }] =
+        await Promise.all([
+          import("@react-pdf/renderer"),
+          import("./invoice-pdf"),
+          import("./business-pdf"),
+          import("./day-close-pdf"),
+        ]);
+
       const el =
         variant === "invoice" ? (
           <InvoicePdf {...(data as InvoicePdfData)} />

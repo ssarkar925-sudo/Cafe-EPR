@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node scripts/test-financial-invariants.mjs",
+    "test:invariants": "node scripts/test-financial-invariants.mjs",
     "gateway": "node scripts/whatsapp-gateway.js"
   },
   "dependencies": {
