@@ -4,18 +4,39 @@ import { createClient } from "@/lib/supabase/client";
 
 export type WhatsAppProvider = "meta" | "local_gateway" | "ultramsg" | "off";
 
+export type WhatsAppAutomationRules = {
+  auto_send_pos: boolean;
+  auto_send_quick: boolean;
+  auto_send_payment: boolean;
+  auto_send_due_reminder: boolean;
+  auto_send_document_ready: boolean;
+  auto_send_aeps: boolean;
+  auto_send_dmt: boolean;
+  auto_send_recharge: boolean;
+  auto_send_daily_summary: boolean;
+  auto_send_financial_alerts: boolean;
+};
+
 export type WhatsAppTemplates = {
   pos_invoice: string;
   quick_sale: string;
-  banking_txn: string;
+  payment_receipt: string;
   due_reminder: string;
+  doc_ready: string;
+  aeps_confirmation: string;
+  dmt_confirmation: string;
+  recharge_confirmation: string;
+  daily_summary: string;
+  financial_alert: string;
   day_close: string;
+  banking_txn?: string; // Backward compatibility
 };
 
 export type WhatsAppConfig = {
   provider: WhatsAppProvider;
-  auto_send_pos: boolean;
-  auto_send_business: boolean;
+  automations: WhatsAppAutomationRules;
+  auto_send_pos?: boolean; // Backward compatibility
+  auto_send_business?: boolean; // Backward compatibility
   gateway_url?: string;
   gateway_api_key?: string;
   meta_phone_number_id?: string;
@@ -23,9 +44,51 @@ export type WhatsAppConfig = {
   ultramsg_instance_id?: string;
   ultramsg_token?: string;
   templates?: WhatsAppTemplates;
+  fallback_provider?: WhatsAppProvider;
+  enable_fallback?: boolean;
+};
+
+export type OutboxStatus = "PENDING" | "PROCESSING" | "SENT" | "DELIVERED" | "READ" | "FAILED" | "CANCELLED";
+
+export type WhatsAppOutboxMessage = {
+  id: string;
+  customer_id?: string | null;
+  phone: string;
+  recipient_name?: string | null;
+  message_type:
+    | "pos_invoice"
+    | "quick_sale"
+    | "payment_receipt"
+    | "due_reminder"
+    | "doc_ready"
+    | "aeps_confirmation"
+    | "dmt_confirmation"
+    | "recharge_confirmation"
+    | "daily_summary"
+    | "financial_alert"
+    | "day_close"
+    | "banking_txn"
+    | "custom"
+    | "test";
+  template_id?: string | null;
+  message_body: string;
+  reference_type?: "invoice" | "quick_sale" | "payment" | "due" | "document" | "transaction" | "day_close" | "self_audit" | "manual";
+  reference_id?: string | null;
+  idempotency_key: string;
+  status: OutboxStatus;
+  attempt_count: number;
+  next_attempt_at: string;
+  provider: WhatsAppProvider;
+  provider_message_id?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
 };
 
 const WA_CONFIG_KEY = "sccomm_whatsapp_config";
+const WA_LOCAL_OUTBOX_KEY = "sccomm_whatsapp_local_outbox";
 
 export const GATEWAY_PRESETS = [
   {
@@ -45,6 +108,19 @@ export const GATEWAY_PRESETS = [
     badge: "Cloud 24/7",
   },
 ] as const;
+
+export const DEFAULT_AUTOMATIONS: WhatsAppAutomationRules = {
+  auto_send_pos: true,
+  auto_send_quick: true,
+  auto_send_payment: true,
+  auto_send_due_reminder: true,
+  auto_send_document_ready: true,
+  auto_send_aeps: true,
+  auto_send_dmt: true,
+  auto_send_recharge: true,
+  auto_send_daily_summary: false,
+  auto_send_financial_alerts: true,
+};
 
 export const DEFAULT_WA_TEMPLATES: WhatsAppTemplates = {
   pos_invoice: `🧾 *TAX INVOICE: {invoice_number}*
@@ -70,6 +146,75 @@ Thank you for choosing {shop_name}!`,
 
 Thank you for your business!`,
 
+  payment_receipt: `💳 *PAYMENT CONFIRMATION - {shop_name}*
+
+Dear {customer_name},
+We have received your payment of *{paid_amount}* towards Invoice *#{invoice_number}*.
+
+📅 Date: {date}
+💰 Remaining Balance Due: {due_amount}
+───────────────
+📄 View Updated Invoice:
+{receipt_url}
+
+Thank you for your timely payment!`,
+
+  due_reminder: `⚠️ *PAYMENT REMINDER - {shop_name}*
+
+Dear {customer_name},
+This is a friendly reminder that you have an outstanding balance of *{due_amount}* on Invoice *#{invoice_number}* (Dated: {invoice_date}).
+
+📄 View Invoice Details & Scan to Pay:
+{receipt_url}
+
+Please settle at your earliest convenience. Thank you!`,
+
+  doc_ready: `📂 *DOCUMENT READY FOR PICKUP - {shop_name}*
+
+Dear {customer_name},
+Your requested document / service *{document_name}* is completed and ready for pickup.
+
+📅 Completion Date: {date}
+🏷️ Reference: {ref_number}
+───────────────
+Please visit the store during business hours. Thank you!`,
+
+  aeps_confirmation: `🏧 *AEPS CASH WITHDRAWAL RECEIPT*
+🔢 Txn RRN: {ref_number}
+📅 Date: {date}
+{customer_name_line}───────────────
+💰 Withdrawal Amount: {amount}
+🏷️ Service Fee: {service_fee}
+✅ Status: SUCCESS
+───────────────
+📄 View Official Digital Receipt:
+{receipt_url}
+
+Thank you for banking with {shop_name}!`,
+
+  dmt_confirmation: `💸 *MONEY TRANSFER CONFIRMATION*
+🔢 Txn RRN: {ref_number}
+📅 Date: {date}
+{customer_name_line}───────────────
+💰 Remittance Amount: {amount}
+🏷️ Transfer Fee: {service_fee}
+✅ Status: TRANSFERRED
+───────────────
+📄 View Official Remittance Receipt:
+{receipt_url}
+
+Thank you for using {shop_name}!`,
+
+  recharge_confirmation: `📱 *RECHARGE SUCCESSFUL*
+🔢 Txn No: {txn_number}
+📅 Date: {date}
+───────────────
+📱 Mobile / Service: {phone}
+💰 Plan Amount: {amount}
+✅ Status: SUCCESS
+───────────────
+Thank you for choosing {shop_name}!`,
+
   banking_txn: `📱 *{service_name} RECEIPT*
 🔢 Txn No: {txn_number}
 📅 Date: {txn_date}
@@ -83,15 +228,31 @@ Thank you for your business!`,
 
 Thank you for choosing {shop_name}!`,
 
-  due_reminder: `⚠️ *PAYMENT REMINDER - {shop_name}*
+  daily_summary: `📊 *DAILY EXECUTIVE SUMMARY - {shop_name}*
+📅 Date: {date}
+───────────────
+💰 Operating Revenue: {total_revenue}
+📉 Recorded Expenses: {total_expenses}
+📈 Business Profit Before Tax: {net_profit}
 
-Dear {customer_name},
-This is a friendly reminder that you have an outstanding balance of *{due_amount}* on Invoice *#{invoice_number}* (Dated: {invoice_date}).
+🏦 Physical Cash Drawer: {cash_balance}
+🏛️ Bank Accounts: {bank_balance}
+📱 Digital Float: {float_balance}
 
-📄 View Invoice Details & Scan to Pay:
-{receipt_url}
+🛡️ Financial Integrity: {audit_score}/100 {audit_status}
+🔒 Day Close: {day_close_status}
+───────────────
+Authoritative Canonical ERP System`,
 
-Please settle at your earliest convenience. Thank you!`,
+  financial_alert: `🚨 *FINANCIAL INTEGRITY ALARM - {shop_name}*
+⚠️ Priority: {severity}
+
+{alert_reason}
+
+📅 Timestamp: {date}
+🛡️ Audit Run Score: {audit_score}/100
+───────────────
+Please open /ai/self-audit immediately to review and resolve this invariant finding.`,
 
   day_close: `📊 *DAILY STORE HANDOVER CERTIFICATE*
 
@@ -108,30 +269,25 @@ Please settle at your earliest convenience. Thank you!`,
 
 export const DEFAULT_WA_CONFIG: WhatsAppConfig = {
   provider: "off",
-  auto_send_pos: false,
-  auto_send_business: false,
+  automations: DEFAULT_AUTOMATIONS,
+  auto_send_pos: true,
+  auto_send_business: true,
   gateway_url: "http://localhost:3001",
   gateway_api_key: "",
   templates: DEFAULT_WA_TEMPLATES,
 };
 
-export const SQL_TEMPLATES_MIGRATION = `-- WhatsApp Templates Multi-Device Sync Migration
--- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/tvxehxnvuwojjbhysajp/sql
-
+export const SQL_TEMPLATES_MIGRATION = `-- WhatsApp Templates Migration
 create table if not exists public.whatsapp_templates (
   id text primary key default 'default',
   templates jsonb not null default '{}'::jsonb,
   config jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
-
 alter table public.whatsapp_templates enable row level security;
 create policy "whatsapp_templates select" on public.whatsapp_templates for select to authenticated using (true);
 create policy "whatsapp_templates insert" on public.whatsapp_templates for insert to authenticated with check (true);
 create policy "whatsapp_templates update" on public.whatsapp_templates for update to authenticated using (true);
-create policy "whatsapp_templates public read" on public.whatsapp_templates for select to anon using (true);
-
-alter table public.settings add column if not exists whatsapp_config jsonb;
 `;
 
 export function getWhatsAppConfig(): WhatsAppConfig {
@@ -140,9 +296,19 @@ export function getWhatsAppConfig(): WhatsAppConfig {
     const raw = localStorage.getItem(WA_CONFIG_KEY);
     if (!raw) return DEFAULT_WA_CONFIG;
     const parsed = JSON.parse(raw);
+    const autoPos = parsed.auto_send_pos ?? parsed.automations?.auto_send_pos ?? true;
+    const autoBiz = parsed.auto_send_business ?? parsed.automations?.auto_send_aeps ?? true;
     return {
       ...DEFAULT_WA_CONFIG,
       ...parsed,
+      auto_send_pos: autoPos,
+      auto_send_business: autoBiz,
+      automations: {
+        ...DEFAULT_AUTOMATIONS,
+        ...(parsed.automations || {}),
+        auto_send_pos: autoPos,
+        auto_send_aeps: autoBiz,
+      },
       templates: {
         ...DEFAULT_WA_TEMPLATES,
         ...(parsed.templates || {}),
@@ -158,19 +324,13 @@ export function saveWhatsAppConfig(cfg: WhatsAppConfig): void {
   localStorage.setItem(WA_CONFIG_KEY, JSON.stringify(cfg));
 }
 
-/**
- * Fetch WhatsApp config and custom templates from Supabase Cloud
- * Updates local cache and returns the synchronized config across devices
- */
 export async function fetchCloudWhatsAppConfig(): Promise<WhatsAppConfig> {
   const localCfg = getWhatsAppConfig();
   if (typeof window === "undefined") return localCfg;
 
   try {
     const supabase = createClient();
-
-    // 1. Try public.whatsapp_templates table
-    const { data: tmplRow, error: tmplErr } = await supabase
+    const { data: tmplRow } = await supabase
       .from("whatsapp_templates")
       .select("*")
       .eq("id", "default")
@@ -181,6 +341,11 @@ export async function fetchCloudWhatsAppConfig(): Promise<WhatsAppConfig> {
         ...DEFAULT_WA_CONFIG,
         ...(tmplRow.config || {}),
         ...localCfg,
+        automations: {
+          ...DEFAULT_AUTOMATIONS,
+          ...(tmplRow.config?.automations || {}),
+          ...(localCfg.automations || {}),
+        },
         templates: {
           ...DEFAULT_WA_TEMPLATES,
           ...(tmplRow.templates || {}),
@@ -190,75 +355,56 @@ export async function fetchCloudWhatsAppConfig(): Promise<WhatsAppConfig> {
       saveWhatsAppConfig(merged);
       return merged;
     }
-
-    // 2. Fallback: Check public.settings.whatsapp_config
-    if (tmplErr) {
-      const { data: setRow } = await supabase
-        .from("settings")
-        .select("whatsapp_config")
-        .eq("id", 1)
-        .maybeSingle();
-
-      if (setRow?.whatsapp_config) {
-        const merged: WhatsAppConfig = {
-          ...DEFAULT_WA_CONFIG,
-          ...setRow.whatsapp_config,
-          templates: {
-            ...DEFAULT_WA_TEMPLATES,
-            ...(setRow.whatsapp_config.templates || {}),
-          },
-        };
-        saveWhatsAppConfig(merged);
-        return merged;
-      }
-    }
   } catch (err) {
-    console.warn("fetchCloudWhatsAppConfig fallback to local:", err);
+    console.warn("fetchCloudWhatsAppConfig fallback:", err);
   }
 
   return localCfg;
 }
 
-/**
- * Save WhatsApp config & custom templates to both localStorage AND Supabase Cloud database
- * Ensures all staff devices stay synchronized
- */
 export async function saveCloudWhatsAppConfig(cfg: WhatsAppConfig): Promise<{ success: boolean; error?: string }> {
-  // 1. Always save locally first for immediate responsiveness
   saveWhatsAppConfig(cfg);
-
   try {
     const supabase = createClient();
-
-    // 2. Upsert into public.whatsapp_templates table
-    const { error: tmplErr } = await supabase
-      .from("whatsapp_templates")
-      .upsert({
-        id: "default",
-        templates: cfg.templates || DEFAULT_WA_TEMPLATES,
-        config: cfg,
-        updated_at: new Date().toISOString(),
-      });
-
-    // 3. Also try updating settings.whatsapp_config as fallback
-    try {
-      await supabase
-        .from("settings")
-        .update({ whatsapp_config: cfg })
-        .eq("id", 1);
-    } catch {}
-
-    if (tmplErr) {
-      return { success: false, error: tmplErr.message };
-    }
-
+    await supabase.from("whatsapp_templates").upsert({
+      id: "default",
+      templates: cfg.templates || DEFAULT_WA_TEMPLATES,
+      config: cfg,
+      updated_at: new Date().toISOString(),
+    });
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Failed to sync with cloud database" };
+    return { success: false, error: err?.message || "Failed to sync config" };
   }
 }
 
-// Client-side automatic keep-alive ping to keep Render and local gateway awake 24/7
+export function formatWhatsAppPhone(rawPhone: string): string {
+  const digits = String(rawPhone || "").replace(/\D/g, "");
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
+export function getDirectWhatsAppUrl(phone: string, text: string): string {
+  const clean = formatWhatsAppPhone(phone);
+  return clean
+    ? `https://wa.me/${clean}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+export function renderWhatsAppTemplate(
+  templateText?: string | null,
+  vars: Record<string, string | number | null | undefined> = {}
+): string {
+  let rendered = templateText || "";
+  for (const [key, value] of Object.entries(vars)) {
+    const valStr = String(value ?? "");
+    const singleBrace = new RegExp(`\\{${key}\\}`, "g");
+    const doubleBrace = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+    rendered = rendered.replace(doubleBrace, valStr).replace(singleBrace, valStr);
+  }
+  return rendered.trim();
+}
+
 let keepAliveTimer: any = null;
 export function startGatewayHeartbeat() {
   if (typeof window === "undefined" || keepAliveTimer) return;
@@ -277,113 +423,9 @@ export function startGatewayHeartbeat() {
   };
 
   ping();
-  keepAliveTimer = setInterval(ping, 3 * 60 * 1000); // Heartbeat every 3 minutes
+  keepAliveTimer = setInterval(ping, 3 * 60 * 1000);
 }
 
-export function formatWhatsAppPhone(rawPhone: string): string {
-  const digits = String(rawPhone || "").replace(/\D/g, "");
-  if (digits.length === 10) return `91${digits}`;
-  return digits;
-}
-
-export function getDirectWhatsAppUrl(phone: string, text: string): string {
-  const clean = formatWhatsAppPhone(phone);
-  return clean
-    ? `https://wa.me/${clean}?text=${encodeURIComponent(text)}`
-    : `https://wa.me/?text=${encodeURIComponent(text)}`;
-}
-
-// Render dynamic tags in template
-export function renderWhatsAppTemplate(
-  templateText: string,
-  vars: Record<string, string | number | null | undefined>
-): string {
-  let rendered = templateText;
-  for (const [key, value] of Object.entries(vars)) {
-    const placeholder = new RegExp(`\\{${key}\\}`, "g");
-    rendered = rendered.replace(placeholder, String(value ?? ""));
-  }
-  return rendered.trim();
-}
-
-export type WhatsAppLogEntry = {
-  id?: string;
-  recipient_phone: string;
-  recipient_name?: string | null;
-  message_type: "pos_invoice" | "quick_sale" | "banking_txn" | "due_reminder" | "day_close" | "custom" | "test";
-  ref_id?: string | null;
-  ref_number?: string | null;
-  message_text: string;
-  status: "sent" | "delivered" | "failed" | "fallback_link";
-  provider: WhatsAppProvider | "manual_link";
-  error_message?: string | null;
-  created_at?: string;
-};
-
-const WA_LOCAL_LOGS_KEY = "sccomm_whatsapp_local_logs";
-
-export function getLocalWhatsAppLogs(): WhatsAppLogEntry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(WA_LOCAL_LOGS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveLocalWhatsAppLog(entry: WhatsAppLogEntry): void {
-  if (typeof window === "undefined") return;
-  try {
-    const current = getLocalWhatsAppLogs();
-    const exists = current.some((x) => x.id === entry.id || (x.created_at === entry.created_at && x.recipient_phone === entry.recipient_phone && x.message_text === entry.message_text));
-    if (!exists) {
-      const updated = [entry, ...current].slice(0, 300);
-      localStorage.setItem(WA_LOCAL_LOGS_KEY, JSON.stringify(updated));
-    }
-  } catch (e) {
-    console.warn("Failed to save local WhatsApp log:", e);
-  }
-}
-
-// Log message to both Local Storage & Supabase history tracker
-export async function logWhatsAppMessage(entry: WhatsAppLogEntry): Promise<void> {
-  if (typeof window === "undefined") return;
-
-  const enrichedEntry: WhatsAppLogEntry = {
-    ...entry,
-    id: entry.id || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "log_" + Date.now()),
-    created_at: entry.created_at || new Date().toISOString(),
-  };
-
-  // 1. Immediately persist locally (zero lag, 100% reliable)
-  saveLocalWhatsAppLog(enrichedEntry);
-
-  // 2. Also try inserting into Supabase cloud table
-  try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    await supabase.from("whatsapp_logs").insert({
-      id: enrichedEntry.id,
-      recipient_phone: enrichedEntry.recipient_phone,
-      recipient_name: enrichedEntry.recipient_name || null,
-      message_type: enrichedEntry.message_type,
-      ref_id: enrichedEntry.ref_id || null,
-      ref_number: enrichedEntry.ref_number || null,
-      message_text: enrichedEntry.message_text,
-      status: enrichedEntry.status,
-      provider: enrichedEntry.provider,
-      error_message: enrichedEntry.error_message || null,
-      user_id: user?.id || null,
-      created_at: enrichedEntry.created_at,
-    });
-  } catch (e) {
-    // Supabase table might not be created yet, but local log is already saved
-  }
-}
-
-// Check gateway connection health and live status (works for both local PC and cloud)
 export async function checkGatewayHealth(targetUrl?: string): Promise<{
   ok: boolean;
   status: "connected" | "waiting_for_qr" | "offline" | "waking_up" | "error";
@@ -398,7 +440,6 @@ export async function checkGatewayHealth(targetUrl?: string): Promise<{
   const gatewayUrl = rawUrl.trim().replace(/\/$/, "");
   const isLocal = gatewayUrl.includes("localhost") || gatewayUrl.includes("127.0.0.1");
 
-  // If local PC gateway, test directly from the browser client
   if (isLocal) {
     try {
       const controller = new AbortController();
@@ -431,34 +472,10 @@ export async function checkGatewayHealth(targetUrl?: string): Promise<{
         ok: false,
         status: "offline",
         connected: false,
-        error: `Cannot connect to Local PC Gateway at ${gatewayUrl}. Please ensure your local PM2 or Node.js background service is running on port 3001.`,
+        error: `Cannot connect to Local PC Gateway at ${gatewayUrl}.`,
         isLocal: true,
       };
     }
-  }
-
-  // If public Cloud Gateway (e.g. Render), attempt direct browser fetch, then fallback to server proxy
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(`${gatewayUrl}/health`, {
-      headers: { "Bypass-Tunnel-Reminder": "true" },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      return {
-        ok: true,
-        status: data.connected ? "connected" : "waiting_for_qr",
-        connected: Boolean(data.connected),
-        phone: data.userPhone || "",
-        service: data.service,
-        isLocal: false,
-      };
-    }
-  } catch {
-    // Attempt through server API route (helps if Render is sleeping or CORS is blocked)
   }
 
   try {
@@ -505,170 +522,325 @@ export async function checkGatewayHealth(targetUrl?: string): Promise<{
   }
 }
 
-export async function sendWhatsAppMessage({
-  phone,
-  message,
-  recipientName,
-  messageType = "custom",
-  refId,
-  refNumber,
-}: {
+// -----------------------------------------------------------------------------
+// DURABLE OUTBOX QUEUE SYSTEM
+// -----------------------------------------------------------------------------
+
+export function getLocalWhatsAppOutbox(): WhatsAppOutboxMessage[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(WA_LOCAL_OUTBOX_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalWhatsAppOutbox(messages: WhatsAppOutboxMessage[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(WA_LOCAL_OUTBOX_KEY, JSON.stringify(messages.slice(0, 500)));
+  } catch (e) {
+    console.warn("Failed to save local outbox:", e);
+  }
+}
+
+export async function enqueueWhatsAppOutbox(params: {
+  phone: string;
+  messageType: WhatsAppOutboxMessage["message_type"];
+  messageBody: string;
+  recipientName?: string | null;
+  customerId?: string | null;
+  templateId?: string | null;
+  referenceType?: WhatsAppOutboxMessage["reference_type"];
+  referenceId?: string | null;
+}): Promise<{ enqueued: boolean; messageId: string; duplicate?: boolean }> {
+  const {
+    phone,
+    messageType,
+    messageBody,
+    recipientName,
+    customerId,
+    templateId,
+    referenceType = "manual",
+    referenceId = "manual_" + Date.now(),
+  } = params;
+
+  const cleanPhone = formatWhatsAppPhone(phone);
+  const idempotencyKey = `${referenceType}:${referenceId}:${messageType}`;
+  const config = getWhatsAppConfig();
+
+  const localQueue = getLocalWhatsAppOutbox();
+  const existingLocal = localQueue.find((m) => m.idempotency_key === idempotencyKey);
+  if (existingLocal) {
+    return { enqueued: false, messageId: existingLocal.id, duplicate: true };
+  }
+
+  const outboxId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "msg_" + Date.now();
+  const now = new Date().toISOString();
+
+  const newMessage: WhatsAppOutboxMessage = {
+    id: outboxId,
+    customer_id: customerId || null,
+    phone: cleanPhone,
+    recipient_name: recipientName || null,
+    message_type: messageType,
+    template_id: templateId || null,
+    message_body: messageBody,
+    reference_type: referenceType,
+    reference_id: referenceId,
+    idempotency_key: idempotencyKey,
+    status: config.provider === "off" ? "CANCELLED" : "PENDING",
+    attempt_count: 0,
+    next_attempt_at: now,
+    provider: config.provider,
+    created_at: now,
+  };
+
+  saveLocalWhatsAppOutbox([newMessage, ...localQueue]);
+
+  try {
+    const supabase = createClient();
+    await supabase.from("whatsapp_outbox").insert({
+      id: newMessage.id,
+      customer_id: newMessage.customer_id,
+      phone: newMessage.phone,
+      recipient_name: newMessage.recipient_name,
+      message_type: newMessage.message_type,
+      template_id: newMessage.template_id,
+      message_body: newMessage.message_body,
+      reference_type: newMessage.reference_type,
+      reference_id: newMessage.reference_id,
+      idempotency_key: newMessage.idempotency_key,
+      status: newMessage.status,
+      attempt_count: newMessage.attempt_count,
+      next_attempt_at: newMessage.next_attempt_at,
+      provider: newMessage.provider,
+      created_at: newMessage.created_at,
+    });
+  } catch (err) {}
+
+  if (config.provider !== "off" && typeof window !== "undefined") {
+    setTimeout(() => {
+      processWhatsAppOutbox().catch(() => {});
+    }, 100);
+  }
+
+  return { enqueued: true, messageId: outboxId };
+}
+
+export async function processWhatsAppOutbox(): Promise<{ processed: number; sent: number; failed: number }> {
+  const config = getWhatsAppConfig();
+  if (config.provider === "off") return { processed: 0, sent: 0, failed: 0 };
+
+  const queue = getLocalWhatsAppOutbox();
+  const now = new Date();
+  let sentCount = 0;
+  let failCount = 0;
+
+  const updatedQueue = [...queue];
+
+  for (let i = 0; i < updatedQueue.length; i++) {
+    const msg = updatedQueue[i];
+    if (msg.status !== "PENDING") continue;
+    if (new Date(msg.next_attempt_at) > now) continue;
+
+    msg.status = "PROCESSING";
+    msg.attempt_count += 1;
+
+    try {
+      const sendRes = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: msg.phone,
+          message: msg.message_body,
+          config,
+        }),
+      });
+
+      const resData = await sendRes.json().catch(() => ({}));
+
+      if (sendRes.ok && (resData.success || resData.ok)) {
+        msg.status = "SENT";
+        msg.sent_at = new Date().toISOString();
+        msg.provider_message_id = resData.messageId || resData.data?.id || null;
+        msg.error_message = null;
+        sentCount++;
+      } else {
+        throw new Error(resData.error || `Transport error HTTP ${sendRes.status}`);
+      }
+    } catch (err: any) {
+      failCount++;
+      msg.error_message = err.message || "Transport error";
+
+      if (msg.attempt_count >= 4) {
+        msg.status = "FAILED";
+      } else {
+        msg.status = "PENDING";
+        const backoffMinutes = msg.attempt_count === 1 ? 1 : msg.attempt_count === 2 ? 5 : 15;
+        msg.next_attempt_at = new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
+      }
+    }
+
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("whatsapp_outbox")
+        .update({
+          status: msg.status,
+          attempt_count: msg.attempt_count,
+          next_attempt_at: msg.next_attempt_at,
+          provider_message_id: msg.provider_message_id,
+          error_message: msg.error_message,
+          sent_at: msg.sent_at,
+        })
+        .eq("id", msg.id);
+    } catch {}
+  }
+
+  saveLocalWhatsAppOutbox(updatedQueue);
+  return { processed: sentCount + failCount, sent: sentCount, failed: failCount };
+}
+
+// -----------------------------------------------------------------------------
+// EVENT AUTOMATION DISPATCHER (9 CORE AUTOMATIONS)
+// -----------------------------------------------------------------------------
+
+export async function triggerWhatsAppAutomation(event: {
+  type:
+    | "pos_invoice"
+    | "quick_sale"
+    | "payment_receipt"
+    | "due_reminder"
+    | "doc_ready"
+    | "aeps_confirmation"
+    | "dmt_confirmation"
+    | "recharge_confirmation"
+    | "daily_summary"
+    | "financial_alert"
+    | "banking_txn";
+  phone: string;
+  recipientName?: string | null;
+  customerId?: string | null;
+  referenceId: string;
+  data: Record<string, string | number | null | undefined>;
+}): Promise<{ triggered: boolean; messageId?: string; reason?: string }> {
+  const config = getWhatsAppConfig();
+  const automations = config.automations;
+
+  const isEnabled = {
+    pos_invoice: automations.auto_send_pos,
+    quick_sale: automations.auto_send_quick,
+    payment_receipt: automations.auto_send_payment,
+    due_reminder: automations.auto_send_due_reminder,
+    doc_ready: automations.auto_send_document_ready,
+    aeps_confirmation: automations.auto_send_aeps,
+    dmt_confirmation: automations.auto_send_dmt,
+    recharge_confirmation: automations.auto_send_recharge,
+    daily_summary: automations.auto_send_daily_summary,
+    financial_alert: automations.auto_send_financial_alerts,
+    banking_txn: automations.auto_send_aeps,
+  }[event.type];
+
+  if (!isEnabled) {
+    return { triggered: false, reason: `Automation for ${event.type} is disabled in Settings.` };
+  }
+
+  if (event.customerId) {
+    try {
+      const supabase = createClient();
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("whatsapp_opt_out, notify_invoices, notify_payments, notify_dues, notify_services")
+        .eq("id", event.customerId)
+        .maybeSingle();
+
+      if (cust?.whatsapp_opt_out) {
+        return { triggered: false, reason: "Customer has opted out of WhatsApp messages." };
+      }
+    } catch {}
+  }
+
+  const templates = config.templates || DEFAULT_WA_TEMPLATES;
+  const templateKey = event.type as keyof WhatsAppTemplates;
+  const templateText = templates[templateKey] || DEFAULT_WA_TEMPLATES[templateKey] || "";
+
+  if (!templateText) {
+    return { triggered: false, reason: `No template found for ${event.type}` };
+  }
+
+  const messageBody = renderWhatsAppTemplate(templateText, {
+    shop_name: "Sarkar Communication",
+    customer_name: event.recipientName || "Customer",
+    customer_name_line: event.recipientName ? `👤 Customer: ${event.recipientName}\n` : "",
+    date: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+    ...event.data,
+  });
+
+  const refTypeMap: Record<string, WhatsAppOutboxMessage["reference_type"]> = {
+    pos_invoice: "invoice",
+    quick_sale: "quick_sale",
+    payment_receipt: "payment",
+    due_reminder: "due",
+    doc_ready: "document",
+    aeps_confirmation: "transaction",
+    dmt_confirmation: "transaction",
+    recharge_confirmation: "transaction",
+    banking_txn: "transaction",
+    daily_summary: "day_close",
+    financial_alert: "self_audit",
+  };
+
+  const res = await enqueueWhatsAppOutbox({
+    phone: event.phone,
+    recipientName: event.recipientName,
+    customerId: event.customerId,
+    messageType: event.type,
+    templateId: event.type,
+    messageBody,
+    referenceType: refTypeMap[event.type] || "manual",
+    referenceId: event.referenceId,
+  });
+
+  return { triggered: res.enqueued, messageId: res.messageId };
+}
+
+// -----------------------------------------------------------------------------
+// COMPATIBILITY INTERFACES
+// -----------------------------------------------------------------------------
+
+export type WhatsAppLogEntry = {
+  id?: string;
+  recipient_phone: string;
+  recipient_name?: string | null;
+  message_type: WhatsAppOutboxMessage["message_type"];
+  ref_id?: string | null;
+  ref_number?: string | null;
+  message_text: string;
+  status: "sent" | "delivered" | "failed" | "fallback_link";
+  provider: WhatsAppProvider | "manual_link";
+  error_message?: string | null;
+  created_at?: string;
+};
+
+export async function sendWhatsAppMessage(params: {
   phone: string;
   message: string;
   recipientName?: string | null;
-  messageType?: WhatsAppLogEntry["message_type"];
+  messageType?: WhatsAppOutboxMessage["message_type"];
   refId?: string | null;
   refNumber?: string | null;
 }): Promise<{ ok: boolean; fallbackUrl: string; error?: string }> {
-  const config = getWhatsAppConfig();
-  const fallbackUrl = getDirectWhatsAppUrl(phone, message);
+  const fallbackUrl = getDirectWhatsAppUrl(params.phone, params.message);
+  const enqueueRes = await enqueueWhatsAppOutbox({
+    phone: params.phone,
+    recipientName: params.recipientName,
+    messageType: params.messageType || "custom",
+    messageBody: params.message,
+    referenceType: "manual",
+    referenceId: params.refId || "manual_" + Date.now(),
+  });
 
-  if (config.provider === "off") {
-    // Log fallback link action
-    logWhatsAppMessage({
-      recipient_phone: phone,
-      recipient_name: recipientName,
-      message_type: messageType,
-      ref_id: refId,
-      ref_number: refNumber,
-      message_text: message,
-      status: "fallback_link",
-      provider: "off",
-    });
-    return { ok: false, fallbackUrl };
-  }
-
-  // Local or Cloud Baileys Gateway
-  if (config.provider === "local_gateway") {
-    const gatewayUrl = (config.gateway_url?.trim() || "http://localhost:3001").replace(/\/$/, "");
-    const isLocal = gatewayUrl.includes("localhost") || gatewayUrl.includes("127.0.0.1");
-
-    // 1. Direct browser-to-gateway request
-    try {
-      const directController = new AbortController();
-      const directTimeout = setTimeout(() => directController.abort(), isLocal ? 6000 : 10000);
-
-      const directRes = await fetch(`${gatewayUrl}/send-message`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Bypass-Tunnel-Reminder": "true",
-          ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
-        },
-        body: JSON.stringify({
-          phone: formatWhatsAppPhone(phone),
-          number: formatWhatsAppPhone(phone),
-          message,
-          text: message,
-        }),
-        signal: directController.signal,
-      });
-      clearTimeout(directTimeout);
-
-      const directData = await directRes.json().catch(() => ({}));
-      if (directRes.ok && directData.success) {
-        if (directData.status === "dispatched_mock") {
-          const warnMsg = `Gateway active at ${gatewayUrl}, but WhatsApp is waiting for QR scan. Scan QR code to link your phone.`;
-          logWhatsAppMessage({
-            recipient_phone: phone,
-            recipient_name: recipientName,
-            message_type: messageType,
-            ref_id: refId,
-            ref_number: refNumber,
-            message_text: message,
-            status: "failed",
-            provider: "local_gateway",
-            error_message: warnMsg,
-          });
-          return { ok: false, fallbackUrl, error: warnMsg };
-        }
-
-        logWhatsAppMessage({
-          recipient_phone: phone,
-          recipient_name: recipientName,
-          message_type: messageType,
-          ref_id: refId,
-          ref_number: refNumber,
-          message_text: message,
-          status: "sent",
-          provider: "local_gateway",
-        });
-        return { ok: true, fallbackUrl };
-      }
-    } catch {
-      // If Local PC Gateway failed from browser, do not proxy to Vercel (Vercel can't reach user's localhost)
-      if (isLocal) {
-        const localError = `Could not connect to Local WhatsApp Gateway at ${gatewayUrl}. Please ensure your background service (PM2) is running on this PC, or switch to Render Cloud Gateway in Settings.`;
-        logWhatsAppMessage({
-          recipient_phone: phone,
-          recipient_name: recipientName,
-          message_type: messageType,
-          ref_id: refId,
-          ref_number: refNumber,
-          message_text: message,
-          status: "failed",
-          provider: "local_gateway",
-          error_message: localError,
-        });
-        return { ok: false, fallbackUrl, error: localError };
-      }
-    }
-  }
-
-  // Server API proxy route (handles Meta, UltraMsg, and Cloud Render gateways)
-  try {
-    const res = await fetch("/api/whatsapp/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: formatWhatsAppPhone(phone),
-        message,
-        config,
-      }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      const errorMsg = data?.error || "Failed to send message";
-      logWhatsAppMessage({
-        recipient_phone: phone,
-        recipient_name: recipientName,
-        message_type: messageType,
-        ref_id: refId,
-        ref_number: refNumber,
-        message_text: message,
-        status: "failed",
-        provider: config.provider,
-        error_message: errorMsg,
-      });
-      return { ok: false, fallbackUrl, error: errorMsg };
-    }
-
-    logWhatsAppMessage({
-      recipient_phone: phone,
-      recipient_name: recipientName,
-      message_type: messageType,
-      ref_id: refId,
-      ref_number: refNumber,
-      message_text: message,
-      status: "sent",
-      provider: config.provider,
-    });
-
-    return { ok: true, fallbackUrl };
-  } catch (err: any) {
-    const errText = err?.message || "Network error";
-    logWhatsAppMessage({
-      recipient_phone: phone,
-      recipient_name: recipientName,
-      message_type: messageType,
-      ref_id: refId,
-      ref_number: refNumber,
-      message_text: message,
-      status: "failed",
-      provider: config.provider,
-      error_message: errText,
-    });
-    return { ok: false, fallbackUrl, error: errText };
-  }
+  return { ok: enqueueRes.enqueued, fallbackUrl };
 }
