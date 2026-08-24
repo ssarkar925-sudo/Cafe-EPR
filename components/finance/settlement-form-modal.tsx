@@ -71,6 +71,7 @@ export default function SettlementFormModal({
   portals = [],
   qrs = [],
   paymentAccounts = [],
+  poolBalances = null,
   onSave,
 }: {
   open: boolean;
@@ -81,6 +82,7 @@ export default function SettlementFormModal({
   portals?: { id: string; name: string }[];
   qrs?: { id: string; display_name: string; upi_id?: string }[];
   paymentAccounts?: { id: string; name: string; type: string; details?: any; is_active?: boolean; opening_balance?: number }[];
+  poolBalances?: any;
   onSave: (payload: {
     p_settlement_type: string;
     p_settlement_date: string;
@@ -106,10 +108,14 @@ export default function SettlementFormModal({
   const [loadedPortals, setLoadedPortals] = useState(portals);
   const [loadedQrs, setLoadedQrs] = useState(qrs);
   const [loadedAccounts, setLoadedAccounts] = useState(paymentAccounts);
+  const [livePools, setLivePools] = useState<any>(poolBalances);
 
   useEffect(() => {
     if (!open) return;
     const supabase = createClient();
+    supabase.rpc("get_pool_balances").then(({ data }) => {
+      if (data) setLivePools(data);
+    });
     if (loadedPortals.length === 0) {
       supabase.from("aeps_portals").select("*").order("name").then(({ data }) => {
         if (data) setLoadedPortals(data as any);
@@ -120,12 +126,10 @@ export default function SettlementFormModal({
         if (data) setLoadedQrs(data as any);
       });
     }
-    if (loadedAccounts.length === 0) {
-      supabase.from("payment_instruments").select("*").eq("is_active", true).order("name").then(({ data }) => {
-        if (data) setLoadedAccounts(data as any);
-      });
-    }
-  }, [open, loadedPortals.length, loadedQrs.length, loadedAccounts.length]);
+    supabase.from("payment_instruments").select("*").eq("is_active", true).order("name").then(({ data }) => {
+      if (data) setLoadedAccounts(data as any);
+    });
+  }, [open, loadedPortals.length, loadedQrs.length]);
 
   // Reset source & dest when type changes
   useEffect(() => {
@@ -134,64 +138,6 @@ export default function SettlementFormModal({
     setAvailableBalance(null);
     setError("");
   }, [type]);
-
-  // Dynamic Live Balance Calculation for Selected Source
-  useEffect(() => {
-    if (!open || !sourceId) {
-      setAvailableBalance(null);
-      return;
-    }
-
-    const supabase = createClient();
-    setLoadingBalance(true);
-
-    async function fetchLiveBalance() {
-      try {
-        if (type === "aeps_to_bank") {
-          // Calculate net accumulated AEPS withdrawals for this portal
-          const [{ data: txs }, { data: setts }] = await Promise.all([
-            supabase.from("transactions").select("amount").eq("service_type", "aeps").eq("portal_id", sourceId).eq("status", "success"),
-            supabase.from("settlements").select("amount").eq("from_pool", "aeps").eq("status", "success"),
-          ]);
-          const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
-          const portalObj = loadedPortals.find((p) => p.id === sourceId);
-          const portalName = portalObj?.name?.toLowerCase() ?? "";
-          const totalOut = (setts ?? [])
-            .filter((st: any) => !portalName || (st.remarks ?? "").toLowerCase().includes(portalName) || (st.reference ?? "").toLowerCase().includes(portalName))
-            .reduce((s, st) => s + Number(st.amount || 0), 0);
-          setAvailableBalance(Math.max(0, totalIn - totalOut));
-        } else if (type === "upi_qr_to_bank" || type === "upi_qr_to_wallet") {
-          // Calculate net accumulated UPI QR receipts for this QR
-          const [{ data: txs }, { data: setts }] = await Promise.all([
-            supabase.from("transactions").select("amount").eq("service_type", "upi").eq("merchant_qr_id", sourceId).eq("status", "success"),
-            supabase.from("settlements").select("amount").eq("from_pool", "upi_qr").eq("status", "success"),
-          ]);
-          const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
-          const qrObj = loadedQrs.find((q) => q.id === sourceId);
-          const qrName = qrObj?.display_name?.toLowerCase() ?? "";
-          const totalOut = (setts ?? [])
-            .filter((st: any) => !qrName || (st.remarks ?? "").toLowerCase().includes(qrName))
-            .reduce((s, st) => s + Number(st.amount || 0), 0);
-          setAvailableBalance(Math.max(0, totalIn - totalOut));
-        } else {
-          // Fetch instrument balance from cash entries and opening balance
-          const inst = loadedAccounts.find((i) => i.id === sourceId);
-          const { data: ces } = await supabase.from("cash_entries").select("direction, amount").eq("instrument_id", sourceId);
-          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
-          const total = Number(inst?.opening_balance || 0) + flow;
-          setAvailableBalance(total);
-        }
-      } catch (err) {
-        console.error("Error computing source balance:", err);
-      } finally {
-        setLoadingBalance(false);
-      }
-    }
-
-    fetchLiveBalance();
-  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts]);
-
-  if (!open) return null;
 
   const selected = SETTLEMENT_TYPES.find((t) => t.value === type)!;
   const isAdjustment = type === "cash_adjustment";
@@ -212,6 +158,96 @@ export default function SettlementFormModal({
   const isDestCreditCard = type === "bank_to_credit_card" || type === "cash_to_credit_card";
   const isDestWallet = type === "upi_qr_to_wallet";
   const isDestDmtPortal = type === "bank_to_dmt" || type === "wallet_to_dmt";
+
+  // Dynamic Current Available Balance Calculation for Selected Source
+  useEffect(() => {
+    if (!open || !sourceId) {
+      setAvailableBalance(null);
+      return;
+    }
+
+    const supabase = createClient();
+    setLoadingBalance(true);
+
+    async function fetchLiveBalance() {
+      try {
+        if (type === "aeps_to_bank") {
+          const poolCurrent = Number(livePools?.aeps?.current ?? 0);
+          if (loadedPortals.length <= 1) {
+            setAvailableBalance(poolCurrent);
+          } else {
+            const seedDate = livePools?.aeps?.seed_date || new Date().toISOString().slice(0, 10);
+            const [{ data: txs }, { data: setts }] = await Promise.all([
+              supabase.from("transactions").select("amount").eq("service_type", "aeps").eq("portal_id", sourceId).gte("transaction_date", seedDate).eq("status", "success"),
+              supabase.from("settlements").select("amount, remarks").eq("from_pool", "aeps").gte("settlement_date", seedDate).eq("status", "success"),
+            ]);
+            const portalObj = loadedPortals.find((p) => p.id === sourceId);
+            const portalName = portalObj?.name?.toLowerCase() ?? "";
+            const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
+            const totalOut = (setts ?? [])
+              .filter((st: any) => !portalName || (st.remarks ?? "").toLowerCase().includes(portalName))
+              .reduce((s, st) => s + Number(st.amount || 0), 0);
+            const portalNet = totalIn - totalOut;
+            setAvailableBalance(portalNet > 0 ? portalNet : poolCurrent);
+          }
+        } else if (type === "upi_qr_to_bank" || type === "upi_qr_to_wallet") {
+          const poolCurrent = Number(livePools?.upi_qr?.current ?? 0);
+          if (loadedQrs.length <= 1) {
+            setAvailableBalance(poolCurrent);
+          } else {
+            const seedDate = livePools?.upi_qr?.seed_date || new Date().toISOString().slice(0, 10);
+            const [{ data: txs }, { data: setts }] = await Promise.all([
+              supabase.from("transactions").select("amount").eq("service_type", "upi").eq("merchant_qr_id", sourceId).gte("transaction_date", seedDate).eq("status", "success"),
+              supabase.from("settlements").select("amount, remarks").eq("from_pool", "upi_qr").gte("settlement_date", seedDate).eq("status", "success"),
+            ]);
+            const qrObj = loadedQrs.find((q) => q.id === sourceId);
+            const qrName = qrObj?.display_name?.toLowerCase() ?? "";
+            const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
+            const totalOut = (setts ?? [])
+              .filter((st: any) => !qrName || (st.remarks ?? "").toLowerCase().includes(qrName))
+              .reduce((s, st) => s + Number(st.amount || 0), 0);
+            const qrNet = totalIn - totalOut;
+            setAvailableBalance(qrNet > 0 ? qrNet : poolCurrent);
+          }
+        } else if (isSourceWallet) {
+          const poolCurrent = Number(livePools?.wallet?.current ?? 0);
+          if (wallets.length <= 1) {
+            setAvailableBalance(poolCurrent);
+          } else {
+            const inst = loadedAccounts.find((i) => i.id === sourceId);
+            const seedDate = livePools?.wallet?.seed_date || "0001-01-01";
+            const { data: ces } = await supabase.from("cash_entries").select("direction, amount").eq("instrument_id", sourceId).gte("entry_date", seedDate);
+            const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
+            const bal = Number(inst?.opening_balance || 0) + flow;
+            setAvailableBalance(bal !== 0 ? bal : poolCurrent);
+          }
+        } else if (isSourceBank) {
+          const poolCurrent = Number(livePools?.bank?.current ?? 0);
+          if (bankAccounts.length <= 1) {
+            setAvailableBalance(poolCurrent);
+          } else {
+            const inst = loadedAccounts.find((i) => i.id === sourceId);
+            const seedDate = livePools?.bank?.seed_date || "0001-01-01";
+            const { data: ces } = await supabase.from("cash_entries").select("direction, amount").eq("instrument_id", sourceId).gte("entry_date", seedDate);
+            const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
+            const bal = Number(inst?.opening_balance || 0) + flow;
+            setAvailableBalance(bal !== 0 ? bal : poolCurrent);
+          }
+        } else if (isSourceCreditCard) {
+          const inst = loadedAccounts.find((i) => i.id === sourceId);
+          setAvailableBalance(Number(inst?.opening_balance ?? livePools?.credit_card?.current ?? 0));
+        }
+      } catch (err) {
+        console.error("Error computing source balance:", err);
+      } finally {
+        setLoadingBalance(false);
+      }
+    }
+
+    fetchLiveBalance();
+  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet, isSourceCreditCard, wallets.length, bankAccounts.length]);
+
+  if (!open) return null;
 
   const submit = () => {
     setError("");
@@ -515,12 +551,12 @@ export default function SettlementFormModal({
             )}
           </div>
 
-          {/* Live Available Balance & Quick Fill Helper */}
+          {/* Current Available Balance & Quick Fill Helper */}
           {sourceId && (
             <div className="rounded-xl border border-blue-200/80 bg-blue-50/70 p-3 dark:border-blue-900/40 dark:bg-blue-950/30">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs">
-                  <span className="font-semibold text-slate-600 dark:text-slate-300">Live Available Balance: </span>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Current Available Balance: </span>
                   {loadingBalance ? (
                     <span className="font-mono text-slate-400">Loading…</span>
                   ) : availableBalance !== null ? (
