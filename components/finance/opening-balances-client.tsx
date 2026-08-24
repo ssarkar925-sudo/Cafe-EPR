@@ -30,6 +30,7 @@ export type InstrumentRow = {
   name: string;
   type: string;
   is_active: boolean;
+  opening_balance?: number;
 };
 
 export type SeedRow = {
@@ -275,11 +276,37 @@ export default function OpeningBalancesClient({
               >
                 {busyKey === p.key ? "Saving..." : seed ? "Update Opening" : "Set Opening"}
               </button>
-              {seed && (
-                <p className="mt-2 text-[11px] text-slate-400">
-                  Last seed: {inr(seed.amount)} on {fmtDate(seed.as_of)}
-                </p>
-              )}
+              {/* Individual Account Breakdown */}
+              {(() => {
+                const matching = initialInstruments.filter((i) => INST_POOL[i.type] === p.key && i.is_active);
+                if (matching.length === 0) return null;
+                return (
+                  <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-white/5 dark:bg-white/5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Accounts ({matching.length}):
+                      </span>
+                    </div>
+                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                      {matching.map((inst) => {
+                        const instSeed = instrumentSeeds.get(inst.id);
+                        const amt = Number(instSeed?.amount ?? inst.opening_balance ?? 0);
+                        return (
+                          <div key={inst.id} className="flex items-center justify-between text-xs">
+                            <span className="truncate text-slate-700 dark:text-slate-300 pr-2">
+                              {inst.type === "wallet" ? "👛 " : inst.type === "credit_card" ? "💳 " : "🏦 "}
+                              {inst.name}
+                            </span>
+                            <span className="font-mono font-semibold text-slate-900 dark:text-white shrink-0">
+                              {inr(amt)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

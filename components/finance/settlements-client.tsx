@@ -681,6 +681,7 @@ export default function SettlementsClient({
         portals={initialPortals}
         qrs={initialQrs}
         paymentAccounts={initialPaymentInstruments}
+        poolBalances={summary}
         onClose={() => {
           setShowForm(false);
           setFormPreset(null);
