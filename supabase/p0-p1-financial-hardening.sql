@@ -208,7 +208,7 @@ begin
   ) c;
 
   -- Top products
-  select coalesce(jsonb_agg(to_jsonb(tp) order by tp.revenue desc limit 10), '[]'::jsonb) into v_top
+  select coalesce(jsonb_agg(to_jsonb(tp) order by tp.revenue desc), '[]'::jsonb) into v_top
   from (
     select coalesce(p.name, s.name, ii.description, 'Item') as name,
       sum(ii.qty - coalesce(ii.returned_qty, 0)) as qty,
@@ -219,6 +219,8 @@ begin
     left join public.services s on s.id = ii.service_id
     where i.status <> 'cancelled' and i.invoice_date between p_from and p_to
     group by coalesce(p.name, s.name, ii.description, 'Item')
+    order by sum(ii.amount) desc
+    limit 10
   ) tp;
 
   return jsonb_build_object(
