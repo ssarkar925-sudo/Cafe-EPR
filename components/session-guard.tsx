@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchCloudWhatsAppConfig } from "@/lib/whatsapp";
+import ScreenLockModal from "@/components/security/screen-lock-modal";
 
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
 const WARN_MS = 60 * 1000;
@@ -17,6 +18,21 @@ export default function SessionGuard() {
   const signingOut = useRef(false);
   const [showWarn, setShowWarn] = useState(false);
   const [countdown, setCountdown] = useState(Math.round(WARN_MS / 1000));
+
+  const [screenLockActive, setScreenLockActive] = useState(false);
+  const [lockTimeout, setLockTimeout] = useState(3);
+  const [managerPin, setManagerPin] = useState("1234");
+
+  useEffect(() => {
+    try {
+      const enabled = localStorage.getItem("sccomm_screen_lock_enabled") === "true";
+      const timeout = Number(localStorage.getItem("sccomm_screen_lock_timeout") || 3);
+      const pin = localStorage.getItem("sccomm_manager_pin") || "1234";
+      setScreenLockActive(enabled);
+      setLockTimeout(timeout);
+      setManagerPin(pin);
+    } catch {}
+  }, []);
 
   async function doSignOut() {
     if (signingOut.current) return;
@@ -90,6 +106,12 @@ export default function SessionGuard() {
 
   return (
     <>
+      <ScreenLockModal
+        enabled={screenLockActive}
+        timeoutMinutes={lockTimeout}
+        correctPin={managerPin}
+        userName="Operator"
+      />
       {showWarn && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">

@@ -25,9 +25,18 @@ export default function SecurityCenterClient({
   expenses: any[];
 }) {
   const { showToast, toastView } = useToast();
-  const [screenLockActive, setScreenLockActive] = useState(true);
-  const [lockTimeout, setLockTimeout] = useState(3);
-  const [managerPin, setManagerPin] = useState("1234");
+  const [screenLockActive, setScreenLockActive] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("sccomm_screen_lock_enabled") !== "false";
+  });
+  const [lockTimeout, setLockTimeout] = useState(() => {
+    if (typeof window === "undefined") return 3;
+    return Number(localStorage.getItem("sccomm_screen_lock_timeout") || 3);
+  });
+  const [managerPin, setManagerPin] = useState(() => {
+    if (typeof window === "undefined") return "1234";
+    return localStorage.getItem("sccomm_manager_pin") || "1234";
+  });
   const [pinEditMode, setPinEditMode] = useState(false);
   const [newPin, setNewPin] = useState("");
 
@@ -63,15 +72,29 @@ export default function SecurityCenterClient({
     showToast("success", "Encrypted Disaster Recovery Backup downloaded.");
   };
 
+  const handleToggleScreenLock = () => {
+    const next = !screenLockActive;
+    setScreenLockActive(next);
+    localStorage.setItem("sccomm_screen_lock_enabled", String(next));
+    showToast("info", next ? "Screen lock enabled." : "Screen lock disabled.");
+  };
+
+  const handleChangeTimeout = (val: number) => {
+    setLockTimeout(val);
+    localStorage.setItem("sccomm_screen_lock_timeout", String(val));
+    showToast("info", `Timeout set to ${val} min.`);
+  };
+
   const handleSavePin = () => {
     if (newPin.length !== 4) {
       showToast("error", "PIN must be exactly 4 digits.");
       return;
     }
     setManagerPin(newPin);
+    localStorage.setItem("sccomm_manager_pin", newPin);
     setPinEditMode(false);
     setNewPin("");
-    showToast("success", "Manager Override PIN updated.");
+    showToast("success", "Manager Override PIN updated & saved.");
   };
 
   return (
@@ -161,7 +184,7 @@ export default function SecurityCenterClient({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setScreenLockActive(!screenLockActive)}
+                  onClick={handleToggleScreenLock}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                     screenLockActive ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-700"
                   }`}
@@ -179,7 +202,7 @@ export default function SecurityCenterClient({
                   <span className="text-xs text-slate-600 dark:text-slate-400">Lock Timeout:</span>
                   <select
                     value={lockTimeout}
-                    onChange={(e) => setLockTimeout(Number(e.target.value))}
+                    onChange={(e) => handleChangeTimeout(Number(e.target.value))}
                     className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none dark:border-white/10 dark:bg-slate-800"
                   >
                     <option value={1}>1 Minute</option>
