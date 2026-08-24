@@ -48,6 +48,8 @@ begin
     v_from := 'bank'; v_to := 'recharge'; v_prefix := 'BTR'; v_cash_dir := null;
   elsif p_settlement_type = 'recharge_to_bank' then
     v_from := 'recharge'; v_to := 'bank'; v_prefix := 'RTB'; v_cash_dir := null;
+  elsif p_settlement_type = 'recharge_to_wallet' then
+    v_from := 'recharge'; v_to := 'wallet'; v_prefix := 'RTW'; v_cash_dir := null;
   elsif p_settlement_type = 'bank_to_credit_card' then
     v_from := 'bank'; v_to := 'credit_card'; v_prefix := 'BTC'; v_cash_dir := null;
   elsif p_settlement_type = 'cash_to_credit_card' then

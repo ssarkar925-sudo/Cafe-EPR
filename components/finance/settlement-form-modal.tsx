@@ -19,6 +19,7 @@ export const SETTLEMENT_TYPES = [
   { value: "cash_adjustment", label: "Cash Adjustment", from: "cash", to: "cash", icon: "cash", grad: "from-rose-500 to-pink-600", desc: "Add or remove cash during a physical count." },
   { value: "bank_to_recharge", label: "Bank → Recharge", from: "bank", to: "recharge", icon: "recharge", grad: "from-cyan-500 to-sky-600", desc: "Load the recharge float from the bank balance." },
   { value: "recharge_to_bank", label: "Recharge → Bank", from: "recharge", to: "bank", icon: "bank", grad: "from-slate-500 to-slate-700", desc: "Move unused recharge float back to the bank." },
+  { value: "recharge_to_wallet", label: "Recharge → Wallet", from: "recharge", to: "wallet", icon: "wallet", grad: "from-teal-500 to-emerald-600", desc: "Move unused recharge float into digital wallet." },
 ] as const;
 
 export type SettlementType = (typeof SETTLEMENT_TYPES)[number]["value"];
