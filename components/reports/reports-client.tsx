@@ -344,6 +344,18 @@ export default function ReportsClient({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/reports/tax-preparation"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
+          >
+            <span>📑 Tax Prep &amp; ITR</span>
+          </Link>
+          <Link
+            href="/reports/gst"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
+          >
+            <span>🏛️ GST Reports</span>
+          </Link>
           <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
             {PERIODS.map((p) => (
               <button

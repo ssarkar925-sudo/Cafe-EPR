@@ -141,6 +141,15 @@ export default function PaymentAccountsPanel({
 
   async function toggleInstrument(row: InstrumentRow) {
     const next = !row.is_active;
+    // DEACTIVATION GUARD: Block deactivation if account holds a non-zero balance!
+    if (!next && Math.abs(Number(row.balance || 0)) > 0.001) {
+      showToast(
+        "error",
+        `Cannot deactivate "${row.name}" because it has an active balance of ${inr(row.balance ?? 0)}. Transfer or settle funds to ₹0.00 first.`
+      );
+      return;
+    }
+
     const { error } = await supabase.from("payment_instruments").update({ is_active: next }).eq("id", row.id);
     if (error) {
       showToast("error", error.message);
@@ -209,7 +218,7 @@ export default function PaymentAccountsPanel({
     }
     details.notes = instForm.notes.trim();
 
-    // Calculated opening balance
+    // Calculated opening balance (even ₹0.00 is a valid explicit seed)
     const openingBal =
       type === "credit_card"
         ? Math.max(0, (Number(instForm.credit_limit) || 0) - (Number(instForm.used_limit) || 0))
@@ -245,6 +254,7 @@ export default function PaymentAccountsPanel({
           type,
           details,
           opening_balance: openingBal,
+          is_active: true,
         })
         .select("*")
         .single();
@@ -256,8 +266,9 @@ export default function PaymentAccountsPanel({
       const row = data as InstrumentRow;
       setInstruments((prev) => [...prev, row]);
       const pool = INST_POOL[type];
-      const typeLabel = INSTRUMENT_TYPES.find((t) => t.value === type)?.label ?? type;
-      if (openingBal > 0 && pool) {
+      
+      // Mandatory atomic opening snapshot recording (record even if openingBal is 0)
+      if (pool) {
         const { error: seedErr } = await supabase.rpc("set_opening_balance", {
           p_pool: pool,
           p_amount: openingBal,
@@ -267,17 +278,14 @@ export default function PaymentAccountsPanel({
         });
         if (seedErr) {
           showToast("error", `${name} added, but its opening balance was not seeded (${seedErr.message}).`);
-        } else {
-          showToast("success", `${name} added. Opening balance seeded into the ${typeLabel} pool.`);
         }
-      } else {
-        showToast("success", `${name} added.`);
       }
+      showToast("success", `Payment account "${name}" created and initialized.`);
       logAudit({
         action: "create",
         entity: "payment_instrument",
         entity_id: row.id,
-        description: `Payment account added: ${name} (${type})${openingBal > 0 && pool ? `, opening balance ${openingBal} seeded to ${pool}` : ""}`,
+        description: `Payment account added: ${name} (${type}), opening balance ${openingBal} seeded to ${pool}`,
       });
       setAddingInst(false);
     }

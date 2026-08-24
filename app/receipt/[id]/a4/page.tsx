@@ -204,18 +204,33 @@ export default async function ReceiptA4Page({
             {invoice.customers?.address && (
               <p className="text-xs text-slate-600 print:text-[11px]">Address: {invoice.customers.address}</p>
             )}
+            {invoice.customer_gstin && (
+              <p className="text-xs font-mono font-bold text-blue-700 print:text-[11px]">GSTIN: {invoice.customer_gstin}</p>
+            )}
             {invoice.customers?.code && (
               <p className="text-[10px] font-mono text-slate-400">Customer ID: {invoice.customers.code}</p>
             )}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 print:p-2.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Invoice &amp; Settlement Details</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Invoice &amp; Supply Details</p>
             <div className="mt-0.5 space-y-0.5 text-xs print:text-[11px] text-slate-700">
               <div className="flex justify-between">
                 <span className="text-slate-500">Invoice Date:</span>
                 <span className="font-semibold text-slate-900">{invoice.invoice_date}</span>
               </div>
+              {invoice.place_of_supply && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Place of Supply:</span>
+                  <span className="font-semibold text-slate-900">{invoice.place_of_supply}</span>
+                </div>
+              )}
+              {invoice.supply_type && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Supply Type:</span>
+                  <span className="font-semibold uppercase text-slate-900">{invoice.supply_type.replace('_', ' ')}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-500">Payment Modes:</span>
                 <span className="font-semibold text-slate-900">

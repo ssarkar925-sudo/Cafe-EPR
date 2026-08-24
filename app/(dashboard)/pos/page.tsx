@@ -21,20 +21,20 @@ export default async function PosPage({
       supabase
         .from("products")
         .select(
-          "id, code, name, sale_price, stock_qty, reorder_level, unit, category_id, categories(name)"
+          "id, code, name, sale_price, stock_qty, reorder_level, unit, category_id, hsn_code, gst_rate, categories(name)"
         )
         .eq("is_active", true)
         .order("name"),
       supabase
         .from("services")
-        .select("id, name, sale_price, category_id, is_quick_favorite, quick_sort, categories(name)")
+        .select("id, name, sale_price, category_id, is_quick_favorite, quick_sort, sac_code, gst_rate, categories(name)")
         .eq("is_active", true)
         .order("is_quick_favorite", { ascending: false })
         .order("quick_sort")
         .order("name"),
       supabase
         .from("customers")
-        .select("id, name, code, phone, balance")
+        .select("id, name, code, phone, balance, gstin, state_code")
         .eq("is_active", true)
         .order("name")
         .limit(300),

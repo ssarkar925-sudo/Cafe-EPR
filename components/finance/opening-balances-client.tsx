@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import StatCard from "@/components/ui/stat-card";
@@ -30,7 +30,6 @@ export type InstrumentRow = {
   name: string;
   type: string;
   is_active: boolean;
-  opening_balance?: number;
 };
 
 export type SeedRow = {
@@ -133,6 +132,34 @@ export default function OpeningBalancesClient({
   const movementsFor = (pool: string) =>
     (balances as any)?.[pool]?.movements ?? 0;
 
+  const [lockedInstruments, setLockedInstruments] = useState<Set<string>>(new Set());
+
+  const fetchLockedInstruments = useCallback(async () => {
+    const supabase = createClient();
+    const today = new Date().toISOString().slice(0, 10);
+    const [{ data: ces }, { data: txs }] = await Promise.all([
+      supabase.from("cash_entries").select("instrument_id").eq("entry_date", today).not("instrument_id", "is", null),
+      supabase.from("transactions").select("instrument_id, pay_from_instrument_id").eq("transaction_date", today),
+    ]);
+    const locked = new Set<string>();
+    if (ces) {
+      for (const r of ces) {
+        if (r.instrument_id) locked.add(r.instrument_id);
+      }
+    }
+    if (txs) {
+      for (const r of txs) {
+        if (r.instrument_id) locked.add(r.instrument_id);
+        if (r.pay_from_instrument_id) locked.add(r.pay_from_instrument_id);
+      }
+    }
+    setLockedInstruments(locked);
+  }, []);
+
+  useEffect(() => {
+    fetchLockedInstruments();
+  }, [fetchLockedInstruments]);
+
   async function refresh() {
     const supabase = createClient();
     const [b, s] = await Promise.all([
@@ -145,6 +172,7 @@ export default function OpeningBalancesClient({
     ]);
     if (b.data) setBalances(b.data as PoolBalances);
     if (s.data) setSeeds(s.data as SeedRow[]);
+    await fetchLockedInstruments();
   }
 
   async function saveSeed(pool: string, instrumentId: string | null, label: string) {
@@ -276,37 +304,6 @@ export default function OpeningBalancesClient({
               >
                 {busyKey === p.key ? "Saving..." : seed ? "Update Opening" : "Set Opening"}
               </button>
-              {/* Individual Account Breakdown */}
-              {(() => {
-                const matching = initialInstruments.filter((i) => INST_POOL[i.type] === p.key && i.is_active);
-                if (matching.length === 0) return null;
-                return (
-                  <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-white/5 dark:bg-white/5">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                        Accounts ({matching.length}):
-                      </span>
-                    </div>
-                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                      {matching.map((inst) => {
-                        const instSeed = instrumentSeeds.get(inst.id);
-                        const amt = Number(instSeed?.amount ?? inst.opening_balance ?? 0);
-                        return (
-                          <div key={inst.id} className="flex items-center justify-between text-xs">
-                            <span className="truncate text-slate-700 dark:text-slate-300 pr-2">
-                              {inst.type === "wallet" ? "👛 " : inst.type === "credit_card" ? "💳 " : "🏦 "}
-                              {inst.name}
-                            </span>
-                            <span className="font-mono font-semibold text-slate-900 dark:text-white shrink-0">
-                              {inr(amt)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
           );
         })}
@@ -325,6 +322,7 @@ export default function OpeningBalancesClient({
               const pool = INST_POOL[inst.type];
               if (!pool) return null;
               const seed = instrumentSeeds.get(inst.id);
+              const isLocked = lockedInstruments.has(inst.id);
               return (
                 <div key={inst.id} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
                   <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${inst.is_active ? "bg-emerald-500" : "bg-slate-300"}`} />
@@ -334,6 +332,11 @@ export default function OpeningBalancesClient({
                       {TYPE_LABEL[inst.type] ?? inst.type} · {POOL_LABEL[pool] ?? pool}
                       {seed ? ` · seeded ${inr(seed.amount)}` : " · not seeded"}
                     </p>
+                    {isLocked && (
+                      <p className="mt-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                        🔒 Locked: Account has movements today
+                      </p>
+                    )}
                   </div>
                   <div className="flex w-28 items-center gap-1.5">
                     <input
@@ -341,14 +344,15 @@ export default function OpeningBalancesClient({
                       min="0"
                       step="0.01"
                       placeholder="Amt"
+                      disabled={isLocked}
                       value={drafts[`inst-${inst.id}`] ?? ""}
                       onChange={(e) => setDrafts((d) => ({ ...d, [`inst-${inst.id}`]: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                      className={`w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-white/5 dark:disabled:text-slate-500`}
                     />
                     <button
                       onClick={() => saveSeed(pool, inst.id, inst.name)}
-                      disabled={busyKey === `inst-${inst.id}`}
-                      className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900"
+                      disabled={isLocked || busyKey === `inst-${inst.id}`}
+                      className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-40 dark:bg-white dark:text-slate-900"
                     >
                       {busyKey === `inst-${inst.id}` ? "..." : "Save"}
                     </button>

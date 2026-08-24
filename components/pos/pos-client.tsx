@@ -15,6 +15,7 @@ import Modal from "@/components/ui/modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
 import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
+import { calculateGstInvoice } from "@/lib/gst";
 import {
   PosCategorySidebar,
   PosCategoryChips,
@@ -36,6 +37,8 @@ export type PosProduct = {
   reorder_level: number | string;
   unit: string;
   category_id: string | null;
+  hsn_code?: string | null;
+  gst_rate?: number | string | null;
   categories: { name: string } | null;
 };
 
@@ -46,6 +49,8 @@ export type PosService = {
   category_id: string | null;
   is_quick_favorite?: boolean;
   quick_sort?: number | null;
+  sac_code?: string | null;
+  gst_rate?: number | string | null;
   categories: { name: string } | null;
 };
 
@@ -55,6 +60,8 @@ export type PosCustomer = {
   code: string | null;
   phone: string | null;
   balance: number | string;
+  gstin?: string | null;
+  state_code?: string | null;
 };
 
 export type PosInstrument = {
@@ -92,6 +99,9 @@ export type CartLine = {
   rate: number;
   amount: number;
   cost?: number;
+  hsn_sac?: string | null;
+  gst_rate?: number;
+  tax_treatment?: string;
 };
 
 type SaleResult = {
@@ -508,6 +518,11 @@ export default function PosClient({
         setError(`${name} is out of stock`);
         return;
       }
+      const prod = isProduct ? productState.find((p) => p.id === id) : null;
+      const serv = !isProduct ? serviceState.find((s) => s.id === id) : null;
+      const gstRate = Number(prod?.gst_rate ?? serv?.gst_rate ?? 0);
+      const hsnSac = prod?.hsn_code ?? serv?.sac_code ?? null;
+
       setCart((prev) => [
         ...prev,
         {
@@ -518,6 +533,9 @@ export default function PosClient({
           qty: 1,
           rate,
           amount: rate,
+          gst_rate: gstRate,
+          hsn_sac: hsnSac,
+          tax_treatment: gstRate > 0 ? "taxable" : "non_gst",
         },
       ]);
     }
@@ -832,14 +850,38 @@ export default function PosClient({
     }
 
     setBusy(true);
-    const items = cart.map((l) => ({
-      product_id: l.product_id,
-      service_id: l.service_id,
-      description: l.name,
+    const gstCalc = calculateGstInvoice({
+      lines: cart.map((l) => ({
+        qty: l.qty,
+        rate: l.rate,
+        gstRate: l.gst_rate ?? 0,
+        hsnSac: l.hsn_sac ?? null,
+        taxTreatment: (l.tax_treatment as any) || ((l.gst_rate ?? 0) > 0 ? "taxable" : "non_gst"),
+      })),
+      invoiceLumpSumDiscount: discountNum,
+      supplierStateCode: "19",
+      customerStateCode: selectedCustomer?.state_code || null,
+      customerGstin: selectedCustomer?.gstin || null,
+    });
+
+    const items = gstCalc.lines.map((l, idx) => ({
+      product_id: cart[idx].product_id,
+      service_id: cart[idx].service_id,
+      description: cart[idx].name,
       qty: l.qty,
       rate: l.rate,
-      amount: l.amount,
-      cost_price: l.product_id || l.service_id ? 0 : l.cost ?? 0,
+      amount: l.lineTotal,
+      cost_price: cart[idx].product_id || cart[idx].service_id ? 0 : cart[idx].cost ?? 0,
+      hsn_sac: l.hsnSac,
+      taxable_value: l.taxableValue,
+      gst_rate: l.gstRate,
+      cgst_rate: l.cgstRate,
+      cgst_amount: l.cgstAmount,
+      sgst_rate: l.sgstRate,
+      sgst_amount: l.sgstAmount,
+      igst_rate: l.igstRate,
+      igst_amount: l.igstAmount,
+      tax_treatment: l.taxTreatment,
     }));
     const today = new Date().toISOString().slice(0, 10);
 
@@ -873,6 +915,15 @@ export default function PosClient({
         p_previous_due_method: duePick.method,
         p_previous_due_instrument_id: duePick.instrument_id || null,
         p_advance_used: Number(advanceUsed.toFixed(2)),
+        p_place_of_supply: gstCalc.placeOfSupply,
+        p_supply_type: gstCalc.supplyType,
+        p_customer_gstin: gstCalc.customerGstin,
+        p_b2b_or_b2c: gstCalc.b2bCategory,
+        p_total_taxable_value: gstCalc.totalTaxableValue,
+        p_total_cgst: gstCalc.totalCgst,
+        p_total_sgst: gstCalc.totalSgst,
+        p_total_igst: gstCalc.totalIgst,
+        p_is_reverse_charge: false,
       });
       data = res.data;
       error = res.error as { message: string } | null;
