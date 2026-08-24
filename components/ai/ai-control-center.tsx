@@ -22,7 +22,6 @@ type TabKey =
   | "overview"
   | "diagnostic"
   | "accountant"
-  | "reconciliation"
   | "inventory_profit"
   | "customer_risk"
   | "periodic_closings"
@@ -55,12 +54,14 @@ export default function AIControlCenter({
 }) {
   const { showToast, toastView } = useToast();
   const searchParams = useSearchParams();
-  const requestedTab = searchParams.get("tab") as TabKey | null;
-  const [activeTab, setActiveTab] = useState<TabKey>(
-    requestedTab && ["overview", "diagnostic", "accountant", "reconciliation", "inventory_profit", "customer_risk", "periodic_closings", "vault_compliance"].includes(requestedTab)
-      ? requestedTab
-      : "overview"
-  );
+  const requestedTab = searchParams.get("tab") as string | null;
+  const normalizedTab: TabKey =
+    requestedTab === "reconciliation" || requestedTab === "accountant"
+      ? "accountant"
+      : requestedTab && ["overview", "diagnostic", "accountant", "inventory_profit", "customer_risk", "periodic_closings", "vault_compliance"].includes(requestedTab)
+      ? (requestedTab as TabKey)
+      : "overview";
+  const [activeTab, setActiveTab] = useState<TabKey>(normalizedTab);
   const [runningScan, setRunningScan] = useState(false);
   const [diagnosticData, setDiagnosticData] = useState<DiagnosticReport>(() =>
     runSystemDiagnostic({
@@ -353,8 +354,7 @@ export default function AIControlCenter({
         {[
           { key: "overview", label: "📊 Overview & Daily Briefing" },
           { key: "diagnostic", label: "🛡️ System Diagnostics" },
-          { key: "accountant", label: "📑 AI Accountant (BETA)" },
-          { key: "reconciliation", label: "💵 Business Advisor (BETA)" },
+          { key: "accountant", label: "📑 AI Accountant & Business Advisor" },
           { key: "inventory_profit", label: "📦 Inventory Auditing" },
           { key: "customer_risk", label: "🚨 Customer Intelligence" },
           { key: "periodic_closings", label: "📈 Periodic Closings" },
@@ -496,9 +496,9 @@ export default function AIControlCenter({
       )}
 
       {/* ==============================================================================
-          TAB 3 & 4: AI ACCOUNTANT & BUSINESS PROFIT ADVISOR
+          TAB 3: AI ACCOUNTANT & BUSINESS PROFIT ADVISOR
       ============================================================================== */}
-      {(activeTab === "accountant" || activeTab === "reconciliation") && (
+      {activeTab === "accountant" && (
         <AccountantAdvisorPanel initialContext={resolvedContext} />
       )}
 

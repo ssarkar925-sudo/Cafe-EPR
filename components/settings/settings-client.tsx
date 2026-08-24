@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
@@ -63,6 +64,7 @@ export default function SettingsClient({
 }) {
   useRealtime(["payment_instruments", "cash_entries", "opening_balances", "transactions", "expenses", "settlements"]);
   const supabase = createClient();
+  const router = useRouter();
   const { showToast, toastView } = useToast();
 
   const [tab, setTab] = useState<string>(
@@ -78,6 +80,14 @@ export default function SettingsClient({
       : "products"
   );
 
+  const initialUpiId = (() => {
+    try {
+      return (initial as any)?.upi_id || (typeof window !== "undefined" ? localStorage.getItem("sccomm-shop-upi-id") : null) || "";
+    } catch {
+      return (initial as any)?.upi_id || "";
+    }
+  })();
+
   const [shopName, setShopName] = useState(initial?.shop_name ?? "Cafe ERP");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
@@ -88,27 +98,34 @@ export default function SettingsClient({
   const [taxRate, setTaxRate] = useState(
     initial && initial.tax_rate != null ? String(Number(initial.tax_rate)) : "0"
   );
-  const [upiId, setUpiId] = useState(() => {
-    try {
-      return (initial as any)?.upi_id ?? localStorage.getItem("sccomm-shop-upi-id") ?? "";
-    } catch {
-      return (initial as any)?.upi_id ?? "";
-    }
-  });
+  const [upiId, setUpiId] = useState(initialUpiId);
   const [saving, setSaving] = useState(false);
+
+  // Maintain saved snapshot to accurately clear dirty state on save
+  const [savedValues, setSavedValues] = useState(() => ({
+    shopName: (initial?.shop_name ?? "Cafe ERP").trim(),
+    phone: (initial?.phone ?? "").trim(),
+    address: (initial?.address ?? "").trim(),
+    footer: (initial?.receipt_footer ?? "").trim(),
+    currency: (initial?.currency_symbol ?? "₹").trim(),
+    logoUrl: initial?.logo_url ?? null,
+    gstin: (initial?.gstin ?? "").trim(),
+    taxRate: initial && initial.tax_rate != null ? String(Number(initial.tax_rate)) : "0",
+    upiId: initialUpiId.trim(),
+  }));
 
   const dirty = useMemo(
     () =>
-      shopName !== (initial?.shop_name ?? "Cafe ERP") ||
-      phone !== (initial?.phone ?? "") ||
-      address !== (initial?.address ?? "") ||
-      footer !== (initial?.receipt_footer ?? "") ||
-      currency !== (initial?.currency_symbol ?? "₹") ||
-      logoUrl !== (initial?.logo_url ?? null) ||
-      gstin !== (initial?.gstin ?? "") ||
-      taxRate !== (initial?.tax_rate != null ? String(Number(initial.tax_rate)) : "0") ||
-      upiId !== ((initial as any)?.upi_id ?? ""),
-    [initial, shopName, phone, address, footer, currency, logoUrl, gstin, taxRate, upiId]
+      shopName.trim() !== savedValues.shopName ||
+      phone.trim() !== savedValues.phone ||
+      address.trim() !== savedValues.address ||
+      footer.trim() !== savedValues.footer ||
+      currency.trim() !== savedValues.currency ||
+      logoUrl !== savedValues.logoUrl ||
+      gstin.trim() !== savedValues.gstin ||
+      taxRate.trim() !== savedValues.taxRate ||
+      upiId.trim() !== savedValues.upiId,
+    [savedValues, shopName, phone, address, footer, currency, logoUrl, gstin, taxRate, upiId]
   );
 
   const isFormTab = tab === "general" || tab === "receipt" || tab === "tax";
@@ -183,8 +200,23 @@ export default function SettingsClient({
       showToast("error", error.message);
       return;
     }
+
+    // Update saved snapshot to clear dirty state immediately
+    setSavedValues({
+      shopName: (shopName.trim() || "Cafe ERP").trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      footer: footer.trim(),
+      currency: currency.trim(),
+      logoUrl,
+      gstin: gstin.trim(),
+      taxRate: String(Number(taxRate) || 0),
+      upiId: upiId.trim(),
+    });
+
     showToast("success", "Settings saved successfully.");
     logAudit({ action: "settings", entity: "settings", entity_id: "1", description: "Shop settings updated" });
+    router.refresh();
   }
 
   return (
