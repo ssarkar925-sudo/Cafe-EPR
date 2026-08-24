@@ -506,17 +506,19 @@ export default function Sidebar({
 
   return (
     <>
-      <div className="hidden lg:block lg:h-screen lg:sticky lg:top-0">
+      {/* Desktop fixed sidebar */}
+      <div className="fixed inset-y-0 left-0 z-30 hidden lg:block">
         {sidebar}
       </div>
 
+      {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-40 lg:hidden">
           <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
             onClick={onMobileClose}
           />
-          <div className="relative z-10 flex w-72 flex-col">
+          <div className="fixed inset-y-0 left-0 z-50 w-72 shadow-2xl flex flex-col">
             {sidebar}
           </div>
         </div>
