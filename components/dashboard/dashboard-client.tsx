@@ -297,7 +297,7 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
             <span className="text-xs font-normal text-slate-400">/ 100</span>
           </div>
           <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-            <span className="text-emerald-600 dark:text-emerald-400 font-bold">{data.auditData.passCount}/14 PASS</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">{data.auditData.passCount}/{data.auditData.totalChecks || 14} PASS</span>
             <span className="group-hover:translate-x-0.5 transition">Audit →</span>
           </div>
         </Link>
@@ -733,9 +733,15 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
                 <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
                   data.dayCloseStatus.status === "closed"
                     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    : data.dayCloseStatus.status === "ready_to_close"
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                 }`}>
-                  {data.dayCloseStatus.status === "closed" ? "✅ Closed & Sealed" : "🟡 Open / Pending Closure"}
+                  {data.dayCloseStatus.status === "closed"
+                    ? `✅ Today Closed & Sealed (${data.dayCloseStatus.closingNumber})`
+                    : data.dayCloseStatus.status === "ready_to_close"
+                    ? `🟡 Draft In Progress (${data.dayCloseStatus.closingNumber})`
+                    : `🟢 Day Open (Seeded from ${data.dayCloseStatus.lastClosedNumber || "CLS-0008"})`}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -748,7 +754,11 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
             href="/finance/day-close"
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700"
           >
-            {data.dayCloseStatus.status === "closed" ? "View Day Close Record →" : "Perform Evening Day Close →"}
+            {data.dayCloseStatus.status === "closed"
+              ? "View Day Close Record →"
+              : data.dayCloseStatus.status === "ready_to_close"
+              ? "Resume Day Close →"
+              : "Open Day Close Workspace →"}
           </Link>
         </div>
       </div>

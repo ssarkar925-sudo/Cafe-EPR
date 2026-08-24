@@ -30,7 +30,7 @@ export default async function DashboardPage() {
     poolBalancesRes,
     taxReportRes,
     latestAuditRes,
-    dayClosesRes,
+    closingsRes,
     customersRes,
     productsRes,
     invoicesRes,
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
     supabase.rpc("get_pool_balances"),
     supabase.rpc("get_tax_preparation_report", { p_start_date: fyStart, p_end_date: fyEnd }),
     supabase.from("audit_runs").select("*, audit_findings(*)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("day_closes").select("*").order("close_date", { ascending: false }).limit(15),
+    supabase.from("closings").select("*, closing_balances(*)").order("close_date", { ascending: false }).limit(15),
     supabase.from("customers").select("id, name, balance, phone").gt("balance", 0).order("balance", { ascending: false }).limit(20),
     supabase.from("products").select("id, name, stock_qty, reorder_level, cost_price, sale_price").eq("is_active", true),
     supabase.from("invoices").select("id, invoice_number, invoice_date, total, paid, due, status, created_at").gte("invoice_date", thirtyDaysAgo).order("invoice_date", { ascending: false }).limit(300),
@@ -203,31 +203,52 @@ export default async function DashboardPage() {
     }
   }
 
-  // Financial Self-Audit Data
+  // Financial Self-Audit Data (Canonical consumption from latest audit run)
   const latestAudit = latestAuditRes.data || null;
-  const auditScore = latestAudit?.audit_score ?? 100;
-  const auditStatus = (latestAudit?.overall_status || "PASS") as "PASS" | "WARNING" | "FAIL" | "CRITICAL";
+  const auditScore = Number(latestAudit?.overall_score ?? latestAudit?.audit_score ?? 100);
   const findings = latestAudit?.audit_findings || [];
-  const passCount = 14 - findings.length;
-  const warnCount = findings.filter((f: any) => f.severity === "warning").length;
-  const failCount = findings.filter((f: any) => f.severity === "high").length;
-  const criticalCount = findings.filter((f: any) => f.severity === "critical").length;
+  const totalChecks = Number(latestAudit?.total_checks ?? (findings.length > 0 ? findings.length : 14));
+  const passCount = Number(latestAudit?.passed_count ?? findings.filter((f: any) => f.status === "PASS").length);
+  const warnCount = Number(latestAudit?.warning_count ?? findings.filter((f: any) => f.status === "WARNING" || f.severity === "warning").length);
+  const failCount = Number(latestAudit?.failed_count ?? findings.filter((f: any) => f.status === "FAIL" || f.severity === "high").length);
+  const criticalCount = Number(latestAudit?.critical_count ?? findings.filter((f: any) => f.status === "CRITICAL" || f.severity === "critical").length);
+  const auditStatus = (criticalCount > 0 ? "CRITICAL" : failCount > 0 ? "FAIL" : warnCount > 0 ? "WARNING" : "PASS") as "PASS" | "WARNING" | "FAIL" | "CRITICAL";
 
-  // Day Close Status
-  const dayCloses = dayClosesRes.data || [];
-  const todayDayClose = dayCloses.find((dc: any) => dc.close_date === isoToday);
-  const lastDayClose = dayCloses[0];
+  // Day Close Status (Canonical consumption from closings table)
+  const closings = (closingsRes.data as any[]) || [];
+  const activeOpenClose = closings.find((c) => c.status === "open");
+  const todayClosed = closings.find((c) => c.close_date === isoToday && c.status === "closed");
+  const lastClosed = closings.find((c) => c.status === "closed");
 
   let closeStatus: "open" | "ready_to_close" | "closed" = "open";
   let expectedCash = poolsData.cash?.current || 0;
   let physicalCash = expectedCash;
   let cashDifference = 0;
+  let closingNumber: string | undefined = undefined;
+  const lastClosedNumber = lastClosed?.closing_number;
+  const lastClosedDate = lastClosed?.close_date;
 
-  if (todayDayClose) {
-    closeStatus = todayDayClose.status === "closed" ? "closed" : "ready_to_close";
-    physicalCash = Number(todayDayClose.closing_cash || expectedCash);
-    expectedCash = Number(todayDayClose.expected_cash || expectedCash);
-    cashDifference = Number(todayDayClose.cash_variance || 0);
+  if (todayClosed) {
+    closeStatus = "closed";
+    closingNumber = todayClosed.closing_number;
+    const cashBal = todayClosed.closing_balances?.find((b: any) => b.pool === "cash");
+    if (cashBal) {
+      physicalCash = Number(cashBal.final || 0);
+      expectedCash = Number(cashBal.computed || 0);
+      cashDifference = Number(cashBal.adjustment || 0);
+    }
+  } else if (activeOpenClose) {
+    closeStatus = "ready_to_close";
+    closingNumber = activeOpenClose.closing_number;
+    const cashBal = activeOpenClose.closing_balances?.find((b: any) => b.pool === "cash");
+    if (cashBal) {
+      physicalCash = Number(cashBal.final || 0);
+      expectedCash = Number(cashBal.computed || 0);
+      cashDifference = Number(cashBal.adjustment || 0);
+    }
+  } else {
+    // New business day open (seeded from previous close)
+    closeStatus = "open";
   }
 
   // Deterministic Owner Alerts ("Needs Your Attention")
@@ -245,7 +266,7 @@ export default async function DashboardPage() {
     });
   }
 
-  if (Math.abs(cashDifference) > 0.01) {
+  if (activeOpenClose && Math.abs(cashDifference) > 0.01) {
     alerts.push({
       id: "alert-cash-diff",
       severity: "critical",
@@ -255,12 +276,13 @@ export default async function DashboardPage() {
       actionLabel: "Reconcile Cash",
       actionHref: "/finance/day-close",
     });
-  } else if (!todayDayClose && todayOperatingRevenue > 0) {
+  } else if (lastClosed && lastClosed.close_date < yesterday && !todayClosed) {
+    // Only alert if an older past day was left completely unclosed
     alerts.push({
       id: "alert-day-close",
       severity: "high",
-      title: "Today's Day Close Pending",
-      reason: "Complete evening drawer snapshot to seal today's authoritative seed for tomorrow.",
+      title: `Past Day Close (${lastClosed.close_date}) Pending`,
+      reason: "Previous business day was not closed. Please complete closing to seal starting balances.",
       sourceModule: "Day Close",
       actionLabel: "Perform Day Close",
       actionHref: "/finance/day-close",
@@ -488,19 +510,21 @@ export default async function DashboardPage() {
       score: auditScore,
       status: auditStatus,
       lastAuditTime: latestAudit?.created_at ? new Date(latestAudit.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Live Reconciled",
+      totalChecks,
       passCount,
       warnCount,
       failCount,
       criticalCount,
-      topFinding: findings[0]?.title,
+      topFinding: findings.find((f: any) => f.status !== "PASS")?.description || findings[0]?.description,
     },
     dayCloseStatus: {
       status: closeStatus,
       expectedCash,
       physicalCash,
       difference: cashDifference,
-      closingNumber: todayDayClose?.closing_number,
-      lastClosedDate: lastDayClose?.close_date,
+      closingNumber,
+      lastClosedNumber,
+      lastClosedDate,
     },
     alerts,
     morningBrief: {
