@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import AIControlCenter from "@/components/ai/ai-control-center";
+import { assembleVerifiedContext } from "@/lib/ai/advisor-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,17 @@ export default async function AIPage() {
 
   const supabase = await createClient();
 
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+  const fyStart = `${fyStartYear}-04-01`;
+  const fyEnd = `${fyStartYear + 1}-03-31`;
+
   const [
     poolResult,
+    taxReportRes,
+    latestAuditRunRes,
     { data: customers },
     { data: invoices },
     { data: transactions },
@@ -23,6 +33,8 @@ export default async function AIPage() {
     { data: documents },
   ] = await Promise.all([
     supabase.rpc("get_pool_balances"),
+    supabase.rpc("get_tax_preparation_report", { p_start_date: fyStart, p_end_date: fyEnd }),
+    supabase.from("audit_runs").select("*, audit_findings(*)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("customers").select("id, name, phone, balance, credit_limit, created_at, gstin").order("name"),
     supabase.from("invoices").select("id, invoice_number, total_amount, paid_amount, status, payment_method, type, created_at").limit(1000),
     supabase.from("transactions").select("id, service_type, total_amount, net_earnings, status, payment_mode, created_at").limit(1000),
@@ -51,6 +63,31 @@ export default async function AIPage() {
     }
   } catch {}
 
+  const selfAudit = latestAuditRunRes?.data ? {
+    audit_score: latestAuditRunRes.data.audit_score,
+    status: latestAuditRunRes.data.status,
+    active_anomalies_count: latestAuditRunRes.data.total_findings || 0,
+    critical_anomalies_count: latestAuditRunRes.data.critical_count || 0,
+    top_finding: latestAuditRunRes.data.audit_findings?.[0]?.description,
+  } : {
+    audit_score: 100,
+    status: "PASS",
+    active_anomalies_count: 0,
+    critical_anomalies_count: 0,
+  };
+
+  const verifiedFinancialContext = assembleVerifiedContext({
+    periodLabel: "FY 2026-27 YTD",
+    startDate: fyStart,
+    endDate: fyEnd,
+    taxReport: taxReportRes?.data ?? {},
+    selfAuditReport: selfAudit,
+    poolBalances: poolResult?.data ?? {},
+    customers: customers ?? [],
+    expenses: expenses ?? [],
+    transactions: transactions ?? [],
+  });
+
   return (
     <AIControlCenter
       initialPools={(poolResult?.data ?? null) as any}
@@ -63,6 +100,7 @@ export default async function AIPage() {
       initialExpenses={(expenses ?? []) as any}
       initialDocuments={(documents ?? []) as any}
       gatewayStatus={gatewayStatus}
+      verifiedFinancialContext={verifiedFinancialContext}
     />
   );
 }

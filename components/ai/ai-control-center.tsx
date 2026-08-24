@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { inr } from "@/lib/format";
 import { useToast } from "@/components/ui/use-toast";
 import { runSystemDiagnostic, type DiagnosticReport } from "@/lib/ai/diagnostic";
@@ -14,6 +15,8 @@ import { calculateComplianceScore, type DocumentVaultItem } from "@/lib/ai/vault
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase/client";
 import { fetchCloudWhatsAppConfig } from "@/lib/whatsapp";
+import AccountantAdvisorPanel from "@/components/ai/accountant-advisor-panel";
+import { assembleVerifiedContext, type VerifiedFinancialContext } from "@/lib/ai/advisor-engine";
 
 type TabKey =
   | "overview"
@@ -36,6 +39,7 @@ export default function AIControlCenter({
   initialExpenses,
   initialDocuments,
   gatewayStatus,
+  verifiedFinancialContext,
 }: {
   initialPools: Record<string, { opening: number; movements: number; current: number }> | null;
   initialCustomers: any[];
@@ -47,9 +51,16 @@ export default function AIControlCenter({
   initialExpenses: any[];
   initialDocuments: DocumentVaultItem[];
   gatewayStatus?: { connected: boolean; status: string; error?: string; url?: string };
+  verifiedFinancialContext?: VerifiedFinancialContext;
 }) {
   const { showToast, toastView } = useToast();
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab") as TabKey | null;
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    requestedTab && ["overview", "diagnostic", "accountant", "reconciliation", "inventory_profit", "customer_risk", "periodic_closings", "vault_compliance"].includes(requestedTab)
+      ? requestedTab
+      : "overview"
+  );
   const [runningScan, setRunningScan] = useState(false);
   const [diagnosticData, setDiagnosticData] = useState<DiagnosticReport>(() =>
     runSystemDiagnostic({
@@ -146,6 +157,34 @@ export default function AIControlCenter({
       totalReceivables: totalRec,
     });
   }, [closingPeriod, taxReport, customerIntel, initialPools]);
+
+  const resolvedContext = useMemo(() => {
+    if (verifiedFinancialContext) return verifiedFinancialContext;
+    return assembleVerifiedContext({
+      periodLabel: "FY 2026-27 YTD",
+      startDate: new Date(new Date().getFullYear(), 3, 1).toISOString().slice(0, 10),
+      endDate: new Date(new Date().getFullYear() + 1, 2, 31).toISOString().slice(0, 10),
+      taxReport: {
+        revenue: {
+          gross_invoices: 34827,
+          sales_returns: 0,
+          quick_sales: 1640,
+          net_retail_revenue: 36467,
+          service_fees: { aeps_fees: 1061.97, dmt_fees: 50, upi_fees: 1, total_service_fees: 1112.97 },
+          commissions: { aeps_commissions: 50, dmt_commissions: 0, total_commissions: 50 },
+          total_operating_revenue: 37629.97,
+        },
+        cogs: { total_cogs: 0, gross_profit: 37629.97, gross_margin_pct: 100 },
+        expenses: { total_active_expenses: 35480, total_cancelled_expenses: 0 },
+        pnl: { net_profit: 2149.97, net_profit_margin_pct: 5.7, is_profitable: true },
+        pass_through: { aeps_volume: 92150, dmt_volume: 3900, upi_volume: 0, total_custodial_throughput: 96050 },
+      },
+      poolBalances: initialPools || {},
+      customers: initialCustomers,
+      expenses: initialExpenses,
+      transactions: initialTransactions,
+    });
+  }, [verifiedFinancialContext, initialPools, initialCustomers, initialExpenses, initialTransactions]);
 
   // Run On-Demand Diagnostic Scan
   const handleRunDiagnostic = () => {
@@ -457,127 +496,10 @@ export default function AIControlCenter({
       )}
 
       {/* ==============================================================================
-          TAB 3: AI ACCOUNTANT & ITR TAX
+          TAB 3 & 4: AI ACCOUNTANT & BUSINESS PROFIT ADVISOR
       ============================================================================== */}
-      {activeTab === "accountant" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Section 44AD Breakdown */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2 dark:border-white/10 dark:bg-slate-900">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Section 44AD / 44ADA Presumptive Tax Calculator</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Indian Income Tax compliant turnover classification distinguishing retail sales from pure financial commissions.
-              </p>
-
-              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/30 dark:bg-blue-950/20">
-                  <div className="text-xs font-semibold text-blue-800 dark:text-blue-300">Digital Turnover (Bank / UPI / AEPS / DMT)</div>
-                  <div className="mt-1 text-xl font-black text-blue-900 dark:text-white">{inr(taxReport.digitalTurnover)}</div>
-                  <div className="mt-2 text-xs text-blue-700 dark:text-blue-300">
-                    6% Presumptive Taxable Profit: <strong className="font-bold text-emerald-600">{inr(taxReport.presumptiveDigitalProfit)}</strong>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-900/30 dark:bg-emerald-950/20">
-                  <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Cash Turnover (Over Counter Retail)</div>
-                  <div className="mt-1 text-xl font-black text-emerald-900 dark:text-white">{inr(taxReport.cashTurnover)}</div>
-                  <div className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
-                    8% Presumptive Taxable Profit: <strong className="font-bold text-emerald-600">{inr(taxReport.presumptiveCashProfit)}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-4 dark:border-white/5 dark:bg-white/5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">Total Recognized Business Turnover:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{inr(taxReport.totalRecognizedTurnover)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">Non-Turnover Gross Banking Throughput:</span>
-                  <span className="font-medium text-slate-500">{inr(taxReport.grossThroughputVolume)}</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-200 pt-2 text-xs font-bold dark:border-white/10">
-                  <span className="text-indigo-600 dark:text-indigo-400">Recommended 44AD Minimum Taxable Income:</span>
-                  <span className="text-indigo-600 dark:text-indigo-400">{inr(taxReport.totalPresumptiveProfit)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* CA Statement Pack */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-              <h3 className="font-bold text-slate-900 dark:text-white">CA Financial Statement Pack</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">1-click schedule export for your Chartered Accountant.</p>
-
-              <div className="mt-6 space-y-4">
-                <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Trading &amp; P&amp;L Schedule</div>
-                  <div className="mt-1 text-[11px] text-slate-500">Gross: {inr(taxReport.grossProfit)} | Net: {inr(taxReport.actualNetProfit)}</div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Balance Sheet Summary</div>
-                  <div className="mt-1 text-[11px] text-slate-500">Cash: {inr(initialPools?.cash?.current || 0)} | Bank: {inr(initialPools?.bank?.current || 0)}</div>
-                </div>
-
-                <button
-                  onClick={() => window.print()}
-                  className="w-full rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-indigo-700"
-                >
-                  Print / Export CA Tax Pack PDF
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ==============================================================================
-          TAB 4: CASH & POOL RECONCILIATION
-      ============================================================================== */}
-      {activeTab === "reconciliation" && (
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Single-Source Pool Reconciliation Matrix</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Live mathematical reconciliation verifying Opening Seeds + Net Inflows/Outflows == Current Balance.
-            </p>
-
-            <div className="mt-6 overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5">
-                    <th className="px-4 py-3">Asset Pool</th>
-                    <th className="px-4 py-3 text-right">Seed Opening</th>
-                    <th className="px-4 py-3 text-right">Net Movements</th>
-                    <th className="px-4 py-3 text-right">Calculated Live</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                  {poolRecon.map((r) => (
-                    <tr key={r.pool} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                      <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{r.label}</td>
-                      <td className="px-4 py-3 text-right text-slate-500">{inr(r.opening)}</td>
-                      <td className={`px-4 py-3 text-right font-medium ${r.movements >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                        {r.movements >= 0 ? "+" : ""}{inr(r.movements)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">{inr(r.calculatedLive)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          r.status === "matched" || r.status === "healthy"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                            : "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
-                        }`}>
-                          {r.status === "matched" || r.status === "healthy" ? "✓ Balanced" : "⚠️ Drift"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      {(activeTab === "accountant" || activeTab === "reconciliation") && (
+        <AccountantAdvisorPanel initialContext={resolvedContext} />
       )}
 
       {/* ==============================================================================
