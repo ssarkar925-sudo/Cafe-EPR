@@ -23,16 +23,58 @@ function hasAuthCookie(request: NextRequest): boolean {
     .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
 }
 
+// In-memory rate limiter tracker
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_LOGIN_ATTEMPTS = 15; // Max 15 attempts per min per IP
+const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipRequestCounts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    return false; // Rate limit exceeded
+  }
+  entry.count++;
+  return true;
+}
+
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set("X-Frame-Options", "SAMEORIGIN");
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  res.headers.set("X-DNS-Prefetch-Control", "on");
+  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  return res;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
+
+  // Rate-limit sensitive API & Login routes
+  if (pathname === "/login" || pathname.startsWith("/api/staff") || pathname.startsWith("/api/whatsapp")) {
+    if (!checkRateLimit(clientIp)) {
+      return applySecurityHeaders(
+        new NextResponse("Rate limit exceeded. Please wait 1 minute before trying again.", {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        })
+      );
+    }
+  }
 
   // Missing Supabase env vars fallback
   if (!SUPABASE_URL || !SUPABASE_ANON) {
-    if (isPublic(pathname)) return NextResponse.next();
+    if (isPublic(pathname)) return applySecurityHeaders(NextResponse.next());
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   // Fast-path 1: Public APIs, customer receipts, and confirmation routes don't need auth checks
@@ -43,14 +85,14 @@ export async function middleware(request: NextRequest) {
     pathname === "/auth/confirm-reset" ||
     pathname === "/logout"
   ) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   const hasCookie = hasAuthCookie(request);
 
   // Fast-path 2: Visiting login page with NO auth cookie -> render immediately (0ms latency)
   if (pathname === "/login" && !hasCookie) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   // Fast-path 3: Visiting protected page with NO auth cookie -> redirect to login immediately without network call
@@ -58,11 +100,11 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   // Active session exists: create Supabase client for validation/refresh
-  let response = NextResponse.next({ request });
+  let response = applySecurityHeaders(NextResponse.next({ request }));
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
     cookies: {
