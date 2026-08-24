@@ -13,7 +13,6 @@
 drop function if exists public.get_settlement_summary();
 drop function if exists public.get_open_close();
 drop function if exists public.get_pool_balances(date);
-drop function if exists public.get_pool_balances();
 drop function if exists public.get_pool_movements(text, date, date);
 drop function if exists public.get_pool_seed(text, date);
 
@@ -242,9 +241,7 @@ end;
 $$;
 
 revoke all on function public.get_pool_balances(date) from public, anon;
-revoke all on function public.get_pool_balances() from public, anon;
 grant execute on function public.get_pool_balances(date) to authenticated, service_role;
-grant execute on function public.get_pool_balances() to authenticated, service_role;
 
 
 -- 4. GET_OPEN_CLOSE (7-Pool Open Close Recalculation)
