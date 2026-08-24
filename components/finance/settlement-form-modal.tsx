@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import { inr } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
 export const SETTLEMENT_TYPES = [
@@ -79,7 +80,7 @@ export default function SettlementFormModal({
   initialAmount?: string | number;
   portals?: { id: string; name: string }[];
   qrs?: { id: string; display_name: string; upi_id?: string }[];
-  paymentAccounts?: { id: string; name: string; type: string; details?: any; is_active?: boolean }[];
+  paymentAccounts?: { id: string; name: string; type: string; details?: any; is_active?: boolean; opening_balance?: number }[];
   onSave: (payload: {
     p_settlement_type: string;
     p_settlement_date: string;
@@ -99,6 +100,8 @@ export default function SettlementFormModal({
 
   const [sourceId, setSourceId] = useState<string>("");
   const [destId, setDestId] = useState<string>("");
+  const [availableBalance, setAvailableBalance] = useState<number | null>(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
 
   const [loadedPortals, setLoadedPortals] = useState(portals);
   const [loadedQrs, setLoadedQrs] = useState(qrs);
@@ -128,8 +131,65 @@ export default function SettlementFormModal({
   useEffect(() => {
     setSourceId("");
     setDestId("");
+    setAvailableBalance(null);
     setError("");
   }, [type]);
+
+  // Dynamic Live Balance Calculation for Selected Source
+  useEffect(() => {
+    if (!open || !sourceId) {
+      setAvailableBalance(null);
+      return;
+    }
+
+    const supabase = createClient();
+    setLoadingBalance(true);
+
+    async function fetchLiveBalance() {
+      try {
+        if (type === "aeps_to_bank") {
+          // Calculate net accumulated AEPS withdrawals for this portal
+          const [{ data: txs }, { data: setts }] = await Promise.all([
+            supabase.from("transactions").select("amount").eq("service_type", "aeps").eq("portal_id", sourceId).eq("status", "success"),
+            supabase.from("settlements").select("amount").eq("from_pool", "aeps").eq("status", "success"),
+          ]);
+          const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
+          const portalObj = loadedPortals.find((p) => p.id === sourceId);
+          const portalName = portalObj?.name?.toLowerCase() ?? "";
+          const totalOut = (setts ?? [])
+            .filter((st: any) => !portalName || (st.remarks ?? "").toLowerCase().includes(portalName) || (st.reference ?? "").toLowerCase().includes(portalName))
+            .reduce((s, st) => s + Number(st.amount || 0), 0);
+          setAvailableBalance(Math.max(0, totalIn - totalOut));
+        } else if (type === "upi_qr_to_bank" || type === "upi_qr_to_wallet") {
+          // Calculate net accumulated UPI QR receipts for this QR
+          const [{ data: txs }, { data: setts }] = await Promise.all([
+            supabase.from("transactions").select("amount").eq("service_type", "upi").eq("merchant_qr_id", sourceId).eq("status", "success"),
+            supabase.from("settlements").select("amount").eq("from_pool", "upi_qr").eq("status", "success"),
+          ]);
+          const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
+          const qrObj = loadedQrs.find((q) => q.id === sourceId);
+          const qrName = qrObj?.display_name?.toLowerCase() ?? "";
+          const totalOut = (setts ?? [])
+            .filter((st: any) => !qrName || (st.remarks ?? "").toLowerCase().includes(qrName))
+            .reduce((s, st) => s + Number(st.amount || 0), 0);
+          setAvailableBalance(Math.max(0, totalIn - totalOut));
+        } else {
+          // Fetch instrument balance from cash entries and opening balance
+          const inst = loadedAccounts.find((i) => i.id === sourceId);
+          const { data: ces } = await supabase.from("cash_entries").select("direction, amount").eq("instrument_id", sourceId);
+          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
+          const total = Number(inst?.opening_balance || 0) + flow;
+          setAvailableBalance(total);
+        }
+      } catch (err) {
+        console.error("Error computing source balance:", err);
+      } finally {
+        setLoadingBalance(false);
+      }
+    }
+
+    fetchLiveBalance();
+  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts]);
 
   if (!open) return null;
 
@@ -157,7 +217,11 @@ export default function SettlementFormModal({
     setError("");
     if (!date) return setError("Settlement date is required.");
     const amt = Number(amount);
-    if (!amt || amt <= 0) return setError("Amount must be greater than zero.");
+    
+    // Strict Positive Transfer Guard
+    if (isNaN(amt) || amt <= 0) {
+      return setError("Transfer amount must be a positive number greater than ₹0.00. Zero or negative amounts are strictly blocked.");
+    }
 
     // Mandatory Source Validation
     let sourceLabel = "";
@@ -247,7 +311,7 @@ export default function SettlementFormModal({
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
             1. Select Settlement &amp; Fund Movement Type *
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
             {SETTLEMENT_TYPES.map((t) => (
               <button
                 key={t.value}
@@ -450,6 +514,52 @@ export default function SettlementFormModal({
               </div>
             )}
           </div>
+
+          {/* Live Available Balance & Quick Fill Helper */}
+          {sourceId && (
+            <div className="rounded-xl border border-blue-200/80 bg-blue-50/70 p-3 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Live Available Balance: </span>
+                  {loadingBalance ? (
+                    <span className="font-mono text-slate-400">Loading…</span>
+                  ) : availableBalance !== null ? (
+                    <span className={`font-mono font-bold text-sm ${availableBalance <= 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-300"}`}>
+                      {inr(availableBalance)}
+                    </span>
+                  ) : (
+                    <span className="font-mono text-slate-400">₹0.00</span>
+                  )}
+                </div>
+
+                {availableBalance !== null && availableBalance > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(Math.round(availableBalance * 0.25 * 100) / 100))}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      25%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(Math.round(availableBalance * 0.50 * 100) / 100))}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(Math.round(availableBalance * 100) / 100))}
+                      className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-emerald-500"
+                    >
+                      100% Full ({inr(availableBalance)})
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. Transaction Details & Amount */}
@@ -468,16 +578,22 @@ export default function SettlementFormModal({
 
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-              Amount (₹) *
+              Transfer Amount (₹) *
             </label>
             <input
               type="number"
+              min="0.01"
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
+              placeholder="0.00 (Positive amount only)"
               className={inputClass}
             />
+            {Number(amount) > 0 && availableBalance !== null && Number(amount) > availableBalance && (
+              <p className="mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                ⚠️ Notice: Transfer amount ({inr(Number(amount))}) exceeds available balance ({inr(availableBalance)}).
+              </p>
+            )}
           </div>
 
           <div>
