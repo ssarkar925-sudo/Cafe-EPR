@@ -517,9 +517,19 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
               <span>Yesterday Revenue:</span>
               <strong className="text-slate-900 dark:text-white">{inr(data.morningBrief.yesterdayRevenue)}</strong>
             </div>
+            {Number(data.morningBrief.yesterdayCogs || 0) > 0 && (
+              <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
+                <span>Direct Cost / COGS:</span>
+                <strong className="text-slate-600 dark:text-slate-300">-{inr(data.morningBrief.yesterdayCogs || 0)}</strong>
+              </div>
+            )}
             <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span>Yesterday Profit:</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">{inr(data.morningBrief.yesterdayProfit)}</strong>
+              <span>Yesterday Expenses:</span>
+              <strong className="text-slate-900 dark:text-white">-{inr(data.morningBrief.yesterdayExpenses)}</strong>
+            </div>
+            <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
+              <span>Yesterday Business Profit:</span>
+              <strong className={`${data.morningBrief.yesterdayProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>{inr(data.morningBrief.yesterdayProfit)}</strong>
             </div>
             <div className="flex justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
               <span>Opening Cash Seed:</span>

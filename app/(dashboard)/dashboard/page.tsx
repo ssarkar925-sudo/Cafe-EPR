@@ -2,14 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole } from "@/lib/authz";
 import DashboardClient from "@/components/dashboard/dashboard-client";
 import { assembleVerifiedContext } from "@/lib/ai/advisor-engine";
+import { getIstDateString, getIstYesterdayDateString } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
 
+  const isoToday = getIstDateString();
+  const yesterday = getIstYesterdayDateString();
   const today = new Date();
-  const isoToday = today.toISOString().slice(0, 10);
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
   const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
@@ -19,7 +21,6 @@ export default async function DashboardPage() {
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
 
   // Parallel server data fetch across all canonical systems
@@ -29,6 +30,8 @@ export default async function DashboardPage() {
     settingsRes,
     poolBalancesRes,
     taxReportRes,
+    todayReportRes,
+    yesterdayReportRes,
     latestAuditRes,
     closingsRes,
     customersRes,
@@ -45,6 +48,8 @@ export default async function DashboardPage() {
     supabase.from("settings").select("shop_name, gstin, currency_symbol").single(),
     supabase.rpc("get_pool_balances"),
     supabase.rpc("get_tax_preparation_report", { p_start_date: fyStart, p_end_date: fyEnd }),
+    supabase.rpc("get_tax_preparation_report", { p_start_date: isoToday, p_end_date: isoToday }),
+    supabase.rpc("get_tax_preparation_report", { p_start_date: yesterday, p_end_date: yesterday }),
     supabase.from("audit_runs").select("*, audit_findings(*)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("closings").select("*, closing_balances(*)").order("close_date", { ascending: false }).limit(15),
     supabase.from("customers").select("id, name, balance, phone").gt("balance", 0).order("balance", { ascending: false }).limit(20),
@@ -122,6 +127,21 @@ export default async function DashboardPage() {
     pass_through: { aeps_volume: 92150, dmt_volume: 3900, upi_volume: 0, total_custodial_throughput: 96050 },
   };
 
+  // Canonical Daily Reports (Today & Yesterday)
+  const todayReport = (todayReportRes.data as any) || {
+    revenue: { total_operating_revenue: 0, net_retail_revenue: 0 },
+    cogs: { total_cogs: 0 },
+    expenses: { total_active_expenses: 0 },
+    pnl: { net_profit: 0 },
+  };
+
+  const yesterdayReport = (yesterdayReportRes.data as any) || {
+    revenue: { total_operating_revenue: 0, net_retail_revenue: 0 },
+    cogs: { total_cogs: 0 },
+    expenses: { total_active_expenses: 0 },
+    pnl: { net_profit: 0 },
+  };
+
   // Today's Operational Calculations
   const invoices = invoicesRes.data || [];
   const quickSales = quickSalesRes.data || [];
@@ -130,7 +150,7 @@ export default async function DashboardPage() {
   const cashEntries = cashEntriesRes.data || [];
   const settlements = settlementsRes.data || [];
 
-  // Filter today's active items
+  // Filter today's active items for operational counts & tickets
   const todayInvoices = invoices.filter((inv) => inv.invoice_date === isoToday && inv.status !== "cancelled");
   const todayQuick = quickSales.filter((q) => q.sale_date === isoToday && q.status === "active");
   const todayExpenses = expenses.filter((e) => e.expense_date === isoToday && e.status !== "cancelled");
@@ -140,11 +160,17 @@ export default async function DashboardPage() {
 
   const todayInvoiceRevenue = todayInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0);
   const todayQuickRevenue = todayQuick.reduce((s, q) => s + Number(q.amount || 0), 0);
-  const todayServiceFees = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
-  const todayOperatingRevenue = todayInvoiceRevenue + todayQuickRevenue + todayServiceFees;
+  
+  // Canonical Financial Figures (From get_tax_preparation_report)
+  const todayOperatingRevenue = Number(todayReport.revenue?.total_operating_revenue || 0);
+  const todayCogs = Number(todayReport.cogs?.total_cogs || 0);
+  const todayExpenseTotal = Number(todayReport.expenses?.total_active_expenses || 0);
+  const todayProfit = Number(todayReport.pnl?.net_profit || 0);
 
-  const todayExpenseTotal = todayExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const todayProfit = todayOperatingRevenue - todayExpenseTotal;
+  const yesterdayRevenue = Number(yesterdayReport.revenue?.total_operating_revenue || 0);
+  const yesterdayCogs = Number(yesterdayReport.cogs?.total_cogs || 0);
+  const yesterdayExpenseTotal = Number(yesterdayReport.expenses?.total_active_expenses || 0);
+  const yesterdayProfit = Number(yesterdayReport.pnl?.net_profit || 0);
 
   const todayMoneyIn = todayCash.filter((c) => c.direction === "in").reduce((s, c) => s + Number(c.amount || 0), 0);
   const todayMoneyOut = todayCash.filter((c) => c.direction === "out").reduce((s, c) => s + Number(c.amount || 0), 0);
@@ -372,15 +398,6 @@ export default async function DashboardPage() {
     },
   });
 
-  // Morning Brief Calculations (Yesterday vs Today)
-  const yesterdayInvoices = invoices.filter((inv) => inv.invoice_date === yesterday && inv.status !== "cancelled");
-  const yesterdayQuick = quickSales.filter((q) => q.sale_date === yesterday && q.status === "active");
-  const yesterdayExpenses = expenses.filter((e) => e.expense_date === yesterday && e.status !== "cancelled");
-  const yesterdayRevenue = yesterdayInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0) +
-    yesterdayQuick.reduce((s, q) => s + Number(q.amount || 0), 0);
-  const yesterdayExpenseTotal = yesterdayExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const yesterdayProfit = yesterdayRevenue - yesterdayExpenseTotal;
-
   // Final Structured Package
   const dashboardPackage = {
     profile: {
@@ -419,6 +436,7 @@ export default async function DashboardPage() {
     },
     todayMetrics: {
       revenue: todayOperatingRevenue,
+      cogs: todayCogs,
       expenses: todayExpenseTotal,
       profit: todayProfit,
       moneyIn: todayMoneyIn,
@@ -554,6 +572,7 @@ export default async function DashboardPage() {
     alerts,
     morningBrief: {
       yesterdayRevenue,
+      yesterdayCogs,
       yesterdayExpenses: yesterdayExpenseTotal,
       yesterdayProfit,
       todayOpeningCash: poolsData.cash?.opening || 12500,

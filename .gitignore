@@ -31,3 +31,6 @@ yarn-error.log*
 auth_info_baileys/
 auth_info_baileys/**
 *.session
+
+# Scratch and forensic artifacts
+scratch/
