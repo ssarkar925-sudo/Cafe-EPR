@@ -11,11 +11,9 @@ export const SETTLEMENT_TYPES = [
   { value: "upi_qr_to_bank", label: "UPI QR → Bank Account", from: "upi_qr", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Settle merchant QR collections (PhonePe, Google Pay, BharatPe) into bank account." },
   { value: "upi_qr_to_wallet", label: "UPI QR → Digital Wallet", from: "upi_qr", to: "wallet", icon: "qr", grad: "from-teal-500 to-emerald-600", desc: "Move money received on shop UPI QR into digital wallet." },
   { value: "bank_to_dmt", label: "Bank Account → DMT Portal", from: "bank", to: "dmt", icon: "dmt", grad: "from-violet-500 to-purple-600", desc: "Load DMT remittance float from bank balance." },
+  { value: "bank_to_wallet", label: "Bank Account → Digital Wallet (Wallet Load)", from: "bank", to: "wallet", icon: "wallet", grad: "from-emerald-500 to-teal-600", desc: "Load digital wallet float (Rupepro, CSC Wallet) from bank balance." },
   { value: "wallet_to_dmt", label: "Wallet → DMT Portal", from: "wallet", to: "dmt", icon: "dmt", grad: "from-fuchsia-500 to-pink-600", desc: "Fund DMT float from digital wallet." },
   { value: "wallet_to_bank", label: "Wallet → Bank Account", from: "wallet", to: "bank", icon: "bank", grad: "from-amber-500 to-orange-600", desc: "Transfer wallet balance to bank account." },
-  { value: "bank_to_credit_card", label: "Bank → Credit Card (Bill Pay)", from: "bank", to: "credit_card", icon: "card", grad: "from-cyan-500 to-sky-600", desc: "Pay Credit Card bill from bank account to restore available limit." },
-  { value: "cash_to_credit_card", label: "Cash → Credit Card (Bill Pay)", from: "cash", to: "credit_card", icon: "card", grad: "from-emerald-500 to-cyan-600", desc: "Pay Credit Card bill using counter cash to restore available limit." },
-  { value: "credit_card_to_bank", label: "Credit Card → Bank (Cash Advance)", from: "credit_card", to: "bank", icon: "bank", grad: "from-blue-600 to-indigo-700", desc: "Transfer credit card payout/advance to bank account." },
   { value: "bank_withdrawal", label: "Bank Withdrawal (Bank → Cash)", from: "bank", to: "cash", icon: "cash", grad: "from-emerald-500 to-teal-600", desc: "Withdraw physical cash from bank into counter cash drawer." },
   { value: "add_cash_to_bank", label: "Cash Deposit (Cash → Bank)", from: "cash", to: "bank", icon: "bank", grad: "from-sky-500 to-blue-600", desc: "Deposit counter cash into bank account." },
   { value: "cash_adjustment", label: "Cash Drawer Physical Count", from: "cash", to: "cash", icon: "cash", grad: "from-rose-500 to-pink-600", desc: "Add or remove cash during counter physical audit." },
@@ -30,7 +28,6 @@ export const POOL_LABEL: Record<string, string> = {
   dmt: "DMT Float",
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
-  credit_card: "Credit Card",
 };
 
 const ICONS: Record<string, string> = {
@@ -90,6 +87,8 @@ export default function SettlementFormModal({
     p_reference: string;
     p_remarks: string;
     p_direction: string;
+    p_source_instrument_id?: string | null;
+    p_dest_instrument_id?: string | null;
   }) => void;
 }) {
   const [type, setType] = useState<SettlementType>(() => initialType ?? "aeps_to_bank");
@@ -143,20 +142,18 @@ export default function SettlementFormModal({
   const isAdjustment = type === "cash_adjustment";
 
   const bankAccounts = loadedAccounts.filter((i) => i.type === "bank" || i.type === "debit_card");
-  const creditCards = loadedAccounts.filter((i) => i.type === "credit_card");
   const wallets = loadedAccounts.filter((i) => i.type === "wallet");
 
   // Determine what source selector is needed
   const isSourceAepsPortal = type === "aeps_to_bank";
   const isSourceUpiQr = type === "upi_qr_to_bank" || type === "upi_qr_to_wallet";
-  const isSourceBank = type === "bank_to_dmt" || type === "bank_to_credit_card" || type === "bank_withdrawal";
+  const isSourceBank = type === "bank_to_dmt" || type === "bank_withdrawal" || type === "bank_to_wallet";
   const isSourceWallet = type === "wallet_to_dmt" || type === "wallet_to_bank";
-  const isSourceCreditCard = type === "credit_card_to_bank";
+  
 
   // Determine what dest selector is needed
-  const isDestBank = type === "aeps_to_bank" || type === "upi_qr_to_bank" || type === "wallet_to_bank" || type === "add_cash_to_bank" || type === "credit_card_to_bank";
-  const isDestCreditCard = type === "bank_to_credit_card" || type === "cash_to_credit_card";
-  const isDestWallet = type === "upi_qr_to_wallet";
+  const isDestBank = type === "aeps_to_bank" || type === "upi_qr_to_bank" || type === "wallet_to_bank" || type === "add_cash_to_bank";
+  const isDestWallet = type === "upi_qr_to_wallet" || type === "bank_to_wallet";
   const isDestDmtPortal = type === "bank_to_dmt" || type === "wallet_to_dmt";
 
   // Dynamic Current Available Balance Calculation for Selected Source
@@ -233,9 +230,6 @@ export default function SettlementFormModal({
             const bal = Number(inst?.opening_balance || 0) + flow;
             setAvailableBalance(bal !== 0 ? bal : poolCurrent);
           }
-        } else if (isSourceCreditCard) {
-          const inst = loadedAccounts.find((i) => i.id === sourceId);
-          setAvailableBalance(Number(inst?.opening_balance ?? livePools?.credit_card?.current ?? 0));
         }
       } catch (err) {
         console.error("Error computing source balance:", err);
@@ -245,7 +239,7 @@ export default function SettlementFormModal({
     }
 
     fetchLiveBalance();
-  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet, isSourceCreditCard, wallets.length, bankAccounts.length]);
+  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet, wallets.length, bankAccounts.length]);
 
   if (!open) return null;
 
@@ -277,10 +271,6 @@ export default function SettlementFormModal({
       if (!sourceId) return setError("Please select the Digital Wallet debited.");
       const w = wallets.find((x) => x.id === sourceId);
       sourceLabel = w ? `Wallet: ${w.name}` : "Digital Wallet";
-    } else if (isSourceCreditCard) {
-      if (!sourceId) return setError("Please select the Credit Card used.");
-      const c = creditCards.find((x) => x.id === sourceId);
-      sourceLabel = c ? `Card: ${c.name}` : "Credit Card";
     }
 
     // Mandatory Destination Validation
@@ -290,10 +280,6 @@ export default function SettlementFormModal({
       const b = bankAccounts.find((x) => x.id === destId);
       const acc = b?.details?.account_number ? ` (••••${String(b.details.account_number).slice(-4)})` : "";
       destLabel = b ? `Bank: ${b.name}${acc}` : "Bank Account";
-    } else if (isDestCreditCard) {
-      if (!destId) return setError("Please select the Destination Credit Card receiving bill payment.");
-      const c = creditCards.find((x) => x.id === destId);
-      destLabel = c ? `Card: ${c.name}` : "Credit Card";
     } else if (isDestWallet) {
       if (!destId) return setError("Please select the Destination Digital Wallet.");
       const w = wallets.find((x) => x.id === destId);
@@ -325,6 +311,8 @@ export default function SettlementFormModal({
       p_reference: reference.trim() || (sourceLabel ? `Ref: ${sourceLabel}` : ""),
       p_remarks: finalRemarks,
       p_direction: isAdjustment ? direction : "",
+      p_source_instrument_id: sourceId || null,
+      p_dest_instrument_id: destId || null,
     });
   };
 
@@ -345,7 +333,7 @@ export default function SettlementFormModal({
         {/* 1. Settlement Type Selector */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-            1. Select Settlement &amp; Fund Movement Type *
+            1. Select Settlement & Fund Movement Type *
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
             {SETTLEMENT_TYPES.map((t) => (
@@ -375,7 +363,7 @@ export default function SettlementFormModal({
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/30 dark:bg-indigo-950/20 space-y-4">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
-              2. Specific Account &amp; Portal Routing (Required)
+              2. Specific Account & Portal Routing (Required)
             </span>
           </div>
 
@@ -409,7 +397,7 @@ export default function SettlementFormModal({
                   onChange={(v) => setSourceId(v)}
                   options={[
                     { value: "", label: "Select Merchant QR..." },
-                    ...loadedQrs.map((q) => ({ value: q.id, label: `📱 ${q.display_name} (${q.upi_id || "QR"})` })),
+                    ...loadedQrs.map((q) => ({ value: q.id, label: `📲 ${q.display_name} (${q.upi_id || "QR"})` })),
                   ]}
                   placeholder="Choose QR (PhonePe, GPay, BharatPe)..."
                   showClear={false}
@@ -456,23 +444,7 @@ export default function SettlementFormModal({
               </div>
             )}
 
-            {isSourceCreditCard && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-                  Source Credit Card *
-                </label>
-                <SearchableSelect
-                  value={sourceId}
-                  onChange={(v) => setSourceId(v)}
-                  options={[
-                    { value: "", label: "Select Credit Card..." },
-                    ...creditCards.map((c) => ({ value: c.id, label: `💳 ${c.name}` })),
-                  ]}
-                  placeholder="Choose Credit Card..."
-                  showClear={false}
-                />
-              </div>
-            )}
+
 
             {/* Destination Selector */}
             {isDestBank && (
@@ -496,23 +468,6 @@ export default function SettlementFormModal({
               </div>
             )}
 
-            {isDestCreditCard && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-                  Destination Credit Card (Bill Payment) *
-                </label>
-                <SearchableSelect
-                  value={destId}
-                  onChange={(v) => setDestId(v)}
-                  options={[
-                    { value: "", label: "Select Credit Card receiving payment..." },
-                    ...creditCards.map((c) => ({ value: c.id, label: `💳 ${c.name}` })),
-                  ]}
-                  placeholder="Choose Credit Card..."
-                  showClear={false}
-                />
-              </div>
-            )}
 
             {isDestWallet && (
               <div>

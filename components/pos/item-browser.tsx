@@ -8,6 +8,7 @@ import { inr } from "@/lib/format";
 
 export type BrowserItem = {
   id: string;
+  item_type?: "service" | "product";
   name: string;
   code?: string | null;
   sale_price: number | string;
@@ -16,6 +17,7 @@ export type BrowserItem = {
   unit?: string;
   category_id?: string | null;
   categories?: { name: string } | null;
+  is_quick_favorite?: boolean;
 };
 
 export type PosCustomer = {
@@ -176,7 +178,7 @@ export function PosItemToolbar({
           <button
             key={t.value}
             onClick={() => onTab(t.value)}
-            className={`rounded-lg px-4 py-1.5 font-medium capitalize transition ${
+            className={`rounded-lg px-3.5 py-1.5 font-medium capitalize transition ${
               activeTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -290,46 +292,75 @@ export function PosGrid({
   emptyText = "Nothing matches your search. Try a different name or category.",
 }: {
   items: BrowserItem[];
-  isProduct: boolean;
+  isProduct?: boolean;
   onAdd: (id: string, name: string, price: number, isProduct: boolean) => void;
   emptyText?: string;
 }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {items.map((x) => {
-        const stock = isProduct ? Number(x.stock_qty) : Infinity;
-        const reorder = isProduct ? Number(x.reorder_level) : 0;
-        const out = stock <= 0;
-        const low = !out && stock <= reorder;
+        const isProd = x.item_type ? x.item_type === "product" : Boolean(isProduct || x.stock_qty !== undefined);
+        const stock = isProd ? Number(x.stock_qty ?? 0) : Infinity;
+        const reorder = isProd ? Number(x.reorder_level ?? 0) : 0;
+        const out = isProd && stock <= 0;
+        const low = isProd && !out && stock <= reorder;
         const price = Number(x.sale_price);
+
         return (
           <button
-            key={x.id}
-            onClick={() => onAdd(x.id, x.name, price, isProduct)}
+            key={`${isProd ? "p" : "s"}-${x.id}`}
+            onClick={() => onAdd(x.id, x.name, price, isProd)}
             disabled={out}
-            className={`group relative flex flex-col rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-400 ${
-              out ? "cursor-not-allowed opacity-60" : ""
+            className={`group relative flex flex-col justify-between rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-400 ${
+              out ? "cursor-not-allowed opacity-60 bg-slate-50" : ""
             }`}
           >
-            <div className="flex items-start justify-between">
-              <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(x.name)} text-sm font-bold text-white shadow-sm`}>
-                {x.name.slice(0, 1).toUpperCase()}
+            <div>
+              <div className="flex items-start justify-between gap-1.5">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(x.name)} text-sm font-bold text-white shadow-sm`}>
+                  {x.name.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                      isProd
+                        ? "bg-purple-100 text-purple-700 ring-1 ring-purple-200"
+                        : "bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200"
+                    }`}
+                  >
+                    {isProd ? "PRODUCT" : "SERVICE"}
+                  </span>
+                  {isProd ? (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                        out
+                          ? "bg-rose-100 text-rose-700"
+                          : low
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {out ? "OUT OF STOCK" : low ? `Low Stock (${stock})` : `Stock ${stock} ${x.unit || "pc"}`}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 truncate max-w-[80px]">
+                      {x.categories?.name ?? "Service"}
+                    </span>
+                  )}
+                </div>
               </div>
-              {isProduct && (
-                <span
-                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                    out ? "bg-rose-100 text-rose-700" : low ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                  }`}
-                >
-                  {out ? "OUT" : `${x.stock_qty} ${x.unit || "pc"}`}
-                </span>
-              )}
+              <p className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-slate-900">{x.name}</p>
             </div>
-            <p className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-slate-900">{x.name}</p>
-            <div className="mt-1.5 flex items-center justify-between gap-1">
+            <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
               <p className="text-sm font-bold text-blue-600">{inr(price)}</p>
-              <span className="rounded-md bg-slate-900/5 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 opacity-0 transition group-hover:opacity-100">
-                + Add
+              <span
+                className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
+                  out
+                    ? "bg-slate-200 text-slate-500"
+                    : "bg-slate-900 text-white group-hover:bg-blue-600"
+                }`}
+              >
+                {out ? "Out" : "+ Add"}
               </span>
             </div>
           </button>
@@ -350,7 +381,7 @@ export function PosTable({
   emptyText = "Nothing matches your search. Try a different name or category.",
 }: {
   items: BrowserItem[];
-  isProduct: boolean;
+  isProduct?: boolean;
   onAdd: (id: string, name: string, price: number, isProduct: boolean) => void;
   emptyText?: string;
 }) {
@@ -359,49 +390,65 @@ export function PosTable({
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-slate-500">
-            <th className="py-2.5 pl-4 pr-4 font-medium">Name</th>
-            {isProduct && <th className="py-2.5 pr-4 font-medium">Code</th>}
+            <th className="py-2.5 pl-4 pr-3 font-medium">Type</th>
+            <th className="py-2.5 pr-4 font-medium">Name</th>
             <th className="py-2.5 pr-4 font-medium">Category</th>
             <th className="py-2.5 pr-4 font-medium">Price</th>
-            {isProduct && <th className="py-2.5 pr-4 font-medium">Stock</th>}
-            <th className="py-2.5 pr-4 font-medium"></th>
+            <th className="py-2.5 pr-4 font-medium">Availability / Stock</th>
+            <th className="py-2.5 pr-4 font-medium text-right">Action</th>
           </tr>
         </thead>
         <tbody>
           {items.map((x) => {
-            const stock = isProduct ? Number(x.stock_qty) : Infinity;
-            const reorder = isProduct ? Number(x.reorder_level) : 0;
-            const out = isProduct && stock <= 0;
+            const isProd = x.item_type ? x.item_type === "product" : Boolean(isProduct || x.stock_qty !== undefined);
+            const stock = isProd ? Number(x.stock_qty ?? 0) : Infinity;
+            const reorder = isProd ? Number(x.reorder_level ?? 0) : 0;
+            const out = isProd && stock <= 0;
             const price = Number(x.sale_price);
             return (
-              <tr key={x.id} className="border-b border-slate-100 last:border-0">
-                <td className="py-2.5 pl-4 pr-4">
+              <tr key={`${isProd ? "p" : "s"}-${x.id}`} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                <td className="py-2.5 pl-4 pr-3">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                      isProd
+                        ? "bg-purple-100 text-purple-700 ring-1 ring-purple-200"
+                        : "bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200"
+                    }`}
+                  >
+                    {isProd ? "PRODUCT" : "SERVICE"}
+                  </span>
+                </td>
+                <td className="py-2.5 pr-4">
                   <div className="flex items-center gap-2.5">
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(x.name)} text-xs font-bold text-white`}>
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(x.name)} text-xs font-bold text-white`}>
                       {x.name.slice(0, 1).toUpperCase()}
                     </span>
-                    <span className="font-medium text-slate-900">{x.name}</span>
+                    <div className="min-w-0">
+                      <span className="font-medium text-slate-900 block truncate">{x.name}</span>
+                      {x.code && <span className="font-mono text-[11px] text-slate-400">{x.code}</span>}
+                    </div>
                   </div>
                 </td>
-                {isProduct && <td className="py-2.5 pr-4 font-mono text-xs text-slate-500">{x.code ?? "-"}</td>}
-                <td className="py-2.5 pr-4 text-slate-600">{x.categories?.name ?? "-"}</td>
-                <td className="py-2.5 pr-4 font-medium text-blue-600">{inr(price)}</td>
-                {isProduct && (
-                  <td className="py-2.5 pr-4">
+                <td className="py-2.5 pr-4 text-slate-600 text-xs">{x.categories?.name ?? "—"}</td>
+                <td className="py-2.5 pr-4 font-semibold text-blue-600">{inr(price)}</td>
+                <td className="py-2.5 pr-4">
+                  {isProd ? (
                     <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
                       out ? "bg-rose-100 text-rose-700" : stock <= reorder ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
                     }`}>
-                      {out ? "OUT" : `${x.stock_qty} ${x.unit || "pc"}`}
+                      {out ? "OUT OF STOCK" : `${x.stock_qty} ${x.unit || "pc"}`}
                     </span>
-                  </td>
-                )}
+                  ) : (
+                    <span className="text-xs text-slate-400">Digital / Service</span>
+                  )}
+                </td>
                 <td className="py-2.5 pr-4 text-right">
                   <button
-                    onClick={() => onAdd(x.id, x.name, price, isProduct)}
+                    onClick={() => onAdd(x.id, x.name, price, isProd)}
                     disabled={out}
-                    className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Add
+                    {out ? "Out" : "Add"}
                   </button>
                 </td>
               </tr>
@@ -409,7 +456,7 @@ export function PosTable({
           })}
           {items.length === 0 && (
             <tr>
-              <td colSpan={isProduct ? 6 : 4} className="py-12 text-center text-sm text-slate-500">
+              <td colSpan={6} className="py-12 text-center text-sm text-slate-500">
                 {emptyText}
               </td>
             </tr>

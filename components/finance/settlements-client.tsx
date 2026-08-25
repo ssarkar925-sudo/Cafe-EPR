@@ -36,7 +36,6 @@ export type SettlementSummary = {
   dmt: number;
   aeps: number;
   upi_qr: number;
-  credit_card: number;
   count: number;
 };
 
@@ -73,7 +72,6 @@ const POOL_CARDS = [
   { key: "dmt", label: "DMT Float", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", href: "/business/dmt" },
   { key: "aeps", label: "AEPS Float", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", href: "/business/aeps" },
   { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", href: "/business/upi" },
-  { key: "credit_card", label: "Credit Card", icon: ICONS.card, grad: "from-cyan-500 to-sky-600", href: "/business/credit_card" },
 ];
 
 function Icon({ d, className }: { d: string; className?: string }) {
@@ -206,6 +204,8 @@ export default function SettlementsClient({
     p_reference: string;
     p_remarks: string;
     p_direction: string;
+    p_source_instrument_id?: string | null;
+    p_dest_instrument_id?: string | null;
   }) => {
     setSaving(true);
     const supabase = createClient();
@@ -216,6 +216,8 @@ export default function SettlementsClient({
       p_reference: payload.p_reference,
       p_remarks: payload.p_remarks,
       p_direction: payload.p_direction,
+      p_source_instrument_id: payload.p_source_instrument_id ?? null,
+      p_dest_instrument_id: payload.p_dest_instrument_id ?? null,
     });
     setSaving(false);
     if (error) {
@@ -256,64 +258,6 @@ export default function SettlementsClient({
           description: `Settlement: ${sNum} Bank Withdrawal`,
           ref_type: "settlement",
           ref_id: sId,
-        });
-      } else if (sType === "bank_to_credit_card") {
-        // 1. Bank Out (Debit from Bank account)
-        await supabase.from("cash_entries").insert({
-          entry_date: payload.p_settlement_date,
-          method: "bank",
-          direction: "out",
-          amount: payload.p_amount,
-          description: `Settlement: ${sNum} CC Bill Payment (${payload.p_reference || "Credit Card"})`,
-          ref_type: "settlement",
-          ref_id: sId,
-          instrument_id: (payload as any).p_bank_id || null,
-        });
-        // 2. Credit Card In (Restores available credit card limit)
-        await supabase.from("cash_entries").insert({
-          entry_date: payload.p_settlement_date,
-          method: "credit_card",
-          direction: "in",
-          amount: payload.p_amount,
-          description: `Settlement: ${sNum} Bill Payment received for ${payload.p_reference || "Credit Card"}`,
-          ref_type: "settlement",
-          ref_id: sId,
-          instrument_id: (payload as any).p_card_id || null,
-        });
-      } else if (sType === "cash_to_credit_card") {
-        // Credit Card In (Restores available credit card limit from cash)
-        await supabase.from("cash_entries").insert({
-          entry_date: payload.p_settlement_date,
-          method: "credit_card",
-          direction: "in",
-          amount: payload.p_amount,
-          description: `Settlement: ${sNum} Bill Payment received (Cash)`,
-          ref_type: "settlement",
-          ref_id: sId,
-          instrument_id: (payload as any).p_card_id || null,
-        });
-      } else if (sType === "credit_card_to_bank") {
-        // 1. Credit Card Out (Cash advance used from Card)
-        await supabase.from("cash_entries").insert({
-          entry_date: payload.p_settlement_date,
-          method: "credit_card",
-          direction: "out",
-          amount: payload.p_amount,
-          description: `Settlement: ${sNum} Card Advance`,
-          ref_type: "settlement",
-          ref_id: sId,
-          instrument_id: (payload as any).p_card_id || null,
-        });
-        // 2. Bank In (Received into Bank)
-        await supabase.from("cash_entries").insert({
-          entry_date: payload.p_settlement_date,
-          method: "bank",
-          direction: "in",
-          amount: payload.p_amount,
-          description: `Settlement: ${sNum} Card Advance into Bank`,
-          ref_type: "settlement",
-          ref_id: sId,
-          instrument_id: (payload as any).p_bank_id || null,
         });
       } else if (sType === "add_cash_to_bank") {
         await supabase.from("cash_entries").insert({

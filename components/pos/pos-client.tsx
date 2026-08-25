@@ -154,6 +154,8 @@ function saveHeld(list: HeldBill[]) {
   }
 }
 
+export type PosTab = "services" | "products" | "all" | "favorites";
+
 export default function PosClient({
   products,
   services,
@@ -187,7 +189,7 @@ export default function PosClient({
   const [mode, setMode] = useState<"invoice" | "quick">(initialMode);
   const [productState, setProductState] = useState<PosProduct[]>(products);
   const [serviceState, setServiceState] = useState<PosService[]>(services);
-  const [tab, setTab] = useState<"services" | "products">("services");
+  const [tab, setTab] = useState<PosTab>("services");
   const [view, setView] = useState<"grid" | "list">(() => {
     try {
       return localStorage.getItem("sccomm-pos-view") === "grid" ? "grid" : "list";
@@ -300,6 +302,9 @@ export default function PosClient({
       } else if (e.key === "F4") {
         e.preventDefault();
         searchRef.current?.focus();
+      } else if (e.key === "F9") {
+        e.preventDefault();
+        fillExact();
       }
     }
     window.addEventListener("keydown", handleGlobalHotkeys);
@@ -334,15 +339,56 @@ export default function PosClient({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list: (PosProduct | PosService)[] = tab === "services" ? (favOnly ? favServices : serviceState) : productState;
-    const out = list.filter((x: any) => {
+
+    const serviceItems: BrowserItem[] = serviceState.map((s) => ({
+      id: s.id,
+      item_type: "service",
+      name: s.name,
+      sale_price: s.sale_price,
+      category_id: s.category_id,
+      categories: s.categories,
+      is_quick_favorite: s.is_quick_favorite,
+    }));
+
+    const productItems: BrowserItem[] = productState.map((p) => ({
+      id: p.id,
+      item_type: "product",
+      name: p.name,
+      code: p.code,
+      sale_price: p.sale_price,
+      stock_qty: p.stock_qty,
+      reorder_level: p.reorder_level,
+      unit: p.unit,
+      category_id: p.category_id,
+      categories: p.categories,
+    }));
+
+    let list: BrowserItem[] = [];
+
+    // Unified Simultaneous Search: typing search query searches both services and products
+    if (needle) {
+      list = [...serviceItems, ...productItems];
+    } else if (tab === "services") {
+      list = favOnly ? serviceItems.filter((s) => s.is_quick_favorite) : serviceItems;
+    } else if (tab === "products") {
+      list = productItems;
+    } else if (tab === "favorites") {
+      list = serviceItems.filter((s) => s.is_quick_favorite);
+    } else {
+      // "all"
+      list = [...serviceItems, ...productItems];
+    }
+
+    const out = list.filter((x) => {
       if (cat !== "all" && x.category_id !== cat) return false;
       if (!needle) return true;
       return (
         x.name.toLowerCase().includes(needle) ||
-        (x.code ? String(x.code).toLowerCase().includes(needle) : false)
+        (x.code ? String(x.code).toLowerCase().includes(needle) : false) ||
+        (x.categories?.name ? x.categories.name.toLowerCase().includes(needle) : false)
       );
     });
+
     const sorted = [...out];
     if (sort === "name") {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
@@ -351,10 +397,10 @@ export default function PosClient({
     } else if (sort === "high") {
       sorted.sort((a, b) => Number(b.sale_price) - Number(a.sale_price));
     } else if (sort === "stock") {
-      sorted.sort((a: any, b: any) => Number(b.stock_qty ?? 0) - Number(a.stock_qty ?? 0));
+      sorted.sort((a, b) => Number(b.stock_qty ?? 0) - Number(a.stock_qty ?? 0));
     }
-    return sorted as BrowserItem[];
-  }, [tab, q, cat, sort, favOnly, favServices, productState, serviceState]);
+    return sorted;
+  }, [tab, q, cat, sort, favOnly, serviceState, productState]);
 
   const subtotal = useMemo(() => cart.reduce((sum, l) => sum + l.amount, 0), [cart]);
   const discountNum = Math.min(Math.max(Number(discount) || 0, 0), subtotal);
@@ -1207,11 +1253,17 @@ export default function PosClient({
               tabs={[
                 { value: "services", label: "Services" },
                 { value: "products", label: "Products" },
+                { value: "all", label: "All Items" },
+                { value: "favorites", label: "Favorites" },
               ]}
               activeTab={tab}
-              onTab={(t) => setTab(t as typeof tab)}
+              onTab={(t) => {
+                setTab(t as PosTab);
+                if (t === "favorites") setFavOnly(true);
+                else setFavOnly(false);
+              }}
               searchRef={searchRef}
-              placeholder="Search services, products…  (Ctrl+K)"
+              placeholder="Search services, products… (F4 or Ctrl+K)"
               q={q}
               onQ={setQ}
               sort={sort}
@@ -1237,7 +1289,7 @@ export default function PosClient({
                 </button>
               }
               extraChips={
-                tab === "services" ? (
+                tab === "services" || tab === "all" ? (
                   <button
                     onClick={() => setFavOnly((v) => !v)}
                     title="Show quick favourites only"
@@ -1256,14 +1308,12 @@ export default function PosClient({
 
             {view === "grid" ? (
               <PosGrid
-                items={filtered as unknown as BrowserItem[]}
-                isProduct={tab === "products"}
+                items={filtered}
                 onAdd={addLine}
               />
             ) : (
               <PosTable
-                items={filtered as unknown as BrowserItem[]}
-                isProduct={tab === "products"}
+                items={filtered}
                 onAdd={addLine}
               />
             )}

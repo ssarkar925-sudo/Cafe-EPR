@@ -176,17 +176,6 @@ export default function Sidebar({
         items: [{ label: "Customers", href: "/customers", icon: "customers" }],
       },
 
-      // 4. INVENTORY & SUPPLY
-      {
-        title: "Inventory & Supply",
-        items: [
-          { label: "Purchases & Restock", href: "/purchases", icon: "purchases" },
-          { label: "Suppliers & Payables", href: "/suppliers", icon: "suppliers" },
-          { label: "Stock Movements", href: "/inventory/movements", icon: "inventory" },
-          { label: "Products Catalog", href: "/catalog/products", icon: "products" },
-        ],
-      },
-
       // 4. FINANCE
       {
         title: "Finance",

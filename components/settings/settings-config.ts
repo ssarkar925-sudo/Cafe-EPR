@@ -176,6 +176,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         desc: "Products, service rates & category tree",
         icon: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9",
       },
+      {
+        key: "inventory",
+        label: "Inventory & Supply",
+        desc: "Purchases, vendors, stock movements & valuation",
+        icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+      },
     ],
   },
   {
@@ -227,6 +233,7 @@ export const tabMeta: Record<string, { title: string; desc: string; group: strin
   "payment-accounts": { title: "Payment Accounts & Drawers", desc: "Manage named cash registers, bank accounts, UPI IDs, and digital wallets.", group: "Payments & POS Desk" },
   "quick-favorites": { title: "Quick Sale Counter Favorites", desc: "Configure popular 1-click service buttons for instant counter billing.", group: "Payments & POS Desk" },
   catalog: { title: "Catalog Management", desc: "Manage sellable products, service pricelists, and item category classifications.", group: "Business & Remittance" },
+  inventory: { title: "Inventory & Supply (Back-Office)", desc: "Manage purchasing, supplier balances, stock movements, and stock reports.", group: "Business & Remittance" },
   "business-setup": { title: "Business Setup & Providers", desc: "Configure AEPS portals, bank integrations, merchant QR codes, and recharge commission slabs.", group: "Business & Remittance" },
   notifications: { title: "WhatsApp Gateway & Notifications", desc: "Set up direct background WhatsApp dispatching for invoices, receipts, and shift reports.", group: "Automations & Backup" },
   backup: { title: "Data Backup & Export", desc: "Export complete accounting data, customer ledgers, and transactions to CSV or SQL snapshots.", group: "Automations & Backup" },

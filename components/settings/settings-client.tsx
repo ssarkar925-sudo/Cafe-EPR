@@ -12,6 +12,7 @@ import PaymentAccountsPanel from "@/components/settings/payment-accounts-panel";
 import PaymentMethodsPanel from "@/components/settings/payment-methods-panel";
 import QuickFavoritesPanel from "@/components/settings/quick-favorites-panel";
 import CatalogPanel from "@/components/settings/catalog-panel";
+import InventoryPanel from "@/components/settings/inventory-panel";
 import BusinessSetupPanel from "@/components/settings/business-setup-panel";
 import BackupPanel from "@/components/settings/backup-panel";
 import NotificationsPanel from "@/components/settings/notifications-panel";
@@ -410,6 +411,8 @@ export default function SettingsClient({
             initialCategories={initialCategories}
             categoryCounts={categoryCounts}
           />
+
+          <InventoryPanel active={tab === "inventory"} />
 
           <BusinessSetupPanel
             active={tab === "business-setup"}
