@@ -8,6 +8,7 @@ import Modal from "@/components/ui/modal";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
+import ContactSuggestionField, { type ContactSuggestion } from "./contact-suggestion-field";
 
 function toLocalInput(value: string) {
   const d = new Date(value);
@@ -85,6 +86,7 @@ export default function BusinessFormModal({
     beneficiary_ifsc: initial?.beneficiary_ifsc ?? "",
     beneficiary_account: initial?.beneficiary_account ?? "",
     upi_id: initial?.upi_id ?? "",
+    receiver_name: (initial as any)?.receiver_name ?? "",
     amount: initial ? String(initial.amount) : "",
     service_fee: initial ? String(initial.service_fee) : "",
     portal_commission: initial ? String(initial.portal_commission) : "",
@@ -99,6 +101,78 @@ export default function BusinessFormModal({
   }));
   const [error, setError] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
+  // Opt-in "save for future transactions" flags — unchecked by default.
+  const [saveSender, setSaveSender] = useState(false);
+  const [saveCounterparty, setSaveCounterparty] = useState(false);
+
+  // ── Contact suggestion autofill (fields stay editable afterwards) ──
+  function applySenderSuggestion(s: ContactSuggestion) {
+    setForm((f) => ({
+      ...f,
+      ...(s.sender_name ? { sender_name: s.sender_name } : {}),
+      ...(s.sender_mobile ? { sender_mobile: s.sender_mobile } : {}),
+    }));
+  }
+  function applyBeneficiarySuggestion(s: ContactSuggestion) {
+    setForm((f) => ({
+      ...f,
+      ...(s.beneficiary_name ? { beneficiary_name: s.beneficiary_name } : {}),
+      ...(s.beneficiary_mobile ? { beneficiary_mobile: s.beneficiary_mobile } : {}),
+      ...(s.beneficiary_bank ? { beneficiary_bank: s.beneficiary_bank } : {}),
+      ...(s.beneficiary_ifsc ? { beneficiary_ifsc: s.beneficiary_ifsc } : {}),
+      ...(s.beneficiary_account ? { beneficiary_account: s.beneficiary_account } : {}),
+    }));
+  }
+  function applyUpiReceiverSuggestion(s: ContactSuggestion) {
+    setForm((f) => ({
+      ...f,
+      ...(s.upi_id ? { upi_id: s.upi_id } : {}),
+      ...(s.receiver_name ? { receiver_name: s.receiver_name } : {}),
+    }));
+  }
+
+  /** Persist to the opt-in contact book (never auto-saves; silent failure). */
+  async function persistSavedContacts() {
+    try {
+      const rows: Record<string, unknown>[] = [];
+      if (service === "dmt" && saveSender && form.sender_name.trim()) {
+        rows.push({
+          key: `sender|${form.sender_name.trim().toLowerCase()}|${form.sender_mobile.trim()}`,
+          kind: "sender",
+          name: form.sender_name.trim(),
+          mobile: form.sender_mobile.trim() || null,
+        });
+      }
+      if (saveCounterparty) {
+        const upiId = form.upi_id.trim();
+        const ifsc = form.beneficiary_ifsc.trim().toUpperCase();
+        const acc = form.beneficiary_account.trim();
+        if ((service === "upi" || form.transfer_method === "upi") && upiId) {
+          rows.push({
+            key: `upi_receiver|${upiId.toLowerCase()}`,
+            kind: "upi_receiver",
+            name: form.receiver_name.trim() || null,
+            upi_id: upiId,
+          });
+        } else if (service === "dmt" && (form.beneficiary_name.trim() || acc || ifsc)) {
+          rows.push({
+            key: `beneficiary|${ifsc}|${acc}`,
+            kind: "beneficiary",
+            name: form.beneficiary_name.trim() || null,
+            mobile: form.beneficiary_mobile.trim() || null,
+            bank: form.beneficiary_bank.trim() || null,
+            ifsc: ifsc || null,
+            account_number: acc || null,
+          });
+        }
+      }
+      if (rows.length > 0) {
+        await supabase.from("saved_contacts").upsert(rows, { onConflict: "key" });
+      }
+    } catch {
+      // Contact book is best-effort; never block the transaction save flow.
+    }
+  }
 
   const selectedCustomer = customers.find((c) => c.id === form.customer_id);
 
@@ -298,6 +372,7 @@ export default function BusinessFormModal({
       p_beneficiary_ifsc: form.beneficiary_ifsc || null,
       p_beneficiary_account: form.beneficiary_account || null,
       p_upi_id: form.upi_id || null,
+      p_receiver_name: form.receiver_name || null,
       p_amount: amount,
       p_service_fee: fee,
       p_portal_commission: commission,
@@ -310,6 +385,10 @@ export default function BusinessFormModal({
       payment_account_id: form.bank_id || null,
       payment_account_name: selAccount?.name || null,
     });
+    // Opt-in contact book persistence (fire-and-forget; unchecked by default).
+    if (!initial && (service === "dmt" || service === "upi") && (saveSender || saveCounterparty)) {
+      void persistSavedContacts();
+    }
   }
 
   const input = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
@@ -511,6 +590,10 @@ export default function BusinessFormModal({
                   ))}
                 </div>
               </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Sender</label>
+                <ContactSuggestionField mode="sender" txns={txns} customers={customers} onSelect={applySenderSuggestion} />
+              </div>
               <div>
                 <label className={labelCls}>Sender Name *</label>
                 <input value={form.sender_name} onChange={(e) => set("sender_name", e.target.value)} className={input} />
@@ -521,6 +604,10 @@ export default function BusinessFormModal({
               </div>
               {form.transfer_method === "bank_account" ? (
                 <>
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>Beneficiary</label>
+                    <ContactSuggestionField mode="beneficiary" txns={txns} onSelect={applyBeneficiarySuggestion} />
+                  </div>
                   <div>
                     <label className={labelCls}>Beneficiary Name (optional)</label>
                     <input value={form.beneficiary_name} onChange={(e) => set("beneficiary_name", e.target.value)} className={input} />
@@ -543,10 +630,20 @@ export default function BusinessFormModal({
                   </div>
                 </>
               ) : (
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>Beneficiary UPI ID (optional)</label>
-                  <input value={form.upi_id} onChange={(e) => set("upi_id", e.target.value)} placeholder="name@upi" className={input} />
-                </div>
+                <>
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>Receiver</label>
+                    <ContactSuggestionField mode="upi_receiver" txns={txns} onSelect={applyUpiReceiverSuggestion} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>Beneficiary UPI ID (optional)</label>
+                    <input value={form.upi_id} onChange={(e) => set("upi_id", e.target.value)} placeholder="name@upi" className={input} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>Receiver Name (optional)</label>
+                    <input value={form.receiver_name} onChange={(e) => set("receiver_name", e.target.value)} placeholder="As per bank records (optional)" className={input} />
+                  </div>
+                </>
               )}
 
               <div className="flex items-center gap-2 pt-1 sm:col-span-2">
@@ -694,6 +791,18 @@ export default function BusinessFormModal({
 
           {service === "upi" && (
             <>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Receiver</label>
+              <ContactSuggestionField mode="upi_receiver" txns={txns} onSelect={applyUpiReceiverSuggestion} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Beneficiary UPI ID (optional)</label>
+              <input value={form.upi_id} onChange={(e) => set("upi_id", e.target.value)} placeholder="name@upi" className={input} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Receiver Name (optional)</label>
+              <input value={form.receiver_name} onChange={(e) => set("receiver_name", e.target.value)} placeholder="As per bank records (optional)" className={input} />
+            </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>Merchant QR *</label>
               <SearchableSelect
@@ -949,6 +1058,21 @@ export default function BusinessFormModal({
             <label className={labelCls}>Remarks</label>
             <textarea rows={2} value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className={input} />
           </div>
+
+          {!initial && (service === "dmt" || service === "upi") && form.status === "success" && (
+            <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5 space-y-1.5 dark:border-white/10 dark:bg-slate-900/40">
+              {service === "dmt" && (
+                <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                  <input type="checkbox" checked={saveSender} onChange={(e) => setSaveSender(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 accent-blue-600" />
+                  Save sender for future transactions
+                </label>
+              )}
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" checked={saveCounterparty} onChange={(e) => setSaveCounterparty(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 accent-blue-600" />
+                Save {service === "dmt" && form.transfer_method === "bank_account" ? "beneficiary" : "receiver"} for future transactions
+              </label>
+            </div>
+          )}
         </div>
 
         {error && (

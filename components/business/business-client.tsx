@@ -46,6 +46,7 @@ export type Txn = {
   beneficiary_ifsc: string | null;
   beneficiary_account: string | null;
   upi_id: string | null;
+  receiver_name?: string | null;
   amount: number | string;
   service_fee: number | string;
   portal_commission: number | string;
@@ -572,6 +573,7 @@ export default function BusinessClient({
         p_beneficiary_ifsc: payload.p_beneficiary_ifsc || null,
         p_beneficiary_account: payload.p_beneficiary_account || null,
         p_upi_id: payload.p_upi_id || null,
+        p_receiver_name: payload.p_receiver_name || null,
         p_amount: payload.p_amount,
         p_service_fee: payload.p_service_fee ?? 0,
         p_portal_commission: payload.p_portal_commission ?? 0,
@@ -614,6 +616,7 @@ export default function BusinessClient({
       beneficiary_ifsc: (payload.p_beneficiary_ifsc as string) || null,
       beneficiary_account: (payload.p_beneficiary_account as string) || null,
       upi_id: (payload.p_upi_id as string) || null,
+      receiver_name: (payload.p_receiver_name as string) || null,
       amount: Number(payload.p_amount),
       service_fee: Number(payload.p_service_fee ?? 0),
       portal_commission: Number(payload.p_portal_commission ?? d.portal_commission ?? 0),
@@ -1083,6 +1086,7 @@ export default function BusinessClient({
         p_beneficiary_ifsc: payload.p_beneficiary_ifsc || null,
         p_beneficiary_account: payload.p_beneficiary_account || null,
         p_upi_id: payload.p_upi_id || null,
+        p_receiver_name: payload.p_receiver_name || null,
         p_amount: payload.p_amount,
         p_service_fee: payload.p_service_fee ?? 0,
         p_portal_commission: payload.p_portal_commission ?? 0,
@@ -1120,6 +1124,7 @@ export default function BusinessClient({
       beneficiary_ifsc: (payload.p_beneficiary_ifsc as string) || null,
       beneficiary_account: (payload.p_beneficiary_account as string) || null,
       upi_id: (payload.p_upi_id as string) || null,
+      receiver_name: (payload.p_receiver_name as string) || null,
       amount: Number(payload.p_amount),
       service_fee: Number(payload.p_service_fee ?? 0),
       portal_commission: Number(payload.p_portal_commission ?? data?.portal_commission ?? 0),
