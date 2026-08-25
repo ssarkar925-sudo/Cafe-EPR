@@ -48,6 +48,9 @@ const ICONS: Record<string, string> = {
   portals: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z",
   qrs: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
   returns: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+  purchases: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M12 12v6m-3-3l3-3 3 3",
+  suppliers: "M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9z",
+  inventory: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
   expenses: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5M18 12a2 2 0 0 0 0 4h4v-4z",
   cashbook: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
   ledger: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
@@ -130,6 +133,7 @@ export default function Sidebar({
         "Main",
         "Operations & Services",
         "Customer Management",
+        "Inventory & Supply",
         "Finance",
         "AI & Intelligence",
         "Security & Governance",
@@ -170,6 +174,17 @@ export default function Sidebar({
       {
         title: "Customer Management",
         items: [{ label: "Customers", href: "/customers", icon: "customers" }],
+      },
+
+      // 4. INVENTORY & SUPPLY
+      {
+        title: "Inventory & Supply",
+        items: [
+          { label: "Purchases & Restock", href: "/purchases", icon: "purchases" },
+          { label: "Suppliers & Payables", href: "/suppliers", icon: "suppliers" },
+          { label: "Stock Movements", href: "/inventory/movements", icon: "inventory" },
+          { label: "Products Catalog", href: "/catalog/products", icon: "products" },
+        ],
       },
 
       // 4. FINANCE

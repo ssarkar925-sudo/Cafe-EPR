@@ -292,14 +292,28 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
             <span>Financial Integrity</span>
             <span>🛡️</span>
           </div>
-          <div className="mt-2 flex items-center gap-2 text-lg font-black text-slate-900 sm:text-2xl dark:text-white">
-            <span>{data.auditData.score}</span>
-            <span className="text-xs font-normal text-slate-400">/ 100</span>
-          </div>
-          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-            <span className="text-emerald-600 dark:text-emerald-400 font-bold">{data.auditData.passCount}/{data.auditData.totalChecks || 14} PASS</span>
-            <span className="group-hover:translate-x-0.5 transition">Audit →</span>
-          </div>
+          {data.auditData.isAvailable !== false && data.auditData.score !== null ? (
+            <>
+              <div className="mt-2 flex items-center gap-2 text-lg font-black text-slate-900 sm:text-2xl dark:text-white">
+                <span>{data.auditData.score}</span>
+                <span className="text-xs font-normal text-slate-400">/ 100</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{data.auditData.passCount}/{data.auditData.totalChecks || 14} PASS</span>
+                <span className="group-hover:translate-x-0.5 transition">Audit →</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-2 text-sm font-bold text-slate-500 dark:text-slate-400">
+                Audit data unavailable
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Check /ai/self-audit</span>
+                <span className="group-hover:translate-x-0.5 transition">Audit →</span>
+              </div>
+            </>
+          )}
         </Link>
       </div>
 
@@ -691,7 +705,11 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
           <div className="mt-4 space-y-3 text-xs">
             <div className="flex justify-between items-center">
               <span className="text-slate-500">Total Stock Valuation:</span>
-              <strong className="text-slate-900 dark:text-white font-bold">{inr(data.inventoryData.totalStockValue)}</strong>
+              <strong className="text-slate-900 dark:text-white font-bold">
+                {data.inventoryData.isValuationMissingCost
+                  ? "Inventory valuation unavailable — cost data missing."
+                  : inr(data.inventoryData.totalStockValue)}
+              </strong>
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
@@ -731,17 +749,21 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-900 dark:text-white">Day Close &amp; Daily Snapshot Status</h3>
                 <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-                  data.dayCloseStatus.status === "closed"
+                  data.dayCloseStatus.state === "today_closed"
                     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : data.dayCloseStatus.status === "ready_to_close"
+                    : data.dayCloseStatus.state === "today_ready_for_close"
                     ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    : data.dayCloseStatus.state === "inconsistent_rollover"
+                    ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
                     : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                 }`}>
-                  {data.dayCloseStatus.status === "closed"
-                    ? `✅ Today Closed & Sealed (${data.dayCloseStatus.closingNumber})`
-                    : data.dayCloseStatus.status === "ready_to_close"
-                    ? `🟡 Draft In Progress (${data.dayCloseStatus.closingNumber})`
-                    : `🟢 Day Open (Seeded from ${data.dayCloseStatus.lastClosedNumber || "CLS-0008"})`}
+                  {data.dayCloseStatus.state === "today_closed"
+                    ? `✅ Day Closed (${data.dayCloseStatus.closingNumber})`
+                    : data.dayCloseStatus.state === "today_ready_for_close"
+                    ? `🟡 Day Close Due (${data.dayCloseStatus.closingNumber})`
+                    : data.dayCloseStatus.state === "inconsistent_rollover"
+                    ? `🔴 Day Close Data Inconsistent`
+                    : `🟢 Previous Day Closed (${data.dayCloseStatus.lastClosedNumber || "CLS-0008"}) • Current Day Open`}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -754,10 +776,12 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
             href="/finance/day-close"
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700"
           >
-            {data.dayCloseStatus.status === "closed"
+            {data.dayCloseStatus.state === "today_closed"
               ? "View Day Close Record →"
-              : data.dayCloseStatus.status === "ready_to_close"
+              : data.dayCloseStatus.state === "today_ready_for_close"
               ? "Resume Day Close →"
+              : data.dayCloseStatus.state === "inconsistent_rollover"
+              ? "Reconcile Day Close →"
               : "Open Day Close Workspace →"}
           </Link>
         </div>
