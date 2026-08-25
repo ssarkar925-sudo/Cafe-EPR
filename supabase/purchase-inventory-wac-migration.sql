@@ -387,6 +387,7 @@ declare
   v_purchase_id uuid;
   v_purchase_number text;
   v_supplier record;
+  v_supplier_name text := 'Supplier';
   v_item jsonb;
   v_payment jsonb;
   v_subtotal numeric := 0;
@@ -419,6 +420,7 @@ begin
   if p_supplier_id is not null then
     select * into v_supplier from public.suppliers where id = p_supplier_id for update;
     if not found then raise exception 'Supplier not found'; end if;
+    v_supplier_name := coalesce(v_supplier.name, 'Supplier');
   end if;
 
   if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
@@ -544,7 +546,7 @@ begin
         ) values (
           coalesce(p_purchase_date, current_date), v_method, 'out',
           (v_payment->>'amount')::numeric,
-          'Purchase ' || v_purchase_number || ' payment (' || coalesce(v_supplier.name, 'Supplier') || ')',
+          'Purchase ' || v_purchase_number || ' payment (' || v_supplier_name || ')',
           'purchase', v_purchase_id, v_instrument_id
         );
       end if;
