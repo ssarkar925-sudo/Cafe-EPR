@@ -6,22 +6,13 @@ import RechargeProvidersPanel from "@/components/settings/recharge-providers-pan
 import { type MasterData } from "@/components/settings/settings-config";
 
 const SECTIONS = [
-  { key: "banks", label: "Banks" },
-  { key: "portals", label: "Portals" },
-  { key: "merchant-qrs", label: "Merchant QRs" },
-  { key: "recharge", label: "Recharge Providers" },
+  { key: "banks", label: "Banks", hint: "AEPS" },
+  { key: "portals", label: "Portals", hint: "Settlement" },
+  { key: "merchant-qrs", label: "Merchant QRs", hint: "UPI" },
+  { key: "recharge", label: "Recharge", hint: "Providers" },
 ] as const;
 
-export default function BusinessSetupPanel({
-  active,
-  section,
-  onSection,
-  initialBanks,
-  initialPortals,
-  initialMerchantQrs,
-  initialRechargeProviders,
-  initialRechargeSlabs,
-}: {
+export default function BusinessSetupPanel({ active, section, onSection, initialBanks, initialPortals, initialMerchantQrs, initialRechargeProviders, initialRechargeSlabs }: {
   active: boolean;
   section: string;
   onSection: (s: string) => void;
@@ -33,77 +24,27 @@ export default function BusinessSetupPanel({
 }) {
   return (
     <div className={active ? "mt-6" : "hidden"}>
-      <SettingsSection
-        icon="M3 21V9l9-6 9 6v12M9 21v-6h6v6"
-        tone="indigo"
-        title="Business Setup"
-        desc="Banks, settlement portals, merchant QR codes and recharge providers used by the business modules. Records with past transactions are archived (deactivated), never deleted."
-      >
-        <div className="mb-2 flex gap-1 rounded-xl bg-slate-100 p-1 text-sm">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => onSection(s.key)}
-              className={`rounded-lg px-3 py-1.5 font-medium transition ${
-                section === s.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+      <SettingsSection icon="M3 21V9l9-6 9 6v12M9 21v-6h6v6" tone="indigo" title="Business Setup" desc="Configure the providers and settlement masters used by AEPS, UPI cash-out and recharge operations. Existing transaction references are protected from destructive deletion.">
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+            {SECTIONS.map((s) => {
+              const selected = section === s.key;
+              return (
+                <button key={s.key} onClick={() => onSection(s.key)} className={`relative rounded-xl px-3 py-2.5 text-left transition ${selected ? "bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10" : "text-slate-500 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-white/5"}`}>
+                  <span className={`block text-sm font-bold ${selected ? "text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-300"}`}>{s.label}</span>
+                  <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-400">{s.hint}</span>
+                  {selected && <span className="absolute bottom-1.5 left-3 right-3 h-0.5 rounded-full bg-indigo-500" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="-mx-6 -mb-6">
-          {section === "banks" && (
-            <MasterClient
-              embedded
-              title="AEPS Banks"
-              desc="Banks used for AEPS cash withdrawals."
-              table="aeps_banks"
-              fields={[
-                { key: "name", label: "Bank Name", required: true, placeholder: "State Bank of India" },
-                { key: "code", label: "Code", placeholder: "SBI" },
-              ]}
-              rows={initialBanks?.rows ?? []}
-              usage={initialBanks?.usage ?? {}}
-            />
-          )}
-          {section === "portals" && (
-            <MasterClient
-              embedded
-              title="AEPS Portals"
-              desc="AEPS settlement portals used by the shop."
-              table="aeps_portals"
-              fields={[
-                { key: "name", label: "Portal Name", required: true, placeholder: "PayNearby" },
-                { key: "code", label: "Code", placeholder: "PN" },
-                { key: "remarks", label: "Remarks", placeholder: "Settlement daily by 6 PM" },
-              ]}
-              rows={initialPortals?.rows ?? []}
-              usage={initialPortals?.usage ?? {}}
-            />
-          )}
-          {section === "merchant-qrs" && (
-            <MasterClient
-              embedded
-              title="UPI Merchant QRs"
-              desc="Shop UPI QR codes used for UPI cash-out transfers."
-              table="upi_merchant_qrs"
-              fields={[
-                { key: "display_name", label: "Display Name", required: true, placeholder: "Shop Main QR" },
-                { key: "upi_id", label: "UPI ID", required: true, placeholder: "shop@sbi" },
-              ]}
-              rows={initialMerchantQrs?.rows ?? []}
-              usage={initialMerchantQrs?.usage ?? {}}
-              display={(r) => r.display_name || r.name || ""}
-            />
-          )}
-          {section === "recharge" && (
-            <RechargeProvidersPanel
-              initialProviders={initialRechargeProviders ?? []}
-              initialSlabs={initialRechargeSlabs ?? []}
-            />
-          )}
+          {section === "banks" && <MasterClient embedded title="AEPS Banks" desc="Banks used for AEPS cash withdrawals." table="aeps_banks" fields={[{ key: "name", label: "Bank Name", required: true, placeholder: "State Bank of India" }, { key: "code", label: "Code", placeholder: "SBI" }]} rows={initialBanks?.rows ?? []} usage={initialBanks?.usage ?? {}} />}
+          {section === "portals" && <MasterClient embedded title="AEPS Portals" desc="AEPS settlement portals used by the shop." table="aeps_portals" fields={[{ key: "name", label: "Portal Name", required: true, placeholder: "PayNearby" }, { key: "code", label: "Code", placeholder: "PN" }, { key: "remarks", label: "Remarks", placeholder: "Settlement daily by 6 PM" }]} rows={initialPortals?.rows ?? []} usage={initialPortals?.usage ?? {}} />}
+          {section === "merchant-qrs" && <MasterClient embedded title="UPI Merchant QRs" desc="Shop UPI QR codes used for UPI cash-out transfers." table="upi_merchant_qrs" fields={[{ key: "display_name", label: "Display Name", required: true, placeholder: "Shop Main QR" }, { key: "upi_id", label: "UPI ID", required: true, placeholder: "shop@sbi" }]} rows={initialMerchantQrs?.rows ?? []} usage={initialMerchantQrs?.usage ?? {}} display={(r) => r.display_name || r.name || ""} />}
+          {section === "recharge" && <RechargeProvidersPanel initialProviders={initialRechargeProviders ?? []} initialSlabs={initialRechargeSlabs ?? []} />}
         </div>
       </SettingsSection>
     </div>
