@@ -5,6 +5,12 @@
 .catalog-premium .catalog-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .catalog-premium .catalog-table { min-width: 920px; }
 .catalog-premium .catalog-empty { min-height: 260px; }
+.catalog-premium .catalog-toolbar input,
+.catalog-premium .catalog-toolbar button,
+.catalog-premium .catalog-actions button { touch-action: manipulation; }
+.catalog-premium .catalog-table tbody tr { transition: background-color .15s ease; }
+.catalog-premium .catalog-table td,
+.catalog-premium .catalog-table th { vertical-align: middle; }
 @media (max-width: 639px) {
   .catalog-premium { padding-left: .875rem !important; padding-right: .875rem !important; padding-top: 1rem !important; }
   .catalog-premium .catalog-header { gap: .75rem; }
