@@ -1,0 +1,26 @@
+/* Shared Catalog UX polish — responsive by design. */
+.catalog-premium { --catalog-gap: 1rem; }
+.catalog-premium .catalog-stat { min-height: 92px; }
+.catalog-premium .catalog-toolbar { position: relative; z-index: 2; }
+.catalog-premium .catalog-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.catalog-premium .catalog-table { min-width: 920px; }
+.catalog-premium .catalog-empty { min-height: 260px; }
+@media (max-width: 639px) {
+  .catalog-premium { padding-left: .875rem !important; padding-right: .875rem !important; padding-top: 1rem !important; }
+  .catalog-premium .catalog-header { gap: .75rem; }
+  .catalog-premium .catalog-header h1 { font-size: 1.35rem; }
+  .catalog-premium .catalog-actions { width: 100%; }
+  .catalog-premium .catalog-actions > * { flex: 1 1 0; justify-content: center; min-height: 44px; }
+  .catalog-premium .catalog-stats { grid-template-columns: repeat(2, minmax(0,1fr)); gap: .65rem; }
+  .catalog-premium .catalog-stat { min-height: 82px; padding: .75rem; }
+  .catalog-premium .catalog-stat .catalog-stat-icon { width: 2rem; height: 2rem; }
+  .catalog-premium .catalog-toolbar { display: grid; grid-template-columns: 1fr; gap: .65rem; }
+  .catalog-premium .catalog-toolbar > * { width: 100% !important; max-width: none !important; min-height: 44px; }
+  .catalog-premium .catalog-status { overflow-x: auto; width: 100%; }
+  .catalog-premium .catalog-status button { min-height: 40px; white-space: nowrap; }
+  .catalog-premium .catalog-table-wrap { margin-left: -.25rem; margin-right: -.25rem; border-radius: 14px; }
+  .catalog-premium .catalog-empty { min-height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-premium *, .catalog-premium *::before, .catalog-premium *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
