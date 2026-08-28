@@ -1,0 +1,90 @@
+/* Cafe ERP mobile experience layer */
+@media (max-width: 1023px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Mobile drawer: spacious, touch-friendly and visually tied to the active design */
+  aside {
+    width: min(86vw, 340px) !important;
+    max-width: 340px;
+    border-right: 1px solid rgba(255,255,255,.10) !important;
+    box-shadow: 18px 0 60px rgba(0,0,0,.28) !important;
+  }
+
+  aside nav {
+    padding: .75rem .65rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  aside nav a {
+    min-height: 44px;
+    padding-top: .65rem !important;
+    padding-bottom: .65rem !important;
+    border-radius: 13px;
+  }
+
+  aside nav button {
+    min-height: 40px;
+  }
+
+  aside input {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  /* Make the mobile chrome inherit the active Design Studio preset */
+  main > header {
+    min-height: 58px;
+    height: auto;
+    padding-top: max(.5rem, env(safe-area-inset-top));
+    background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+    backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: 0 8px 28px rgba(15,23,42,.07);
+  }
+
+  /* Prevent tiny controls from becoming difficult to tap */
+  main > header button,
+  main > header a {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* Full-width content with phone-safe gutters */
+  main > :not(header) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  /* Tables remain usable without breaking the page width */
+  table { min-width: 620px; }
+  [role="table"] { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Larger form controls on touch devices */
+  input, select, textarea { min-height: 42px; font-size: 16px; }
+  button { touch-action: manipulation; }
+
+  /* Design Studio cards stack cleanly on narrow phones */
+  .design-studio-grid,
+  [data-design-studio-grid] { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 640px) {
+  main > header { padding-left: .75rem; padding-right: .75rem; }
+
+  /* Compact page rhythm on small phones */
+  .page-shell, main > :not(header) { padding-left: 0; padding-right: 0; }
+
+  aside { width: min(88vw, 320px) !important; }
+
+  /* Avoid overly large typography from the large-font accessibility setting */
+  html.font-scale-large { font-size: 103%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  aside, aside *, main > header, main > header * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
