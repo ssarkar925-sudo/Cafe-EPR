@@ -2,12 +2,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import SettingsCommandShell from "@/components/settings/settings-command-shell";
-import SettingsHub from "@/components/settings/settings-hub";
 
 export const dynamic = "force-dynamic";
 
 type QueryResult<T> = { data: T | null };
-
 const empty = <T,>(): Promise<QueryResult<T>> => Promise.resolve({ data: null });
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; section?: string }> }) {
@@ -15,16 +13,16 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
 
   const { tab, section } = await searchParams;
+  const activeTab = tab || "general";
   const supabase = await createClient();
 
-  // The command center can open many modules, but each module only needs a small
-  // subset of the settings data. Avoid fetching every catalog/provider/transaction
-  // table on every navigation; this keeps the settings workspace responsive.
-  const needsAccounts = tab === "payment-accounts";
-  const needsFavorites = tab === "quick-favorites";
-  const needsMethods = tab === "payment-methods";
-  const needsBusiness = tab === "business-setup";
-  const needsCatalog = tab === "catalog";
+  // Only query data required by the selected settings module. This keeps the
+  // single-workspace design fast while retaining the full functionality.
+  const needsAccounts = activeTab === "payment-accounts";
+  const needsFavorites = activeTab === "quick-favorites";
+  const needsMethods = activeTab === "payment-methods";
+  const needsBusiness = activeTab === "business-setup";
+  const needsCatalog = activeTab === "catalog";
 
   const [
     { data: settings },
@@ -99,24 +97,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     if (x.category_id) categoryCounts[x.category_id] = (categoryCounts[x.category_id] ?? 0) + 1;
   }
 
-  const props = {
-    initial: (settings ?? null) as any,
-    initialInstruments: accounts as any,
-    initialServices: (services ?? []) as any,
-    initialPaymentMethods: (paymentMethods ?? []) as any,
-    initialBanks: { rows: (banks ?? []) as any, usage: bankUsage },
-    initialPortals: { rows: (portals ?? []) as any, usage: portalUsage },
-    initialMerchantQrs: { rows: (qrs ?? []) as any, usage: qrUsage },
-    initialRechargeProviders: (rechargeProviders ?? []) as any,
-    initialRechargeSlabs: (rechargeSlabs ?? []) as any,
-    initialProducts: (products ?? []) as any,
-    initialCatalogServices: (catalogServices ?? []) as any,
-    initialCategories: (categories ?? []) as any,
-    categoryCounts,
-    initialTab: tab,
-    initialSection: section,
-  };
-
-  if (!tab) return <SettingsHub shopName={settings?.shop_name || "Sarkar Communication"} />;
-  return <SettingsCommandShell {...props} />;
+  return (
+    <SettingsCommandShell
+      initial={(settings ?? null) as any}
+      initialInstruments={accounts as any}
+      initialServices={(services ?? []) as any}
+      initialPaymentMethods={(paymentMethods ?? []) as any}
+      initialBanks={{ rows: (banks ?? []) as any, usage: bankUsage }}
+      initialPortals={{ rows: (portals ?? []) as any, usage: portalUsage }}
+      initialMerchantQrs={{ rows: (qrs ?? []) as any, usage: qrUsage }}
+      initialRechargeProviders={(rechargeProviders ?? []) as any}
+      initialRechargeSlabs={(rechargeSlabs ?? []) as any}
+      initialProducts={(products ?? []) as any}
+      initialCatalogServices={(catalogServices ?? []) as any}
+      initialCategories={(categories ?? []) as any}
+      categoryCounts={categoryCounts}
+      initialTab={activeTab}
+      initialSection={section}
+    />
+  );
 }
