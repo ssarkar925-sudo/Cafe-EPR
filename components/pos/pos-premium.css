@@ -1,0 +1,17 @@
+/* POS-only visual layer. Transaction logic remains untouched. */
+.pos-premium { --pos-radius: 16px; }
+.pos-premium button, .pos-premium input, .pos-premium select { touch-action: manipulation; }
+.pos-premium input:focus, .pos-premium select:focus { outline: 2px solid color-mix(in srgb, var(--accent-color) 30%, transparent); outline-offset: 1px; }
+.pos-premium .pos-surface { border: 1px solid var(--line); border-radius: var(--pos-radius); background: var(--surface); box-shadow: var(--shadow-card); }
+.pos-premium .pos-item { min-height: 128px; transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease; }
+.pos-premium .pos-item:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15,23,42,.09); }
+.pos-premium .pos-item:active { transform: translateY(0); }
+@media (max-width: 767px) {
+  .pos-premium { padding-left: .75rem; padding-right: .75rem; }
+  .pos-premium .pos-toolbar { position: sticky; top: 0; z-index: 20; padding: .5rem 0; background: color-mix(in srgb, var(--page) 92%, transparent); backdrop-filter: blur(12px); }
+  .pos-premium .pos-item { min-height: 116px; border-radius: 14px; }
+  .pos-premium button { min-height: 42px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pos-premium *, .pos-premium *::before, .pos-premium *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
