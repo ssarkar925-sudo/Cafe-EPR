@@ -21,18 +21,39 @@ main > div.mx-auto.max-w-\[1600px\] button.group.relative .bg-slate-900 { backgr
 main > div.mx-auto.max-w-\[1600px\] button.group.relative:hover .bg-slate-900 { background:var(--pos-brand)!important; }
 main > div.mx-auto.max-w-\[1600px\] aside > div { border:1px solid var(--pos-line); background:var(--pos-surface); }
 main > div.mx-auto.max-w-\[1600px\] aside button:hover { background:var(--pos-soft)!important; }
-/* Cart/payment panel: clearer hierarchy, resilient scrolling, and larger cashier touch targets. */
+/* Checkout/customer panel — visual-only, transaction logic untouched. */
 main > div.mx-auto.max-w-\[1600px\] aside { align-self:start; }
 main > div.mx-auto.max-w-\[1600px\] aside h2, main > div.mx-auto.max-w-\[1600px\] aside h3 { letter-spacing:-.01em; }
 main > div.mx-auto.max-w-\[1600px\] aside button { min-height:40px; touch-action:manipulation; }
 main > div.mx-auto.max-w-\[1600px\] aside input, main > div.mx-auto.max-w-\[1600px\] aside select { min-height:42px; }
 main > div.mx-auto.max-w-\[1600px\] aside table tbody tr { border-bottom:1px solid var(--pos-line); }
 main > div.mx-auto.max-w-\[1600px\] aside .text-2xl, main > div.mx-auto.max-w-\[1600px\] aside .text-3xl { letter-spacing:-.025em; }
+/* Customer selector/search controls */
+main > div.mx-auto.max-w-\[1600px\] aside input::placeholder { color:#94a3b8; }
+main > div.mx-auto.max-w-\[1600px\] aside input[type="search"] { padding-left:36px; }
+main > div.mx-auto.max-w-\[1600px\] aside [role="listbox"], main > div.mx-auto.max-w-\[1600px\] aside [role="option"] { border-color:var(--pos-line); }
+/* Payment method buttons: consistent height and strong selected state without changing classes. */
+main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring"] { min-height:42px; }
+main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-emerald-600"], main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-cyan-600"], main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-blue-600"], main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-indigo-600"], main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-amber-600"], main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-violet-600"], main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring-rose-600"] { box-shadow:0 6px 16px rgba(15,23,42,.1); }
+/* Totals / final checkout area */
+main > div.mx-auto.max-w-\[1600px\] aside .border-t { border-color:var(--pos-line)!important; }
+main > div.mx-auto.max-w-\[1600px\] aside .text-2xl, main > div.mx-auto.max-w-\[1600px\] aside .text-3xl { font-variant-numeric:tabular-nums; }
 main > div.mx-auto.max-w-\[1600px\] table { border-collapse:separate; border-spacing:0; }
 main > div.mx-auto.max-w-\[1600px\] tbody tr { transition:background-color 150ms ease; }
 main > div.mx-auto.max-w-\[1600px\] tbody tr:hover { background:var(--pos-soft)!important; }
 main > div.mx-auto.max-w-\[1600px\] .border-slate-200 { border-color:var(--pos-line)!important; }
 @media (min-width:1025px) { main > div.mx-auto.max-w-\[1600px\] aside { position:sticky; top:16px; } }
 @media (max-width:1024px) { main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height:145px; } main > div.mx-auto.max-w-\[1600px\] button { touch-action:manipulation; } }
-@media (max-width:640px) { main > div.mx-auto.max-w-\[1600px\] { padding-left:12px; padding-right:12px; } main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height:138px; padding:10px; border-radius:16px; } main > div.mx-auto.max-w-\[1600px\] input, main > div.mx-auto.max-w-\[1600px\] select { min-height:42px; } main > div.mx-auto.max-w-\[1600px\] aside { position:relative; top:auto; } main > div.mx-auto.max-w-\[1600px\] aside > div { border-radius:16px; } main > div.mx-auto.max-w-\[1600px\] .rounded-xl { border-radius:14px; } }
+@media (max-width:640px) {
+  main > div.mx-auto.max-w-\[1600px\] { padding-left:12px; padding-right:12px; }
+  main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height:138px; padding:10px; border-radius:16px; }
+  main > div.mx-auto.max-w-\[1600px\] input, main > div.mx-auto.max-w-\[1600px\] select { min-height:42px; }
+  main > div.mx-auto.max-w-\[1600px\] aside { position:relative; top:auto; }
+  main > div.mx-auto.max-w-\[1600px\] aside > div { border-radius:16px; }
+  main > div.mx-auto.max-w-\[1600px\] aside button { min-height:44px; }
+  main > div.mx-auto.max-w-\[1600px\] aside .text-2xl, main > div.mx-auto.max-w-\[1600px\] aside .text-3xl { font-size:1.5rem; }
+  main > div.mx-auto.max-w-\[1600px\] aside table { display:block; overflow-x:auto; max-width:100%; }
+  main > div.mx-auto.max-w-\[1600px\] aside table th, main > div.mx-auto.max-w-\[1600px\] aside table td { white-space:nowrap; }
+  main > div.mx-auto.max-w-\[1600px\] .rounded-xl { border-radius:14px; }
+}
 @media (prefers-reduced-motion:reduce) { main > div.mx-auto.max-w-\[1600px\] * { transition:none!important; transform:none!important; } }
