@@ -9,8 +9,8 @@ import "./header-premium.css";
 import ThemeProvider from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: { default: "Cafe ERP", template: "%s | Cafe ERP" },
-  description: "Cafe ERP system",
+  title: { default: "CyberCafe ERP", template: "%s | CyberCafe ERP" },
+  description: "CyberCafe ERP system",
 };
 
 export default function RootLayout({
