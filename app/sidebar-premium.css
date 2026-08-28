@@ -1,0 +1,153 @@
+/* Cafe ERP — premium navigation system */
+aside {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(420px 220px at 50% -8%, color-mix(in srgb, var(--accent-color) 18%, transparent), transparent 70%),
+    radial-gradient(260px 180px at 0% 72%, rgba(216,137,50,.06), transparent 72%),
+    linear-gradient(180deg, #121a2b 0%, #0c1424 48%, #080e1a 100%) !important;
+  border-right: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 18px 0 50px rgba(2,6,23,.16) !important;
+}
+
+aside::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-color) 70%, white), transparent);
+  opacity: .7;
+  pointer-events: none;
+}
+
+/* Brand block */
+aside > div:first-child {
+  height: 72px !important;
+  border-bottom-color: rgba(255,255,255,.07) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.035), transparent);
+}
+
+aside > div:first-child img,
+aside > div:first-child > div {
+  box-shadow: 0 8px 26px rgba(0,0,0,.24), 0 0 0 1px rgba(255,255,255,.08) !important;
+}
+
+/* Sidebar search */
+aside input {
+  height: 38px;
+  border-radius: 11px !important;
+  background: rgba(255,255,255,.055) !important;
+  border: 1px solid rgba(255,255,255,.075) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+aside input:hover { background: rgba(255,255,255,.07) !important; }
+aside input:focus {
+  background: rgba(255,255,255,.09) !important;
+  border-color: color-mix(in srgb, var(--accent-color) 55%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 12%, transparent) !important;
+}
+
+/* Section labels */
+aside nav > div > button {
+  margin-bottom: 5px;
+  border-radius: 8px;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  letter-spacing: .12em !important;
+}
+aside nav > div > button:hover {
+  background: rgba(255,255,255,.035);
+}
+
+/* Navigation items */
+aside nav ul { margin-top: 3px !important; }
+aside nav li a {
+  position: relative;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 11px !important;
+  padding: 8px 11px !important;
+  color: #aebbd0 !important;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
+}
+
+aside nav li a:hover {
+  transform: translateX(2px);
+  color: #f8fafc !important;
+  background: rgba(255,255,255,.055) !important;
+  border-color: rgba(255,255,255,.055);
+}
+
+/* Active link: replace generic blue gradient with premium accent treatment */
+aside nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600,
+aside nav li a[aria-current="page"] {
+  color: #fff !important;
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--accent-color) 30%, #111827),
+    rgba(255,255,255,.075)) !important;
+  border-color: color-mix(in srgb, var(--accent-color) 28%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--accent-color), 0 8px 22px rgba(0,0,0,.18) !important;
+}
+
+aside nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600::after,
+aside nav li a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-color) 70%, transparent);
+}
+
+/* Icon tiles */
+aside nav li a svg {
+  width: 18px !important;
+  height: 18px !important;
+  opacity: .88;
+}
+aside nav li a:hover svg { opacity: 1; }
+aside nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600 svg,
+aside nav li a[aria-current="page"] svg { color: var(--brand-400) !important; opacity: 1; }
+
+/* Status badges */
+aside nav li a span[class*="border"] {
+  border-radius: 999px !important;
+  padding: 3px 7px !important;
+  line-height: 1 !important;
+  backdrop-filter: blur(8px);
+}
+
+/* User panel */
+aside > div:last-of-type {
+  padding: 10px !important;
+  border-top-color: rgba(255,255,255,.07) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.018), rgba(0,0,0,.12));
+}
+aside > div:last-of-type > div:first-child {
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(255,255,255,.045) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 10px 25px rgba(0,0,0,.12);
+}
+
+/* Scrollbar */
+aside nav::-webkit-scrollbar { width: 5px; }
+aside nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: 999px; }
+aside nav { scrollbar-color: rgba(255,255,255,.13) transparent; }
+
+/* Collapsed mode */
+aside.w-\[76px\] nav li a { min-height: 42px; padding: 10px !important; }
+aside.w-\[76px\] nav li a:hover { transform: scale(1.03); }
+aside.w-\[76px\] nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600::after,
+aside.w-\[76px\] nav li a[aria-current="page"]::after { right: 5px; }
+
+@media (max-width: 1023px) {
+  aside { box-shadow: 24px 0 70px rgba(2,6,23,.32) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  aside nav li a { transition: none !important; }
+}
