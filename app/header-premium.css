@@ -1,0 +1,14 @@
+/* Cafe ERP — global workspace header */
+main > header{position:sticky;top:0;z-index:20;min-height:64px;border-bottom:1px solid var(--line)!important;background:color-mix(in srgb,var(--surface) 90%,transparent)!important;backdrop-filter:blur(18px) saturate(135%);box-shadow:0 8px 28px rgba(15,23,42,.035)!important}
+main > header > div:first-child h1{letter-spacing:-.03em}main > header > div:first-child p{letter-spacing:.01em}
+main > header button{border-radius:12px!important}main > header button:hover{transform:translateY(-1px)}
+main > header button[aria-label="Search"]{border-color:var(--line)!important;background:var(--surface)!important;box-shadow:0 5px 16px rgba(15,23,42,.035)!important}
+main > header button[aria-label="Search"]:hover{border-color:color-mix(in srgb,var(--accent-color) 35%,var(--line))!important;box-shadow:0 8px 22px color-mix(in srgb,var(--accent-color) 7%,transparent)!important}
+main > header kbd{border-color:var(--line)!important;background:color-mix(in srgb,var(--accent-color) 4%,var(--surface))!important}
+main > header a[href="/settings"]{border-color:var(--line)!important;background:var(--surface)!important}main > header a[href="/settings"]:hover{border-color:color-mix(in srgb,var(--accent-color) 35%,var(--line))!important;color:var(--accent-color)!important;box-shadow:0 6px 18px color-mix(in srgb,var(--accent-color) 7%,transparent)}
+main > header a[href="/settings"].items-center{box-shadow:0 4px 14px rgba(15,23,42,.025)}main > header a[href="/settings"].items-center:hover{border-color:color-mix(in srgb,var(--accent-color) 28%,var(--line))!important;transform:translateY(-1px)}
+main > header img{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent-color) 12%,transparent),0 5px 14px rgba(15,23,42,.1)}
+.dark main > header{background:color-mix(in srgb,var(--surface) 88%,transparent)!important;box-shadow:0 10px 30px rgba(0,0,0,.14)!important}
+@media(max-width:1023px){main > header{min-height:56px}main > header button{min-height:40px}main > header button[aria-label="Open menu"],main > header button[aria-label="Search"]{width:40px;height:40px}main > header .truncate{max-width:100%}}
+@media(max-width:640px){main > header{padding-left:12px!important;padding-right:12px!important;gap:8px!important}main > header p{font-size:10px}main > header button{min-height:42px}}
+@media(prefers-reduced-motion:reduce){main > header button,main > header a{transition:none!important;transform:none!important}}
