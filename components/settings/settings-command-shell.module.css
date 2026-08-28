@@ -1,5 +1,4 @@
-.legacyRoot > div > div:first-child,
-.legacyRoot > div > div:nth-child(2) {
+.legacyRoot > div > div:first-child {
   display: none !important;
 }
 
@@ -8,7 +7,7 @@
   padding: 0 !important;
 }
 
-.legacyRoot > div > div:nth-child(3) {
+.legacyRoot > div > div:nth-child(2) {
   margin-top: 16px !important;
 }
 
