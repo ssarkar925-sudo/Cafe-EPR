@@ -1,0 +1,17 @@
+.legacyRoot > div > div:first-child,
+.legacyRoot > div > div:nth-child(2) {
+  display: none !important;
+}
+
+.legacyRoot > div {
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+.legacyRoot > div > div:nth-child(3) {
+  margin-top: 16px !important;
+}
+
+.legacyRoot :global(.mt-6.hidden) {
+  display: none !important;
+}
