@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import DashboardShell from "@/components/dashboard-shell";
 import SessionGuard from "@/components/session-guard";
+import ModuleQuickNav from "@/components/module-quick-nav";
 
 export default async function DashboardLayout({
   children,
@@ -25,17 +26,10 @@ export default async function DashboardLayout({
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-slate-900">
-            Account deactivated
-          </h1>
+          <h1 className="text-xl font-semibold text-slate-900">Account deactivated</h1>
           <p className="mt-2 text-sm text-slate-500">Contact the shop admin.</p>
           <form action="/logout" method="post" className="mt-4">
-            <button
-              type="submit"
-              className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm text-white"
-            >
-              Sign out
-            </button>
+            <button type="submit" className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm text-white">Sign out</button>
           </form>
         </div>
       </div>
@@ -48,13 +42,14 @@ export default async function DashboardLayout({
       <DashboardShell
         name={profile?.full_name || user.email || ""}
         email={user.email || ""}
-        role={role ?? "staff"}
+        role={role}
         shopName={settings?.shop_name || "Cafe ERP"}
         logoUrl={settings?.logo_url || null}
         avatarUrl={profile?.avatar_url || null}
         userId={user.id}
       >
-        {children}
+        <ModuleQuickNav />
+        <main className="min-w-0">{children}</main>
       </DashboardShell>
     </>
   );
