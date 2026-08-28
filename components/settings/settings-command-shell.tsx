@@ -39,14 +39,16 @@ export default function SettingsCommandShell(props: SettingsClientProps) {
               </span>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-300">{currentGroup?.label || "System"}</p>
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{meta.title}</h1>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Settings Command Center</h1>
               </div>
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{meta.desc} <span className="text-slate-500">· {shopName}</span></p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+              Configure <span className="text-slate-200">{meta.title}</span> for <span className="text-slate-500">{shopName}</span>. All administration controls stay in this workspace.
+            </p>
           </div>
-          <Link href="/settings" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-100">
-            Back to Command Center <Arrow />
-          </Link>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold text-emerald-300 sm:inline-flex">Admin workspace</span>
+          </div>
         </div>
       </div>
 
