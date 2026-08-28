@@ -1,0 +1,30 @@
+/* Invoice & sales history premium UI layer.
+   Visual-only: keeps existing data, calculations, actions and workflows intact. */
+.invoices-page{--invoice-line:var(--line,rgba(15,23,42,.085));--invoice-accent:var(--accent-color,#2563eb);--invoice-surface:var(--surface,rgba(255,255,255,.96));max-width:1600px;margin-inline:auto}
+.invoices-page>div{min-width:0}
+.invoices-page h1{letter-spacing:-.035em}
+.invoices-page input,.invoices-page select{background:var(--invoice-surface);border-color:var(--invoice-line);box-shadow:0 1px 2px rgba(15,23,42,.025)}
+.invoices-page input:focus,.invoices-page select:focus{border-color:color-mix(in srgb,var(--invoice-accent) 48%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--invoice-accent) 10%,transparent)}
+.invoices-page button,.invoices-page a{border-radius:12px}
+.invoices-page .rounded-2xl.border,.invoices-page .rounded-3xl.border{border-color:var(--invoice-line)!important;box-shadow:0 8px 26px rgba(15,23,42,.04);transition:box-shadow 180ms ease,transform 180ms ease,border-color 180ms ease}
+.invoices-page .rounded-2xl.border:hover,.invoices-page .rounded-3xl.border:hover{box-shadow:0 14px 34px rgba(15,23,42,.065);border-color:color-mix(in srgb,var(--invoice-accent) 20%,var(--invoice-line))!important}
+.invoices-page table{border-collapse:separate;border-spacing:0;overflow:hidden;border-radius:16px}
+.invoices-page table thead th{background:color-mix(in srgb,var(--invoice-accent) 3%,var(--invoice-surface));padding:.8rem 1rem;font-size:10px;letter-spacing:.06em}
+.invoices-page table tbody td{padding:.8rem 1rem}
+.invoices-page table tbody tr{transition:background-color 150ms ease}
+.invoices-page table tbody tr:hover{background:color-mix(in srgb,var(--invoice-accent) 3.5%,transparent)}
+.invoices-page [class*="bg-emerald-100"]{box-shadow:inset 0 0 0 1px rgba(16,185,129,.08)}
+.invoices-page [class*="bg-amber-100"]{box-shadow:inset 0 0 0 1px rgba(245,158,11,.09)}
+.invoices-page [class*="bg-rose-100"]{box-shadow:inset 0 0 0 1px rgba(244,63,94,.08)}
+.invoices-page .overflow-x-auto{border-radius:18px;-webkit-overflow-scrolling:touch}
+.invoices-page .grid{min-width:0}
+.invoices-page .grid>*{min-width:0}
+@media(max-width:767px){
+ .invoices-page{padding-bottom:1rem}
+ .invoices-page h1{font-size:1.5rem}
+ .invoices-page table{min-width:720px}
+ .invoices-page .overflow-x-auto{margin-inline:-2px;padding-inline:2px}
+ .invoices-page button,.invoices-page a{min-height:42px}
+ .invoices-page input,.invoices-page select{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){.invoices-page *{transition:none!important;animation:none!important}}
