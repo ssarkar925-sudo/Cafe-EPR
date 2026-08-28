@@ -24,16 +24,6 @@ const SIZES: Record<ModalSize, string> = {
   "2xl": "sm:max-w-[1180px]",
 };
 
-function TrafficLights() {
-  return (
-    <div className="flex items-center gap-1.5" aria-hidden="true">
-      <span className="h-3 w-3 rounded-full bg-[#ff5f57] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" />
-      <span className="h-3 w-3 rounded-full bg-[#febc2e] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" />
-      <span className="h-3 w-3 rounded-full bg-[#28c840] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" />
-    </div>
-  );
-}
-
 function CloseButton({ onClose }: { onClose: () => void }) {
   return (
     <button type="button" onClick={onClose} aria-label="Close" title="Close" className="group flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white">
@@ -43,13 +33,7 @@ function CloseButton({ onClose }: { onClose: () => void }) {
 }
 
 function WindowControls({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <button type="button" aria-label="Minimize" title="Minimize" className="hidden h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 dark:hover:bg-white/10 sm:flex"><span className="h-px w-3.5 bg-current" /></button>
-      <button type="button" aria-label="Maximize" title="Maximize" className="hidden h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 dark:hover:bg-white/10 sm:flex"><span className="h-3 w-3 rounded-[3px] border border-current" /></button>
-      <CloseButton onClose={onClose} />
-    </div>
-  );
+  return <div className="flex items-center"><CloseButton onClose={onClose} /></div>;
 }
 
 export default function Modal({
@@ -94,15 +78,13 @@ export default function Modal({
   const panel = (
     <>
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${a.bar}`} />
-
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-50/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 sm:h-14 sm:px-5">
-        <div className="absolute left-1/2 flex max-w-[45%] -translate-x-1/2 items-center gap-2 text-center">
+        <div className="absolute left-1/2 flex max-w-[55%] -translate-x-1/2 items-center gap-2 text-center">
           <span className="truncate text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500">Cafe ERP</span>
           {!noHeader && title && <><span className="text-slate-300 dark:text-slate-700">•</span><span className="truncate text-xs font-bold text-slate-600 dark:text-slate-300">{title}</span></>}
         </div>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
           {headerRight}
-          <TrafficLights />
           <WindowControls onClose={onClose} />
         </div>
       </div>
@@ -122,7 +104,6 @@ export default function Modal({
       )}
 
       <div className={`min-h-0 flex-1 overflow-y-auto bg-white px-5 py-5 dark:bg-slate-900 sm:px-6 sm:py-6 ${bodyClassName ?? ""}`}>{children}</div>
-
       {footer !== undefined && <div className="shrink-0 border-t border-slate-200/80 bg-slate-50/90 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80 sm:px-6">{footer}</div>}
     </>
   );
