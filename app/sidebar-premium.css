@@ -22,11 +22,22 @@ aside::before {
   pointer-events: none;
 }
 
+aside::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 72px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent-color) 16%, transparent), transparent);
+  pointer-events: none;
+}
+
 /* Brand block */
 aside > div:first-child {
   height: 72px !important;
   border-bottom-color: rgba(255,255,255,.07) !important;
-  background: linear-gradient(180deg, rgba(255,255,255,.035), transparent);
+  background: linear-gradient(180deg, rgba(255,255,255,.045), transparent);
 }
 
 aside > div:first-child img,
@@ -49,12 +60,20 @@ aside input:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 12%, transparent) !important;
 }
 
+/* Navigation rail */
+aside nav {
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.13) transparent;
+}
+aside nav::-webkit-scrollbar { width: 5px; }
+aside nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: 999px; }
+
 /* Section labels */
 aside nav > div > button {
-  margin-bottom: 5px;
+  margin: 2px 2px 5px;
   border-radius: 8px;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  padding: 7px 8px !important;
   letter-spacing: .12em !important;
 }
 aside nav > div > button:hover {
@@ -65,9 +84,9 @@ aside nav > div > button:hover {
 aside nav ul { margin-top: 3px !important; }
 aside nav li a {
   position: relative;
-  min-height: 38px;
+  min-height: 40px;
   border: 1px solid transparent;
-  border-radius: 11px !important;
+  border-radius: 12px !important;
   padding: 8px 11px !important;
   color: #aebbd0 !important;
   transition: transform 160ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
@@ -80,7 +99,7 @@ aside nav li a:hover {
   border-color: rgba(255,255,255,.055);
 }
 
-/* Active link: replace generic blue gradient with premium accent treatment */
+/* Active link — quiet premium glow instead of a loud gradient */
 aside nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600,
 aside nav li a[aria-current="page"] {
   color: #fff !important;
@@ -108,10 +127,11 @@ aside nav li a svg {
   width: 18px !important;
   height: 18px !important;
   opacity: .88;
+  transition: transform 160ms ease, opacity 160ms ease;
 }
-aside nav li a:hover svg { opacity: 1; }
+aside nav li a:hover svg { opacity: 1; transform: scale(1.06); }
 aside nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600 svg,
-aside nav li a[aria-current="page"] svg { color: var(--brand-400) !important; opacity: 1; }
+aside nav li a[aria-current="page"] svg { color: var(--accent-color) !important; opacity: 1; }
 
 /* Status badges */
 aside nav li a span[class*="border"] {
@@ -133,21 +153,44 @@ aside > div:last-of-type > div:first-child {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 10px 25px rgba(0,0,0,.12);
 }
 
-/* Scrollbar */
-aside nav::-webkit-scrollbar { width: 5px; }
-aside nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: 999px; }
-aside nav { scrollbar-color: rgba(255,255,255,.13) transparent; }
-
 /* Collapsed mode */
-aside.w-\[76px\] nav li a { min-height: 42px; padding: 10px !important; }
-aside.w-\[76px\] nav li a:hover { transform: scale(1.03); }
+aside.w-\[76px\] nav li a { min-height: 44px; padding: 10px !important; }
+aside.w-\[76px\] nav li a:hover { transform: scale(1.035); }
 aside.w-\[76px\] nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600::after,
 aside.w-\[76px\] nav li a[aria-current="page"]::after { right: 5px; }
+aside.w-\[76px\] nav li a.bg-gradient-to-r.from-blue-600.to-indigo-600,
+aside.w-\[76px\] nav li a[aria-current="page"] {
+  box-shadow: inset 3px 0 0 var(--accent-color), 0 7px 18px rgba(0,0,0,.18) !important;
+}
+
+/* Design preset accents for the navigation rail */
+html[data-design="midnight"] aside,
+html[data-design="neon"] aside {
+  background:
+    radial-gradient(420px 220px at 50% -8%, color-mix(in srgb, var(--accent-color) 22%, transparent), transparent 70%),
+    linear-gradient(180deg, #0b1220 0%, #070d17 52%, #040811 100%) !important;
+}
+html[data-design="glass"] aside {
+  background:
+    radial-gradient(420px 220px at 50% -8%, color-mix(in srgb, var(--accent-color) 22%, transparent), transparent 70%),
+    linear-gradient(180deg, #17142a 0%, #0e1020 52%, #090c17 100%) !important;
+}
+html[data-design="organic"] aside {
+  background:
+    radial-gradient(420px 220px at 50% -8%, color-mix(in srgb, var(--accent-color) 18%, transparent), transparent 70%),
+    linear-gradient(180deg, #17231f 0%, #0e1915 52%, #09110e 100%) !important;
+}
+html[data-design="corporate"] aside {
+  background:
+    radial-gradient(420px 220px at 50% -8%, color-mix(in srgb, var(--accent-color) 15%, transparent), transparent 70%),
+    linear-gradient(180deg, #111827 0%, #0b1220 52%, #070c15 100%) !important;
+}
 
 @media (max-width: 1023px) {
   aside { box-shadow: 24px 0 70px rgba(2,6,23,.32) !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  aside nav li a { transition: none !important; }
+  aside nav li a,
+  aside nav li a svg { transition: none !important; }
 }
