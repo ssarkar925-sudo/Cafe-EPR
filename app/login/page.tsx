@@ -220,8 +220,6 @@ export default function LoginPage() {
       /* ignore */
     }
 
-    // 2FA is required when GoTrue returns no session (weak session) OR when the
-    // returned session is only aal1 while the user has verified aal2 (TOTP) factors.
     let mfaRequired = !data.session;
     if (!mfaRequired) {
       const { data: aal, error: aalErr } =
@@ -271,7 +269,6 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070a14] px-4 py-10 font-sans text-white">
-      {/* Ambient glow orbs */}
       <div className="pointer-events-none fixed inset-0" aria-hidden>
         <div className="absolute -left-40 -top-48 h-[36rem] w-[36rem] rounded-full bg-indigo-600/25 blur-3xl" />
         <div className="absolute -right-40 top-1/4 h-[32rem] w-[32rem] rounded-full bg-violet-600/20 blur-3xl" />
@@ -288,7 +285,6 @@ export default function LoginPage() {
       </div>
 
       <div className="relative grid w-full max-w-5xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
-        {/* Left: brand panel (desktop) */}
         <div className="hidden lg:block">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-lg shadow-indigo-900/40">
@@ -298,13 +294,13 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <p className="text-xl font-bold tracking-tight">Cafe ERP</p>
+              <p className="text-xl font-bold tracking-tight">CyberCafe ERP</p>
               <p className="text-xs font-medium text-slate-400">Point of Sale &amp; Business Suite</p>
             </div>
           </div>
 
           <h1 className="mt-10 text-4xl font-bold leading-tight tracking-tight">
-            Run your cafe.
+            Run your cybercafe.
             <br />
             <span className="bg-gradient-to-r from-indigo-400 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
               We&apos;ll handle the rest.
@@ -341,10 +337,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Right: auth card */}
         <div className="mx-auto w-full max-w-md">
           <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-7 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-8">
-            {/* Mobile brand */}
             <div className="mb-7 flex items-center gap-3 lg:hidden">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-lg shadow-indigo-900/40">
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5.5 w-5.5">
@@ -353,7 +347,7 @@ export default function LoginPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-lg font-bold tracking-tight">Cafe ERP</p>
+                <p className="text-lg font-bold tracking-tight">CyberCafe ERP</p>
                 <p className="text-xs text-slate-400">Point of Sale &amp; Business Suite</p>
               </div>
             </div>
@@ -362,9 +356,7 @@ export default function LoginPage() {
               {showReset ? (
                 <>
                   <h2 className="text-xl font-bold tracking-tight">Reset your password</h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    We&apos;ll email you a secure reset link.
-                  </p>
+                  <p className="mt-1 text-sm text-slate-400">We&apos;ll email you a secure reset link.</p>
                 </>
               ) : mfaStep ? (
                 <div className="flex items-center gap-3">
@@ -386,72 +378,34 @@ export default function LoginPage() {
               )}
             </div>
 
-            <form
-              onSubmit={showReset ? handleReset : mfaStep ? handleMfa : handleSubmit}
-              className="space-y-4"
-            >
+            <form onSubmit={showReset ? handleReset : mfaStep ? handleMfa : handleSubmit} className="space-y-4">
               {!showReset && (
                 <>
                   {!mfaStep ? (
                     <>
                       <div>
-                        <label htmlFor="email" className="mb-1.5 block text-xs font-semibold text-slate-300">
-                          Email
-                        </label>
+                        <label htmlFor="email" className="mb-1.5 block text-xs font-semibold text-slate-300">Email</label>
                         <div className="relative">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500">
                             <rect x="2" y="4" width="20" height="16" rx="2" />
                             <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                           </svg>
-                          <input
-                            id="email"
-                            type="email"
-                            required
-                            disabled={locked}
-                            autoComplete="email"
-                            placeholder="you@shop.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className={fieldCls}
-                          />
+                          <input id="email" type="email" required disabled={locked} autoComplete="email" placeholder="you@shop.com" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldCls} />
                         </div>
                       </div>
 
                       <div>
                         <div className="mb-1.5 flex items-center justify-between">
-                          <label htmlFor="password" className="text-xs font-semibold text-slate-300">
-                            Password
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => setShowReset(true)}
-                            className="text-xs font-medium text-indigo-300 transition hover:text-indigo-200"
-                          >
-                            Forgot?
-                          </button>
+                          <label htmlFor="password" className="text-xs font-semibold text-slate-300">Password</label>
+                          <button type="button" onClick={() => setShowReset(true)} className="text-xs font-medium text-indigo-300 transition hover:text-indigo-200">Forgot?</button>
                         </div>
                         <div className="relative">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500">
                             <rect x="3" y="11" width="18" height="11" rx="2" />
                             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                           </svg>
-                          <input
-                            id="password"
-                            type={showPw ? "text" : "password"}
-                            required
-                            disabled={locked}
-                            autoComplete="current-password"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className={fieldCls}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPw((v) => !v)}
-                            aria-label={showPw ? "Hide password" : "Show password"}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-300"
-                          >
+                          <input id="password" type={showPw ? "text" : "password"} required disabled={locked} autoComplete="current-password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldCls} />
+                          <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-300">
                             {showPw ? (
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                                 <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
@@ -469,42 +423,19 @@ export default function LoginPage() {
                     </>
                   ) : (
                     <div>
-                      <label htmlFor="mfa-code" className="mb-1.5 block text-xs font-semibold text-slate-300">
-                        Authenticator code
-                      </label>
-                      <input
-                        id="mfa-code"
-                        type="text"
-                        required
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        autoFocus
-                        placeholder="6-digit code"
-                        value={mfaCode}
-                        onChange={(e) => setMfaCode(e.target.value)}
-                        className={fieldCls + " text-center text-lg tracking-[0.4em]"}
-                      />
-                      <p className="mt-2 text-xs text-slate-500">
-                        Enter the 6-digit code from your authenticator app to finish signing in.
-                      </p>
+                      <label htmlFor="mfa-code" className="mb-1.5 block text-xs font-semibold text-slate-300">Authenticator code</label>
+                      <input id="mfa-code" type="text" required inputMode="numeric" autoComplete="one-time-code" autoFocus placeholder="6-digit code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} className={fieldCls + " text-center text-lg tracking-[0.4em]"} />
+                      <p className="mt-2 text-xs text-slate-500">Enter the 6-digit code from your authenticator app to finish signing in.</p>
                     </div>
                   )}
                 </>
               )}
 
-              {error && (
-                <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">
-                  {error}
-                </p>
-              )}
+              {error && <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">{error}</p>}
 
               {!showReset ? (
                 <>
-                  <button
-                    type="submit"
-                    disabled={loading || locked}
-                    className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:shadow-indigo-800/50 active:scale-[0.99] disabled:opacity-60"
-                  >
+                  <button type="submit" disabled={loading || locked} className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:shadow-indigo-800/50 active:scale-[0.99] disabled:opacity-60">
                     <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                     <span className="relative flex items-center justify-center gap-2">
                       {loading && (
@@ -513,28 +444,12 @@ export default function LoginPage() {
                           <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
                         </svg>
                       )}
-                      {locked
-                        ? `Try again in ${Math.ceil(lockLeft / 1000)}s`
-                        : loading
-                          ? mfaStep
-                            ? "Verifying…"
-                            : "Signing in…"
-                          : mfaStep
-                            ? "Verify code"
-                            : "Sign in"}
+                      {locked ? `Try again in ${Math.ceil(lockLeft / 1000)}s` : loading ? (mfaStep ? "Verifying…" : "Signing in…") : (mfaStep ? "Verify code" : "Sign in")}
                     </span>
                   </button>
 
                   {mfaStep && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMfaStep(false);
-                        setMfaCode("");
-                        setError(null);
-                      }}
-                      className="w-full text-center text-xs font-medium text-slate-400 transition hover:text-slate-200"
-                    >
+                    <button type="button" onClick={() => { setMfaStep(false); setMfaCode(""); setError(null); }} className="w-full text-center text-xs font-medium text-slate-400 transition hover:text-slate-200">
                       ← Back to sign in
                     </button>
                   )}
@@ -547,39 +462,17 @@ export default function LoginPage() {
               ) : (
                 <>
                   <div>
-                    <label htmlFor="reset-email" className="mb-1.5 block text-xs font-semibold text-slate-300">
-                      Email
-                    </label>
+                    <label htmlFor="reset-email" className="mb-1.5 block text-xs font-semibold text-slate-300">Email</label>
                     <div className="relative">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500">
                         <rect x="2" y="4" width="20" height="16" rx="2" />
                         <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                       </svg>
-                      <input
-                        id="reset-email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        placeholder="you@shop.com"
-                        value={resetEmail}
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        className={fieldCls}
-                      />
+                      <input id="reset-email" type="email" required autoComplete="email" placeholder="you@shop.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className={fieldCls} />
                     </div>
                   </div>
-                  <button
-                    type="submit"
-                    className="w-full rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:brightness-110 active:scale-[0.99]"
-                  >
-                    Send reset link
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowReset(false)}
-                    className="w-full text-center text-xs font-medium text-slate-400 transition hover:text-slate-200"
-                  >
-                    ← Back to sign in
-                  </button>
+                  <button type="submit" className="w-full rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:brightness-110 active:scale-[0.99]">Send reset link</button>
+                  <button type="button" onClick={() => setShowReset(false)} className="w-full text-center text-xs font-medium text-slate-400 transition hover:text-slate-200">← Back to sign in</button>
                 </>
               )}
             </form>
