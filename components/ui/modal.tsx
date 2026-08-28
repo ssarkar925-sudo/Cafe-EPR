@@ -3,7 +3,6 @@
 import { useEffect, type ReactNode } from "react";
 
 type Accent = "blue" | "indigo" | "rose" | "emerald" | "amber" | "violet" | "teal" | "slate";
-
 type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 const ACCENTS: Record<Accent, { bar: string; icon: string; glow: string; soft: string }> = {
@@ -46,8 +45,6 @@ function CloseButton({ onClose }: { onClose: () => void }) {
 function WindowControls({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex items-center gap-2.5">
-      <TrafficLights />
-      <div className="ml-2 hidden h-5 w-px bg-slate-200 dark:bg-white/10 sm:block" />
       <button type="button" aria-label="Minimize" title="Minimize" className="hidden h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 dark:hover:bg-white/10 sm:flex"><span className="h-px w-3.5 bg-current" /></button>
       <button type="button" aria-label="Maximize" title="Maximize" className="hidden h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 dark:hover:bg-white/10 sm:flex"><span className="h-3 w-3 rounded-[3px] border border-current" /></button>
       <CloseButton onClose={onClose} />
@@ -99,12 +96,15 @@ export default function Modal({
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${a.bar}`} />
 
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-50/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 sm:h-14 sm:px-5">
-        <WindowControls onClose={onClose} />
         <div className="absolute left-1/2 flex max-w-[45%] -translate-x-1/2 items-center gap-2 text-center">
           <span className="truncate text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500">Cafe ERP</span>
           {!noHeader && title && <><span className="text-slate-300 dark:text-slate-700">•</span><span className="truncate text-xs font-bold text-slate-600 dark:text-slate-300">{title}</span></>}
         </div>
-        {headerRight && <div className="absolute right-16 sm:right-20">{headerRight}</div>}
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
+          {headerRight}
+          <TrafficLights />
+          <WindowControls onClose={onClose} />
+        </div>
       </div>
 
       {!noHeader && header !== undefined && <div className="shrink-0">{header}</div>}
