@@ -23,9 +23,11 @@ export default async function InvoicesPage() {
     .limit(500);
 
   return (
-    <InvoicesClient
-      initialInvoices={(invoices ?? []) as any}
-      initialQuickSales={(quickSales ?? []) as any}
-    />
+    <div data-page="invoices" className="invoices-page">
+      <InvoicesClient
+        initialInvoices={(invoices ?? []) as any}
+        initialQuickSales={(quickSales ?? []) as any}
+      />
+    </div>
   );
 }
