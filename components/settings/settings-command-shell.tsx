@@ -3,12 +3,10 @@
 import type { ComponentProps } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
 import SettingsClient from "@/components/settings/settings-client";
 import { SETTINGS_GROUPS, tabMeta } from "@/components/settings/settings-config";
 
 type SettingsClientProps = ComponentProps<typeof SettingsClient>;
-
 type Props = SettingsClientProps;
 
 function Icon({ path, className = "h-5 w-5" }: { path: string; className?: string }) {
@@ -33,7 +31,7 @@ function CloseIcon() {
   return <Icon path="M6 6l12 12M18 6L6 18" className="h-5 w-5" />;
 }
 
-function SettingsHub({ props, onOpen }: { props: Props; onOpen: (key: string) => void }) {
+function SettingsHub({ onOpen }: { onOpen: (key: string) => void }) {
   const [query, setQuery] = useState("");
   const filteredGroups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -133,7 +131,7 @@ export default function SettingsCommandShell(props: Props) {
 
   return (
     <>
-      <SettingsHub props={props} onOpen={setOpenTab} />
+      <SettingsHub onOpen={setOpenTab} />
       {openTab && <ModuleWindow props={props} tab={openTab} onClose={() => setOpenTab(null)} />}
     </>
   );
