@@ -20,9 +20,7 @@ export default async function PosPage({
     await Promise.all([
       supabase
         .from("products")
-        .select(
-          "id, code, name, sale_price, stock_qty, reorder_level, unit, category_id, hsn_code, gst_rate, categories(name)"
-        )
+        .select("id, code, name, sale_price, stock_qty, reorder_level, unit, category_id, hsn_code, gst_rate, categories(name)")
         .eq("is_active", true)
         .order("name"),
       supabase
@@ -50,17 +48,13 @@ export default async function PosPage({
         .eq("is_active", true),
       supabase
         .from("invoices")
-        .select(
-          "id, invoice_number, invoice_date, customer_id, discount, total, status, customers(name), invoice_items(product_id, service_id, description, qty, rate, amount), payments(method, instrument_id, amount)"
-        )
+        .select("id, invoice_number, invoice_date, customer_id, discount, total, status, customers(name), invoice_items(product_id, service_id, description, qty, rate, amount), payments(method, instrument_id, amount)")
         .eq("invoice_date", today)
         .order("created_at", { ascending: false })
         .limit(500),
       supabase
         .from("quick_sales")
-        .select(
-          "id, sale_number, sale_date, customer_id, product_id, service_id, item_name, amount, cost, tendered, change_due, payments, status, created_at, customers(name), products(name), services(name)"
-        )
+        .select("id, sale_number, sale_date, customer_id, product_id, service_id, item_name, amount, cost, tendered, change_due, payments, status, created_at, customers(name), products(name), services(name)")
         .eq("sale_date", today)
         .order("created_at", { ascending: false }),
     ]);
@@ -71,19 +65,21 @@ export default async function PosPage({
   const enabledMethods = (paymentMethods ?? []).map((p: any) => p.method);
 
   return (
-    <PosClient
-      products={(products ?? []) as any}
-      services={(services ?? []) as any}
-      customers={(customers ?? []) as any}
-      instruments={(instruments ?? []) as any}
-      salesTodayCount={salesTodayCount}
-      salesTodayAmount={salesTodayAmount}
-      initialCustomerId={customer || ""}
-      initialMode={mode === "quick" ? "quick" : "invoice"}
-      todayQuickSales={(todaysQuick ?? []) as any}
-      enabledMethods={enabledMethods}
-      canViewProfit={canViewProfit}
-      todayInvoices={(todaysInvoices ?? []) as any}
-    />
+    <main className="pos-premium-root">
+      <PosClient
+        products={(products ?? []) as any}
+        services={(services ?? []) as any}
+        customers={(customers ?? []) as any}
+        instruments={(instruments ?? []) as any}
+        salesTodayCount={salesTodayCount}
+        salesTodayAmount={salesTodayAmount}
+        initialCustomerId={customer || ""}
+        initialMode={mode === "quick" ? "quick" : "invoice"}
+        todayQuickSales={(todaysQuick ?? []) as any}
+        enabledMethods={enabledMethods}
+        canViewProfit={canViewProfit}
+        todayInvoices={(todaysInvoices ?? []) as any}
+      />
+    </main>
   );
 }
