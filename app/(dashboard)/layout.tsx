@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getUserRole, hasRole } from "@/lib/authz";
+import { getUserRole } from "@/lib/authz";
 import DashboardShell from "@/components/dashboard-shell";
 import SessionGuard from "@/components/session-guard";
-import ModuleQuickNav from "@/components/module-quick-nav";
 
 export default async function DashboardLayout({
   children,
@@ -48,7 +47,6 @@ export default async function DashboardLayout({
         avatarUrl={profile?.avatar_url || null}
         userId={user.id}
       >
-        <ModuleQuickNav />
         <main className="min-w-0">{children}</main>
       </DashboardShell>
     </>
