@@ -117,11 +117,11 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
         <div className="settings-module-content min-h-0 flex-1 overflow-y-auto bg-slate-50/80 dark:bg-slate-950">
           <SettingsClient {...props} initialTab={tab} key={tab} />
         </div>
-        <style jsx>{`
+        <style jsx global>{`
           .settings-module-content > div > div:first-child { display: none !important; }
           .settings-module-content > div > div:nth-child(2) > div:first-child { display: none !important; }
-          .settings-module-content > div > div:nth-child(2) > div:last-child { grid-column: 1 / -1 !important; }
-          .settings-module-content > div > div:nth-child(2) > div:last-child > div:first-child { display: none !important; }
+          .settings-module-content > div > div:nth-child(2) > div:last-child { grid-column: 1 / -1 !important; width: 100% !important; }
+          .settings-module-content > div > div:nth-child(2) { display: block !important; }
           .settings-module-content > div { max-width: none !important; padding: 2rem 2.5rem !important; }
           @media (max-width: 640px) {
             .settings-module-content > div { padding: 1rem !important; }
@@ -135,7 +135,6 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
 
 export default function SettingsCommandShell(props: Props) {
   const [openTab, setOpenTab] = useState<string | null>(null);
-
   return (
     <>
       <SettingsHub onOpen={setOpenTab} />
