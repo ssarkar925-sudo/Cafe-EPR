@@ -91,6 +91,17 @@ export default function CashbookClient({
     }
   }
 
+  function clearFilters() {
+    setMethod("all");
+    setAccount("all");
+    setDirection("all");
+    setScope("all");
+    setFrom("");
+    setTo("");
+    setPreset("all");
+    setQ("");
+  }
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return initialEntries.filter((e) => {
@@ -211,284 +222,71 @@ export default function CashbookClient({
           sub={`${totals.totalIn > 0 ? inr(totals.totalIn) : "₹0"} in · ${totals.totalOut > 0 ? inr(totals.totalOut) : "₹0"} out`}
           icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
           grad="from-violet-500 to-purple-600"
-          onClick={() => {
-            setDirection("all");
-            setMethod("all");
-            setScope("all");
-            setQ("");
-          }}
+          onClick={clearFilters}
         />
       </div>
 
-      {/* 3 Channels Live Summary Ribbon */}
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div
           onClick={() => setScope("cash")}
-          className={`cursor-pointer rounded-2xl border p-3.5 transition ${
-            scope === "cash"
-              ? "border-emerald-500 bg-emerald-50/50 dark:border-emerald-500/50 dark:bg-emerald-950/20 shadow-sm"
-              : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
-          }`}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition ${scope === "cash" ? "border-emerald-500 bg-emerald-50/50 dark:border-emerald-500/50 dark:bg-emerald-950/20 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"}`}
         >
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-              <span>💵</span> Physical Cash Drawer
-            </span>
-            <span className={`text-xs font-bold ${channelStats.cash.balance >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-              {inr(channelStats.cash.balance)}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-            <span>In: <strong className="text-emerald-600">+{inr(channelStats.cash.inAmt)}</strong></span>
-            <span>Out: <strong className="text-rose-600">-{inr(channelStats.cash.outAmt)}</strong></span>
-            <span>{channelStats.cash.count} txns</span>
-          </div>
+          <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white"><span>💵</span> Physical Cash Drawer</span><span className={`text-xs font-bold ${channelStats.cash.balance >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{inr(channelStats.cash.balance)}</span></div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500"><span>In: <strong className="text-emerald-600">+{inr(channelStats.cash.inAmt)}</strong></span><span>Out: <strong className="text-rose-600">-{inr(channelStats.cash.outAmt)}</strong></span><span>{channelStats.cash.count} txns</span></div>
         </div>
-
         <div
           onClick={() => setScope("bank")}
-          className={`cursor-pointer rounded-2xl border p-3.5 transition ${
-            scope === "bank"
-              ? "border-sky-500 bg-sky-50/50 dark:border-sky-500/50 dark:bg-sky-950/20 shadow-sm"
-              : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
-          }`}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition ${scope === "bank" ? "border-sky-500 bg-sky-50/50 dark:border-sky-500/50 dark:bg-sky-950/20 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"}`}
         >
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-              <span>🏦</span> Bank Channels
-            </span>
-            <span className={`text-xs font-bold ${channelStats.bank.balance >= 0 ? "text-sky-600" : "text-rose-600"}`}>
-              {inr(channelStats.bank.balance)}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-            <span>In: <strong className="text-emerald-600">+{inr(channelStats.bank.inAmt)}</strong></span>
-            <span>Out: <strong className="text-rose-600">-{inr(channelStats.bank.outAmt)}</strong></span>
-            <span>{channelStats.bank.count} txns</span>
-          </div>
+          <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white"><span>🏦</span> Bank Channels</span><span className={`text-xs font-bold ${channelStats.bank.balance >= 0 ? "text-sky-600" : "text-rose-600"}`}>{inr(channelStats.bank.balance)}</span></div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500"><span>In: <strong className="text-emerald-600">+{inr(channelStats.bank.inAmt)}</strong></span><span>Out: <strong className="text-rose-600">-{inr(channelStats.bank.outAmt)}</strong></span><span>{channelStats.bank.count} txns</span></div>
         </div>
-
         <div
           onClick={() => setScope("digital")}
-          className={`cursor-pointer rounded-2xl border p-3.5 transition ${
-            scope === "digital"
-              ? "border-violet-500 bg-violet-50/50 dark:border-violet-500/50 dark:bg-violet-950/20 shadow-sm"
-              : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
-          }`}
+          className={`cursor-pointer rounded-2xl border p-3.5 transition ${scope === "digital" ? "border-violet-500 bg-violet-50/50 dark:border-violet-500/50 dark:bg-violet-950/20 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"}`}
         >
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-              <span>📱</span> Digital &amp; UPI Channels
-            </span>
-            <span className={`text-xs font-bold ${channelStats.digital.balance >= 0 ? "text-violet-600" : "text-rose-600"}`}>
-              {inr(channelStats.digital.balance)}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-            <span>In: <strong className="text-emerald-600">+{inr(channelStats.digital.inAmt)}</strong></span>
-            <span>Out: <strong className="text-rose-600">-{inr(channelStats.digital.outAmt)}</strong></span>
-            <span>{channelStats.digital.count} txns</span>
-          </div>
+          <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white"><span>📱</span> Digital &amp; UPI Channels</span><span className={`text-xs font-bold ${channelStats.digital.balance >= 0 ? "text-violet-600" : "text-rose-600"}`}>{inr(channelStats.digital.balance)}</span></div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500"><span>In: <strong className="text-emerald-600">+{inr(channelStats.digital.inAmt)}</strong></span><span>Out: <strong className="text-rose-600">-{inr(channelStats.digital.outAmt)}</strong></span><span>{channelStats.digital.count} txns</span></div>
         </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           <div className="relative min-w-[220px] flex-1">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search description, DMT, AEPS, Settlement, Invoice, or method…"
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
-            />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search description, DMT, AEPS, Settlement, Invoice, or method…" className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900" />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
-              {(["all", "in", "out"] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDirection(d)}
-                  className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                    direction === d
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
-                      : "text-slate-500"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-            <SearchableSelect
-              value={method}
-              onChange={setMethod}
-              options={[
-                { value: "all", label: "All methods" },
-                { value: "cash", label: "Cash" },
-                { value: "upi", label: "UPI" },
-                { value: "card", label: "Card" },
-                { value: "bank", label: "Bank" },
-                { value: "wallet", label: "Wallet" },
-                { value: "dmt", label: "DMT" },
-                { value: "aeps", label: "AEPS" },
-                { value: "debit_card", label: "Debit Card" },
-                { value: "credit_card", label: "Credit Card" },
-              ]}
-              searchPlaceholder="Search method…"
-              className="w-40"
-            />
-            <SearchableSelect
-              value={account}
-              onChange={setAccount}
-              options={[
-                { value: "all", label: "All accounts" },
-                ...instruments.map((i) => ({ value: i.name, label: i.name })),
-              ]}
-              searchPlaceholder="Search account…"
-              className="w-44"
-            />
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">{(["all", "in", "out"] as const).map((d) => <button key={d} onClick={() => setDirection(d)} className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${direction === d ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white" : "text-slate-500"}`}>{d}</button>)}</div>
+            <SearchableSelect value={method} onChange={setMethod} options={[{ value: "all", label: "All methods" }, { value: "cash", label: "Cash" }, { value: "upi", label: "UPI" }, { value: "card", label: "Card" }, { value: "bank", label: "Bank" }, { value: "wallet", label: "Wallet" }, { value: "dmt", label: "DMT" }, { value: "aeps", label: "AEPS" }, { value: "debit_card", label: "Debit Card" }, { value: "credit_card", label: "Credit Card" }]} searchPlaceholder="Search method…" className="w-40" />
+            <SearchableSelect value={account} onChange={setAccount} options={[{ value: "all", label: "All accounts" }, ...instruments.map((i) => ({ value: i.name, label: i.name }))]} searchPlaceholder="Search account…" className="w-44" />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs dark:bg-white/5">
-            {(["today", "7d", "month", "all"] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => applyPreset(p)}
-                className={`rounded-lg px-3 py-1.5 font-medium transition ${
-                  preset === p ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white" : "text-slate-500"
-                }`}
-              >
-                {p === "today" ? "Today" : p === "7d" ? "Last 7 days" : p === "month" ? "This month" : "All time"}
-              </button>
-            ))}
-          </div>
+          <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs dark:bg-white/5">{(["today", "7d", "month", "all"] as const).map((p) => <button key={p} onClick={() => applyPreset(p)} className={`rounded-lg px-3 py-1.5 font-medium transition ${preset === p ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white" : "text-slate-500"}`}>{p === "today" ? "Today" : p === "7d" ? "Last 7 days" : p === "month" ? "This month" : "All time"}</button>)}</div>
           <input type="date" value={from} onChange={(e) => { setPreset("all"); setFrom(e.target.value); }} className={inputClass} />
           <span className="text-xs text-slate-400">to</span>
-          <input type="date" value={to} onChange={(e) => { setPreset("all"); setTo(e.target.value); }} className={inputClass} />
+          <input type="date" value={to} min={from || undefined} onChange={(e) => { setPreset("all"); setTo(e.target.value); }} className={inputClass} />
           <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-cashbook-compact" />
+          <button type="button" onClick={clearFilters} className="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5">Clear filters</button>
         </div>
       </div>
 
-      {/* Channel Scope Selector Tabs */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
         <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold dark:bg-white/5">
-          <button
-            type="button"
-            onClick={() => setScope("all")}
-            className={`rounded-lg px-3.5 py-1.5 transition ${
-              scope === "all" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            All Channels ({initialEntries.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setScope("cash")}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
-              scope === "cash" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <span>💵</span> Physical Cash Drawer
-            <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${
-              scope === "cash" ? "bg-emerald-700 text-white" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-            }`}>
-              {inr(channelStats.cash.balance)}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setScope("bank")}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
-              scope === "bank" ? "bg-sky-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <span>🏦</span> Bank Accounts
-            <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${
-              scope === "bank" ? "bg-sky-700 text-white" : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
-            }`}>
-              {inr(channelStats.bank.balance)}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setScope("digital")}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${
-              scope === "digital" ? "bg-violet-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <span>📱</span> Digital &amp; UPI
-            <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${
-              scope === "digital" ? "bg-violet-700 text-white" : "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300"
-            }`}>
-              {inr(channelStats.digital.balance)}
-            </span>
-          </button>
+          <button type="button" onClick={() => setScope("all")} className={`rounded-lg px-3.5 py-1.5 transition ${scope === "all" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-700"}`}>All Channels ({initialEntries.length})</button>
+          <button type="button" onClick={() => setScope("cash")} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${scope === "cash" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}><span>💵</span> Physical Cash Drawer <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${scope === "cash" ? "bg-emerald-700 text-white" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"}`}>{inr(channelStats.cash.balance)}</span></button>
+          <button type="button" onClick={() => setScope("bank")} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${scope === "bank" ? "bg-sky-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}><span>🏦</span> Bank Accounts <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${scope === "bank" ? "bg-sky-700 text-white" : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"}`}>{inr(channelStats.bank.balance)}</span></button>
+          <button type="button" onClick={() => setScope("digital")} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition ${scope === "digital" ? "bg-violet-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}><span>📱</span> Digital &amp; UPI <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] ${scope === "digital" ? "bg-violet-700 text-white" : "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300`}>{inr(channelStats.digital.balance)}</span></button>
         </div>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
         <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
-              <th className="px-5 py-3 font-medium">Date</th>
-              <th className="px-5 py-3 font-medium">Origin &amp; Description</th>
-              <th className="px-5 py-3 font-medium">Channel / Method</th>
-              <th className="px-5 py-3 text-right font-medium">In</th>
-              <th className="px-5 py-3 text-right font-medium">Out</th>
-              <th className="px-5 py-3 text-right font-medium">Balance</th>
-            </tr>
-          </thead>
+          <thead><tr className="border-b border-slate-200 text-slate-500 dark:border-white/10"><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Origin &amp; Description</th><th className="px-5 py-3 font-medium">Channel / Method</th><th className="px-5 py-3 text-right font-medium">In</th><th className="px-5 py-3 text-right font-medium">Out</th><th className="px-5 py-3 text-right font-medium">Balance</th></tr></thead>
           <tbody>
-            {[...totals.rows].reverse().map((e) => {
-              const badge = getOriginBadge(e);
-              return (
-                <tr key={e.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5">
-                  <td className="px-5 py-3 text-slate-500">{e.entry_date}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badge.color}`}>
-                        {badge.label}
-                      </span>
-                      <span className="text-slate-900 dark:text-white">{e.description || "-"}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${METHOD_COLOR[e.method] || "bg-slate-100 text-slate-600"}`}>
-                      {e.method.toUpperCase()}
-                    </span>
-                    {e.payment_instruments?.name && (
-                      <span className="cell-sub ml-1.5 text-[11px] text-slate-400 font-medium">🏦 {e.payment_instruments.name}</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-right font-medium text-emerald-600">
-                    {e.direction === "in" ? `+${inr(e.amount)}` : ""}
-                  </td>
-                  <td className="px-5 py-3 text-right font-medium text-rose-600">
-                    {e.direction === "out" ? `-${inr(e.amount)}` : ""}
-                  </td>
-                  <td className={`px-5 py-3 text-right font-semibold ${e.balance < 0 ? "text-rose-600" : "text-slate-900 dark:text-white"}`}>
-                    {inr(e.balance)}
-                  </td>
-                </tr>
-              );
-            })}
-            {totals.rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-slate-500">
-                  No cash entries match your filters.
-                </td>
-              </tr>
-            )}
+            {[...totals.rows].reverse().map((e) => { const badge = getOriginBadge(e); return <tr key={e.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"><td className="px-5 py-3 text-slate-500">{e.entry_date}</td><td className="px-5 py-3"><div className="flex items-center gap-2"><span className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badge.color}`}>{badge.label}</span><span className="text-slate-900 dark:text-white">{e.description || "-"}</span></div></td><td className="px-5 py-3"><span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${METHOD_COLOR[e.method] || "bg-slate-100 text-slate-600"}`}>{e.method.toUpperCase()}</span>{e.payment_instruments?.name && <span className="cell-sub ml-1.5 text-[11px] text-slate-400 font-medium">🏦 {e.payment_instruments.name}</span>}</td><td className="px-5 py-3 text-right font-medium text-emerald-600">{e.direction === "in" ? `+${inr(e.amount)}` : ""}</td><td className="px-5 py-3 text-right font-medium text-rose-600">{e.direction === "out" ? `-${inr(e.amount)}` : ""}</td><td className={`px-5 py-3 text-right font-semibold ${e.balance < 0 ? "text-rose-600" : "text-slate-900 dark:text-white"}`}>{inr(e.balance)}</td></tr>; })}
+            {totals.rows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-500">No cash entries match your filters.</td></tr>}
           </tbody>
         </table>
       </div>
