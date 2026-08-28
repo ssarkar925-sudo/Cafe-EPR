@@ -7,77 +7,267 @@
   --animate-modal-panel: modal-panel 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 
   @keyframes modal-backdrop {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
+
   @keyframes modal-panel {
-    from {
-      opacity: 0;
-      transform: translateY(22px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
+    from { opacity: 0; transform: translateY(22px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 }
 
 :root {
+  --brand-400: #f4b45f;
+  --brand-500: #d88932;
+  --brand-600: #b9681e;
+  --accent-color: #d88932;
+  --page: #f7f7f5;
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-soft: #fbfaf7;
+  --ink: #172033;
+  --muted: #667085;
+  --line: rgba(15, 23, 42, 0.085);
+  --shadow-soft: 0 12px 36px rgba(15, 23, 42, 0.055);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.065);
+}
+
+/* Custom accent palettes */
+[data-accent="blue"] {
+  --brand-400: #60a5fa;
   --brand-500: #2563eb;
   --brand-600: #1d4ed8;
   --accent-color: #2563eb;
 }
-
-/* Custom Accent Color Overrides */
 [data-accent="emerald"] {
+  --brand-400: #34d399;
   --brand-500: #059669;
   --brand-600: #047857;
   --accent-color: #059669;
 }
 [data-accent="violet"] {
+  --brand-400: #a78bfa;
   --brand-500: #7c3aed;
   --brand-600: #6d28d9;
   --accent-color: #7c3aed;
 }
 [data-accent="amber"] {
+  --brand-400: #fbbf24;
   --brand-500: #d97706;
   --brand-600: #b45309;
   --accent-color: #d97706;
 }
 [data-accent="rose"] {
+  --brand-400: #fb7185;
   --brand-500: #e11d48;
   --brand-600: #be123c;
   --accent-color: #e11d48;
 }
 [data-accent="cyan"] {
+  --brand-400: #22d3ee;
   --brand-500: #0891b2;
   --brand-600: #0e7490;
   --accent-color: #0891b2;
 }
 
+html {
+  scroll-behavior: smooth;
+  background: var(--page);
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
-  @apply dark:bg-slate-950 dark:text-slate-100;
+  @apply text-slate-900 antialiased;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% -8%, color-mix(in srgb, var(--accent-color) 8%, transparent), transparent 34rem),
+    radial-gradient(circle at 94% 0%, rgba(216, 137, 50, 0.055), transparent 28rem),
+    var(--page);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: -0.012em;
 }
 
-/* Font scale modifier */
-html.font-scale-large {
-  font-size: 106%;
+/* Premium application chrome */
+aside {
+  background:
+    radial-gradient(circle at 50% -12%, color-mix(in srgb, var(--accent-color) 15%, transparent), transparent 18rem),
+    linear-gradient(180deg, #111827 0%, #0b1220 54%, #080e19 100%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.075) !important;
+  box-shadow: 12px 0 40px rgba(15, 23, 42, 0.085);
 }
 
-/* Density compact modifier */
+aside a {
+  border-radius: 12px;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+aside a:hover {
+  background: rgba(255, 255, 255, 0.065) !important;
+  transform: translateX(2px);
+}
+
+aside a[aria-current="page"] {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 26%, transparent), rgba(255,255,255,.055)) !important;
+  box-shadow: inset 3px 0 0 var(--accent-color), 0 8px 24px rgba(0,0,0,.12);
+}
+
+/* Header / global navigation */
+main > header {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border-bottom-color: rgba(148, 163, 184, 0.16) !important;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.035);
+  backdrop-filter: blur(16px);
+}
+
+.dark main > header {
+  background: rgba(15, 23, 42, 0.84) !important;
+}
+
+/* Gentle page entrance */
+main > :not(header) {
+  animation: page-enter 220ms ease-out both;
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Consistent interactive language */
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+a {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: ease-out;
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+input,
+select,
+textarea {
+  border-radius: 10px;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-color) 42%, transparent);
+  outline-offset: 2px;
+}
+
+/* Cards: softer borders + deliberate elevation */
+.bg-white.border,
+.bg-white\/80.border,
+.bg-white\/60.border,
+.bg-white\/50.border {
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow-card);
+}
+
+.bg-white.border:hover,
+.bg-white\/80.border:hover,
+.bg-white\/60.border:hover,
+.bg-white\/50.border:hover {
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.045), 0 16px 38px rgba(15, 23, 42, 0.075);
+}
+
+/* Turn common blue utility controls into the selected brand */
+.bg-blue-600,
+.bg-blue-500 {
+  background-color: var(--brand-500) !important;
+}
+
+.hover\\:bg-blue-700:hover,
+.hover\\:bg-blue-600:hover {
+  background-color: var(--brand-600) !important;
+}
+
+.text-blue-600,
+.text-blue-500 {
+  color: var(--brand-500) !important;
+}
+
+.border-blue-500,
+.border-blue-600 {
+  border-color: color-mix(in srgb, var(--accent-color) 55%, transparent) !important;
+}
+
+/* Brand-aware status chips */
+.bg-blue-50 { background-color: color-mix(in srgb, var(--accent-color) 8%, white) !important; }
+.bg-blue-100 { background-color: color-mix(in srgb, var(--accent-color) 13%, white) !important; }
+
+/* Tables */
+table thead th {
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+table tbody tr {
+  transition: background-color 150ms ease;
+}
+
+table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent-color) 3.5%, transparent);
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.dark * {
+  scrollbar-color: #334155 transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+/* Font scale */
+html.font-scale-large { font-size: 106%; }
+
+/* Compact density */
 html.density-compact .table td,
 html.density-compact table td {
   padding-top: 0.35rem;
   padding-bottom: 0.35rem;
 }
 
-/* Dark theme: remap the slate ramp + white so the whole app inverts. */
+/* Compact table mode */
+.rows-compact thead th {
+  padding: 0.4rem 0.9rem;
+  font-size: 11px;
+}
+.rows-compact tbody td {
+  padding: 0.35rem 0.9rem;
+  font-size: 13px;
+}
+.rows-compact .cell-sub { display: none; }
+
+/* Dark theme */
 .dark {
+  --page: #080d17;
+  --surface: #0f172a;
+  --surface-soft: #111827;
+  --ink: #f8fafc;
+  --muted: #94a3b8;
+  --line: rgba(148, 163, 184, 0.14);
+  --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 12px 34px rgba(0, 0, 0, 0.2);
   --color-slate-50: #0b1120;
   --color-slate-100: #141d33;
   --color-slate-200: #25334d;
@@ -89,27 +279,40 @@ html.density-compact table td {
   --color-slate-800: #f1f5f9;
   --color-slate-900: #f8fafc;
   --color-slate-950: #ffffff;
+  background:
+    radial-gradient(circle at 15% -10%, color-mix(in srgb, var(--accent-color) 10%, transparent), transparent 34rem),
+    #080d17;
 }
 
-.dark .bg-white {
-  background-color: #0f172a;
-}
-
+.dark .bg-white,
 .dark .bg-white\/50,
 .dark .bg-white\/60,
 .dark .bg-white\/80 {
   background-color: #0f172a;
 }
 
-/* Short (compact) table view — dense rows, hides secondary sub-lines. */
-.rows-compact thead th {
-  padding: 0.4rem 0.9rem;
-  font-size: 11px;
+.dark .bg-white.border,
+.dark .bg-white\/80.border,
+.dark .bg-white\/60.border,
+.dark .bg-white\/50.border {
+  border-color: rgba(148, 163, 184, 0.14) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
 }
-.rows-compact tbody td {
-  padding: 0.35rem 0.9rem;
-  font-size: 13px;
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
-.rows-compact .cell-sub {
-  display: none;
+
+@media (max-width: 1023px) {
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--accent-color) 7%, transparent), transparent 24rem),
+      var(--page);
+  }
 }
