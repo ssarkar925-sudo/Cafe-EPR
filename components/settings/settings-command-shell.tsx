@@ -114,9 +114,19 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
           <div className="min-w-0 flex-1 text-center"><p className="truncate text-[10px] font-black uppercase tracking-[.16em] text-blue-500">{meta.group}</p><h2 className="truncate text-sm font-black text-slate-900 dark:text-white sm:text-base">{meta.title}</h2></div>
           <div className="flex w-1/3 justify-end"><button type="button" onClick={onClose} aria-label="Close module" title="Close module" className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"><CloseIcon /></button></div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 dark:bg-slate-950">
+        <div className="settings-module-content min-h-0 flex-1 overflow-y-auto bg-slate-50/80 dark:bg-slate-950">
           <SettingsClient {...props} initialTab={tab} key={tab} />
         </div>
+        <style jsx>{`
+          .settings-module-content > div > div:first-child { display: none !important; }
+          .settings-module-content > div > div:nth-child(2) > div:first-child { display: none !important; }
+          .settings-module-content > div > div:nth-child(2) > div:last-child { grid-column: 1 / -1 !important; }
+          .settings-module-content > div > div:nth-child(2) > div:last-child > div:first-child { display: none !important; }
+          .settings-module-content > div { max-width: none !important; padding: 2rem 2.5rem !important; }
+          @media (max-width: 640px) {
+            .settings-module-content > div { padding: 1rem !important; }
+          }
+        `}</style>
       </div>
     </div>,
     document.body,
@@ -125,9 +135,6 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
 
 export default function SettingsCommandShell(props: Props) {
   const [openTab, setOpenTab] = useState<string | null>(null);
-  useEffect(() => {
-    if (props.initialTab && tabMeta[props.initialTab]) setOpenTab(props.initialTab);
-  }, [props.initialTab]);
 
   return (
     <>
