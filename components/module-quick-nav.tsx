@@ -8,7 +8,7 @@ const modules = [
   { label: "Services", href: "/catalog/services", icon: "✦" },
   { label: "Purchases", href: "/purchases", icon: "↓" },
   { label: "Inventory", href: "/inventory/movements", icon: "◇" },
-  { label: "Suppliers", href: "/business/suppliers", icon: "♙" },
+  { label: "Suppliers", href: "/suppliers", icon: "♙" },
   { label: "Returns", href: "/returns", icon: "↶" },
   { label: "Cash Book", href: "/finance/cashbook", icon: "₹" },
   { label: "Reports", href: "/reports", icon: "▥" },
