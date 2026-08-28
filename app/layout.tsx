@@ -4,6 +4,7 @@ import "./dashboard-premium.css";
 import "./pos-premium.css";
 import "./sidebar-premium.css";
 import "./mobile-responsive.css";
+import "./invoices-premium.css";
 import ThemeProvider from "@/components/theme-provider";
 
 export const metadata: Metadata = {
