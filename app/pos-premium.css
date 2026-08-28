@@ -1,26 +1,35 @@
-/* POS 2.1 — catalog/item-card and workflow visual polish. */
-main > div.mx-auto.max-w-\[1600px\] {
-  --pos-brand: var(--accent-color, #d88932); --pos-ink:#182033; --pos-line:rgba(15,23,42,.09); --pos-surface:rgba(255,255,255,.92); --pos-soft:color-mix(in srgb,var(--pos-brand) 6%,white);
-}
+/* POS 2.2 — responsive navigation and layout polish. */
+main > div.mx-auto.max-w-\[1600px\] { --pos-brand:var(--accent-color,#d88932); --pos-ink:#182033; --pos-line:rgba(15,23,42,.09); --pos-surface:rgba(255,255,255,.92); --pos-soft:color-mix(in srgb,var(--pos-brand) 6%,white); min-width:0; }
 .dark main > div.mx-auto.max-w-\[1600px\] { --pos-ink:#f8fafc; --pos-line:rgba(148,163,184,.14); --pos-surface:rgba(15,23,42,.9); --pos-soft:color-mix(in srgb,var(--pos-brand) 9%,#0f172a); }
-main > div.mx-auto.max-w-\[1600px\] .rounded-2xl,main > div.mx-auto.max-w-\[1600px\] .rounded-3xl{border-color:var(--pos-line)!important}
-main > div.mx-auto.max-w-\[1600px\] .shadow-sm{box-shadow:0 8px 24px rgba(15,23,42,.045),inset 0 1px 0 rgba(255,255,255,.55)}
-.dark main > div.mx-auto.max-w-\[1600px\] .shadow-sm{box-shadow:0 16px 34px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035)}
-main > div.mx-auto.max-w-\[1600px\] input,main > div.mx-auto.max-w-\[1600px\] select{border-color:var(--pos-line)!important;background:var(--pos-surface)!important;border-radius:12px}
-main > div.mx-auto.max-w-\[1600px\] input:focus,main > div.mx-auto.max-w-\[1600px\] select:focus{border-color:color-mix(in srgb,var(--pos-brand) 55%,transparent)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--pos-brand) 12%,transparent)!important}
-main > div.mx-auto.max-w-\[1600px\] .bg-slate-100{background:rgba(15,23,42,.055)!important}.dark main > div.mx-auto.max-w-\[1600px\] .bg-slate-100{background:rgba(148,163,184,.08)!important}
-main > div.mx-auto.max-w-\[1600px\] button.group.relative{min-height:158px;border:1px solid var(--pos-line);background:linear-gradient(180deg,var(--pos-surface),color-mix(in srgb,var(--pos-surface) 82%,var(--pos-brand) 3%));box-shadow:0 7px 20px rgba(15,23,42,.045),inset 0 1px 0 rgba(255,255,255,.6);transition:transform 180ms ease,box-shadow 180ms ease,border-color 180ms ease;touch-action:manipulation}
-main > div.mx-auto.max-w-\[1600px\] button.group.relative:hover:not(:disabled){transform:translateY(-3px);border-color:color-mix(in srgb,var(--pos-brand) 35%,var(--pos-line))!important;box-shadow:0 15px 32px rgba(15,23,42,.09),0 0 0 1px color-mix(in srgb,var(--pos-brand) 8%,transparent)}
-main > div.mx-auto.max-w-\[1600px\] button.group.relative:active:not(:disabled){transform:translateY(-1px) scale(.992)}
-main > div.mx-auto.max-w-\[1600px\] button.group.relative .bg-gradient-to-br{background:linear-gradient(135deg,var(--pos-brand),color-mix(in srgb,var(--pos-brand) 62%,#111827))!important}
-main > div.mx-auto.max-w-\[1600px\] button.group.relative .bg-slate-900{background:var(--pos-ink)!important}main > div.mx-auto.max-w-\[1600px\] button.group.relative:hover .bg-slate-900{background:var(--pos-brand)!important}
-main > div.mx-auto.max-w-\[1600px\] .mt-4.grid{gap:.75rem}main > div.mx-auto.max-w-\[1600px\] button.group.relative .truncate{max-width:100%}
-main > div.mx-auto.max-w-\[1600px\] button.group.relative .text-lg,main > div.mx-auto.max-w-\[1600px\] button.group.relative .text-xl{font-variant-numeric:tabular-nums;letter-spacing:-.015em}
-main > div.mx-auto.max-w-\[1600px\] aside{align-self:start}main > div.mx-auto.max-w-\[1600px\] aside>div{border:1px solid var(--pos-line);background:var(--pos-surface)}main > div.mx-auto.max-w-\[1600px\] aside button{min-height:40px;touch-action:manipulation}main > div.mx-auto.max-w-\[1600px\] aside input,main > div.mx-auto.max-w-\[1600px\] aside select{min-height:42px}
-main > div.mx-auto.max-w-\[1600px\] aside .border-t{border-color:var(--pos-line)!important}main > div.mx-auto.max-w-\[1600px\] table{border-collapse:separate;border-spacing:0}main > div.mx-auto.max-w-\[1600px\] tbody tr{transition:background-color 150ms ease}main > div.mx-auto.max-w-\[1600px\] tbody tr:hover{background:var(--pos-soft)!important}
-main > div.mx-auto.max-w-\[1600px\] aside button[class*="ring"]{min-height:42px}
-main > div.mx-auto.max-w-\[1600px\] [class*="bg-amber-50"],main > div.mx-auto.max-w-\[1600px\] [class*="bg-blue-50"],main > div.mx-auto.max-w-\[1600px\] [class*="bg-emerald-50"]{border-radius:14px}
-@media (min-width:1025px){main > div.mx-auto.max-w-\[1600px\] aside{position:sticky;top:16px}}
-@media (max-width:1024px){main > div.mx-auto.max-w-\[1600px\] button.group.relative{min-height:145px}main > div.mx-auto.max-w-\[1600px\] button{touch-action:manipulation}}
-@media (max-width:640px){main > div.mx-auto.max-w-\[1600px\]{padding-left:12px;padding-right:12px}main > div.mx-auto.max-w-\[1600px\] button.group.relative{min-height:138px;padding:10px;border-radius:16px}main > div.mx-auto.max-w-\[1600px\] .mt-4.grid{gap:.625rem}main > div.mx-auto.max-w-\[1600px\] aside{position:relative;top:auto}main > div.mx-auto.max-w-\[1600px\] aside>div{border-radius:16px}main > div.mx-auto.max-w-\[1600px\] aside button{min-height:44px}main > div.mx-auto.max-w-\[1600px\] input,main > div.mx-auto.max-w-\[1600px\] select{min-height:42px}}
-@media (prefers-reduced-motion:reduce){main > div.mx-auto.max-w-\[1600px\] *{transition:none!important;transform:none!important}}
+main > div.mx-auto.max-w-\[1600px\] aside { align-self:start; min-width:0; }
+main > div.mx-auto.max-w-\[1600px\] aside > div { border:1px solid var(--pos-line); background:var(--pos-surface); }
+main > div.mx-auto.max-w-\[1600px\] aside button { min-height:40px; touch-action:manipulation; }
+main > div.mx-auto.max-w-\[1600px\] input,main > div.mx-auto.max-w-\[1600px\] select { border-color:var(--pos-line)!important; background:var(--pos-surface)!important; border-radius:12px; min-height:42px; }
+main > div.mx-auto.max-w-\[1600px\] input:focus,main > div.mx-auto.max-w-\[1600px\] select:focus { border-color:color-mix(in srgb,var(--pos-brand) 55%,transparent)!important; box-shadow:0 0 0 3px color-mix(in srgb,var(--pos-brand) 12%,transparent)!important; }
+main > div.mx-auto.max-w-\[1600px\] .rounded-2xl,main > div.mx-auto.max-w-\[1600px\] .rounded-3xl { border-color:var(--pos-line)!important; }
+main > div.mx-auto.max-w-\[1600px\] .shadow-sm { box-shadow:0 8px 24px rgba(15,23,42,.045),inset 0 1px 0 rgba(255,255,255,.55); }
+.dark main > div.mx-auto.max-w-\[1600px\] .shadow-sm { box-shadow:0 16px 34px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035); }
+/* Desktop navigation rail */
+@media (min-width:1025px) {
+  main > div.mx-auto.max-w-\[1600px\] aside { position:sticky; top:16px; }
+  main > div.mx-auto.max-w-\[1600px\] aside button { transition:background-color 150ms ease,transform 150ms ease; }
+  main > div.mx-auto.max-w-\[1600px\] aside button:hover { background:var(--pos-soft)!important; }
+}
+/* Tablet: keep the catalog dominant and avoid cramped three-column layouts. */
+@media (max-width:1024px) {
+  main > div.mx-auto.max-w-\[1600px\] { padding-left:16px; padding-right:16px; }
+  main > div.mx-auto.max-w-\[1600px\] button { touch-action:manipulation; }
+}
+/* Mobile: prevent horizontal overflow and make controls comfortable for touch. */
+@media (max-width:640px) {
+  main > div.mx-auto.max-w-\[1600px\] { width:100%; max-width:100%; padding-left:12px; padding-right:12px; overflow-x:hidden; }
+  main > div.mx-auto.max-w-\[1600px\] aside { position:relative; top:auto; width:100%; }
+  main > div.mx-auto.max-w-\[1600px\] aside > div { border-radius:16px; }
+  main > div.mx-auto.max-w-\[1600px\] aside button { min-height:44px; }
+  main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height:138px; padding:10px; border-radius:16px; }
+  main > div.mx-auto.max-w-\[1600px\] .mt-4.grid { gap:.625rem; }
+  main > div.mx-auto.max-w-\[1600px\] table { display:block; max-width:100%; overflow-x:auto; }
+  main > div.mx-auto.max-w-\[1600px\] table th,main > div.mx-auto.max-w-\[1600px\] table td { white-space:nowrap; }
+  main > div.mx-auto.max-w-\[1600px\] .rounded-xl { border-radius:14px; }
+}
+@media (prefers-reduced-motion:reduce) { main > div.mx-auto.max-w-\[1600px\] * { transition:none!important; transform:none!important; } }
