@@ -24,5 +24,9 @@ export default async function PosPage({ searchParams }: { searchParams: Promise<
   const salesTodayCount = activeInvoices.length;
   const salesTodayAmount = activeInvoices.reduce((s: number, i: any) => s + Number(i.total), 0);
   const enabledMethods = (paymentMethods ?? []).map((p: any) => p.method);
-  return <main className="pos-premium-root"><PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} /><PosClient products={(products ?? []) as any} services={(services ?? []) as any} customers={(customers ?? []) as any} instruments={(instruments ?? []) as any} salesTodayCount={salesTodayCount} salesTodayAmount={salesTodayAmount} initialCustomerId={customer || ""} initialMode={mode === "quick" ? "quick" : "invoice"} todayQuickSales={(todaysQuick ?? []) as any} enabledMethods={enabledMethods} canViewProfit={canViewProfit} todayInvoices={(todaysInvoices ?? []) as any} /></main>;
+  return <main className="pos-premium-root">
+    <style>{`@media (min-width:1024px){.pos-premium-root .pos-category-sidebar-slot{position:relative}.pos-premium-root .pos-category-sidebar-slot>aside>div{position:fixed!important;top:250px!important;left:calc(var(--sidebar-width, 292px) + 28px)!important;width:260px!important;height:calc(100vh - 275px)!important;max-height:none!important}.pos-premium-root .pos-category-sidebar-slot{width:260px!important}.pos-premium-root .pos-category-sidebar-slot+*{min-width:0}}`}</style>
+    <PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} />
+    <PosClient products={(products ?? []) as any} services={(services ?? []) as any} customers={(customers ?? []) as any} instruments={(instruments ?? []) as any} salesTodayCount={salesTodayCount} salesTodayAmount={salesTodayAmount} initialCustomerId={customer || ""} initialMode={mode === "quick" ? "quick" : "invoice"} todayQuickSales={(todaysQuick ?? []) as any} enabledMethods={enabledMethods} canViewProfit={canViewProfit} todayInvoices={(todaysInvoices ?? []) as any} />
+  </main>;
 }
