@@ -39,6 +39,18 @@ main > div.mx-auto.max-w-\[1600px\] table { border-collapse: separate; border-sp
 main > div.mx-auto.max-w-\[1600px\] tbody tr { transition: background-color 150ms ease; }
 main > div.mx-auto.max-w-\[1600px\] tbody tr:hover { background: var(--pos-soft) !important; }
 main > div.mx-auto.max-w-\[1600px\] .border-slate-200 { border-color: var(--pos-line) !important; }
-@media (max-width: 1024px) { main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height: 145px; } }
-@media (max-width: 640px) { main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height: 138px; padding: 10px; border-radius: 16px; } }
-@media (prefers-reduced-motion: reduce) { main > div.mx-auto.max-w-\[1600px\] * { transition: none !important; transform: none !important; } }
+/* Mobile POS: preserve dense workspace while making primary controls easier to tap. */
+@media (max-width: 1024px) {
+  main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height: 145px; }
+  main > div.mx-auto.max-w-\[1600px\] button { touch-action: manipulation; }
+}
+@media (max-width: 640px) {
+  main > div.mx-auto.max-w-\[1600px\] { padding-left: 12px; padding-right: 12px; }
+  main > div.mx-auto.max-w-\[1600px\] button.group.relative { min-height: 138px; padding: 10px; border-radius: 16px; }
+  main > div.mx-auto.max-w-\[1600px\] input,
+  main > div.mx-auto.max-w-\[1600px\] select { min-height: 42px; }
+  main > div.mx-auto.max-w-\[1600px\] .rounded-xl { border-radius: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  main > div.mx-auto.max-w-\[1600px\] * { transition: none !important; transform: none !important; }
+}
