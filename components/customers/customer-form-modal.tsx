@@ -29,34 +29,37 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
   const [address, setAddress] = useState(editing?.address ?? "");
   const [customerType, setCustomerType] = useState(editing?.customer_type ?? "retail");
   const [creditLimit, setCreditLimit] = useState(
-    editing ? String((editing as any).credit_limit ?? "0") : "5000"
+    editing ? String(editing.credit_limit ?? "0") : "5000"
   );
-  const [opening, setOpening] = useState(
-    editing ? String(editing.opening_balance) : "0"
-  );
+  const [opening, setOpening] = useState(editing ? String(editing.opening_balance) : "0");
   const [saving, setSaving] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
     setSaving(true);
-    await onSave(
-      {
-        name,
-        phone,
-        email,
-        address,
-        opening_balance: Number(opening) || 0,
-        customer_type: customerType || "retail",
-        credit_limit: Number(creditLimit) || 0,
-      },
-      editing ?? undefined
-    );
-    setSaving(false);
+    try {
+      await onSave(
+        {
+          name: trimmedName,
+          phone: phone.trim(),
+          email: email.trim(),
+          address: address.trim(),
+          opening_balance: Number(opening) || 0,
+          customer_type: customerType || "retail",
+          credit_limit: Number(creditLimit) || 0,
+        },
+        editing ?? undefined
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   const inputClass =
-    "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
-  const labelClass = "mb-1 block text-sm font-medium text-slate-700";
+    "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
+  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
   return (
     <Modal
@@ -66,47 +69,54 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
       title={editing ? "Edit Customer" : "Add Customer"}
       subtitle={
         editing
-          ? `${editing.code ?? ""} · Balance ${editing.balance}`
-          : "Add a new customer to the ledger"
+          ? `${editing.code ?? "Customer"} · Balance ${editing.balance}`
+          : "Create a customer profile for sales, credit and ledger tracking"
       }
       icon="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21a8 8 0 0 1 16 0"
       accent="blue"
       size="md"
       footer={
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            disabled={saving}
+            className="min-h-11 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+            disabled={saving || !name.trim()}
+            className="min-h-11 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? "Saving..." : editing ? "Save changes" : "Add customer"}
+            {saving ? "Saving…" : editing ? "Save changes" : "Add customer"}
           </button>
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div>
           <label className={labelClass}>Name *</label>
           <input
             required
+            autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
+            placeholder="Customer name"
             className={inputClass}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Phone</label>
             <input
+              inputMode="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              placeholder="Mobile number"
               className={inputClass}
             />
           </div>
@@ -114,20 +124,25 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
             <label className={labelClass}>Email</label>
             <input
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
               className={inputClass}
             />
           </div>
         </div>
+
         <div>
           <label className={labelClass}>Address</label>
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
+            placeholder="Address (optional)"
             className={inputClass}
           />
         </div>
+
         <div>
           <label className={labelClass}>Customer type</label>
           <select
@@ -140,33 +155,41 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
             <option value="walk-in">Walk-in</option>
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>
-              Credit Limit (₹)
-              <span className="font-normal text-slate-400"> (0 = No limit)</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={creditLimit}
-              onChange={(e) => setCreditLimit(e.target.value)}
-              placeholder="e.g. 5000"
-              className={inputClass}
-            />
+
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-slate-800">Credit & opening balance</p>
+            <p className="mt-0.5 text-xs text-slate-400">Set the customer's starting financial position.</p>
           </div>
-          <div>
-            <label className={labelClass}>
-              Opening Balance (₹)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={opening}
-              onChange={(e) => setOpening(e.target.value)}
-              className={inputClass}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>
+                Credit limit (₹)
+                <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">0 = no limit</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                inputMode="decimal"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+                placeholder="5000"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Opening balance (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={opening}
+                onChange={(e) => setOpening(e.target.value)}
+                placeholder="0"
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
       </div>
