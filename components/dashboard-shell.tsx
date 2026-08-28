@@ -18,17 +18,20 @@ const PAGE_META: Record<string, { title: string; desc: string }> = {
   "/invoices": { title: "Invoices", desc: "Every bill, every payment" },
   "/customers": { title: "Customers", desc: "CRM, dues & balances" },
   "/returns": { title: "Returns", desc: "Refunds & returns" },
+  "/catalog": { title: "Catalog", desc: "Products, services & masters" },
   "/catalog/products": { title: "Products", desc: "Catalog with stock control" },
   "/catalog/services": { title: "Services", desc: "Service price list" },
   "/catalog/categories": { title: "Categories", desc: "Group products & services" },
   "/catalog/brands": { title: "Brands", desc: "Brand master data" },
   "/catalog/units": { title: "Units", desc: "Unit of measure master data" },
+  "/business": { title: "Business Services", desc: "AEPS, DMT, UPI & service providers" },
   "/business/aeps": { title: "AEPS", desc: "Aadhaar-enabled payments" },
   "/business/dmt": { title: "DMT", desc: "Domestic money transfer" },
   "/business/upi": { title: "UPI", desc: "UPI transactions" },
   "/business/banks": { title: "Banks", desc: "Bank accounts & ledgers" },
   "/business/portals": { title: "Portals", desc: "Third-party portals" },
   "/business/merchant-qrs": { title: "Merchant QRs", desc: "QR-based collections" },
+  "/finance": { title: "Finance", desc: "Cash, ledger, P&L & settlements" },
   "/finance/pnl": { title: "Profit & Loss", desc: "Periodic P&L" },
   "/finance/expenses": { title: "Expenses", desc: "Outgoing cash entries" },
   "/finance/cashbook": { title: "Cash Book", desc: "Daily cash movements" },
@@ -36,9 +39,19 @@ const PAGE_META: Record<string, { title: string; desc: string }> = {
   "/finance/opening-balances": { title: "Opening Balances", desc: "Seed cash, bank, cards & floats" },
   "/finance/day-close": { title: "Day Close", desc: "Reconcile, profit & lock the books" },
   "/finance/ledger": { title: "Ledger", desc: "Full account ledger" },
+  "/inventory": { title: "Inventory", desc: "Stock control & valuation" },
+  "/inventory/movements": { title: "Stock Movements", desc: "Inventory movement history" },
+  "/purchases": { title: "Purchases", desc: "Purchasing & stock intake" },
+  "/purchases/entry": { title: "Purchase Entry", desc: "Record a supplier purchase" },
+  "/suppliers": { title: "Suppliers", desc: "Vendor masters & accounts payable" },
   "/reports": { title: "Reports", desc: "Sales, profit & activity" },
+  "/reports/gst": { title: "GST Reports", desc: "GST summaries & reporting" },
+  "/reports/tax-preparation": { title: "Tax Preparation / ITR", desc: "Tax-ready business summaries" },
   "/staff": { title: "Staff", desc: "Team, roles & attendance" },
   "/audit": { title: "Audit Log", desc: "Every important action" },
+  "/ai": { title: "AI Control Center", desc: "Business intelligence & assistance" },
+  "/ai/self-audit": { title: "Financial Self-Audit", desc: "Automated financial integrity checks" },
+  "/security": { title: "Security Center", desc: "Access, sessions & protection" },
   "/settings": { title: "Settings", desc: "Shop profile, receipts & accounts" },
 };
 
@@ -113,7 +126,7 @@ export default function DashboardShell({
         <header className="sticky top-0 z-20 hidden h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur lg:flex dark:border-white/10 dark:bg-slate-900/80">
           <div className="w-52 shrink-0"><h1 className="truncate text-lg font-bold text-slate-900 dark:text-white">{meta.title}</h1>{meta.desc && <p className="truncate text-[11px] text-slate-400">{meta.desc}</p>}</div>
           <button onClick={() => setSearchOpen(true)} className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-500 shadow-sm transition hover:border-blue-400 hover:shadow focus:border-blue-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-slate-400"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg><span className="flex-1 text-left text-slate-400">Search products, services, invoices, customers…</span><kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 dark:border-white/10 dark:bg-white/5">Ctrl K</kbd></button>
-          <div className="ml-auto flex shrink-0 items-center gap-2.5"><CloudSyncBadge /><ThemeToggle /><div className="hidden lg:block"><NotificationBell role={role} /></div><Link href="/settings" title="Settings" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a2 2 0 0 0-1.51 1z" /></svg></Link><Link href="/settings" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 transition hover:border-blue-300" title={`${name} · ${role}`}><Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" /><span className="hidden xl:block"><span className="block max-w-[120px] truncate text-xs font-semibold text-slate-800">{name}</span><span className="block text-[10px] font-medium uppercase tracking-wide text-slate-400">{role}</span></span></Link></div>
+          <div className="ml-auto flex shrink-0 items-center gap-2.5"><CloudSyncBadge /><ThemeToggle /><div className="hidden lg:block"><NotificationBell role={role} /></div><Link href="/settings" title="Settings" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0 1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 1-1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></Link><Link href="/settings" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 transition hover:border-blue-300" title={`${name} · ${role}`}><Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" /><span className="hidden xl:block"><span className="block max-w-[120px] truncate text-xs font-semibold text-slate-800">{name}</span><span className="block text-[10px] font-medium uppercase tracking-wide text-slate-400">{role}</span></span></Link></div>
         </header>
         <ModuleQuickNav />
         {children}
