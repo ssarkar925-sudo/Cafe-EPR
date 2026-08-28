@@ -1,11 +1,12 @@
 "use client";
 
+import type { ComponentProps } from "react";
 import Link from "next/link";
 import SettingsClient from "@/components/settings/settings-client";
 import { SETTINGS_GROUPS, tabMeta } from "@/components/settings/settings-config";
 import styles from "./settings-command-shell.module.css";
 
-type SettingsClientProps = React.ComponentProps<typeof SettingsClient>;
+type SettingsClientProps = ComponentProps<typeof SettingsClient>;
 
 function Arrow({ left = false }: { left?: boolean }) {
   return (
@@ -19,11 +20,12 @@ export default function SettingsCommandShell(props: SettingsClientProps) {
   const tab = props.initialTab && tabMeta[props.initialTab] ? props.initialTab : "general";
   const meta = tabMeta[tab];
   const currentGroup = SETTINGS_GROUPS.find((group) => group.items.some((item) => item.key === tab));
+  const activeIndex = currentGroup?.items.findIndex((item) => item.key === tab) ?? -1;
   const shopName = props.initial?.shop_name || "Sarkar Communication";
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
-      <div className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-slate-950 px-5 py-6 text-white shadow-xl shadow-slate-200/40 sm:px-7 lg:px-9">
+      <div className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-slate-950 px-5 py-6 text-white shadow-xl shadow-slate-200/40 dark:border-white/10 dark:shadow-none sm:px-7 lg:px-9">
         <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -32,8 +34,8 @@ export default function SettingsCommandShell(props: SettingsClientProps) {
               <Arrow left /> Settings Command Center
             </Link>
             <div className="mt-4 flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-cyan-300 ring-1 ring-white/10">
-                <span className="text-sm font-black">{currentGroup?.items.find((item) => item.key === tab)?.key === tab ? (currentGroup?.items.findIndex((item) => item.key === tab) ?? 0) + 1 : "•"}</span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-sm font-black text-cyan-300 ring-1 ring-white/10">
+                {String(activeIndex + 1).padStart(2, "0")}
               </span>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-300">{currentGroup?.label || "System"}</p>
@@ -43,7 +45,7 @@ export default function SettingsCommandShell(props: SettingsClientProps) {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{meta.desc} <span className="text-slate-500">· {shopName}</span></p>
           </div>
           <Link href="/settings" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-100">
-            Back to Command Center <Arrow left={false} />
+            Back to Command Center <Arrow />
           </Link>
         </div>
       </div>
