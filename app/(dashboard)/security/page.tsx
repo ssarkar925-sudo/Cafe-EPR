@@ -2,24 +2,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import SecurityCenterClient from "@/components/security/security-center";
+import SecurityHub from "@/components/security/security-hub";
 
 export const dynamic = "force-dynamic";
 
 export default async function SecurityPage() {
   const role = await getUserRole();
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
-
   const supabase = await createClient();
-
-  const [
-    { data: settings },
-    { data: customers },
-    { data: invoices },
-    { data: products },
-    { data: settlements },
-    { data: cashEntries },
-    { data: expenses },
-  ] = await Promise.all([
+  const [{ data: settings }, { data: customers }, { data: invoices }, { data: products }, { data: settlements }, { data: cashEntries }, { data: expenses }] = await Promise.all([
     supabase.from("settings").select("shop_name").limit(1).maybeSingle(),
     supabase.from("customers").select("id, name, phone, balance").limit(500),
     supabase.from("invoices").select("id, invoice_number, total_amount, paid_amount, status").limit(500),
@@ -28,16 +19,6 @@ export default async function SecurityPage() {
     supabase.from("cash_entries").select("id, method, direction, amount, entry_date").limit(500),
     supabase.from("expenses").select("id, amount, expense_date").limit(500),
   ]);
-
-  return (
-    <SecurityCenterClient
-      shopName={settings?.shop_name || "Sarkar Communication"}
-      customers={(customers ?? []) as any}
-      invoices={(invoices ?? []) as any}
-      products={(products ?? []) as any}
-      settlements={(settlements ?? []) as any}
-      cashEntries={(cashEntries ?? []) as any}
-      expenses={(expenses ?? []) as any}
-    />
-  );
+  const shopName = settings?.shop_name || "Sarkar Communication";
+  return <div className="space-y-10"><SecurityHub shopName={shopName} /><div className="border-t border-slate-200 pt-8 dark:border-white/10"><SecurityCenterClient shopName={shopName} customers={(customers ?? []) as any} invoices={(invoices ?? []) as any} products={(products ?? []) as any} settlements={(settlements ?? []) as any} cashEntries={(cashEntries ?? []) as any} expenses={(expenses ?? []) as any} /></div></div>;
 }
