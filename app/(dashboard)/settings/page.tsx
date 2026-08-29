@@ -16,13 +16,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const activeTab = tab || "general";
   const supabase = await createClient();
 
-  // Only query data required by the selected settings module. This keeps the
-  // single-workspace design fast while retaining the full functionality.
-  const needsAccounts = activeTab === "payment-accounts";
-  const needsFavorites = activeTab === "quick-favorites";
-  const needsMethods = activeTab === "payment-methods";
-  const needsBusiness = activeTab === "business-setup";
-  const needsCatalog = activeTab === "catalog";
+  // Preload all settings datasets so every module is ready on first open.
+  // This also keeps direct module URLs consistent with the main settings workspace.
+  const needsAccounts = true;
+  const needsFavorites = true;
+  const needsMethods = true;
+  const needsBusiness = true;
+  const needsCatalog = true;
 
   const [
     { data: settings },

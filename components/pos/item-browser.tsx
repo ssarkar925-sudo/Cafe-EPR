@@ -376,6 +376,7 @@ export function CustomerSelector({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    if (!needle) return [];
     return customers.filter((c) => {
       if (!needle) return true;
       return (

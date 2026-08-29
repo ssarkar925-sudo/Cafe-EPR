@@ -3,7 +3,6 @@
 import type { ComponentProps } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import SettingsClient from "@/components/settings/settings-client";
 import { SETTINGS_GROUPS, tabMeta } from "@/components/settings/settings-config";
 
@@ -42,15 +41,15 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
 }
 
 export default function SettingsCommandShell(props: Props) {
-  const router = useRouter();
-  const [openTab, setOpenTab] = useState<string | null>(null);
+  const [openTab, setOpenTab] = useState<string | null>(
+    props.initialTab && props.initialTab !== "general" ? props.initialTab : null
+  );
   function openModule(key: string) {
     setOpenTab(key);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", key);
     url.searchParams.delete("section");
     window.history.pushState(null, "", url.toString());
-    router.refresh();
   }
   return <><SettingsHub onOpen={openModule} />{openTab && <ModuleWindow props={props} tab={openTab} onClose={() => setOpenTab(null)} />}</>;
 }
