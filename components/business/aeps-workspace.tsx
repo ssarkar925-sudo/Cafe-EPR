@@ -117,7 +117,8 @@ export default function AepsWorkspace({
   const [amount, setAmount] = useState<string>("2000");
   const [serviceFee, setServiceFee] = useState<string>("20");
   const [portalCommission, setPortalCommission] = useState<string>("5");
-  const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash">("cut_from_withdrawal");
+  const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash" | "upi">("cut_from_withdrawal");
+  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
   const [reference, setReference] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
 
@@ -150,6 +151,15 @@ export default function AepsWorkspace({
     const c = customers.find((x) => x.id === selectedCustomerId);
     if (c?.phone) setCustomerMobile(c.phone);
   }, [selectedCustomerId, customers]);
+
+  // Sync feeSource with customerPayMethod
+  useEffect(() => {
+    if (feeSource === "cut_from_withdrawal") {
+      setCustomerPayMethod("cash");
+    } else if (feeSource === "upi") {
+      setCustomerPayMethod("upi");
+    }
+  }, [feeSource]);
 
   // Available float calculation
   const currentFloat = Number(float?.current || (initialPortals.length > 0 ? 45000 : 0));
@@ -303,6 +313,11 @@ export default function AepsWorkspace({
       return;
     }
 
+    if (customerPayMethod === "due" && !selectedCustomerId) {
+      showToast("error", "Please select a registered customer to record fee as Due (Khata).");
+      return;
+    }
+
     setConfirmWindowOpen(true);
   }
 
@@ -320,6 +335,14 @@ export default function AepsWorkspace({
 
       const nowIso = new Date().toISOString();
       const dateStr = nowIso.slice(0, 10);
+
+      // Map effective fee_source for backend cash drawer accounting
+      const effectiveFeeSource =
+        feeSource === "cut_from_withdrawal"
+          ? "cut_from_withdrawal"
+          : customerPayMethod === "upi"
+          ? "upi"
+          : "separate_cash";
 
       const res = await supabase.rpc("create_business_txn", {
         p_service_type: "aeps",
@@ -346,9 +369,9 @@ export default function AepsWorkspace({
         p_amount: numAmount,
         p_service_fee: numFee,
         p_portal_commission: numComm,
-        p_fee_source: feeSource,
+        p_fee_source: effectiveFeeSource,
         p_paid_from: "portal",
-        p_customer_pay_method: "cash",
+        p_customer_pay_method: customerPayMethod,
         p_receiver_name: null,
       });
 
@@ -386,9 +409,9 @@ export default function AepsWorkspace({
         amount: numAmount,
         service_fee: numFee,
         portal_commission: numComm,
-        fee_source: feeSource,
+        fee_source: effectiveFeeSource,
         paid_from: "portal",
-        customer_pay_method: "cash",
+        customer_pay_method: customerPayMethod,
         customers: customers.find((c) => c.id === selectedCustomerId) || null,
         banks: banks.find((b) => b.id === selectedBankId) || null,
         portals: portals.find((p) => p.id === selectedPortalId) || null,
@@ -737,7 +760,7 @@ export default function AepsWorkspace({
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                     placeholder="Fee charged to customer"
                   />
-                  <p className="text-[10px] text-slate-400">Charged directly to customer.</p>
+                  <p className="text-[10px] text-slate-400">Direct surcharge charged to customer.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -754,18 +777,86 @@ export default function AepsWorkspace({
                   <p className="text-[10px] text-slate-400">Commission credited by AEPS portal.</p>
                 </div>
 
-                <div className="space-y-1.5 sm:col-span-2">
+                {/* Explicit Collection / Payment Method Selector */}
+                <div className="space-y-2 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Fee Collection Method
+                    Fee Handling &amp; Collection Method <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={feeSource}
-                    onChange={(e) => setFeeSource(e.target.value as any)}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  >
-                    <option value="cut_from_withdrawal">Deduct fee from cash handed over (Net Cash Handout)</option>
-                    <option value="separate_cash">Hand over full amount, collect fee separately as cash</option>
-                  </select>
+                  
+                  {/* Fee Deduction vs Separate Collection */}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeeSource("cut_from_withdrawal");
+                        setCustomerPayMethod("cash");
+                      }}
+                      className={`rounded-2xl border p-3 text-left transition ${
+                        feeSource === "cut_from_withdrawal"
+                          ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-black text-slate-900 dark:text-white">
+                        ✂️ Deduct from Cash Handout
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Net cash given = ₹{Number(amount) || 0} − ₹{Number(serviceFee) || 0} = <strong className="text-emerald-600 dark:text-emerald-400">₹{cashToHandOver}</strong>
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFeeSource("separate_cash")}
+                      className={`rounded-2xl border p-3 text-left transition ${
+                        feeSource !== "cut_from_withdrawal"
+                          ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-black text-slate-900 dark:text-white">
+                        💵 Collect Fee Separately
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Hand over full ₹{Number(amount) || 0} in cash; collect ₹{Number(serviceFee) || 0} via chosen instrument.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Instrument Selector (When separate fee collection) */}
+                  {feeSource !== "cut_from_withdrawal" && (
+                    <div className="mt-2 pt-2 border-t border-slate-100 dark:border-white/5 space-y-1.5">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        Select Payment Instrument for Fee Collection:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {[
+                          { id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" },
+                          { id: "upi", label: "📱 UPI / QR Float", desc: "QR payment" },
+                          { id: "bank", label: "🏦 Bank Account", desc: "Direct transfer" },
+                          { id: "due", label: "📋 Customer Khata", desc: "Post to due" },
+                        ].map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              setCustomerPayMethod(m.id as any);
+                              if (m.id === "upi") setFeeSource("upi");
+                              else setFeeSource("separate_cash");
+                            }}
+                            className={`rounded-xl border p-2.5 text-center transition ${
+                              customerPayMethod === m.id
+                                ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
+                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{m.label}</div>
+                            <div className="text-[10px] text-slate-400">{m.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -823,6 +914,20 @@ export default function AepsWorkspace({
                     <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-slate-500">Fee Collection Method:</span>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                      {feeSource === "cut_from_withdrawal"
+                        ? "✂️ Deducted from Handout"
+                        : customerPayMethod === "upi"
+                        ? "📱 UPI QR"
+                        : customerPayMethod === "bank"
+                        ? "🏦 Bank"
+                        : customerPayMethod === "due"
+                        ? "📋 Khata (Due)"
+                        : "💵 Cash"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-slate-500">Portal Commission:</span>
                     <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
                   </div>
@@ -839,7 +944,7 @@ export default function AepsWorkspace({
                       {inr(cashToHandOver)}
                     </div>
                     <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
-                      {feeSource === "cut_from_withdrawal" ? "Fee deducted from cash given" : "Fee paid separately by customer"}
+                      {feeSource === "cut_from_withdrawal" ? "Fee deducted from cash given" : "Fee collected separately"}
                     </p>
                   </div>
                 </>
@@ -889,8 +994,7 @@ export default function AepsWorkspace({
                 <th className="pb-2.5 font-bold">Customer &amp; Aadhaar</th>
                 <th className="pb-2.5 font-bold">Bank &amp; Portal</th>
                 <th className="pb-2.5 font-bold text-right">Withdrawal</th>
-                <th className="pb-2.5 font-bold text-right">Fee</th>
-                <th className="pb-2.5 font-bold text-right">Comm</th>
+                <th className="pb-2.5 font-bold text-center">Collection</th>
                 <th className="pb-2.5 font-bold text-right">Total Income</th>
                 <th className="pb-2.5 font-bold text-center">Status</th>
                 <th className="pb-2.5 font-bold text-right">Receipt</th>
@@ -899,7 +1003,7 @@ export default function AepsWorkspace({
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
               {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     No AEPS transactions found. Process a withdrawal above to see records.
                   </td>
                 </tr>
@@ -925,11 +1029,10 @@ export default function AepsWorkspace({
                     <td className="py-3 text-right font-black text-slate-900 dark:text-white">
                       {inr(t.amount)}
                     </td>
-                    <td className="py-3 text-right text-slate-600 dark:text-slate-400 font-semibold">
-                      {inr(Number(t.service_fee || 0))}
-                    </td>
-                    <td className="py-3 text-right text-slate-600 dark:text-slate-400 font-semibold">
-                      {inr(Number(t.portal_commission || 0))}
+                    <td className="py-3 text-center">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                        {t.customer_pay_method === "upi" ? "📱 UPI" : t.customer_pay_method === "bank" ? "🏦 Bank" : t.customer_pay_method === "due" ? "📋 Due" : "💵 Cash"}
+                      </span>
                     </td>
                     <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-black">
                       +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
@@ -992,6 +1095,12 @@ export default function AepsWorkspace({
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer Service Fee:</span>
                 <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Fee Collection Method:</span>
+                <strong className="text-slate-900 dark:text-white capitalize">
+                  {feeSource === "cut_from_withdrawal" ? "Deducted from Cash Handout" : customerPayMethod}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Portal Commission:</span>
@@ -1113,6 +1222,7 @@ export default function AepsWorkspace({
               <div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div>
               <div><span className="text-slate-400">Withdrawal Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
               <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
+              <div><span className="text-slate-400">Collection Method:</span> <div className="font-bold uppercase text-slate-700 dark:text-slate-300">{selectedDetailTxn.customer_pay_method || "CASH"}</div></div>
               <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
               <div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
               <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
