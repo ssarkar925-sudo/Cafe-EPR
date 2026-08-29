@@ -328,27 +328,33 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
         <div className="mac-window-header shrink-0">
           <div className="flex items-center gap-3">
             {/* Traffic Lights */}
-            <div className="mac-traffic-lights group">
+            <div className="mac-traffic-lights group flex items-center gap-2">
               <button
                 type="button"
                 onClick={onClose}
                 title="Close window (Esc)"
-                className="mac-dot mac-dot-close focus:outline-none"
+                className="mac-dot mac-dot-close flex h-3 w-3 items-center justify-center text-[8px] font-black text-rose-950 opacity-90 transition hover:opacity-100 focus:outline-none"
                 aria-label="Close"
-              />
+              >
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity">✕</span>
+              </button>
               <button
                 type="button"
                 onClick={onClose}
                 title="Minimize"
-                className="mac-dot mac-dot-min focus:outline-none"
+                className="mac-dot mac-dot-min flex h-3 w-3 items-center justify-center text-[8px] font-black text-amber-950 opacity-90 transition hover:opacity-100 focus:outline-none"
                 aria-label="Minimize"
-              />
+              >
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity">−</span>
+              </button>
               <button
                 type="button"
                 title="Maximize"
-                className="mac-dot mac-dot-max focus:outline-none"
+                className="mac-dot mac-dot-max flex h-3 w-3 items-center justify-center text-[8px] font-black text-emerald-950 opacity-90 transition hover:opacity-100 focus:outline-none"
                 aria-label="Maximize"
-              />
+              >
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity">+</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-2 pl-2">

@@ -170,9 +170,10 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
   return (
     <div className="space-y-6 pb-16">
       {/* ===============================================================================
-          1. TOP HEADER & OPERATIONAL STATUS BANNER
+          1. TOP HEADER & OPERATIONAL STATUS BANNER (Spatial Executive Hero)
       =============================================================================== */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl sm:p-8">
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl ring-1 ring-white/10 sm:p-8">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -191,11 +192,21 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
               </span>
             </div>
 
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-              {data.shop.name} — Owner Control Center
-            </h1>
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-indigo-300">
+                {(() => {
+                  const h = new Date().getHours();
+                  if (h < 12) return "Good morning";
+                  if (h < 17) return "Good afternoon";
+                  return "Good evening";
+                })()}, {data.profile.fullName?.split(" ")[0] || "Saikat"}
+              </p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
+                Here&apos;s your business overview.
+              </h1>
+            </div>
             <p className="max-w-2xl text-xs text-indigo-200/80 sm:text-sm">
-              Instant 5-second operational and financial clarity. Zero recalculations, pure canonical ERP fact streams.
+              Instant 5-second operational and financial clarity across 12 business subsystems.
             </p>
           </div>
 
