@@ -4,7 +4,9 @@ import { useState } from "react";
 import {
   useTheme,
   ACCENT_PALETTES,
+  GRADIENT_PRESETS,
   type Theme,
+  type GradientPreset,
   type AccentColor,
   type DensityMode,
   type FontScale,
@@ -33,10 +35,12 @@ export default function AppearancePanel({ active }: { active: boolean }) {
   const {
     theme,
     resolvedTheme,
+    gradientPreset,
     accent,
     density,
     fontScale,
     setTheme,
+    setGradientPreset,
     setAccent,
     setDensity,
     setFontScale,
@@ -107,7 +111,12 @@ export default function AppearancePanel({ active }: { active: boolean }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-blue-200/80 bg-white/80 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/60 dark:text-blue-300">
-              {resolvedTheme === "dark" ? "Dark Workspace" : "Light Workspace"} · {activeAccent.label}
+              {theme === "gradient"
+                ? `✨ Gradient · ${GRADIENT_PRESETS.find((p) => p.id === gradientPreset)?.name || "Aurora"}`
+                : resolvedTheme === "dark"
+                ? "Dark Workspace"
+                : "Light Workspace"}{" "}
+              · {activeAccent.label}
             </span>
           </div>
         </div>
@@ -177,8 +186,8 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         desc="Switch between Light, Dark, or System mode, and choose your primary action color."
       >
         {/* Theme Radio Cards */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {(["light", "dark", "system"] as Theme[]).map((t) => {
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {(["light", "dark", "system", "gradient"] as Theme[]).map((t) => {
             const isSelected = theme === t;
             return (
               <button
@@ -193,7 +202,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
               >
                 <div className="flex items-center justify-between">
                   <span className="font-extrabold capitalize text-slate-900 dark:text-white">
-                    {t === "system" ? "Auto / System" : `${t} Mode`}
+                    {t === "system" ? "Auto / System" : t === "gradient" ? "✨ Premium Gradient" : `${t} Mode`}
                   </span>
                   {isSelected && (
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-sm">
@@ -204,6 +213,8 @@ export default function AppearancePanel({ active }: { active: boolean }) {
                 <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                   {t === "system"
                     ? "Syncs automatically with device OS appearance"
+                    : t === "gradient"
+                    ? "Cinematic dark spatial workstation with ambient multicolor lighting"
                     : t === "dark"
                     ? "OLED high-contrast dark mode for low eye fatigue"
                     : "Crisp, bright white studio canvas for daytime billing"}
@@ -211,6 +222,95 @@ export default function AppearancePanel({ active }: { active: boolean }) {
               </button>
             );
           })}
+        </div>
+
+        {/* Premium Gradient Preset Variant Selector (when Gradient or always customizable) */}
+        <div className="mt-5 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/5 via-violet-500/5 to-cyan-500/5 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-sm">
+                ✨
+              </span>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  Curated Gradient Atmosphere Presets
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Select your ambient colored lighting palette for the Premium Gradient mode.
+                </p>
+              </div>
+            </div>
+            {theme !== "gradient" && (
+              <button
+                type="button"
+                onClick={() => setTheme("gradient")}
+                className="self-start rounded-xl border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-700 shadow-xs hover:bg-indigo-50 dark:border-indigo-900/50 dark:bg-indigo-950/60 dark:text-indigo-300 sm:self-auto"
+              >
+                Enable Gradient Theme →
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {GRADIENT_PRESETS.map((preset) => {
+              const isSelected = gradientPreset === preset.id && theme === "gradient";
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setGradientPreset(preset.id);
+                    if (theme !== "gradient") setTheme("gradient");
+                  }}
+                  className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200 ${
+                    isSelected
+                      ? "border-blue-500 bg-white ring-2 ring-blue-500/30 shadow-md dark:border-blue-400 dark:bg-slate-900"
+                      : "border-slate-200/90 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm dark:border-white/10 dark:bg-slate-900/80 dark:hover:border-white/20"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">
+                        {preset.name}
+                      </span>
+                      {isSelected && (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-xs">
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      {preset.mood}
+                    </p>
+                  </div>
+
+                  {/* 3-Color Swatch Pill */}
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2.5 dark:border-white/5">
+                    <span className="text-[10px] font-bold text-slate-400">
+                      {preset.primaryName} · {preset.secondaryName}
+                    </span>
+                    <div className="flex items-center -space-x-1">
+                      <span
+                        className="h-4 w-4 rounded-full border border-white shadow-xs dark:border-slate-900"
+                        style={{ backgroundColor: preset.primary }}
+                        title={preset.primaryName}
+                      />
+                      <span
+                        className="h-4 w-4 rounded-full border border-white shadow-xs dark:border-slate-900"
+                        style={{ backgroundColor: preset.secondary }}
+                        title={preset.secondaryName}
+                      />
+                      <span
+                        className="h-4 w-4 rounded-full border border-white shadow-xs dark:border-slate-900"
+                        style={{ backgroundColor: preset.highlight }}
+                        title={preset.highlightName}
+                      />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Accent Color Swatches */}

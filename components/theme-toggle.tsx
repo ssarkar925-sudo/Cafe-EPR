@@ -74,12 +74,13 @@ export default function ThemeToggle({
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
               Display Mode
             </div>
-            <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+            <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
               {(
                 [
                   { key: "light", label: "Light", icon: "M12 3v2m0 14v2M5.6 5.6l1.4 1.4m9.9 9.9 1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m9.9-9.9 1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" },
                   { key: "dark", label: "Dark", icon: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" },
                   { key: "system", label: "Auto", icon: "M12 3a9 9 0 0 0 0 18c.5-2 .5-3.5 0-5a4.5 4.5 0 0 1 0-8c.5-1.5.5-3 0-5ZM3.5 12h17" },
+                  { key: "gradient", label: "Gradient", icon: "M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z" },
                 ] as const
               ).map((m) => {
                 const active = theme === m.key;
@@ -88,15 +89,12 @@ export default function ThemeToggle({
                     key={m.key}
                     type="button"
                     onClick={() => setTheme(m.key)}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition ${
+                    className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold transition ${
                       active
                         ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
                         : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                     }`}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                      <path d={m.icon} />
-                    </svg>
                     <span>{m.label}</span>
                   </button>
                 );

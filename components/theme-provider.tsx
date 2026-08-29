@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "system" | "gradient";
+export type GradientPreset = "aurora" | "ocean" | "royal" | "sunset" | "emerald" | "cosmic";
 export type AccentColor = "blue" | "emerald" | "violet" | "amber" | "rose" | "cyan";
 export type DensityMode = "comfortable" | "compact";
 export type FontScale = "standard" | "large";
@@ -16,6 +17,94 @@ export interface AccentOption {
   badgeClass: string;
   primaryClass: string;
 }
+
+export interface GradientPresetOption {
+  id: GradientPreset;
+  name: string;
+  primary: string;
+  secondary: string;
+  highlight: string;
+  primaryName: string;
+  secondaryName: string;
+  highlightName: string;
+  mood: string;
+  bgGradient: string;
+}
+
+export const GRADIENT_PRESETS: GradientPresetOption[] = [
+  {
+    id: "aurora",
+    name: "Aurora",
+    primary: "#2563eb",
+    secondary: "#7c3aed",
+    highlight: "#06b6d4",
+    primaryName: "Sapphire Blue",
+    secondaryName: "Violet",
+    highlightName: "Cyan",
+    mood: "Elegant / futuristic / premium",
+    bgGradient: "from-blue-600 via-violet-600 to-cyan-500",
+  },
+  {
+    id: "ocean",
+    name: "Ocean Luxe",
+    primary: "#0284c7",
+    secondary: "#0d9488",
+    highlight: "#22d3ee",
+    primaryName: "Deep Blue",
+    secondaryName: "Teal",
+    highlightName: "Cyan",
+    mood: "Professional / calm",
+    bgGradient: "from-sky-600 via-teal-600 to-cyan-400",
+  },
+  {
+    id: "royal",
+    name: "Royal",
+    primary: "#4f46e5",
+    secondary: "#8b5cf6",
+    highlight: "#60a5fa",
+    primaryName: "Indigo",
+    secondaryName: "Violet",
+    highlightName: "Soft Blue",
+    mood: "Luxury / sophisticated",
+    bgGradient: "from-indigo-600 via-violet-500 to-blue-400",
+  },
+  {
+    id: "sunset",
+    name: "Sunset Luxe",
+    primary: "#f59e0b",
+    secondary: "#e11d48",
+    highlight: "#9333ea",
+    primaryName: "Amber",
+    secondaryName: "Rose",
+    highlightName: "Violet",
+    mood: "Warm / premium",
+    bgGradient: "from-amber-500 via-rose-600 to-purple-600",
+  },
+  {
+    id: "emerald",
+    name: "Emerald Luxe",
+    primary: "#059669",
+    secondary: "#0f766e",
+    highlight: "#06b6d4",
+    primaryName: "Emerald",
+    secondaryName: "Teal",
+    highlightName: "Cyan",
+    mood: "Financial / natural / professional",
+    bgGradient: "from-emerald-600 via-teal-700 to-cyan-500",
+  },
+  {
+    id: "cosmic",
+    name: "Cosmic",
+    primary: "#6d28d9",
+    secondary: "#2563eb",
+    highlight: "#d946ef",
+    primaryName: "Deep Violet",
+    secondaryName: "Blue",
+    highlightName: "Magenta",
+    mood: "Cinematic / futuristic",
+    bgGradient: "from-purple-700 via-blue-600 to-fuchsia-500",
+  },
+];
 
 export const ACCENT_PALETTES: AccentOption[] = [
   {
@@ -91,6 +180,7 @@ export const DESIGN_STYLES: {
 ];
 
 const THEME_KEY = "sccomm-theme";
+const GRADIENT_PRESET_KEY = "sccomm-gradient-preset";
 const ACCENT_KEY = "sccomm-accent";
 const DENSITY_KEY = "sccomm-density";
 const FONT_SCALE_KEY = "sccomm-font-scale";
@@ -99,11 +189,13 @@ const DESIGN_KEY = "sccomm-design";
 interface ThemeContextValue {
   theme: Theme;
   resolvedTheme: "light" | "dark";
+  gradientPreset: GradientPreset;
   accent: AccentColor;
   density: DensityMode;
   fontScale: FontScale;
   design: DesignStyle;
   setTheme: (t: Theme) => void;
+  setGradientPreset: (g: GradientPreset) => void;
   setAccent: (a: AccentColor) => void;
   setDensity: (d: DensityMode) => void;
   setFontScale: (f: FontScale) => void;
@@ -117,7 +209,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function getStoredTheme(): Theme {
   if (typeof window === "undefined") return "system";
   const stored = localStorage.getItem(THEME_KEY) as Theme | null;
-  return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+  return stored === "light" || stored === "dark" || stored === "system" || stored === "gradient" ? stored : "system";
+}
+
+export function getStoredGradientPreset(): GradientPreset {
+  if (typeof window === "undefined") return "aurora";
+  const stored = localStorage.getItem(GRADIENT_PRESET_KEY) as GradientPreset | null;
+  return GRADIENT_PRESETS.some((p) => p.id === stored) ? (stored as GradientPreset) : "aurora";
 }
 
 export function getStoredAccent(): AccentColor {
@@ -140,14 +238,9 @@ export function getStoredDesign(): DesignStyle {
   return "clean";
 }
 
-function applyDesignVariables(design: DesignStyle, isDark: boolean, accent: AccentColor = "blue") {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  root.setAttribute("data-accent", accent);
-}
-
 export function applyTheme(
   theme: Theme,
+  gradientPreset: GradientPreset = "aurora",
   accent: AccentColor = "blue",
   density: DensityMode = "comfortable",
   fontScale: FontScale = "standard",
@@ -156,10 +249,13 @@ export function applyTheme(
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   const isDark =
-    theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    theme === "dark" ||
+    theme === "gradient" ||
+    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   root.classList.toggle("dark", isDark);
-  root.setAttribute("data-theme", isDark ? "dark" : "light");
+  root.setAttribute("data-theme", theme === "gradient" ? "gradient" : isDark ? "dark" : "light");
+  root.setAttribute("data-gradient-preset", gradientPreset);
   root.setAttribute("data-accent", accent);
   root.setAttribute("data-density", density);
   root.setAttribute("data-font-scale", fontScale);
@@ -174,6 +270,7 @@ export const setTheme = (theme: Theme) => {
   } catch {}
   applyTheme(
     theme,
+    getStoredGradientPreset(),
     getStoredAccent(),
     getStoredDensity(),
     getStoredFontScale(),
@@ -183,6 +280,7 @@ export const setTheme = (theme: Theme) => {
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
+  const [gradientPreset, setGradientPresetState] = useState<GradientPreset>("aurora");
   const [accent, setAccentState] = useState<AccentColor>("blue");
   const [density, setDensityState] = useState<DensityMode>("comfortable");
   const [fontScale, setFontScaleState] = useState<FontScale>("standard");
@@ -191,21 +289,25 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     const t = getStoredTheme();
+    const g = getStoredGradientPreset();
     const a = getStoredAccent();
     const d = getStoredDensity();
     const f = getStoredFontScale();
     const s = getStoredDesign();
 
     setThemeState(t);
+    setGradientPresetState(g);
     setAccentState(a);
     setDensityState(d);
     setFontScaleState(f);
     setDesignState(s);
 
     const dark =
-      t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      t === "dark" ||
+      t === "gradient" ||
+      (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setResolvedTheme(dark ? "dark" : "light");
-    applyTheme(t, a, d, f, s);
+    applyTheme(t, g, a, d, f, s);
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
@@ -213,6 +315,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
         setResolvedTheme(mq.matches ? "dark" : "light");
         applyTheme(
           "system",
+          getStoredGradientPreset(),
           getStoredAccent(),
           getStoredDensity(),
           getStoredFontScale(),
@@ -230,9 +333,19 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       localStorage.setItem(THEME_KEY, next);
     } catch {}
     const dark =
-      next === "dark" || (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      next === "dark" ||
+      next === "gradient" ||
+      (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setResolvedTheme(dark ? "dark" : "light");
-    applyTheme(next, accent, density, fontScale, design);
+    applyTheme(next, gradientPreset, accent, density, fontScale, design);
+  }
+
+  function handleSetGradientPreset(next: GradientPreset) {
+    setGradientPresetState(next);
+    try {
+      localStorage.setItem(GRADIENT_PRESET_KEY, next);
+    } catch {}
+    applyTheme(theme, next, accent, density, fontScale, design);
   }
 
   function handleSetAccent(next: AccentColor) {
@@ -240,7 +353,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(ACCENT_KEY, next);
     } catch {}
-    applyTheme(theme, next, density, fontScale, design);
+    applyTheme(theme, gradientPreset, next, density, fontScale, design);
   }
 
   function handleSetDensity(next: DensityMode) {
@@ -248,7 +361,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(DENSITY_KEY, next);
     } catch {}
-    applyTheme(theme, accent, next, fontScale, design);
+    applyTheme(theme, gradientPreset, accent, next, fontScale, design);
   }
 
   function handleSetFontScale(next: FontScale) {
@@ -256,7 +369,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(FONT_SCALE_KEY, next);
     } catch {}
-    applyTheme(theme, accent, density, next, design);
+    applyTheme(theme, gradientPreset, accent, density, next, design);
   }
 
   function handleSetDesign(next: DesignStyle) {
@@ -264,21 +377,25 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(DESIGN_KEY, next);
     } catch {}
-    applyTheme(theme, accent, density, fontScale, next);
+    applyTheme(theme, gradientPreset, accent, density, fontScale, next);
   }
 
   function toggleTheme() {
-    handleSetTheme(resolvedTheme === "dark" ? "light" : "dark");
+    // Cycles between light, dark, and gradient
+    const nextTheme: Theme = resolvedTheme === "dark" ? (theme === "gradient" ? "light" : "dark") : "dark";
+    handleSetTheme(nextTheme);
   }
 
   function resetToDefaults() {
     const nextTheme: Theme = "system";
+    const nextGradient: GradientPreset = "aurora";
     const nextAccent: AccentColor = "blue";
     const nextDensity: DensityMode = "comfortable";
     const nextFontScale: FontScale = "standard";
     const nextDesign: DesignStyle = "clean";
 
     setThemeState(nextTheme);
+    setGradientPresetState(nextGradient);
     setAccentState(nextAccent);
     setDensityState(nextDensity);
     setFontScaleState(nextFontScale);
@@ -287,12 +404,13 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 
     try {
       localStorage.setItem(THEME_KEY, nextTheme);
+      localStorage.setItem(GRADIENT_PRESET_KEY, nextGradient);
       localStorage.setItem(ACCENT_KEY, nextAccent);
       localStorage.setItem(DENSITY_KEY, nextDensity);
       localStorage.setItem(FONT_SCALE_KEY, nextFontScale);
       localStorage.setItem(DESIGN_KEY, nextDesign);
     } catch {}
-    applyTheme(nextTheme, nextAccent, nextDensity, nextFontScale, nextDesign);
+    applyTheme(nextTheme, nextGradient, nextAccent, nextDensity, nextFontScale, nextDesign);
   }
 
   return (
@@ -300,11 +418,13 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       value={{
         theme,
         resolvedTheme,
+        gradientPreset,
         accent,
         density,
         fontScale,
         design,
         setTheme: handleSetTheme,
+        setGradientPreset: handleSetGradientPreset,
         setAccent: handleSetAccent,
         setDensity: handleSetDensity,
         setFontScale: handleSetFontScale,
@@ -323,3 +443,4 @@ export function useTheme() {
   if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
   return ctx;
 }
+
