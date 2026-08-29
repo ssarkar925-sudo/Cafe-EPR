@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import type { ComponentProps, CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import SettingsClient from "@/components/settings/settings-client";
@@ -8,6 +8,26 @@ import { SETTINGS_GROUPS, tabMeta } from "@/components/settings/settings-config"
 
 type SettingsClientProps = ComponentProps<typeof SettingsClient>;
 type Props = SettingsClientProps;
+
+const FORM_TABS = new Set(["general", "receipt", "tax"]);
+
+const MODULE_LAYOUT: Record<string, { modal: string; contentWidth: string }> = {
+  general: { modal: "max-w-[760px] h-[min(650px,calc(100vh-48px))]", contentWidth: "700px" },
+  receipt: { modal: "max-w-[900px] h-[min(720px,calc(100vh-48px))]", contentWidth: "820px" },
+  tax: { modal: "max-w-[700px] h-[min(540px,calc(100vh-48px))]", contentWidth: "640px" },
+  "payment-accounts": { modal: "max-w-[980px] h-[min(760px,calc(100vh-48px))]", contentWidth: "920px" },
+  "payment-methods": { modal: "max-w-[760px] h-[min(650px,calc(100vh-48px))]", contentWidth: "700px" },
+  "quick-favorites": { modal: "max-w-[760px] h-[min(650px,calc(100vh-48px))]", contentWidth: "700px" },
+  "business-setup": { modal: "max-w-[1080px] h-[min(800px,calc(100vh-48px))]", contentWidth: "1020px" },
+  catalog: { modal: "max-w-[1040px] h-[min(780px,calc(100vh-48px))]", contentWidth: "980px" },
+  inventory: { modal: "max-w-[900px] h-[min(720px,calc(100vh-48px))]", contentWidth: "840px" },
+  notifications: { modal: "max-w-[1040px] h-[min(800px,calc(100vh-48px))]", contentWidth: "980px" },
+  backup: { modal: "max-w-[820px] h-[min(620px,calc(100vh-48px))]", contentWidth: "760px" },
+  security: { modal: "max-w-[820px] h-[min(660px,calc(100vh-48px))]", contentWidth: "760px" },
+  other: { modal: "max-w-[820px] h-[min(640px,calc(100vh-48px))]", contentWidth: "760px" },
+};
+
+const DEFAULT_LAYOUT = { modal: "max-w-[860px] h-[min(700px,calc(100vh-48px))]", contentWidth: "800px" };
 
 function Icon({ path, className = "h-5 w-5" }: { path: string; className?: string }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d={path} /></svg>;
@@ -27,16 +47,53 @@ function SettingsHub({ onOpen }: { onOpen: (key: string) => void }) {
 
 function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onClose: () => void }) {
   const meta = tabMeta[tab] ?? { title: "Settings", desc: "", group: "System Administration" };
+  const layout = MODULE_LAYOUT[tab] ?? DEFAULT_LAYOUT;
+  const isFormTab = FORM_TABS.has(tab);
+  const shellStyle = { ["--settings-content-width" as string]: layout.contentWidth } as CSSProperties;
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; document.addEventListener("keydown", onKeyDown); const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previous; }; }, [onClose]);
-  return createPortal(<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 p-2 backdrop-blur-md sm:p-4 lg:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className="flex h-[calc(100vh-16px)] w-full max-w-[1320px] flex-col overflow-hidden rounded-[24px] border border-white/70 bg-white shadow-[0_40px_120px_rgba(15,23,42,.42)] ring-1 ring-slate-950/5 dark:border-white/10 dark:bg-slate-950 sm:h-[calc(100vh-32px)] sm:rounded-[28px] lg:h-[min(900px,calc(100vh-48px))]"><div className="flex h-16 shrink-0 items-center border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 sm:px-6"><div className="w-1/3 min-w-0" /><div className="min-w-0 flex-1 text-center"><p className="truncate text-[10px] font-black uppercase tracking-[.16em] text-blue-500">{meta.group}</p><h2 className="truncate text-sm font-black text-slate-900 dark:text-white sm:text-base">{meta.title}</h2></div><div className="flex w-1/3 justify-end"><button type="button" onClick={onClose} aria-label="Close module" title="Close module" className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"><CloseIcon /></button></div></div><div className="settings-module-content min-h-0 flex-1 overflow-y-auto bg-slate-50/80 dark:bg-slate-950"><SettingsClient {...props} initialTab={tab} key={tab} /></div><style jsx global>{`
+  return createPortal(<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-md sm:p-4 lg:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div style={shellStyle} className={`settings-module-shell ${isFormTab ? "settings-module-shell--form" : "settings-module-shell--action"} flex w-full ${layout.modal} flex-col overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-[0_30px_90px_rgba(15,23,42,.34)] ring-1 ring-slate-950/5 dark:border-white/10 dark:bg-slate-950 sm:rounded-[24px]`}><div className="flex h-14 shrink-0 items-center border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90"><div className="w-1/3 min-w-0" /><div className="min-w-0 flex-1 text-center"><p className="truncate text-[9px] font-black uppercase tracking-[.16em] text-blue-500">{meta.group}</p><h2 className="truncate text-sm font-black text-slate-900 dark:text-white">{meta.title}</h2></div><div className="flex w-1/3 justify-end"><button type="button" onClick={onClose} aria-label="Close module" title="Close module" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"><CloseIcon /></button></div></div><div className="settings-module-content min-h-0 flex-1 overflow-y-auto bg-slate-50/80 dark:bg-slate-950"><SettingsClient {...props} initialTab={tab} key={tab} /></div><style jsx global>{`
           .settings-module-content > div > div:first-child { display: none !important; }
           .settings-module-content > div > div:nth-child(2) > div:first-child { display: none !important; }
           .settings-module-content > div > div:nth-child(2) { display: block !important; }
-          .settings-module-content > div > div:nth-child(2) > div:last-child { display: block !important; width: 100% !important; max-width: 1080px !important; margin-left: auto !important; margin-right: auto !important; }
+          .settings-module-content > div > div:nth-child(2) > div:last-child { display: block !important; width: 100% !important; max-width: var(--settings-content-width) !important; margin-left: auto !important; margin-right: auto !important; }
           .settings-module-content > div > div:nth-child(2) > div:last-child > div { width: 100% !important; max-width: none !important; }
-          .settings-module-content > div { width: 100% !important; max-width: none !important; padding: 1.5rem 1.75rem 2.5rem !important; margin: 0 !important; }
-          @media (max-width: 900px) { .settings-module-content > div { padding: 1.25rem !important; } .settings-module-content > div > div:nth-child(2) > div:last-child { max-width: 100% !important; } }
-          @media (max-width: 640px) { .settings-module-content > div { padding: .75rem !important; } }
+          .settings-module-content > div { width: 100% !important; max-width: none !important; padding: .75rem 1rem 1.5rem !important; margin: 0 !important; }
+
+          /* The parent shell previously hid SettingsClient's header. That also hid
+             its real Unsaved changes + Save Changes controls on form-based modules. */
+          .settings-module-shell--form .settings-module-content > div > div:first-child {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            margin: 0 0 .5rem !important;
+            padding: 0 0 .55rem !important;
+            border-bottom: 1px solid rgba(148,163,184,.22) !important;
+          }
+          .settings-module-shell--form .settings-module-content > div > div:first-child > div:first-child { display: none !important; }
+          .settings-module-shell--form .settings-module-content > div > div:first-child > div:last-child {
+            display: flex !important;
+            width: auto !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+          }
+          .settings-module-shell--form .settings-module-content > div > div:first-child > div:last-child button {
+            min-height: 34px !important;
+            height: 34px !important;
+            padding: .45rem .75rem !important;
+            border-radius: .65rem !important;
+            font-size: .72rem !important;
+          }
+
+          .settings-module-shell--action .settings-module-content > div > div:first-child { display: none !important; }
+
+          @media (max-width: 900px) {
+            .settings-module-content > div { padding: .75rem !important; }
+            .settings-module-content > div > div:nth-child(2) > div:last-child { max-width: calc(100vw - 48px) !important; }
+          }
+          @media (max-width: 640px) {
+            .settings-module-content > div { padding: .5rem !important; }
+            .settings-module-content > div > div:nth-child(2) > div:last-child { max-width: 100% !important; }
+          }
         `}</style></div></div>, document.body);
 }
 
