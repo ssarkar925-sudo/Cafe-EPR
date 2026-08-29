@@ -11,10 +11,32 @@ export default async function OpeningBalancesPage() {
 
   const supabase = await createClient();
 
-  const [{ data: balances }, { data: instruments }, { data: seeds }] = await Promise.all([
+  const [
+    { data: balances },
+    { data: instruments },
+    { data: seeds },
+    { data: customers },
+    { data: suppliers },
+    { data: products },
+  ] = await Promise.all([
     supabase.rpc("get_pool_balances"),
     supabase.from("payment_instruments").select("*").order("type").order("name"),
-    supabase.from("opening_balances").select("id, pool, instrument_id, amount, as_of, remarks, created_at").order("as_of", { ascending: false }).order("created_at", { ascending: false }),
+    supabase
+      .from("opening_balances")
+      .select("id, pool, instrument_id, amount, as_of, remarks, created_at")
+      .order("as_of", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase.from("customers").select("id, name, phone").order("name").limit(500),
+    supabase
+      .from("suppliers")
+      .select("id, name, code, current_balance, opening_balance")
+      .order("name")
+      .limit(500),
+    supabase
+      .from("products")
+      .select("id, name, code, unit, cost_price, stock_qty, categories(name)")
+      .order("name")
+      .limit(500),
   ]);
 
   return (
@@ -22,6 +44,9 @@ export default async function OpeningBalancesPage() {
       initialBalances={(balances as any) ?? null}
       initialInstruments={(instruments ?? []) as any}
       initialSeeds={(seeds ?? []) as any}
+      customers={(customers ?? []) as any}
+      suppliers={(suppliers ?? []) as any}
+      products={(products ?? []) as any}
     />
   );
 }

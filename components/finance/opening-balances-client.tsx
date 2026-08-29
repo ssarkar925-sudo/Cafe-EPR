@@ -6,6 +6,12 @@ import { inr } from "@/lib/format";
 import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
+import OpeningPositionWorkspace, {
+  type CustomerOption,
+  type SupplierOption,
+  type ProductOption,
+  type OpeningPositionSnapshot,
+} from "./opening-position-workspace";
 
 type PoolBal = {
   opening: number;
@@ -93,13 +99,22 @@ export default function OpeningBalancesClient({
   initialBalances,
   initialInstruments,
   initialSeeds,
+  customers = [],
+  suppliers = [],
+  products = [],
+  initialSnapshot = null,
 }: {
   initialBalances: PoolBalances | null;
   initialInstruments: InstrumentRow[];
   initialSeeds: SeedRow[];
+  customers?: CustomerOption[];
+  suppliers?: SupplierOption[];
+  products?: ProductOption[];
+  initialSnapshot?: OpeningPositionSnapshot | null;
 }) {
   const [balances, setBalances] = useState<PoolBalances | null>(initialBalances);
   const [seeds, setSeeds] = useState<SeedRow[]>(initialSeeds);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [dates, setDates] = useState<Record<string, string>>(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -207,11 +222,43 @@ export default function OpeningBalancesClient({
 
   return (
     <div className="space-y-6">
+      {/* 3D Spatial Opening Position Workspace Hero Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-br from-purple-900/20 via-indigo-900/10 to-blue-900/20 p-5 shadow-lg backdrop-blur-md dark:border-purple-500/20 dark:bg-purple-950/30">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3.5">
+            <span className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-2xl text-white shadow-md shadow-purple-600/30">
+              🏛️
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Opening Financial Position Workspace
+                </h3>
+                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-black uppercase text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                  Full ERP Initializer
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                Establish starting assets (Cash, Banks, Digital Floats, Stock, Customer Dues) and liabilities (Supplier Payables) in one balanced double-entry position.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setWorkspaceOpen(true)}
+            className="btn-3d-tactile-primary flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-5 py-3 text-xs font-black text-white shadow-md hover:brightness-110"
+          >
+            <span>Launch Opening Position Studio →</span>
+          </button>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Opening Balances</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Set what each account actually holds today. Movements after the seed date are added automatically.
+          <h2 className="text-base font-extrabold text-slate-900 dark:text-white">Individual Pool Seeds</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Audit trace of per-account opening seeds. Movements after the seed date are recomputed automatically.
           </p>
         </div>
         <CompactToggle value={compact} onChange={setCompact} storageKey="opening-compact" />
@@ -400,6 +447,20 @@ export default function OpeningBalancesClient({
       </div>
 
       {toastView}
+
+      {/* Floating Spatial Opening Position Studio */}
+      <OpeningPositionWorkspace
+        isOpen={workspaceOpen}
+        onClose={() => setWorkspaceOpen(false)}
+        instruments={initialInstruments}
+        customers={customers}
+        suppliers={suppliers}
+        products={products}
+        initialSnapshot={initialSnapshot}
+        onFinalized={async () => {
+          await refresh();
+        }}
+      />
     </div>
   );
 }
