@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 
@@ -101,7 +102,17 @@ export default function ReportsClient({
   quickSales: Quick[];
 }) {
   const [period, setPeriod] = useState<(typeof PERIODS)[number]["key"]>("30d");
-  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business" | "accounts" | "quick">("overview");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams?.get("tab") || "overview";
+  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business" | "accounts" | "quick">(() => {
+    if (["overview", "invoices", "expenses", "returns", "business", "accounts", "quick"].includes(initialTab)) {
+      return initialTab as any;
+    }
+    if (initialTab === "sales") return "invoices";
+    if (initialTab === "services") return "business";
+    if (initialTab === "treasury") return "accounts";
+    return "overview";
+  });
   const [openInst, setOpenInst] = useState<string | null>(null);
 
   useRealtime([
