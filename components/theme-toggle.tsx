@@ -5,9 +5,7 @@ import Link from "next/link";
 import {
   useTheme,
   ACCENT_PALETTES,
-  DESIGN_STYLE_OPTIONS,
   type DisplayMode,
-  type DesignStyle,
 } from "./theme-provider";
 
 export default function ThemeToggle({
@@ -18,10 +16,11 @@ export default function ThemeToggle({
   const {
     displayMode,
     resolvedDisplayMode,
-    designStyle,
+    gradientEnabled,
+    gradientPreset,
     accent,
     setDisplayMode,
-    setDesignStyle,
+    setGradientEnabled,
     setAccent,
   } = useTheme();
   const [open, setOpen] = useState(false);
@@ -46,7 +45,7 @@ export default function ThemeToggle({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        title={`Appearance: ${displayMode} · ${designStyle} (Click to customize)`}
+        title={`Appearance: ${displayMode} · ${gradientEnabled ? gradientPreset : "Spatial"} (Click to customize)`}
         className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
         aria-label="Toggle theme and appearance"
       >
@@ -86,14 +85,14 @@ export default function ThemeToggle({
           {/* 1. Display Mode */}
           <div className="mt-2.5">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
-              Display Mode
+              Theme Mode
             </div>
             <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
               {(
                 [
-                  { key: "light" as DisplayMode, label: "Light" },
-                  { key: "dark" as DisplayMode, label: "Dark" },
-                  { key: "system" as DisplayMode, label: "Auto" },
+                  { key: "light" as DisplayMode, label: "☀️ Light" },
+                  { key: "dark" as DisplayMode, label: "🌙 Dark" },
+                  { key: "system" as DisplayMode, label: "💻 Auto" },
                 ]
               ).map((m) => {
                 const active = displayMode === m.key;
@@ -115,35 +114,37 @@ export default function ThemeToggle({
             </div>
           </div>
 
-          {/* 2. Design Style */}
+          {/* 2. Premium Gradient Atmosphere */}
           <div className="mt-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
-              Design Style
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
+              <span>Gradient Atmosphere</span>
+              <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 capitalize">
+                {gradientEnabled ? gradientPreset.replace("-", " ") : "Off"}
+              </span>
             </div>
-            <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
-              {(
-                [
-                  { key: "classic" as DesignStyle, label: "Classic" },
-                  { key: "modern" as DesignStyle, label: "Modern" },
-                  { key: "premium-gradient" as DesignStyle, label: "✨ Gradient" },
-                ]
-              ).map((s) => {
-                const active = designStyle === s.key;
-                return (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => setDesignStyle(s.key)}
-                    className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-bold transition ${
-                      active
-                        ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                    }`}
-                  >
-                    <span>{s.label}</span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+              <button
+                type="button"
+                onClick={() => setGradientEnabled(true)}
+                className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold transition ${
+                  gradientEnabled
+                    ? "bg-white text-purple-700 shadow-sm dark:bg-slate-800 dark:text-purple-300"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <span>✨ Gradient ON</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGradientEnabled(false)}
+                className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold transition ${
+                  !gradientEnabled
+                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <span>Solid OFF</span>
+              </button>
             </div>
           </div>
 

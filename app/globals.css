@@ -194,32 +194,88 @@
   --gradient-ambient-3: rgba(6, 182, 212, 0.10);
 }
 
-/* --- DESIGN STYLE 1: CLASSIC ERP --- */
-[data-design-style="classic"] .bento-surface,
-[data-design-style="classic"] .bento-surface-interactive {
-  border-radius: 0.875rem; /* 14px */
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-}
+/* ==============================================================================
+   UNIFIED MODERN 3D SPATIAL ARCHITECTURE & AMBIENT ATMOSPHERES
+   ============================================================================== */
 
-/* --- DESIGN STYLE 2: MODERN SPATIAL --- */
-[data-design-style="modern"] .bento-surface,
-[data-design-style="modern"] .bento-surface-interactive {
+/* Base Spatial Geometry */
+.bento-surface,
+.bento-surface-interactive {
   border-radius: 1.25rem; /* 20px */
 }
 
-/* --- DESIGN STYLE 3: PREMIUM GRADIENT (LIGHT MODE) --- */
-:root:not(.dark)[data-design-style="premium-gradient"] body,
-[data-display-mode="light"][data-design-style="premium-gradient"] body {
+/* --------------------------------------------------------------------------
+   PREMIUM GRADIENT ATMOSPHERES (LIGHT MODE)
+   -------------------------------------------------------------------------- */
+/* 1. Aurora (Sapphire Blue -> Violet -> Cyan) */
+:root:not(.dark)[data-gradient-enabled="true"][data-gradient-preset="aurora"] body,
+[data-display-mode="light"][data-gradient-enabled="true"][data-gradient-preset="aurora"] body {
   background-color: #f8fafc !important;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.07) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.06) 0px, transparent 50%),
+    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(124, 58, 237, 0.07) 0px, transparent 50%),
     radial-gradient(at 50% 20%, rgba(6, 182, 212, 0.05) 0px, transparent 45%) !important;
   background-attachment: fixed;
 }
 
-:root:not(.dark)[data-design-style="premium-gradient"] .spatial-sidebar-dock,
-[data-display-mode="light"][data-design-style="premium-gradient"] .spatial-sidebar-dock {
+/* 2. Ocean Luxe (Deep Blue -> Teal -> Cyan) */
+:root:not(.dark)[data-gradient-enabled="true"][data-gradient-preset="ocean-luxe"] body,
+[data-display-mode="light"][data-gradient-enabled="true"][data-gradient-preset="ocean-luxe"] body {
+  background-color: #f8fafc !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(29, 78, 216, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(13, 148, 136, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 20%, rgba(6, 182, 212, 0.05) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 3. Royal (Indigo -> Violet -> Soft Blue) */
+:root:not(.dark)[data-gradient-enabled="true"][data-gradient-preset="royal"] body,
+[data-display-mode="light"][data-gradient-enabled="true"][data-gradient-preset="royal"] body {
+  background-color: #f8fafc !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(147, 51, 234, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 20%, rgba(56, 189, 248, 0.05) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 4. Sunset Luxe (Amber -> Rose -> Violet) */
+:root:not(.dark)[data-gradient-enabled="true"][data-gradient-preset="sunset-luxe"] body,
+[data-display-mode="light"][data-gradient-enabled="true"][data-gradient-preset="sunset-luxe"] body {
+  background-color: #f8fafc !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(217, 119, 6, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(225, 29, 72, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 20%, rgba(139, 92, 246, 0.05) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 5. Emerald Luxe (Emerald -> Teal -> Cyan) */
+:root:not(.dark)[data-gradient-enabled="true"][data-gradient-preset="emerald-luxe"] body,
+[data-display-mode="light"][data-gradient-enabled="true"][data-gradient-preset="emerald-luxe"] body {
+  background-color: #f8fafc !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(5, 150, 105, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(13, 148, 136, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 20%, rgba(6, 182, 212, 0.05) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 6. Cosmic (Deep Violet -> Blue -> Magenta) */
+:root:not(.dark)[data-gradient-enabled="true"][data-gradient-preset="cosmic"] body,
+[data-display-mode="light"][data-gradient-enabled="true"][data-gradient-preset="cosmic"] body {
+  background-color: #f8fafc !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(109, 40, 217, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 20%, rgba(217, 70, 239, 0.05) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* Default light gradient atmosphere styling */
+:root:not(.dark)[data-gradient-enabled="true"] .spatial-sidebar-dock,
+[data-display-mode="light"][data-gradient-enabled="true"] .spatial-sidebar-dock {
   background: rgba(255, 255, 255, 0.94) !important;
   border-color: rgba(124, 58, 237, 0.14) !important;
   box-shadow: 
@@ -228,15 +284,15 @@
     inset 0 1px 0 0 rgba(255, 255, 255, 1) !important;
 }
 
-:root:not(.dark)[data-design-style="premium-gradient"] .spatial-sidebar-dock a[data-active="true"],
-[data-display-mode="light"][data-design-style="premium-gradient"] .spatial-sidebar-dock a[data-active="true"] {
+:root:not(.dark)[data-gradient-enabled="true"] .spatial-sidebar-dock a[data-active="true"],
+[data-display-mode="light"][data-gradient-enabled="true"] .spatial-sidebar-dock a[data-active="true"] {
   background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 14px -2px rgba(124, 58, 237, 0.35) !important;
 }
 
-:root:not(.dark)[data-design-style="premium-gradient"] .btn-3d-tactile-primary,
-[data-display-mode="light"][data-design-style="premium-gradient"] .btn-3d-tactile-primary {
+:root:not(.dark)[data-gradient-enabled="true"] .btn-3d-tactile-primary,
+[data-display-mode="light"][data-gradient-enabled="true"] .btn-3d-tactile-primary {
   background: linear-gradient(135deg, #7c3aed 0%, #2563eb 50%, #06b6d4 100%) !important;
   color: #ffffff !important;
   box-shadow: 
@@ -244,8 +300,8 @@
     inset 0 1px 0 0 rgba(255, 255, 255, 0.35) !important;
 }
 
-:root:not(.dark)[data-design-style="premium-gradient"] .floating-mac-window,
-[data-display-mode="light"][data-design-style="premium-gradient"] .floating-mac-window {
+:root:not(.dark)[data-gradient-enabled="true"] .floating-mac-window,
+[data-display-mode="light"][data-gradient-enabled="true"] .floating-mac-window {
   border-color: rgba(124, 58, 237, 0.18) !important;
   box-shadow: 
     0 24px 64px -12px rgba(15, 23, 42, 0.15),
@@ -253,19 +309,78 @@
     inset 0 1px 0 0 rgba(255, 255, 255, 1) !important;
 }
 
-/* --- DESIGN STYLE 3: PREMIUM GRADIENT (DARK MODE) --- */
-.dark[data-design-style="premium-gradient"] body,
-[data-display-mode="dark"][data-design-style="premium-gradient"] body {
+/* --------------------------------------------------------------------------
+   PREMIUM GRADIENT ATMOSPHERES (DARK MODE)
+   -------------------------------------------------------------------------- */
+/* 1. Aurora (Sapphire Blue -> Violet -> Cyan) */
+.dark[data-gradient-enabled="true"][data-gradient-preset="aurora"] body,
+[data-display-mode="dark"][data-gradient-enabled="true"][data-gradient-preset="aurora"] body {
   background-color: #070b14 !important;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.16) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.14) 0px, transparent 55%),
-    radial-gradient(at 50% 15%, rgba(6, 182, 212, 0.08) 0px, transparent 45%) !important;
+    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgba(124, 58, 237, 0.18) 0px, transparent 55%),
+    radial-gradient(at 50% 15%, rgba(6, 182, 212, 0.10) 0px, transparent 45%) !important;
   background-attachment: fixed;
 }
 
-.dark[data-design-style="premium-gradient"] .spatial-sidebar-dock,
-[data-display-mode="dark"][data-design-style="premium-gradient"] .spatial-sidebar-dock {
+/* 2. Ocean Luxe (Deep Blue -> Teal -> Cyan) */
+.dark[data-gradient-enabled="true"][data-gradient-preset="ocean-luxe"] body,
+[data-display-mode="dark"][data-gradient-enabled="true"][data-gradient-preset="ocean-luxe"] body {
+  background-color: #070b14 !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(29, 78, 216, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgba(13, 148, 136, 0.18) 0px, transparent 55%),
+    radial-gradient(at 50% 15%, rgba(6, 182, 212, 0.10) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 3. Royal (Indigo -> Violet -> Soft Blue) */
+.dark[data-gradient-enabled="true"][data-gradient-preset="royal"] body,
+[data-display-mode="dark"][data-gradient-enabled="true"][data-gradient-preset="royal"] body {
+  background-color: #070b14 !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgba(147, 51, 234, 0.18) 0px, transparent 55%),
+    radial-gradient(at 50% 15%, rgba(56, 189, 248, 0.10) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 4. Sunset Luxe (Amber -> Rose -> Violet) */
+.dark[data-gradient-enabled="true"][data-gradient-preset="sunset-luxe"] body,
+[data-display-mode="dark"][data-gradient-enabled="true"][data-gradient-preset="sunset-luxe"] body {
+  background-color: #070b14 !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(217, 119, 6, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgba(225, 29, 72, 0.18) 0px, transparent 55%),
+    radial-gradient(at 50% 15%, rgba(139, 92, 246, 0.10) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 5. Emerald Luxe (Emerald -> Teal -> Cyan) */
+.dark[data-gradient-enabled="true"][data-gradient-preset="emerald-luxe"] body,
+[data-display-mode="dark"][data-gradient-enabled="true"][data-gradient-preset="emerald-luxe"] body {
+  background-color: #070b14 !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(5, 150, 105, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgba(13, 148, 136, 0.18) 0px, transparent 55%),
+    radial-gradient(at 50% 15%, rgba(6, 182, 212, 0.10) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* 6. Cosmic (Deep Violet -> Blue -> Magenta) */
+.dark[data-gradient-enabled="true"][data-gradient-preset="cosmic"] body,
+[data-display-mode="dark"][data-gradient-enabled="true"][data-gradient-preset="cosmic"] body {
+  background-color: #070b14 !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(109, 40, 217, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.18) 0px, transparent 55%),
+    radial-gradient(at 50% 15%, rgba(217, 70, 239, 0.10) 0px, transparent 45%) !important;
+  background-attachment: fixed;
+}
+
+/* Dark gradient atmosphere styling */
+.dark[data-gradient-enabled="true"] .spatial-sidebar-dock,
+[data-display-mode="dark"][data-gradient-enabled="true"] .spatial-sidebar-dock {
   background: rgba(11, 16, 28, 0.92) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
   box-shadow: 
@@ -274,15 +389,15 @@
     inset 0 1px 0 0 rgba(255, 255, 255, 0.12) !important;
 }
 
-.dark[data-design-style="premium-gradient"] .spatial-sidebar-dock a[data-active="true"],
-[data-display-mode="dark"][data-design-style="premium-gradient"] .spatial-sidebar-dock a[data-active="true"] {
+.dark[data-gradient-enabled="true"] .spatial-sidebar-dock a[data-active="true"],
+[data-display-mode="dark"][data-gradient-enabled="true"] .spatial-sidebar-dock a[data-active="true"] {
   background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 16px -2px rgba(124, 58, 237, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.2) !important;
 }
 
-.dark[data-design-style="premium-gradient"] .btn-3d-tactile-primary,
-[data-display-mode="dark"][data-design-style="premium-gradient"] .btn-3d-tactile-primary {
+.dark[data-gradient-enabled="true"] .btn-3d-tactile-primary,
+[data-display-mode="dark"][data-gradient-enabled="true"] .btn-3d-tactile-primary {
   background: linear-gradient(135deg, #7c3aed 0%, #2563eb 50%, #06b6d4 100%) !important;
   color: #ffffff !important;
   box-shadow: 
@@ -290,8 +405,8 @@
     inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
 }
 
-.dark[data-design-style="premium-gradient"] .floating-mac-window,
-[data-display-mode="dark"][data-design-style="premium-gradient"] .floating-mac-window {
+.dark[data-gradient-enabled="true"] .floating-mac-window,
+[data-display-mode="dark"][data-gradient-enabled="true"] .floating-mac-window {
   border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow: 
     0 24px 64px -12px rgba(0, 0, 0, 0.75),

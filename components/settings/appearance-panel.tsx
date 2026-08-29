@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import {
   useTheme,
   ACCENT_PALETTES,
-  DESIGN_STYLE_OPTIONS,
+  GRADIENT_PRESETS,
   type DisplayMode,
-  type DesignStyle,
+  type GradientPreset,
   type AccentColor,
   type DensityMode,
   type FontScale,
@@ -44,6 +44,7 @@ const DEFAULT_QUICK_MODULES: QuickNavItem[] = [
   { id: "aeps", label: "AEPS Cash", href: "/business/aeps", icon: "🏧" },
   { id: "dmt", label: "Money Transfer", href: "/business/dmt", icon: "💸" },
   { id: "upi", label: "UPI Float", href: "/business/upi", icon: "📱" },
+  { id: "opening", label: "Opening Position", href: "/finance/opening-balances", icon: "🏛️" },
   { id: "cashbook", label: "Cash Book", href: "/finance/cashbook", icon: "📖" },
   { id: "expenses", label: "Expenses", href: "/finance/expenses", icon: "🏷️" },
   { id: "settlements", label: "Settlements", href: "/finance/settlements", icon: "🏦" },
@@ -57,13 +58,15 @@ export default function AppearancePanel({ active }: { active: boolean }) {
   const {
     displayMode,
     resolvedDisplayMode,
-    designStyle,
+    gradientEnabled,
+    gradientPreset,
     motion,
     accent,
     density,
     fontScale,
     setDisplayMode,
-    setDesignStyle,
+    setGradientEnabled,
+    setGradientPreset,
     setMotion,
     setAccent,
     setDensity,
@@ -142,6 +145,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
   });
 
   const activeAccent = ACCENT_PALETTES.find((p) => p.key === accent) || ACCENT_PALETTES[0];
+  const activePreset = GRADIENT_PRESETS.find((p) => p.id === gradientPreset) || GRADIENT_PRESETS[0];
 
   function toggleSound() {
     const next = !soundFeedback;
@@ -185,7 +189,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
                 Live 3D Spatial Interface Preview
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Live preview reflects your exact Display Mode ({displayMode}) + Design Style ({designStyle}).
+                Live preview reflects your exact Theme ({displayMode}) + Atmosphere ({gradientEnabled ? activePreset.name : "Solid"}).
               </p>
             </div>
           </div>
@@ -219,7 +223,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
             </div>
 
             <span className="rounded-full border border-blue-200/80 bg-white/80 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/60 dark:text-blue-300">
-              {resolvedDisplayMode === "dark" ? "Dark Workspace" : "Light Workspace"} · {designStyle}
+              {resolvedDisplayMode === "dark" ? "Dark Workspace" : "Light Workspace"} · {gradientEnabled ? `✨ ${activePreset.name}` : "Spatial"}
             </span>
           </div>
         </div>
@@ -276,12 +280,12 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         </div>
       </section>
 
-      {/* 2. Display Mode Selector */}
+      {/* 2. Theme Mode Selector */}
       <SettingsSection
         icon="M12 3v2m0 14v2M5.6 5.6l1.4 1.4m9.9 9.9 1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m9.9-9.9 1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
         tone="blue"
-        title="Display Mode"
-        desc="Select your visual base environment. You can combine any Display Mode with any Design Style."
+        title="Theme Mode"
+        desc="Select your base lighting environment. Works harmoniously with the unified Modern Spatial architecture."
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
@@ -334,52 +338,141 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         </div>
       </SettingsSection>
 
-      {/* 3. Design Style Selector */}
+      {/* 3. Design Architecture (Locked Unified Modern Spatial) */}
       <SettingsSection
         icon="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z"
         tone="violet"
-        title="Design Style"
-        desc="Choose your architectural visual language. Premium Gradient works in both Light and Dark modes."
+        title="Design Architecture"
+        desc="Permanent unified visual system across all Café ERP modules."
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {DESIGN_STYLE_OPTIONS.map((style) => {
-            const isSelected = designStyle === style.key;
-            return (
-              <button
-                key={style.key}
-                type="button"
-                onClick={() => setDesignStyle(style.key)}
-                className={`group relative flex flex-col rounded-2xl border p-4 text-left transition ${
-                  isSelected
-                    ? "border-purple-600 bg-purple-50/50 shadow-md ring-2 ring-purple-600/30 dark:border-purple-500 dark:bg-purple-950/30"
-                    : "border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-black text-slate-900 dark:text-white">{style.label}</span>
-                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                    {style.badge}
+        <div className="rounded-2xl border border-purple-500/30 bg-purple-50/30 p-4 dark:border-purple-500/20 dark:bg-purple-950/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm shadow-purple-600/30">
+                🏛️
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                    Modern Spatial Architecture
+                  </h4>
+                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-black uppercase text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                    Unified Standard
                   </span>
                 </div>
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{style.description}</p>
-                {isSelected && (
-                  <div className="mt-3 flex items-center gap-1.5 text-[11px] font-black text-purple-600 dark:text-purple-400">
-                    <SvgIcon path="M20 6 9 17 4 12" className="h-3.5 w-3.5" />
-                    <span>Selected Architecture</span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Elevated macOS floating windows, 3D tactile buttons, spatial cards, and smooth depth geometry.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-black text-purple-600 dark:text-purple-400">
+              <SvgIcon path="M20 6 9 17 4 12" className="h-4 w-4" />
+              <span>Active Architecture</span>
+            </div>
+          </div>
         </div>
       </SettingsSection>
 
-      {/* 4. Brand Accent Color Palette */}
+      {/* 4. Premium Gradient Visual Atmosphere */}
+      <SettingsSection
+        icon="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+        tone="violet"
+        title="Premium Gradient Visual Atmosphere"
+        desc="Ambient multi-colored lighting inspired by luxury digital software. Does not alter component structure or business workflows."
+      >
+        <div className="space-y-4">
+          {/* Atmosphere ON / OFF Switch */}
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3.5 dark:border-white/10 dark:bg-slate-900/60">
+            <div>
+              <p className="text-xs font-bold text-slate-900 dark:text-white">Enable Ambient Gradient Lighting</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Illuminate the desktop canvas with subtle colored ambient cones
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setGradientEnabled(!gradientEnabled)}
+              className={`flex h-6 w-11 items-center rounded-full p-1 transition ${
+                gradientEnabled ? "bg-purple-600 justify-end" : "bg-slate-300 justify-start dark:bg-white/20"
+              }`}
+            >
+              <span className="h-4 w-4 rounded-full bg-white shadow-sm" />
+            </button>
+          </div>
+
+          {/* 6 Gradient Atmosphere Presets */}
+          {gradientEnabled && (
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Select Atmosphere Preset
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {GRADIENT_PRESETS.map((preset) => {
+                  const isSelected = gradientPreset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setGradientPreset(preset.id)}
+                      className={`group relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition ${
+                        isSelected
+                          ? "border-purple-600 bg-purple-50/40 shadow-md ring-2 ring-purple-600/30 dark:border-purple-500 dark:bg-purple-950/30"
+                          : "border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/60"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-900 dark:text-white">
+                            {preset.name}
+                          </span>
+                          {isSelected && (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-white">
+                              <SvgIcon path="M20 6 9 17 4 12" className="h-3 w-3" />
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          {preset.mood}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {preset.primaryName} · {preset.secondaryName}
+                        </span>
+                        <div className="flex items-center -space-x-1">
+                          <span
+                            className="h-4 w-4 rounded-full border border-white shadow-xs dark:border-slate-900"
+                            style={{ backgroundColor: preset.primary }}
+                            title={preset.primaryName}
+                          />
+                          <span
+                            className="h-4 w-4 rounded-full border border-white shadow-xs dark:border-slate-900"
+                            style={{ backgroundColor: preset.secondary }}
+                            title={preset.secondaryName}
+                          />
+                          <span
+                            className="h-4 w-4 rounded-full border border-white shadow-xs dark:border-slate-900"
+                            style={{ backgroundColor: preset.highlight }}
+                            title={preset.highlightName}
+                          />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </SettingsSection>
+
+      {/* 5. Brand Accent Color Palette */}
       <SettingsSection
         icon="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
         tone="blue"
         title="Studio Brand Accent"
-        desc="Primary color applied across active links, buttons, highlight borders, and charts."
+        desc="Primary action color applied across active links, buttons, highlight borders, and charts."
       >
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-6">
           {ACCENT_PALETTES.map((palette) => {
@@ -412,7 +505,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         </div>
       </SettingsSection>
 
-      {/* 5. Dashboard Quick Access Customization */}
+      {/* 6. Dashboard Quick Access Customization */}
       <SettingsSection
         icon="M4 6h16M4 12h16M4 18h7"
         tone="amber"
@@ -534,7 +627,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         )}
       </SettingsSection>
 
-      {/* 6. Workspace Density & Font Scaling */}
+      {/* 7. Workspace Density & Font Scaling */}
       <SettingsSection
         icon="M4 6h16M4 10h16M4 14h16M4 18h16"
         tone="blue"
@@ -594,7 +687,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         </div>
       </SettingsSection>
 
-      {/* 7. Sound & Accessibility Toggles */}
+      {/* 8. Sound & Accessibility Toggles */}
       <SettingsSection
         icon="M11 5L6 9H2v6h4l5 4V5z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07"
         tone="emerald"
