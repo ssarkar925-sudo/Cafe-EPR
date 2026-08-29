@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
 
 export async function POST(req: NextRequest) {
   try {
+    const role = await getUserRole();
+    if (!hasRole(role, ["admin", "manager", "staff"])) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const supabase = await createClient();
     const body = await req.json().catch(() => ({}));
     const triggeredBy = body?.triggered_by || "manual";

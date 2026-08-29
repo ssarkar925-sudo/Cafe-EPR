@@ -136,16 +136,37 @@ export function calculateGstInvoice({
   const grossAfterItemDisc = Math.max(0, totalGrossSum - totalItemDiscounts);
   const lumpSumDiscount = Math.min(grossAfterItemDisc, Math.max(0, Number(invoiceLumpSumDiscount) || 0));
 
+  const proRataDiscounts = rawGrossLines.map((l) => {
+    return grossAfterItemDisc > 0
+      ? round2(((l.gross - l.lineDisc) / grossAfterItemDisc) * lumpSumDiscount)
+      : 0;
+  });
+
+  // Reconcile penny residual delta to guarantee exact sum(discounts) == lumpSumDiscount
+  if (lumpSumDiscount > 0 && rawGrossLines.length > 0) {
+    const allocatedSum = round2(proRataDiscounts.reduce((s, d) => s + d, 0));
+    const delta = round2(lumpSumDiscount - allocatedSum);
+    if (delta !== 0) {
+      let maxIdx = 0;
+      let maxGross = -1;
+      rawGrossLines.forEach((l, idx) => {
+        const netLineGross = l.gross - l.lineDisc;
+        if (netLineGross > maxGross) {
+          maxGross = netLineGross;
+          maxIdx = idx;
+        }
+      });
+      proRataDiscounts[maxIdx] = Math.max(0, round2(proRataDiscounts[maxIdx] + delta));
+    }
+  }
+
   let totalTaxableValue = 0;
   let totalCgst = 0;
   let totalSgst = 0;
   let totalIgst = 0;
 
-  const calculatedLines: GstLineResult[] = rawGrossLines.map((l) => {
-    const proRataInvoiceDisc =
-      grossAfterItemDisc > 0
-        ? round2(((l.gross - l.lineDisc) / grossAfterItemDisc) * lumpSumDiscount)
-        : 0;
+  const calculatedLines: GstLineResult[] = rawGrossLines.map((l, idx) => {
+    const proRataInvoiceDisc = proRataDiscounts[idx] ?? 0;
 
     const taxableValue = Math.max(0, round2(l.gross - l.lineDisc - proRataInvoiceDisc));
     const taxTreatment = l.taxTreatment || (l.gstRate > 0 ? "taxable" : "non_gst");

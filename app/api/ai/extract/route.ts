@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import type { ScanMode } from "@/lib/scan/extract";
 
 export const runtime = "nodejs";
@@ -84,6 +85,14 @@ async function callGemini(parts: Record<string, unknown>[]) {
 }
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!KEY) {
     return NextResponse.json(
       { error: "GEMINI_API_KEY is not set. Add it to .env.local (and Vercel) to use AI extraction." },

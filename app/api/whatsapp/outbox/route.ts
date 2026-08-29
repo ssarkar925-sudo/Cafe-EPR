@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
+import { sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
 
 export async function GET() {
   try {
+    const role = await getUserRole();
+    if (!hasRole(role, ["admin", "manager", "staff"])) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
     const supabase = await createClient();
 
     const [
@@ -36,6 +43,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const role = await getUserRole();
+    if (!hasRole(role, ["admin", "manager", "staff"])) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
     const supabase = await createClient();
     const now = new Date().toISOString();
 
@@ -83,21 +95,10 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Send via internal send API handler
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-        const sendRes = await fetch(`${baseUrl}/api/whatsapp/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone: msg.phone,
-            message: msg.message_body,
-            config,
-          }),
-        });
+        // Direct execution without fragile loopback HTTP fetch
+        const resData = await sendWhatsAppViaConfig(msg.phone, msg.message_body, config);
 
-        const resData = await sendRes.json().catch(() => ({}));
-
-        if (sendRes.ok && (resData.success || resData.ok)) {
+        if (resData.success) {
           await supabase
             .from("whatsapp_outbox")
             .update({
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
             .eq("id", msg.id);
           sent++;
         } else {
-          throw new Error(resData.error || `Transport error ${sendRes.status}`);
+          throw new Error(resData.error || "Failed to dispatch message");
         }
       } catch (err: any) {
         failed++;

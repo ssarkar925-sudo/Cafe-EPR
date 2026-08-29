@@ -7,8 +7,8 @@ const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const PUBLIC_PATHS = [
   "/login",
   "/auth/confirm-reset",
+  "/auth/reset-password",
   "/logout",
-  "/api",
   "/receipt",
   "/business/receipt",
 ];
@@ -59,8 +59,7 @@ export async function middleware(request: NextRequest) {
   // Rate-limit sensitive API, Login, and Public Receipt routes
   if (
     pathname === "/login" ||
-    pathname.startsWith("/api/staff") ||
-    pathname.startsWith("/api/whatsapp") ||
+    pathname.startsWith("/api/") ||
     pathname.startsWith("/receipt") ||
     pathname.startsWith("/business/receipt")
   ) {
@@ -77,18 +76,23 @@ export async function middleware(request: NextRequest) {
   // Missing Supabase env vars fallback
   if (!SUPABASE_URL || !SUPABASE_ANON) {
     if (isPublic(pathname)) return applySecurityHeaders(NextResponse.next());
+    if (pathname.startsWith("/api")) {
+      return applySecurityHeaders(
+        NextResponse.json({ error: "Server not configured" }, { status: 500 })
+      );
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
     return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Fast-path 1: Public APIs, customer receipts, and confirmation routes don't need auth checks
+  // Fast-path 1: Public customer receipts and confirmation routes don't need auth checks
   if (
-    pathname.startsWith("/api") ||
     pathname.startsWith("/receipt") ||
     pathname.startsWith("/business/receipt") ||
     pathname === "/auth/confirm-reset" ||
+    pathname === "/auth/reset-password" ||
     pathname === "/logout"
   ) {
     return applySecurityHeaders(NextResponse.next());
@@ -101,8 +105,13 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.next());
   }
 
-  // Fast-path 3: Visiting protected page with NO auth cookie -> redirect to login immediately without network call
+  // Fast-path 3: Visiting protected page with NO auth cookie
   if (!isPublic(pathname) && !hasCookie) {
+    if (pathname.startsWith("/api")) {
+      return applySecurityHeaders(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      );
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
@@ -183,6 +192,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if ((!user || aal1SessionWithMfa) && !isPublic(pathname)) {
+    if (pathname.startsWith("/api")) {
+      return applySecurityHeaders(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      );
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
