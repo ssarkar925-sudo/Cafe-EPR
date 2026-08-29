@@ -9,18 +9,22 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   const supabase = await createClient();
   const search = q?.trim() ?? "";
 
-  // Customer List is intentionally empty until the user searches.
-  // This avoids loading/showing the complete customer database on first open.
-  let rows: any[] = [];
+  // Show the complete customer directory on first open.
+  // When a query is present, keep the existing server-side search behavior.
+  let customerQuery = supabase
+    .from("customers")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(500);
+
   if (search.length > 0) {
-    const { data: customers } = await supabase
-      .from("customers")
-      .select("*")
-      .or(`name.ilike.%${search}%,phone.ilike.%${search}%,code.ilike.%${search}%,email.ilike.%${search}%`)
-      .order("created_at", { ascending: false })
-      .limit(500);
-    rows = (customers ?? []) as any[];
+    customerQuery = customerQuery.or(
+      `name.ilike.%${search}%,phone.ilike.%${search}%,code.ilike.%${search}%,email.ilike.%${search}%`
+    );
   }
+
+  const { data: customers } = await customerQuery;
+  const rows = (customers ?? []) as any[];
 
   return (
     <div className="space-y-4">
