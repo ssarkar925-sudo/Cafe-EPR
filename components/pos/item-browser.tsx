@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { inr } from "@/lib/format";
@@ -26,12 +28,12 @@ export type PosCustomer = {
 
 export function gradient(name: string) {
   const palettes = [
-    "from-blue-500 to-cyan-400",
-    "from-violet-500 to-fuchsia-400",
-    "from-emerald-500 to-teal-400",
-    "from-amber-500 to-orange-400",
-    "from-rose-500 to-pink-400",
-    "from-indigo-500 to-purple-400",
+    "from-blue-600 to-cyan-500",
+    "from-violet-600 to-fuchsia-500",
+    "from-emerald-600 to-teal-500",
+    "from-amber-500 to-orange-500",
+    "from-rose-600 to-pink-500",
+    "from-indigo-600 to-purple-500",
   ];
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -39,109 +41,47 @@ export function gradient(name: string) {
 }
 
 export const inputClass =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-xs outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900/30";
 
 export const METHOD_BTN: Record<string, { label: string; active: string; idle: string }> = {
   cash: {
     label: "Cash",
-    active: "bg-emerald-600 text-white ring-emerald-600",
-    idle: "bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100",
+    active: "bg-emerald-600 text-white ring-2 ring-emerald-500 shadow-sm",
+    idle: "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900/40 dark:text-emerald-300",
   },
   upi: {
-    label: "UPI",
-    active: "bg-cyan-600 text-white ring-cyan-600",
-    idle: "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    label: "UPI QR",
+    active: "bg-cyan-600 text-white ring-2 ring-cyan-500 shadow-sm",
+    idle: "bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 dark:bg-cyan-950/40 dark:border-cyan-900/40 dark:text-cyan-300",
   },
   card: {
     label: "Card",
-    active: "bg-blue-600 text-white ring-blue-600",
-    idle: "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    active: "bg-blue-600 text-white ring-2 ring-blue-500 shadow-sm",
+    idle: "bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-900/40 dark:text-blue-300",
   },
   bank: {
     label: "Bank",
-    active: "bg-indigo-600 text-white ring-indigo-600",
-    idle: "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    active: "bg-indigo-600 text-white ring-2 ring-indigo-500 shadow-sm",
+    idle: "bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-300",
   },
   wallet: {
     label: "Wallet",
-    active: "bg-amber-600 text-white ring-amber-600",
-    idle: "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    active: "bg-amber-600 text-white ring-2 ring-amber-500 shadow-sm",
+    idle: "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-900/40 dark:text-amber-300",
   },
   debit_card: {
     label: "Debit",
-    active: "bg-violet-600 text-white ring-violet-600",
-    idle: "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    active: "bg-violet-600 text-white ring-2 ring-violet-500 shadow-sm",
+    idle: "bg-violet-50 text-violet-800 border border-violet-200 hover:bg-violet-100 dark:bg-violet-950/40 dark:border-violet-900/40 dark:text-violet-300",
   },
   credit_card: {
     label: "Credit",
-    active: "bg-rose-600 text-white ring-rose-600",
-    idle: "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    active: "bg-rose-600 text-white ring-2 ring-rose-500 shadow-sm",
+    idle: "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300",
   },
 };
 
 export type Category = { id: string; name: string; count: number };
-
-function AddNewItemMenu({ onAddCustom, mobile = false }: { onAddCustom: () => void; mobile?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const buttonClass = mobile
-    ? "flex items-center gap-1 rounded-full border border-dashed border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
-    : "flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-300 bg-blue-50 px-3 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-100";
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className={buttonClass}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-4 w-4">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        Add New Item
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div
-            className={`absolute z-30 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl ${mobile ? "left-0 mt-2" : "bottom-full left-0 mb-2"}`}
-            role="menu"
-          >
-            <a
-              href="/catalog/products"
-              className="flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50"
-              role="menuitem"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">📦</span>
-              <span><span className="block font-semibold">New Product</span><span className="block text-[11px] text-slate-400">Add a stock-tracked item</span></span>
-            </a>
-            <a
-              href="/catalog/services"
-              className="flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-cyan-50"
-              role="menuitem"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700">🛠</span>
-              <span><span className="block font-semibold">New Service</span><span className="block text-[11px] text-slate-400">Add a saleable service</span></span>
-            </a>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onAddCustom();
-              }}
-              className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-amber-50"
-              role="menuitem"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">✦</span>
-              <span><span className="block font-semibold">Custom Item</span><span className="block text-[11px] text-slate-400">One-off item for this sale</span></span>
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 export function PosCategorySidebar({
   categories,
@@ -158,25 +98,61 @@ export function PosCategorySidebar({
 }) {
   return (
     <div className="hidden lg:block">
-      <div className="sticky top-6 flex max-h-[calc(100vh-4rem)] flex-col overflow-visible rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Categories</p>
+      <div className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-[22px] border border-slate-200/90 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="border-b border-slate-100 px-4 py-3 dark:border-white/5">
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            Catalog Categories
+          </p>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
-          <button type="button" onClick={() => onSelect("all")} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition ${active === "all" ? "bg-[#0f172a] font-medium text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-            <span>All items</span>
-            <span className={`text-xs ${active === "all" ? "text-slate-300" : "text-slate-400"}`}>{totalCount}</span>
+        <div className="flex-1 overflow-y-auto p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
+            onClick={() => onSelect("all")}
+            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition ${
+              active === "all"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+            }`}
+          >
+            <span>All Items</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] ${
+                active === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 dark:bg-white/10"
+              }`}
+            >
+              {totalCount}
+            </span>
           </button>
           {categories.map((c) => (
-            <button type="button" key={c.id} onClick={() => onSelect(c.id)} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition ${active === c.id ? "bg-[#0f172a] font-medium text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+            <button
+              type="button"
+              key={c.id}
+              onClick={() => onSelect(c.id)}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition ${
+                active === c.id
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+              }`}
+            >
               <span className="truncate">{c.name}</span>
-              <span className={`text-xs ${active === c.id ? "text-slate-300" : "text-slate-400"}`}>{c.count}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] ${
+                  active === c.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 dark:bg-white/10"
+                }`}
+              >
+                {c.count}
+              </span>
             </button>
           ))}
-          {!categories.length && <p className="px-3 py-3 text-center text-[11px] text-slate-400">No saleable categories yet.</p>}
         </div>
-        <div className="border-t border-slate-100 p-2">
-          <AddNewItemMenu onAddCustom={onAddCustom} />
+        <div className="border-t border-slate-100 p-2.5 dark:border-white/5">
+          <button
+            type="button"
+            onClick={onAddCustom}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-blue-300 bg-blue-50/60 py-2 text-xs font-extrabold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+          >
+            <span>+ Custom Item</span>
+          </button>
         </div>
       </div>
     </div>
@@ -210,32 +186,98 @@ export function PosItemToolbar({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2.5">
-      <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
+      {/* Category Tabs */}
+      <div className="flex rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
         {tabs.map((t) => (
-          <button type="button" key={t.value} onClick={() => onTab(t.value)} className={`rounded-lg px-3.5 py-1.5 font-medium capitalize transition ${activeTab === t.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+          <button
+            type="button"
+            key={t.value}
+            onClick={() => onTab(t.value)}
+            className={`rounded-xl px-3.5 py-1.5 text-xs font-extrabold transition ${
+              activeTab === t.value
+                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            }`}
+          >
             {t.label}
           </button>
         ))}
       </div>
-      <div className="relative min-w-[180px] flex-1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+
+      {/* Search Input */}
+      <div className="relative min-w-[200px] flex-1">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+        >
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
         </svg>
-        <input ref={searchRef} value={q} onChange={(e) => onQ(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+        <input
+          ref={searchRef}
+          value={q}
+          onChange={(e) => onQ(e.target.value)}
+          placeholder={placeholder}
+          className="w-full rounded-2xl border border-slate-200/90 bg-white py-2 pl-10 pr-3.5 text-xs font-semibold text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+        />
+        {q && (
+          <button
+            type="button"
+            onClick={() => onQ("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700"
+          >
+            ✕
+          </button>
+        )}
       </div>
-      <select value={sort} onChange={(e) => onSort(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 outline-none focus:border-blue-500" title="Sort">
+
+      {/* Sort Selector */}
+      <select
+        value={sort}
+        onChange={(e) => onSort(e.target.value)}
+        className="rounded-2xl border border-slate-200/90 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+      >
         <option value="name">Name A–Z</option>
-        <option value="low">Price low → high</option>
-        <option value="high">Price high → low</option>
-        <option value="stock">Stock</option>
+        <option value="low">Price: Low → High</option>
+        <option value="high">Price: High → Low</option>
+        <option value="stock">Stock Level</option>
       </select>
-      <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
-        <button type="button" onClick={() => onView("grid")} title="Grid view" className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${view === "grid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"} `}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+
+      {/* View Mode Toggle */}
+      <div className="flex rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
+        <button
+          type="button"
+          onClick={() => onView("grid")}
+          title="Grid view"
+          className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${
+            view === "grid"
+              ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
         </button>
-        <button type="button" onClick={() => onView("list")} title="List view" className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${view === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <button
+          type="button"
+          onClick={() => onView("list")}
+          title="List view"
+          className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${
+            view === "list"
+              ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
         </button>
       </div>
     </div>
@@ -261,15 +303,31 @@ export function PosCategoryChips({
     <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {customBtn}
       {extraChips}
-      <button type="button" onClick={() => onSelect("all")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${active === "all" ? "bg-[#0f172a] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
-        All <span className="opacity-60">· {totalCount}</span>
+      <button
+        type="button"
+        onClick={() => onSelect("all")}
+        className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+          active === "all"
+            ? "bg-blue-600 text-white shadow-sm"
+            : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+        }`}
+      >
+        All <span className="opacity-70">({totalCount})</span>
       </button>
       {categories.map((c) => (
-        <button type="button" key={c.id} onClick={() => onSelect(c.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${active === c.id ? "bg-[#0f172a] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
-          {c.name} <span className="opacity-60">· {c.count}</span>
+        <button
+          type="button"
+          key={c.id}
+          onClick={() => onSelect(c.id)}
+          className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+            active === c.id
+              ? "bg-blue-600 text-white shadow-sm"
+              : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+          }`}
+        >
+          {c.name} <span className="opacity-70">({c.count})</span>
         </button>
       ))}
-      {!categories.length && <span className="shrink-0 text-xs text-slate-400">No saleable categories yet.</span>}
     </div>
   );
 }
@@ -278,7 +336,7 @@ export function PosGrid({
   items,
   isProduct,
   onAdd,
-  emptyText = "Nothing matches your search. Try a different name or category.",
+  emptyText = "No items match your search.",
 }: {
   items: BrowserItem[];
   isProduct?: boolean;
@@ -294,30 +352,85 @@ export function PosGrid({
         const out = isProd && stock <= 0;
         const low = isProd && !out && stock <= reorder;
         const price = Number(x.sale_price);
+
         return (
-          <button type="button" key={`${isProd ? "p" : "s"}-${x.id}`} onClick={() => onAdd(x.id, x.name, price, isProd)} disabled={out} className={`group relative flex flex-col justify-between rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-400 ${out ? "cursor-not-allowed bg-slate-50 opacity-60" : ""}`}>
+          <button
+            type="button"
+            key={`${isProd ? "p" : "s"}-${x.id}`}
+            onClick={() => onAdd(x.id, x.name, price, isProd)}
+            disabled={out}
+            className={`group relative flex flex-col justify-between rounded-[20px] border p-3.5 text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-md ${
+              out
+                ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-white/5 dark:bg-slate-900/40"
+                : "border-slate-200/90 bg-white hover:border-blue-400 dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-600"
+            }`}
+          >
             <div>
               <div className="flex items-start justify-between gap-1.5">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(x.name)} text-sm font-bold text-white shadow-sm`}>{x.name.slice(0, 1).toUpperCase()}</div>
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient(
+                    x.name
+                  )} text-sm font-black text-white shadow-sm`}
+                >
+                  {x.name.slice(0, 1).toUpperCase()}
+                </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${isProd ? "bg-purple-100 text-purple-700 ring-1 ring-purple-200" : "bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200"}`}>{isProd ? "PRODUCT" : "SERVICE"}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                      isProd
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+                    }`}
+                  >
+                    {isProd ? "PRODUCT" : "SERVICE"}
+                  </span>
                   {isProd ? (
-                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${out ? "bg-rose-100 text-rose-700" : low ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{out ? "OUT OF STOCK" : low ? `Low Stock (${stock})` : `Stock ${stock} ${x.unit || "pc"}`}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                        out
+                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                          : low
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      }`}
+                    >
+                      {out ? "OUT OF STOCK" : low ? `Low (${stock})` : `Stock ${stock}`}
+                    </span>
                   ) : (
-                    <span className="max-w-[80px] truncate text-[10px] text-slate-400">{x.categories?.name ?? "Service"}</span>
+                    <span className="max-w-[80px] truncate text-[10px] font-bold text-slate-400">
+                      {x.categories?.name ?? "Service"}
+                    </span>
                   )}
                 </div>
               </div>
-              <p className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-slate-900">{x.name}</p>
+              <p className="mt-3 line-clamp-2 text-xs font-extrabold leading-snug text-slate-900 dark:text-white">
+                {x.name}
+              </p>
             </div>
-            <div className="mt-2.5 flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
-              <p className="text-sm font-bold text-blue-600">{inr(price)}</p>
-              <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${out ? "bg-slate-200 text-slate-500" : "bg-slate-900 text-white group-hover:bg-blue-600"}`}>{out ? "Out" : "+ Add"}</span>
+
+            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-white/5">
+              <p className="text-sm font-black text-blue-600 dark:text-blue-400">
+                {inr(price)}
+              </p>
+              <span
+                className={`rounded-xl px-2.5 py-1 text-[10px] font-extrabold transition ${
+                  out
+                    ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
+                    : "bg-slate-900 text-white group-hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:group-hover:bg-blue-600 dark:group-hover:text-white"
+                }`}
+              >
+                {out ? "Out" : "+ Add"}
+              </span>
             </div>
           </button>
         );
       })}
-      {items.length === 0 && <p className="col-span-full py-14 text-center text-sm text-slate-500">{emptyText}</p>}
+
+      {items.length === 0 && (
+        <div className="col-span-full rounded-2xl border border-dashed border-slate-300 p-12 text-center text-xs text-slate-400">
+          {emptyText}
+        </div>
+      )}
     </div>
   );
 }
@@ -326,7 +439,7 @@ export function PosTable({
   items,
   isProduct,
   onAdd,
-  emptyText = "Nothing matches your search. Try a different name or category.",
+  emptyText = "No items match your search.",
 }: {
   items: BrowserItem[];
   isProduct?: boolean;
@@ -334,19 +447,99 @@ export function PosTable({
   emptyText?: string;
 }) {
   return (
-    <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-      <table className="w-full text-left text-sm">
-        <thead><tr className="border-b border-slate-200 text-slate-500"><th className="py-2.5 pl-4 pr-3 font-medium">Type</th><th className="py-2.5 pr-4 font-medium">Name</th><th className="py-2.5 pr-4 font-medium">Category</th><th className="py-2.5 pr-4 font-medium">Price</th><th className="py-2.5 pr-4 font-medium">Availability / Stock</th><th className="py-2.5 pr-4 text-right font-medium">Action</th></tr></thead>
-        <tbody>
+    <div className="mt-4 overflow-x-auto rounded-[20px] border border-slate-200/90 bg-white dark:border-white/10 dark:bg-slate-900">
+      <table className="w-full text-left text-xs">
+        <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black uppercase text-slate-400 dark:border-white/5 dark:bg-white/[0.02]">
+          <tr>
+            <th className="px-4 py-3">Type</th>
+            <th className="px-4 py-3">Name &amp; Code</th>
+            <th className="px-4 py-3">Category</th>
+            <th className="px-4 py-3">Price</th>
+            <th className="px-4 py-3">Stock Status</th>
+            <th className="px-4 py-3 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
           {items.map((x) => {
             const isProd = x.item_type ? x.item_type === "product" : Boolean(isProduct || x.stock_qty !== undefined);
             const stock = isProd ? Number(x.stock_qty ?? 0) : Infinity;
             const reorder = isProd ? Number(x.reorder_level ?? 0) : 0;
             const out = isProd && stock <= 0;
             const price = Number(x.sale_price);
-            return <tr key={`${isProd ? "p" : "s"}-${x.id}`} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"><td className="py-2.5 pl-4 pr-3"><span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${isProd ? "bg-purple-100 text-purple-700 ring-1 ring-purple-200" : "bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200"}`}>{isProd ? "PRODUCT" : "SERVICE"}</span></td><td className="py-2.5 pr-4"><div className="flex items-center gap-2.5"><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(x.name)} text-xs font-bold text-white`}>{x.name.slice(0, 1).toUpperCase()}</span><div className="min-w-0"><span className="block truncate font-medium text-slate-900">{x.name}</span>{x.code && <span className="font-mono text-[11px] text-slate-400">{x.code}</span>}</div></div></td><td className="py-2.5 pr-4 text-slate-600 text-xs">{x.categories?.name ?? "—"}</td><td className="py-2.5 pr-4 font-semibold text-blue-600">{inr(price)}</td><td className="py-2.5 pr-4">{isProd ? <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${out ? "bg-rose-100 text-rose-700" : stock <= reorder ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{out ? "OUT OF STOCK" : `${x.stock_qty} ${x.unit || "pc"}`}</span> : <span className="text-xs text-slate-400">Digital / Service</span>}</td><td className="py-2.5 pr-4 text-right"><button type="button" onClick={() => onAdd(x.id, x.name, price, isProd)} disabled={out} className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50">{out ? "Out" : "Add"}</button></td></tr>;
+
+            return (
+              <tr key={`${isProd ? "p" : "s"}-${x.id}`} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
+                <td className="px-4 py-2.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
+                      isProd
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+                    }`}
+                  >
+                    {isProd ? "PROD" : "SERV"}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
+                        x.name
+                      )} text-xs font-black text-white`}
+                    >
+                      {x.name.slice(0, 1).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="block truncate font-extrabold text-slate-900 dark:text-white">
+                        {x.name}
+                      </span>
+                      {x.code && <span className="font-mono text-[10px] text-slate-400">{x.code}</span>}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400">
+                  {x.categories?.name ?? "—"}
+                </td>
+                <td className="px-4 py-2.5 font-black text-blue-600 dark:text-blue-400">
+                  {inr(price)}
+                </td>
+                <td className="px-4 py-2.5">
+                  {isProd ? (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        out
+                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                          : stock <= reorder
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      }`}
+                    >
+                      {out ? "OUT OF STOCK" : `${x.stock_qty} in stock`}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Digital / Service</span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onAdd(x.id, x.name, price, isProd)}
+                    disabled={out}
+                    className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-blue-600 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
+                  >
+                    {out ? "Out" : "+ Add"}
+                  </button>
+                </td>
+              </tr>
+            );
           })}
-          {items.length === 0 && <tr><td colSpan={6} className="py-12 text-center text-sm text-slate-500">{emptyText}</td></tr>}
+          {items.length === 0 && (
+            <tr>
+              <td colSpan={6} className="py-12 text-center text-xs text-slate-400">
+                {emptyText}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -378,106 +571,100 @@ export function CustomerSelector({
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
     return customers.filter((c) => {
-      if (!needle) return true;
       return (
         c.name.toLowerCase().includes(needle) ||
-        (c.phone ?? "").includes(needle) ||
-        (c.code ?? "").toLowerCase().includes(needle)
+        (c.phone && c.phone.includes(needle)) ||
+        (c.code && c.code.toLowerCase().includes(needle))
       );
     });
   }, [customers, q]);
 
   return (
     <div className="relative">
-      <input
-        ref={searchRef}
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setOpen(false);
-        }}
-        placeholder={selected ? selected.name : "Search or select customer…"}
-        className={inputClass}
-      />
-      {value && (
+      <div className="flex items-center justify-between">
+        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+          Customer Account
+        </label>
         <button
           type="button"
-          onClick={() => {
-            onChange("");
-            setQ("");
-          }}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-rose-600"
-          title="Clear to walk-in"
+          onClick={onAddCustomer}
+          className="text-[11px] font-extrabold text-blue-600 hover:underline dark:text-blue-400"
         >
-          &#10005;
+          + New Customer
         </button>
-      )}
-      {open && (
-        <>
-          <div className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setQ("");
-                setOpen(false);
-              }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 ${!value ? "bg-blue-50" : ""}`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0 text-slate-400">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-              <span className="flex-1 text-slate-700">Walk-in customer</span>
-              {!value && <span className="text-xs text-blue-600">&#10003;</span>}
-            </button>
-            {filtered.map((c) => {
-              const b = Number(c.balance ?? 0);
-              const active = c.id === value;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(c.id);
-                    setQ("");
-                    setOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 ${active ? "bg-blue-50" : ""}`}
-                >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[10px] font-bold text-white">
-                    {c.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-slate-900">{c.name}</span>
-                    <span className="block truncate text-xs text-slate-400">
-                      {c.code ?? ""}
-                      {c.phone ? " · " + c.phone : ""}
-                      {b !== 0 ? ` · ${b > 0 ? "due " : "adv "}${inr(Math.abs(b))}` : ""}
-                    </span>
-                  </span>
-                  {active && <span className="text-xs text-blue-600">&#10003;</span>}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={onAddCustomer}
-              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm font-medium text-blue-600 transition hover:bg-blue-50"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-3.5 w-3.5">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
+      </div>
+
+      {selected ? (
+        <div className="mt-1.5 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 p-2.5 dark:border-blue-900/40 dark:bg-blue-950/30">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-xs font-black text-slate-900 dark:text-white">
+                {selected.name}
               </span>
-              Add new customer
-            </button>
+              {selected.phone && (
+                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                  {selected.phone}
+                </span>
+              )}
+            </div>
+            {Number(selected.balance) > 0 && (
+              <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                Outstanding Due: {inr(Number(selected.balance))}
+              </span>
+            )}
           </div>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-        </>
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+            title="Change customer"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <div className="relative mt-1.5">
+          <input
+            ref={searchRef}
+            type="text"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder="Search customer name or mobile…"
+            className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-slate-900 shadow-xs outline-none transition focus:border-blue-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+          />
+          {open && filtered.length > 0 && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-slate-800">
+                {filtered.slice(0, 8).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(c.id);
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition hover:bg-blue-50 dark:hover:bg-white/5"
+                  >
+                    <div>
+                      <span className="block font-bold text-slate-900 dark:text-white">{c.name}</span>
+                      {c.phone && <span className="block text-[10px] text-slate-400">{c.phone}</span>}
+                    </div>
+                    {Number(c.balance) > 0 && (
+                      <span className="text-[10px] font-extrabold text-rose-600">
+                        Due {inr(Number(c.balance))}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
