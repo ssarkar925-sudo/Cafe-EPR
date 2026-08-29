@@ -7,7 +7,6 @@ import ServiceFormModal from "./service-form-modal";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
 import type { CategoryRef } from "./products-client";
-import "./catalog-premium.css";
 
 export type Service = { id:string; name:string; description:string|null; category_id:string|null; sale_price:number|string; cost_price:number|string; is_active:boolean; categories:{name:string}|null };
 type ModalState = {mode:"create"}|{mode:"edit";service:Service}|null;

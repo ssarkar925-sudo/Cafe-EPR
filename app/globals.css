@@ -436,6 +436,18 @@ input:focus, select:focus, textarea:focus {
   background: rgba(100, 116, 139, 0.4);
 }
 
+/* Catalog & Data Workspace Utilities */
+.catalog-premium {
+  width: 100%;
+}
+.catalog-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.catalog-table {
+  min-width: 800px;
+}
+
 /* Spatial Desktop & macOS Window Tokens */
 .floating-mac-window {
   border-radius: 1.25rem;

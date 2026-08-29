@@ -8,7 +8,6 @@ import { logAudit } from "@/lib/audit";
 import ProductFormModal from "./product-form-modal";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
-import "./catalog-premium.css";
 
 export type Product = {
   id: string; code: string | null; name: string; description: string | null; unit: string;

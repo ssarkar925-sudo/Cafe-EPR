@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import CategoryFormModal from "./category-form-modal";
-import "./catalog-premium.css";
 
 export type Category = { id:string; name:string; description:string|null; is_active:boolean };
 type ModalState = {mode:"create"}|{mode:"edit";category:Category}|null;
