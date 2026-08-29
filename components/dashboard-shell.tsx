@@ -13,46 +13,47 @@ import ModuleQuickNav from "./module-quick-nav";
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
 const PAGE_META: Record<string, { title: string; desc: string }> = {
-  "/dashboard": { title: "Dashboard", desc: "Business at a glance" },
-  "/pos": { title: "Point of Sale", desc: "Invoice billing & quick counter" },
-  "/invoices": { title: "Invoices", desc: "Every bill, every payment" },
-  "/customers": { title: "Customers", desc: "CRM, dues & balances" },
-  "/returns": { title: "Returns", desc: "Refunds & returns" },
-  "/catalog": { title: "Catalog", desc: "Products, services & masters" },
-  "/catalog/products": { title: "Products", desc: "Catalog with stock control" },
-  "/catalog/services": { title: "Services", desc: "Service price list" },
-  "/catalog/categories": { title: "Categories", desc: "Group products & services" },
-  "/catalog/brands": { title: "Brands", desc: "Brand master data" },
-  "/catalog/units": { title: "Units", desc: "Unit of measure master data" },
-  "/business": { title: "Business Services", desc: "AEPS, DMT, UPI & service providers" },
-  "/business/aeps": { title: "AEPS", desc: "Aadhaar-enabled payments" },
-  "/business/dmt": { title: "DMT", desc: "Domestic money transfer" },
-  "/business/upi": { title: "UPI", desc: "UPI transactions" },
-  "/business/banks": { title: "Banks", desc: "Bank accounts & ledgers" },
-  "/business/portals": { title: "Portals", desc: "Third-party portals" },
-  "/business/merchant-qrs": { title: "Merchant QRs", desc: "QR-based collections" },
-  "/finance": { title: "Finance", desc: "Cash, ledger, P&L & settlements" },
-  "/finance/pnl": { title: "Profit & Loss", desc: "Periodic P&L" },
-  "/finance/expenses": { title: "Expenses", desc: "Outgoing cash entries" },
-  "/finance/cashbook": { title: "Cash Book", desc: "Daily cash movements" },
-  "/finance/settlements": { title: "Settlements", desc: "Bank & wallet settlements" },
-  "/finance/opening-balances": { title: "Opening Balances", desc: "Seed cash, bank, cards & floats" },
-  "/finance/day-close": { title: "Day Close", desc: "Reconcile, profit & lock the books" },
-  "/finance/ledger": { title: "Ledger", desc: "Full account ledger" },
-  "/inventory": { title: "Inventory", desc: "Stock control & valuation" },
-  "/inventory/movements": { title: "Stock Movements", desc: "Inventory movement history" },
-  "/purchases": { title: "Purchases", desc: "Purchasing & stock intake" },
-  "/purchases/entry": { title: "Purchase Entry", desc: "Record a supplier purchase" },
-  "/suppliers": { title: "Suppliers", desc: "Vendor masters & accounts payable" },
-  "/reports": { title: "Reports", desc: "Sales, profit & activity" },
-  "/reports/gst": { title: "GST Reports", desc: "GST summaries & reporting" },
-  "/reports/tax-preparation": { title: "Tax Preparation / ITR", desc: "Tax-ready business summaries" },
-  "/staff": { title: "Staff", desc: "Team, roles & attendance" },
-  "/audit": { title: "Audit Log", desc: "Every important action" },
-  "/ai": { title: "AI Control Center", desc: "Business intelligence & assistance" },
-  "/ai/self-audit": { title: "Financial Self-Audit", desc: "Automated financial integrity checks" },
-  "/security": { title: "Security Center", desc: "Access, sessions & protection" },
-  "/settings": { title: "Settings", desc: "Shop profile, receipts & accounts" },
+  "/dashboard": { title: "Executive Dashboard", desc: "Real-time store metrics & counter telemetry" },
+  "/pos": { title: "Point of Sale", desc: "High-speed retail & services billing counter" },
+  "/invoices": { title: "Invoices & Sales", desc: "Comprehensive sales ledger & customer receipts" },
+  "/customers": { title: "Customer Directory", desc: "CRM, dues tracking & credit limits" },
+  "/returns": { title: "Returns & Credit", desc: "Item returns, refunds & reversal vouchers" },
+  "/catalog": { title: "Catalog Masters", desc: "Products, services & categorization" },
+  "/catalog/products": { title: "Products Catalog", desc: "Inventory catalog with stock tracking" },
+  "/catalog/services": { title: "Services Catalog", desc: "Cybercafe & digital service rate card" },
+  "/catalog/categories": { title: "Categories Tree", desc: "Hierarchy grouping for POS fast-keys" },
+  "/catalog/brands": { title: "Brands", desc: "Product brand masters" },
+  "/catalog/units": { title: "Units of Measure", desc: "Pcs, sheets, packets, kg" },
+  "/business": { title: "Business Hub", desc: "AEPS, DMT, UPI & remittance operations" },
+  "/business/aeps": { title: "AEPS Withdrawal", desc: "Aadhaar cash disbursements & portal float" },
+  "/business/dmt": { title: "Money Transfer (DMT)", desc: "IMPS / NEFT domestic remittances" },
+  "/business/upi": { title: "UPI Collections", desc: "Dynamic QR scans & counter cash-out" },
+  "/business/recharge": { title: "Mobile Recharge", desc: "Prepaid, postpaid & DTH top-ups" },
+  "/business/banks": { title: "Bank Accounts", desc: "Commercial banks & treasury float" },
+  "/business/portals": { title: "Service Portals", desc: "PayNearby, SpiceMoney, CSC portals" },
+  "/business/merchant-qrs": { title: "Merchant QRs", desc: "Active POS counter QR profiles" },
+  "/finance": { title: "Finance & Accounts", desc: "Cash book, P&L, day-close & liquid float" },
+  "/finance/pnl": { title: "Profit & Loss (P&L)", desc: "Operating income, COGS & net profit" },
+  "/finance/expenses": { title: "Expense Ledger", desc: "Categorized store operating costs" },
+  "/finance/cashbook": { title: "Daily Cash Book", desc: "Continuous cash inflow/outflow audit" },
+  "/finance/settlements": { title: "Settlements & Transfers", desc: "Bank-to-wallet & float transfers" },
+  "/finance/opening-balances": { title: "Opening Balances", desc: "Seed opening liquid cash & floats" },
+  "/finance/day-close": { title: "End-of-Day Close", desc: "Cash reconciliation & daily book lock" },
+  "/finance/ledger": { title: "Account Ledgers", desc: "Double-entry party ledgers" },
+  "/inventory": { title: "Inventory & Stock", desc: "Real-time stock valuation & reorder alerts" },
+  "/inventory/movements": { title: "Stock Movements", desc: "Audit log of all stock movements" },
+  "/purchases": { title: "Purchases", desc: "Vendor invoices & stock intake" },
+  "/purchases/entry": { title: "Purchase Entry", desc: "Record supplier stock procurement" },
+  "/suppliers": { title: "Suppliers", desc: "Vendor directory & accounts payable" },
+  "/reports": { title: "Reports Studio", desc: "Sales, margins & activity reports" },
+  "/reports/gst": { title: "GST Reports", desc: "GSTR-1, GSTR-3B tax summaries" },
+  "/reports/tax-preparation": { title: "Tax Prep / ITR", desc: "CA-ready audited financial pack" },
+  "/staff": { title: "Staff Accounts", desc: "Team roles & security permissions" },
+  "/audit": { title: "Security Audit Log", desc: "Immutable operational event history" },
+  "/ai": { title: "AI Control Center", desc: "Smart diagnostic & business insights" },
+  "/ai/self-audit": { title: "Financial Self-Audit", desc: "Automated 14-point invariant checks" },
+  "/security": { title: "Security & 2FA", desc: "Credentials, TOTP 2FA & terminal auto-lock" },
+  "/settings": { title: "System Settings", desc: "Store profile, themes & automation" },
 };
 
 function metaFor(pathname: string) {
@@ -61,25 +62,49 @@ function metaFor(pathname: string) {
   for (const key of Object.keys(PAGE_META)) {
     if (pathname.startsWith(key + "/")) return PAGE_META[key];
   }
-  return { title: "Dashboard", desc: "" };
+  return { title: "Café ERP", desc: "Enterprise Cybercafe & Retail ERP" };
 }
 
-function Avatar({ name, avatarUrl, size = "h-9 w-9" }: { name: string; avatarUrl: string | null; size?: string }) {
+function Avatar({
+  name,
+  avatarUrl,
+  size = "h-8 w-8",
+}: {
+  name: string;
+  avatarUrl: string | null;
+  size?: string;
+}) {
   if (avatarUrl) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={avatarUrl} alt="" className={`${size} rounded-xl object-cover`} />;
   }
   return (
-    <div className={`${size} flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white`}>
-      {(name || "U").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+    <div
+      className={`${size} flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-black text-white shadow-sm`}
+    >
+      {(name || "U").slice(0, 2).toUpperCase()}
     </div>
   );
 }
 
 export default function DashboardShell({
-  name, email, role, shopName, logoUrl, avatarUrl, userId, children,
+  name,
+  email,
+  role,
+  shopName,
+  logoUrl,
+  avatarUrl,
+  userId,
+  children,
 }: {
-  name: string; email: string; role: string; shopName: string; logoUrl: string | null; avatarUrl: string | null; userId: string; children: React.ReactNode;
+  name: string;
+  email: string;
+  role: string;
+  shopName: string;
+  logoUrl: string | null;
+  avatarUrl: string | null;
+  userId: string;
+  children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -88,12 +113,17 @@ export default function DashboardShell({
   const meta = metaFor(pathname);
 
   useEffect(() => {
-    try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1"); } catch { /* ignore */ }
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {}
   }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearchOpen((v) => !v); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -102,35 +132,126 @@ export default function DashboardShell({
   function toggle() {
     setCollapsed((c) => {
       const next = !c;
-      try { localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {}
       return next;
     });
   }
 
   return (
-    <div className="min-h-screen">
-      <Sidebar name={name} email={email} role={role} shopName={shopName} logoUrl={logoUrl} avatarUrl={avatarUrl} userId={userId} collapsed={collapsed} onToggle={toggle} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+    <div className="min-h-screen bg-[var(--page)] text-slate-900 dark:text-white">
+      {/* Sidebar Navigation */}
+      <Sidebar
+        name={name}
+        email={email}
+        role={role}
+        shopName={shopName}
+        logoUrl={logoUrl}
+        avatarUrl={avatarUrl}
+        userId={userId}
+        collapsed={collapsed}
+        onToggle={toggle}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+      />
 
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur lg:hidden">
-        <button onClick={() => setMobileOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100" aria-label="Open menu">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      {/* Mobile Top Header */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 lg:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+          aria-label="Open menu"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
         </button>
-        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900">{meta.title}</p>{meta.desc && <p className="truncate text-[11px] text-slate-400">{meta.desc}</p>}</div>
-        <button onClick={() => setSearchOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg></button>
-        <div className="lg:hidden"><ThemeToggle /></div>
-        <div className="lg:hidden"><NotificationBell role={role} /></div>
-        <Avatar name={name} avatarUrl={avatarUrl} size="h-8 w-8" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-black text-slate-900 dark:text-white">{meta.title}</p>
+        </div>
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+        </button>
+        <ThemeToggle />
+        <Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" />
       </header>
 
-      {/* Clean docked main workstation aligned with sidebar width */}
-      <main className={`transition-all duration-300 ${collapsed ? "lg:pl-[76px]" : "lg:pl-72"}`}>
-        <header className="sticky top-0 z-20 hidden h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur lg:flex dark:border-white/10 dark:bg-slate-900/80">
-          <div className="w-52 shrink-0"><h1 className="truncate text-lg font-bold text-slate-900 dark:text-white">{meta.title}</h1>{meta.desc && <p className="truncate text-[11px] text-slate-400">{meta.desc}</p>}</div>
-          <button onClick={() => setSearchOpen(true)} className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-500 shadow-sm transition hover:border-blue-400 hover:shadow focus:border-blue-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-slate-400"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg><span className="flex-1 text-left text-slate-400">Search products, services, invoices, customers…</span><kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 dark:border-white/10 dark:bg-white/5">Ctrl K</kbd></button>
-          <div className="ml-auto flex shrink-0 items-center gap-2.5"><CloudSyncBadge /><ThemeToggle /><div className="hidden lg:block"><NotificationBell role={role} /></div><Link href="/settings" title="Settings" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83-2.83l-.06.06a1.65 1.65 0 0 1-1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></Link><Link href="/settings" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 transition hover:border-blue-300" title={`${name} · ${role}`}><Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" /><span className="hidden xl:block"><span className="block max-w-[120px] truncate text-xs font-semibold text-slate-800">{name}</span><span className="block text-[10px] font-medium uppercase tracking-wide text-slate-400">{role}</span></span></Link></div>
+      {/* Desktop Main Workstation Layout */}
+      <main
+        className={`transition-all duration-300 ${
+          collapsed ? "lg:pl-[72px]" : "lg:pl-[280px]"
+        }`}
+      >
+        {/* Desktop Luxury Top Bar */}
+        <header className="sticky top-0 z-20 hidden h-16 items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80 lg:flex">
+          {/* Breadcrumb & Title */}
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <span>Café ERP</span>
+                <span>/</span>
+                <span className="text-blue-600 dark:text-blue-400">{meta.title}</span>
+              </div>
+              <h1 className="text-base font-extrabold text-slate-900 dark:text-white">
+                {meta.title}
+              </h1>
+            </div>
+          </div>
+
+          {/* Global Quick Search Pill */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="flex w-96 items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-1.5 text-xs text-slate-400 shadow-xs transition hover:border-blue-400 hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-500"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 text-slate-400">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <span className="flex-1 text-left">Search anything (invoices, items, customers)…</span>
+            <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-black dark:border-white/10 dark:bg-slate-800">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Right Action Tray */}
+          <div className="flex items-center gap-3">
+            {/* Quick POS Shortcut */}
+            <Link
+              href="/pos"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
+            >
+              <span>+ New Bill</span>
+              <kbd className="rounded bg-blue-700 px-1 py-0.2 text-[9px] font-bold">F2</kbd>
+            </Link>
+
+            <CloudSyncBadge />
+            <ThemeToggle />
+            <NotificationBell role={role} />
+
+            <Link
+              href="/settings"
+              className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 pr-2.5 transition hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04]"
+            >
+              <Avatar name={name} avatarUrl={avatarUrl} size="h-6 w-6" />
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {name || "Admin"}
+              </span>
+            </Link>
+          </div>
         </header>
+
         <ModuleQuickNav />
-        {children}
+        <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
+          {children}
+        </div>
       </main>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
