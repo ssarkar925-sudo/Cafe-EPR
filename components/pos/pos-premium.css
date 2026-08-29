@@ -23,6 +23,11 @@
   box-shadow: 0 30px 90px rgba(15,23,42,.32), 0 0 0 1px rgba(255,255,255,.8) !important;
 }
 
+/* Give the Invoice / Quick Sale mode switch a small visual separation. */
+.pos-premium .flex.rounded-xl.bg-slate-100.p-1.text-sm {
+  gap: 0.375rem;
+}
+
 @media (max-width: 767px) {
   .pos-premium { padding-left: .75rem; padding-right: .75rem; }
   .pos-premium .pos-toolbar { position: sticky; top: 0; z-index: 20; padding: .5rem 0; background: color-mix(in srgb, var(--page) 92%, transparent); backdrop-filter: blur(12px); }
