@@ -85,6 +85,19 @@ export default async function BusinessServicePage({
     );
   }
 
+  if (service === "dmt") {
+    return (
+      <DmtWorkspace
+        initialTransactions={(transactions ?? []) as any}
+        initialCustomers={(customers ?? []) as any}
+        initialBanks={(banks ?? []) as any}
+        initialPortals={(portals ?? []) as any}
+        paymentInstruments={(paymentInstruments ?? []) as any}
+        float={poolBal ?? null}
+      />
+    );
+  }
+
   return (
     <BusinessClient
       service={service}
