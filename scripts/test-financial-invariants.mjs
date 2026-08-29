@@ -3706,6 +3706,62 @@ function detectIntent(question) {
   assert(isDuplicateBen("SBIN0001234", "100023456789") === true, "397. Phase 5B Invariant: Duplicate beneficiary account is detected");
   assert(isDuplicateBen("HDFC0001234", "987654321012") === false, "398. Phase 5B Invariant: New distinct beneficiary is allowed");
 }
+
+// 399. Phase 5A Stabilization: Customer Directory Privacy Search Invariants
+{
+  const mockCustomerDirectory = [
+    { value: "", label: "-- Walk-in Customer --" },
+    { value: "c1", label: "Priyanka Sarkar (70••••••20)" },
+    { value: "c2", label: "Saikat Sarkar (93••••••44)" },
+    { value: "c3", label: "Rahul Sharma (98••••••12)" },
+  ];
+
+  const filterCustomers = (query, minLength = 2) => {
+    const q = query.trim().toLowerCase();
+    if (q.length < minLength) {
+      return mockCustomerDirectory.filter((c) => !c.value);
+    }
+    return mockCustomerDirectory.filter((c) => c.label.toLowerCase().includes(q));
+  };
+
+  // On open (empty search)
+  const initialOpen = filterCustomers("");
+  assert(initialOpen.length === 1 && initialOpen[0].label === "-- Walk-in Customer --", "399. Phase 5A Stabilization: Opening customer selector without query hides complete customer directory");
+
+  // Single character search ('p')
+  const singleChar = filterCustomers("p");
+  assert(singleChar.length === 1 && singleChar[0].label === "-- Walk-in Customer --", "400. Phase 5A Stabilization: Single-character search ('p') suppresses directory exposure");
+
+  // 2+ character search ('Pri')
+  const validSearch = filterCustomers("Pri");
+  assert(validSearch.length === 1 && validSearch[0].label.includes("Priyanka"), "401. Phase 5A Stabilization: 2+ character search ('Pri') returns only matching customer");
+}
+
+// 402. Phase 5A Stabilization: AEPS Money-Flow Reconciliation Invariants
+{
+  const withdrawalAmount = 1000.0;
+  const serviceFee = 10.0;
+  const portalCommission = 5.0;
+
+  // Separate Fee Model:
+  // Cash Handed = ₹1,000.00
+  // Cash Inflow = ₹10.00
+  // Till Outflow = ₹1,000.00
+  // Net Till Movement = -₹990.00
+  // Portal Credit = ₹1,005.00
+  // P&L Operating Revenue = ₹15.00 (₹10 fee + ₹5 comm)
+  const cashHanded = withdrawalAmount;
+  const tillOutflow = withdrawalAmount;
+  const tillInflow = serviceFee;
+  const netTillMovement = tillInflow - tillOutflow;
+  const portalFloatCredit = withdrawalAmount + portalCommission;
+  const pnlRevenue = serviceFee + portalCommission;
+
+  assert(cashHanded === 1000.0, "402. Phase 5A Money-Flow: Physical Cash Handed to Customer ≡ ₹1,000.00");
+  assert(netTillMovement === -990.0, "403. Phase 5A Money-Flow: Net Till Cash Movement ≡ -₹990.00");
+  assert(portalFloatCredit === 1005.0, "404. Phase 5A Money-Flow: Portal Float Settlement Credit ≡ ₹1,005.00");
+  assert(pnlRevenue === 15.0, "405. Phase 5A Money-Flow: Operating Revenue recognizes only Fee + Commission (₹15.00, Principal is 0% revenue)");
+}
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

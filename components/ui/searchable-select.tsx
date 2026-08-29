@@ -14,6 +14,8 @@ export default function SearchableSelect({
   disabled = false,
   showClear = true,
   emptyText = "No options found",
+  minSearchLength = 0,
+  minSearchPrompt = "Type at least 2 characters to search…",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -24,6 +26,8 @@ export default function SearchableSelect({
   disabled?: boolean;
   showClear?: boolean;
   emptyText?: string;
+  minSearchLength?: number;
+  minSearchPrompt?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -42,9 +46,13 @@ export default function SearchableSelect({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    if (minSearchLength > 0 && needle.length < minSearchLength) {
+      // Privacy mode: show only default unselected option (e.g. Walk-in) until threshold reached
+      return options.filter((o) => !o.value);
+    }
     if (!needle) return options;
     return options.filter((o) => o.label.toLowerCase().includes(needle));
-  }, [options, q]);
+  }, [options, q, minSearchLength]);
 
   const selected = options.find((o) => o.value === value);
 
@@ -89,6 +97,11 @@ export default function SearchableSelect({
             />
           </div>
           <div className="max-h-56 overflow-y-auto p-1">
+            {minSearchLength > 0 && q.trim().length < minSearchLength && (
+              <div className="p-3 text-center text-xs font-medium text-slate-400">
+                🔍 {minSearchPrompt}
+              </div>
+            )}
             {showClear && value && (
               <button
                 type="button"
@@ -99,32 +112,32 @@ export default function SearchableSelect({
                 }}
                 className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-slate-50"
               >
-                Clear
+                <span>Clear selection</span>
+                <span className="text-xs text-slate-400">✕</span>
               </button>
             )}
-            {filtered.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                  setQ("");
-                }}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                  o.value === value ? "bg-blue-50 font-medium text-blue-700" : "text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <span className="truncate">{o.label}</span>
-                {o.value === value && (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-blue-600">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                )}
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <div className="px-3 py-4 text-center text-xs text-slate-400">{emptyText}</div>
+            {filtered.length === 0 && (minSearchLength === 0 || q.trim().length >= minSearchLength) ? (
+              <div className="p-3 text-center text-xs text-slate-400">{emptyText}</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                    setQ("");
+                  }}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                    o.value === value
+                      ? "bg-blue-50 font-semibold text-blue-700"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="truncate">{o.label}</span>
+                  {o.value === value && <span className="text-xs text-blue-600">✓</span>}
+                </button>
+              ))
             )}
           </div>
         </div>

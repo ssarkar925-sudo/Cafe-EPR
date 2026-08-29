@@ -52,7 +52,6 @@ export function matchBank(inputName: string, bankList: Master[]): Master | null 
   const normInput = normalizeBankName(inputName);
   if (!normInput) return null;
 
-  // 1. Exact or normalized string match
   for (const b of bankList) {
     if (!b.name) continue;
     const normB = normalizeBankName(b.name);
@@ -62,7 +61,6 @@ export function matchBank(inputName: string, bankList: Master[]): Master | null 
     }
   }
 
-  // 2. Code match
   for (const b of bankList) {
     if (b.code && b.code.toLowerCase().trim() === inputName.toLowerCase().trim()) {
       return b;
@@ -108,7 +106,7 @@ export default function AepsWorkspace({
   // Operation selection: "withdrawal" (Cash Out), "enquiry" (Balance Enquiry), "statement" (Mini Statement)
   const [operation, setOperation] = useState<"withdrawal" | "enquiry" | "statement">("withdrawal");
 
-  // Canonical Form State (Single Source of Truth)
+  // Canonical Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerMobile, setCustomerMobile] = useState<string>("");
   const [selectedBankId, setSelectedBankId] = useState<string>("");
@@ -167,7 +165,6 @@ export default function AepsWorkspace({
   // Transaction Processing & Lifecycle
   const [confirmWindowOpen, setConfirmWindowOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [, setLastCompletedTxn] = useState<Txn | null>(null);
   const [selectedDetailTxn, setSelectedDetailTxn] = useState<Txn | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -216,7 +213,6 @@ export default function AepsWorkspace({
       matchedBank: matched,
     });
 
-    // Auto-apply fields to canonical state
     if (detectedMobile) setCustomerMobile(detectedMobile);
     if (cleanAadhaar) setAadhaarLast4(cleanAadhaar);
     if (fields.amount) setAmount(fields.amount);
@@ -229,7 +225,7 @@ export default function AepsWorkspace({
     }
   }
 
-  // Add New Bank with strict duplicate prevention (NO "ADD ANYWAY")
+  // Add New Bank
   async function handleCreateBank(e: React.FormEvent) {
     e.preventDefault();
     const name = newBankName.trim();
@@ -241,18 +237,16 @@ export default function AepsWorkspace({
     setBankCreateSubmitting(true);
     setBankCreateError("");
 
-    // 1. UI Layer Duplicate Protection (NO "ADD ANYWAY")
     const existing = matchBank(name, banks);
     if (existing) {
       setSelectedBankId(existing.id);
       setAddBankWindowOpen(false);
       setBankCreateSubmitting(false);
-      showToast("info", `Selected "${existing.name}" (already in your Bank List).`);
+      showToast("info", `Selected "${existing.name}" (already in Master List).`);
       return;
     }
 
     try {
-      // 2. Database Layer Insert with race-condition handling
       const { data: newBank, error: insertError } = await supabase
         .from("aeps_banks")
         .insert({
@@ -263,25 +257,7 @@ export default function AepsWorkspace({
         .select()
         .single();
 
-      if (insertError) {
-        if (insertError.code === "23505" || insertError.message.toLowerCase().includes("unique")) {
-          const { data: refetched } = await supabase
-            .from("aeps_banks")
-            .select("*")
-            .ilike("name", name)
-            .limit(1)
-            .maybeSingle();
-
-          if (refetched) {
-            setBanks((prev) => [...prev.filter((b) => b.id !== refetched.id), refetched]);
-            setSelectedBankId(refetched.id);
-            setAddBankWindowOpen(false);
-            showToast("info", `Bank already exists. Selected "${refetched.name}".`);
-            return;
-          }
-        }
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
       if (newBank) {
         await logAudit({
@@ -289,7 +265,7 @@ export default function AepsWorkspace({
           entity: "aeps_bank",
           entity_id: newBank.id,
           description: `Created AEPS Bank ${newBank.name}`,
-          details: { name: newBank.name, code: newBank.code, source: "aeps_scan_and_fill" },
+          details: { name: newBank.name, code: newBank.code, source: "aeps_workspace" },
         });
 
         setBanks((prev) => [...prev, newBank]);
@@ -297,17 +273,17 @@ export default function AepsWorkspace({
         setAddBankWindowOpen(false);
         setNewBankName("");
         setNewBankCode("");
-        showToast("success", `"${newBank.name}" added to Master Bank List and selected.`);
+        showToast("success", `"${newBank.name}" added to Master List and selected.`);
       }
     } catch (err: any) {
       console.error("Bank creation error:", err);
-      setBankCreateError(err.message || "Failed to create bank. Please try again.");
+      setBankCreateError(err.message || "Failed to create bank.");
     } finally {
       setBankCreateSubmitting(false);
     }
   }
 
-  // Add New Customer with duplicate protection
+  // Add New Customer
   async function handleCreateCustomer(e: React.FormEvent) {
     e.preventDefault();
     const name = newCustName.trim();
@@ -324,7 +300,6 @@ export default function AepsWorkspace({
     setCustCreateSubmitting(true);
     setCustCreateError("");
 
-    // Duplicate check in CRM
     const existing = customers.find((c) => c.phone === phone);
     if (existing) {
       setSelectedCustomerId(existing.id);
@@ -429,7 +404,6 @@ export default function AepsWorkspace({
         },
       });
 
-      // Update local state
       setTransactions((prev) =>
         prev.map((t) =>
           t.id === editingTxn.id
@@ -471,7 +445,6 @@ export default function AepsWorkspace({
       return;
     }
 
-    // Canonical Aadhaar Validation: must be exactly 4 numeric ASCII digits (e.g. "3619", "0427")
     const cleanAadhaar = (aadhaarLast4 || "").trim();
     if (!/^[0-9]{4}$/.test(cleanAadhaar)) {
       showToast("error", "Please enter the last 4 digits of Aadhaar (4 digits).");
@@ -598,10 +571,8 @@ export default function AepsWorkspace({
       };
 
       setTransactions((prev) => [completedRecord, ...prev]);
-      setLastCompletedTxn(completedRecord);
       setConfirmWindowOpen(false);
 
-      // Reset form
       setAadhaarLast4("");
       setReference("");
       setRemarks("");
@@ -630,14 +601,14 @@ export default function AepsWorkspace({
   }, [transactions, searchQuery]);
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-5 pb-16">
       {/* Toast Notification Container */}
       {toastView}
 
       {/* ===============================================================================
           1. HEADER & LIVE OPERATIONAL STATUS
       =============================================================================== */}
-      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl ring-1 ring-white/10 sm:p-7">
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
@@ -670,37 +641,37 @@ export default function AepsWorkspace({
       {/* ===============================================================================
           2. TODAY'S AEPS KPI SUMMARY
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Today's Withdrawals</span>
-          <div className="my-2">
+          <div className="my-1.5">
             <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white">{inr(todayVolume)}</div>
             <p className="text-xs text-slate-500">{todayCount} completed transactions</p>
           </div>
           <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">● 100% Settled</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Earned Income Today</span>
-          <div className="my-2">
+          <div className="my-1.5">
             <div className="text-2xl font-black text-emerald-600 sm:text-3xl dark:text-emerald-400">+{inr(todayIncome)}</div>
             <p className="text-xs text-slate-500">Service Fees + Portal Commissions</p>
           </div>
           <span className="text-[11px] text-slate-400">Direct Gross Profit Margin</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Active Service Portals</span>
-          <div className="my-2">
+          <div className="my-1.5">
             <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">{portals.length}</div>
             <p className="text-xs text-slate-500">Fino, Spice Money, Payworld, RNFI</p>
           </div>
           <Link href="/business/portals" className="text-[11px] text-blue-600 font-bold hover:underline dark:text-blue-400">Manage Portals →</Link>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Registered Banks</span>
-          <div className="my-2">
+          <div className="my-1.5">
             <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">{banks.length}</div>
             <p className="text-xs text-slate-500">Authoritative Master Bank List</p>
           </div>
@@ -713,11 +684,11 @@ export default function AepsWorkspace({
       {/* ===============================================================================
           3. MAIN AEPS TRANSACTION WORKSPACE
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         {/* Left (8 Cols): Transaction Form & Scan & Fill */}
-        <div className="bento-surface p-6 lg:col-span-8 dark:bg-slate-900/90 space-y-6">
+        <div className="bento-surface p-5 lg:col-span-8 dark:bg-slate-900/90 space-y-4">
           {/* Top Bar: Operation Selector & Scan & Fill CTA */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/5">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
             {/* Operation Selector */}
             <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">
               {[
@@ -744,7 +715,7 @@ export default function AepsWorkspace({
             <button
               type="button"
               onClick={() => setScanModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-blue-500/25 transition hover:brightness-110 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-blue-500/25 transition hover:brightness-110 active:scale-95"
             >
               <span>📷 Scan &amp; Fill Receipt / SMS</span>
             </button>
@@ -752,7 +723,7 @@ export default function AepsWorkspace({
 
           {/* Scanned Information Review Alert */}
           {scannedReviewData && (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-blue-900 dark:text-blue-300">✓ Information Detected from Scan</span>
                 <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
@@ -771,9 +742,9 @@ export default function AepsWorkspace({
           )}
 
           {/* Form Fields Grid */}
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Customer Search & Select (Masked for Privacy) + Add Customer Button */}
-            <div className="space-y-1.5 sm:col-span-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Customer Search & Select (Privacy-Safe Search Threshold >= 2 chars) */}
+            <div className="space-y-1 sm:col-span-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Customer (CRM Profile)
@@ -791,6 +762,8 @@ export default function AepsWorkspace({
                   <SearchableSelect
                     value={selectedCustomerId}
                     onChange={setSelectedCustomerId}
+                    minSearchLength={2}
+                    minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…"
                     options={[
                       { value: "", label: "-- Walk-in Customer --" },
                       ...customers.map((c) => ({
@@ -798,7 +771,7 @@ export default function AepsWorkspace({
                         label: `${c.name} (${maskMobile(c.phone) || c.code})`,
                       })),
                     ]}
-                    placeholder="Search customer by name or phone…"
+                    placeholder="Search customer (min 2 chars) or select Walk-in…"
                   />
                 </div>
                 <button
@@ -813,7 +786,7 @@ export default function AepsWorkspace({
             </div>
 
             {/* Customer Mobile */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Customer Mobile Number
               </label>
@@ -822,12 +795,12 @@ export default function AepsWorkspace({
                 value={customerMobile}
                 onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 placeholder="10-digit mobile number"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
               />
             </div>
 
             {/* Bank Auto-Match & Selection */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Customer's Bank <span className="text-rose-500">*</span>
@@ -861,8 +834,8 @@ export default function AepsWorkspace({
               </div>
             </div>
 
-            {/* Aadhaar Last 4 Digits (Canonical Input) */}
-            <div className="space-y-1.5">
+            {/* Aadhaar Last 4 Digits */}
+            <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span>
               </label>
@@ -879,21 +852,20 @@ export default function AepsWorkspace({
                     setAadhaarLast4(digits);
                   }}
                   placeholder="3619"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
-              <p className="text-[10px] text-slate-400">Enter exactly the last 4 digits of Aadhaar.</p>
             </div>
 
             {/* AEPS Service Portal */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 AEPS Service Portal <span className="text-rose-500">*</span>
               </label>
               <select
                 value={selectedPortalId}
                 onChange={(e) => setSelectedPortalId(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
               >
                 {portals.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -903,7 +875,7 @@ export default function AepsWorkspace({
 
             {/* Prominent Amount Input (When Withdrawal) */}
             {operation === "withdrawal" && (
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Withdrawal Amount (₹) <span className="text-rose-500">*</span>
                 </label>
@@ -914,12 +886,12 @@ export default function AepsWorkspace({
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="1000"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
                   />
                 </div>
 
                 {/* Quick Amount Chips */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                   {["500", "1000", "2000", "3000", "5000", "10000"].map((v) => (
                     <button
                       key={v}
@@ -941,7 +913,7 @@ export default function AepsWorkspace({
             {/* Distinct Customer Service Fee vs Portal Commission */}
             {operation === "withdrawal" && (
               <>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Customer Service Fee (₹)
                   </label>
@@ -952,10 +924,9 @@ export default function AepsWorkspace({
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                     placeholder="Fee charged to customer"
                   />
-                  <p className="text-[10px] text-slate-400">Direct surcharge charged to customer.</p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Portal Commission (₹)
                   </label>
@@ -966,11 +937,10 @@ export default function AepsWorkspace({
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                     placeholder="Commission from portal"
                   />
-                  <p className="text-[10px] text-slate-400">Commission credited by AEPS portal.</p>
                 </div>
 
                 {/* 1. Fee Treatment Model (Separate Collection vs Deduct From Payout) */}
-                <div className="space-y-2 sm:col-span-2">
+                <div className="space-y-1.5 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Fee Treatment Model <span className="text-rose-500">*</span>
                   </label>
@@ -978,7 +948,7 @@ export default function AepsWorkspace({
                     <button
                       type="button"
                       onClick={() => setFeeTreatment("separate")}
-                      className={`rounded-2xl border p-3 text-left transition ${
+                      className={`rounded-2xl border p-2.5 text-left transition ${
                         feeTreatment === "separate"
                           ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
                           : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
@@ -995,7 +965,7 @@ export default function AepsWorkspace({
                     <button
                       type="button"
                       onClick={() => setFeeTreatment("deduct")}
-                      className={`rounded-2xl border p-3 text-left transition ${
+                      className={`rounded-2xl border p-2.5 text-left transition ${
                         feeTreatment === "deduct"
                           ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
                           : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
@@ -1013,7 +983,7 @@ export default function AepsWorkspace({
 
                 {/* 2. Fee Collection Instrument (When Separate Fee) */}
                 {feeTreatment === "separate" && (
-                  <div className="space-y-1.5 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5">
+                  <div className="space-y-1 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                       Fee Collection Instrument <span className="text-rose-500">*</span>
                     </label>
@@ -1028,7 +998,7 @@ export default function AepsWorkspace({
                           key={m.id}
                           type="button"
                           onClick={() => setCustomerPayMethod(m.id as any)}
-                          className={`rounded-xl border p-2.5 text-center transition ${
+                          className={`rounded-xl border p-2 text-center transition ${
                             customerPayMethod === m.id
                               ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
                               : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
@@ -1045,7 +1015,7 @@ export default function AepsWorkspace({
             )}
 
             {/* Reference / RRN */}
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1 sm:col-span-2">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Bank RRN / Terminal Reference Number
               </label>
@@ -1060,117 +1030,115 @@ export default function AepsWorkspace({
           </div>
         </div>
 
-        {/* Right (4 Cols): Live Transaction Summary & Action */}
-        <div className="bento-surface p-6 lg:col-span-4 dark:bg-slate-900/90 flex flex-col justify-between space-y-6">
-          <div className="space-y-4">
-            <div className="border-b border-slate-100 pb-3 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
-              <h3 className="text-base font-black text-slate-900 dark:text-white">AEPS Settlement Breakdown</h3>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Operation:</span>
-                <strong className="capitalize text-slate-900 dark:text-white">{operation}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Selected Bank:</span>
-                <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
-                  {selectedBank?.name || "None selected"}
-                </strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Aadhaar (Last 4):</span>
-                <strong className="text-slate-900 dark:text-white">
-                  {aadhaarLast4 ? `**** ${aadhaarLast4}` : "Pending"}
-                </strong>
-              </div>
-
-              {operation === "withdrawal" && (
-                <>
-                  <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5">
-                    <span className="text-slate-500">Withdrawal Amount:</span>
-                    <strong className="text-slate-900 dark:text-white">{inr(numAmount)}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Customer Service Fee:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
-                      {feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}
-                    </strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Fee Treatment:</span>
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                      {feeTreatment === "deduct" ? "✂️ Deducted from Payout" : `💵 Separate via ${customerPayMethod.toUpperCase()}`}
-                    </span>
-                  </div>
-                  {feeTreatment === "separate" && customerPayMethod === "cash" && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Total Cash Received:</span>
-                      <strong className="text-slate-900 dark:text-white font-bold">{inr(numAmount + numFee)}</strong>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Portal Commission:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
-                  </div>
-
-                  {/* Receipt Details Preference Control */}
-                  <div className="border-t border-slate-100 pt-2 dark:border-white/5">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 font-bold">Default Receipt Style:</span>
-                      <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
-                        <button
-                          type="button"
-                          onClick={() => setReceiptMode("basic")}
-                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                            receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
-                          }`}
-                        >
-                          Basic
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setReceiptMode("detailed")}
-                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                            receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
-                          }`}
-                        >
-                          Detailed
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Prominent Cash Handed Box */}
-                  <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
-                      Physical Cash to Hand to Customer:
-                    </div>
-                    <div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">
-                      {inr(cashHanded)}
-                    </div>
-                    <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
-                      {feeTreatment === "deduct"
-                        ? `Deducted fee ₹${numFee} from ₹${numAmount} withdrawal`
-                        : `Full withdrawal ₹${numAmount} given; ₹${numFee} fee collected separately`}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
+        {/* Right (4 Cols): Live Transaction Summary & Action (Tight, cohesive vertical layout) */}
+        <div className="bento-surface p-5 lg:col-span-4 dark:bg-slate-900/90 space-y-4">
+          <div className="border-b border-slate-100 pb-2.5 dark:border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
+            <h3 className="text-base font-black text-slate-900 dark:text-white">AEPS Settlement Breakdown</h3>
           </div>
 
-          {/* Primary Action Button */}
-          <div className="space-y-2">
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Operation:</span>
+              <strong className="capitalize text-slate-900 dark:text-white">{operation}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Selected Bank:</span>
+              <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
+                {selectedBank?.name || "None selected"}
+              </strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Aadhaar (Last 4):</span>
+              <strong className="text-slate-900 dark:text-white">
+                {aadhaarLast4 ? `**** ${aadhaarLast4}` : "Pending"}
+              </strong>
+            </div>
+
+            {operation === "withdrawal" && (
+              <>
+                <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5">
+                  <span className="text-slate-500">Withdrawal Amount:</span>
+                  <strong className="text-slate-900 dark:text-white">{inr(numAmount)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Customer Service Fee:</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    {feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Fee Treatment:</span>
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                    {feeTreatment === "deduct" ? "✂️ Deducted from Payout" : `💵 Separate via ${customerPayMethod.toUpperCase()}`}
+                  </span>
+                </div>
+                {feeTreatment === "separate" && customerPayMethod === "cash" && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Customer Cash Paid:</span>
+                    <strong className="text-slate-900 dark:text-white font-bold">{inr(numAmount + numFee)}</strong>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Portal Commission:</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
+                </div>
+                <div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
+                </div>
+
+                {/* Receipt Details Preference Control */}
+                <div className="border-t border-slate-100 pt-2 dark:border-white/5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-bold">Default Receipt Style:</span>
+                    <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
+                      <button
+                        type="button"
+                        onClick={() => setReceiptMode("basic")}
+                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                          receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
+                        }`}
+                      >
+                        Basic
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptMode("detailed")}
+                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                          receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
+                        }`}
+                      >
+                        Detailed
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prominent Cash Handed Box */}
+                <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                    Physical Cash to Hand to Customer:
+                  </div>
+                  <div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">
+                    {inr(cashHanded)}
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
+                    {feeTreatment === "deduct"
+                      ? `Deducted fee ₹${numFee} from ₹${numAmount} withdrawal`
+                      : `Full withdrawal ₹${numAmount} given; ₹${numFee} fee collected separately`}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Primary Action Button (Immediately beneath the breakdown, visually connected) */}
+          <div className="space-y-1.5 pt-1">
             <button
               type="button"
               onClick={handleInitiateTransaction}
-              className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-110 active:scale-[0.98]"
+              className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-110 active:scale-[0.98]"
             >
               ✓ Complete &amp; Disburse {inr(cashHanded)}
             </button>
@@ -1184,8 +1152,8 @@ export default function AepsWorkspace({
       {/* ===============================================================================
           4. RECENT AEPS TRANSACTIONS TABLE
       =============================================================================== */}
-      <div className="bento-surface p-6 dark:bg-slate-900/90 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/5">
+      <div className="bento-surface p-5 dark:bg-slate-900/90 space-y-3.5">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white">Recent AEPS Cash Out Records</h3>
             <p className="text-xs text-slate-400">Live ledger of biometric withdrawals and portal credits.</p>
@@ -1203,21 +1171,21 @@ export default function AepsWorkspace({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-slate-400 dark:border-white/10">
-                <th className="pb-2.5 font-bold">Txn # / Time</th>
-                <th className="pb-2.5 font-bold">Customer &amp; Aadhaar</th>
-                <th className="pb-2.5 font-bold">Bank &amp; Portal</th>
-                <th className="pb-2.5 font-bold text-right">Withdrawal</th>
-                <th className="pb-2.5 font-bold text-center">Fee Treatment</th>
-                <th className="pb-2.5 font-bold text-right">Cash Handed</th>
-                <th className="pb-2.5 font-bold text-right">Total Income</th>
-                <th className="pb-2.5 font-bold text-center">Status</th>
-                <th className="pb-2.5 font-bold text-right">Actions</th>
+                <th className="pb-2 font-bold">Txn # / Time</th>
+                <th className="pb-2 font-bold">Customer &amp; Aadhaar</th>
+                <th className="pb-2 font-bold">Bank &amp; Portal</th>
+                <th className="pb-2 font-bold text-right">Withdrawal</th>
+                <th className="pb-2 font-bold text-center">Fee Treatment</th>
+                <th className="pb-2 font-bold text-right">Cash Handed</th>
+                <th className="pb-2 font-bold text-right">Total Income</th>
+                <th className="pb-2 font-bold text-center">Status</th>
+                <th className="pb-2 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
               {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-7 text-center text-slate-400">
                     No AEPS transactions found. Process a withdrawal above to see records.
                   </td>
                 </tr>
@@ -1232,26 +1200,26 @@ export default function AepsWorkspace({
 
                   return (
                     <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                      <td className="py-3">
+                      <td className="py-2.5">
                         <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
                         <div className="text-[10px] text-slate-400">
                           {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
                         </div>
                       </td>
-                      <td className="py-3">
+                      <td className="py-2.5">
                         <div className="font-bold text-slate-900 dark:text-white">{t.customers?.name || "Walk-in"}</div>
                         <div className="text-[10px] text-slate-400">
                           {t.customer_mobile ? `📱 ${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `• **** ${t.aadhaar_last4}` : ""}
                         </div>
                       </td>
-                      <td className="py-3">
+                      <td className="py-2.5">
                         <div className="font-bold text-slate-900 dark:text-white">{t.banks?.name || "Bank"}</div>
                         <div className="text-[10px] text-slate-400">{t.portals?.name || "Portal"}</div>
                       </td>
-                      <td className="py-3 text-right font-black text-slate-900 dark:text-white">
+                      <td className="py-2.5 text-right font-black text-slate-900 dark:text-white">
                         {inr(t.amount)}
                       </td>
-                      <td className="py-3 text-center">
+                      <td className="py-2.5 text-center">
                         <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
                           {isDeducted
                             ? "✂️ Deducted"
@@ -1264,18 +1232,18 @@ export default function AepsWorkspace({
                             : "💵 Cash"}
                         </span>
                       </td>
-                      <td className="py-3 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                      <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
                         {inr(txnCashHanded)}
                       </td>
-                      <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-black">
+                      <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
                         +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
                       </td>
-                      <td className="py-3 text-center">
+                      <td className="py-2.5 text-center">
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                           {t.status.toUpperCase()}
                         </span>
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={receiptUrl}
@@ -1297,7 +1265,7 @@ export default function AepsWorkspace({
                             type="button"
                             onClick={() => handleOpenEdit(t)}
                             className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:bg-white/5 dark:text-blue-400"
-                            title="Edit Non-Financial Fields"
+                            title="Edit Non-Financial Reference"
                           >
                             ✏️
                           </button>
@@ -1391,7 +1359,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          6. ADD NEW BANK MODAL (Strict Duplicate Protection — NO "ADD ANYWAY")
+          6. ADD NEW BANK MODAL
       =============================================================================== */}
       {addBankWindowOpen && (
         <FloatingWindow
@@ -1459,7 +1427,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          7. ADD NEW CUSTOMER MODAL (From AEPS Workspace)
+          7. ADD NEW CUSTOMER MODAL
       =============================================================================== */}
       {addCustomerWindowOpen && (
         <FloatingWindow
@@ -1572,6 +1540,8 @@ export default function AepsWorkspace({
               <SearchableSelect
                 value={editCustomerId}
                 onChange={setEditCustomerId}
+                minSearchLength={2}
+                minSearchPrompt="Type at least 2 characters to search…"
                 options={[
                   { value: "", label: "-- Walk-in Customer --" },
                   ...customers.map((c) => ({
