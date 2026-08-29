@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import BusinessClient from "@/components/business/business-client";
+import AepsWorkspace from "@/components/business/aeps-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,18 @@ export default async function BusinessServicePage({
 
   const poolKey = SUPABASE_POOL[service];
   const poolBal = (poolBalances as any)?.[poolKey] ?? null;
+
+  if (service === "aeps") {
+    return (
+      <AepsWorkspace
+        initialTransactions={(transactions ?? []) as any}
+        initialCustomers={(customers ?? []) as any}
+        initialBanks={(banks ?? []) as any}
+        initialPortals={(portals ?? []) as any}
+        float={poolBal ?? null}
+      />
+    );
+  }
 
   return (
     <BusinessClient
