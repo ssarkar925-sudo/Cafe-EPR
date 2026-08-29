@@ -313,12 +313,13 @@ export default function Sidebar({
                             key={item.href}
                             href={item.href}
                             onClick={onMobileClose}
+                            data-active={active ? "true" : "false"}
                             style={{
                               color: active ? "#ffffff" : "var(--sidebar-text)",
                             }}
                             className={`group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-xs font-bold transition-all duration-200 ${
                               active
-                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
+                                ? "active-nav-link bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
                                 : "hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98]"
                             }`}
                             title={collapsed ? item.label : undefined}
