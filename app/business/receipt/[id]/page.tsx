@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import PrintButton from "@/components/receipt/print-button";
 import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,15 @@ const SERVICE_TITLE: Record<string, string> = {
 
 export default async function BusinessReceiptPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ mode?: string; detail?: string }>;
 }) {
   const { id } = await params;
+  const { mode, detail } = await searchParams;
+  const isDetailed = mode === "detailed" || detail === "true";
+
   const supabase = createAdminClient();
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -43,21 +49,6 @@ export default async function BusinessReceiptPage({
 
   const { data: settings } = await supabase.from("settings").select("*").single();
 
-  const { data: defaultMerchantQr } = await supabase
-    .from("upi_merchant_qrs")
-    .select("upi_id")
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  const { data: upiInstrument } = await supabase
-    .from("payment_instruments")
-    .select("account_number")
-    .eq("type", "upi")
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
   const cur = settings?.currency_symbol || "₹";
   const money = (n: number | string) =>
     cur +
@@ -69,23 +60,16 @@ export default async function BusinessReceiptPage({
   const service = txn.service_type as keyof typeof SERVICE_TITLE;
   const title = SERVICE_TITLE[service] || txn.service_type.toUpperCase();
 
-  // UPI QR Code calculation
-  const upiId =
-    (settings as any)?.upi_id ||
-    defaultMerchantQr?.upi_id ||
-    upiInstrument?.account_number ||
-    "";
+  // Mask mobile for privacy
+  const maskedMobile = txn.customer_mobile && txn.customer_mobile.length === 10
+    ? `${txn.customer_mobile.slice(0, 2)}••••••${txn.customer_mobile.slice(-2)}`
+    : txn.customer_mobile;
 
-  const upiString = upiId
-    ? generateUpiString({
-        upiId,
-        name: settings?.shop_name || "Shop",
-        amount: Number(txn.amount || 0),
-        note: `Tr ${txn.transaction_number}`,
-      })
-    : "";
-
-  const qrDataUrl = upiString ? await generateQrDataUrl(upiString, { width: 140 }) : "";
+  // Exact Cash Handed calculation
+  const isDeducted = txn.fee_source === "cut_from_withdrawal";
+  const cashHanded = isDeducted
+    ? Math.max(0, Number(txn.amount || 0) - Number(txn.service_fee || 0))
+    : Number(txn.amount || 0);
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 print:bg-white print:p-0">
@@ -97,23 +81,46 @@ export default async function BusinessReceiptPage({
         }
       `}</style>
       <div className="mx-auto max-w-[340px] rounded-2xl border border-slate-200 bg-white p-5 shadow-lg print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
-        <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 print:hidden">
-          <div>
-            <h1 className="text-sm font-bold text-slate-900">Receipt (80mm)</h1>
-            <p className="text-[11px] text-slate-500">#{txn.transaction_number}</p>
+        
+        {/* Print Controls & Display Mode Selector (Print Hidden) */}
+        <div className="mb-4 space-y-2.5 border-b border-slate-100 pb-3 print:hidden">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h1 className="text-sm font-bold text-slate-900">Receipt (80mm)</h1>
+              <p className="text-[11px] text-slate-500">#{txn.transaction_number}</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Link
+                href={`/business/receipt/${id}/a4${isDetailed ? "?mode=detailed" : ""}`}
+                className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+              >
+                📄 A4 Invoice
+              </Link>
+              <PrintButton />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <a
-              href={`/business/receipt/${id}/a4`}
-              target="_blank"
-              className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
-            >
-              📄 Invoice (A4)
-            </a>
-            <PrintButton />
+
+          {/* Receipt Display Mode Toggle */}
+          <div className="flex items-center justify-between rounded-xl bg-slate-50 p-1 text-[11px] font-bold">
+            <span className="text-slate-500 pl-1.5">Print Mode:</span>
+            <div className="flex gap-1">
+              <Link
+                href={`/business/receipt/${id}`}
+                className={`rounded-lg px-2 py-1 transition ${!isDetailed ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                Basic (Standard)
+              </Link>
+              <Link
+                href={`/business/receipt/${id}?mode=detailed`}
+                className={`rounded-lg px-2 py-1 transition ${isDetailed ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                Detailed (With Fee)
+              </Link>
+            </div>
           </div>
         </div>
 
+        {/* Printable Receipt Content */}
         <div className="font-mono text-xs leading-relaxed text-slate-900">
           <div className="text-center">
             <p className="text-sm font-bold">{settings?.shop_name || "Shop"}</p>
@@ -145,10 +152,10 @@ export default async function BusinessReceiptPage({
             <span>Customer</span>
             <span>{txn.customers?.name || "Walk-in"}</span>
           </div>
-          {txn.customer_mobile && (
+          {maskedMobile && (
             <div className="flex justify-between">
               <span>Mobile</span>
-              <span>{txn.customer_mobile}</span>
+              <span>{maskedMobile}</span>
             </div>
           )}
 
@@ -168,122 +175,27 @@ export default async function BusinessReceiptPage({
                 <span>WITHDRAWAL</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {txn.fee_source === "cut_from_withdrawal" ? (
+
+              {/* Fee Breakdown (Only when explicitly selected in Detailed Mode) */}
+              {isDetailed && Number(txn.service_fee || 0) > 0 && (
                 <>
-                  <div className="flex justify-between text-[11px] text-slate-600">
-                    <span>Fee (Deducted from Payout)</span>
-                    <span>-{money(txn.service_fee)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-bold text-emerald-700">
-                    <span>CASH HANDED</span>
-                    <span>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {Number(txn.service_fee || 0) > 0 && (
+                  {isDeducted ? (
+                    <div className="flex justify-between text-[11px] text-slate-600">
+                      <span>Service Fee (Deducted)</span>
+                      <span>-{money(txn.service_fee)}</span>
+                    </div>
+                  ) : (
                     <div className="flex justify-between text-[11px] text-slate-600">
                       <span>Service Fee ({txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "SEPARATE"})</span>
                       <span>+{money(txn.service_fee)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm font-bold text-emerald-700">
-                    <span>CASH HANDED</span>
-                    <span>{money(txn.amount)}</span>
-                  </div>
                 </>
               )}
-            </>
-          )}
-          {service === "dmt" && (
-            <>
-              <div className="flex justify-between">
-                <span>Method</span>
-                <span>{txn.transfer_method === "upi" ? "UPI" : "BANK ACCOUNT"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Sender</span>
-                <span>{txn.sender_name || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Beneficiary</span>
-                <span className="font-semibold">{txn.beneficiary_name || "-"}</span>
-              </div>
-              {txn.transfer_method === "upi" ? (
-                <div className="flex justify-between">
-                  <span>UPI ID</span>
-                  <span>{txn.upi_id}</span>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between">
-                    <span>Bank</span>
-                    <span>{txn.beneficiary_bank}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>A/C</span>
-                    <span>{txn.beneficiary_account}</span>
-                  </div>
-                  {txn.beneficiary_ifsc && (
-                    <div className="flex justify-between">
-                      <span>IFSC</span>
-                      <span>{txn.beneficiary_ifsc}</span>
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="my-1 border-t border-dashed border-slate-400" />
-              <div className="flex justify-between">
-                <span>Transfer Amount</span>
-                <span className="font-semibold">{money(txn.amount)}</span>
-              </div>
-              <div className="flex justify-between text-sm font-bold text-emerald-700">
-                <span>TOTAL RECEIVED</span>
-                <span>{money(Number(txn.amount) + Number(txn.service_fee || 0))}</span>
-              </div>
-            </>
-          )}
-          {service === "upi" && (
-            <>
-              <div className="flex justify-between">
-                <span>Merchant QR</span>
-                <span>{txn.merchant_qrs?.display_name || "-"}</span>
-              </div>
-              {txn.merchant_qrs?.upi_id && (
-                <div className="flex justify-between">
-                  <span>UPI ID</span>
-                  <span>{txn.merchant_qrs.upi_id}</span>
-                </div>
-              )}
-              <div className="my-1 border-t border-dashed border-slate-400" />
-              <div className="flex justify-between text-sm font-bold">
-                <span>CASH-OUT AMOUNT</span>
-                <span>{money(txn.amount)}</span>
-              </div>
+
               <div className="flex justify-between text-sm font-bold text-emerald-700">
                 <span>CASH HANDED</span>
-                <span>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
-              </div>
-            </>
-          )}
-          {service === "recharge" && (
-            <>
-              <div className="flex justify-between">
-                <span>Provider</span>
-                <span>{txn.providers?.name || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Mobile / ID</span>
-                <span className="font-semibold">{txn.customer_mobile || "-"}</span>
-              </div>
-              <div className="my-1 border-t border-dashed border-slate-400" />
-              <div className="flex justify-between text-sm font-bold">
-                <span>RECHARGE AMOUNT</span>
-                <span>{money(txn.amount)}</span>
-              </div>
-              <div className="flex justify-between text-sm font-bold text-emerald-700">
-                <span>TOTAL PAID</span>
-                <span>{money(txn.amount)}</span>
+                <span>{money(cashHanded)}</span>
               </div>
             </>
           )}
@@ -292,28 +204,6 @@ export default async function BusinessReceiptPage({
             <>
               <div className="my-2 border-t border-dashed border-slate-300" />
               <div>Note: {txn.remarks}</div>
-            </>
-          )}
-
-          {/* Dynamic UPI QR Code for Business Services */}
-          {qrDataUrl && (
-            <>
-              <div className="my-2.5 border-t-2 border-dashed border-slate-400" />
-              <div className="flex flex-col items-center justify-center text-center py-1 bg-slate-50/70 rounded-xl p-2.5">
-                <img
-                  src={qrDataUrl}
-                  alt="Scan to Pay via UPI"
-                  className="h-28 w-28 object-contain rounded-lg border border-slate-300 bg-white p-1"
-                />
-                <p className="mt-1.5 font-black text-[11px] tracking-wider text-slate-900">
-                  SCAN &amp; PAY VIA UPI
-                </p>
-                <p className="text-[10px] font-bold text-emerald-800">
-                  Amount: {money(txn.amount)}
-                </p>
-                {upiId && <p className="text-[9px] font-mono text-slate-600 truncate max-w-full">UPI: {upiId}</p>}
-                <p className="text-[8px] text-slate-500">Google Pay · PhonePe · Paytm · BHIM</p>
-              </div>
             </>
           )}
 

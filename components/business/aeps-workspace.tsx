@@ -72,12 +72,12 @@ export function matchBank(inputName: string, bankList: Master[]): Master | null 
   return null;
 }
 
-/** Helper to mask sensitive customer mobile numbers: e.g. 9876543210 -> 98XXXXXX10 */
+/** Privacy-safe mobile masker: e.g. 9876543210 -> 98••••••10 */
 export function maskMobile(mobile: string | null | undefined): string {
   if (!mobile) return "";
   const clean = mobile.replace(/\D/g, "");
   if (clean.length === 10) {
-    return `${clean.slice(0, 2)}XXXXXX${clean.slice(-2)}`;
+    return `${clean.slice(0, 2)}••••••${clean.slice(-2)}`;
   }
   return clean;
 }
@@ -101,7 +101,7 @@ export default function AepsWorkspace({
   useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries"]);
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
-  const [customers] = useState<CustomerRow[]>(initialCustomers);
+  const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [banks, setBanks] = useState<Master[]>(initialBanks);
   const [portals] = useState<Master[]>(initialPortals);
 
@@ -123,10 +123,13 @@ export default function AepsWorkspace({
   // Fee Collection Instrument (when separate): "cash", "upi", "bank", "due"
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
 
+  // Receipt Print Preference: "basic" (Default, amount only) vs "detailed" (With fee breakdown)
+  const [receiptMode, setReceiptMode] = useState<"basic" | "detailed">("basic");
+
   const [reference, setReference] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
 
-  // Scan & Fill & Add Bank Modals
+  // Scan & Fill Modals
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [scannedReviewData, setScannedReviewData] = useState<{
     customerName?: string;
@@ -136,11 +139,30 @@ export default function AepsWorkspace({
     matchedBank?: Master | null;
   } | null>(null);
 
+  // Add Bank Modal
   const [addBankWindowOpen, setAddBankWindowOpen] = useState(false);
   const [newBankName, setNewBankName] = useState("");
   const [newBankCode, setNewBankCode] = useState("");
   const [bankCreateError, setBankCreateError] = useState("");
   const [bankCreateSubmitting, setBankCreateSubmitting] = useState(false);
+
+  // Add Customer Modal
+  const [addCustomerWindowOpen, setAddCustomerWindowOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustAddress, setNewCustAddress] = useState("");
+  const [custCreateError, setCustCreateError] = useState("");
+  const [custCreateSubmitting, setCustCreateSubmitting] = useState(false);
+
+  // Edit Transaction Modal
+  const [editTxnWindowOpen, setEditTxnWindowOpen] = useState(false);
+  const [editingTxn, setEditingTxn] = useState<Txn | null>(null);
+  const [editCustomerId, setEditCustomerId] = useState<string>("");
+  const [editCustomerMobile, setEditCustomerMobile] = useState<string>("");
+  const [editReference, setEditReference] = useState<string>("");
+  const [editRemarks, setEditRemarks] = useState<string>("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   // Transaction Processing & Lifecycle
   const [confirmWindowOpen, setConfirmWindowOpen] = useState(false);
@@ -282,6 +304,154 @@ export default function AepsWorkspace({
       setBankCreateError(err.message || "Failed to create bank. Please try again.");
     } finally {
       setBankCreateSubmitting(false);
+    }
+  }
+
+  // Add New Customer with duplicate protection
+  async function handleCreateCustomer(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newCustName.trim();
+    const phone = newCustPhone.trim();
+    if (!name) {
+      setCustCreateError("Customer name is required.");
+      return;
+    }
+    if (!phone || phone.length < 10) {
+      setCustCreateError("A valid 10-digit mobile number is required.");
+      return;
+    }
+
+    setCustCreateSubmitting(true);
+    setCustCreateError("");
+
+    // Duplicate check in CRM
+    const existing = customers.find((c) => c.phone === phone);
+    if (existing) {
+      setSelectedCustomerId(existing.id);
+      setCustomerMobile(existing.phone || phone);
+      setAddCustomerWindowOpen(false);
+      setCustCreateSubmitting(false);
+      showToast("info", `Customer already exists: "${existing.name}". Selected.`);
+      return;
+    }
+
+    try {
+      const generatedCode = "CUST-" + Math.floor(1000 + Math.random() * 9000);
+      const { data: newCust, error: insertError } = await supabase
+        .from("customers")
+        .insert({
+          name,
+          phone,
+          email: newCustEmail.trim() || null,
+          address: newCustAddress.trim() || null,
+          code: generatedCode,
+          customer_type: "retail",
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      if (newCust) {
+        await logAudit({
+          action: "create",
+          entity: "customer",
+          entity_id: newCust.id,
+          description: `Created customer ${newCust.name} via AEPS`,
+          details: { name: newCust.name, phone: newCust.phone, source: "aeps_workspace" },
+        });
+
+        setCustomers((prev) => [newCust, ...prev]);
+        setSelectedCustomerId(newCust.id);
+        setCustomerMobile(newCust.phone || phone);
+        setAddCustomerWindowOpen(false);
+        setNewCustName("");
+        setNewCustPhone("");
+        setNewCustEmail("");
+        setNewCustAddress("");
+        showToast("success", `Customer "${newCust.name}" registered and selected.`);
+      }
+    } catch (err: any) {
+      console.error("Customer creation error:", err);
+      setCustCreateError(err.message || "Failed to create customer.");
+    } finally {
+      setCustCreateSubmitting(false);
+    }
+  }
+
+  // Open Edit Modal for a Transaction
+  function handleOpenEdit(t: Txn) {
+    setEditingTxn(t);
+    setEditCustomerId(t.customer_id || "");
+    setEditCustomerMobile(t.customer_mobile || "");
+    setEditReference(t.reference || "");
+    setEditRemarks(t.remarks || "");
+    setEditTxnWindowOpen(true);
+  }
+
+  // Save Transaction Corrections with Audit Trail
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingTxn) return;
+    setEditSubmitting(true);
+
+    try {
+      const updatedRef = editReference.trim() || null;
+      const updatedRemarks = editRemarks.trim() || null;
+      const updatedCustId = editCustomerId || null;
+      const updatedCustMobile = editCustomerMobile.trim() || null;
+
+      const { error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          customer_id: updatedCustId,
+          customer_mobile: updatedCustMobile,
+          reference: updatedRef,
+          remarks: updatedRemarks,
+        })
+        .eq("id", editingTxn.id);
+
+      if (updateError) throw updateError;
+
+      await logAudit({
+        action: "update",
+        entity: "transaction",
+        entity_id: editingTxn.id,
+        description: `Corrected non-financial fields on AEPS Txn #${editingTxn.transaction_number}`,
+        details: {
+          transaction_number: editingTxn.transaction_number,
+          old_reference: editingTxn.reference,
+          new_reference: updatedRef,
+          old_remarks: editingTxn.remarks,
+          new_remarks: updatedRemarks,
+          reason: "Operator correction",
+        },
+      });
+
+      // Update local state
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === editingTxn.id
+            ? {
+                ...t,
+                customer_id: updatedCustId,
+                customer_mobile: updatedCustMobile,
+                reference: updatedRef,
+                remarks: updatedRemarks,
+                customers: customers.find((c) => c.id === updatedCustId) || null,
+              }
+            : t
+        )
+      );
+
+      setEditTxnWindowOpen(false);
+      showToast("success", `Transaction #${editingTxn.transaction_number} updated with audit trail.`);
+    } catch (err: any) {
+      console.error("Transaction edit error:", err);
+      showToast("error", err.message || "Failed to update transaction.");
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -602,23 +772,44 @@ export default function AepsWorkspace({
 
           {/* Form Fields Grid */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Customer Search & Select (Masked for Privacy) */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer (Optional CRM Link)
-              </label>
-              <SearchableSelect
-                value={selectedCustomerId}
-                onChange={setSelectedCustomerId}
-                options={[
-                  { value: "", label: "-- Walk-in Customer --" },
-                  ...customers.map((c) => ({
-                    value: c.id,
-                    label: `${c.name} (${maskMobile(c.phone) || c.code})`,
-                  })),
-                ]}
-                placeholder="Search customer by name or phone…"
-              />
+            {/* Customer Search & Select (Masked for Privacy) + Add Customer Button */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer (CRM Profile)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setAddCustomerWindowOpen(true)}
+                  className="text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  + Add New Customer
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={selectedCustomerId}
+                    onChange={setSelectedCustomerId}
+                    options={[
+                      { value: "", label: "-- Walk-in Customer --" },
+                      ...customers.map((c) => ({
+                        value: c.id,
+                        label: `${c.name} (${maskMobile(c.phone) || c.code})`,
+                      })),
+                    ]}
+                    placeholder="Search customer by name or phone…"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddCustomerWindowOpen(true)}
+                  className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  title="Add new customer to CRM"
+                >
+                  + Add
+                </button>
+              </div>
             </div>
 
             {/* Customer Mobile */}
@@ -636,14 +827,14 @@ export default function AepsWorkspace({
             </div>
 
             {/* Bank Auto-Match & Selection */}
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Customer's Bank <span className="text-rose-500">*</span>
                 </label>
                 {selectedBank && (
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    ✓ Authoritative Match: {selectedBank.name}
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
+                    ✓ {selectedBank.name}
                   </span>
                 )}
               </div>
@@ -653,19 +844,19 @@ export default function AepsWorkspace({
                     value={selectedBankId}
                     onChange={setSelectedBankId}
                     options={[
-                      { value: "", label: "-- Select Bank from Master List --" },
+                      { value: "", label: "-- Select Bank --" },
                       ...banks.map((b) => ({ value: b.id, label: b.name })),
                     ]}
-                    placeholder="Search bank name (SBI, PNB, HDFC, ICICI, etc.)…"
+                    placeholder="Search bank name…"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => setAddBankWindowOpen(true)}
-                  className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
                   title="Add new bank to Master List"
                 >
-                  + Add Bank
+                  + Add
                 </button>
               </div>
             </div>
@@ -928,6 +1119,33 @@ export default function AepsWorkspace({
                     <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
                   </div>
 
+                  {/* Receipt Details Preference Control */}
+                  <div className="border-t border-slate-100 pt-2 dark:border-white/5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-bold">Default Receipt Style:</span>
+                      <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setReceiptMode("basic")}
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                            receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
+                          }`}
+                        >
+                          Basic
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReceiptMode("detailed")}
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                            receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
+                          }`}
+                        >
+                          Detailed
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Prominent Cash Handed Box */}
                   <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
                     <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
@@ -993,7 +1211,7 @@ export default function AepsWorkspace({
                 <th className="pb-2.5 font-bold text-right">Cash Handed</th>
                 <th className="pb-2.5 font-bold text-right">Total Income</th>
                 <th className="pb-2.5 font-bold text-center">Status</th>
-                <th className="pb-2.5 font-bold text-right">Receipt</th>
+                <th className="pb-2.5 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
@@ -1009,6 +1227,8 @@ export default function AepsWorkspace({
                   const txnCashHanded = isDeducted
                     ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0))
                     : Number(t.amount || 0);
+
+                  const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
 
                   return (
                     <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
@@ -1058,18 +1278,28 @@ export default function AepsWorkspace({
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
-                            href={`/business/receipt/${t.id}`}
+                            href={receiptUrl}
                             target="_blank"
                             className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                            title="Print 80mm Receipt"
                           >
-                            🖨️ 80mm
+                            🖨️
                           </Link>
                           <button
                             type="button"
                             onClick={() => setSelectedDetailTxn(t)}
                             className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
+                            title="View Transaction Breakdown"
                           >
                             👁
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(t)}
+                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:bg-white/5 dark:text-blue-400"
+                            title="Edit Non-Financial Fields"
+                          >
+                            ✏️
                           </button>
                         </div>
                       </td>
@@ -1229,7 +1459,190 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          7. TRANSACTION DETAIL VIEW MODAL
+          7. ADD NEW CUSTOMER MODAL (From AEPS Workspace)
+      =============================================================================== */}
+      {addCustomerWindowOpen && (
+        <FloatingWindow
+          isOpen={addCustomerWindowOpen}
+          size="sm"
+          title="Add New Customer to CRM"
+          onClose={() => setAddCustomerWindowOpen(false)}
+        >
+          <form onSubmit={handleCreateCustomer} className="p-5 space-y-4">
+            {custCreateError && (
+              <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                {custCreateError}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Customer Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={newCustName}
+                onChange={(e) => setNewCustName(e.target.value)}
+                placeholder="e.g. Rahul Sharma"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Mobile Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="tel"
+                required
+                maxLength={10}
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="10-digit mobile number"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Email Address (Optional)
+              </label>
+              <input
+                type="email"
+                value={newCustEmail}
+                onChange={(e) => setNewCustEmail(e.target.value)}
+                placeholder="customer@email.com"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Address / Location (Optional)
+              </label>
+              <input
+                type="text"
+                value={newCustAddress}
+                onChange={(e) => setNewCustAddress(e.target.value)}
+                placeholder="e.g. Ward 4, Newtown"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddCustomerWindowOpen(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={custCreateSubmitting}
+                className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {custCreateSubmitting ? "Saving…" : "Save & Select"}
+              </button>
+            </div>
+          </form>
+        </FloatingWindow>
+      )}
+
+      {/* ===============================================================================
+          8. EDIT TRANSACTION MODAL (Controlled Non-Financial Corrections)
+      =============================================================================== */}
+      {editTxnWindowOpen && editingTxn && (
+        <FloatingWindow
+          isOpen={editTxnWindowOpen}
+          size="sm"
+          title={`Edit AEPS Transaction #${editingTxn.transaction_number}`}
+          onClose={() => setEditTxnWindowOpen(false)}
+        >
+          <form onSubmit={handleSaveEdit} className="p-5 space-y-4 text-xs">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+              <strong>Immutable Audit Safeguard:</strong> Withdrawal amount ({inr(editingTxn.amount)}) and settlement ledger entries are permanently locked. You may update attribution, RRN reference, or remarks.
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Customer Attribution
+              </label>
+              <SearchableSelect
+                value={editCustomerId}
+                onChange={setEditCustomerId}
+                options={[
+                  { value: "", label: "-- Walk-in Customer --" },
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name} (${maskMobile(c.phone) || c.code})`,
+                  })),
+                ]}
+                placeholder="Assign to customer…"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Customer Mobile
+              </label>
+              <input
+                type="tel"
+                value={editCustomerMobile}
+                onChange={(e) => setEditCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Bank RRN / Terminal Reference Number
+              </label>
+              <input
+                type="text"
+                value={editReference}
+                onChange={(e) => setEditReference(e.target.value)}
+                placeholder="RRN / Auth Reference"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Operator Remarks / Notes
+              </label>
+              <input
+                type="text"
+                value={editRemarks}
+                onChange={(e) => setEditRemarks(e.target.value)}
+                placeholder="Add correction notes…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditTxnWindowOpen(false)}
+                className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editSubmitting}
+                className="rounded-xl bg-blue-600 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {editSubmitting ? "Saving…" : "Save Correction"}
+              </button>
+            </div>
+          </form>
+        </FloatingWindow>
+      )}
+
+      {/* ===============================================================================
+          9. TRANSACTION DETAIL VIEW MODAL
       =============================================================================== */}
       {selectedDetailTxn && (
         <FloatingWindow
@@ -1243,6 +1656,9 @@ export default function AepsWorkspace({
             const detailCashHanded = isDeducted
               ? Math.max(0, Number(selectedDetailTxn.amount || 0) - Number(selectedDetailTxn.service_fee || 0))
               : Number(selectedDetailTxn.amount || 0);
+
+            const receiptUrl = `/business/receipt/${selectedDetailTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
+            const invoiceUrl = `/business/receipt/${selectedDetailTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
 
             return (
               <div className="p-5 space-y-4 text-xs">
@@ -1260,24 +1676,35 @@ export default function AepsWorkspace({
                   <div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.banks?.name || "N/A"}</div></div>
                   <div><span className="text-slate-400">Portal:</span> <div className="font-bold">{selectedDetailTxn.portals?.name || "N/A"}</div></div>
                   {selectedDetailTxn.reference && <div className="col-span-2"><span className="text-slate-400">RRN / Ref:</span> <div className="font-bold">{selectedDetailTxn.reference}</div></div>}
+                  {selectedDetailTxn.remarks && <div className="col-span-2"><span className="text-slate-400">Remarks:</span> <div className="font-semibold">{selectedDetailTxn.remarks}</div></div>}
                 </div>
 
                 <div className="flex justify-between items-center pt-2">
                   <div className="flex gap-2">
                     <Link
-                      href={`/business/receipt/${selectedDetailTxn.id}`}
+                      href={receiptUrl}
                       target="_blank"
                       className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-blue-600"
                     >
-                      🖨️ Thermal Receipt
+                      🖨️ 80mm
                     </Link>
                     <Link
-                      href={`/business/receipt/${selectedDetailTxn.id}/a4`}
+                      href={invoiceUrl}
                       target="_blank"
                       className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                     >
                       📄 A4 Invoice
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDetailTxn(null);
+                        handleOpenEdit(selectedDetailTxn);
+                      }}
+                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
+                    >
+                      ✏️ Edit Reference
+                    </button>
                   </div>
                   <button
                     type="button"
@@ -1294,7 +1721,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          8. SCAN & FILL MODAL
+          10. SCAN & FILL MODAL
       =============================================================================== */}
       {scanModalOpen && (
         <ScanFillModal

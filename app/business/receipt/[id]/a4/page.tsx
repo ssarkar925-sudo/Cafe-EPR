@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import A4Actions from "@/components/pdf/a4-actions";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,15 @@ const SERVICE_TITLE: Record<string, string> = {
 
 export default async function BusinessReceiptA4Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ mode?: string; detail?: string }>;
 }) {
   const { id } = await params;
+  const { mode, detail } = await searchParams;
+  const isDetailed = mode === "detailed" || detail === "true";
+
   const supabase = createAdminClient();
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -53,6 +59,17 @@ export default async function BusinessReceiptA4Page({
   const service = txn.service_type as keyof typeof SERVICE_TITLE;
   const title = SERVICE_TITLE[service] || txn.service_type.toUpperCase();
 
+  // Mask mobile for privacy
+  const maskedMobile = txn.customer_mobile && txn.customer_mobile.length === 10
+    ? `${txn.customer_mobile.slice(0, 2)}••••••${txn.customer_mobile.slice(-2)}`
+    : txn.customer_mobile;
+
+  // Exact Cash Handed calculation
+  const isDeducted = txn.fee_source === "cut_from_withdrawal";
+  const cashHanded = isDeducted
+    ? Math.max(0, Number(txn.amount || 0) - Number(txn.service_fee || 0))
+    : Number(txn.amount || 0);
+
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-8 print:min-h-0 print:bg-white print:p-0">
       <style>{`
@@ -81,17 +98,36 @@ export default async function BusinessReceiptA4Page({
       `}</style>
 
       <div className="a4-print-card mx-auto max-w-[800px] rounded-2xl border border-slate-200 bg-white p-8 md:p-10 shadow-xl print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
-        <div className="mb-6 flex items-center justify-between print:hidden">
+        
+        {/* Top Controls & Print Mode Selector (Print Hidden) */}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 print:hidden">
           <div>
             <h1 className="text-sm font-bold text-slate-900">Transaction Invoice (A4)</h1>
             <p className="text-xs text-slate-500">#{txn.transaction_number} · Standard Customer Invoice</p>
           </div>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Display Mode Toggle */}
+            <div className="flex items-center rounded-xl bg-slate-100 p-1 text-xs font-bold">
+              <Link
+                href={`/business/receipt/${id}/a4`}
+                className={`rounded-lg px-2.5 py-1 transition ${!isDetailed ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                Basic
+              </Link>
+              <Link
+                href={`/business/receipt/${id}/a4?mode=detailed`}
+                className={`rounded-lg px-2.5 py-1 transition ${isDetailed ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                Detailed (With Fee)
+              </Link>
+            </div>
+
             <A4Actions
               variant="business"
               data={{ txn, settings }}
               filename={`${txn.transaction_number}.pdf`}
-              receiptUrl={`/business/receipt/${id}`}
+              receiptUrl={`/business/receipt/${id}${isDetailed ? "?mode=detailed" : ""}`}
             />
           </div>
         </div>
@@ -117,7 +153,7 @@ export default async function BusinessReceiptA4Page({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</p>
             <p className="mt-1 font-medium text-slate-900">{txn.customers?.name || "Walk-in"}</p>
-            {txn.customer_mobile && <p className="text-sm text-slate-600">{txn.customer_mobile}</p>}
+            {maskedMobile && <p className="text-sm text-slate-600">{maskedMobile}</p>}
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transaction</p>
@@ -151,131 +187,41 @@ export default async function BusinessReceiptA4Page({
                 <span>Withdrawal Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {txn.fee_source === "cut_from_withdrawal" ? (
+
+              {/* Fee Breakdown (Only in Detailed Mode) */}
+              {isDetailed && Number(txn.service_fee || 0) > 0 && (
                 <>
-                  <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
-                    <span>Service Fee (Deducted from Payout)</span>
-                    <span>-{money(txn.service_fee)}</span>
-                  </div>
-                  <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                    <span>Cash Handed to Customer</span>
-                    <span className="text-emerald-700">{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {Number(txn.service_fee || 0) > 0 && (
+                  {isDeducted ? (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                      <span>Service Fee (Deducted from Payout)</span>
+                      <span>-{money(txn.service_fee)}</span>
+                    </div>
+                  ) : (
                     <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
                       <span>Service Fee (Collected Separately via {txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
                       <span>+{money(txn.service_fee)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                    <span>Cash Handed to Customer</span>
-                    <span className="text-emerald-700">{money(txn.amount)}</span>
-                  </div>
                 </>
               )}
-            </>
-          )}
-          {service === "dmt" && (
-            <>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Transfer Method</span>
-                <span className="font-medium text-slate-900">{txn.transfer_method === "upi" ? "UPI" : "BANK ACCOUNT"}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Sender</span>
-                <span className="font-medium text-slate-900">{txn.sender_name || "-"}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Beneficiary</span>
-                <span className="font-semibold text-slate-900">{txn.beneficiary_name || "-"}</span>
-              </div>
-              {txn.transfer_method === "upi" ? (
-                <div className="flex justify-between border-b border-slate-100 py-1.5">
-                  <span className="text-slate-600">UPI ID</span>
-                  <span className="font-medium text-slate-900">{txn.upi_id}</span>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between border-b border-slate-100 py-1.5">
-                    <span className="text-slate-600">Bank</span>
-                    <span className="font-medium text-slate-900">{txn.beneficiary_bank}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-slate-100 py-1.5">
-                    <span className="text-slate-600">Account Number</span>
-                    <span className="font-medium text-slate-900">{txn.beneficiary_account}</span>
-                  </div>
-                  {txn.beneficiary_ifsc && (
-                    <div className="flex justify-between border-b border-slate-100 py-1.5">
-                      <span className="text-slate-600">IFSC</span>
-                      <span className="font-medium text-slate-900">{txn.beneficiary_ifsc}</span>
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
-                <span>Transfer Amount</span>
-                <span className="text-rose-600">{money(txn.amount)}</span>
-              </div>
-              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                <span>Total Received from Customer</span>
-                <span className="text-emerald-700">{money(Number(txn.amount) + Number(txn.service_fee || 0))}</span>
-              </div>
-            </>
-          )}
-          {service === "upi" && (
-            <>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Merchant QR</span>
-                <span className="font-medium text-slate-900">{txn.merchant_qrs?.display_name || "-"}</span>
-              </div>
-              {txn.merchant_qrs?.upi_id && (
-                <div className="flex justify-between border-b border-slate-100 py-1.5">
-                  <span className="text-slate-600">UPI ID</span>
-                  <span className="font-medium text-slate-900">{txn.merchant_qrs.upi_id}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
-                <span>Cash-out Amount</span>
-                <span>{money(txn.amount)}</span>
-              </div>
+
               <div className="flex justify-between py-2 text-base font-bold text-slate-900">
                 <span>Cash Handed to Customer</span>
-                <span className="text-emerald-700">{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
+                <span className="text-emerald-700">{money(cashHanded)}</span>
               </div>
             </>
           )}
-          {service === "recharge" && (
-            <>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Provider</span>
-                <span className="font-medium text-slate-900">{txn.providers?.name || "-"}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-100 py-1.5">
-                <span className="text-slate-600">Mobile / Account</span>
-                <span className="font-semibold text-slate-900">{txn.customer_mobile || "-"}</span>
-              </div>
-              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                <span>Total Amount Paid</span>
-                <span className="text-emerald-700">{money(txn.amount)}</span>
-              </div>
-            </>
+
+          {txn.remarks && (
+            <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">Remarks:</span> {txn.remarks}
+            </div>
           )}
         </div>
 
-        {txn.remarks && (
-          <p className="mt-6 text-sm text-slate-600">
-            <span className="font-semibold text-slate-800">Note:</span> {txn.remarks}
-          </p>
-        )}
-
-        {settings?.receipt_footer && (
-          <p className="mt-10 border-t border-slate-200 pt-4 text-center text-sm text-slate-500">
-            {settings.receipt_footer}
-          </p>
-        )}
+        <div className="mt-12 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+          <p>{settings?.receipt_footer || "Thank you for your business."}</p>
+        </div>
       </div>
     </div>
   );
