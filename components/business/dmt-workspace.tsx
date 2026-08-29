@@ -153,6 +153,9 @@ export default function DmtWorkspace({
   // Receipt Print Preference (Basic default vs Detailed)
   const [receiptMode, setReceiptMode] = useState<"basic" | "detailed">("basic");
 
+  // Analytics Active Tab
+  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "bank" | "portal" | "method" | "collection" | "funding">("overview");
+
   // Scan & Fill State
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [scannedReviewData, setScannedReviewData] = useState<{
@@ -233,6 +236,17 @@ export default function DmtWorkspace({
   const currentDmtFloat = Number(float?.current || (initialPortals.length > 0 ? 50000 : 0));
   const currentBankBalance = Number(instruments.find((i) => i.id === selectedBankInstrumentId)?.current_balance || 75000);
 
+  // Calculations for current inputs
+  const numAmount = Number(amount || 0);
+  const numFee = Number(serviceFee || 0);
+  const numComm = Number(portalCommission || 0);
+  const totalCollected = numAmount + numFee;
+  const totalIncome = numFee + numComm;
+
+  // Float Sufficiency Check
+  const isFloatInsufficient = (paidFrom === "portal" && numAmount > currentDmtFloat) || (paidFrom === "bank" && numAmount > currentBankBalance);
+  const availableSelectedFloat = paidFrom === "portal" ? currentDmtFloat : currentBankBalance;
+
   // Today's DMT KPI calculations
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayTxns = useMemo(() => {
@@ -242,7 +256,9 @@ export default function DmtWorkspace({
   }, [transactions, todayStr]);
 
   const todayVolume = todayTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const todayIncome = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
+  const todayCustomerFees = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0);
+  const todayPortalCommission = todayTxns.reduce((s, t) => s + Number(t.portal_commission || 0), 0);
+  const todayBusinessIncome = todayCustomerFees + todayPortalCommission;
   const todayCount = todayTxns.length;
 
   // Matched Master Bank Object for Beneficiary Bank
@@ -645,13 +661,6 @@ export default function DmtWorkspace({
     }
   }
 
-  // Calculations
-  const numAmount = Number(amount || 0);
-  const numFee = Number(serviceFee || 0);
-  const numComm = Number(portalCommission || 0);
-  const totalCollected = numAmount + numFee;
-  const totalIncome = numFee + numComm;
-
   // Pre-submission Validation & Float Safety Guard
   const handleInitiateTransfer = useCallback(() => {
     if (!numAmount || numAmount <= 0) {
@@ -680,11 +689,11 @@ export default function DmtWorkspace({
 
     // Float Safety Check
     if (paidFrom === "portal" && numAmount > currentDmtFloat) {
-      showToast("error", `Insufficient DMT Portal Float. (Available: ${inr(currentDmtFloat)}, Requested: ${inr(numAmount)})`);
+      showToast("error", `Insufficient DMT Portal Float. (Available: ${inr(currentDmtFloat)}, Required: ${inr(numAmount)})`);
       return;
     }
     if (paidFrom === "bank" && numAmount > currentBankBalance) {
-      showToast("error", `Insufficient Bank Balance. (Available: ${inr(currentBankBalance)}, Requested: ${inr(numAmount)})`);
+      showToast("error", `Insufficient Bank Balance. (Available: ${inr(currentBankBalance)}, Required: ${inr(numAmount)})`);
       return;
     }
 
@@ -849,7 +858,7 @@ export default function DmtWorkspace({
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                ● Live DMT Switch Active
+                ● DMT SYSTEM ONLINE
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
                 IMPS / NEFT / UPI Payout Gateway
@@ -871,7 +880,7 @@ export default function DmtWorkspace({
               <span className="text-[9px] text-slate-400">Live Settlement Wallet</span>
             </div>
             <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Bank Float</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Shop Bank Float</span>
               <div className="text-xl font-black text-blue-400">{inr(currentBankBalance)}</div>
               <span className="text-[9px] text-slate-400">Shop Bank Account</span>
             </div>
@@ -880,43 +889,67 @@ export default function DmtWorkspace({
       </div>
 
       {/* ===============================================================================
-          2. KPI BENTO SUMMARY
+          2. SPATIAL KPI SYSTEM (6 Compact Bento Tiles)
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Today's Transfers</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white">{inr(todayVolume)}</div>
-            <p className="text-xs text-slate-500">Gross remittance turnover</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {/* 1. Transfers */}
+        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Transfers</span>
+          <div className="my-1">
+            <div className="text-2xl font-black text-slate-900 dark:text-white">{todayCount}</div>
+            <p className="text-[10px] text-slate-500">Successful today</p>
           </div>
-          <span className="text-[11px] text-slate-400 font-medium">Pass-through Principal</span>
+          <span className="text-[10px] text-slate-400 font-medium">100% Settled</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Service Income</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-emerald-600 sm:text-3xl dark:text-emerald-400">+{inr(todayIncome)}</div>
-            <p className="text-xs text-slate-500">Fees + Portal Commissions</p>
+        {/* 2. Transfer Volume */}
+        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">2. Transfer Volume</span>
+          <div className="my-1">
+            <div className="text-xl font-black text-slate-900 dark:text-white truncate">{inr(todayVolume)}</div>
+            <p className="text-[10px] text-slate-500">Principal Turnover</p>
           </div>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">Direct Gross Margin</span>
+          <span className="text-[10px] text-slate-400 font-medium">Fiduciary Money</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Portal Float</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">{inr(currentDmtFloat)}</div>
-            <p className="text-xs text-slate-500">{portals.length} active gateways</p>
+        {/* 3. Customer Fees */}
+        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">3. Customer Fees</span>
+          <div className="my-1">
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayCustomerFees)}</div>
+            <p className="text-[10px] text-slate-500">Service Fee Income</p>
           </div>
-          <Link href="/business/portals" className="text-[11px] text-blue-600 font-bold hover:underline dark:text-blue-400">Manage Portals →</Link>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Direct Revenue</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Completed</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">{todayCount}</div>
-            <p className="text-xs text-slate-500">100% settled today</p>
+        {/* 4. Portal Commission */}
+        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">4. Commission</span>
+          <div className="my-1">
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayPortalCommission)}</div>
+            <p className="text-[10px] text-slate-500">Provider Margin</p>
           </div>
-          <span className="text-[11px] text-slate-400">Zero Unreconciled</span>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Platform Margin</span>
+        </div>
+
+        {/* 5. Business Income */}
+        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">5. Business Income</span>
+          <div className="my-1">
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayBusinessIncome)}</div>
+            <p className="text-[10px] text-slate-500">Fees + Commissions</p>
+          </div>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Gross Margin</span>
+        </div>
+
+        {/* 6. Available Float */}
+        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">6. Available Float</span>
+          <div className="my-1">
+            <div className="text-xl font-black text-indigo-900 dark:text-indigo-300 truncate">{inr(currentDmtFloat)}</div>
+            <p className="text-[10px] text-slate-500">DMT Portal Wallet</p>
+          </div>
+          <Link href="/finance/settlements" className="text-[10px] text-blue-600 font-bold hover:underline dark:text-blue-400">Top-up Float →</Link>
         </div>
       </div>
 
@@ -924,7 +957,7 @@ export default function DmtWorkspace({
           3. MAIN TRANSACTION COMMAND CENTER (8-Step Guided Workflow)
       =============================================================================== */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-        {/* Left (8 Cols): Sender, Beneficiary, Transfer Method & Funding */}
+        {/* Left (8 Cols): Guided Steps 1 to 8 */}
         <div className="bento-surface p-5 lg:col-span-8 dark:bg-slate-900/90 space-y-5">
           {/* Top Bar: Transfer Method Switcher & Scan & Fill CTA */}
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -998,7 +1031,7 @@ export default function DmtWorkspace({
                       value={selectedCustomerId}
                       onChange={setSelectedCustomerId}
                       minSearchLength={2}
-                      minSearchPrompt="Type at least 2 letters or digits to search customer directory…"
+                      minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…"
                       options={[
                         { value: "", label: "-- Walk-in Customer --" },
                         ...customers.map((c) => ({
@@ -1191,7 +1224,7 @@ export default function DmtWorkspace({
           {/* STEP 4 & 5: TRANSFER AMOUNT & SERVICE FEE */}
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4 &amp; 5 · Transfer Amount &amp; Service Fee</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4 &amp; 5 · Transfer Amount &amp; Customer Fee</span>
             </div>
 
             <div className="space-y-1.5">
@@ -1306,6 +1339,18 @@ export default function DmtWorkspace({
                 </button>
               </div>
             </div>
+
+            {/* Float Insufficiency Alert Guard */}
+            {isFloatInsufficient && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+                <div className="flex items-center gap-1.5 font-black">
+                  <span>⚠ Insufficient {paidFrom === "portal" ? "DMT Portal Float" : "Bank Balance"}</span>
+                </div>
+                <p className="mt-1 text-[11px]">
+                  Available: <strong>{inr(availableSelectedFloat)}</strong> | Required: <strong>{inr(numAmount)}</strong>. Please top up float in Settlements before proceeding.
+                </p>
+              </div>
+            )}
 
             {/* Customer Collection Instrument */}
             <div className="space-y-1">
@@ -1455,30 +1500,82 @@ export default function DmtWorkspace({
           </div>
 
           {/* Primary Action Button */}
-          <div className="space-y-1.5 pt-1">
+          <div className="space-y-2 pt-1">
             <button
               type="button"
               onClick={handleInitiateTransfer}
-              className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 active:scale-[0.98]"
+              disabled={isFloatInsufficient}
+              className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ✓ Confirm &amp; Transfer {inr(numAmount)}
             </button>
-            <p className="text-center text-[10px] text-slate-400">
-              Shortcut: <strong>Ctrl + Enter</strong> to initiate transfer
-            </p>
+            <div className="text-center text-[10px] text-slate-400 space-y-0.5">
+              <p>Customer Collection: <strong>{inr(totalCollected)}</strong> · Beneficiary Receives: <strong>{inr(numAmount)}</strong> · Income: <strong className="text-emerald-600">+{inr(totalIncome)}</strong></p>
+              <p>Shortcut: <strong>Ctrl + Enter</strong> to initiate transfer</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ===============================================================================
-          4. RECENT DMT TRANSACTIONS TABLE
+          4. FINANCIAL AUDIT PANEL (Double-Entry Verification & Quick Links)
       =============================================================================== */}
-      <div className="bento-surface p-5 dark:bg-slate-900/90 space-y-3.5">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+      <div className="bento-surface p-4 dark:bg-slate-900/90 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2 dark:border-white/5">
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white">Recent DMT Remittance Records</h3>
-            <p className="text-xs text-slate-400">Live ledger of domestic remittances, payouts, and collections.</p>
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Financial Audit &amp; Fiduciary Reconciliation</h4>
+            <p className="text-[11px] text-slate-400">All remittance transfers are isolated from retail trading revenue and balanced against cash/digital pools.</p>
           </div>
+          <div className="flex flex-wrap gap-2 text-xs font-bold pt-1 sm:pt-0">
+            <Link href="/finance/cashbook" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">View Cashbook →</Link>
+            <Link href="/customers" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Customer Ledger →</Link>
+            <Link href="/finance/settlements" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Settlements →</Link>
+            <Link href="/finance/pnl" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">P&amp;L →</Link>
+            <Link href="/reports" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Reports →</Link>
+            <Link href="/audit" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Audit Trail →</Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-6">
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-slate-900 dark:text-white">{inr(numAmount)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Customer Collection:</span> <div className="font-black text-slate-900 dark:text-white">{inr(totalCollected)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Funding Source:</span> <div className="font-black">{paidFrom.toUpperCase()}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Customer Fee:</span> <div className="font-black text-emerald-600">+{inr(numFee)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Portal Commission:</span> <div className="font-black text-emerald-600">+{inr(numComm)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Business Income:</span> <div className="font-black text-emerald-600">+{inr(totalIncome)}</div></div>
+        </div>
+      </div>
+
+      {/* ===============================================================================
+          5. DMT ANALYTICS & TRANSACTION LEDGER
+      =============================================================================== */}
+      <div className="bento-surface p-5 dark:bg-slate-900/90 space-y-4">
+        {/* Navigation Switcher between Ledger & Analytics */}
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: "overview", label: "Recent Ledger" },
+              { id: "bank", label: "By Bank" },
+              { id: "portal", label: "By Portal" },
+              { id: "method", label: "By Transfer Method" },
+              { id: "collection", label: "By Collection Method" },
+              { id: "funding", label: "By Funding Source" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setAnalyticsTab(tab.id as any)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  analyticsTab === tab.id
+                    ? "bg-slate-900 text-white shadow-xs dark:bg-violet-600"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <input
             type="text"
             value={searchQuery}
@@ -1488,136 +1585,198 @@ export default function DmtWorkspace({
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-400 dark:border-white/10">
-                <th className="pb-2 font-bold">DMT # / Time</th>
-                <th className="pb-2 font-bold">Sender</th>
-                <th className="pb-2 font-bold">Beneficiary &amp; Destination</th>
-                <th className="pb-2 font-bold text-right">Transfer</th>
-                <th className="pb-2 font-bold text-center">Collection</th>
-                <th className="pb-2 font-bold text-center">Funding</th>
-                <th className="pb-2 font-bold text-right">Fee</th>
-                <th className="pb-2 font-bold text-right">Income</th>
-                <th className="pb-2 font-bold text-center">Status</th>
-                <th className="pb-2 font-bold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
-              {filteredTxns.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-7 text-center text-slate-400">
-                    No DMT transactions found. Process a money transfer above to see records.
-                  </td>
+        {/* Dynamic Content Based on Analytics Tab */}
+        {analyticsTab === "overview" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 dark:border-white/10">
+                  <th className="pb-2 font-bold">DMT # / Time</th>
+                  <th className="pb-2 font-bold">Sender</th>
+                  <th className="pb-2 font-bold">Beneficiary &amp; Destination</th>
+                  <th className="pb-2 font-bold text-right">Transfer</th>
+                  <th className="pb-2 font-bold text-center">Collection</th>
+                  <th className="pb-2 font-bold text-center">Funding</th>
+                  <th className="pb-2 font-bold text-right">Fee</th>
+                  <th className="pb-2 font-bold text-right">Income</th>
+                  <th className="pb-2 font-bold text-center">Status</th>
+                  <th className="pb-2 font-bold text-right">Actions</th>
                 </tr>
-              ) : (
-                filteredTxns.slice(0, 15).map((t) => {
-                  const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
+                {filteredTxns.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-7 text-center text-slate-400">
+                      No DMT transactions found. Process a money transfer above to see records.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTxns.slice(0, 15).map((t) => {
+                    const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
 
-                  return (
-                    <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                      <td className="py-2.5">
-                        <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
-                        <div className="text-[10px] text-slate-400">
-                          {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
-                        </div>
-                      </td>
-                      <td className="py-2.5">
-                        <div className="font-bold text-slate-900 dark:text-white">{t.sender_name || t.customers?.name || "Walk-in"}</div>
-                        <div className="text-[10px] text-slate-400">
-                          {t.sender_mobile ? `📱 ${maskMobile(t.sender_mobile)}` : ""}
-                        </div>
-                      </td>
-                      <td className="py-2.5">
-                        <div className="font-bold text-slate-900 dark:text-white">
-                          {t.beneficiary_name || t.receiver_name || "Beneficiary"}
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          {t.transfer_method === "upi" ? (
-                            <span>{t.upi_id}</span>
-                          ) : (
-                            <span>{t.beneficiary_bank || "Bank"} • {maskAccount(t.beneficiary_account)}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 text-right font-black text-slate-900 dark:text-white">
-                        {inr(t.amount)}
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                          {(t.customer_pay_method || "CASH").toUpperCase()} {inr(Number(t.amount || 0) + Number(t.service_fee || 0))}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-                          {(t.paid_from || "PORTAL").toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                        +{inr(t.service_fee)}
-                      </td>
-                      <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
-                        +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          t.status === "reversed"
-                            ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
-                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                        }`}>
-                          {t.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Link
-                            href={receiptUrl}
-                            target="_blank"
-                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                            title="Print 80mm Receipt"
-                          >
-                            🖨️
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDetailTxn(t)}
-                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
-                            title="View Transaction Audit Breakdown"
-                          >
-                            👁
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(t)}
-                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:bg-white/5 dark:text-blue-400"
-                            title="Edit Non-Financial Reference"
-                          >
-                            ✏️
-                          </button>
-                          {t.status === "success" && (
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                        <td className="py-2.5">
+                          <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
+                          <div className="text-[10px] text-slate-400">
+                            {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
+                          </div>
+                        </td>
+                        <td className="py-2.5">
+                          <div className="font-bold text-slate-900 dark:text-white">{t.sender_name || t.customers?.name || "Walk-in"}</div>
+                          <div className="text-[10px] text-slate-400">
+                            {t.sender_mobile ? `📱 ${maskMobile(t.sender_mobile)}` : ""}
+                          </div>
+                        </td>
+                        <td className="py-2.5">
+                          <div className="font-bold text-slate-900 dark:text-white">
+                            {t.beneficiary_name || t.receiver_name || "Beneficiary"}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {t.transfer_method === "upi" ? (
+                              <span>{t.upi_id}</span>
+                            ) : (
+                              <span>{t.beneficiary_bank || "Bank"} • {maskAccount(t.beneficiary_account)}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-right font-black text-slate-900 dark:text-white">
+                          {inr(t.amount)}
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                            {(t.customer_pay_method || "CASH").toUpperCase()} {inr(Number(t.amount || 0) + Number(t.service_fee || 0))}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                            {(t.paid_from || "PORTAL").toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                          +{inr(t.service_fee)}
+                        </td>
+                        <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
+                          +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            t.status === "reversed"
+                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          }`}>
+                            {t.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Link
+                              href={receiptUrl}
+                              target="_blank"
+                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                              title="Print 80mm Receipt"
+                            >
+                              🖨️
+                            </Link>
                             <button
                               type="button"
-                              onClick={() => handleOpenReverse(t)}
-                              className="rounded-lg bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400"
-                              title="Reverse Transaction"
+                              onClick={() => setSelectedDetailTxn(t)}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
+                              title="View Transaction Audit Breakdown"
                             >
-                              ↩️
+                              👁
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(t)}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:bg-white/5 dark:text-blue-400"
+                              title="Edit Non-Financial Reference"
+                            >
+                              ✏️
+                            </button>
+                            {t.status === "success" && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReverse(t)}
+                                className="rounded-lg bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400"
+                                title="Reverse Transaction"
+                              >
+                                ↩️
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Analytics Breakdown Views */
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(() => {
+              const groupingKey =
+                analyticsTab === "bank"
+                  ? "beneficiary_bank"
+                  : analyticsTab === "portal"
+                  ? "portal_id"
+                  : analyticsTab === "method"
+                  ? "transfer_method"
+                  : analyticsTab === "collection"
+                  ? "customer_pay_method"
+                  : "paid_from";
+
+              const map = new Map<string, { count: number; volume: number; income: number }>();
+              for (const t of transactions) {
+                if (t.service_type !== "dmt" || t.status !== "success") continue;
+                let rawVal = (t as any)[groupingKey] || "Other / Unassigned";
+                if (analyticsTab === "portal") {
+                  rawVal = portals.find((p) => p.id === rawVal)?.name || "Default Portal";
+                }
+                const cur = map.get(rawVal) || { count: 0, volume: 0, income: 0 };
+                cur.count++;
+                cur.volume += Number(t.amount || 0);
+                cur.income += Number(t.service_fee || 0) + Number(t.portal_commission || 0);
+                map.set(rawVal, cur);
+              }
+
+              const rows = Array.from(map.entries()).sort((a, b) => b[1].volume - a[1].volume);
+
+              if (rows.length === 0) {
+                return (
+                  <div className="col-span-full py-8 text-center text-xs text-slate-400">
+                    No transactions recorded for this breakdown dimension yet.
+                  </div>
+                );
+              }
+
+              return rows.map(([label, metrics], idx) => (
+                <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5 dark:border-white/10 dark:bg-white/5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-900 dark:text-white capitalize text-xs">{label}</span>
+                    <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                      {metrics.count} txns
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Volume:</span>
+                    <strong className="text-slate-900 dark:text-white">{inr(metrics.volume)}</strong>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Income:</span>
+                    <strong className="text-emerald-600 dark:text-emerald-400">+{inr(metrics.income)}</strong>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        )}
       </div>
 
       {/* ===============================================================================
-          5. CONFIRMATION REVIEW MODAL
+          6. CONFIRMATION REVIEW MODAL
       =============================================================================== */}
       {confirmWindowOpen && (
         <FloatingWindow
@@ -1699,7 +1858,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          6. TRANSACTION SUCCESS MODAL
+          7. TRANSACTION SUCCESS MODAL
       =============================================================================== */}
       {successWindowOpen && lastCompletedTxn && (
         <FloatingWindow
@@ -1755,7 +1914,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          7. ADD CUSTOMER MODAL
+          8. ADD CUSTOMER MODAL
       =============================================================================== */}
       {addCustomerWindowOpen && (
         <FloatingWindow
@@ -1847,7 +2006,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          8. ADD BENEFICIARY MODAL (Deterministic Deduplication Guard)
+          9. ADD BENEFICIARY MODAL (Deterministic Deduplication Guard)
       =============================================================================== */}
       {addBeneficiaryWindowOpen && (
         <FloatingWindow
@@ -1972,7 +2131,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          9. EDIT TRANSACTION MODAL (Non-Financial Corrections)
+          10. EDIT TRANSACTION MODAL (Non-Financial Corrections)
       =============================================================================== */}
       {editTxnWindowOpen && editingTxn && (
         <FloatingWindow
@@ -2056,7 +2215,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          10. REVERSE TRANSACTION MODAL
+          11. REVERSE TRANSACTION MODAL
       =============================================================================== */}
       {reverseWindowOpen && reversingTxn && (
         <FloatingWindow
@@ -2067,7 +2226,7 @@ export default function DmtWorkspace({
         >
           <form onSubmit={handleProcessReverse} className="p-5 space-y-4 text-xs">
             <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
-              <strong>Transaction Reversal Warning:</strong> This will reverse the cash collection of {inr(Number(reversingTxn.amount || 0) + Number(reversingTxn.service_fee || 0))} and adjust ledger postings. The original transaction will be preserved as 'REVERSED'.
+              <strong>Transaction Reversal Warning:</strong> This will reverse the customer collection of {inr(Number(reversingTxn.amount || 0) + Number(reversingTxn.service_fee || 0))} and adjust double-entry ledger postings. The original transaction is permanently preserved as 'REVERSED'.
             </div>
 
             <div className="rounded-xl bg-slate-50 p-3 space-y-1 dark:bg-white/5">
@@ -2112,7 +2271,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          11. DETAILED TRANSACTION AUDIT VIEW MODAL
+          12. DETAILED TRANSACTION AUDIT VIEW MODAL
       =============================================================================== */}
       {selectedDetailTxn && (
         <FloatingWindow
@@ -2210,7 +2369,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          12. SCAN & FILL MODAL
+          13. SCAN & FILL MODAL
       =============================================================================== */}
       {scanModalOpen && (
         <ScanFillModal
