@@ -249,7 +249,7 @@ export default function DashboardShell({
         </header>
 
         <ModuleQuickNav />
-        <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
+        <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6">
           {children}
         </div>
       </div>
