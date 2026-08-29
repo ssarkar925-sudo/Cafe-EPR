@@ -2,12 +2,15 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "light" | "dark" | "system" | "gradient";
-export type GradientPreset = "aurora" | "ocean" | "royal" | "sunset" | "emerald" | "cosmic";
+export type DisplayMode = "light" | "dark" | "system";
+export type DesignStyle = "classic" | "modern" | "premium-gradient";
+export type MotionMode = "on" | "off";
 export type AccentColor = "blue" | "emerald" | "violet" | "amber" | "rose" | "cyan";
 export type DensityMode = "comfortable" | "compact";
 export type FontScale = "standard" | "large";
-export type DesignStyle = "cafe" | "glass" | "clean" | "midnight" | "organic" | "neon" | "corporate";
+
+// Backwards compatibility alias
+export type Theme = DisplayMode;
 
 export interface AccentOption {
   key: AccentColor;
@@ -17,94 +20,6 @@ export interface AccentOption {
   badgeClass: string;
   primaryClass: string;
 }
-
-export interface GradientPresetOption {
-  id: GradientPreset;
-  name: string;
-  primary: string;
-  secondary: string;
-  highlight: string;
-  primaryName: string;
-  secondaryName: string;
-  highlightName: string;
-  mood: string;
-  bgGradient: string;
-}
-
-export const GRADIENT_PRESETS: GradientPresetOption[] = [
-  {
-    id: "aurora",
-    name: "Aurora",
-    primary: "#2563eb",
-    secondary: "#7c3aed",
-    highlight: "#06b6d4",
-    primaryName: "Sapphire Blue",
-    secondaryName: "Violet",
-    highlightName: "Cyan",
-    mood: "Elegant / futuristic / premium",
-    bgGradient: "from-blue-600 via-violet-600 to-cyan-500",
-  },
-  {
-    id: "ocean",
-    name: "Ocean Luxe",
-    primary: "#0284c7",
-    secondary: "#0d9488",
-    highlight: "#22d3ee",
-    primaryName: "Deep Blue",
-    secondaryName: "Teal",
-    highlightName: "Cyan",
-    mood: "Professional / calm",
-    bgGradient: "from-sky-600 via-teal-600 to-cyan-400",
-  },
-  {
-    id: "royal",
-    name: "Royal",
-    primary: "#4f46e5",
-    secondary: "#8b5cf6",
-    highlight: "#60a5fa",
-    primaryName: "Indigo",
-    secondaryName: "Violet",
-    highlightName: "Soft Blue",
-    mood: "Luxury / sophisticated",
-    bgGradient: "from-indigo-600 via-violet-500 to-blue-400",
-  },
-  {
-    id: "sunset",
-    name: "Sunset Luxe",
-    primary: "#f59e0b",
-    secondary: "#e11d48",
-    highlight: "#9333ea",
-    primaryName: "Amber",
-    secondaryName: "Rose",
-    highlightName: "Violet",
-    mood: "Warm / premium",
-    bgGradient: "from-amber-500 via-rose-600 to-purple-600",
-  },
-  {
-    id: "emerald",
-    name: "Emerald Luxe",
-    primary: "#059669",
-    secondary: "#0f766e",
-    highlight: "#06b6d4",
-    primaryName: "Emerald",
-    secondaryName: "Teal",
-    highlightName: "Cyan",
-    mood: "Financial / natural / professional",
-    bgGradient: "from-emerald-600 via-teal-700 to-cyan-500",
-  },
-  {
-    id: "cosmic",
-    name: "Cosmic",
-    primary: "#6d28d9",
-    secondary: "#2563eb",
-    highlight: "#d946ef",
-    primaryName: "Deep Violet",
-    secondaryName: "Blue",
-    highlightName: "Magenta",
-    mood: "Cinematic / futuristic",
-    bgGradient: "from-purple-700 via-blue-600 to-fuchsia-500",
-  },
-];
 
 export const ACCENT_PALETTES: AccentOption[] = [
   {
@@ -157,65 +72,89 @@ export const ACCENT_PALETTES: AccentOption[] = [
   },
 ];
 
-export const DESIGN_STYLES: {
+export const DESIGN_STYLE_OPTIONS: {
   key: DesignStyle;
   label: string;
+  badge: string;
   description: string;
-  accent: string;
-  page: string;
-  surface: string;
-  radius: string;
-  bestFor: string;
 }[] = [
   {
-    key: "clean",
-    label: "3D Spatial Desktop",
-    description: "Authentic macOS-inspired spatial business workstation",
-    accent: "#2563eb",
-    page: "#f8fafc",
-    surface: "#ffffff",
-    radius: "20px",
-    bestFor: "Enterprise ERP & fast counter operations",
+    key: "classic",
+    label: "Classic ERP",
+    badge: "Clean",
+    description: "Traditional high-efficiency business interface with crisp contrast and solid surfaces.",
+  },
+  {
+    key: "modern",
+    label: "Modern Spatial",
+    badge: "Contemporary",
+    description: "Elevated macOS-inspired spatial workstation with subtle borders and smooth geometry.",
+  },
+  {
+    key: "premium-gradient",
+    label: "✨ Premium Gradient",
+    badge: "Cinematic",
+    description: "Multicolor ambient illumination (Royal Violet → Blue → Cyan → Pink) in both Light and Dark modes.",
   },
 ];
 
-const THEME_KEY = "sccomm-theme";
-const GRADIENT_PRESET_KEY = "sccomm-gradient-preset";
+const DISPLAY_MODE_KEY = "sccomm-display-mode";
+const LEGACY_THEME_KEY = "sccomm-theme";
+const DESIGN_STYLE_KEY = "sccomm-design-style";
+const MOTION_KEY = "sccomm-motion-enabled";
 const ACCENT_KEY = "sccomm-accent";
 const DENSITY_KEY = "sccomm-density";
 const FONT_SCALE_KEY = "sccomm-font-scale";
-const DESIGN_KEY = "sccomm-design";
 
 interface ThemeContextValue {
-  theme: Theme;
-  resolvedTheme: "light" | "dark";
-  gradientPreset: GradientPreset;
+  displayMode: DisplayMode;
+  resolvedDisplayMode: "light" | "dark";
+  designStyle: DesignStyle;
+  motion: MotionMode;
   accent: AccentColor;
   density: DensityMode;
   fontScale: FontScale;
-  design: DesignStyle;
-  setTheme: (t: Theme) => void;
-  setGradientPreset: (g: GradientPreset) => void;
+  setDisplayMode: (m: DisplayMode) => void;
+  setDesignStyle: (s: DesignStyle) => void;
+  setMotion: (m: MotionMode) => void;
   setAccent: (a: AccentColor) => void;
   setDensity: (d: DensityMode) => void;
   setFontScale: (f: FontScale) => void;
-  setDesign: (d: DesignStyle) => void;
-  toggleTheme: () => void;
+  toggleDisplayMode: () => void;
   resetToDefaults: () => void;
+
+  // Compatibility aliases
+  theme: DisplayMode;
+  resolvedTheme: "light" | "dark";
+  design: DesignStyle;
+  setTheme: (t: DisplayMode) => void;
+  setDesign: (s: DesignStyle) => void;
+  toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function getStoredTheme(): Theme {
+export function getStoredDisplayMode(): DisplayMode {
   if (typeof window === "undefined") return "system";
-  const stored = localStorage.getItem(THEME_KEY) as Theme | null;
-  return stored === "light" || stored === "dark" || stored === "system" || stored === "gradient" ? stored : "system";
+  const stored = (localStorage.getItem(DISPLAY_MODE_KEY) || localStorage.getItem(LEGACY_THEME_KEY)) as string | null;
+  if (stored === "light" || stored === "dark" || stored === "system") return stored;
+  if (stored === "gradient") return "dark"; // migrate old gradient theme mode
+  return "system";
 }
 
-export function getStoredGradientPreset(): GradientPreset {
-  if (typeof window === "undefined") return "aurora";
-  const stored = localStorage.getItem(GRADIENT_PRESET_KEY) as GradientPreset | null;
-  return GRADIENT_PRESETS.some((p) => p.id === stored) ? (stored as GradientPreset) : "aurora";
+export function getStoredDesignStyle(): DesignStyle {
+  if (typeof window === "undefined") return "premium-gradient";
+  const stored = localStorage.getItem(DESIGN_STYLE_KEY) as DesignStyle | null;
+  if (stored === "classic" || stored === "modern" || stored === "premium-gradient") return stored;
+  // If legacy theme was gradient, default to premium-gradient design style
+  const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
+  if (legacyTheme === "gradient") return "premium-gradient";
+  return "premium-gradient";
+}
+
+export function getStoredMotion(): MotionMode {
+  if (typeof window === "undefined") return "on";
+  return localStorage.getItem(MOTION_KEY) === "off" ? "off" : "on";
 }
 
 export function getStoredAccent(): AccentColor {
@@ -234,28 +173,26 @@ export function getStoredFontScale(): FontScale {
   return localStorage.getItem(FONT_SCALE_KEY) === "large" ? "large" : "standard";
 }
 
-export function getStoredDesign(): DesignStyle {
-  return "clean";
-}
-
 export function applyTheme(
-  theme: Theme,
-  gradientPreset: GradientPreset = "aurora",
+  displayMode: DisplayMode,
+  designStyle: DesignStyle = "premium-gradient",
+  motion: MotionMode = "on",
   accent: AccentColor = "blue",
   density: DensityMode = "comfortable",
-  fontScale: FontScale = "standard",
-  design: DesignStyle = "clean"
+  fontScale: FontScale = "standard"
 ) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   const isDark =
-    theme === "dark" ||
-    theme === "gradient" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    displayMode === "dark" ||
+    (displayMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   root.classList.toggle("dark", isDark);
-  root.setAttribute("data-theme", theme === "gradient" ? "gradient" : isDark ? "dark" : "light");
-  root.setAttribute("data-gradient-preset", gradientPreset);
+  root.setAttribute("data-display-mode", isDark ? "dark" : "light");
+  root.setAttribute("data-theme", isDark ? "dark" : "light");
+  root.setAttribute("data-design-style", designStyle);
+  root.setAttribute("data-motion", motion);
+  root.classList.toggle("motion-reduce", motion === "off");
   root.setAttribute("data-accent", accent);
   root.setAttribute("data-density", density);
   root.setAttribute("data-font-scale", fontScale);
@@ -263,63 +200,62 @@ export function applyTheme(
   root.classList.toggle("font-scale-large", fontScale === "large");
 }
 
-export const getTheme = getStoredTheme;
-export const setTheme = (theme: Theme) => {
+export const getTheme = getStoredDisplayMode;
+export const setTheme = (displayMode: DisplayMode) => {
   try {
-    localStorage.setItem(THEME_KEY, theme);
+    localStorage.setItem(DISPLAY_MODE_KEY, displayMode);
+    localStorage.setItem(LEGACY_THEME_KEY, displayMode);
   } catch {}
   applyTheme(
-    theme,
-    getStoredGradientPreset(),
+    displayMode,
+    getStoredDesignStyle(),
+    getStoredMotion(),
     getStoredAccent(),
     getStoredDensity(),
-    getStoredFontScale(),
-    getStoredDesign()
+    getStoredFontScale()
   );
 };
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [gradientPreset, setGradientPresetState] = useState<GradientPreset>("aurora");
+  const [displayMode, setDisplayModeState] = useState<DisplayMode>("system");
+  const [designStyle, setDesignStyleState] = useState<DesignStyle>("premium-gradient");
+  const [motion, setMotionState] = useState<MotionMode>("on");
   const [accent, setAccentState] = useState<AccentColor>("blue");
   const [density, setDensityState] = useState<DensityMode>("comfortable");
   const [fontScale, setFontScaleState] = useState<FontScale>("standard");
-  const [design, setDesignState] = useState<DesignStyle>("clean");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [resolvedDisplayMode, setResolvedDisplayMode] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const t = getStoredTheme();
-    const g = getStoredGradientPreset();
+    const m = getStoredDisplayMode();
+    const s = getStoredDesignStyle();
+    const mot = getStoredMotion();
     const a = getStoredAccent();
     const d = getStoredDensity();
     const f = getStoredFontScale();
-    const s = getStoredDesign();
 
-    setThemeState(t);
-    setGradientPresetState(g);
+    setDisplayModeState(m);
+    setDesignStyleState(s);
+    setMotionState(mot);
     setAccentState(a);
     setDensityState(d);
     setFontScaleState(f);
-    setDesignState(s);
 
     const dark =
-      t === "dark" ||
-      t === "gradient" ||
-      (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    setResolvedTheme(dark ? "dark" : "light");
-    applyTheme(t, g, a, d, f, s);
+      m === "dark" || (m === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setResolvedDisplayMode(dark ? "dark" : "light");
+    applyTheme(m, s, mot, a, d, f);
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
-      if (getStoredTheme() === "system") {
-        setResolvedTheme(mq.matches ? "dark" : "light");
+      if (getStoredDisplayMode() === "system") {
+        setResolvedDisplayMode(mq.matches ? "dark" : "light");
         applyTheme(
           "system",
-          getStoredGradientPreset(),
+          getStoredDesignStyle(),
+          getStoredMotion(),
           getStoredAccent(),
           getStoredDensity(),
-          getStoredFontScale(),
-          getStoredDesign()
+          getStoredFontScale()
         );
       }
     };
@@ -327,25 +263,32 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  function handleSetTheme(next: Theme) {
-    setThemeState(next);
+  function handleSetDisplayMode(next: DisplayMode) {
+    setDisplayModeState(next);
     try {
-      localStorage.setItem(THEME_KEY, next);
+      localStorage.setItem(DISPLAY_MODE_KEY, next);
+      localStorage.setItem(LEGACY_THEME_KEY, next);
     } catch {}
     const dark =
-      next === "dark" ||
-      next === "gradient" ||
-      (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    setResolvedTheme(dark ? "dark" : "light");
-    applyTheme(next, gradientPreset, accent, density, fontScale, design);
+      next === "dark" || (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setResolvedDisplayMode(dark ? "dark" : "light");
+    applyTheme(next, designStyle, motion, accent, density, fontScale);
   }
 
-  function handleSetGradientPreset(next: GradientPreset) {
-    setGradientPresetState(next);
+  function handleSetDesignStyle(next: DesignStyle) {
+    setDesignStyleState(next);
     try {
-      localStorage.setItem(GRADIENT_PRESET_KEY, next);
+      localStorage.setItem(DESIGN_STYLE_KEY, next);
     } catch {}
-    applyTheme(theme, next, accent, density, fontScale, design);
+    applyTheme(displayMode, next, motion, accent, density, fontScale);
+  }
+
+  function handleSetMotion(next: MotionMode) {
+    setMotionState(next);
+    try {
+      localStorage.setItem(MOTION_KEY, next);
+    } catch {}
+    applyTheme(displayMode, designStyle, next, accent, density, fontScale);
   }
 
   function handleSetAccent(next: AccentColor) {
@@ -353,7 +296,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(ACCENT_KEY, next);
     } catch {}
-    applyTheme(theme, gradientPreset, next, density, fontScale, design);
+    applyTheme(displayMode, designStyle, motion, next, density, fontScale);
   }
 
   function handleSetDensity(next: DensityMode) {
@@ -361,7 +304,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(DENSITY_KEY, next);
     } catch {}
-    applyTheme(theme, gradientPreset, accent, next, fontScale, design);
+    applyTheme(displayMode, designStyle, motion, accent, next, fontScale);
   }
 
   function handleSetFontScale(next: FontScale) {
@@ -369,68 +312,68 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     try {
       localStorage.setItem(FONT_SCALE_KEY, next);
     } catch {}
-    applyTheme(theme, gradientPreset, accent, density, next, design);
+    applyTheme(displayMode, designStyle, motion, accent, density, next);
   }
 
-  function handleSetDesign(next: DesignStyle) {
-    setDesignState(next);
-    try {
-      localStorage.setItem(DESIGN_KEY, next);
-    } catch {}
-    applyTheme(theme, gradientPreset, accent, density, fontScale, next);
-  }
-
-  function toggleTheme() {
-    // Cycles between light, dark, and gradient
-    const nextTheme: Theme = resolvedTheme === "dark" ? (theme === "gradient" ? "light" : "dark") : "dark";
-    handleSetTheme(nextTheme);
+  function toggleDisplayMode() {
+    const next: DisplayMode = resolvedDisplayMode === "dark" ? "light" : "dark";
+    handleSetDisplayMode(next);
   }
 
   function resetToDefaults() {
-    const nextTheme: Theme = "system";
-    const nextGradient: GradientPreset = "aurora";
+    const nextMode: DisplayMode = "system";
+    const nextStyle: DesignStyle = "premium-gradient";
+    const nextMotion: MotionMode = "on";
     const nextAccent: AccentColor = "blue";
     const nextDensity: DensityMode = "comfortable";
     const nextFontScale: FontScale = "standard";
-    const nextDesign: DesignStyle = "clean";
 
-    setThemeState(nextTheme);
-    setGradientPresetState(nextGradient);
+    setDisplayModeState(nextMode);
+    setDesignStyleState(nextStyle);
+    setMotionState(nextMotion);
     setAccentState(nextAccent);
     setDensityState(nextDensity);
     setFontScaleState(nextFontScale);
-    setDesignState(nextDesign);
-    setResolvedTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    setResolvedDisplayMode(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
     try {
-      localStorage.setItem(THEME_KEY, nextTheme);
-      localStorage.setItem(GRADIENT_PRESET_KEY, nextGradient);
+      localStorage.setItem(DISPLAY_MODE_KEY, nextMode);
+      localStorage.setItem(LEGACY_THEME_KEY, nextMode);
+      localStorage.setItem(DESIGN_STYLE_KEY, nextStyle);
+      localStorage.setItem(MOTION_KEY, nextMotion);
       localStorage.setItem(ACCENT_KEY, nextAccent);
       localStorage.setItem(DENSITY_KEY, nextDensity);
       localStorage.setItem(FONT_SCALE_KEY, nextFontScale);
-      localStorage.setItem(DESIGN_KEY, nextDesign);
     } catch {}
-    applyTheme(nextTheme, nextGradient, nextAccent, nextDensity, nextFontScale, nextDesign);
+    applyTheme(nextMode, nextStyle, nextMotion, nextAccent, nextDensity, nextFontScale);
   }
 
   return (
     <ThemeContext.Provider
       value={{
-        theme,
-        resolvedTheme,
-        gradientPreset,
+        displayMode,
+        resolvedDisplayMode,
+        designStyle,
+        motion,
         accent,
         density,
         fontScale,
-        design,
-        setTheme: handleSetTheme,
-        setGradientPreset: handleSetGradientPreset,
+        setDisplayMode: handleSetDisplayMode,
+        setDesignStyle: handleSetDesignStyle,
+        setMotion: handleSetMotion,
         setAccent: handleSetAccent,
         setDensity: handleSetDensity,
         setFontScale: handleSetFontScale,
-        setDesign: handleSetDesign,
-        toggleTheme,
+        toggleDisplayMode,
         resetToDefaults,
+
+        // Aliases
+        theme: displayMode,
+        resolvedTheme: resolvedDisplayMode,
+        design: designStyle,
+        setTheme: handleSetDisplayMode,
+        setDesign: handleSetDesignStyle,
+        toggleTheme: toggleDisplayMode,
       }}
     >
       {children}
@@ -443,4 +386,5 @@ export function useTheme() {
   if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
   return ctx;
 }
+
 

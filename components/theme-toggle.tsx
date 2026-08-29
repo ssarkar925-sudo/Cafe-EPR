@@ -2,14 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useTheme, ACCENT_PALETTES, type Theme, type AccentColor } from "./theme-provider";
+import {
+  useTheme,
+  ACCENT_PALETTES,
+  DESIGN_STYLE_OPTIONS,
+  type DisplayMode,
+  type DesignStyle,
+} from "./theme-provider";
 
 export default function ThemeToggle({
   className = "",
 }: {
   className?: string;
 }) {
-  const { theme, resolvedTheme, accent, setTheme, setAccent } = useTheme();
+  const {
+    displayMode,
+    resolvedDisplayMode,
+    designStyle,
+    accent,
+    setDisplayMode,
+    setDesignStyle,
+    setAccent,
+  } = useTheme();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -32,11 +46,11 @@ export default function ThemeToggle({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        title={`Theme: ${theme} (Click to customize)`}
+        title={`Appearance: ${displayMode} · ${designStyle} (Click to customize)`}
         className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
         aria-label="Toggle theme and appearance"
       >
-        {resolvedTheme === "dark" ? (
+        {resolvedDisplayMode === "dark" ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-amber-400">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
@@ -57,7 +71,7 @@ export default function ThemeToggle({
 
       {/* Theme & Palette Dropdown Menu */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900 dark:ring-white/10 z-50 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900 dark:ring-white/10 z-50 animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
             <span className="text-xs font-bold text-slate-900 dark:text-white">Appearance &amp; Theme</span>
             <Link
@@ -69,26 +83,25 @@ export default function ThemeToggle({
             </Link>
           </div>
 
-          {/* Theme Modes */}
+          {/* 1. Display Mode */}
           <div className="mt-2.5">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
               Display Mode
             </div>
-            <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+            <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
               {(
                 [
-                  { key: "light", label: "Light", icon: "M12 3v2m0 14v2M5.6 5.6l1.4 1.4m9.9 9.9 1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m9.9-9.9 1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" },
-                  { key: "dark", label: "Dark", icon: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" },
-                  { key: "system", label: "Auto", icon: "M12 3a9 9 0 0 0 0 18c.5-2 .5-3.5 0-5a4.5 4.5 0 0 1 0-8c.5-1.5.5-3 0-5ZM3.5 12h17" },
-                  { key: "gradient", label: "Gradient", icon: "M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z" },
-                ] as const
+                  { key: "light" as DisplayMode, label: "Light" },
+                  { key: "dark" as DisplayMode, label: "Dark" },
+                  { key: "system" as DisplayMode, label: "Auto" },
+                ]
               ).map((m) => {
-                const active = theme === m.key;
+                const active = displayMode === m.key;
                 return (
                   <button
                     key={m.key}
                     type="button"
-                    onClick={() => setTheme(m.key)}
+                    onClick={() => setDisplayMode(m.key)}
                     className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold transition ${
                       active
                         ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
@@ -102,7 +115,39 @@ export default function ThemeToggle({
             </div>
           </div>
 
-          {/* Accent Color Palette Dots */}
+          {/* 2. Design Style */}
+          <div className="mt-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
+              Design Style
+            </div>
+            <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+              {(
+                [
+                  { key: "classic" as DesignStyle, label: "Classic" },
+                  { key: "modern" as DesignStyle, label: "Modern" },
+                  { key: "premium-gradient" as DesignStyle, label: "✨ Gradient" },
+                ]
+              ).map((s) => {
+                const active = designStyle === s.key;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setDesignStyle(s.key)}
+                    className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-bold transition ${
+                      active
+                        ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    }`}
+                  >
+                    <span>{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. Accent Color Palette Dots */}
           <div className="mt-3">
             <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1.5">
               <span>Brand Accent</span>
