@@ -24,9 +24,23 @@ export default async function PosPage({ searchParams }: { searchParams: Promise<
   const salesTodayCount = activeInvoices.length;
   const salesTodayAmount = activeInvoices.reduce((s: number, i: any) => s + Number(i.total), 0);
   const enabledMethods = (paymentMethods ?? []).map((p: any) => p.method);
-  return <main className="pos-premium-root">
-    <style>{`@media (min-width:1024px){.pos-premium-root aside.hidden.lg\\:block>div.sticky{position:fixed!important;top:250px!important;left:calc(var(--sidebar-width, 292px) + 28px)!important;width:260px!important;height:calc(100vh - 275px)!important;max-height:none!important;z-index:30!important}.pos-premium-root aside.hidden.lg\\:block{width:260px!important;min-width:260px!important}}@media(max-width:1023px){.pos-premium-root aside.hidden.lg\\:block>div.sticky{position:relative!important;top:auto!important;left:auto!important;width:100%!important;height:auto!important;max-height:none!important}}`}</style>
-    <PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} />
-    <PosClient products={(products ?? []) as any} services={(services ?? []) as any} customers={(customers ?? []) as any} instruments={(instruments ?? []) as any} salesTodayCount={salesTodayCount} salesTodayAmount={salesTodayAmount} initialCustomerId={customer || ""} initialMode={mode === "quick" ? "quick" : "invoice"} todayQuickSales={(todaysQuick ?? []) as any} enabledMethods={enabledMethods} canViewProfit={canViewProfit} todayInvoices={(todaysInvoices ?? []) as any} />
-  </main>;
+  return (
+    <div className="pos-premium-root">
+      <PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} />
+      <PosClient
+        products={(products ?? []) as any}
+        services={(services ?? []) as any}
+        customers={(customers ?? []) as any}
+        instruments={(instruments ?? []) as any}
+        salesTodayCount={salesTodayCount}
+        salesTodayAmount={salesTodayAmount}
+        initialCustomerId={customer || ""}
+        initialMode={mode === "quick" ? "quick" : "invoice"}
+        todayQuickSales={(todaysQuick ?? []) as any}
+        enabledMethods={enabledMethods}
+        canViewProfit={canViewProfit}
+        todayInvoices={(todaysInvoices ?? []) as any}
+      />
+    </div>
+  );
 }
