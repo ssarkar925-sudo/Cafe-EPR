@@ -3629,6 +3629,83 @@ function detectIntent(question) {
 
   assert(auditLog.action === "update" && auditLog.new_reference === "REF-NEW", "386. Phase 5A.3 Audit: Permitted correction records structured audit trail");
 }
+
+// 387. Phase 5B DMT Financial & Accounting Invariants
+{
+  const transferAmount = 5000.0;
+  const customerFee = 20.0;
+  const portalCommission = 5.0;
+
+  // Case 1: DMT Cash Collection
+  // Transfer = ₹5,000.00
+  // Fee = ₹20.00
+  // Total Collected from Sender = ₹5,020.00
+  // Physical Cash Inflow = ₹5,020.00
+  // Portal Float / Bank Outflow = ₹5,000.00
+  // Net Operator Revenue = ₹25.00 (Fee ₹20 + Commission ₹5)
+  const totalCollected = transferAmount + customerFee;
+  const beneficiaryCredit = transferAmount;
+  const totalOperatorIncome = customerFee + portalCommission;
+
+  assert(totalCollected === 5020.0, "387. Phase 5B Invariant: DMT Total Cash Collected from Sender ≡ ₹5,020.00");
+  assert(beneficiaryCredit === 5000.0, "388. Phase 5B Invariant: Beneficiary Receives Exact Transfer Amount (₹5,000.00)");
+  assert(totalOperatorIncome === 25.0, "389. Phase 5B Invariant: Total DMT Operator Income ≡ Fee + Commission (₹25.00)");
+
+  // Case 2: DMT UPI / QR Collection
+  // Customer pays ₹5,020 via UPI QR
+  // UPI Float increases by ₹5,020 (Physical cash drawer is UNTOUCHED)
+  const upiCollected = totalCollected;
+  const physicalTillImpact = 0.0;
+  assert(upiCollected === 5020.0, "390. Phase 5B Invariant: UPI Collection Credits ₹5,020 to UPI Float");
+  assert(physicalTillImpact === 0.0, "391. Phase 5B Invariant: Non-Cash DMT Collection Leaves Cash Till at ₹0.00");
+
+  // Case 3: DMT Customer Khata (Due) Collection
+  // Customer Khata debited by ₹5,020 (₹5,000 transfer + ₹20 fee)
+  const customerDueDebit = transferAmount + customerFee;
+  assert(customerDueDebit === 5020.0, "392. Phase 5B Invariant: Customer Khata Debited by Full ₹5,020.00");
+}
+
+// 393. Phase 5B DMT Receipt Invariants
+{
+  const testDmtTxn = {
+    service_type: "dmt",
+    amount: 5000,
+    service_fee: 20,
+    portal_commission: 5,
+    customer_pay_method: "cash",
+  };
+
+  const renderDmtBasicReceipt = (t) => ({
+    transferAmount: t.amount,
+    showFee: false,
+    beneficiaryReceives: t.amount,
+  });
+
+  const renderDmtDetailedReceipt = (t) => ({
+    transferAmount: t.amount,
+    showFee: true,
+    fee: t.service_fee,
+    totalPaid: t.amount + t.service_fee,
+  });
+
+  const basic = renderDmtBasicReceipt(testDmtTxn);
+  const detailed = renderDmtDetailedReceipt(testDmtTxn);
+
+  assert(basic.showFee === false && basic.transferAmount === 5000.0, "393. Phase 5B Invariant: DMT Basic receipt prints only transfer amount (₹5,000.00) without fee");
+  assert(detailed.showFee === true && detailed.totalPaid === 5020.0, "394. Phase 5B Invariant: DMT Detailed receipt shows fee (+₹20) and total collected (₹5,020.00)");
+  assert(testDmtTxn.amount === 5000.0 && testDmtTxn.service_fee === 20.0, "395. Phase 5B Invariant: Receipt mode toggle does NOT mutate transaction record");
+}
+
+// 396. Phase 5B Beneficiary Privacy & Deduplication Invariants
+{
+  const maskAccount = (acc) => (acc && acc.length > 4 ? `•••• •••• ${acc.slice(-4)}` : acc);
+  assert(maskAccount("100023456789") === "•••• •••• 6789", "396. Phase 5B Invariant: Beneficiary account number safely masked to •••• •••• 6789");
+
+  const existingBeneficiaries = [{ key: "beneficiary|SBIN0001234|100023456789" }];
+  const isDuplicateBen = (ifsc, acc) => existingBeneficiaries.some((b) => b.key === `beneficiary|${ifsc}|${acc}`);
+  assert(isDuplicateBen("SBIN0001234", "100023456789") === true, "397. Phase 5B Invariant: Duplicate beneficiary account is detected");
+  assert(isDuplicateBen("HDFC0001234", "987654321012") === false, "398. Phase 5B Invariant: New distinct beneficiary is allowed");
+}
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

@@ -211,6 +211,65 @@ export default async function BusinessReceiptA4Page({
               </div>
             </>
           )}
+          {service === "dmt" && (
+            <>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Transfer Mode</span>
+                <span className="font-medium text-slate-900">{txn.transfer_method === "upi" ? "UPI Remittance" : "Bank Transfer (IMPS/NEFT)"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Sender Name</span>
+                <span className="font-medium text-slate-900">{txn.sender_name || txn.customers?.name || "Walk-in"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Beneficiary Name</span>
+                <span className="font-medium text-slate-900">{txn.beneficiary_name || txn.receiver_name || "Beneficiary"}</span>
+              </div>
+              {txn.transfer_method === "upi" ? (
+                <div className="flex justify-between border-b border-slate-100 py-1.5">
+                  <span className="text-slate-600">Beneficiary UPI ID</span>
+                  <span className="font-medium text-slate-900">{txn.upi_id || "-"}</span>
+                </div>
+              ) : (
+                <>
+                  {txn.beneficiary_bank && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5">
+                      <span className="text-slate-600">Beneficiary Bank</span>
+                      <span className="font-medium text-slate-900">{txn.beneficiary_bank}</span>
+                    </div>
+                  )}
+                  {txn.beneficiary_ifsc && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5">
+                      <span className="text-slate-600">Bank IFSC</span>
+                      <span className="font-medium text-slate-900">{txn.beneficiary_ifsc}</span>
+                    </div>
+                  )}
+                  {txn.beneficiary_account && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5">
+                      <span className="text-slate-600">Account Number</span>
+                      <span className="font-medium text-slate-900">•••• •••• {txn.beneficiary_account.slice(-4)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                <span>Transfer Amount</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {isDetailed && Number(txn.service_fee || 0) > 0 && (
+                <>
+                  <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                    <span>Service Fee (Paid via {txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
+                    <span>+{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                    <span>Total Paid by Customer</span>
+                    <span className="text-slate-900">{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
           {txn.remarks && (
             <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">

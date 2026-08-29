@@ -199,6 +199,66 @@ export default async function BusinessReceiptPage({
               </div>
             </>
           )}
+          {service === "dmt" && (
+            <>
+              <div className="flex justify-between">
+                <span>Transfer Mode</span>
+                <span>{txn.transfer_method === "upi" ? "UPI VPA" : "Bank IMPS/NEFT"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Sender</span>
+                <span>{txn.sender_name || txn.customers?.name || "Walk-in"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Beneficiary</span>
+                <span>{txn.beneficiary_name || txn.receiver_name || "Beneficiary"}</span>
+              </div>
+              {txn.transfer_method === "upi" ? (
+                <div className="flex justify-between">
+                  <span>UPI VPA</span>
+                  <span>{txn.upi_id || "-"}</span>
+                </div>
+              ) : (
+                <>
+                  {txn.beneficiary_bank && (
+                    <div className="flex justify-between">
+                      <span>Bank</span>
+                      <span>{txn.beneficiary_bank}</span>
+                    </div>
+                  )}
+                  {txn.beneficiary_ifsc && (
+                    <div className="flex justify-between">
+                      <span>IFSC</span>
+                      <span>{txn.beneficiary_ifsc}</span>
+                    </div>
+                  )}
+                  {txn.beneficiary_account && (
+                    <div className="flex justify-between">
+                      <span>Account</span>
+                      <span>XXXX XXXX {txn.beneficiary_account.slice(-4)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="my-1 border-t border-dashed border-slate-400" />
+              <div className="flex justify-between text-sm font-bold">
+                <span>TRANSFER AMOUNT</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {isDetailed && Number(txn.service_fee || 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-[11px] text-slate-600">
+                    <span>Service Fee ({txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
+                    <span>+{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-slate-900">
+                    <span>TOTAL PAID</span>
+                    <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
           {txn.remarks && (
             <>

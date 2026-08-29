@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import BusinessClient from "@/components/business/business-client";
 import AepsWorkspace from "@/components/business/aeps-workspace";
+import DmtWorkspace from "@/components/business/dmt-workspace";
 
 export const dynamic = "force-dynamic";
 
