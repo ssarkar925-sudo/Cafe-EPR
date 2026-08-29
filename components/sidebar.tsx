@@ -197,15 +197,15 @@ export default function Sidebar({
         />
       )}
 
-      {/* Main Sidebar Element */}
+      {/* Main Sidebar Element (Floating 3D Dock) */}
       <aside
         style={{
           backgroundColor: "var(--sidebar-bg)",
           borderColor: "var(--sidebar-border)",
           color: "var(--sidebar-text)",
         }}
-        className={`spatial-sidebar-dock fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ${
-          collapsed ? "w-[72px]" : "w-[280px]"
+        className={`spatial-sidebar-dock fixed inset-y-0 left-0 lg:top-3 lg:bottom-3 lg:left-3 lg:h-[calc(100vh-24px)] lg:rounded-[24px] z-50 flex flex-col transition-all duration-300 ${
+          collapsed ? "w-[72px]" : "w-[272px]"
         } ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}

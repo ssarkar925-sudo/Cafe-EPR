@@ -184,13 +184,13 @@ export default function DashboardShell({
       </header>
 
       {/* Desktop Main Workstation Layout */}
-      <main
-        className={`transition-all duration-300 ${
-          collapsed ? "lg:pl-[72px]" : "lg:pl-[280px]"
-        }`}
+      <div
+        className={`min-h-screen transition-all duration-300 ${
+          collapsed ? "lg:pl-[88px]" : "lg:pl-[288px]"
+        } lg:pr-3 lg:pt-3 lg:pb-6`}
       >
-        {/* Desktop Luxury Top Bar */}
-        <header className="sticky top-0 z-20 hidden h-16 items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80 lg:flex">
+        {/* Desktop Luxury Floating Top Bar */}
+        <header className="sticky top-3 z-20 hidden h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/90 px-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 lg:flex mb-4">
           {/* Breadcrumb & Title */}
           <div className="flex items-center gap-3">
             <div>
@@ -252,7 +252,7 @@ export default function DashboardShell({
         <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
           {children}
         </div>
-      </main>
+      </div>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
