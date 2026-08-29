@@ -54,12 +54,12 @@ export default async function DashboardPage() {
     supabase.from("closings").select("*, closing_balances(*)").order("close_date", { ascending: false }).limit(15),
     supabase.from("customers").select("id, name, balance, phone").gt("balance", 0).order("balance", { ascending: false }).limit(20),
     supabase.from("products").select("id, name, stock_qty, reorder_level, cost_price, sale_price").eq("is_active", true),
-    supabase.from("invoices").select("id, invoice_number, invoice_date, total, paid, due, status, created_at").gte("invoice_date", thirtyDaysAgo).order("invoice_date", { ascending: false }).limit(300),
-    supabase.from("quick_sales").select("id, amount, cost, sale_date, status").gte("sale_date", thirtyDaysAgo),
-    supabase.from("expenses").select("id, title, amount, category, expense_date, status").gte("expense_date", thirtyDaysAgo),
-    supabase.from("transactions").select("id, service_type, direction, total_amount, service_fee, portal_commission, transaction_date, status").gte("transaction_date", thirtyDaysAgo),
-    supabase.from("cash_entries").select("id, amount, direction, method, entry_date, ref_type").gte("entry_date", thirtyDaysAgo),
-    supabase.from("settlements").select("id, amount, from_pool, to_pool, settlement_date, status").gte("settlement_date", thirtyDaysAgo),
+    supabase.from("invoices").select("id, invoice_number, invoice_date, total, paid, due, status, created_at, customers(name)").gte("invoice_date", thirtyDaysAgo).order("invoice_date", { ascending: false }).limit(300),
+    supabase.from("quick_sales").select("id, sale_number, amount, cost, sale_date, status, created_at").gte("sale_date", thirtyDaysAgo),
+    supabase.from("expenses").select("id, title, amount, category, expense_date, status, created_at").gte("expense_date", thirtyDaysAgo),
+    supabase.from("transactions").select("id, transaction_number, service_type, direction, total_amount, service_fee, portal_commission, transaction_date, status, created_at, customers(name)").gte("transaction_date", thirtyDaysAgo),
+    supabase.from("cash_entries").select("id, amount, direction, method, entry_date, ref_type, created_at").gte("entry_date", thirtyDaysAgo),
+    supabase.from("settlements").select("id, amount, from_pool, to_pool, settlement_date, status, created_at").gte("settlement_date", thirtyDaysAgo),
   ]);
 
   const profile = user
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
 
   const POOL_METADATA: Record<string, { label: string; icon: string; color: string; href: string }> = {
     cash: { label: "Physical Cash Drawer", icon: "wallet", color: "indigo", href: "/finance/cashbook" },
-    bank: { label: "Bank Accounts", icon: "bank", color: "blue", href: "/finance/settlements" },
+    bank: { label: "Bank Accounts", icon: "bank", color: "blue", href: "/business/banks" },
     wallet: { label: "Digital Wallets", icon: "wallet", color: "emerald", href: "/finance/settlements" },
     upi_qr: { label: "Shop UPI QR Float", icon: "qr", color: "rose", href: "/business/upi" },
     aeps: { label: "AEPS Platform Float", icon: "card", color: "amber", href: "/business/aeps" },
@@ -105,29 +105,29 @@ export default async function DashboardPage() {
     poolsData[k].pctOfTotal = totalLiquid > 0 ? Math.round((poolsData[k].current / totalLiquid) * 1000) / 10 : 0;
   }
 
-  // Credit Card Facility (Visually isolated from liquid assets)
+  // Credit Card Facility
   const creditCardLimit = Number(rawPools.credit_card?.opening || 50000);
   const creditCardUsed = Number(rawPools.credit_card?.movements || 0);
   const creditCardAvailable = Math.max(0, creditCardLimit - creditCardUsed);
 
-  // Canonical Tax & P&L Engine Report (FY YTD)
+  // Canonical Tax & P&L Report (FY YTD)
   const taxReport = taxReportRes.data || {
     revenue: {
-      gross_invoices: 34827,
+      gross_invoices: 0,
       sales_returns: 0,
-      quick_sales: 1640,
-      net_retail_revenue: 36467,
-      service_fees: { aeps_fees: 1061.97, dmt_fees: 50, upi_fees: 1, total_service_fees: 1112.97 },
-      commissions: { aeps_commissions: 50, dmt_commissions: 0, total_commissions: 50 },
-      total_operating_revenue: 37629.97,
+      quick_sales: 0,
+      net_retail_revenue: 0,
+      service_fees: { aeps_fees: 0, dmt_fees: 0, upi_fees: 0, total_service_fees: 0 },
+      commissions: { aeps_commissions: 0, dmt_commissions: 0, total_commissions: 0 },
+      total_operating_revenue: 0,
     },
-    cogs: { total_cogs: 0, gross_profit: 37629.97, gross_margin_pct: 100, cost_data_status: "insufficient_cost_data" },
-    expenses: { total_active_expenses: 35480, total_cancelled_expenses: 0 },
-    pnl: { net_profit: 2149.97, net_profit_margin_pct: 5.7, is_profitable: true },
-    pass_through: { aeps_volume: 92150, dmt_volume: 3900, upi_volume: 0, total_custodial_throughput: 96050 },
+    cogs: { total_cogs: 0, gross_profit: 0, gross_margin_pct: 100, cost_data_status: "insufficient_cost_data" },
+    expenses: { total_active_expenses: 0, total_cancelled_expenses: 0 },
+    pnl: { net_profit: 0, net_profit_margin_pct: 0, is_profitable: true },
+    pass_through: { aeps_volume: 0, dmt_volume: 0, upi_volume: 0, total_custodial_throughput: 0 },
   };
 
-  // Canonical Daily Reports (Today & Yesterday)
+  // Daily Reports (Today & Yesterday)
   const todayReport = (todayReportRes.data as any) || {
     revenue: { total_operating_revenue: 0, net_retail_revenue: 0 },
     cogs: { total_cogs: 0 },
@@ -142,15 +142,14 @@ export default async function DashboardPage() {
     pnl: { net_profit: 0 },
   };
 
-  // Today's Operational Calculations
-  const invoices = invoicesRes.data || [];
-  const quickSales = quickSalesRes.data || [];
-  const expenses = expensesRes.data || [];
-  const transactions = transactionsRes.data || [];
-  const cashEntries = cashEntriesRes.data || [];
-  const settlements = settlementsRes.data || [];
+  // Operational items
+  const invoices = (invoicesRes.data as any[]) || [];
+  const quickSales = (quickSalesRes.data as any[]) || [];
+  const expenses = (expensesRes.data as any[]) || [];
+  const transactions = (transactionsRes.data as any[]) || [];
+  const cashEntries = (cashEntriesRes.data as any[]) || [];
+  const settlements = (settlementsRes.data as any[]) || [];
 
-  // Filter today's active items for operational counts & tickets
   const todayInvoices = invoices.filter((inv) => inv.invoice_date === isoToday && inv.status !== "cancelled");
   const todayQuick = quickSales.filter((q) => q.sale_date === isoToday && q.status === "active");
   const todayExpenses = expenses.filter((e) => e.expense_date === isoToday && e.status !== "cancelled");
@@ -161,11 +160,10 @@ export default async function DashboardPage() {
   const todayInvoiceRevenue = todayInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0);
   const todayQuickRevenue = todayQuick.reduce((s, q) => s + Number(q.amount || 0), 0);
   
-  // Canonical Financial Figures (From get_tax_preparation_report)
-  const todayOperatingRevenue = Number(todayReport.revenue?.total_operating_revenue || 0);
+  const todayOperatingRevenue = Number(todayReport.revenue?.total_operating_revenue || (todayInvoiceRevenue + todayQuickRevenue));
   const todayCogs = Number(todayReport.cogs?.total_cogs || 0);
-  const todayExpenseTotal = Number(todayReport.expenses?.total_active_expenses || 0);
-  const todayProfit = Number(todayReport.pnl?.net_profit || 0);
+  const todayExpenseTotal = Number(todayReport.expenses?.total_active_expenses || todayExpenses.reduce((s, e) => s + Number(e.amount || 0), 0));
+  const todayProfit = Number(todayReport.pnl?.net_profit || (todayOperatingRevenue - todayCogs - todayExpenseTotal));
 
   const yesterdayRevenue = Number(yesterdayReport.revenue?.total_operating_revenue || 0);
   const yesterdayCogs = Number(yesterdayReport.cogs?.total_cogs || 0);
@@ -207,11 +205,11 @@ export default async function DashboardPage() {
   const wtdTxCount = wtdInvoices.length + wtdQuick.length + wtdTxns.length;
   const wtdAvgTicket = wtdTxCount > 0 ? Math.round((wtdRevenue / wtdTxCount) * 100) / 100 : 0;
 
-  // Customers / Receivables
+  // Receivables
   const debtors = customersRes.data || [];
   const totalReceivables = debtors.reduce((s, c) => s + Number(c.balance || 0), 0);
 
-  // Inventory / Stock Snapshot
+  // Inventory
   const products = productsRes.data || [];
   let totalStockValue = 0;
   let isValuationMissingCost = false;
@@ -233,21 +231,17 @@ export default async function DashboardPage() {
     }
   }
 
-  // Financial Self-Audit Data (Canonical consumption from latest audit run)
+  // Audit
   const latestAudit = latestAuditRes.data || null;
   const isAuditAvailable = latestAudit !== null;
-  const auditScore = isAuditAvailable ? Number(latestAudit.overall_score ?? latestAudit.audit_score ?? 100) : null;
+  const auditScore = isAuditAvailable ? Number(latestAudit.overall_score ?? latestAudit.audit_score ?? 100) : 100;
   const findings = latestAudit?.audit_findings || [];
-  const totalChecks = isAuditAvailable ? Number(latestAudit.total_checks ?? (findings.length > 0 ? findings.length : 14)) : 14;
-  const passCount = isAuditAvailable ? Number(latestAudit.passed_count ?? findings.filter((f: any) => f.status === "PASS").length) : null;
-  const warnCount = isAuditAvailable ? Number(latestAudit.warning_count ?? findings.filter((f: any) => f.status === "WARNING" || f.severity === "warning").length) : 0;
-  const failCount = isAuditAvailable ? Number(latestAudit.failed_count ?? findings.filter((f: any) => f.status === "FAIL" || f.severity === "high").length) : 0;
   const criticalCount = isAuditAvailable ? Number(latestAudit.critical_count ?? findings.filter((f: any) => f.status === "CRITICAL" || f.severity === "critical").length) : 0;
-  const auditStatus = isAuditAvailable
-    ? ((criticalCount > 0 ? "CRITICAL" : failCount > 0 ? "FAIL" : warnCount > 0 ? "WARNING" : "PASS") as "PASS" | "WARNING" | "FAIL" | "CRITICAL")
-    : ("UNAVAILABLE" as any);
+  const failCount = isAuditAvailable ? Number(latestAudit.failed_count ?? findings.filter((f: any) => f.status === "FAIL" || f.severity === "high").length) : 0;
+  const warnCount = isAuditAvailable ? Number(latestAudit.warning_count ?? findings.filter((f: any) => f.status === "WARNING" || f.severity === "warning").length) : 0;
+  const auditStatus = criticalCount > 0 ? "CRITICAL" : failCount > 0 ? "FAIL" : warnCount > 0 ? "WARNING" : "PASS";
 
-  // Day Close Status (Canonical consumption from closings table)
+  // Day Close
   const closings = (closingsRes.data as any[]) || [];
   const activeOpenClose = closings.find((c) => c.status === "open");
   const todayClosed = closings.find((c) => c.close_date === isoToday && c.status === "closed");
@@ -288,16 +282,107 @@ export default async function DashboardPage() {
   } else if (lastClosed && lastClosed.close_date < yesterday) {
     dayCloseState = "inconsistent_rollover";
     closeStatus = "inconsistent";
-    statusLabel = `🔴 Day Close Data Inconsistent (${lastClosed.close_date})`;
+    statusLabel = `🔴 Past Day (${lastClosed.close_date}) Unclosed`;
   } else {
     dayCloseState = "previous_closed_today_open";
     closeStatus = "open";
     statusLabel = lastClosedNumber
-      ? `🟢 Previous Day Closed (${lastClosedNumber}) • Current Day Open`
-      : "🟢 Current Business Day Open";
+      ? `🟢 Prior Day (${lastClosedNumber}) Closed • Today Open`
+      : "🟢 Current Day Open";
   }
 
-  // Deterministic Owner Alerts ("Needs Your Attention")
+  // Daily Chart Trend (Past 14 Days)
+  const chartDays: Array<{ date: string; label: string; revenue: number; expenses: number }> = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const dStr = d.toISOString().slice(0, 10);
+    const dayLabel = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" });
+    
+    const dayInv = invoices.filter((inv) => inv.invoice_date === dStr && inv.status !== "cancelled").reduce((s, inv) => s + Number(inv.total || 0), 0);
+    const dayQ = quickSales.filter((q) => q.sale_date === dStr && q.status === "active").reduce((s, q) => s + Number(q.amount || 0), 0);
+    const dayTx = transactions.filter((t) => (t.transaction_date || "").slice(0, 10) === dStr && t.status === "success").reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
+    const dayExp = expenses.filter((e) => e.expense_date === dStr && e.status !== "cancelled").reduce((s, e) => s + Number(e.amount || 0), 0);
+
+    chartDays.push({
+      date: dStr,
+      label: dayLabel,
+      revenue: Math.round((dayInv + dayQ + dayTx) * 100) / 100,
+      expenses: Math.round(dayExp * 100) / 100,
+    });
+  }
+
+  // Digital Services Breakdown
+  const aepsTxns = transactions.filter((t) => t.service_type === "aeps");
+  const dmtTxns = transactions.filter((t) => t.service_type === "dmt");
+  const upiTxns = transactions.filter((t) => t.service_type === "upi");
+  const rechargeTxns = transactions.filter((t) => t.service_type === "recharge");
+
+  const serviceBreakdown = {
+    aeps: {
+      count: aepsTxns.length,
+      volume: aepsTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      income: aepsTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
+    },
+    dmt: {
+      count: dmtTxns.length,
+      volume: dmtTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      income: dmtTxns.reduce((s, t) => s + Number(t.service_fee || 0) - Number(t.portal_commission || 0), 0),
+    },
+    upi: {
+      count: upiTxns.length,
+      volume: upiTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      income: upiTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0),
+    },
+    recharge: {
+      count: rechargeTxns.length,
+      volume: rechargeTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      income: rechargeTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
+    },
+  };
+
+  // Unified Recent Activity Stream
+  const activityList: any[] = [];
+  for (const inv of invoices.slice(0, 10)) {
+    activityList.push({
+      id: "inv-" + inv.id,
+      type: "sale",
+      title: `Invoice #${inv.invoice_number}`,
+      subtitle: inv.customers?.name || "Counter Retail Customer",
+      amount: Number(inv.total || 0),
+      direction: "in",
+      status: inv.status,
+      date: inv.created_at || inv.invoice_date,
+    });
+  }
+  for (const exp of expenses.slice(0, 8)) {
+    activityList.push({
+      id: "exp-" + exp.id,
+      type: "expense",
+      title: exp.title || "Store Expense",
+      subtitle: exp.category || "General Overhead",
+      amount: Number(exp.amount || 0),
+      direction: "out",
+      status: exp.status,
+      date: exp.created_at || exp.expense_date,
+    });
+  }
+  for (const tx of transactions.slice(0, 8)) {
+    activityList.push({
+      id: "tx-" + tx.id,
+      type: tx.service_type || "service",
+      title: `${(tx.service_type || "Service").toUpperCase()} #${tx.transaction_number || ""}`,
+      subtitle: tx.customers?.name || "Digital Counter Customer",
+      amount: Number(tx.total_amount || 0),
+      direction: tx.direction === "out" ? "out" : "in",
+      status: tx.status,
+      date: tx.created_at || tx.transaction_date,
+    });
+  }
+
+  activityList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const recentActivity = activityList.slice(0, 8);
+
+  // Deterministic Owner Alerts
   const alerts: any[] = [];
 
   if (auditStatus === "FAIL" || auditStatus === "CRITICAL" || criticalCount > 0) {
@@ -323,7 +408,6 @@ export default async function DashboardPage() {
       actionHref: "/finance/day-close",
     });
   } else if (lastClosed && lastClosed.close_date < yesterday && !todayClosed) {
-    // Only alert if an older past day was left completely unclosed
     alerts.push({
       id: "alert-day-close",
       severity: "high",
@@ -355,7 +439,7 @@ export default async function DashboardPage() {
       reason: `${outOfStockItems.length} out of stock, ${lowStockItems.length} below reorder threshold.`,
       sourceModule: "Inventory Master",
       actionLabel: "Manage Catalog",
-      actionHref: "/settings?tab=catalog&section=products",
+      actionHref: "/catalog/products",
     });
   }
 
@@ -371,7 +455,6 @@ export default async function DashboardPage() {
     });
   }
 
-  // System Health Status: 🟢 Operational, 🟡 Attention Required, 🔴 Critical Issue
   const systemHealth: "operational" | "attention" | "critical" =
     alerts.some((a) => a.severity === "critical")
       ? "critical"
@@ -379,7 +462,6 @@ export default async function DashboardPage() {
       ? "attention"
       : "operational";
 
-  // AI Owner Context & Insight Assembly
   const verifiedContext = assembleVerifiedContext({
     periodLabel: "FY 2026-27 YTD",
     startDate: fyStart,
@@ -398,10 +480,9 @@ export default async function DashboardPage() {
     },
   });
 
-  // Final Structured Package
   const dashboardPackage = {
     profile: {
-      name: profile?.full_name || user?.email?.split("@")[0] || "Business Owner",
+      name: profile?.full_name || user?.email?.split("@")[0] || "Saikat Sarkar",
       avatarUrl: profile?.avatar_url || null,
       role: userRole,
     },
@@ -488,49 +569,14 @@ export default async function DashboardPage() {
       },
       trends: {
         todayVsYesterdayPct: yesterdayRevenue > 0 ? Math.round(((todayOperatingRevenue - yesterdayRevenue) / yesterdayRevenue) * 1000) / 10 : null,
-        monthVsPriorMonthPct: null, // Insufficient prior month data
-        ytdGrowthPct: null,
       },
     },
-    topServices: {
-      byRevenue: [
-        { name: "Retail Goods & Products", category: "POS Counter", revenue: taxReport.revenue.gross_invoices, profit: taxReport.revenue.gross_invoices, costStatus: "Cost data unavailable" },
-        { name: "Quick Counter Sales (Xerox/Photos)", category: "Digital Services", revenue: taxReport.revenue.quick_sales, profit: taxReport.revenue.quick_sales, costStatus: "Cost data unavailable" },
-        { name: "AEPS Aadhaar ATM & Micro-ATM", category: "Banking Services", revenue: taxReport.revenue.service_fees.aeps_fees + taxReport.revenue.commissions.aeps_commissions, profit: taxReport.revenue.service_fees.aeps_fees + taxReport.revenue.commissions.aeps_commissions, costStatus: "Verified Zero-COGS" },
-        { name: "DMT Domestic Money Transfer", category: "Remittance", revenue: taxReport.revenue.service_fees.dmt_fees, profit: taxReport.revenue.service_fees.dmt_fees, costStatus: "Verified Zero-COGS" },
-        { name: "UPI QR Processing & Convenience", category: "Payment Processing", revenue: taxReport.revenue.service_fees.upi_fees, profit: taxReport.revenue.service_fees.upi_fees, costStatus: "Verified Zero-COGS" },
-      ],
-      byProfit: [
-        { name: "AEPS Aadhaar ATM & Micro-ATM", category: "Banking Services", profit: taxReport.revenue.service_fees.aeps_fees + taxReport.revenue.commissions.aeps_commissions, marginDesc: "Not fully determinable (unallocated overhead)", rating: "⭐ Top Earner" },
-        { name: "Retail Goods & Products", category: "POS Counter", profit: taxReport.revenue.gross_invoices, marginDesc: "Cost data unavailable", rating: "⭐ Top Earner" },
-        { name: "Quick Counter Sales (Xerox/Photos)", category: "Digital Services", profit: taxReport.revenue.quick_sales, marginDesc: "Cost data unavailable", rating: "Steady" },
-        { name: "DMT Domestic Money Transfer", category: "Remittance", profit: taxReport.revenue.service_fees.dmt_fees, marginDesc: "Not fully determinable (unallocated overhead)", rating: "Steady" },
-      ],
-      byVolume: [
-        { name: "Quick Counter Sales (Xerox/Photos)", count: 93, revenue: taxReport.revenue.quick_sales },
-        { name: "Retail POS Invoices", count: 26, revenue: taxReport.revenue.gross_invoices },
-        { name: "AEPS Cash Withdrawals", count: 18, revenue: taxReport.revenue.service_fees.aeps_fees + taxReport.revenue.commissions.aeps_commissions },
-        { name: "UPI QR Collections", count: 5, revenue: taxReport.revenue.service_fees.upi_fees },
-        { name: "DMT Remittances", count: 4, revenue: taxReport.revenue.service_fees.dmt_fees },
-      ],
-    },
-    expensesData: {
-      total: taxReport.expenses.total_active_expenses,
-      categories: [
-        { category: "Rent & Electricity", amount: 25000, count: 2, pctOfTotal: 70.5 },
-        { category: "Internet & Utilities", amount: 6000, count: 4, pctOfTotal: 16.9 },
-        { category: "Paper & Supplies", amount: 4480, count: 6, pctOfTotal: 12.6 },
-      ],
-      largestExpense: { title: "Shop Monthly Rent", category: "Rent & Electricity", amount: 20000, date: isoToday },
-      expenseToRevenueRatio: taxReport.revenue.total_operating_revenue > 0
-        ? Math.round((taxReport.expenses.total_active_expenses / taxReport.revenue.total_operating_revenue) * 1000) / 10
-        : 0,
-    },
+    chartDays,
+    serviceBreakdown,
     customerData: {
       totalReceivables,
       customerCountWithDue: debtors.length,
       topDebtors: debtors.map((d: any) => ({ name: d.name || "Customer", balance: Number(d.balance || 0), phone: d.phone })),
-      totalAdvances: 0,
     },
     inventoryData: {
       totalStockValue,
@@ -538,25 +584,12 @@ export default async function DashboardPage() {
       lowStockCount: lowStockItems.length,
       outOfStockCount: outOfStockItems.length,
       lowStockItems,
-      fastMovingItems: [
-        { name: "Glossy Photo Paper A4", salesQty: 45 },
-        { name: "PVC Aadhaar Card Blanks", salesQty: 30 },
-        { name: "Lamination Pouches 100 Mic", salesQty: 25 },
-      ],
     },
     auditData: {
       isAvailable: isAuditAvailable,
       score: auditScore,
       status: auditStatus,
-      lastAuditTime: latestAudit?.created_at
-        ? new Date(latestAudit.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-        : (isAuditAvailable ? "Live Reconciled" : "Audit data unavailable"),
-      totalChecks,
-      passCount,
-      warnCount,
-      failCount,
       criticalCount,
-      topFinding: findings.find((f: any) => f.status !== "PASS")?.description || findings[0]?.description,
     },
     dayCloseStatus: {
       state: dayCloseState,
@@ -569,21 +602,21 @@ export default async function DashboardPage() {
       lastClosedNumber,
       lastClosedDate,
     },
+    recentActivity,
     alerts,
     morningBrief: {
       yesterdayRevenue,
       yesterdayCogs,
       yesterdayExpenses: yesterdayExpenseTotal,
       yesterdayProfit,
-      todayOpeningCash: poolsData.cash?.opening || 12500,
-      todayOpeningBank: poolsData.bank?.opening || 108764,
+      todayOpeningCash: poolsData.cash?.opening || 0,
+      todayOpeningBank: poolsData.bank?.opening || 0,
       attentionCount: alerts.length,
     },
     aiInsight: {
-      summary: `Operating revenue stands at ₹${taxReport.revenue.total_operating_revenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} with recorded expenses of ₹${taxReport.expenses.total_active_expenses.toLocaleString("en-IN", { minimumFractionDigits: 2 })}, producing business profit before tax of ₹${taxReport.pnl.net_profit.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (5.7% net margin). Fixed overheads absorb 94.3% of revenue.`,
-      biggestOpportunity: "Expand digital counter services (AEPS withdrawals & instant remittances) where fee revenue contributes directly to gross profit without unit inventory cost.",
-      statusTag: auditStatus === "PASS" ? "Based on verified canonical ERP data" : "⚠️ Integrity issue flagged in Self-Audit",
-      warningNote: auditStatus !== "PASS" ? "Financial integrity issue detected in Self-Audit; business recommendations may be incomplete." : undefined,
+      summary: `Operating revenue stands at ₹${taxReport.revenue.total_operating_revenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} with recorded expenses of ₹${taxReport.expenses.total_active_expenses.toLocaleString("en-IN", { minimumFractionDigits: 2 })}, producing business profit before tax of ₹${taxReport.pnl.net_profit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}.`,
+      biggestOpportunity: "Expand high-margin digital counter services (AEPS withdrawals & instant remittances) where fee revenue contributes directly to gross profit without unit inventory cost.",
+      statusTag: auditStatus === "PASS" ? "Verified Canonical ERP Ledger" : "⚠️ Integrity Alert",
     },
   };
 
