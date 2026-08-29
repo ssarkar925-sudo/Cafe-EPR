@@ -151,10 +151,31 @@ export default async function BusinessReceiptA4Page({
                 <span>Withdrawal Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                <span>Cash Handed to Customer</span>
-                <span className="text-emerald-700">{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
-              </div>
+              {txn.fee_source === "cut_from_withdrawal" ? (
+                <>
+                  <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                    <span>Service Fee (Deducted from Payout)</span>
+                    <span>-{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                    <span>Cash Handed to Customer</span>
+                    <span className="text-emerald-700">{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {Number(txn.service_fee || 0) > 0 && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                      <span>Service Fee (Collected Separately via {txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
+                      <span>+{money(txn.service_fee)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-2 text-base font-bold text-slate-900">
+                    <span>Cash Handed to Customer</span>
+                    <span className="text-emerald-700">{money(txn.amount)}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
           {service === "dmt" && (

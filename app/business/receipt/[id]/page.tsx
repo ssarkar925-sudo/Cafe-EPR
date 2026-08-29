@@ -168,10 +168,31 @@ export default async function BusinessReceiptPage({
                 <span>WITHDRAWAL</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              <div className="flex justify-between text-sm font-bold text-emerald-700">
-                <span>CASH HANDED</span>
-                <span>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
-              </div>
+              {txn.fee_source === "cut_from_withdrawal" ? (
+                <>
+                  <div className="flex justify-between text-[11px] text-slate-600">
+                    <span>Fee (Deducted from Payout)</span>
+                    <span>-{money(txn.service_fee)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-emerald-700">
+                    <span>CASH HANDED</span>
+                    <span>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {Number(txn.service_fee || 0) > 0 && (
+                    <div className="flex justify-between text-[11px] text-slate-600">
+                      <span>Service Fee ({txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "SEPARATE"})</span>
+                      <span>+{money(txn.service_fee)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-bold text-emerald-700">
+                    <span>CASH HANDED</span>
+                    <span>{money(txn.amount)}</span>
+                  </div>
+                </>
+              )}
             </>
           )}
           {service === "dmt" && (

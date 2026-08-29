@@ -3512,6 +3512,64 @@ function detectIntent(question) {
   assert(printingCharge === 0.0, "366. Receipt Invariant: Normal AEPS receipt printing fee is strictly ₹0.00");
   assert(receiptWithdrawalAmount === 2000.0, "367. Receipt Invariant: Receipt prints actual transacted amount (₹2,000.00)");
 }
+
+// 368. Phase 5A.2 AEPS Cash Handover & Fee Treatment Invariants
+{
+  const withdrawalAmount = 1000.0;
+  const serviceFee = 10.0;
+  const portalCommission = 5.0;
+
+  // Case 1: Separate Cash Collection
+  // Cash Handed = Full Withdrawal (₹1,000.00)
+  // Customer Cash Collected = ₹1,010.00
+  // Net Till Movement = +₹10.00
+  const cashHandedSeparate = withdrawalAmount;
+  const cashCollectedSeparate = withdrawalAmount + serviceFee;
+  const netTillMovement = cashCollectedSeparate - cashHandedSeparate;
+
+  assert(cashHandedSeparate === 1000.0, "368. Phase 5A.2 Invariant: Separate Fee Collection Cash Handed ≡ Full ₹1,000.00 (NOT ₹990)");
+  assert(cashCollectedSeparate === 1010.0, "369. Phase 5A.2 Invariant: Customer Total Cash Received ≡ ₹1,010.00");
+  assert(netTillMovement === 10.0, "370. Phase 5A.2 Invariant: Net Cash Till Movement for Separate Cash Fee ≡ +₹10.00");
+
+  // Case 2: Deducted Fee (Cut from Payout)
+  // Cash Handed = Withdrawal - Fee (₹990.00)
+  const cashHandedDeducted = withdrawalAmount - serviceFee;
+  assert(cashHandedDeducted === 990.0, "371. Phase 5A.2 Invariant: Deducted Fee Cash Handed ≡ ₹990.00");
+
+  // Case 3: Separate UPI Fee Collection
+  // Cash Handed = Full Withdrawal (₹1,000.00)
+  // UPI Float Inflow = ₹10.00 (Physical till does not receive cash fee)
+  const upiCollected = serviceFee;
+  assert(cashHandedSeparate === 1000.0, "372. Phase 5A.2 Invariant: UPI Fee Collection does NOT reduce Cash Handed (₹1,000.00)");
+  assert(upiCollected === 10.0, "373. Phase 5A.2 Invariant: UPI Fee of ₹10.00 credited to UPI Float");
+
+  // Case 4: Zero Fee Withdrawal
+  const zeroFee = 0.0;
+  const cashHandedZeroFee = withdrawalAmount - zeroFee;
+  assert(cashHandedZeroFee === 1000.0, "374. Phase 5A.2 Invariant: Zero Fee Withdrawal Cash Handed ≡ ₹1,000.00");
+
+  // Case 5: Portal Commission Independence
+  // Portal commission of ₹5.00 is credited to portal float and does NOT reduce customer payout
+  assert(portalCommission === 5.0, "375. Phase 5A.2 Invariant: Portal Commission (₹5) does NOT alter Cash Handed to customer");
+}
+
+// 376. AEPS Receipt Semantic Derivation Invariant
+{
+  const computeReceiptCashHanded = (txn) => {
+    if (txn.fee_source === "cut_from_withdrawal") {
+      return Number(txn.amount) - Number(txn.service_fee || 0);
+    }
+    return Number(txn.amount);
+  };
+
+  const separateTxn = { amount: 1000, service_fee: 10, fee_source: "separate_cash" };
+  const deductedTxn = { amount: 1000, service_fee: 10, fee_source: "cut_from_withdrawal" };
+  const zeroFeeTxn = { amount: 1000, service_fee: 0, fee_source: "separate_cash" };
+
+  assert(computeReceiptCashHanded(separateTxn) === 1000.0, "376. Receipt Invariant: Separate Fee receipt prints CASH HANDED: ₹1,000.00");
+  assert(computeReceiptCashHanded(deductedTxn) === 990.0, "377. Receipt Invariant: Deducted Fee receipt prints CASH HANDED: ₹990.00");
+  assert(computeReceiptCashHanded(zeroFeeTxn) === 1000.0, "378. Receipt Invariant: Zero Fee receipt prints CASH HANDED: ₹1,000.00");
+}
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

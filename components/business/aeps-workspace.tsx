@@ -114,11 +114,15 @@ export default function AepsWorkspace({
   const [selectedBankId, setSelectedBankId] = useState<string>("");
   const [selectedPortalId, setSelectedPortalId] = useState<string>(initialPortals[0]?.id || "");
   const [aadhaarLast4, setAadhaarLast4] = useState<string>("");
-  const [amount, setAmount] = useState<string>("2000");
-  const [serviceFee, setServiceFee] = useState<string>("20");
+  const [amount, setAmount] = useState<string>("1000");
+  const [serviceFee, setServiceFee] = useState<string>("10");
   const [portalCommission, setPortalCommission] = useState<string>("5");
-  const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash" | "upi">("cut_from_withdrawal");
+  
+  // Fee Treatment: "separate" (Collect Separately) vs "deduct" (Deduct From Payout)
+  const [feeTreatment, setFeeTreatment] = useState<"separate" | "deduct">("separate");
+  // Fee Collection Instrument (when separate): "cash", "upi", "bank", "due"
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
+
   const [reference, setReference] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
 
@@ -151,15 +155,6 @@ export default function AepsWorkspace({
     const c = customers.find((x) => x.id === selectedCustomerId);
     if (c?.phone) setCustomerMobile(c.phone);
   }, [selectedCustomerId, customers]);
-
-  // Sync feeSource with customerPayMethod
-  useEffect(() => {
-    if (feeSource === "cut_from_withdrawal") {
-      setCustomerPayMethod("cash");
-    } else if (feeSource === "upi") {
-      setCustomerPayMethod("upi");
-    }
-  }, [feeSource]);
 
   // Available float calculation
   const currentFloat = Number(float?.current || (initialPortals.length > 0 ? 45000 : 0));
@@ -313,7 +308,7 @@ export default function AepsWorkspace({
       return;
     }
 
-    if (customerPayMethod === "due" && !selectedCustomerId) {
+    if (feeTreatment === "separate" && customerPayMethod === "due" && !selectedCustomerId) {
       showToast("error", "Please select a registered customer to record fee as Due (Khata).");
       return;
     }
@@ -321,28 +316,40 @@ export default function AepsWorkspace({
     setConfirmWindowOpen(true);
   }
 
+  // Effective financial amounts
+  const numAmount = Number(amount || 0);
+  const numFee = Number(serviceFee || 0);
+  const numComm = Number(portalCommission || 0);
+  const totalIncome = numFee + numComm;
+
+  // Exact Cash Handed to Customer calculation
+  const cashHanded =
+    operation !== "withdrawal"
+      ? 0
+      : feeTreatment === "deduct"
+      ? Math.max(0, numAmount - numFee)
+      : numAmount;
+
+  // Effective backend fee_source
+  const effectiveFeeSource =
+    feeTreatment === "deduct"
+      ? "cut_from_withdrawal"
+      : customerPayMethod === "upi"
+      ? "upi"
+      : "separate_cash";
+
+  // Effective customer collection method
+  const effectivePayMethod = feeTreatment === "deduct" ? "cash" : customerPayMethod;
+
   // Execute Transaction
   async function handleProcessTransaction() {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
-      const numAmount = operation === "withdrawal" ? Number(amount) : 0;
-      const numFee = operation === "withdrawal" ? Number(serviceFee || 0) : 0;
-      const numComm = operation === "withdrawal" ? Number(portalCommission || 0) : 0;
-
       const cleanAadhaar = (aadhaarLast4 || "").trim();
-
       const nowIso = new Date().toISOString();
       const dateStr = nowIso.slice(0, 10);
-
-      // Map effective fee_source for backend cash drawer accounting
-      const effectiveFeeSource =
-        feeSource === "cut_from_withdrawal"
-          ? "cut_from_withdrawal"
-          : customerPayMethod === "upi"
-          ? "upi"
-          : "separate_cash";
 
       const res = await supabase.rpc("create_business_txn", {
         p_service_type: "aeps",
@@ -371,7 +378,7 @@ export default function AepsWorkspace({
         p_portal_commission: numComm,
         p_fee_source: effectiveFeeSource,
         p_paid_from: "portal",
-        p_customer_pay_method: customerPayMethod,
+        p_customer_pay_method: effectivePayMethod,
         p_receiver_name: null,
       });
 
@@ -411,7 +418,7 @@ export default function AepsWorkspace({
         portal_commission: numComm,
         fee_source: effectiveFeeSource,
         paid_from: "portal",
-        customer_pay_method: customerPayMethod,
+        customer_pay_method: effectivePayMethod,
         customers: customers.find((c) => c.id === selectedCustomerId) || null,
         banks: banks.find((b) => b.id === selectedBankId) || null,
         portals: portals.find((p) => p.id === selectedPortalId) || null,
@@ -429,7 +436,7 @@ export default function AepsWorkspace({
       setReference("");
       setRemarks("");
 
-      showToast("success", `₹${numAmount.toLocaleString("en-IN")} cash withdrawal completed. Reference: ${newTxnNum}`);
+      showToast("success", `₹${numAmount.toLocaleString("en-IN")} cash withdrawal completed. Cash handed: ₹${cashHanded.toLocaleString("en-IN")}`);
     } catch (err: any) {
       console.error("AEPS error:", err);
       showToast("error", err.message || "Failed to complete AEPS transaction.");
@@ -451,12 +458,6 @@ export default function AepsWorkspace({
         t.reference?.toLowerCase().includes(q)
     );
   }, [transactions, searchQuery]);
-
-  const numAmount = Number(amount || 0);
-  const numFee = Number(serviceFee || 0);
-  const numComm = Number(portalCommission || 0);
-  const totalIncome = numFee + numComm;
-  const cashToHandOver = feeSource === "cut_from_withdrawal" ? Math.max(0, numAmount - numFee) : numAmount;
 
   return (
     <div className="space-y-6 pb-16">
@@ -721,7 +722,7 @@ export default function AepsWorkspace({
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="2000"
+                    placeholder="1000"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
                   />
                 </div>
@@ -777,39 +778,17 @@ export default function AepsWorkspace({
                   <p className="text-[10px] text-slate-400">Commission credited by AEPS portal.</p>
                 </div>
 
-                {/* Explicit Collection / Payment Method Selector */}
+                {/* 1. Fee Treatment Model (Separate Collection vs Deduct From Payout) */}
                 <div className="space-y-2 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Fee Handling &amp; Collection Method <span className="text-rose-500">*</span>
+                    Fee Treatment Model <span className="text-rose-500">*</span>
                   </label>
-                  
-                  {/* Fee Deduction vs Separate Collection */}
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setFeeSource("cut_from_withdrawal");
-                        setCustomerPayMethod("cash");
-                      }}
+                      onClick={() => setFeeTreatment("separate")}
                       className={`rounded-2xl border p-3 text-left transition ${
-                        feeSource === "cut_from_withdrawal"
-                          ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
-                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                      }`}
-                    >
-                      <div className="text-xs font-black text-slate-900 dark:text-white">
-                        ✂️ Deduct from Cash Handout
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                        Net cash given = ₹{Number(amount) || 0} − ₹{Number(serviceFee) || 0} = <strong className="text-emerald-600 dark:text-emerald-400">₹{cashToHandOver}</strong>
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setFeeSource("separate_cash")}
-                      className={`rounded-2xl border p-3 text-left transition ${
-                        feeSource !== "cut_from_withdrawal"
+                        feeTreatment === "separate"
                           ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
                           : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
                       }`}
@@ -818,46 +797,59 @@ export default function AepsWorkspace({
                         💵 Collect Fee Separately
                       </div>
                       <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                        Hand over full ₹{Number(amount) || 0} in cash; collect ₹{Number(serviceFee) || 0} via chosen instrument.
+                        Customer receives full <strong>{inr(numAmount)}</strong> withdrawal cash; pays <strong>{inr(numFee)}</strong> fee separately.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFeeTreatment("deduct")}
+                      className={`rounded-2xl border p-3 text-left transition ${
+                        feeTreatment === "deduct"
+                          ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-black text-slate-900 dark:text-white">
+                        ✂️ Deduct from Payout
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Fee deducted directly. Customer receives net <strong>{inr(Math.max(0, numAmount - numFee))}</strong> cash handout.
                       </p>
                     </button>
                   </div>
-
-                  {/* Instrument Selector (When separate fee collection) */}
-                  {feeSource !== "cut_from_withdrawal" && (
-                    <div className="mt-2 pt-2 border-t border-slate-100 dark:border-white/5 space-y-1.5">
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                        Select Payment Instrument for Fee Collection:
-                      </span>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        {[
-                          { id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" },
-                          { id: "upi", label: "📱 UPI / QR Float", desc: "QR payment" },
-                          { id: "bank", label: "🏦 Bank Account", desc: "Direct transfer" },
-                          { id: "due", label: "📋 Customer Khata", desc: "Post to due" },
-                        ].map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => {
-                              setCustomerPayMethod(m.id as any);
-                              if (m.id === "upi") setFeeSource("upi");
-                              else setFeeSource("separate_cash");
-                            }}
-                            className={`rounded-xl border p-2.5 text-center transition ${
-                              customerPayMethod === m.id
-                                ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
-                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
-                            }`}
-                          >
-                            <div className="text-xs font-bold">{m.label}</div>
-                            <div className="text-[10px] text-slate-400">{m.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
+
+                {/* 2. Fee Collection Instrument (When Separate Fee) */}
+                {feeTreatment === "separate" && (
+                  <div className="space-y-1.5 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Fee Collection Instrument <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        { id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" },
+                        { id: "upi", label: "📱 UPI / QR Float", desc: "Merchant QR" },
+                        { id: "bank", label: "🏦 Bank Account", desc: "Direct deposit" },
+                        { id: "due", label: "📋 Customer Khata", desc: "Post to due" },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setCustomerPayMethod(m.id as any)}
+                          className={`rounded-xl border p-2.5 text-center transition ${
+                            customerPayMethod === m.id
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{m.label}</div>
+                          <div className="text-[10px] text-slate-400">{m.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -911,22 +903,22 @@ export default function AepsWorkspace({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Customer Service Fee:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                      {feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}
+                    </strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Fee Collection Method:</span>
+                    <span className="text-slate-500">Fee Treatment:</span>
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                      {feeSource === "cut_from_withdrawal"
-                        ? "✂️ Deducted from Handout"
-                        : customerPayMethod === "upi"
-                        ? "📱 UPI QR"
-                        : customerPayMethod === "bank"
-                        ? "🏦 Bank"
-                        : customerPayMethod === "due"
-                        ? "📋 Khata (Due)"
-                        : "💵 Cash"}
+                      {feeTreatment === "deduct" ? "✂️ Deducted from Payout" : `💵 Separate via ${customerPayMethod.toUpperCase()}`}
                     </span>
                   </div>
+                  {feeTreatment === "separate" && customerPayMethod === "cash" && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Total Cash Received:</span>
+                      <strong className="text-slate-900 dark:text-white font-bold">{inr(numAmount + numFee)}</strong>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-500">Portal Commission:</span>
                     <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
@@ -936,15 +928,18 @@ export default function AepsWorkspace({
                     <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
                   </div>
 
+                  {/* Prominent Cash Handed Box */}
                   <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
                     <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
-                      Physical Cash to Hand Out:
+                      Physical Cash to Hand to Customer:
                     </div>
                     <div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">
-                      {inr(cashToHandOver)}
+                      {inr(cashHanded)}
                     </div>
                     <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
-                      {feeSource === "cut_from_withdrawal" ? "Fee deducted from cash given" : "Fee collected separately"}
+                      {feeTreatment === "deduct"
+                        ? `Deducted fee ₹${numFee} from ₹${numAmount} withdrawal`
+                        : `Full withdrawal ₹${numAmount} given; ₹${numFee} fee collected separately`}
                     </p>
                   </div>
                 </>
@@ -959,7 +954,7 @@ export default function AepsWorkspace({
               onClick={handleInitiateTransaction}
               className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-110 active:scale-[0.98]"
             >
-              ✓ Complete &amp; Disburse Cash
+              ✓ Complete &amp; Disburse {inr(cashHanded)}
             </button>
             <p className="text-center text-[10px] text-slate-400">
               Deterministic double-entry settlement engine
@@ -994,7 +989,8 @@ export default function AepsWorkspace({
                 <th className="pb-2.5 font-bold">Customer &amp; Aadhaar</th>
                 <th className="pb-2.5 font-bold">Bank &amp; Portal</th>
                 <th className="pb-2.5 font-bold text-right">Withdrawal</th>
-                <th className="pb-2.5 font-bold text-center">Collection</th>
+                <th className="pb-2.5 font-bold text-center">Fee Treatment</th>
+                <th className="pb-2.5 font-bold text-right">Cash Handed</th>
                 <th className="pb-2.5 font-bold text-right">Total Income</th>
                 <th className="pb-2.5 font-bold text-center">Status</th>
                 <th className="pb-2.5 font-bold text-right">Receipt</th>
@@ -1003,65 +999,83 @@ export default function AepsWorkspace({
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
               {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     No AEPS transactions found. Process a withdrawal above to see records.
                   </td>
                 </tr>
               ) : (
-                filteredTxns.slice(0, 15).map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                    <td className="py-3">
-                      <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      <div className="font-bold text-slate-900 dark:text-white">{t.customers?.name || "Walk-in"}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {t.customer_mobile ? `📱 ${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `• **** ${t.aadhaar_last4}` : ""}
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      <div className="font-bold text-slate-900 dark:text-white">{t.banks?.name || "Bank"}</div>
-                      <div className="text-[10px] text-slate-400">{t.portals?.name || "Portal"}</div>
-                    </td>
-                    <td className="py-3 text-right font-black text-slate-900 dark:text-white">
-                      {inr(t.amount)}
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                        {t.customer_pay_method === "upi" ? "📱 UPI" : t.customer_pay_method === "bank" ? "🏦 Bank" : t.customer_pay_method === "due" ? "📋 Due" : "💵 Cash"}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-black">
-                      +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        {t.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Link
-                          href={`/business/receipt/${t.id}`}
-                          target="_blank"
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                        >
-                          🖨️ 80mm
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDetailTxn(t)}
-                          className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
-                        >
-                          👁
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredTxns.slice(0, 15).map((t) => {
+                  const isDeducted = t.fee_source === "cut_from_withdrawal";
+                  const txnCashHanded = isDeducted
+                    ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0))
+                    : Number(t.amount || 0);
+
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                      <td className="py-3">
+                        <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
+                        </div>
+                      </td>
+                      <td className="py-3">
+                        <div className="font-bold text-slate-900 dark:text-white">{t.customers?.name || "Walk-in"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {t.customer_mobile ? `📱 ${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `• **** ${t.aadhaar_last4}` : ""}
+                        </div>
+                      </td>
+                      <td className="py-3">
+                        <div className="font-bold text-slate-900 dark:text-white">{t.banks?.name || "Bank"}</div>
+                        <div className="text-[10px] text-slate-400">{t.portals?.name || "Portal"}</div>
+                      </td>
+                      <td className="py-3 text-right font-black text-slate-900 dark:text-white">
+                        {inr(t.amount)}
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                          {isDeducted
+                            ? "✂️ Deducted"
+                            : t.customer_pay_method === "upi"
+                            ? "📱 UPI"
+                            : t.customer_pay_method === "bank"
+                            ? "🏦 Bank"
+                            : t.customer_pay_method === "due"
+                            ? "📋 Due"
+                            : "💵 Cash"}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                        {inr(txnCashHanded)}
+                      </td>
+                      <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-black">
+                        +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          {t.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            href={`/business/receipt/${t.id}`}
+                            target="_blank"
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                          >
+                            🖨️ 80mm
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDetailTxn(t)}
+                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
+                          >
+                            👁
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1094,21 +1108,29 @@ export default function AepsWorkspace({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer Service Fee:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Fee Collection Method:</span>
-                <strong className="text-slate-900 dark:text-white capitalize">
-                  {feeSource === "cut_from_withdrawal" ? "Deducted from Cash Handout" : customerPayMethod}
+                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  {feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}
                 </strong>
               </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Fee Treatment:</span>
+                <strong className="text-slate-900 dark:text-white">
+                  {feeTreatment === "deduct" ? "Deducted from Payout" : `Separate via ${customerPayMethod.toUpperCase()}`}
+                </strong>
+              </div>
+              {feeTreatment === "separate" && customerPayMethod === "cash" && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Total Customer Cash Received:</span>
+                  <strong className="text-slate-900 dark:text-white">{inr(numAmount + numFee)}</strong>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-500">Portal Commission:</span>
                 <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10">
-                <span className="text-slate-700 font-bold dark:text-slate-300">Physical Cash to Hand Over:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 text-sm font-black">{inr(cashToHandOver)}</strong>
+                <span className="text-slate-700 font-bold dark:text-slate-300">Physical Cash to Hand to Customer:</span>
+                <strong className="text-emerald-600 dark:text-emerald-400 text-sm font-black">{inr(cashHanded)}</strong>
               </div>
             </div>
 
@@ -1131,7 +1153,7 @@ export default function AepsWorkspace({
                 disabled={isSubmitting}
                 className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"
               >
-                {isSubmitting ? "Processing…" : "Confirm & Disburse"}
+                {isSubmitting ? "Processing…" : `Confirm & Disburse ${inr(cashHanded)}`}
               </button>
             </div>
           </div>
@@ -1216,48 +1238,58 @@ export default function AepsWorkspace({
           title={`AEPS Transaction #${selectedDetailTxn.transaction_number}`}
           onClose={() => setSelectedDetailTxn(null)}
         >
-          <div className="p-5 space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
-              <div><span className="text-slate-400">Date:</span> <div className="font-bold">{selectedDetailTxn.transaction_date}</div></div>
-              <div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div>
-              <div><span className="text-slate-400">Withdrawal Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
-              <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
-              <div><span className="text-slate-400">Collection Method:</span> <div className="font-bold uppercase text-slate-700 dark:text-slate-300">{selectedDetailTxn.customer_pay_method || "CASH"}</div></div>
-              <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
-              <div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
-              <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
-              <div><span className="text-slate-400">Aadhaar:</span> <div className="font-bold">**** {selectedDetailTxn.aadhaar_last4 || "N/A"}</div></div>
-              <div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.banks?.name || "N/A"}</div></div>
-              <div><span className="text-slate-400">Portal:</span> <div className="font-bold">{selectedDetailTxn.portals?.name || "N/A"}</div></div>
-              {selectedDetailTxn.reference && <div className="col-span-2"><span className="text-slate-400">RRN / Ref:</span> <div className="font-bold">{selectedDetailTxn.reference}</div></div>}
-            </div>
+          {(() => {
+            const isDeducted = selectedDetailTxn.fee_source === "cut_from_withdrawal";
+            const detailCashHanded = isDeducted
+              ? Math.max(0, Number(selectedDetailTxn.amount || 0) - Number(selectedDetailTxn.service_fee || 0))
+              : Number(selectedDetailTxn.amount || 0);
 
-            <div className="flex justify-between items-center pt-2">
-              <div className="flex gap-2">
-                <Link
-                  href={`/business/receipt/${selectedDetailTxn.id}`}
-                  target="_blank"
-                  className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-blue-600"
-                >
-                  🖨️ Thermal Receipt
-                </Link>
-                <Link
-                  href={`/business/receipt/${selectedDetailTxn.id}/a4`}
-                  target="_blank"
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  📄 A4 Invoice
-                </Link>
+            return (
+              <div className="p-5 space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                  <div><span className="text-slate-400">Date:</span> <div className="font-bold">{selectedDetailTxn.transaction_date}</div></div>
+                  <div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div>
+                  <div><span className="text-slate-400">Withdrawal Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
+                  <div><span className="text-slate-400">Cash Handed to Customer:</span> <div className="font-black text-sm text-emerald-700 dark:text-emerald-400">{inr(detailCashHanded)}</div></div>
+                  <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">{isDeducted ? `-${inr(selectedDetailTxn.service_fee)}` : `+${inr(selectedDetailTxn.service_fee)}`}</div></div>
+                  <div><span className="text-slate-400">Fee Treatment:</span> <div className="font-bold text-slate-700 dark:text-slate-300">{isDeducted ? "Deducted from Payout" : `Separate via ${(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}`}</div></div>
+                  <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
+                  <div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
+                  <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
+                  <div><span className="text-slate-400">Aadhaar:</span> <div className="font-bold">**** {selectedDetailTxn.aadhaar_last4 || "N/A"}</div></div>
+                  <div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.banks?.name || "N/A"}</div></div>
+                  <div><span className="text-slate-400">Portal:</span> <div className="font-bold">{selectedDetailTxn.portals?.name || "N/A"}</div></div>
+                  {selectedDetailTxn.reference && <div className="col-span-2"><span className="text-slate-400">RRN / Ref:</span> <div className="font-bold">{selectedDetailTxn.reference}</div></div>}
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/business/receipt/${selectedDetailTxn.id}`}
+                      target="_blank"
+                      className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-blue-600"
+                    >
+                      🖨️ Thermal Receipt
+                    </Link>
+                    <Link
+                      href={`/business/receipt/${selectedDetailTxn.id}/a4`}
+                      target="_blank"
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      📄 A4 Invoice
+                    </Link>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDetailTxn(null)}
+                    className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedDetailTxn(null)}
-                className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+            );
+          })()}
         </FloatingWindow>
       )}
 
