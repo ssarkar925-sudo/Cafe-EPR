@@ -57,8 +57,8 @@ drop policy if exists "whatsapp_outbox insert" on public.whatsapp_outbox;
 drop policy if exists "whatsapp_outbox update" on public.whatsapp_outbox;
 drop policy if exists "whatsapp_outbox public select" on public.whatsapp_outbox;
 create policy "whatsapp_outbox select" on public.whatsapp_outbox for select to authenticated using (true);
-create policy "whatsapp_outbox insert" on public.whatsapp_outbox for insert to authenticated with check (is_back_office());
-create policy "whatsapp_outbox update" on public.whatsapp_outbox for update to authenticated using (is_back_office()) with check (is_back_office());
+create policy "whatsapp_outbox insert" on public.whatsapp_outbox for insert to authenticated with check (auth.uid() is not null or is_back_office());
+create policy "whatsapp_outbox update" on public.whatsapp_outbox for update to authenticated using (auth.uid() is not null or is_back_office()) with check (auth.uid() is not null or is_back_office());
 
 alter table public.customers add column if not exists whatsapp_opt_out boolean not null default false;
 alter table public.customers add column if not exists notify_invoices boolean not null default true;
