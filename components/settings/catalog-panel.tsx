@@ -6,9 +6,9 @@ import ServicesClient from "@/components/catalog/services-client";
 import CategoriesClient from "@/components/catalog/categories-client";
 
 const SECTIONS = [
-  { key: "products", label: "Products" },
-  { key: "services", label: "Services" },
-  { key: "categories", label: "Categories" },
+  { key: "products", label: "Products Catalog", icon: "📦" },
+  { key: "services", label: "Services Catalog", icon: "⚡" },
+  { key: "categories", label: "Categories Tree", icon: "📁" },
 ] as const;
 
 export default function CatalogPanel({
@@ -29,25 +29,35 @@ export default function CatalogPanel({
   categoryCounts?: Record<string, number>;
 }) {
   return (
-    <div className={active ? "mt-6" : "hidden"}>
+    <div className={active ? "mt-6 space-y-6" : "hidden"}>
       <SettingsSection
         icon="M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9"
         tone="violet"
-        title="Catalog Management"
-        desc="Products, services and categories. Items in use are deactivated, never deleted."
+        title="Catalog Master Data &amp; Pricing"
+        desc="Manage products with inventory tracking, cybercafe services, and category groupings."
       >
-        <div className="mb-2 flex gap-1 rounded-xl bg-slate-100 p-1 text-sm">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => onSection(s.key)}
-              className={`rounded-lg px-3 py-1.5 font-medium transition ${
-                section === s.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        {/* Navigation Tabs */}
+        <div className="mb-5 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+            {SECTIONS.map((s) => {
+              const selected = section === s.key;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => onSection(s.key)}
+                  className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-extrabold transition ${
+                    selected
+                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white dark:ring-white/10"
+                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  <span>{s.icon}</span>
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="-mx-6 -mb-6">
