@@ -313,36 +313,55 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-md transition-all sm:p-4 lg:p-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-md transition-all sm:p-4 lg:p-6 animate-fade-in"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         style={shellStyle}
-        className={`settings-module-shell ${
+        className={`floating-mac-window settings-module-shell ${
           isFormTab ? "settings-module-shell--form" : "settings-module-shell--action"
-        } flex w-full ${layout.modal} flex-col overflow-hidden rounded-[24px] border border-white/80 bg-white shadow-[0_35px_100px_rgba(15,23,42,.45)] ring-1 ring-slate-950/10 dark:border-white/10 dark:bg-slate-950 sm:rounded-[28px]`}
+        } flex w-full ${layout.modal} flex-col overflow-hidden animate-modal-panel`}
       >
-        {/* Modal Window Top Bar */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
-              <Icon path="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" className="h-4 w-4" />
-            </span>
-            <div>
+        {/* macOS Window Top Bar */}
+        <div className="mac-window-header shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Traffic Lights */}
+            <div className="mac-traffic-lights group">
+              <button
+                type="button"
+                onClick={onClose}
+                title="Close window (Esc)"
+                className="mac-dot mac-dot-close focus:outline-none"
+                aria-label="Close"
+              />
+              <button
+                type="button"
+                onClick={onClose}
+                title="Minimize"
+                className="mac-dot mac-dot-min focus:outline-none"
+                aria-label="Minimize"
+              />
+              <button
+                type="button"
+                title="Maximize"
+                className="mac-dot mac-dot-max focus:outline-none"
+                aria-label="Maximize"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pl-2">
+              <span className="text-sm">⚙️</span>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-400 dark:text-slate-500">
                   {meta.group}
                 </span>
                 <span className="text-[10px] text-slate-300 dark:text-slate-600">/</span>
-                <span className="text-[10px] font-bold uppercase tracking-[.14em] text-blue-600 dark:text-blue-400">
-                  Settings
+                <span className="text-xs font-black text-slate-900 dark:text-white">
+                  {meta.title}
                 </span>
               </div>
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                {meta.title}
-              </h2>
             </div>
           </div>
 
@@ -355,7 +374,7 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
               onClick={onClose}
               aria-label="Close settings window"
               title="Close (Esc)"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
             >
               <CloseIcon />
             </button>

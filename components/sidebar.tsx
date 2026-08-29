@@ -204,11 +204,11 @@ export default function Sidebar({
           borderColor: "var(--sidebar-border)",
           color: "var(--sidebar-text)",
         }}
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-300 ${
+        className={`spatial-sidebar-dock fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ${
           collapsed ? "w-[72px]" : "w-[280px]"
         } ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } shadow-[var(--sidebar-shadow)]`}
+        }`}
       >
         {/* 1. Brand Header */}
         <div
