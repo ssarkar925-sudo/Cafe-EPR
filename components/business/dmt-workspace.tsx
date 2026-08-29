@@ -108,13 +108,18 @@ export default function DmtWorkspace({
   const supabase = createClient();
   const { showToast, toastView } = useToast();
 
-  useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries", "saved_contacts"]);
+  useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries", "saved_contacts", "payment_instruments", "settlements"]);
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [banks, setBanks] = useState<Master[]>(initialBanks);
   const [portals] = useState<Master[]>(initialPortals);
-  const [instruments] = useState<any[]>(paymentInstruments || []);
+  const [liveInstruments, setLiveInstruments] = useState<any[]>(paymentInstruments || []);
+
+  // Live Database Float Balances (Zero hardcoded defaults)
+  const [dmtFloat, setDmtFloat] = useState<number>(() => Number(float?.current ?? float ?? 0));
+  const [bankPoolFloat, setBankPoolFloat] = useState<number>(0);
+  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
   // Guided Transfer Mode: "bank_account" (IMPS/NEFT) vs "upi" (Instant UPI VPA)
   const [transferMethod, setTransferMethod] = useState<"bank_account" | "upi">("bank_account");
@@ -124,7 +129,7 @@ export default function DmtWorkspace({
   const [senderName, setSenderName] = useState<string>("");
   const [senderMobile, setSenderMobile] = useState<string>("");
 
-  // Step 2 & 3: Beneficiary Fields
+  // Step 2 & 3: Beneficiary Fields (All Optional as per instruction)
   const [beneficiaryName, setBeneficiaryName] = useState<string>("");
   const [beneficiaryMobile, setBeneficiaryMobile] = useState<string>("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<string>("");
@@ -141,7 +146,7 @@ export default function DmtWorkspace({
   // Step 6: Funding Source (Disbursement)
   const [paidFrom, setPaidFrom] = useState<"portal" | "bank">("portal");
   const [selectedPortalId, setSelectedPortalId] = useState<string>(initialPortals[0]?.id || "");
-  const [selectedBankInstrumentId, setSelectedBankInstrumentId] = useState<string>(instruments[0]?.id || "");
+  const [selectedBankInstrumentId, setSelectedBankInstrumentId] = useState<string>(liveInstruments[0]?.id || "");
 
   // Step 7: Customer Collection Instrument
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
@@ -223,6 +228,41 @@ export default function DmtWorkspace({
   const [reverseReason, setReverseReason] = useState("");
   const [reverseSubmitting, setReverseSubmitting] = useState(false);
 
+  // Authoritative Backend Live Balance Fetcher
+  const refreshBalances = useCallback(async () => {
+    setIsRefreshingBalances(true);
+    try {
+      const [{ data: pools }, { data: insts }] = await Promise.all([
+        supabase.rpc("get_pool_balances"),
+        supabase.from("payment_instruments").select("*").order("name"),
+      ]);
+
+      if (pools) {
+        const dmt = (pools as any)?.dmt;
+        if (dmt) {
+          setDmtFloat(Number(dmt.current ?? dmt ?? 0));
+        }
+        const bank = (pools as any)?.bank;
+        if (bank) {
+          setBankPoolFloat(Number(bank.current ?? bank ?? 0));
+        }
+      }
+
+      if (insts && Array.isArray(insts)) {
+        setLiveInstruments(insts);
+      }
+    } catch (err) {
+      console.error("Failed to refresh live balances:", err);
+    } finally {
+      setIsRefreshingBalances(false);
+    }
+  }, [supabase]);
+
+  // Initial and Periodic Balance Sync
+  useEffect(() => {
+    refreshBalances();
+  }, [refreshBalances]);
+
   // Auto-sync sender name & phone when customer is selected
   useEffect(() => {
     if (!selectedCustomerId) return;
@@ -233,9 +273,17 @@ export default function DmtWorkspace({
     }
   }, [selectedCustomerId, customers]);
 
-  // Available float calculation
-  const currentDmtFloat = Number(float?.current || (initialPortals.length > 0 ? 50000 : 0));
-  const currentBankBalance = Number(instruments.find((i) => i.id === selectedBankInstrumentId)?.current_balance || 75000);
+  // Selected Bank Account & Balance
+  const selectedBankInstrument = useMemo(() => {
+    return liveInstruments.find((i) => i.id === selectedBankInstrumentId) || liveInstruments[0] || null;
+  }, [liveInstruments, selectedBankInstrumentId]);
+
+  const currentBankBalance = useMemo(() => {
+    if (selectedBankInstrument && selectedBankInstrument.current_balance !== undefined && selectedBankInstrument.current_balance !== null) {
+      return Number(selectedBankInstrument.current_balance);
+    }
+    return bankPoolFloat;
+  }, [selectedBankInstrument, bankPoolFloat]);
 
   // Calculations for current inputs
   const numAmount = Number(amount || 0);
@@ -244,9 +292,9 @@ export default function DmtWorkspace({
   const totalCollected = numAmount + numFee;
   const totalIncome = numFee + numComm;
 
-  // Float Sufficiency & Shortfall Calculation
-  const isFloatInsufficient = (paidFrom === "portal" && numAmount > currentDmtFloat) || (paidFrom === "bank" && numAmount > currentBankBalance);
-  const availableSelectedFloat = paidFrom === "portal" ? currentDmtFloat : currentBankBalance;
+  // Live Available Selected Float & Sufficiency Check
+  const availableSelectedFloat = paidFrom === "portal" ? dmtFloat : currentBankBalance;
+  const isFloatInsufficient = numAmount > availableSelectedFloat;
   const floatShortfall = Math.max(0, numAmount - availableSelectedFloat);
 
   // Today's DMT KPI calculations
@@ -401,22 +449,20 @@ export default function DmtWorkspace({
     }
   }
 
-  // Add Beneficiary Modal Handler with Confirm Account & Deterministic Deduplication
+  // Add Beneficiary Modal Handler with Optional Fields & Confirm Account Match
   async function handleCreateBeneficiary(e: React.FormEvent) {
     e.preventDefault();
     if (transferMethod === "bank_account") {
       const acc = newBenAccount.trim();
       const confirmAcc = newBenConfirmAccount.trim();
       const ifsc = newBenIfsc.trim().toUpperCase();
-      if (!acc || acc.length < 8) {
-        setBenCreateError("Please enter a valid bank account number (8+ digits).");
-        return;
-      }
-      if (acc !== confirmAcc) {
+
+      if (acc && confirmAcc && acc !== confirmAcc) {
         setBenCreateError("Account number and Confirm Account Number do not match.");
         return;
       }
-      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+
+      if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
         setBenCreateError("Please enter a valid 11-character IFSC code (e.g. SBIN0001234).");
         return;
       }
@@ -425,15 +471,15 @@ export default function DmtWorkspace({
       setBenCreateError("");
 
       try {
-        const dedupeKey = `beneficiary|${ifsc}|${acc}`;
+        const dedupeKey = `beneficiary|${ifsc || "ANY"}|${acc || "ANY"}`;
         await supabase.from("saved_contacts").upsert({
           key: dedupeKey,
           kind: "beneficiary",
           name: newBenName.trim() || null,
           mobile: newBenMobile.trim() || null,
           bank: newBenBank.trim() || null,
-          ifsc: ifsc,
-          account_number: acc,
+          ifsc: ifsc || null,
+          account_number: acc || null,
         }, { onConflict: "key" });
 
         setBeneficiaryName(newBenName.trim());
@@ -449,7 +495,7 @@ export default function DmtWorkspace({
         setNewBenIfsc("");
         setNewBenAccount("");
         setNewBenConfirmAccount("");
-        showToast("success", "Beneficiary verified and saved to address book.");
+        showToast("success", "Beneficiary saved to address book.");
       } catch (err: any) {
         console.error("Beneficiary save error:", err);
         setBenCreateError(err.message || "Failed to save beneficiary.");
@@ -458,7 +504,7 @@ export default function DmtWorkspace({
       }
     } else {
       const upi = newBenUpi.trim().toLowerCase();
-      if (!upi || !upi.includes("@")) {
+      if (upi && !upi.includes("@")) {
         setBenCreateError("Please enter a valid UPI ID (e.g. user@oksbi).");
         return;
       }
@@ -467,12 +513,12 @@ export default function DmtWorkspace({
       setBenCreateError("");
 
       try {
-        const dedupeKey = `upi_receiver|${upi}`;
+        const dedupeKey = `upi_receiver|${upi || "ANY"}`;
         await supabase.from("saved_contacts").upsert({
           key: dedupeKey,
           kind: "upi_receiver",
           name: newBenName.trim() || null,
-          upi_id: upi,
+          upi_id: upi || null,
         }, { onConflict: "key" });
 
         setUpiId(upi);
@@ -481,7 +527,7 @@ export default function DmtWorkspace({
         setAddBeneficiaryWindowOpen(false);
         setNewBenName("");
         setNewBenUpi("");
-        showToast("success", "UPI Receiver verified and selected.");
+        showToast("success", "UPI Receiver saved to address book.");
       } catch (err: any) {
         console.error("UPI receiver save error:", err);
         setBenCreateError(err.message || "Failed to save UPI receiver.");
@@ -638,7 +684,7 @@ export default function DmtWorkspace({
     setReverseWindowOpen(true);
   }
 
-  // Process Transaction Reversal with Atomic Database Guard
+  // Process Transaction Reversal with Atomic Database Guard & Balance Refresh
   async function handleProcessReverse(e: React.FormEvent) {
     e.preventDefault();
     if (!reversingTxn || reverseSubmitting) return;
@@ -660,8 +706,9 @@ export default function DmtWorkspace({
         )
       );
 
+      await refreshBalances();
       setReverseWindowOpen(false);
-      showToast("success", `Transaction #${reversingTxn.transaction_number} reversed. Cash legs adjusted.`);
+      showToast("success", `Transaction #${reversingTxn.transaction_number} reversed. Cash legs and balances updated.`);
     } catch (err: any) {
       console.error("Reversal error:", err);
       showToast("error", err.message || "Failed to reverse transaction.");
@@ -670,35 +717,29 @@ export default function DmtWorkspace({
     }
   }
 
-  // Pre-submission Validation & Float Safety Guard
+  // Pre-submission Validation & Float Safety Guard (Beneficiary fields optional)
   const handleInitiateTransfer = useCallback(() => {
     if (!numAmount || numAmount <= 0) {
       showToast("error", "Please enter a valid transfer amount.");
       return;
     }
-    if (!senderName.trim()) {
-      showToast("error", "Please enter the sender's full name.");
-      return;
-    }
+
+    // Format validation if non-empty
     if (transferMethod === "bank_account") {
-      if (!beneficiaryAccount.trim() || beneficiaryAccount.trim().length < 6) {
-        showToast("error", "Please enter a valid beneficiary account number.");
-        return;
-      }
-      if (!beneficiaryIfsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase())) {
+      if (beneficiaryIfsc.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase())) {
         showToast("error", "Please enter a valid 11-character IFSC code (e.g. SBIN0001234).");
         return;
       }
     } else {
-      if (!upiId.trim() || !upiId.includes("@")) {
+      if (upiId.trim() && !upiId.includes("@")) {
         showToast("error", "Please enter a valid beneficiary UPI ID (e.g. user@oksbi).");
         return;
       }
     }
 
     // Float Safety Check
-    if (paidFrom === "portal" && numAmount > currentDmtFloat) {
-      showToast("error", `Insufficient DMT Portal Float. (Available: ${inr(currentDmtFloat)}, Required: ${inr(numAmount)})`);
+    if (paidFrom === "portal" && numAmount > dmtFloat) {
+      showToast("error", `Insufficient DMT Portal Float. (Available: ${inr(dmtFloat)}, Required: ${inr(numAmount)})`);
       return;
     }
     if (paidFrom === "bank" && numAmount > currentBankBalance) {
@@ -717,7 +758,7 @@ export default function DmtWorkspace({
     }
 
     setConfirmWindowOpen(true);
-  }, [numAmount, senderName, transferMethod, beneficiaryAccount, beneficiaryIfsc, upiId, paidFrom, currentDmtFloat, currentBankBalance, reference, customerPayMethod, selectedCustomerId, showToast]);
+  }, [numAmount, transferMethod, beneficiaryIfsc, upiId, paidFrom, dmtFloat, currentBankBalance, reference, customerPayMethod, selectedCustomerId, showToast]);
 
   // Keyboard shortcut listener (Ctrl+Enter to submit, Esc to close)
   useEffect(() => {
@@ -733,7 +774,7 @@ export default function DmtWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleInitiateTransfer, confirmWindowOpen, addCustomerWindowOpen, addBeneficiaryWindowOpen, editTxnWindowOpen, reverseWindowOpen]);
 
-  // Execute Transfer Transaction (Double-submission guarded)
+  // Execute Transfer Transaction (Double-submission guarded & Live Balance Refresh)
   async function handleProcessTransfer() {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -756,7 +797,7 @@ export default function DmtWorkspace({
         p_merchant_qr_id: null,
         p_aadhaar_last4: null,
         p_transfer_method: transferMethod,
-        p_sender_name: senderName.trim(),
+        p_sender_name: senderName.trim() || "Walk-in Sender",
         p_sender_mobile: senderMobile.trim() || null,
         p_beneficiary_name: beneficiaryName.trim() || null,
         p_beneficiary_mobile: beneficiaryMobile.trim() || null,
@@ -796,7 +837,7 @@ export default function DmtWorkspace({
         provider_id: null,
         aadhaar_last4: null,
         transfer_method: transferMethod,
-        sender_name: senderName.trim(),
+        sender_name: senderName.trim() || "Walk-in Sender",
         sender_mobile: senderMobile.trim() || null,
         beneficiary_name: beneficiaryName.trim() || null,
         beneficiary_mobile: beneficiaryMobile.trim() || null,
@@ -822,6 +863,9 @@ export default function DmtWorkspace({
       setLastCompletedTxn(completedRecord);
       setConfirmWindowOpen(false);
       setSuccessWindowOpen(true);
+
+      // Re-fetch Live Balances Immediately
+      await refreshBalances();
 
       // Reset transaction-specific inputs
       setReference("");
@@ -881,17 +925,28 @@ export default function DmtWorkspace({
             </p>
           </div>
 
-          {/* Float Display Badges */}
-          <div className="flex flex-wrap gap-2.5 sm:flex-nowrap">
+          {/* Live Float Display Badges with Refresh Button */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={refreshBalances}
+              disabled={isRefreshingBalances}
+              className="rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+              title="Refresh Live Balances from Database"
+            >
+              <span className={`inline-block text-base ${isRefreshingBalances ? "animate-spin" : ""}`}>↻</span>
+            </button>
             <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Available DMT Float</span>
-              <div className="text-xl font-black text-emerald-400">{inr(currentDmtFloat)}</div>
-              <span className="text-[9px] text-slate-400">Live Settlement Wallet</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">DMT Portal Wallet</span>
+              <div className="text-xl font-black text-emerald-400">{inr(dmtFloat)}</div>
+              <span className="text-[9px] text-slate-400">Available Balance</span>
             </div>
             <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Shop Bank Float</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
+                {selectedBankInstrument?.name || "Shop Bank"}
+              </span>
               <div className="text-xl font-black text-blue-400">{inr(currentBankBalance)}</div>
-              <span className="text-[9px] text-slate-400">Shop Bank Account</span>
+              <span className="text-[9px] text-slate-400">Available Balance</span>
             </div>
           </div>
         </div>
@@ -965,7 +1020,7 @@ export default function DmtWorkspace({
         <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Available Float</span>
           <div className="my-1">
-            <div className="text-lg font-black text-indigo-900 dark:text-indigo-300 truncate">{inr(currentDmtFloat)}</div>
+            <div className="text-lg font-black text-indigo-900 dark:text-indigo-300 truncate">{inr(dmtFloat)}</div>
             <p className="text-[10px] text-slate-500">DMT Portal Wallet</p>
           </div>
           <Link href="/finance/settlements" className="text-[10px] text-blue-600 font-bold hover:underline dark:text-blue-400">Top-up Float →</Link>
@@ -1073,21 +1128,20 @@ export default function DmtWorkspace({
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Sender Full Name <span className="text-rose-500">*</span>
+                  Sender Name (Optional)
                 </label>
                 <input
                   type="text"
-                  required
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Full name of remitter"
+                  placeholder="Full name of remitter (defaults to Walk-in)"
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Sender Mobile Number
+                  Sender Mobile Number (Optional)
                 </label>
                 <input
                   type="tel"
@@ -1101,7 +1155,7 @@ export default function DmtWorkspace({
             </div>
           </div>
 
-          {/* STEP 2 & 3: BENEFICIARY / DESTINATION */}
+          {/* STEP 2 & 3: BENEFICIARY / DESTINATION (ALL BENEFICIARY IDENTIFIERS OPTIONAL) */}
           <div className="space-y-2.5 pt-1">
             <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 2 &amp; 3 · Beneficiary &amp; Bank Destination</span>
@@ -1148,42 +1202,40 @@ export default function DmtWorkspace({
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Account Number <span className="text-rose-500">*</span>
+                    Beneficiary Account Number (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     value={beneficiaryAccount}
                     onChange={(e) => setBeneficiaryAccount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 100023456789"
+                    placeholder="e.g. 100023456789 (Optional)"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary IFSC Code <span className="text-rose-500">*</span>
+                    IFSC Code (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     maxLength={11}
                     value={beneficiaryIfsc}
                     onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase())}
-                    placeholder="e.g. SBIN0001234"
+                    placeholder="e.g. SBIN0001234 (Optional)"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Name
+                    Beneficiary Name (Optional)
                   </label>
                   <input
                     type="text"
                     value={beneficiaryName}
                     onChange={(e) => setBeneficiaryName(e.target.value)}
-                    placeholder="Recipient name as per bank records"
+                    placeholder="Recipient name (Optional)"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
@@ -1191,7 +1243,7 @@ export default function DmtWorkspace({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Beneficiary Bank Name
+                      Beneficiary Bank Name (Optional)
                     </label>
                     {matchedBeneficiaryBank && (
                       <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[140px]">
@@ -1203,7 +1255,7 @@ export default function DmtWorkspace({
                     type="text"
                     value={beneficiaryBank}
                     onChange={(e) => setBeneficiaryBank(e.target.value)}
-                    placeholder="e.g. State Bank of India"
+                    placeholder="e.g. State Bank of India (Optional)"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
@@ -1212,14 +1264,13 @@ export default function DmtWorkspace({
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary UPI ID (VPA) <span className="text-rose-500">*</span>
+                    Beneficiary UPI ID (VPA) (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     value={upiId}
                     onChange={(e) => setUpiId(e.target.value.toLowerCase())}
-                    placeholder="e.g. rahul@oksbi / 9876543210@paytm"
+                    placeholder="e.g. rahul@oksbi / 9876543210@paytm (Optional)"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wide outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
@@ -1232,7 +1283,7 @@ export default function DmtWorkspace({
                     type="text"
                     value={receiverName}
                     onChange={(e) => setReceiverName(e.target.value)}
-                    placeholder="Recipient verified display name"
+                    placeholder="Recipient verified display name (Optional)"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
@@ -1313,6 +1364,14 @@ export default function DmtWorkspace({
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 6 &amp; 7 · Funding Source &amp; Customer Collection</span>
+              <button
+                type="button"
+                onClick={refreshBalances}
+                disabled={isRefreshingBalances}
+                className="text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
+              >
+                ↻ Refresh Live Float
+              </button>
             </div>
 
             {/* Funding Source (Disbursement) */}
@@ -1332,7 +1391,7 @@ export default function DmtWorkspace({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-900 dark:text-white">👛 DMT Portal Wallet</span>
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{inr(currentDmtFloat)}</span>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{inr(dmtFloat)}</span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                     Disburses from live DMT gateway wallet pool.
@@ -1349,7 +1408,9 @@ export default function DmtWorkspace({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 dark:text-white">🏦 Shop Bank Account</span>
+                    <span className="text-xs font-black text-slate-900 dark:text-white">
+                      🏦 {selectedBankInstrument?.name || "Shop Bank Account"}
+                    </span>
                     <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{inr(currentBankBalance)}</span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
@@ -1359,11 +1420,31 @@ export default function DmtWorkspace({
               </div>
             </div>
 
+            {/* Select Bank Instrument if multiple shop bank accounts */}
+            {paidFrom === "bank" && liveInstruments.length > 1 && (
+              <div className="space-y-1 pt-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Select Shop Bank Account
+                </label>
+                <select
+                  value={selectedBankInstrumentId}
+                  onChange={(e) => setSelectedBankInstrumentId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                >
+                  {liveInstruments.map((inst) => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name} ({inr(Number(inst.current_balance ?? bankPoolFloat ?? 0))})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Float Insufficiency Alert Guard */}
             {isFloatInsufficient && (
               <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
                 <div className="flex items-center gap-1.5 font-black">
-                  <span>⚠ Insufficient {paidFrom === "portal" ? "DMT Portal Float" : "Bank Balance"}</span>
+                  <span>⚠ INSUFFICIENT {paidFrom === "portal" ? "DMT PORTAL FLOAT" : "BANK BALANCE"}</span>
                 </div>
                 <div className="mt-1 grid grid-cols-3 gap-2 text-[11px]">
                   <div><span className="text-slate-500">Required:</span> <strong>{inr(numAmount)}</strong></div>
@@ -1482,7 +1563,7 @@ export default function DmtWorkspace({
             <div className="flex justify-between">
               <span className="text-slate-500">Beneficiary:</span>
               <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
-                {transferMethod === "upi" ? (upiId || "Pending") : (beneficiaryName || beneficiaryAccount ? maskAccount(beneficiaryAccount) : "Pending")}
+                {transferMethod === "upi" ? (upiId || "Pending / Optional") : (beneficiaryName || beneficiaryAccount ? maskAccount(beneficiaryAccount) : "Pending / Optional")}
               </strong>
             </div>
 
@@ -1490,6 +1571,13 @@ export default function DmtWorkspace({
               <span className="text-slate-500">Transfer Method:</span>
               <strong className="text-slate-900 dark:text-white">
                 {transferMethod === "bank_account" ? "Bank IMPS/NEFT" : "UPI Remittance"}
+              </strong>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-slate-500">Funding Balance:</span>
+              <strong className="text-emerald-600 dark:text-emerald-400">
+                {inr(availableSelectedFloat)} ({paidFrom === "portal" ? "DMT Portal" : "Shop Bank"})
               </strong>
             </div>
 
@@ -1656,9 +1744,9 @@ export default function DmtWorkspace({
                           </div>
                           <div className="text-[10px] text-slate-400">
                             {t.transfer_method === "upi" ? (
-                              <span>{t.upi_id}</span>
+                              <span>{t.upi_id || "UPI VPA"}</span>
                             ) : (
-                              <span>{t.beneficiary_bank || "Bank"} • {maskAccount(t.beneficiary_account)}</span>
+                              <span>{t.beneficiary_bank || "Bank"} {t.beneficiary_account ? `• ${maskAccount(t.beneficiary_account)}` : ""}</span>
                             )}
                           </div>
                         </td>
@@ -1811,15 +1899,15 @@ export default function DmtWorkspace({
             <div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2 dark:bg-white/5">
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer:</span>
-                <strong className="text-slate-900 dark:text-white">{senderName}</strong>
+                <strong className="text-slate-900 dark:text-white">{senderName || "Walk-in Customer"}</strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Beneficiary:</span>
                 <strong className="text-slate-900 dark:text-white">
-                  {transferMethod === "upi" ? upiId : `${beneficiaryName || "Beneficiary"} (${maskAccount(beneficiaryAccount)})`}
+                  {transferMethod === "upi" ? (upiId || "UPI VPA (Optional)") : `${beneficiaryName || "Beneficiary"} ${beneficiaryAccount ? `(${maskAccount(beneficiaryAccount)})` : ""}`}
                 </strong>
               </div>
-              {transferMethod === "bank_account" && (
+              {transferMethod === "bank_account" && beneficiaryIfsc && (
                 <div className="flex justify-between">
                   <span className="text-slate-500">Bank &amp; IFSC:</span>
                   <strong className="text-slate-900 dark:text-white">{beneficiaryIfsc} · {beneficiaryBank || "Bank"}</strong>
@@ -1840,7 +1928,7 @@ export default function DmtWorkspace({
               <div className="flex justify-between">
                 <span className="text-slate-500">Funding:</span>
                 <strong className="text-slate-900 dark:text-white">
-                  {paidFrom === "portal" ? "DMT PORTAL" : "SHOP BANK"}
+                  {paidFrom === "portal" ? "DMT PORTAL" : (selectedBankInstrument?.name || "SHOP BANK")}
                 </strong>
               </div>
               <div className="flex justify-between">
@@ -2039,7 +2127,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          9. ADD BENEFICIARY MODAL (Confirm Account & Deterministic Deduplication)
+          9. ADD BENEFICIARY MODAL (All Fields Optional & Confirm Account Check)
       =============================================================================== */}
       {addBeneficiaryWindowOpen && (
         <FloatingWindow
@@ -2059,25 +2147,23 @@ export default function DmtWorkspace({
               <>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Account Number <span className="text-rose-500">*</span>
+                    Beneficiary Account Number (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     value={newBenAccount}
                     onChange={(e) => setNewBenAccount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 100023456789"
+                    placeholder="e.g. 100023456789 (Optional)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black tracking-widest outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Confirm Account Number <span className="text-rose-500">*</span>
+                    Confirm Account Number (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     value={newBenConfirmAccount}
                     onChange={(e) => setNewBenConfirmAccount(e.target.value.replace(/\D/g, ""))}
                     placeholder="Re-enter bank account number"
@@ -2087,41 +2173,40 @@ export default function DmtWorkspace({
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    IFSC Code <span className="text-rose-500">*</span>
+                    IFSC Code (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     maxLength={11}
                     value={newBenIfsc}
                     onChange={(e) => setNewBenIfsc(e.target.value.toUpperCase())}
-                    placeholder="e.g. SBIN0001234"
+                    placeholder="e.g. SBIN0001234 (Optional)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Name
+                    Beneficiary Name (Optional)
                   </label>
                   <input
                     type="text"
                     value={newBenName}
                     onChange={(e) => setNewBenName(e.target.value)}
-                    placeholder="Recipient name"
+                    placeholder="Recipient name (Optional)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Bank Name
+                    Bank Name (Optional)
                   </label>
                   <input
                     type="text"
                     value={newBenBank}
                     onChange={(e) => setNewBenBank(e.target.value)}
-                    placeholder="e.g. State Bank of India"
+                    placeholder="e.g. State Bank of India (Optional)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   />
                 </div>
@@ -2130,27 +2215,26 @@ export default function DmtWorkspace({
               <>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary UPI ID <span className="text-rose-500">*</span>
+                    Beneficiary UPI ID (VPA) (Optional)
                   </label>
                   <input
                     type="text"
-                    required
                     value={newBenUpi}
                     onChange={(e) => setNewBenUpi(e.target.value.toLowerCase())}
-                    placeholder="user@upi"
+                    placeholder="user@upi (Optional)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Receiver Display Name
+                    Receiver Display Name (Optional)
                   </label>
                   <input
                     type="text"
                     value={newBenName}
                     onChange={(e) => setNewBenName(e.target.value)}
-                    placeholder="Recipient verified name"
+                    placeholder="Recipient verified name (Optional)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   />
                 </div>
@@ -2350,7 +2434,7 @@ export default function DmtWorkspace({
                     <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.sender_name || selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
                     <div><span className="text-slate-400">Customer Mobile:</span> <div className="font-bold">{selectedDetailTxn.sender_mobile ? maskMobile(selectedDetailTxn.sender_mobile) : "N/A"}</div></div>
                     <div><span className="text-slate-400">Beneficiary:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_name || selectedDetailTxn.receiver_name || "Beneficiary"}</div></div>
-                    <div><span className="text-slate-400">Account / VPA:</span> <div className="font-mono font-bold">{selectedDetailTxn.transfer_method === "upi" ? selectedDetailTxn.upi_id : maskAccount(selectedDetailTxn.beneficiary_account)}</div></div>
+                    <div><span className="text-slate-400">Account / VPA:</span> <div className="font-mono font-bold">{selectedDetailTxn.transfer_method === "upi" ? selectedDetailTxn.upi_id : (selectedDetailTxn.beneficiary_account ? maskAccount(selectedDetailTxn.beneficiary_account) : "N/A")}</div></div>
                     {selectedDetailTxn.beneficiary_ifsc && <div><span className="text-slate-400">Bank &amp; IFSC:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_bank || "Bank"} · {selectedDetailTxn.beneficiary_ifsc}</div></div>}
                   </div>
                 </div>
