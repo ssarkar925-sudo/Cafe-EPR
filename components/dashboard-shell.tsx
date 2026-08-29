@@ -122,8 +122,8 @@ export default function DashboardShell({
         <Avatar name={name} avatarUrl={avatarUrl} size="h-8 w-8" />
       </header>
 
-      {/* Keep the workplace visually separated from the fixed sidebar. The 20px desktop inset matches both sidebar states. */}
-      <main className={`transition-all duration-300 ${collapsed ? "lg:pl-[96px]" : "lg:pl-[292px]"}`}>
+      {/* Clean docked main workstation aligned with sidebar width */}
+      <main className={`transition-all duration-300 ${collapsed ? "lg:pl-[76px]" : "lg:pl-72"}`}>
         <header className="sticky top-0 z-20 hidden h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-6 backdrop-blur lg:flex dark:border-white/10 dark:bg-slate-900/80">
           <div className="w-52 shrink-0"><h1 className="truncate text-lg font-bold text-slate-900 dark:text-white">{meta.title}</h1>{meta.desc && <p className="truncate text-[11px] text-slate-400">{meta.desc}</p>}</div>
           <button onClick={() => setSearchOpen(true)} className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-500 shadow-sm transition hover:border-blue-400 hover:shadow focus:border-blue-400 focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-slate-400"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg><span className="flex-1 text-left text-slate-400">Search products, services, invoices, customers…</span><kbd className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 dark:border-white/10 dark:bg-white/5">Ctrl K</kbd></button>
