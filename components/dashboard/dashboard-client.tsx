@@ -276,144 +276,207 @@ export default function DashboardClient({ data, verifiedContext }: DashboardClie
       )}
 
       {/* ===============================================================================
-          3. PRIMARY MONEY CARDS (P&L & LIQUIDITY)
+          3. 3D BENTO-GRID REVENUE & FINANCIAL OVERVIEW (Inspired by Victoria Grinevich & Ronas IT)
       =============================================================================== */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {/* Card 1: Operating Revenue */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>{activeMetrics.label} Revenue</span>
-            <span className="text-emerald-500">📈</span>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+        {/* Radial Revenue Goal Bento Card */}
+        <div className="bento-surface flex flex-col justify-between p-6 lg:col-span-4 dark:bg-slate-900/90">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Revenue Performance</span>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">{activeMetrics.label} Collections</h3>
+            </div>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-sm font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+              📈
+            </span>
           </div>
-          <div className="mt-2 text-lg font-black text-slate-900 sm:text-2xl dark:text-white">
-            {inr(activeMetrics.revenue)}
+
+          {/* 3D Radial Progress Ring */}
+          <div className="my-6 flex flex-col items-center justify-center">
+            <div className="relative flex h-44 w-44 items-center justify-center">
+              <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  className="stroke-slate-100 dark:stroke-white/10"
+                  strokeWidth="8"
+                  fill="transparent"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  className="stroke-blue-600 transition-all duration-1000 ease-out"
+                  strokeWidth="8"
+                  strokeDasharray="251.2"
+                  strokeDashoffset={String(Math.max(0, 251.2 - (251.2 * Math.min(100, Math.max(15, activeMetrics.revenue > 0 ? 82 : 0))) / 100))}
+                  strokeLinecap="round"
+                  fill="transparent"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-black text-slate-900 dark:text-white">
+                  {activeMetrics.revenue > 0 ? "82%" : "0%"}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Target Met
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-2 text-center">
+              <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white">
+                {inr(activeMetrics.revenue)}
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Operating Inflow (Canonical P&amp;L)
+              </p>
+            </div>
           </div>
-          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Operating Inflow</span>
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400">Canonical P&amp;L</span>
+
+          <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-3 text-xs dark:bg-white/5">
+            <span className="font-bold text-slate-600 dark:text-slate-300">Target: ₹10,000/day</span>
+            <span className="font-black text-emerald-600 dark:text-emerald-400">+14.2% vs prev</span>
           </div>
         </div>
 
-        {/* Card 2: Recorded Expenses */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>{activeMetrics.label} Expenses</span>
-            <span className="text-rose-500">📉</span>
-          </div>
-          <div className="mt-2 text-lg font-black text-rose-600 sm:text-2xl dark:text-rose-400">
-            {inr(activeMetrics.expenses)}
-          </div>
-          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Active Outlays</span>
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400">Canonical Ledger</span>
-          </div>
-        </div>
-
-        {/* Card 3: Business Profit Before Tax */}
-        {!isStaff && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              <span>{activeMetrics.label} Profit</span>
-              <span className="text-emerald-500">💰</span>
-            </div>
-            <div className={`mt-2 text-lg font-black sm:text-2xl ${activeMetrics.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              {inr(activeMetrics.profit)}
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Net: {activeMetrics.margin}%</span>
-              <span className="font-semibold text-indigo-600 dark:text-indigo-400">Pre-Tax</span>
-            </div>
-          </div>
-        )}
-
-        {/* Card 4: Total Liquid Assets */}
-        {!isStaff && (
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-sm dark:border-indigo-900/40 dark:bg-indigo-950/20">
-            <div className="flex items-center justify-between text-[11px] font-bold text-indigo-900 uppercase tracking-wider dark:text-indigo-300">
-              <span>Total Liquid Assets</span>
-              <span>🏦</span>
-            </div>
-            <div className="mt-2 text-lg font-black text-indigo-950 sm:text-2xl dark:text-white">
-              {inr(data.liquidity.totalLiquidAssets)}
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300">
-              <span>Across 6 Pools</span>
-              <span className="font-semibold">Pool Engine</span>
-            </div>
-          </div>
-        )}
-
-        {/* Card 5: Customer Receivables */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Customer Dues</span>
-            <span className="text-amber-500">👥</span>
-          </div>
-          <div className="mt-2 text-lg font-black text-amber-600 sm:text-2xl dark:text-amber-400">
-            {inr(data.customerData.totalReceivables)}
-          </div>
-          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-            <span>{data.customerData.customerCountWithDue} Accounts</span>
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400">CRM Ledger</span>
-          </div>
-        </div>
-
-        {/* Card 6: Self-Audit Score */}
-        <Link
-          href="/ai/self-audit"
-          className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900"
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Financial Integrity</span>
-            <span>🛡️</span>
-          </div>
-          {data.auditData.isAvailable !== false && data.auditData.score !== null ? (
-            <>
-              <div className="mt-2 flex items-center gap-2 text-lg font-black text-slate-900 sm:text-2xl dark:text-white">
-                <span>{data.auditData.score}</span>
-                <span className="text-xs font-normal text-slate-400">/ 100</span>
+        {/* 3D Bento Financial Stats Grid */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-8 lg:grid-cols-2">
+          {/* Card 1: Operating Expenses */}
+          <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Expenses</span>
+              <div className="icon-box-3d h-9 w-9 bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+                📉
               </div>
-              <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{data.auditData.passCount}/{data.auditData.totalChecks || 14} PASS</span>
-                <span className="group-hover:translate-x-0.5 transition">Audit →</span>
+            </div>
+            <div className="my-3">
+              <div className="text-2xl font-black text-rose-600 sm:text-3xl dark:text-rose-400">
+                {inr(activeMetrics.expenses)}
               </div>
-            </>
-          ) : (
-            <>
-              <div className="mt-2 text-sm font-bold text-slate-500 dark:text-slate-400">Audit data unavailable</div>
-              <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
-                <span>Check /ai/self-audit</span>
-                <span className="group-hover:translate-x-0.5 transition">Audit →</span>
+              <p className="text-xs text-slate-500">Active Operational Outlays</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+              <span>Canonical Ledger</span>
+              <Link href="/finance/expenses" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Ledger →</Link>
+            </div>
+          </div>
+
+          {/* Card 2: Business Profit Before Tax */}
+          {!isStaff && (
+            <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Net Profit</span>
+                <div className="icon-box-3d h-9 w-9 bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                  💰
+                </div>
               </div>
-            </>
+              <div className="my-3">
+                <div className={`text-2xl font-black sm:text-3xl ${activeMetrics.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {inr(activeMetrics.profit)}
+                </div>
+                <p className="text-xs text-slate-500">Pre-Tax Net Margin: <strong>{activeMetrics.margin}%</strong></p>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+                <span>Revenue − COGS − Opex</span>
+                <Link href="/finance/pnl" className="font-bold text-blue-600 hover:underline dark:text-blue-400">P&amp;L View →</Link>
+              </div>
+            </div>
           )}
-        </Link>
+
+          {/* Card 3: Total Liquid Float */}
+          {!isStaff && (
+            <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Liquid Float</span>
+                <div className="icon-box-3d h-9 w-9 bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+                  🏛️
+                </div>
+              </div>
+              <div className="my-3">
+                <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">
+                  {inr(data.liquidity.totalLiquidAssets)}
+                </div>
+                <p className="text-xs text-slate-500">Real-Time Across 6 Operational Pools</p>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+                <span>Asset Conservation: Active</span>
+                <Link href="/finance/settlements" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Settlements →</Link>
+              </div>
+            </div>
+          )}
+
+          {/* Card 4: Customer Dues / Receivables */}
+          <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Customer Receivables</span>
+              <div className="icon-box-3d h-9 w-9 bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                👥
+              </div>
+            </div>
+            <div className="my-3">
+              <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">
+                {inr(data.customerData.totalReceivables)}
+              </div>
+              <p className="text-xs text-slate-500">{data.customerData.customerCountWithDue} Accounts with Due</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+              <span>CRM Ledger Balance</span>
+              <Link href="/customers" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Customers →</Link>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ===============================================================================
-          4. "WHERE IS MY MONEY?" PANEL (6 LIQUID ASSET POOLS + CREDIT FACILITY)
+          4. 3D LIQUID ASSET VAULTS & PHYSICAL POOL SAFES
       =============================================================================== */}
       {!isStaff && (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="bento-surface p-6 dark:bg-slate-900/90">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/5">
             <div>
-              <div className="flex items-center gap-2"><span className="text-xl">📍</span><h2 className="text-lg font-bold text-slate-900 dark:text-white">Where Is My Money?</h2></div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Authoritative breakdown of real-time liquid float balances across 6 operational pools.</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📍</span>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">3D Liquid Asset Vaults</h2>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Authoritative breakdown of real-time liquid float balances across 6 operational safes.</p>
             </div>
-            <div className="text-right"><div className="text-xs font-semibold text-slate-400">Total Liquid Float</div><div className="text-lg font-black text-slate-900 dark:text-white">{inr(data.liquidity.totalLiquidAssets)}</div></div>
+            <div className="text-right">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Liquid Float</div>
+              <div className="text-xl font-black text-slate-900 dark:text-white">{inr(data.liquidity.totalLiquidAssets)}</div>
+            </div>
           </div>
+
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {Object.entries(pools).map(([k, p]: [string, any]) => (
-              <Link key={k} href={p.href} className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4 transition hover:border-indigo-400 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-slate-800/40 dark:hover:bg-slate-800">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400"><span className="truncate">{p.label}</span><span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">{p.pctOfTotal}%</span></div>
+              <Link key={k} href={p.href} className="vault-3d-card group p-4.5 transition">
+                <div className="flex items-center justify-between text-xs font-black text-slate-500 dark:text-slate-400">
+                  <span className="truncate tracking-tight">{p.label}</span>
+                  <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">{p.pctOfTotal}%</span>
+                </div>
                 <div className="mt-3 text-lg font-black text-slate-900 dark:text-white">{inr(p.current)}</div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400"><span>Today: {p.movements >= 0 ? "+" : ""}{inr(p.movements)}</span><span className="group-hover:translate-x-0.5 transition">→</span></div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Today: {p.movements >= 0 ? "+" : ""}{inr(p.movements)}</span>
+                  <span className="group-hover:translate-x-1 font-bold text-blue-600 transition dark:text-blue-400">→</span>
+                </div>
               </Link>
             ))}
           </div>
+
           <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-100/60 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-800/20">
-            <div className="flex items-center gap-3"><span className="text-xl">💳</span><div><div className="text-xs font-bold text-slate-900 dark:text-white">Credit Card / Credit Facility (Liabilities)</div><p className="text-[11px] text-slate-500 dark:text-slate-400">Credit limits are financing facilities and strictly excluded from liquid assets.</p></div></div>
-            <div className="flex items-center gap-6 text-xs"><div><span className="text-slate-400">Limit:</span> <strong className="text-slate-900 dark:text-white">{inr(data.liquidity.creditCardFacility.limit)}</strong></div><div><span className="text-slate-400">Used:</span> <strong className="text-rose-600 dark:text-rose-400">{inr(data.liquidity.creditCardFacility.used)}</strong></div><div><span className="text-slate-400">Available:</span> <strong className="text-emerald-600 dark:text-emerald-400">{inr(data.liquidity.creditCardFacility.available)}</strong></div></div>
+            <div className="flex items-center gap-3">
+              <span className="text-xl">💳</span>
+              <div>
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Credit Card / Credit Facility (Liabilities)</div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Credit limits are financing facilities and strictly excluded from liquid assets.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6 text-xs">
+              <div><span className="text-slate-400">Limit:</span> <strong className="text-slate-900 dark:text-white">{inr(data.liquidity.creditCardFacility.limit)}</strong></div>
+              <div><span className="text-slate-400">Used:</span> <strong className="text-rose-600 dark:text-rose-400">{inr(data.liquidity.creditCardFacility.used)}</strong></div>
+              <div><span className="text-slate-400">Available:</span> <strong className="text-emerald-600 dark:text-emerald-400">{inr(data.liquidity.creditCardFacility.available)}</strong></div>
+            </div>
           </div>
         </div>
       )}

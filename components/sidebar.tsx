@@ -314,31 +314,32 @@ export default function Sidebar({
                             href={item.href}
                             onClick={onMobileClose}
                             style={{
-                              backgroundColor: active ? "var(--brand-500)" : undefined,
                               color: active ? "#ffffff" : "var(--sidebar-text)",
                             }}
-                            className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                            className={`group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-xs font-bold transition-all duration-200 ${
                               active
-                                ? "shadow-sm shadow-blue-500/25"
-                                : "hover:bg-white/10"
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
+                                : "hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98]"
                             }`}
                             title={collapsed ? item.label : undefined}
                           >
                             <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
-                                active ? "text-white" : "opacity-75 group-hover:opacity-100"
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 ${
+                                active
+                                  ? "bg-white/20 text-white shadow-xs"
+                                  : "bg-slate-100/80 text-slate-600 group-hover:scale-105 group-hover:text-blue-600 dark:bg-white/5 dark:text-slate-400 dark:group-hover:text-white"
                               }`}
                             >
                               <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
                             </span>
 
                             {!collapsed && (
-                              <span className="flex-1 truncate">{item.label}</span>
+                              <span className="flex-1 truncate tracking-tight">{item.label}</span>
                             )}
 
                             {!collapsed && item.badge && (
                               <span
-                                className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${
+                                className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
                                   active
                                     ? "border-white/30 bg-white/20 text-white"
                                     : BADGE_STYLES[item.badge.tone]

@@ -359,18 +359,16 @@ export function PosGrid({
             key={`${isProd ? "p" : "s"}-${x.id}`}
             onClick={() => onAdd(x.id, x.name, price, isProd)}
             disabled={out}
-            className={`group relative flex flex-col justify-between rounded-[20px] border p-3.5 text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-md ${
-              out
-                ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-white/5 dark:bg-slate-900/40"
-                : "border-slate-200/90 bg-white hover:border-blue-400 dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-600"
+            className={`pos-touch-tile-3d group p-4 text-left ${
+              out ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
             <div>
-              <div className="flex items-start justify-between gap-1.5">
+              <div className="flex items-start justify-between gap-2">
                 <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient(
+                  className={`icon-box-3d h-11 w-11 shrink-0 bg-gradient-to-br ${gradient(
                     x.name
-                  )} text-sm font-black text-white shadow-sm`}
+                  )} text-base font-black text-white shadow-sm`}
                 >
                   {x.name.slice(0, 1).toUpperCase()}
                 </div>
@@ -378,8 +376,8 @@ export function PosGrid({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
                       isProd
-                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
-                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/50"
+                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200/50"
                     }`}
                   >
                     {isProd ? "PRODUCT" : "SERVICE"}
@@ -388,35 +386,35 @@ export function PosGrid({
                     <span
                       className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
                         out
-                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
                           : low
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                       }`}
                     >
                       {out ? "OUT OF STOCK" : low ? `Low (${stock})` : `Stock ${stock}`}
                     </span>
                   ) : (
-                    <span className="max-w-[80px] truncate text-[10px] font-bold text-slate-400">
+                    <span className="max-w-[85px] truncate text-[10px] font-bold text-slate-400">
                       {x.categories?.name ?? "Service"}
                     </span>
                   )}
                 </div>
               </div>
-              <p className="mt-3 line-clamp-2 text-xs font-extrabold leading-snug text-slate-900 dark:text-white">
+              <p className="mt-3 line-clamp-2 text-xs font-black leading-snug text-slate-900 dark:text-white">
                 {x.name}
               </p>
             </div>
 
-            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-white/5">
+            <div className="mt-4 flex items-center justify-between border-t border-slate-100/80 pt-3 dark:border-white/5">
               <p className="text-sm font-black text-blue-600 dark:text-blue-400">
                 {inr(price)}
               </p>
               <span
-                className={`rounded-xl px-2.5 py-1 text-[10px] font-extrabold transition ${
+                className={`rounded-xl px-3 py-1 text-[11px] font-black transition ${
                   out
                     ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
-                    : "bg-slate-900 text-white group-hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:group-hover:bg-blue-600 dark:group-hover:text-white"
+                    : "btn-3d-tactile-primary group-hover:scale-105"
                 }`}
               >
                 {out ? "Out" : "+ Add"}

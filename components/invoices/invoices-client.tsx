@@ -790,16 +790,16 @@ export default function InvoicesClient({
             <div
               key={inv.id}
               onClick={() => setViewId(inv.id)}
-              className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 ${
-                cancelled ? "opacity-70" : ""
+              className={`bento-surface-interactive group relative flex cursor-pointer flex-col overflow-hidden p-5 dark:bg-slate-900/90 ${
+                cancelled ? "opacity-60" : ""
               }`}
             >
-              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${BAR_STYLE[inv.status] ?? "bg-slate-300"}`} />
-              <div className="flex flex-1 flex-col p-5">
+              <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${BAR_STYLE[inv.status] ?? "bg-slate-300"}`} />
+              <div className="flex flex-1 flex-col pt-1">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(customer)} text-sm font-bold text-white shadow-sm`}>
+                    <div className={`icon-box-3d h-11 w-11 shrink-0 bg-gradient-to-br ${gradient(customer)} text-sm font-black text-white shadow-sm`}>
                       {customer.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0">

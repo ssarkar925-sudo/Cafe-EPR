@@ -1311,9 +1311,9 @@ export default function PosClient({
                     type="button"
                     onClick={() => completeSale(true)}
                     disabled={payDisabled}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-xs font-black text-white shadow-md shadow-blue-500/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="btn-3d-tactile-primary mt-2.5 flex w-full items-center justify-center gap-2 py-3.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span>⚡ Pay &amp; Print Thermal Receipt</span>
+                    <span>⚡ Pay &amp; Print Thermal Receipt [Enter]</span>
                     <span>·</span>
                     <span>{inr(total)}</span>
                   </button>
