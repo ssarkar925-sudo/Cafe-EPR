@@ -10,13 +10,13 @@ export type NavItem = { label: string; href: string; icon: string; badge?: { tex
 export type NavSection = { title: string; items: NavItem[] };
 
 const BADGE_STYLES: Record<BadgeTone, string> = {
-  emerald: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
-  amber: "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30",
-  indigo: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30",
-  purple: "bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30",
-  rose: "bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30",
-  blue: "bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30",
-  slate: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30",
+  emerald: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  amber: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  indigo: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+  purple: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  rose: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+  blue: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  slate: "bg-slate-500/20 text-slate-400 border-slate-500/30",
 };
 
 const ICONS: Record<string, string> = {
@@ -47,7 +47,7 @@ const ICONS: Record<string, string> = {
   audit: "M12 8v4m0 4h.01M12 3l9 5v8l-9 5-9-5V8l9-5ZM6.5 8.5 12 6l5.5 2.5M12 6v12",
   security: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
   ai: "M12 2a2 2 0 0 1 2 2v1a1 1 0 0 0 1 1h1a2 2 0 0 1 2 2v1a1 1 0 0 0 1 1h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v1a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1a1 1 0 0 0-1-1h-1a2 2 0 0 1-2-2v-1a1 1 0 0 1-1-1H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h1a1 1 0 0 0 1-1V9a2 2 0 0 1 2-2h1a1 1 0 0 0 1-1V4a2 2 0 0 1 2-2h2zM9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z",
-  settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83-2.83l-.06.06a1.65 1.65 0 0 1-1.51 1H21a2 2 0 1 1 0 4h-.09a2 2 0 0 1-1.51 1z",
+  settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83-2.83l-.06.06a1.65 1.65 0 0 1-1.51 1H21a2 2 0 1 1 0 4h-.09a2 2 0 0 1-1.51 1z",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   chevron: "m9 18 6-6-6-6",
 };
@@ -199,14 +199,22 @@ export default function Sidebar({
 
       {/* Main Sidebar Element */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-[var(--sidebar-bg)] transition-all duration-300 ${
+        style={{
+          backgroundColor: "var(--sidebar-bg)",
+          borderColor: "var(--sidebar-border)",
+          color: "var(--sidebar-text)",
+        }}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-all duration-300 ${
           collapsed ? "w-[72px]" : "w-[280px]"
         } ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } border-[var(--sidebar-border)] shadow-[var(--sidebar-shadow)] text-[var(--sidebar-text)]`}
+        } shadow-[var(--sidebar-shadow)]`}
       >
         {/* 1. Brand Header */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--sidebar-border)] px-4">
+        <div
+          style={{ borderColor: "var(--sidebar-border)" }}
+          className="flex h-16 shrink-0 items-center justify-between border-b px-4"
+        >
           <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25">
               {logoUrl ? (
@@ -219,12 +227,12 @@ export default function Sidebar({
             {!collapsed && (
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="truncate text-sm font-black text-slate-900 dark:text-white">
+                  <h1 className="truncate text-sm font-black" style={{ color: "var(--sidebar-text)" }}>
                     {shopName || "Sarkar Comm"}
                   </h1>
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 </div>
-                <p className="truncate text-[10px] font-bold text-slate-400 dark:text-slate-400">
+                <p className="truncate text-[10px] font-bold" style={{ color: "var(--sidebar-muted)" }}>
                   Café ERP Enterprise
                 </p>
               </div>
@@ -235,7 +243,8 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onToggle}
-            className="hidden rounded-xl p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white lg:flex"
+            style={{ color: "var(--sidebar-muted)" }}
+            className="hidden rounded-xl p-1.5 transition hover:bg-white/10 lg:flex"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <Icon
@@ -247,18 +256,23 @@ export default function Sidebar({
 
         {/* 2. Fast Filter Search (when expanded) */}
         {!collapsed && (
-          <div className="border-b border-[var(--sidebar-border)] px-3 py-2.5">
+          <div style={{ borderColor: "var(--sidebar-border)" }} className="border-b px-3 py-2.5">
             <div className="relative">
               <Icon
                 d="M11 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM21 21l-4.35-4.35"
-                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
+                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-50"
               />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search workspace (Ctrl+K)…"
-                className="w-full rounded-xl border border-slate-200/80 bg-slate-50/80 py-1.5 pl-8 pr-3 text-xs font-semibold text-slate-900 shadow-xs outline-none placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                style={{
+                  backgroundColor: "var(--sidebar-card)",
+                  borderColor: "var(--sidebar-border)",
+                  color: "var(--sidebar-text)",
+                }}
+                className="w-full rounded-xl border py-1.5 pl-8 pr-3 text-xs font-semibold shadow-xs outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -275,7 +289,8 @@ export default function Sidebar({
                     <button
                       type="button"
                       onClick={() => toggleSection(section.title)}
-                      className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                      style={{ color: "var(--sidebar-muted)" }}
+                      className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-black uppercase tracking-wider transition hover:opacity-100"
                     >
                       <span>{section.title}</span>
                       <Icon
@@ -298,18 +313,20 @@ export default function Sidebar({
                             key={item.href}
                             href={item.href}
                             onClick={onMobileClose}
+                            style={{
+                              backgroundColor: active ? "var(--brand-500)" : undefined,
+                              color: active ? "#ffffff" : "var(--sidebar-text)",
+                            }}
                             className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
                               active
-                                ? "bg-blue-600 text-white shadow-sm shadow-blue-600/25 dark:bg-blue-600 dark:text-white"
-                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                                ? "shadow-sm shadow-blue-500/25"
+                                : "hover:bg-white/10"
                             }`}
                             title={collapsed ? item.label : undefined}
                           >
                             <span
                               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
-                                active
-                                  ? "text-white"
-                                  : "text-slate-400 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"
+                                active ? "text-white" : "opacity-75 group-hover:opacity-100"
                               }`}
                             >
                               <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
@@ -342,8 +359,14 @@ export default function Sidebar({
         </div>
 
         {/* 4. User Profile Footer */}
-        <div className="shrink-0 border-t border-[var(--sidebar-border)] p-3">
-          <div className="flex items-center gap-2.5 rounded-2xl bg-slate-50/80 p-2 dark:bg-white/[0.04]">
+        <div
+          style={{ borderColor: "var(--sidebar-border)" }}
+          className="shrink-0 border-t p-3"
+        >
+          <div
+            style={{ backgroundColor: "var(--sidebar-card)" }}
+            className="flex items-center gap-2.5 rounded-2xl p-2"
+          >
             <button
               type="button"
               onClick={() => setProfileOpen(true)}
@@ -363,14 +386,20 @@ export default function Sidebar({
 
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-black text-slate-900 dark:text-white">
+                <p
+                  className="truncate text-xs font-black"
+                  style={{ color: "var(--sidebar-text)" }}
+                >
                   {name || "Saikat Sarkar"}
                 </p>
                 <div className="flex items-center gap-1.5">
                   <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[9px] font-black uppercase text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                     {role || "Admin"}
                   </span>
-                  <span className="truncate text-[10px] text-slate-400">
+                  <span
+                    className="truncate text-[10px]"
+                    style={{ color: "var(--sidebar-muted)" }}
+                  >
                     {email || "saikat@cafe"}
                   </span>
                 </div>
@@ -380,7 +409,8 @@ export default function Sidebar({
             {!collapsed && (
               <Link
                 href="/logout"
-                className="rounded-xl p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                style={{ color: "var(--sidebar-muted)" }}
+                className="rounded-xl p-1.5 transition hover:bg-rose-500/15 hover:text-rose-400"
                 title="Sign out"
               >
                 <Icon d={ICONS.logout} className="h-4 w-4" />
