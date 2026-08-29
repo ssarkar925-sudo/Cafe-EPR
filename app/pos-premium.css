@@ -9,6 +9,28 @@ main > div.mx-auto.max-w-\[1600px\] input:focus,main > div.mx-auto.max-w-\[1600p
 main > div.mx-auto.max-w-\[1600px\] .rounded-2xl,main > div.mx-auto.max-w-\[1600px\] .rounded-3xl { border-color:var(--pos-line)!important; }
 main > div.mx-auto.max-w-\[1600px\] .shadow-sm { box-shadow:0 8px 24px rgba(15,23,42,.045),inset 0 1px 0 rgba(255,255,255,.55); }
 .dark main > div.mx-auto.max-w-\[1600px\] .shadow-sm { box-shadow:0 16px 34px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035); }
+
+/* Invoice / Quick Sale switch: keep both options locked together with deterministic spacing. */
+.pos-premium-root main > div.mx-auto.max-w-\[1600px\] .flex.rounded-xl.bg-slate-100.p-1.text-sm {
+  display:inline-flex!important;
+  flex:0 0 auto!important;
+  gap:0!important;
+  padding:3px!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+  border-radius:12px!important;
+}
+.pos-premium-root main > div.mx-auto.max-w-\[1600px\] .flex.rounded-xl.bg-slate-100.p-1.text-sm > button {
+  flex:0 0 96px!important;
+  width:96px!important;
+  min-width:96px!important;
+  margin:0!important;
+  padding:8px 12px!important;
+  border-radius:9px!important;
+  line-height:1.2!important;
+  white-space:nowrap!important;
+}
+
 /* Desktop navigation rail */
 @media (min-width:1025px) {
   main > div.mx-auto.max-w-\[1600px\] aside { position:sticky; top:16px; }
