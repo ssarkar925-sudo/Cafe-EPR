@@ -157,7 +157,7 @@ export function PosCategorySidebar({
   onAddCustom: () => void;
 }) {
   return (
-    <aside className="hidden lg:block">
+    <div className="hidden lg:block">
       <div className="sticky top-6 flex max-h-[calc(100vh-4rem)] flex-col overflow-visible rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         <div className="border-b border-slate-100 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Categories</p>
@@ -179,7 +179,7 @@ export function PosCategorySidebar({
           <AddNewItemMenu onAddCustom={onAddCustom} />
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -336,7 +336,7 @@ export function PosTable({
   return (
     <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
       <table className="w-full text-left text-sm">
-        <thead><tr className="border-b border-slate-200 text-slate-500"><th className="py-2.5 pl-4 pr-3 font-medium">Type</th><th className="py-2.5 pr-4 font-medium">Name</th><th className="py-2.5 pr-4 font-medium">Category</th><th className="py-2.5 pr-4 font-medium">Price</th><th className="py-2.5 pr-4 font-medium">Availability / Stock</th><th className="py-2.5 pr-4 font-medium text-right">Action</th></tr></thead>
+        <thead><tr className="border-b border-slate-200 text-slate-500"><th className="py-2.5 pl-4 pr-3 font-medium">Type</th><th className="py-2.5 pr-4 font-medium">Name</th><th className="py-2.5 pr-4 font-medium">Category</th><th className="py-2.5 pr-4 font-medium">Price</th><th className="py-2.5 pr-4 font-medium">Availability / Stock</th><th className="py-2.5 pr-4 text-right font-medium">Action</th></tr></thead>
         <tbody>
           {items.map((x) => {
             const isProd = x.item_type ? x.item_type === "product" : Boolean(isProduct || x.stock_qty !== undefined);
