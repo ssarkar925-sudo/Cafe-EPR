@@ -163,6 +163,7 @@ export default function PosClient({
   enabledMethods,
   canViewProfit = true,
   todayInvoices = [],
+  initialEditingInvoice = null,
 }: {
   products: PosProduct[];
   services: PosService[];
@@ -176,6 +177,7 @@ export default function PosClient({
   enabledMethods?: string[];
   canViewProfit?: boolean;
   todayInvoices?: PosInvoice[];
+  initialEditingInvoice?: PosInvoice | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -296,6 +298,13 @@ export default function PosClient({
   }, []);
 
   useEffect(() => setHeldBills(loadHeld()), []);
+
+  useEffect(() => {
+    if (initialEditingInvoice) {
+      setMode("invoice");
+      loadInvoiceForEdit(initialEditingInvoice);
+    }
+  }, [initialEditingInvoice]);
 
   const categories = useMemo(() => {
     const map = new Map<string, number>();

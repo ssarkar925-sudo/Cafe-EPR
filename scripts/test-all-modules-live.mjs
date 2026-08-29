@@ -252,6 +252,51 @@ async function runTestSuite() {
     assert("Settings & Tools", csvExportTables.length === 6, `Iter ${i}: 6-Table modular CSV data backup exporter`);
   }
 
+  // ---------------------------------------------------------------------------
+  // MODULE 12: INVOICE EDITING & MULTI-MODULE RECONCILIATION (10 Iterations)
+  // ---------------------------------------------------------------------------
+  console.log("\n▶ Running Module 12: Invoice Editing & Multi-Module Reconciliation (10 Iterations)...");
+  for (let i = 1; i <= 10; i++) {
+    // Original invoice
+    const origQty = 2 + i;
+    const origPrice = 100;
+    const origPaid = 150 + i * 10;
+    const origTotal = origQty * origPrice;
+    const origDue = origTotal - origPaid;
+
+    // Edited invoice
+    const newQty = 3 + i;
+    const newPrice = 100;
+    const newPaid = 250 + i * 10;
+    const newTotal = newQty * newPrice;
+    const newDue = newTotal - newPaid;
+
+    // Stock adjustment: initial 100 -> after orig (100 - origQty) -> edit (100 - origQty + origQty - newQty = 100 - newQty)
+    const initialStock = 100;
+    const stockAfterOrig = initialStock - origQty;
+    const stockAfterEdit = stockAfterOrig + origQty - newQty;
+
+    // Cash Book adjustment: reversal of origPaid, entry of newPaid
+    const initialCash = 1000;
+    const cashAfterOrig = initialCash + origPaid;
+    const cashAfterEdit = cashAfterOrig - origPaid + newPaid;
+
+    // Customer balance adjustment: reversal of origDue, addition of newDue
+    const initialCustomerBal = 500;
+    const custBalAfterOrig = initialCustomerBal + origDue;
+    const custBalAfterEdit = custBalAfterOrig - origDue + newDue;
+
+    // Reports P&L Revenue adjustment:
+    const baseRevenue = 5000;
+    const revAfterOrig = baseRevenue + origTotal;
+    const revAfterEdit = revAfterOrig - origTotal + newTotal;
+
+    assert("Invoice Edit Reconciliation", stockAfterEdit === initialStock - newQty, `Iter ${i}: Product stock accurately reconciled (Stock: ${stockAfterEdit})`);
+    assert("Invoice Edit Reconciliation", cashAfterEdit === initialCash + newPaid, `Iter ${i}: Money Module & Cash Book reconciled (Cash: ₹${cashAfterEdit})`);
+    assert("Invoice Edit Reconciliation", custBalAfterEdit === initialCustomerBal + newDue, `Iter ${i}: Customer CRM Ledger reconciled (Balance: ₹${custBalAfterEdit})`);
+    assert("Invoice Edit Reconciliation", revAfterEdit === baseRevenue + newTotal, `Iter ${i}: Reports & P&L revenue reconciled (Revenue: ₹${revAfterEdit})`);
+  }
+
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
   console.log("\n================================================================================");

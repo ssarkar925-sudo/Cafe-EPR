@@ -243,6 +243,17 @@ export default function InvoiceViewModal({
       size="xl"
       headerRight={
         <div className="mr-2 flex flex-wrap items-center gap-1.5 text-xs">
+          {detail && detail.status !== "cancelled" && (
+            <a
+              href={`/pos?edit=${invoiceId}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              Edit Invoice
+            </a>
+          )}
           <button
             type="button"
             onClick={handleSendWhatsApp}
