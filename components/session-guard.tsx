@@ -42,8 +42,7 @@ export default function SessionGuard() {
     } catch {
       /* ignore */
     }
-    router.push("/login?reason=idle");
-    router.refresh();
+    window.location.href = "/logout?reason=idle";
   }
 
   useEffect(() => {
@@ -82,14 +81,9 @@ export default function SessionGuard() {
     }, 1000);
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if ((event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") && !signingOut.current) {
-        supabase.auth.getSession().then(({ data: s }) => {
-          if (!s.session) {
-            signingOut.current = true;
-            router.push("/login?reason=expired");
-            router.refresh();
-          }
-        });
+      if (event === "SIGNED_OUT" && !signingOut.current) {
+        signingOut.current = true;
+        window.location.href = "/logout?reason=expired";
       }
     });
 

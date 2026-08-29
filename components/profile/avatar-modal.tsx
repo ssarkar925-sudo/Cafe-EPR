@@ -112,11 +112,28 @@ export default function AvatarModal({
         <h2 className="mt-4 text-lg font-bold text-white">{name}</h2>
         <p className="mt-0.5 text-xs text-slate-400">{email}</p>
       </div>
-      <div className="px-6 py-5">
+      <div className="space-y-3 px-6 py-5">
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50">{uploading ? "Uploading…" : preview ? "Choose another photo" : "Upload a photo"}</button>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadAvatar(file); e.target.value = ""; }} />
-        {preview && <button type="button" onClick={remove} disabled={saving} className="mt-2 w-full rounded-xl border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">Remove photo</button>}
-        {toast && <div className={`mt-3 rounded-xl px-4 py-2.5 text-sm font-medium text-white ${toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"}`}>{toast.text}</div>}
+        {preview && <button type="button" onClick={remove} disabled={saving} className="w-full rounded-xl border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">Remove photo</button>}
+        
+        <div className="border-t border-slate-100 pt-2 dark:border-white/5">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const sp = createClient();
+                await sp.auth.signOut();
+              } catch {}
+              window.location.href = "/logout";
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/50 py-2.5 text-xs font-bold text-rose-600 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400 dark:hover:bg-rose-950/40"
+          >
+            <span>Sign Out of Account</span>
+          </button>
+        </div>
+
+        {toast && <div className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white ${toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"}`}>{toast.text}</div>}
       </div>
     </Modal>
   );

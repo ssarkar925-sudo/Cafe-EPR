@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import AvatarModal from "./profile/avatar-modal";
 
 export type BadgeTone = "emerald" | "amber" | "indigo" | "purple" | "rose" | "slate" | "blue";
@@ -97,6 +98,22 @@ export default function Sidebar({
   const [query, setQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(avatarUrl);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleSignOut(e?: React.MouseEvent) {
+    if (e) e.preventDefault();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+    // Hard document navigation to /logout ensures complete server session teardown and cache clearing
+    window.location.href = "/logout";
+  }
+
   const [openSections, setOpenSections] = useState<Set<string>>(
     () =>
       new Set([
@@ -409,14 +426,17 @@ export default function Sidebar({
             )}
 
             {!collapsed && (
-              <Link
-                href="/logout"
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={loggingOut}
                 style={{ color: "var(--sidebar-muted)" }}
-                className="rounded-xl p-1.5 transition hover:bg-rose-500/15 hover:text-rose-400"
+                className="rounded-xl p-1.5 transition hover:bg-rose-500/15 hover:text-rose-400 disabled:opacity-50"
                 title="Sign out"
+                aria-label="Sign out"
               >
                 <Icon d={ICONS.logout} className="h-4 w-4" />
-              </Link>
+              </button>
             )}
           </div>
         </div>

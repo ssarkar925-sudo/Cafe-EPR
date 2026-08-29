@@ -49,6 +49,9 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   res.headers.set("X-DNS-Prefetch-Control", "on");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
   return res;
 }
 
