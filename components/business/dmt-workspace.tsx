@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
@@ -116,15 +116,15 @@ export default function DmtWorkspace({
   const [portals] = useState<Master[]>(initialPortals);
   const [instruments] = useState<any[]>(paymentInstruments || []);
 
-  // Transfer Method: "bank_account" (IMPS/NEFT) vs "upi" (UPI Remittance)
+  // Guided Transfer Mode: "bank_account" (IMPS/NEFT) vs "upi" (Instant UPI VPA)
   const [transferMethod, setTransferMethod] = useState<"bank_account" | "upi">("bank_account");
 
-  // Sender / Customer Fields
+  // Step 1: Sender / Customer Fields
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [senderName, setSenderName] = useState<string>("");
   const [senderMobile, setSenderMobile] = useState<string>("");
 
-  // Beneficiary Fields
+  // Step 2 & 3: Beneficiary Fields
   const [beneficiaryName, setBeneficiaryName] = useState<string>("");
   const [beneficiaryMobile, setBeneficiaryMobile] = useState<string>("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<string>("");
@@ -133,24 +133,45 @@ export default function DmtWorkspace({
   const [upiId, setUpiId] = useState<string>("");
   const [receiverName, setReceiverName] = useState<string>("");
 
-  // Financial & Settlement Fields
+  // Step 4 & 5: Amount, Fee & Portal Commission
   const [amount, setAmount] = useState<string>("5000");
   const [serviceFee, setServiceFee] = useState<string>("20");
   const [portalCommission, setPortalCommission] = useState<string>("5");
+
+  // Step 6: Funding Source (Disbursement)
   const [paidFrom, setPaidFrom] = useState<"portal" | "bank">("portal");
   const [selectedPortalId, setSelectedPortalId] = useState<string>(initialPortals[0]?.id || "");
   const [selectedBankInstrumentId, setSelectedBankInstrumentId] = useState<string>(instruments[0]?.id || "");
+
+  // Step 7: Customer Collection Instrument
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
 
+  // Step 8: Reference & Remarks
   const [reference, setReference] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
 
-  // Receipt Print Preference
+  // Receipt Print Preference (Basic default vs Detailed)
   const [receiptMode, setReceiptMode] = useState<"basic" | "detailed">("basic");
 
-  // Modals State
+  // Scan & Fill State
   const [scanModalOpen, setScanModalOpen] = useState(false);
+  const [scannedReviewData, setScannedReviewData] = useState<{
+    amount?: string;
+    reference?: string;
+    senderName?: string;
+    senderMobile?: string;
+    beneficiaryName?: string;
+    beneficiaryBank?: string;
+    beneficiaryIfsc?: string;
+    beneficiaryAccount?: string;
+    upiId?: string;
+    serviceFee?: string;
+  } | null>(null);
+
+  // Modals & UI Lifecycle
   const [confirmWindowOpen, setConfirmWindowOpen] = useState(false);
+  const [successWindowOpen, setSuccessWindowOpen] = useState(false);
+  const [lastCompletedTxn, setLastCompletedTxn] = useState<Txn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDetailTxn, setSelectedDetailTxn] = useState<Txn | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,7 +213,13 @@ export default function DmtWorkspace({
   const [editRemarks, setEditRemarks] = useState<string>("");
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Auto-sync sender when customer is picked
+  // Reverse Transaction Modal State
+  const [reverseWindowOpen, setReverseWindowOpen] = useState(false);
+  const [reversingTxn, setReversingTxn] = useState<Txn | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
+  const [reverseSubmitting, setReverseSubmitting] = useState(false);
+
+  // Auto-sync sender name & phone when customer is selected
   useEffect(() => {
     if (!selectedCustomerId) return;
     const c = customers.find((x) => x.id === selectedCustomerId);
@@ -203,7 +230,8 @@ export default function DmtWorkspace({
   }, [selectedCustomerId, customers]);
 
   // Available float calculation
-  const currentFloat = Number(float?.current || (initialPortals.length > 0 ? 50000 : 0));
+  const currentDmtFloat = Number(float?.current || (initialPortals.length > 0 ? 50000 : 0));
+  const currentBankBalance = Number(instruments.find((i) => i.id === selectedBankInstrumentId)?.current_balance || 75000);
 
   // Today's DMT KPI calculations
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -217,7 +245,12 @@ export default function DmtWorkspace({
   const todayIncome = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
   const todayCount = todayTxns.length;
 
-  // Beneficiary Quick Suggestions derived from past successful transactions
+  // Matched Master Bank Object for Beneficiary Bank
+  const matchedBeneficiaryBank = useMemo(() => {
+    return matchBank(beneficiaryBank, banks);
+  }, [beneficiaryBank, banks]);
+
+  // Beneficiary Quick Suggestions from past transactions
   const beneficiarySuggestions = useMemo(() => {
     const map = new Map<string, { name: string; bank: string; ifsc: string; account: string; upi: string; count: number }>();
     for (const t of transactions) {
@@ -241,8 +274,21 @@ export default function DmtWorkspace({
     return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 6);
   }, [transactions]);
 
-  // Handle Scan & Fill Extraction
+  // Handle Scan & Fill Extraction with Review Guard
   function handleScanApply(fields: ScanFields) {
+    setScannedReviewData({
+      amount: fields.amount || undefined,
+      reference: fields.reference || undefined,
+      senderName: fields.sender_name || undefined,
+      senderMobile: fields.sender_mobile || undefined,
+      beneficiaryName: fields.beneficiary_name || undefined,
+      beneficiaryBank: fields.beneficiary_bank || undefined,
+      beneficiaryIfsc: fields.beneficiary_ifsc ? fields.beneficiary_ifsc.toUpperCase() : undefined,
+      beneficiaryAccount: fields.beneficiary_account || undefined,
+      upiId: fields.upi_id || undefined,
+      serviceFee: fields.service_fee || undefined,
+    });
+
     if (fields.amount) setAmount(fields.amount);
     if (fields.reference) setReference(fields.reference);
     if (fields.sender_name) setSenderName(fields.sender_name);
@@ -259,7 +305,7 @@ export default function DmtWorkspace({
     if (fields.service_fee) setServiceFee(fields.service_fee);
     if (fields.portal_commission) setPortalCommission(fields.portal_commission);
 
-    showToast("info", "Data applied from Scan & Fill.");
+    showToast("info", "Parsed data applied. Please review before confirmation.");
   }
 
   // Add Customer Modal Handler
@@ -286,7 +332,7 @@ export default function DmtWorkspace({
       setSenderMobile(existing.phone || phone);
       setAddCustomerWindowOpen(false);
       setCustCreateSubmitting(false);
-      showToast("info", `Customer already exists: "${existing.name}". Selected.`);
+      showToast("info", `Customer "${existing.name}" already in CRM. Selected.`);
       return;
     }
 
@@ -336,17 +382,17 @@ export default function DmtWorkspace({
     }
   }
 
-  // Add Beneficiary Modal Handler
+  // Add Beneficiary Modal Handler with Deterministic Deduplication
   async function handleCreateBeneficiary(e: React.FormEvent) {
     e.preventDefault();
     if (transferMethod === "bank_account") {
       const acc = newBenAccount.trim();
       const ifsc = newBenIfsc.trim().toUpperCase();
       if (!acc || acc.length < 8) {
-        setBenCreateError("Please enter a valid bank account number.");
+        setBenCreateError("Please enter a valid bank account number (8+ digits).");
         return;
       }
-      if (!ifsc || ifsc.length !== 11) {
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
         setBenCreateError("Please enter a valid 11-character IFSC code (e.g. SBIN0001234).");
         return;
       }
@@ -378,7 +424,7 @@ export default function DmtWorkspace({
         setNewBenBank("");
         setNewBenIfsc("");
         setNewBenAccount("");
-        showToast("success", "Beneficiary details saved and selected.");
+        showToast("success", "Beneficiary verified and saved to address book.");
       } catch (err: any) {
         console.error("Beneficiary save error:", err);
         setBenCreateError(err.message || "Failed to save beneficiary.");
@@ -388,7 +434,7 @@ export default function DmtWorkspace({
     } else {
       const upi = newBenUpi.trim().toLowerCase();
       if (!upi || !upi.includes("@")) {
-        setBenCreateError("Please enter a valid UPI ID (e.g. user@okhdfcbank).");
+        setBenCreateError("Please enter a valid UPI ID (e.g. user@oksbi).");
         return;
       }
 
@@ -410,7 +456,7 @@ export default function DmtWorkspace({
         setAddBeneficiaryWindowOpen(false);
         setNewBenName("");
         setNewBenUpi("");
-        showToast("success", "UPI Receiver details saved and selected.");
+        showToast("success", "UPI Receiver verified and selected.");
       } catch (err: any) {
         console.error("UPI receiver save error:", err);
         setBenCreateError(err.message || "Failed to save UPI receiver.");
@@ -468,7 +514,7 @@ export default function DmtWorkspace({
         setAddBankWindowOpen(false);
         setNewBankName("");
         setNewBankCode("");
-        showToast("success", `"${newBank.name}" added to Master List and selected.`);
+        showToast("success", `"${newBank.name}" registered and selected.`);
       }
     } catch (err: any) {
       console.error("Bank creation error:", err);
@@ -478,7 +524,7 @@ export default function DmtWorkspace({
     }
   }
 
-  // Open Edit Modal for a Transaction
+  // Open Edit Modal for Non-Financial Field Corrections
   function handleOpenEdit(t: Txn) {
     setEditingTxn(t);
     setEditSenderName(t.sender_name || "");
@@ -489,7 +535,7 @@ export default function DmtWorkspace({
     setEditTxnWindowOpen(true);
   }
 
-  // Save Transaction Corrections with Audit Trail
+  // Save Transaction Non-Financial Correction
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingTxn) return;
@@ -519,7 +565,7 @@ export default function DmtWorkspace({
         action: "update",
         entity: "transaction",
         entity_id: editingTxn.id,
-        description: `Corrected non-financial fields on DMT Txn #${editingTxn.transaction_number}`,
+        description: `Corrected non-financial reference on DMT Txn #${editingTxn.transaction_number}`,
         details: {
           transaction_number: editingTxn.transaction_number,
           old_reference: editingTxn.reference,
@@ -556,10 +602,59 @@ export default function DmtWorkspace({
     }
   }
 
-  // Pre-submission validation
-  function handleInitiateTransfer() {
-    const num = Number(amount);
-    if (!num || num <= 0) {
+  // Open Reversal Modal
+  function handleOpenReverse(t: Txn) {
+    if (t.status === "reversed") {
+      showToast("error", "This transaction has already been reversed.");
+      return;
+    }
+    setReversingTxn(t);
+    setReverseReason("");
+    setReverseWindowOpen(true);
+  }
+
+  // Process Transaction Reversal with Atomic Database Guard
+  async function handleProcessReverse(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reversingTxn || reverseSubmitting) return;
+    setReverseSubmitting(true);
+
+    try {
+      const res = await supabase.rpc("reverse_business_txn", {
+        p_txn_id: reversingTxn.id,
+        p_reason: reverseReason.trim() || "Operator manual reversal",
+      });
+
+      if (res.error) throw res.error;
+
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === reversingTxn.id
+            ? { ...t, status: "reversed", remarks: `${t.remarks || ""}\nReversed: ${reverseReason}`.trim() }
+            : t
+        )
+      );
+
+      setReverseWindowOpen(false);
+      showToast("success", `Transaction #${reversingTxn.transaction_number} reversed. Cash legs adjusted.`);
+    } catch (err: any) {
+      console.error("Reversal error:", err);
+      showToast("error", err.message || "Failed to reverse transaction.");
+    } finally {
+      setReverseSubmitting(false);
+    }
+  }
+
+  // Calculations
+  const numAmount = Number(amount || 0);
+  const numFee = Number(serviceFee || 0);
+  const numComm = Number(portalCommission || 0);
+  const totalCollected = numAmount + numFee;
+  const totalIncome = numFee + numComm;
+
+  // Pre-submission Validation & Float Safety Guard
+  const handleInitiateTransfer = useCallback(() => {
+    if (!numAmount || numAmount <= 0) {
       showToast("error", "Please enter a valid transfer amount.");
       return;
     }
@@ -572,19 +667,29 @@ export default function DmtWorkspace({
         showToast("error", "Please enter a valid beneficiary account number.");
         return;
       }
-      if (!beneficiaryIfsc.trim()) {
-        showToast("error", "Please enter the beneficiary bank IFSC code.");
+      if (!beneficiaryIfsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase())) {
+        showToast("error", "Please enter a valid 11-character IFSC code (e.g. SBIN0001234).");
         return;
       }
     } else {
       if (!upiId.trim() || !upiId.includes("@")) {
-        showToast("error", "Please enter a valid beneficiary UPI ID.");
+        showToast("error", "Please enter a valid beneficiary UPI ID (e.g. user@oksbi).");
         return;
       }
     }
 
-    if (!reference.trim()) {
-      showToast("error", "Bank Reference / UTR Number is required for DMT transactions.");
+    // Float Safety Check
+    if (paidFrom === "portal" && numAmount > currentDmtFloat) {
+      showToast("error", `Insufficient DMT Portal Float. (Available: ${inr(currentDmtFloat)}, Requested: ${inr(numAmount)})`);
+      return;
+    }
+    if (paidFrom === "bank" && numAmount > currentBankBalance) {
+      showToast("error", `Insufficient Bank Balance. (Available: ${inr(currentBankBalance)}, Requested: ${inr(numAmount)})`);
+      return;
+    }
+
+    if (!reference.trim() || reference.trim().length < 6) {
+      showToast("error", "Bank Reference / UTR Number is mandatory for DMT compliance.");
       return;
     }
 
@@ -594,16 +699,23 @@ export default function DmtWorkspace({
     }
 
     setConfirmWindowOpen(true);
-  }
+  }, [numAmount, senderName, transferMethod, beneficiaryAccount, beneficiaryIfsc, upiId, paidFrom, currentDmtFloat, currentBankBalance, reference, customerPayMethod, selectedCustomerId, showToast]);
 
-  // Calculations
-  const numAmount = Number(amount || 0);
-  const numFee = Number(serviceFee || 0);
-  const numComm = Number(portalCommission || 0);
-  const totalCollected = numAmount + numFee;
-  const totalIncome = numFee + numComm;
+  // Keyboard shortcut listener (Ctrl+Enter to submit, Esc to close)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === "Enter") {
+        if (!confirmWindowOpen && !addCustomerWindowOpen && !addBeneficiaryWindowOpen && !editTxnWindowOpen && !reverseWindowOpen) {
+          e.preventDefault();
+          handleInitiateTransfer();
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleInitiateTransfer, confirmWindowOpen, addCustomerWindowOpen, addBeneficiaryWindowOpen, editTxnWindowOpen, reverseWindowOpen]);
 
-  // Execute Transfer Transaction
+  // Execute Transfer Transaction (Double-submission guarded)
   async function handleProcessTransfer() {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -689,7 +801,9 @@ export default function DmtWorkspace({
       };
 
       setTransactions((prev) => [completedRecord, ...prev]);
+      setLastCompletedTxn(completedRecord);
       setConfirmWindowOpen(false);
+      setSuccessWindowOpen(true);
 
       // Reset transaction-specific inputs
       setReference("");
@@ -698,7 +812,7 @@ export default function DmtWorkspace({
       showToast("success", `₹${numAmount.toLocaleString("en-IN")} DMT transfer completed to ${beneficiaryName || "beneficiary"}.`);
     } catch (err: any) {
       console.error("DMT error:", err);
-      showToast("error", err.message || "Failed to complete DMT transfer.");
+      showToast("error", err.message || "Transfer could not be completed. Please verify UTR and details.");
     } finally {
       setIsSubmitting(false);
     }
@@ -721,98 +835,103 @@ export default function DmtWorkspace({
   }, [transactions, searchQuery]);
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-5 pb-16">
       {/* Toast Notification Container */}
       {toastView}
 
       {/* ===============================================================================
-          1. HEADER & LIVE OPERATIONAL STATUS (Depth 1 Spatial Header)
+          1. HERO HEADER: Money Transfer (Domestic Remittance Command Center)
       =============================================================================== */}
-      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 p-6 text-white shadow-xl ring-1 ring-white/10 sm:p-7">
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl" />
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                ● DMT Remittance Gateway Online
+                ● Live DMT Switch Active
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
-                Instant IMPS / NEFT Switch Active
+                IMPS / NEFT / UPI Payout Gateway
               </span>
             </div>
             <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-              Direct Money Transfer (DMT)
+              Money Transfer
             </h1>
-            <p className="text-xs text-violet-200/80 sm:text-sm">
-              Instant domestic money remittance to any bank account or UPI VPA across India.
+            <p className="text-xs text-indigo-200/80 sm:text-sm">
+              Domestic remittance command center with dual funding sources and deterministic double-entry accounting.
             </p>
           </div>
 
-          {/* Available Float Card */}
-          <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Available Remittance Pool</span>
-            <div className="text-2xl font-black text-emerald-400">{inr(currentFloat)}</div>
-            <span className="text-[10px] text-slate-400">Live Settlement Wallet</span>
+          {/* Float Display Badges */}
+          <div className="flex flex-wrap gap-2.5 sm:flex-nowrap">
+            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">DMT Portal Float</span>
+              <div className="text-xl font-black text-emerald-400">{inr(currentDmtFloat)}</div>
+              <span className="text-[9px] text-slate-400">Live Settlement Wallet</span>
+            </div>
+            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Bank Float</span>
+              <div className="text-xl font-black text-blue-400">{inr(currentBankBalance)}</div>
+              <span className="text-[9px] text-slate-400">Shop Bank Account</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ===============================================================================
-          2. TODAY'S DMT KPI SUMMARY
+          2. KPI BENTO SUMMARY
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Today's Transfers</span>
-          <div className="my-2">
+          <div className="my-1.5">
             <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white">{inr(todayVolume)}</div>
-            <p className="text-xs text-slate-500">{todayCount} transfers completed</p>
+            <p className="text-xs text-slate-500">Gross remittance turnover</p>
           </div>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">● 100% Settled</span>
+          <span className="text-[11px] text-slate-400 font-medium">Pass-through Principal</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Earned Income Today</span>
-          <div className="my-2">
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Service Income</span>
+          <div className="my-1.5">
             <div className="text-2xl font-black text-emerald-600 sm:text-3xl dark:text-emerald-400">+{inr(todayIncome)}</div>
-            <p className="text-xs text-slate-500">Service Fees + Portal Commissions</p>
+            <p className="text-xs text-slate-500">Fees + Portal Commissions</p>
           </div>
-          <span className="text-[11px] text-slate-400">Direct Gross Remittance Margin</span>
+          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">Direct Gross Margin</span>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Active DMT Portals</span>
-          <div className="my-2">
-            <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">{portals.length}</div>
-            <p className="text-xs text-slate-500">Fino, Spice Money, Payworld, RNFI</p>
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Portal Float</span>
+          <div className="my-1.5">
+            <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">{inr(currentDmtFloat)}</div>
+            <p className="text-xs text-slate-500">{portals.length} active gateways</p>
           </div>
           <Link href="/business/portals" className="text-[11px] text-blue-600 font-bold hover:underline dark:text-blue-400">Manage Portals →</Link>
         </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Beneficiary Network</span>
-          <div className="my-2">
-            <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">{banks.length} Banks</div>
-            <p className="text-xs text-slate-500">National IMPS / NEFT Routing</p>
+        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Completed</span>
+          <div className="my-1.5">
+            <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">{todayCount}</div>
+            <p className="text-xs text-slate-500">100% settled today</p>
           </div>
-          <button type="button" onClick={() => setAddBankWindowOpen(true)} className="text-[11px] text-blue-600 font-bold text-left hover:underline dark:text-blue-400">
-            + Add Master Bank
-          </button>
+          <span className="text-[11px] text-slate-400">Zero Unreconciled</span>
         </div>
       </div>
 
       {/* ===============================================================================
-          3. MAIN DMT COMMAND CENTER
+          3. MAIN TRANSACTION COMMAND CENTER (8-Step Guided Workflow)
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left (8 Cols): Sender, Beneficiary, Amount & Money Flow */}
-        <div className="bento-surface p-6 lg:col-span-8 dark:bg-slate-900/90 space-y-6">
-          {/* Top Bar: Transfer Mode & Scan & Fill */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/5">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+        {/* Left (8 Cols): Sender, Beneficiary, Transfer Method & Funding */}
+        <div className="bento-surface p-5 lg:col-span-8 dark:bg-slate-900/90 space-y-5">
+          {/* Top Bar: Transfer Method Switcher & Scan & Fill CTA */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
             <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">
               {[
-                { id: "bank_account", label: "🏦 Bank Account (IMPS/NEFT)" },
-                { id: "upi", label: "📱 UPI Instant VPA" },
+                { id: "bank_account", label: "🏦 BANK TRANSFER", sub: "IMPS / NEFT" },
+                { id: "upi", label: "⚡ UPI TRANSFER", sub: "Instant VPA" },
               ].map((m) => (
                 <button
                   key={m.id}
@@ -824,7 +943,8 @@ export default function DmtWorkspace({
                       : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                   }`}
                 >
-                  {m.label}
+                  <span>{m.label}</span>
+                  <span className="ml-1.5 text-[10px] opacity-75">({m.sub})</span>
                 </button>
               ))}
             </div>
@@ -832,27 +952,43 @@ export default function DmtWorkspace({
             <button
               type="button"
               onClick={() => setScanModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-violet-500/25 transition hover:brightness-110 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-violet-500/25 transition hover:brightness-110 active:scale-95"
             >
               <span>📷 Scan &amp; Fill Receipt / SMS</span>
             </button>
           </div>
 
-          {/* 1. SENDER INFORMATION SECTION */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-white/5">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">1. Sender Information</span>
+          {/* Scanned Information Review Alert */}
+          {scannedReviewData && (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 text-xs dark:border-violet-900/40 dark:bg-violet-950/20">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-violet-900 dark:text-violet-300">✓ Information Detected from Scan</span>
+                <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                {scannedReviewData.senderName && <div><span className="text-slate-500">Sender:</span> <strong>{scannedReviewData.senderName}</strong></div>}
+                {scannedReviewData.beneficiaryName && <div><span className="text-slate-500">Beneficiary:</span> <strong>{scannedReviewData.beneficiaryName}</strong></div>}
+                {scannedReviewData.amount && <div><span className="text-slate-500">Amount:</span> <strong>₹{scannedReviewData.amount}</strong></div>}
+                {scannedReviewData.reference && <div><span className="text-slate-500">UTR:</span> <strong>{scannedReviewData.reference}</strong></div>}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 1: SENDER / CUSTOMER (CRM LINK WITH PRIVACY SEARCH >= 2 CHARACTERS) */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 1 · Sender Information</span>
               <button
                 type="button"
                 onClick={() => setAddCustomerWindowOpen(true)}
                 className="text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
               >
-                + Add New Customer to CRM
+                + Add Customer to CRM
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Select Registered Customer (Optional)
                 </label>
@@ -861,14 +997,16 @@ export default function DmtWorkspace({
                     <SearchableSelect
                       value={selectedCustomerId}
                       onChange={setSelectedCustomerId}
+                      minSearchLength={2}
+                      minSearchPrompt="Type at least 2 letters or digits to search customer directory…"
                       options={[
-                        { value: "", label: "-- Walk-in Sender --" },
+                        { value: "", label: "-- Walk-in Customer --" },
                         ...customers.map((c) => ({
                           value: c.id,
                           label: `${c.name} (${maskMobile(c.phone) || c.code})`,
                         })),
                       ]}
-                      placeholder="Search customer by name or phone…"
+                      placeholder="Search customer (min 2 chars) or select Walk-in…"
                     />
                   </div>
                   <button
@@ -881,21 +1019,21 @@ export default function DmtWorkspace({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Sender Name <span className="text-rose-500">*</span>
+                  Sender Full Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Full name of sender"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                  placeholder="Full name of remitter"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Sender Mobile Number
                 </label>
@@ -905,28 +1043,28 @@ export default function DmtWorkspace({
                   value={senderMobile}
                   onChange={(e) => setSenderMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="10-digit mobile number"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
             </div>
           </div>
 
-          {/* 2. BENEFICIARY DESTINATION SECTION */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-white/5">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">2. Beneficiary / Destination</span>
+          {/* STEP 2 & 3: BENEFICIARY / DESTINATION */}
+          <div className="space-y-2.5 pt-1">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 2 &amp; 3 · Beneficiary &amp; Bank Destination</span>
               <button
                 type="button"
                 onClick={() => setAddBeneficiaryWindowOpen(true)}
                 className="text-[11px] font-bold text-violet-600 hover:underline dark:text-violet-400"
               >
-                + Save Beneficiary
+                + Add Beneficiary
               </button>
             </div>
 
             {/* Quick Beneficiary Chips */}
             {beneficiarySuggestions.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400">Recent Beneficiaries:</span>
                 <div className="flex flex-wrap gap-1.5">
                   {beneficiarySuggestions.map((s, idx) => (
@@ -955,8 +1093,8 @@ export default function DmtWorkspace({
             )}
 
             {transferMethod === "bank_account" ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Beneficiary Account Number <span className="text-rose-500">*</span>
                   </label>
@@ -966,11 +1104,11 @@ export default function DmtWorkspace({
                     value={beneficiaryAccount}
                     onChange={(e) => setBeneficiaryAccount(e.target.value.replace(/\D/g, ""))}
                     placeholder="e.g. 100023456789"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Beneficiary IFSC Code <span className="text-rose-500">*</span>
                   </label>
@@ -981,11 +1119,11 @@ export default function DmtWorkspace({
                     value={beneficiaryIfsc}
                     onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase())}
                     placeholder="e.g. SBIN0001234"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-black tracking-wider outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Beneficiary Name
                   </label>
@@ -994,26 +1132,33 @@ export default function DmtWorkspace({
                     value={beneficiaryName}
                     onChange={(e) => setBeneficiaryName(e.target.value)}
                     placeholder="Recipient name as per bank records"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Bank Name
-                  </label>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Beneficiary Bank Name
+                    </label>
+                    {matchedBeneficiaryBank && (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[140px]">
+                        ✓ Authoritative Match
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={beneficiaryBank}
                     onChange={(e) => setBeneficiaryBank(e.target.value)}
                     placeholder="e.g. State Bank of India"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Beneficiary UPI ID (VPA) <span className="text-rose-500">*</span>
                   </label>
@@ -1023,11 +1168,11 @@ export default function DmtWorkspace({
                     value={upiId}
                     onChange={(e) => setUpiId(e.target.value.toLowerCase())}
                     placeholder="e.g. rahul@oksbi / 9876543210@paytm"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-black tracking-wide outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wide outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
 
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Receiver Display Name (Optional)
                   </label>
@@ -1035,23 +1180,23 @@ export default function DmtWorkspace({
                     type="text"
                     value={receiverName}
                     onChange={(e) => setReceiverName(e.target.value)}
-                    placeholder="Recipient verified name"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                    placeholder="Recipient verified display name"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                   />
                 </div>
               </div>
             )}
           </div>
 
-          {/* 3. TRANSFER AMOUNT & MONEY FLOW */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-white/5">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">3. Transfer Amount &amp; Payment Flow</span>
+          {/* STEP 4 & 5: TRANSFER AMOUNT & SERVICE FEE */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4 &amp; 5 · Transfer Amount &amp; Service Fee</span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Transfer Amount (₹) <span className="text-rose-500">*</span>
+                Transfer Principal Amount (₹) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span>
@@ -1060,12 +1205,12 @@ export default function DmtWorkspace({
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="5000"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
                 />
               </div>
 
               {/* Quick Amount Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 {["500", "1000", "2000", "3000", "5000", "10000", "25000"].map((v) => (
                   <button
                     key={v}
@@ -1083,8 +1228,8 @@ export default function DmtWorkspace({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Customer Service Fee (₹)
                 </label>
@@ -1097,215 +1242,229 @@ export default function DmtWorkspace({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Portal Charge / Commission (₹)
+                  Portal Commission / Margin (₹)
                 </label>
                 <input
                   type="number"
                   value={portalCommission}
                   onChange={(e) => setPortalCommission(e.target.value)}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  placeholder="Portal commission"
-                />
-              </div>
-
-              {/* Money Sent From */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Money Sent From (Disbursement Source) <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaidFrom("portal")}
-                    className={`rounded-2xl border p-3 text-left transition ${
-                      paidFrom === "portal"
-                        ? "border-violet-600 bg-violet-50/80 shadow-xs dark:border-violet-500 dark:bg-violet-950/30"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                    }`}
-                  >
-                    <div className="text-xs font-black text-slate-900 dark:text-white">
-                      👛 DMT Portal Wallet
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                      Settles from live DMT gateway wallet pool.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaidFrom("bank")}
-                    className={`rounded-2xl border p-3 text-left transition ${
-                      paidFrom === "bank"
-                        ? "border-violet-600 bg-violet-50/80 shadow-xs dark:border-violet-500 dark:bg-violet-950/30"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                    }`}
-                  >
-                    <div className="text-xs font-black text-slate-900 dark:text-white">
-                      🏦 Our Bank Account
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                      Settles from linked shop bank account.
-                    </p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Customer Paid You Via */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Customer Paid You Via <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    { id: "cash", label: "💵 Cash", desc: "Cash drawer inflow" },
-                    { id: "upi", label: "📱 UPI QR", desc: "Merchant QR float" },
-                    { id: "bank", label: "🏦 Bank", desc: "Direct deposit" },
-                    { id: "due", label: "📋 Due", desc: "Customer Khata" },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setCustomerPayMethod(m.id as any)}
-                      className={`rounded-xl border p-2.5 text-center transition ${
-                        customerPayMethod === m.id
-                          ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
-                      }`}
-                    >
-                      <div className="text-xs font-bold">{m.label}</div>
-                      <div className="text-[10px] text-slate-400">{m.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bank Reference / UTR Number (Mandatory) */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Bank Reference / UTR / RRN Number <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  placeholder="12-digit UTR / RRN / IMPS Auth Reference"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-black tracking-wider outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                  placeholder="Commission from provider"
                 />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Right (4 Cols): Live Financial Summary & Action */}
-        <div className="bento-surface p-6 lg:col-span-4 dark:bg-slate-900/90 flex flex-col justify-between space-y-6">
-          <div className="space-y-4">
-            <div className="border-b border-slate-100 pb-3 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
-              <h3 className="text-base font-black text-slate-900 dark:text-white">DMT Remittance Summary</h3>
+          {/* STEP 6 & 7: FUNDING SOURCE & COLLECTION METHOD */}
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 6 &amp; 7 · Funding Source &amp; Customer Collection</span>
             </div>
 
-            <div className="space-y-2.5 text-xs">
+            {/* Funding Source (Disbursement) */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Transfer Funding Source (Disbursement) <span className="text-rose-500">*</span>
+              </label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setPaidFrom("portal")}
+                  className={`rounded-2xl border p-2.5 text-left transition ${
+                    paidFrom === "portal"
+                      ? "border-violet-600 bg-violet-50/80 shadow-xs dark:border-violet-500 dark:bg-violet-950/30"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 dark:text-white">👛 DMT Portal Wallet</span>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{inr(currentDmtFloat)}</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Disburses from live DMT gateway wallet pool.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaidFrom("bank")}
+                  className={`rounded-2xl border p-2.5 text-left transition ${
+                    paidFrom === "bank"
+                      ? "border-violet-600 bg-violet-50/80 shadow-xs dark:border-violet-500 dark:bg-violet-950/30"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 dark:text-white">🏦 Shop Bank Account</span>
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{inr(currentBankBalance)}</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Disburses from shop bank account via Net Banking.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Customer Collection Instrument */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Customer Paid You Via (Collection Method) <span className="text-rose-500">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { id: "cash", label: "💵 Cash Drawer", desc: "Cash Inflow" },
+                  { id: "upi", label: "📱 UPI QR", desc: "Merchant QR" },
+                  { id: "bank", label: "🏦 Bank Deposit", desc: "Direct Bank" },
+                  { id: "due", label: "📋 Customer Khata", desc: "Post to Due" },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setCustomerPayMethod(m.id as any)}
+                    className={`rounded-xl border p-2 text-center transition ${
+                      customerPayMethod === m.id
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">{m.label}</div>
+                    <div className="text-[10px] text-slate-400">{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* STEP 8: BANK REFERENCE / UTR */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Bank Reference / UTR Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="12-digit UTR / RRN / IMPS Auth Reference"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right (4 Cols): DMT Money Flow Visualizer & Live Order Review */}
+        <div className="bento-surface p-5 lg:col-span-4 dark:bg-slate-900/90 space-y-4">
+          <div className="border-b border-slate-100 pb-2.5 dark:border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 9 · Review &amp; Settlement</span>
+            <h3 className="text-base font-black text-slate-900 dark:text-white">DMT Money Flow Visualizer</h3>
+          </div>
+
+          {/* VISUAL MONEY FLOW MAP */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs dark:border-white/10 dark:bg-white/5 space-y-3">
+            {/* Leg 1: Customer Collection */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Customer Pays</span>
+                <div className="font-black text-slate-900 dark:text-white text-sm">{inr(totalCollected)}</div>
+              </div>
+              <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                via {customerPayMethod.toUpperCase()}
+              </span>
+            </div>
+
+            {/* Leg 2: Principal vs Fee Breakdown */}
+            <div className="space-y-1 rounded-xl bg-white p-2.5 text-[11px] shadow-xs dark:bg-slate-900">
               <div className="flex justify-between">
-                <span className="text-slate-500">Transfer Mode:</span>
-                <strong className="text-slate-900 dark:text-white">
-                  {transferMethod === "bank_account" ? "🏦 Bank IMPS/NEFT" : "📱 UPI Remittance"}
-                </strong>
+                <span className="text-slate-500">Transfer Principal:</span>
+                <span className="font-bold">{inr(numAmount)}</span>
               </div>
-
-              <div className="flex justify-between">
-                <span className="text-slate-500">Sender:</span>
-                <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
-                  {senderName || "Walk-in Sender"}
-                </strong>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-slate-500">Beneficiary:</span>
-                <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
-                  {transferMethod === "upi" ? (upiId || "Pending") : (beneficiaryName || beneficiaryAccount ? maskAccount(beneficiaryAccount) : "Pending")}
-                </strong>
-              </div>
-
-              <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5">
-                <span className="text-slate-500">Transfer Amount:</span>
-                <strong className="text-slate-900 dark:text-white font-black">{inr(numAmount)}</strong>
-              </div>
-
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer Service Fee:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
+                <span className="font-bold text-emerald-600">+{inr(numFee)}</span>
               </div>
+            </div>
 
-              <div className="flex justify-between">
-                <span className="text-slate-500">Collection Method:</span>
-                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                  {customerPayMethod.toUpperCase()}
-                </span>
+            {/* Leg 3: Beneficiary Disbursed */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-white/10">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">2. Beneficiary Receives</span>
+                <div className="font-black text-indigo-900 dark:text-indigo-300 text-sm">{inr(numAmount)}</div>
               </div>
+              <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                from {paidFrom === "portal" ? "PORTAL" : "BANK"}
+              </span>
+            </div>
 
-              <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Total Money Collected:</span>
-                <strong className="text-base font-black text-slate-900 dark:text-white">{inr(totalCollected)}</strong>
-              </div>
+            {/* Leg 4: Operator Margin */}
+            <div className="flex justify-between items-center pt-1 border-t border-slate-200 dark:border-white/10 text-[11px]">
+              <span className="font-bold text-slate-700 dark:text-slate-300">Total Business Income:</span>
+              <span className="font-black text-emerald-600 dark:text-emerald-400">+{inr(totalIncome)} (Fee ₹{numFee} + Comm ₹{numComm})</span>
+            </div>
+          </div>
 
-              <div className="flex justify-between">
-                <span className="text-slate-500">Beneficiary Receives:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{inr(numAmount)}</strong>
-              </div>
+          {/* Detailed Summary Metrics */}
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Sender:</span>
+              <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
+                {senderName || "Walk-in Sender"}
+              </strong>
+            </div>
 
-              <div className="flex justify-between">
-                <span className="text-slate-500">Portal Commission:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Beneficiary:</span>
+              <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
+                {transferMethod === "upi" ? (upiId || "Pending") : (beneficiaryName || beneficiaryAccount ? maskAccount(beneficiaryAccount) : "Pending")}
+              </strong>
+            </div>
 
-              <div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Transfer Method:</span>
+              <strong className="text-slate-900 dark:text-white">
+                {transferMethod === "bank_account" ? "Bank IMPS/NEFT" : "UPI Remittance"}
+              </strong>
+            </div>
 
-              {/* Receipt Print Preference */}
-              <div className="border-t border-slate-100 pt-2 dark:border-white/5">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 font-bold">Default Receipt Style:</span>
-                  <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
-                    <button
-                      type="button"
-                      onClick={() => setReceiptMode("basic")}
-                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                        receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-violet-600 dark:text-white" : "text-slate-500"
-                      }`}
-                    >
-                      Basic
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReceiptMode("detailed")}
-                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                        receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-violet-600 dark:text-white" : "text-slate-500"
-                      }`}
-                    >
-                      Detailed
-                    </button>
-                  </div>
+            {/* Receipt Print Preference */}
+            <div className="border-t border-slate-100 pt-2 dark:border-white/5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-bold">Receipt Format:</span>
+                <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setReceiptMode("basic")}
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                      receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-violet-600 dark:text-white" : "text-slate-500"
+                    }`}
+                  >
+                    Basic (Amount Only)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptMode("detailed")}
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                      receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-violet-600 dark:text-white" : "text-slate-500"
+                    }`}
+                  >
+                    Detailed
+                  </button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Primary Action Button */}
-          <div className="space-y-2">
+          <div className="space-y-1.5 pt-1">
             <button
               type="button"
               onClick={handleInitiateTransfer}
-              className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 active:scale-[0.98]"
+              className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 active:scale-[0.98]"
             >
               ✓ Confirm &amp; Transfer {inr(numAmount)}
             </button>
             <p className="text-center text-[10px] text-slate-400">
-              Deterministic double-entry remittance engine
+              Shortcut: <strong>Ctrl + Enter</strong> to initiate transfer
             </p>
           </div>
         </div>
@@ -1314,11 +1473,11 @@ export default function DmtWorkspace({
       {/* ===============================================================================
           4. RECENT DMT TRANSACTIONS TABLE
       =============================================================================== */}
-      <div className="bento-surface p-6 dark:bg-slate-900/90 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/5">
+      <div className="bento-surface p-5 dark:bg-slate-900/90 space-y-3.5">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white">Recent DMT Transfer Records</h3>
-            <p className="text-xs text-slate-400">Live ledger of domestic remittances and beneficiary payouts.</p>
+            <h3 className="font-bold text-slate-900 dark:text-white">Recent DMT Remittance Records</h3>
+            <p className="text-xs text-slate-400">Live ledger of domestic remittances, payouts, and collections.</p>
           </div>
           <input
             type="text"
@@ -1333,21 +1492,22 @@ export default function DmtWorkspace({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-slate-400 dark:border-white/10">
-                <th className="pb-2.5 font-bold">Txn # / Time</th>
-                <th className="pb-2.5 font-bold">Sender</th>
-                <th className="pb-2.5 font-bold">Beneficiary &amp; Destination</th>
-                <th className="pb-2.5 font-bold text-right">Transfer</th>
-                <th className="pb-2.5 font-bold text-right">Fee</th>
-                <th className="pb-2.5 font-bold text-center">Paid Via</th>
-                <th className="pb-2.5 font-bold text-right">Total Income</th>
-                <th className="pb-2.5 font-bold text-center">Status</th>
-                <th className="pb-2.5 font-bold text-right">Actions</th>
+                <th className="pb-2 font-bold">DMT # / Time</th>
+                <th className="pb-2 font-bold">Sender</th>
+                <th className="pb-2 font-bold">Beneficiary &amp; Destination</th>
+                <th className="pb-2 font-bold text-right">Transfer</th>
+                <th className="pb-2 font-bold text-center">Collection</th>
+                <th className="pb-2 font-bold text-center">Funding</th>
+                <th className="pb-2 font-bold text-right">Fee</th>
+                <th className="pb-2 font-bold text-right">Income</th>
+                <th className="pb-2 font-bold text-center">Status</th>
+                <th className="pb-2 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
               {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={10} className="py-7 text-center text-slate-400">
                     No DMT transactions found. Process a money transfer above to see records.
                   </td>
                 </tr>
@@ -1357,19 +1517,19 @@ export default function DmtWorkspace({
 
                   return (
                     <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                      <td className="py-3">
+                      <td className="py-2.5">
                         <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
                         <div className="text-[10px] text-slate-400">
                           {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
                         </div>
                       </td>
-                      <td className="py-3">
+                      <td className="py-2.5">
                         <div className="font-bold text-slate-900 dark:text-white">{t.sender_name || t.customers?.name || "Walk-in"}</div>
                         <div className="text-[10px] text-slate-400">
                           {t.sender_mobile ? `📱 ${maskMobile(t.sender_mobile)}` : ""}
                         </div>
                       </td>
-                      <td className="py-3">
+                      <td className="py-2.5">
                         <div className="font-bold text-slate-900 dark:text-white">
                           {t.beneficiary_name || t.receiver_name || "Beneficiary"}
                         </div>
@@ -1381,26 +1541,35 @@ export default function DmtWorkspace({
                           )}
                         </div>
                       </td>
-                      <td className="py-3 text-right font-black text-slate-900 dark:text-white">
+                      <td className="py-2.5 text-right font-black text-slate-900 dark:text-white">
                         {inr(t.amount)}
                       </td>
-                      <td className="py-3 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                        +{inr(t.service_fee)}
-                      </td>
-                      <td className="py-3 text-center">
+                      <td className="py-2.5 text-center">
                         <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                          {t.customer_pay_method ? t.customer_pay_method.toUpperCase() : "CASH"}
+                          {(t.customer_pay_method || "CASH").toUpperCase()} {inr(Number(t.amount || 0) + Number(t.service_fee || 0))}
                         </span>
                       </td>
-                      <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-black">
+                      <td className="py-2.5 text-center">
+                        <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                          {(t.paid_from || "PORTAL").toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                        +{inr(t.service_fee)}
+                      </td>
+                      <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
                         +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
                       </td>
-                      <td className="py-3 text-center">
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      <td className="py-2.5 text-center">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          t.status === "reversed"
+                            ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        }`}>
                           {t.status.toUpperCase()}
                         </span>
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={receiptUrl}
@@ -1414,7 +1583,7 @@ export default function DmtWorkspace({
                             type="button"
                             onClick={() => setSelectedDetailTxn(t)}
                             className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
-                            title="View Transaction Breakdown"
+                            title="View Transaction Audit Breakdown"
                           >
                             👁
                           </button>
@@ -1426,6 +1595,16 @@ export default function DmtWorkspace({
                           >
                             ✏️
                           </button>
+                          {t.status === "success" && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReverse(t)}
+                              className="rounded-lg bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400"
+                              title="Reverse Transaction"
+                            >
+                              ↩️
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1438,25 +1617,19 @@ export default function DmtWorkspace({
       </div>
 
       {/* ===============================================================================
-          5. CONFIRMATION MODAL
+          5. CONFIRMATION REVIEW MODAL
       =============================================================================== */}
       {confirmWindowOpen && (
         <FloatingWindow
           isOpen={confirmWindowOpen}
           size="sm"
-          title="Confirm DMT Money Transfer"
+          title="Review & Confirm Money Transfer"
           onClose={() => setConfirmWindowOpen(false)}
         >
           <div className="p-5 space-y-4">
             <div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2 dark:bg-white/5">
               <div className="flex justify-between">
-                <span className="text-slate-500">Transfer Mode:</span>
-                <strong className="text-slate-900 dark:text-white">
-                  {transferMethod === "bank_account" ? "Bank Account (IMPS/NEFT)" : "UPI Remittance"}
-                </strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Sender Name:</span>
+                <span className="text-slate-500">Sender:</span>
                 <strong className="text-slate-900 dark:text-white">{senderName}</strong>
               </div>
               <div className="flex justify-between">
@@ -1467,7 +1640,7 @@ export default function DmtWorkspace({
               </div>
               {transferMethod === "bank_account" && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">IFSC &amp; Bank:</span>
+                  <span className="text-slate-500">Bank &amp; IFSC:</span>
                   <strong className="text-slate-900 dark:text-white">{beneficiaryIfsc} · {beneficiaryBank || "Bank"}</strong>
                 </div>
               )}
@@ -1480,23 +1653,27 @@ export default function DmtWorkspace({
                 <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Total Paid by Customer:</span>
+                <span className="text-slate-500">Customer Pays:</span>
                 <strong className="text-slate-900 dark:text-white font-black">{inr(totalCollected)} via {customerPayMethod.toUpperCase()}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Disbursement Source:</span>
+                <span className="text-slate-500">Funding Source:</span>
                 <strong className="text-slate-900 dark:text-white">
                   {paidFrom === "portal" ? "DMT Portal Wallet" : "Our Bank Account"}
                 </strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Bank Reference / UTR:</span>
+                <span className="text-slate-500">UTR / Reference:</span>
                 <strong className="text-slate-900 dark:text-white">{reference}</strong>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-1.5 dark:border-white/10">
+                <span className="text-slate-500 font-bold">Business Income:</span>
+                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(totalIncome)}</strong>
               </div>
             </div>
 
             <p className="text-[11px] text-slate-500">
-              Please verify beneficiary credentials before confirming. Transfers are processed in real-time.
+              Please verify recipient account details before confirming. Remittances cannot be recalled after submission.
             </p>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -1522,7 +1699,63 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          6. ADD NEW CUSTOMER MODAL
+          6. TRANSACTION SUCCESS MODAL
+      =============================================================================== */}
+      {successWindowOpen && lastCompletedTxn && (
+        <FloatingWindow
+          isOpen={successWindowOpen}
+          size="sm"
+          title="✓ Money Transfer Completed"
+          onClose={() => setSuccessWindowOpen(false)}
+        >
+          <div className="p-5 space-y-4 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl dark:bg-emerald-950/40">
+              ✓
+            </div>
+            <div>
+              <h4 className="text-lg font-black text-slate-900 dark:text-white">
+                {inr(lastCompletedTxn.amount)} Transferred
+              </h4>
+              <p className="text-xs text-slate-500">
+                Txn #{lastCompletedTxn.transaction_number} · UTR: {lastCompletedTxn.reference}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-3 text-xs text-left space-y-1 dark:bg-white/5">
+              <div className="flex justify-between"><span className="text-slate-400">Beneficiary:</span> <strong>{lastCompletedTxn.beneficiary_name || "Beneficiary"}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Customer Paid:</span> <strong>{inr(Number(lastCompletedTxn.amount || 0) + Number(lastCompletedTxn.service_fee || 0))} via {(lastCompletedTxn.customer_pay_method || "CASH").toUpperCase()}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Business Income:</span> <strong className="text-emerald-600">+{inr(Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_commission || 0))}</strong></div>
+            </div>
+
+            <div className="flex justify-center gap-2 pt-2">
+              <Link
+                href={`/business/receipt/${lastCompletedTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
+                target="_blank"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 dark:bg-violet-600"
+              >
+                🖨️ Print 80mm
+              </Link>
+              <Link
+                href={`/business/receipt/${lastCompletedTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
+                target="_blank"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+              >
+                📄 Print A4
+              </Link>
+              <button
+                type="button"
+                onClick={() => setSuccessWindowOpen(false)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300"
+              >
+                + New Transfer
+              </button>
+            </div>
+          </div>
+        </FloatingWindow>
+      )}
+
+      {/* ===============================================================================
+          7. ADD CUSTOMER MODAL
       =============================================================================== */}
       {addCustomerWindowOpen && (
         <FloatingWindow
@@ -1614,13 +1847,13 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          7. ADD BENEFICIARY MODAL
+          8. ADD BENEFICIARY MODAL (Deterministic Deduplication Guard)
       =============================================================================== */}
       {addBeneficiaryWindowOpen && (
         <FloatingWindow
           isOpen={addBeneficiaryWindowOpen}
           size="sm"
-          title="Save Beneficiary / Receiver"
+          title="Add Beneficiary to Address Book"
           onClose={() => setAddBeneficiaryWindowOpen(false)}
         >
           <form onSubmit={handleCreateBeneficiary} className="p-5 space-y-4">
@@ -1739,71 +1972,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          8. ADD NEW BANK MODAL
-      =============================================================================== */}
-      {addBankWindowOpen && (
-        <FloatingWindow
-          isOpen={addBankWindowOpen}
-          size="sm"
-          title="Add Master Bank"
-          onClose={() => setAddBankWindowOpen(false)}
-        >
-          <form onSubmit={handleCreateBank} className="p-5 space-y-4">
-            {bankCreateError && (
-              <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
-                {bankCreateError}
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Bank Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={newBankName}
-                onChange={(e) => setNewBankName(e.target.value)}
-                placeholder="e.g. Bandhan Bank Ltd"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Bank Code / IFSC Prefix (Optional)
-              </label>
-              <input
-                type="text"
-                value={newBankCode}
-                onChange={(e) => setNewBankCode(e.target.value.toUpperCase())}
-                placeholder="e.g. BDBL"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setAddBankWindowOpen(false)}
-                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={bankCreateSubmitting}
-                className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {bankCreateSubmitting ? "Saving…" : "Add & Select Bank"}
-              </button>
-            </div>
-          </form>
-        </FloatingWindow>
-      )}
-
-      {/* ===============================================================================
-          9. EDIT TRANSACTION MODAL (Controlled Non-Financial Corrections)
+          9. EDIT TRANSACTION MODAL (Non-Financial Corrections)
       =============================================================================== */}
       {editTxnWindowOpen && editingTxn && (
         <FloatingWindow
@@ -1887,13 +2056,69 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          10. TRANSACTION DETAIL VIEW MODAL
+          10. REVERSE TRANSACTION MODAL
+      =============================================================================== */}
+      {reverseWindowOpen && reversingTxn && (
+        <FloatingWindow
+          isOpen={reverseWindowOpen}
+          size="sm"
+          title={`Reverse DMT Transaction #${reversingTxn.transaction_number}`}
+          onClose={() => setReverseWindowOpen(false)}
+        >
+          <form onSubmit={handleProcessReverse} className="p-5 space-y-4 text-xs">
+            <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
+              <strong>Transaction Reversal Warning:</strong> This will reverse the cash collection of {inr(Number(reversingTxn.amount || 0) + Number(reversingTxn.service_fee || 0))} and adjust ledger postings. The original transaction will be preserved as 'REVERSED'.
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-3 space-y-1 dark:bg-white/5">
+              <div className="flex justify-between"><span className="text-slate-400">Txn Number:</span> <strong>{reversingTxn.transaction_number}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Transfer Amount:</span> <strong>{inr(reversingTxn.amount)}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Beneficiary:</span> <strong>{reversingTxn.beneficiary_name || "Beneficiary"}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">UTR:</span> <strong>{reversingTxn.reference}</strong></div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Reason for Reversal <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                placeholder="e.g. Bank IMPS timeout / Sender cancellation"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-rose-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setReverseWindowOpen(false)}
+                className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={reverseSubmitting}
+                className="rounded-xl bg-rose-600 px-5 py-2 font-bold text-white shadow-md hover:bg-rose-700 disabled:opacity-50"
+              >
+                {reverseSubmitting ? "Reversing…" : "Confirm Reversal"}
+              </button>
+            </div>
+          </form>
+        </FloatingWindow>
+      )}
+
+      {/* ===============================================================================
+          11. DETAILED TRANSACTION AUDIT VIEW MODAL
       =============================================================================== */}
       {selectedDetailTxn && (
         <FloatingWindow
           isOpen={Boolean(selectedDetailTxn)}
           size="md"
-          title={`DMT Transaction #${selectedDetailTxn.transaction_number}`}
+          title={`DMT Audit Breakdown #${selectedDetailTxn.transaction_number}`}
           onClose={() => setSelectedDetailTxn(null)}
         >
           {(() => {
@@ -1902,36 +2127,60 @@ export default function DmtWorkspace({
 
             return (
               <div className="p-5 space-y-4 text-xs">
-                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
-                  <div><span className="text-slate-400">Date:</span> <div className="font-bold">{selectedDetailTxn.transaction_date}</div></div>
-                  <div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div>
-                  <div><span className="text-slate-400">Transfer Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
-                  <div><span className="text-slate-400">Service Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
-                  <div><span className="text-slate-400">Total Money Collected:</span> <div className="font-black text-sm text-slate-900 dark:text-white">{inr(Number(selectedDetailTxn.amount || 0) + Number(selectedDetailTxn.service_fee || 0))}</div></div>
-                  <div><span className="text-slate-400">Paid Via:</span> <div className="font-bold text-slate-700 dark:text-slate-300">{(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}</div></div>
-                  <div><span className="text-slate-400">Sender:</span> <div className="font-bold">{selectedDetailTxn.sender_name || selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
-                  <div><span className="text-slate-400">Sender Mobile:</span> <div className="font-bold">{selectedDetailTxn.sender_mobile ? maskMobile(selectedDetailTxn.sender_mobile) : "N/A"}</div></div>
-                  <div><span className="text-slate-400">Beneficiary:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_name || selectedDetailTxn.receiver_name || "Beneficiary"}</div></div>
-                  <div><span className="text-slate-400">Account / VPA:</span> <div className="font-bold">{selectedDetailTxn.transfer_method === "upi" ? selectedDetailTxn.upi_id : maskAccount(selectedDetailTxn.beneficiary_account)}</div></div>
-                  {selectedDetailTxn.beneficiary_ifsc && <div><span className="text-slate-400">IFSC:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_ifsc}</div></div>}
-                  {selectedDetailTxn.beneficiary_bank && <div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_bank}</div></div>}
-                  {selectedDetailTxn.reference && <div className="col-span-2"><span className="text-slate-400">Reference / UTR:</span> <div className="font-bold">{selectedDetailTxn.reference}</div></div>}
-                  {selectedDetailTxn.remarks && <div className="col-span-2"><span className="text-slate-400">Remarks:</span> <div className="font-semibold">{selectedDetailTxn.remarks}</div></div>}
+                {/* 1. Transaction Overview */}
+                <div className="border-b border-slate-100 pb-2 dark:border-white/5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Transaction Overview</span>
+                  <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                    <div><span className="text-slate-400">Date &amp; Time:</span> <div className="font-bold">{selectedDetailTxn.transaction_date} {selectedDetailTxn.transaction_timestamp ? new Date(selectedDetailTxn.transaction_timestamp).toLocaleTimeString() : ""}</div></div>
+                    <div><span className="text-slate-400">Status:</span> <div className={`font-bold ${selectedDetailTxn.status === "reversed" ? "text-rose-600" : "text-emerald-600"}`}>{selectedDetailTxn.status.toUpperCase()}</div></div>
+                    <div className="col-span-2"><span className="text-slate-400">UTR / Reference:</span> <div className="font-mono font-bold text-slate-900 dark:text-white">{selectedDetailTxn.reference}</div></div>
+                  </div>
                 </div>
+
+                {/* 2. Sender & Beneficiary */}
+                <div className="border-b border-slate-100 pb-2 dark:border-white/5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">2. Parties (Sender &amp; Beneficiary)</span>
+                  <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                    <div><span className="text-slate-400">Sender:</span> <div className="font-bold">{selectedDetailTxn.sender_name || selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
+                    <div><span className="text-slate-400">Sender Mobile:</span> <div className="font-bold">{selectedDetailTxn.sender_mobile ? maskMobile(selectedDetailTxn.sender_mobile) : "N/A"}</div></div>
+                    <div><span className="text-slate-400">Beneficiary:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_name || selectedDetailTxn.receiver_name || "Beneficiary"}</div></div>
+                    <div><span className="text-slate-400">Account / VPA:</span> <div className="font-mono font-bold">{selectedDetailTxn.transfer_method === "upi" ? selectedDetailTxn.upi_id : maskAccount(selectedDetailTxn.beneficiary_account)}</div></div>
+                    {selectedDetailTxn.beneficiary_ifsc && <div><span className="text-slate-400">Bank &amp; IFSC:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_bank || "Bank"} · {selectedDetailTxn.beneficiary_ifsc}</div></div>}
+                  </div>
+                </div>
+
+                {/* 3. Financial Money Flow Breakdown */}
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">3. Financial Money Flow</span>
+                  <div className="mt-1 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-3 dark:bg-white/5 text-xs">
+                    <div><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
+                    <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
+                    <div><span className="text-slate-400">Total Customer Collection:</span> <div className="font-black text-sm text-slate-900 dark:text-white">{inr(Number(selectedDetailTxn.amount || 0) + Number(selectedDetailTxn.service_fee || 0))} via {(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}</div></div>
+                    <div><span className="text-slate-400">Funding Source:</span> <div className="font-bold">{(selectedDetailTxn.paid_from || "PORTAL").toUpperCase()}</div></div>
+                    <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
+                    <div><span className="text-slate-400">Gross Business Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
+                  </div>
+                </div>
+
+                {selectedDetailTxn.remarks && (
+                  <div className="rounded-xl border border-slate-200 p-2.5 text-[11px] text-slate-600 dark:border-white/10 dark:text-slate-400">
+                    <strong>Remarks:</strong> {selectedDetailTxn.remarks}
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center pt-2">
                   <div className="flex gap-2">
                     <Link
                       href={receiptUrl}
                       target="_blank"
-                      className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-violet-600"
+                      className="rounded-xl bg-slate-900 px-3.5 py-2 font-bold text-white hover:bg-slate-800 dark:bg-violet-600"
                     >
                       🖨️ 80mm Receipt
                     </Link>
                     <Link
                       href={invoiceUrl}
                       target="_blank"
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                      className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                     >
                       📄 A4 Invoice
                     </Link>
@@ -1961,7 +2210,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          11. SCAN & FILL MODAL
+          12. SCAN & FILL MODAL
       =============================================================================== */}
       {scanModalOpen && (
         <ScanFillModal
