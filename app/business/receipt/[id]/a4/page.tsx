@@ -256,15 +256,23 @@ export default async function BusinessReceiptA4Page({
                 <span>Transfer Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {isDetailed && Number(txn.service_fee || 0) > 0 && (
+              {isDetailed && (Number(txn.service_fee || 0) > 0 || Number(txn.portal_charge || 0) > 0) && (
                 <>
-                  <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
-                    <span>Service Fee (Paid via {txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
-                    <span>+{money(txn.service_fee)}</span>
-                  </div>
+                  {Number(txn.service_fee || 0) > 0 && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                      <span>Service Fee (Paid via {txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
+                      <span>+{money(txn.service_fee)}</span>
+                    </div>
+                  )}
+                  {Number(txn.portal_charge || 0) > 0 && (
+                    <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                      <span>Portal / Provider Charge</span>
+                      <span>+{money(txn.portal_charge)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between py-2 text-base font-bold text-slate-900">
                     <span>Total Paid by Customer</span>
-                    <span className="text-slate-900">{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                    <span className="text-slate-900">{money(Number(txn.amount || 0) + Number(txn.service_fee || 0) + Number(txn.portal_charge || 0))}</span>
                   </div>
                 </>
               )}

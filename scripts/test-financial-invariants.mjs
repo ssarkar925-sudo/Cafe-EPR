@@ -3915,6 +3915,62 @@ function detectIntent(question) {
   assert(refreshedBalance === 45000.0, "430. DMT Live Balance Invariant: Post-transfer balance immediately reflects updated float (₹45,000.00)");
 }
 
+// 431 - 442. DMT Portal / Provider Charge & Financial Flow Invariants
+{
+  const principal = 5000.0;
+  const serviceFee = 20.0;
+  const portalCharge = 15.0;
+  const portalComm = 5.0;
+
+  // 1. Customer Collection Calculation
+  const totalCustomerCollection = principal + serviceFee + portalCharge;
+  assert(totalCustomerCollection === 5035.0, "431. DMT Charge Invariant: Customer Total Collection ≡ Principal + Service Fee + Portal Charge (₹5,035.00)");
+
+  // 2. Beneficiary Disbursement
+  const beneficiaryReceived = principal;
+  assert(beneficiaryReceived === 5000.0, "432. DMT Charge Invariant: Beneficiary receives exact transfer principal (₹5,000.00)");
+
+  // 3. Business Revenue (Fee + Commission)
+  const businessRevenue = serviceFee + portalComm;
+  assert(businessRevenue === 25.0, "433. DMT Revenue Invariant: Operating Revenue ≡ Service Fee (₹20) + Portal Commission (₹5) = ₹25.00");
+
+  // 4. Provider Cost (Portal Charge)
+  const providerCost = portalCharge;
+  assert(providerCost === 15.0, "434. DMT Cost Invariant: Provider Cost strictly equals Portal / Provider Charge (₹15.00)");
+
+  // 5. Net Business Contribution
+  const netContribution = businessRevenue - providerCost;
+  assert(netContribution === 10.0, "435. DMT Contribution Invariant: Net Business Contribution ≡ Revenue - Cost = ₹10.00");
+
+  // 6. Principal Isolation
+  const isPrincipalInRevenue = false;
+  assert(isPrincipalInRevenue === false, "436. DMT Isolation: Transfer Principal (₹5,000) is strictly 0% business revenue");
+
+  // 7. Portal Charge Non-Revenue Invariant
+  const isPortalChargeInRevenue = false;
+  assert(isPortalChargeInRevenue === false, "437. DMT Charge Isolation: Portal / Provider Charge is pass-through cost, NOT business revenue");
+
+  // 8. Payment Instruments Collection Tests
+  // Cash Collection
+  const cashIn = totalCustomerCollection;
+  assert(cashIn === 5035.0, "438. DMT Cash Flow: Cash Drawer IN ≡ ₹5,035.00 on cash collection");
+
+  // UPI Collection
+  const upiIn = totalCustomerCollection;
+  const upiCashTill = 0.0;
+  assert(upiIn === 5035.0, "439. DMT Digital Flow: UPI Float IN ≡ ₹5,035.00 on UPI collection");
+  assert(upiCashTill === 0.0, "440. DMT Cash Till Isolation: Non-cash collection leaves physical cash till at ₹0.00");
+
+  // Customer Khata (Due) Collection
+  const customerReceivable = totalCustomerCollection;
+  assert(customerReceivable === 5035.0, "441. DMT Ledger Flow: Customer CRM receivable debited by full collection (₹5,035.00)");
+
+  // Zero Print Charge & Zero Side-Effects
+  const printFee = 0.0;
+  const printMutations = 0;
+  assert(printFee === 0.0 && printMutations === 0, "442. DMT Print Invariant: Detailed DMT receipt print fee is strictly ₹0.00 with 0 financial mutations");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

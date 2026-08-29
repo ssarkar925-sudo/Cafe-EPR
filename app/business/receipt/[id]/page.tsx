@@ -245,15 +245,23 @@ export default async function BusinessReceiptPage({
                 <span>TRANSFER AMOUNT</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {isDetailed && Number(txn.service_fee || 0) > 0 && (
+              {isDetailed && (Number(txn.service_fee || 0) > 0 || Number(txn.portal_charge || 0) > 0) && (
                 <>
-                  <div className="flex justify-between text-[11px] text-slate-600">
-                    <span>Service Fee ({txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
-                    <span>+{money(txn.service_fee)}</span>
-                  </div>
+                  {Number(txn.service_fee || 0) > 0 && (
+                    <div className="flex justify-between text-[11px] text-slate-600">
+                      <span>Service Fee ({txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
+                      <span>+{money(txn.service_fee)}</span>
+                    </div>
+                  )}
+                  {Number(txn.portal_charge || 0) > 0 && (
+                    <div className="flex justify-between text-[11px] text-slate-600">
+                      <span>Portal / Provider Charge</span>
+                      <span>+{money(txn.portal_charge)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm font-bold text-slate-900">
                     <span>TOTAL PAID</span>
-                    <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                    <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0) + Number(txn.portal_charge || 0))}</span>
                   </div>
                 </>
               )}

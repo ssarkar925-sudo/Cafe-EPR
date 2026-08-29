@@ -138,9 +138,10 @@ export default function DmtWorkspace({
   const [upiId, setUpiId] = useState<string>("");
   const [receiverName, setReceiverName] = useState<string>("");
 
-  // Step 4 & 5: Amount, Fee & Portal Commission
+  // Step 4 & 5: Amount, Fee, Portal Charge & Portal Commission
   const [amount, setAmount] = useState<string>("5000");
   const [serviceFee, setServiceFee] = useState<string>("20");
+  const [portalCharge, setPortalCharge] = useState<string>("15");
   const [portalCommission, setPortalCommission] = useState<string>("5");
 
   // Step 6: Funding Source (Disbursement)
@@ -174,6 +175,7 @@ export default function DmtWorkspace({
     beneficiaryAccount?: string;
     upiId?: string;
     serviceFee?: string;
+    portalCharge?: string;
   } | null>(null);
 
   // Modals & UI Lifecycle
@@ -285,12 +287,16 @@ export default function DmtWorkspace({
     return bankPoolFloat;
   }, [selectedBankInstrument, bankPoolFloat]);
 
-  // Calculations for current inputs
+  // Calculations for current inputs (Separating Revenue vs Provider Cost)
   const numAmount = Number(amount || 0);
   const numFee = Number(serviceFee || 0);
+  const numCharge = Number(portalCharge || 0);
   const numComm = Number(portalCommission || 0);
-  const totalCollected = numAmount + numFee;
-  const totalIncome = numFee + numComm;
+
+  const totalCollected = numAmount + numFee + numCharge; // Principal + Fee + Charge (Total Customer Pays)
+  const businessRevenue = numFee + numComm; // Our Business Revenue
+  const providerCost = numCharge; // Provider Cost / Pass-through Charge
+  const netContribution = businessRevenue - providerCost; // Net Contribution to business
 
   // Live Available Selected Float & Sufficiency Check
   const availableSelectedFloat = paidFrom === "portal" ? dmtFloat : currentBankBalance;
@@ -306,10 +312,12 @@ export default function DmtWorkspace({
   }, [transactions, todayStr]);
 
   const todayVolume = todayTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const todayCustomerCollections = todayTxns.reduce((s, t) => s + Number(t.amount || 0) + Number(t.service_fee || 0), 0);
+  const todayCustomerCollections = todayTxns.reduce((s, t) => s + Number(t.amount || 0) + Number(t.service_fee || 0) + Number(t.portal_charge || 0), 0);
   const todayCustomerFees = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0);
+  const todayPortalCharges = todayTxns.reduce((s, t) => s + Number(t.portal_charge || 0), 0);
   const todayPortalCommission = todayTxns.reduce((s, t) => s + Number(t.portal_commission || 0), 0);
-  const todayBusinessIncome = todayCustomerFees + todayPortalCommission;
+  const todayBusinessRevenue = todayCustomerFees + todayPortalCommission;
+  const todayNetContribution = todayBusinessRevenue - todayPortalCharges;
   const todayCount = todayTxns.length;
 
   // Matched Master Bank Object for Beneficiary Bank
@@ -449,7 +457,7 @@ export default function DmtWorkspace({
     }
   }
 
-  // Add Beneficiary Modal Handler with Optional Fields & Confirm Account Match
+  // Add Beneficiary Modal Handler with Optional Fields & Confirm Account Check
   async function handleCreateBeneficiary(e: React.FormEvent) {
     e.preventDefault();
     if (transferMethod === "bank_account") {
@@ -723,6 +731,10 @@ export default function DmtWorkspace({
       showToast("error", "Please enter a valid transfer amount.");
       return;
     }
+    if (numCharge < 0) {
+      showToast("error", "Portal / Provider charge cannot be negative.");
+      return;
+    }
 
     // Format validation if non-empty
     if (transferMethod === "bank_account") {
@@ -758,7 +770,7 @@ export default function DmtWorkspace({
     }
 
     setConfirmWindowOpen(true);
-  }, [numAmount, transferMethod, beneficiaryIfsc, upiId, paidFrom, dmtFloat, currentBankBalance, reference, customerPayMethod, selectedCustomerId, showToast]);
+  }, [numAmount, numCharge, transferMethod, beneficiaryIfsc, upiId, paidFrom, dmtFloat, currentBankBalance, reference, customerPayMethod, selectedCustomerId, showToast]);
 
   // Keyboard shortcut listener (Ctrl+Enter to submit, Esc to close)
   useEffect(() => {
@@ -812,6 +824,7 @@ export default function DmtWorkspace({
         p_paid_from: paidFrom,
         p_customer_pay_method: customerPayMethod,
         p_receiver_name: receiverName.trim() || null,
+        p_portal_charge: numCharge,
       });
 
       if (res.error) throw res.error;
@@ -847,6 +860,7 @@ export default function DmtWorkspace({
         upi_id: transferMethod === "upi" ? upiId.trim() : null,
         amount: numAmount,
         service_fee: numFee,
+        portal_charge: numCharge,
         portal_commission: numComm,
         fee_source: null,
         paid_from: paidFrom,
@@ -921,7 +935,7 @@ export default function DmtWorkspace({
               Money Transfer
             </h1>
             <p className="text-xs text-indigo-200/80 sm:text-sm">
-              Domestic Remittance Command Center with dual funding sources and deterministic double-entry accounting.
+              Domestic Remittance Command Center with distinct service fees, provider charges, and transparent business income.
             </p>
           </div>
 
@@ -983,7 +997,7 @@ export default function DmtWorkspace({
             <div className="text-lg font-black text-slate-900 dark:text-white truncate">{inr(todayCustomerCollections)}</div>
             <p className="text-[10px] text-slate-500">Gross Money In</p>
           </div>
-          <span className="text-[10px] text-slate-400 font-medium">Principal + Fees</span>
+          <span className="text-[10px] text-slate-400 font-medium">Principal + Charges</span>
         </div>
 
         {/* 4. Service Fees */}
@@ -993,27 +1007,27 @@ export default function DmtWorkspace({
             <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayCustomerFees)}</div>
             <p className="text-[10px] text-slate-500">Customer Surcharge</p>
           </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Direct Revenue</span>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Business Income</span>
         </div>
 
-        {/* 5. Portal Commission */}
+        {/* 5. Provider Charges */}
         <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Commission</span>
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Provider Charges</span>
           <div className="my-1">
-            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayPortalCommission)}</div>
-            <p className="text-[10px] text-slate-500">Provider Margin</p>
+            <div className="text-lg font-black text-rose-600 dark:text-rose-400 truncate">-{inr(todayPortalCharges)}</div>
+            <p className="text-[10px] text-slate-500">Platform Cost</p>
           </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Platform Margin</span>
+          <span className="text-[10px] text-rose-500 font-medium">Pass-Through Cost</span>
         </div>
 
-        {/* 6. Business Income */}
+        {/* 6. Net Contribution */}
         <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Business Income</span>
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Net Contribution</span>
           <div className="my-1">
-            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayBusinessIncome)}</div>
-            <p className="text-[10px] text-slate-500">Fees + Commission</p>
+            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayNetContribution)}</div>
+            <p className="text-[10px] text-slate-500">Revenue - Costs</p>
           </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Gross Margin</span>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Net Margin</span>
         </div>
 
         {/* 7. Available Float */}
@@ -1291,10 +1305,10 @@ export default function DmtWorkspace({
             )}
           </div>
 
-          {/* STEP 4 & 5: TRANSFER AMOUNT & SERVICE FEE */}
+          {/* STEP 4 & 5: TRANSFER AMOUNT, SERVICE FEE, PORTAL CHARGE & COMMISSION */}
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4 &amp; 5 · Transfer Amount &amp; Customer Fee</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4 &amp; 5 · Transfer Amount &amp; Charges Breakdown</span>
             </div>
 
             <div className="space-y-1.5">
@@ -1331,11 +1345,15 @@ export default function DmtWorkspace({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {/* 1. Customer Service Fee */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Customer Service Fee (₹)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Customer Service Fee (₹)
+                  </label>
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Our Income</span>
+                </div>
                 <input
                   type="number"
                   value={serviceFee}
@@ -1345,10 +1363,31 @@ export default function DmtWorkspace({
                 />
               </div>
 
+              {/* 2. Portal / Provider Charge */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Portal Commission / Margin (₹)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Portal / Provider Charge (₹)
+                  </label>
+                  <span className="text-[9px] font-bold text-rose-500">Provider Cost</span>
+                </div>
+                <input
+                  type="number"
+                  value={portalCharge}
+                  onChange={(e) => setPortalCharge(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                  placeholder="Provider fee charged to us"
+                />
+              </div>
+
+              {/* 3. Portal Commission */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Portal Commission (₹)
+                  </label>
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Our Margin</span>
+                </div>
                 <input
                   type="number"
                   value={portalCommission}
@@ -1394,7 +1433,7 @@ export default function DmtWorkspace({
                     <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{inr(dmtFloat)}</span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                    Disburses from live DMT gateway wallet pool.
+                    Disburses {inr(numAmount)} principal from live DMT gateway wallet pool.
                   </p>
                 </button>
 
@@ -1414,7 +1453,7 @@ export default function DmtWorkspace({
                     <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{inr(currentBankBalance)}</span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                    Disburses from shop bank account via Net Banking.
+                    Disburses {inr(numAmount)} principal from shop bank account via Net Banking.
                   </p>
                 </button>
               </div>
@@ -1513,15 +1552,15 @@ export default function DmtWorkspace({
             {/* Leg 1: Customer Collection */}
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Customer Pays</span>
-                <div className="font-black text-slate-900 dark:text-white text-sm">{inr(totalCollected)}</div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Customer Total Collection</span>
+                <div className="font-black text-slate-900 dark:text-white text-base">{inr(totalCollected)}</div>
               </div>
               <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
                 via {customerPayMethod.toUpperCase()}
               </span>
             </div>
 
-            {/* Leg 2: Principal vs Fee Breakdown */}
+            {/* Leg 2: Principal, Fee & Provider Charge Breakdown */}
             <div className="space-y-1 rounded-xl bg-white p-2.5 text-[11px] shadow-xs dark:bg-slate-900">
               <div className="flex justify-between">
                 <span className="text-slate-500">Transfer Principal:</span>
@@ -1531,6 +1570,12 @@ export default function DmtWorkspace({
                 <span className="text-slate-500">Customer Service Fee:</span>
                 <span className="font-bold text-emerald-600">+{inr(numFee)}</span>
               </div>
+              {numCharge > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Portal / Provider Charge:</span>
+                  <span className="font-bold text-rose-500">+{inr(numCharge)}</span>
+                </div>
+              )}
             </div>
 
             {/* Leg 3: Beneficiary Disbursed */}
@@ -1544,10 +1589,20 @@ export default function DmtWorkspace({
               </span>
             </div>
 
-            {/* Leg 4: Operator Margin */}
-            <div className="flex justify-between items-center pt-1 border-t border-slate-200 dark:border-white/10 text-[11px]">
-              <span className="font-bold text-slate-700 dark:text-slate-300">Total Business Income:</span>
-              <span className="font-black text-emerald-600 dark:text-emerald-400">+{inr(totalIncome)} (Fee ₹{numFee} + Comm ₹{numComm})</span>
+            {/* Leg 4: Operator Margin Breakdown */}
+            <div className="space-y-1 rounded-xl bg-emerald-50/50 p-2.5 text-[11px] dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Business Revenue (Fee + Comm):</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400">+{inr(businessRevenue)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Provider Cost (Charge):</span>
+                <span className="font-bold text-rose-600 dark:text-rose-400">-{inr(providerCost)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-emerald-200 dark:border-emerald-800/40 text-xs">
+                <span className="font-bold text-slate-900 dark:text-white">Net DMT Contribution:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">+{inr(netContribution)}</span>
+              </div>
             </div>
           </div>
 
@@ -1620,7 +1675,7 @@ export default function DmtWorkspace({
               ✓ Confirm &amp; Transfer {inr(numAmount)}
             </button>
             <div className="text-center text-[10px] text-slate-400 space-y-0.5">
-              <p>Customer Collection: <strong>{inr(totalCollected)}</strong> · Beneficiary Receives: <strong>{inr(numAmount)}</strong> · Income: <strong className="text-emerald-600">+{inr(totalIncome)}</strong></p>
+              <p>Customer Collection: <strong>{inr(totalCollected)}</strong> · Beneficiary: <strong>{inr(numAmount)}</strong> · Net Margin: <strong className="text-emerald-600">+{inr(netContribution)}</strong></p>
               <p>Shortcut: <strong>Ctrl + Enter</strong> to initiate transfer</p>
             </div>
           </div>
@@ -1649,10 +1704,10 @@ export default function DmtWorkspace({
         <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-6">
           <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-slate-900 dark:text-white">{inr(numAmount)}</div></div>
           <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Customer Collection:</span> <div className="font-black text-slate-900 dark:text-white">{inr(totalCollected)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Funding Source:</span> <div className="font-black">{paidFrom.toUpperCase()}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Customer Fee:</span> <div className="font-black text-emerald-600">+{inr(numFee)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Service Fee (Income):</span> <div className="font-black text-emerald-600">+{inr(numFee)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Portal Charge (Cost):</span> <div className="font-black text-rose-500">-{inr(numCharge)}</div></div>
           <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Portal Commission:</span> <div className="font-black text-emerald-600">+{inr(numComm)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Business Income:</span> <div className="font-black text-emerald-600">+{inr(totalIncome)}</div></div>
+          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Net Contribution:</span> <div className="font-black text-emerald-600">+{inr(netContribution)}</div></div>
         </div>
       </div>
 
@@ -1708,7 +1763,8 @@ export default function DmtWorkspace({
                   <th className="pb-2 font-bold text-center">Collection</th>
                   <th className="pb-2 font-bold text-center">Funding</th>
                   <th className="pb-2 font-bold text-right">Fee</th>
-                  <th className="pb-2 font-bold text-right">Income</th>
+                  <th className="pb-2 font-bold text-right">Charge</th>
+                  <th className="pb-2 font-bold text-right">Net</th>
                   <th className="pb-2 font-bold text-center">Status</th>
                   <th className="pb-2 font-bold text-right">Actions</th>
                 </tr>
@@ -1716,13 +1772,18 @@ export default function DmtWorkspace({
               <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
                 {filteredTxns.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-7 text-center text-slate-400">
+                    <td colSpan={11} className="py-7 text-center text-slate-400">
                       No DMT transactions found. Process a money transfer above to see records.
                     </td>
                   </tr>
                 ) : (
                   filteredTxns.slice(0, 15).map((t) => {
                     const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
+                    const txnFee = Number(t.service_fee || 0);
+                    const txnCharge = Number(t.portal_charge || 0);
+                    const txnComm = Number(t.portal_commission || 0);
+                    const txnCollection = Number(t.amount || 0) + txnFee + txnCharge;
+                    const txnNet = (txnFee + txnComm) - txnCharge;
 
                     return (
                       <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
@@ -1755,7 +1816,7 @@ export default function DmtWorkspace({
                         </td>
                         <td className="py-2.5 text-center">
                           <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                            {(t.customer_pay_method || "CASH").toUpperCase()} {inr(Number(t.amount || 0) + Number(t.service_fee || 0))}
+                            {(t.customer_pay_method || "CASH").toUpperCase()} {inr(txnCollection)}
                           </span>
                         </td>
                         <td className="py-2.5 text-center">
@@ -1764,10 +1825,13 @@ export default function DmtWorkspace({
                           </span>
                         </td>
                         <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                          +{inr(t.service_fee)}
+                          +{inr(txnFee)}
+                        </td>
+                        <td className="py-2.5 text-right font-medium text-rose-600 dark:text-rose-400">
+                          -{inr(txnCharge)}
                         </td>
                         <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
-                          +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
+                          +{inr(txnNet)}
                         </td>
                         <td className="py-2.5 text-center">
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -1838,17 +1902,21 @@ export default function DmtWorkspace({
                   ? "customer_pay_method"
                   : "paid_from";
 
-              const map = new Map<string, { count: number; volume: number; income: number }>();
+              const map = new Map<string, { count: number; volume: number; revenue: number; cost: number; net: number }>();
               for (const t of transactions) {
                 if (t.service_type !== "dmt" || t.status !== "success") continue;
                 let rawVal = (t as any)[groupingKey] || "Other / Unassigned";
                 if (analyticsTab === "portal") {
                   rawVal = portals.find((p) => p.id === rawVal)?.name || "Default Portal";
                 }
-                const cur = map.get(rawVal) || { count: 0, volume: 0, income: 0 };
+                const cur = map.get(rawVal) || { count: 0, volume: 0, revenue: 0, cost: 0, net: 0 };
                 cur.count++;
                 cur.volume += Number(t.amount || 0);
-                cur.income += Number(t.service_fee || 0) + Number(t.portal_commission || 0);
+                const r = Number(t.service_fee || 0) + Number(t.portal_commission || 0);
+                const c = Number(t.portal_charge || 0);
+                cur.revenue += r;
+                cur.cost += c;
+                cur.net += (r - c);
                 map.set(rawVal, cur);
               }
 
@@ -1875,8 +1943,16 @@ export default function DmtWorkspace({
                     <strong className="text-slate-900 dark:text-white">{inr(metrics.volume)}</strong>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Income:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400">+{inr(metrics.income)}</strong>
+                    <span className="text-slate-500">Revenue:</span>
+                    <strong className="text-emerald-600 dark:text-emerald-400">+{inr(metrics.revenue)}</strong>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Provider Cost:</span>
+                    <strong className="text-rose-600 dark:text-rose-400">-{inr(metrics.cost)}</strong>
+                  </div>
+                  <div className="flex justify-between text-xs pt-1 border-t border-slate-200 dark:border-white/10">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">Net Margin:</span>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(metrics.net)}</strong>
                   </div>
                 </div>
               ));
@@ -1914,14 +1990,20 @@ export default function DmtWorkspace({
                 </div>
               )}
               <div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10">
-                <span className="text-slate-500">Transfer:</span>
+                <span className="text-slate-500">Transfer Principal:</span>
                 <strong className="text-base text-slate-900 dark:text-white">{inr(numAmount)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Service Fee:</span>
+                <span className="text-slate-500">Customer Service Fee:</span>
                 <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
               </div>
-              <div className="flex justify-between">
+              {numCharge > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Portal / Provider Charge:</span>
+                  <strong className="text-rose-500 font-bold">+{inr(numCharge)}</strong>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-slate-200 pt-1 dark:border-white/10">
                 <span className="text-slate-500">Customer Pays:</span>
                 <strong className="text-slate-900 dark:text-white font-black">{inr(totalCollected)} via {customerPayMethod.toUpperCase()}</strong>
               </div>
@@ -1936,8 +2018,8 @@ export default function DmtWorkspace({
                 <strong className="text-slate-900 dark:text-white">{reference}</strong>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-1.5 dark:border-white/10">
-                <span className="text-slate-500 font-bold">Business Income:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(totalIncome)}</strong>
+                <span className="text-slate-500 font-bold">Net Business Contribution:</span>
+                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(netContribution)} (Rev {inr(businessRevenue)} - Cost {inr(providerCost)})</strong>
               </div>
             </div>
 
@@ -1993,8 +2075,8 @@ export default function DmtWorkspace({
             <div className="rounded-2xl bg-slate-50 p-3 text-xs text-left space-y-1 dark:bg-white/5">
               <div className="flex justify-between"><span className="text-slate-400">Transfer:</span> <strong>{inr(lastCompletedTxn.amount)}</strong></div>
               <div className="flex justify-between"><span className="text-slate-400">Beneficiary Received:</span> <strong>{inr(lastCompletedTxn.amount)}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Customer Paid:</span> <strong>{inr(Number(lastCompletedTxn.amount || 0) + Number(lastCompletedTxn.service_fee || 0))} via {(lastCompletedTxn.customer_pay_method || "CASH").toUpperCase()}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Business Income:</span> <strong className="text-emerald-600">+{inr(Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_commission || 0))}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Customer Paid:</span> <strong>{inr(Number(lastCompletedTxn.amount || 0) + Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_charge || 0))} via {(lastCompletedTxn.customer_pay_method || "CASH").toUpperCase()}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Net Business Margin:</span> <strong className="text-emerald-600">+{inr((Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_commission || 0)) - Number(lastCompletedTxn.portal_charge || 0))}</strong></div>
             </div>
 
             <div className="flex justify-center gap-2 pt-2">
@@ -2357,12 +2439,12 @@ export default function DmtWorkspace({
         >
           <form onSubmit={handleProcessReverse} className="p-5 space-y-4 text-xs">
             <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
-              <strong>Transaction Reversal Warning:</strong> This will reverse the customer collection of {inr(Number(reversingTxn.amount || 0) + Number(reversingTxn.service_fee || 0))} and adjust double-entry ledger postings. The original transaction is permanently preserved as 'REVERSED'.
+              <strong>Transaction Reversal Warning:</strong> This will reverse the customer collection of {inr(Number(reversingTxn.amount || 0) + Number(reversingTxn.service_fee || 0) + Number(reversingTxn.portal_charge || 0))} and adjust double-entry ledger postings. The original transaction is permanently preserved as 'REVERSED'.
             </div>
 
             <div className="rounded-xl bg-slate-50 p-3 space-y-1 dark:bg-white/5">
               <div className="flex justify-between"><span className="text-slate-400">Txn Number:</span> <strong>{reversingTxn.transaction_number}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Transfer Amount:</span> <strong>{inr(reversingTxn.amount)}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-400">Transfer Principal:</span> <strong>{inr(reversingTxn.amount)}</strong></div>
               <div className="flex justify-between"><span className="text-slate-400">Beneficiary:</span> <strong>{reversingTxn.beneficiary_name || "Beneficiary"}</strong></div>
               <div className="flex justify-between"><span className="text-slate-400">UTR:</span> <strong>{reversingTxn.reference}</strong></div>
             </div>
@@ -2414,6 +2496,13 @@ export default function DmtWorkspace({
           {(() => {
             const receiptUrl = `/business/receipt/${selectedDetailTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
             const invoiceUrl = `/business/receipt/${selectedDetailTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
+            const dtAmount = Number(selectedDetailTxn.amount || 0);
+            const dtFee = Number(selectedDetailTxn.service_fee || 0);
+            const dtCharge = Number(selectedDetailTxn.portal_charge || 0);
+            const dtComm = Number(selectedDetailTxn.portal_commission || 0);
+            const dtCollection = dtAmount + dtFee + dtCharge;
+            const dtRevenue = dtFee + dtComm;
+            const dtNet = dtRevenue - dtCharge;
 
             return (
               <div className="p-5 space-y-4 text-xs">
@@ -2443,12 +2532,16 @@ export default function DmtWorkspace({
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">3. Financial Money Flow</span>
                   <div className="mt-1 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-3 dark:bg-white/5 text-xs">
-                    <div><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
-                    <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
-                    <div><span className="text-slate-400">Total Customer Collection:</span> <div className="font-black text-sm text-slate-900 dark:text-white">{inr(Number(selectedDetailTxn.amount || 0) + Number(selectedDetailTxn.service_fee || 0))} via {(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}</div></div>
+                    <div><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-sm">{inr(dtAmount)}</div></div>
+                    <div><span className="text-slate-400">Customer Service Fee (Income):</span> <div className="font-bold text-emerald-600">+{inr(dtFee)}</div></div>
+                    <div><span className="text-slate-400">Portal / Provider Charge (Cost):</span> <div className="font-bold text-rose-500">-{inr(dtCharge)}</div></div>
+                    <div><span className="text-slate-400">Total Customer Collection:</span> <div className="font-black text-sm text-slate-900 dark:text-white">{inr(dtCollection)} via {(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}</div></div>
                     <div><span className="text-slate-400">Funding Source:</span> <div className="font-bold">{(selectedDetailTxn.paid_from || "PORTAL").toUpperCase()}</div></div>
-                    <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
-                    <div><span className="text-slate-400">Gross Business Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
+                    <div><span className="text-slate-400">Portal Commission (Income):</span> <div className="font-bold text-emerald-600">+{inr(dtComm)}</div></div>
+                    <div className="col-span-2 pt-1 border-t border-slate-200 dark:border-white/10 flex justify-between">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Net Business Contribution:</span>
+                      <strong className="font-black text-emerald-600">+{inr(dtNet)} (Revenue {inr(dtRevenue)} - Cost {inr(dtCharge)})</strong>
+                    </div>
                   </div>
                 </div>
 

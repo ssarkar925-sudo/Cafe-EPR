@@ -49,6 +49,7 @@ export type Txn = {
   receiver_name?: string | null;
   amount: number | string;
   service_fee: number | string;
+  portal_charge?: number | string | null;
   portal_commission: number | string;
   fee_source: string | null;
   paid_from: string | null;

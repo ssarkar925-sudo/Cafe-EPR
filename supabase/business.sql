@@ -56,6 +56,7 @@ alter table public.transactions add column if not exists beneficiary_account tex
 alter table public.transactions add column if not exists upi_id text;
 alter table public.transactions add column if not exists receiver_name text;
 alter table public.transactions add column if not exists service_fee numeric(15,2) not null default 0;
+alter table public.transactions add column if not exists portal_charge numeric(15,2) not null default 0;
 alter table public.transactions add column if not exists portal_commission numeric(15,2) not null default 0;
 alter table public.transactions add column if not exists remarks text;
 alter table public.transactions add column if not exists transaction_timestamp timestamptz;
@@ -225,7 +226,7 @@ begin
     sender_name, sender_mobile, beneficiary_name, beneficiary_mobile,
     beneficiary_bank, beneficiary_ifsc, beneficiary_account, upi_id,
     receiver_name,
-    amount, service_fee, portal_commission, created_by,
+    amount, service_fee, portal_charge, portal_commission, created_by,
     fee_source, paid_from, customer_pay_method,
     cash_out, cash_in, bank_out, bank_in, pool_out, pool_credit, pool_credit_type, upi_fee
   ) values (
@@ -236,7 +237,7 @@ begin
     p_sender_name, p_sender_mobile, p_beneficiary_name, p_beneficiary_mobile,
     p_beneficiary_bank, p_beneficiary_ifsc, p_beneficiary_account, p_upi_id,
     p_receiver_name,
-    p_amount, v_fee, coalesce(p_portal_commission, 0), auth.uid(),
+    p_amount, v_fee, coalesce(p_portal_charge, 0), coalesce(p_portal_commission, 0), auth.uid(),
     p_fee_source, p_paid_from, p_customer_pay_method,
     v_cash_out, v_cash_in, v_bank_out, v_bank_in, v_pool_out, v_pool_credit, v_pool_type, v_upi_fee
   ) returning id into v_txn_id;
