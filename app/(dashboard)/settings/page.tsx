@@ -67,17 +67,25 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const qrUsage: Record<string, number> = {};
   for (const t of (qrTxn ?? []) as any[]) if (t.merchant_qr_id) qrUsage[t.merchant_qr_id] = (qrUsage[t.merchant_qr_id] ?? 0) + 1;
 
-  const POOL_MAP: Record<string, string> = { cash: "cash", bank: "bank", debit_card: "bank", credit_card: "credit_card", upi: "upi_qr", wallet: "wallet" };
+  const POOL_MAP: Record<string, string> = {
+    cash: "cash",
+    bank: "bank",
+    upi: "upi_qr",
+    wallet: "wallet",
+    aeps_portal: "aeps",
+    dmt_portal: "dmt",
+    credit_card: "credit_card",
+    debit_card: "debit_card",
+  };
   let pool: Record<string, { opening: number; movements: number; current: number }> = {};
   if (needsAccounts) {
     const { data: poolData } = await supabase.rpc("get_pool_balances");
     pool = (poolData ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
   }
 
-  const countPerPool: Record<string, number> = {};
+  const countPerType: Record<string, number> = {};
   for (const i of (instruments ?? []) as any[]) {
-    const p = POOL_MAP[i.type] ?? i.type;
-    countPerPool[p] = (countPerPool[p] ?? 0) + 1;
+    if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
   }
   const balMap: Record<string, number> = {};
   for (const e of (instBal ?? []) as any[]) {
@@ -85,11 +93,42 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     balMap[e.instrument_id] = (balMap[e.instrument_id] ?? 0) + (e.direction === "out" ? -Number(e.amount) : Number(e.amount));
   }
   const accounts = (instruments ?? []).map((i: any) => {
-    const p = POOL_MAP[i.type] ?? i.type;
-    const entry = pool[p];
-    return entry && countPerPool[p] === 1
-      ? { ...i, balance: entry.current ?? entry.opening + entry.movements }
-      : { ...i, balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0) };
+    const poolKey = POOL_MAP[i.type];
+    const poolEntry = poolKey ? pool[poolKey] : undefined;
+
+    // 1. Linked Debit Card: reflects linked bank account
+    if (i.type === "debit_card") {
+      const bankEntry = pool["bank"];
+      return {
+        ...i,
+        balance: bankEntry ? (bankEntry.current ?? bankEntry.opening + bankEntry.movements) : Number(i.opening_balance ?? 0),
+        opening_balance: bankEntry?.opening ?? Number(i.opening_balance ?? 0),
+      };
+    }
+
+    // 2. Credit Card: reflects available limit
+    if (i.type === "credit_card") {
+      const creditEntry = pool["credit_card"];
+      return {
+        ...i,
+        balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0)),
+      };
+    }
+
+    // 3. Single active account for its type: authoritative pool balance
+    if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
+      return {
+        ...i,
+        opening_balance: poolEntry.opening,
+        balance: poolEntry.current ?? poolEntry.opening + poolEntry.movements,
+      };
+    }
+
+    // 4. Multi-account pool: individual opening + tagged cash_entries
+    return {
+      ...i,
+      balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
+    };
   });
 
   const categoryCounts: Record<string, number> = {};

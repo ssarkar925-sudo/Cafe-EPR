@@ -73,11 +73,21 @@ begin
   values (p_pool, p_instrument_id, p_amount, p_as_of, p_remarks, auth.uid())
   returning id into v_id;
 
-  -- 2. Sync payment_instruments.opening_balance if instrument_id provided
+  -- 2. Sync payment_instruments.opening_balance
   if p_instrument_id is not null then
     update public.payment_instruments
       set opening_balance = p_amount, is_active = true, updated_at = now()
       where id = p_instrument_id;
+  else
+    if p_pool = 'cash' then
+      update public.payment_instruments set opening_balance = p_amount, updated_at = now() where type = 'cash';
+    elsif p_pool = 'bank' then
+      update public.payment_instruments set opening_balance = p_amount, updated_at = now() where type = 'bank';
+    elsif p_pool = 'wallet' then
+      update public.payment_instruments set opening_balance = p_amount, updated_at = now() where type = 'wallet';
+    elsif p_pool = 'upi_qr' then
+      update public.payment_instruments set opening_balance = p_amount, updated_at = now() where type = 'upi';
+    end if;
   end if;
 
   -- 3. Audit log

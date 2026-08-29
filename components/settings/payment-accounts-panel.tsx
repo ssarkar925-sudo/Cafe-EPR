@@ -65,10 +65,12 @@ export default function PaymentAccountsPanel({
   const POOL_MAP: Record<string, string> = {
     cash: "cash",
     bank: "bank",
-    debit_card: "bank",
-    credit_card: "credit_card",
     upi: "upi_qr",
     wallet: "wallet",
+    aeps_portal: "aeps",
+    dmt_portal: "dmt",
+    credit_card: "credit_card",
+    debit_card: "debit_card",
   };
 
   const refreshLiveBalances = useCallback(async () => {
@@ -85,11 +87,10 @@ export default function PaymentAccountsPanel({
     // Parse pool balances from RPC (includes opening seeds + day-close + all movements)
     const pool = (poolResult.data ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
 
-    // Count how many instruments share each pool (to detect multi-account pools)
-    const countPerPool: Record<string, number> = {};
+    // Count active instruments per type
+    const countPerType: Record<string, number> = {};
     for (const i of insts as InstrumentRow[]) {
-      const p = POOL_MAP[i.type] ?? i.type;
-      countPerPool[p] = (countPerPool[p] ?? 0) + 1;
+      if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
     }
 
     // Build instrument-tagged cash_entries map (fallback for multi-account pools)
@@ -101,17 +102,38 @@ export default function PaymentAccountsPanel({
     }
 
     const updated = (insts as InstrumentRow[]).map((i) => {
-      const poolKey = POOL_MAP[i.type] ?? i.type;
-      const poolEntry = pool[poolKey];
+      const poolKey = POOL_MAP[i.type];
+      const poolEntry = poolKey ? pool[poolKey] : undefined;
 
-      // Single account for this pool type: use pool balance directly
-      // (most accurate — includes day-close seeds, settlements, ALL sources)
-      if (poolEntry && countPerPool[poolKey] === 1) {
-        return { ...i, balance: poolEntry.current ?? poolEntry.opening + poolEntry.movements };
+      // 1. Linked Debit Card: reflects linked bank account
+      if (i.type === "debit_card") {
+        const bankEntry = pool["bank"];
+        return {
+          ...i,
+          balance: bankEntry ? (bankEntry.current ?? bankEntry.opening + bankEntry.movements) : Number(i.opening_balance ?? 0),
+          opening_balance: bankEntry?.opening ?? Number(i.opening_balance ?? 0),
+        };
       }
 
-      // Multiple accounts for this pool: use instrument-tagged cash_entries
-      // (less complete but won't wrongly assign one account's movements to another)
+      // 2. Credit Card: reflects available credit limit
+      if (i.type === "credit_card") {
+        const creditEntry = pool["credit_card"];
+        return {
+          ...i,
+          balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0)),
+        };
+      }
+
+      // 3. Single active account for its type: authoritative pool balance
+      if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
+        return {
+          ...i,
+          opening_balance: poolEntry.opening,
+          balance: poolEntry.current ?? poolEntry.opening + poolEntry.movements,
+        };
+      }
+
+      // 4. Multi-account pool: individual opening + tagged cash_entries
       return {
         ...i,
         balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
