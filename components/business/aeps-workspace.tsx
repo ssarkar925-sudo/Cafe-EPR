@@ -72,6 +72,16 @@ export function matchBank(inputName: string, bankList: Master[]): Master | null 
   return null;
 }
 
+/** Helper to mask sensitive customer mobile numbers: e.g. 9876543210 -> 98XXXXXX10 */
+export function maskMobile(mobile: string | null | undefined): string {
+  if (!mobile) return "";
+  const clean = mobile.replace(/\D/g, "");
+  if (clean.length === 10) {
+    return `${clean.slice(0, 2)}XXXXXX${clean.slice(-2)}`;
+  }
+  return clean;
+}
+
 export default function AepsWorkspace({
   initialTransactions,
   initialCustomers,
@@ -91,14 +101,14 @@ export default function AepsWorkspace({
   useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries"]);
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
-  const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
+  const [customers] = useState<CustomerRow[]>(initialCustomers);
   const [banks, setBanks] = useState<Master[]>(initialBanks);
   const [portals] = useState<Master[]>(initialPortals);
 
   // Operation selection: "withdrawal" (Cash Out), "enquiry" (Balance Enquiry), "statement" (Mini Statement)
   const [operation, setOperation] = useState<"withdrawal" | "enquiry" | "statement">("withdrawal");
 
-  // Form State
+  // Canonical Form State (Single Source of Truth)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerMobile, setCustomerMobile] = useState<string>("");
   const [selectedBankId, setSelectedBankId] = useState<string>("");
@@ -134,21 +144,6 @@ export default function AepsWorkspace({
   const [selectedDetailTxn, setSelectedDetailTxn] = useState<Txn | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Auto-calculate fee based on withdrawal amount
-  useEffect(() => {
-    const num = Number(amount);
-    if (!num || num <= 0) {
-      setServiceFee("0");
-      setPortalCommission("0");
-      return;
-    }
-    // Standard rule: ₹10 per ₹1,000 withdrawn (min ₹10), portal commission ₹4–₹10
-    const fee = Math.max(10, Math.round((num * 0.01) * 10) / 10);
-    const comm = num >= 3000 ? 8 : num >= 1000 ? 4 : 2;
-    setServiceFee(String(fee));
-    setPortalCommission(String(comm));
-  }, [amount]);
-
   // When customer changes, auto-fill mobile
   useEffect(() => {
     if (!selectedCustomerId) return;
@@ -180,7 +175,8 @@ export default function AepsWorkspace({
   function handleScanApply(fields: ScanFields) {
     const detectedName = fields.customer_name || fields.sender_name || "";
     const detectedMobile = fields.customer_mobile || fields.sender_mobile || "";
-    const detectedAadhaar = fields.aadhaar_last4 || "";
+    const rawAadhaar = fields.aadhaar_last4 || "";
+    const cleanAadhaar = rawAadhaar.replace(/\D/g, "").slice(-4);
     const detectedBank = fields.bank_name || fields.beneficiary_bank || "";
 
     const matched = matchBank(detectedBank, banks);
@@ -188,14 +184,14 @@ export default function AepsWorkspace({
     setScannedReviewData({
       customerName: detectedName,
       mobile: detectedMobile,
-      aadhaarLast4: detectedAadhaar,
+      aadhaarLast4: cleanAadhaar,
       bankName: detectedBank,
       matchedBank: matched,
     });
 
-    // Auto-apply fields
+    // Auto-apply fields to canonical state
     if (detectedMobile) setCustomerMobile(detectedMobile);
-    if (detectedAadhaar) setAadhaarLast4(detectedAadhaar);
+    if (cleanAadhaar) setAadhaarLast4(cleanAadhaar);
     if (fields.amount) setAmount(fields.amount);
     if (fields.reference) setReference(fields.reference);
 
@@ -241,9 +237,7 @@ export default function AepsWorkspace({
         .single();
 
       if (insertError) {
-        // Check for unique constraint violation (duplicate key)
         if (insertError.code === "23505" || insertError.message.toLowerCase().includes("unique")) {
-          // Re-fetch existing and select it
           const { data: refetched } = await supabase
             .from("aeps_banks")
             .select("*")
@@ -263,7 +257,6 @@ export default function AepsWorkspace({
       }
 
       if (newBank) {
-        // Audit log
         await logAudit({
           action: "create",
           entity: "aeps_bank",
@@ -287,7 +280,7 @@ export default function AepsWorkspace({
     }
   }
 
-  // Validation before opening confirmation
+  // Authoritative Validation before opening confirmation
   function handleInitiateTransaction() {
     const num = Number(amount);
     if (operation === "withdrawal" && (!num || num <= 0)) {
@@ -302,7 +295,10 @@ export default function AepsWorkspace({
       showToast("error", "Please choose an AEPS service portal.");
       return;
     }
-    if (!/^d{4}$/.test(aadhaarLast4.trim())) {
+
+    // Canonical Aadhaar Validation: must be exactly 4 numeric ASCII digits (e.g. "3619", "0427")
+    const cleanAadhaar = (aadhaarLast4 || "").trim();
+    if (!/^[0-9]{4}$/.test(cleanAadhaar)) {
       showToast("error", "Please enter the last 4 digits of Aadhaar (4 digits).");
       return;
     }
@@ -317,8 +313,10 @@ export default function AepsWorkspace({
 
     try {
       const numAmount = operation === "withdrawal" ? Number(amount) : 0;
-      const numFee = operation === "withdrawal" ? Number(serviceFee) : 0;
-      const numComm = operation === "withdrawal" ? Number(portalCommission) : 0;
+      const numFee = operation === "withdrawal" ? Number(serviceFee || 0) : 0;
+      const numComm = operation === "withdrawal" ? Number(portalCommission || 0) : 0;
+
+      const cleanAadhaar = (aadhaarLast4 || "").trim();
 
       const nowIso = new Date().toISOString();
       const dateStr = nowIso.slice(0, 10);
@@ -335,7 +333,7 @@ export default function AepsWorkspace({
         p_bank_id: selectedBankId,
         p_portal_id: selectedPortalId,
         p_merchant_qr_id: null,
-        p_aadhaar_last4: aadhaarLast4.trim(),
+        p_aadhaar_last4: cleanAadhaar,
         p_transfer_method: null,
         p_sender_name: null,
         p_sender_mobile: null,
@@ -375,7 +373,7 @@ export default function AepsWorkspace({
         portal_id: selectedPortalId,
         merchant_qr_id: null,
         provider_id: null,
-        aadhaar_last4: aadhaarLast4.trim(),
+        aadhaar_last4: cleanAadhaar,
         transfer_method: null,
         sender_name: null,
         sender_mobile: null,
@@ -431,7 +429,11 @@ export default function AepsWorkspace({
     );
   }, [transactions, searchQuery]);
 
-  const cashToHandOver = feeSource === "cut_from_withdrawal" ? Math.max(0, Number(amount) - Number(serviceFee)) : Number(amount);
+  const numAmount = Number(amount || 0);
+  const numFee = Number(serviceFee || 0);
+  const numComm = Number(portalCommission || 0);
+  const totalIncome = numFee + numComm;
+  const cashToHandOver = feeSource === "cut_from_withdrawal" ? Math.max(0, numAmount - numFee) : numAmount;
 
   return (
     <div className="space-y-6 pb-16">
@@ -562,7 +564,7 @@ export default function AepsWorkspace({
                 <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
-                {scannedReviewData.mobile && <div><span className="text-slate-500">Mobile:</span> <strong>{scannedReviewData.mobile}</strong></div>}
+                {scannedReviewData.mobile && <div><span className="text-slate-500">Mobile:</span> <strong>{maskMobile(scannedReviewData.mobile)}</strong></div>}
                 {scannedReviewData.aadhaarLast4 && <div><span className="text-slate-500">Aadhaar:</span> <strong>**** {scannedReviewData.aadhaarLast4}</strong></div>}
                 {scannedReviewData.bankName && (
                   <div>
@@ -576,7 +578,7 @@ export default function AepsWorkspace({
 
           {/* Form Fields Grid */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Customer Search & Select */}
+            {/* Customer Search & Select (Masked for Privacy) */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Customer (Optional CRM Link)
@@ -588,7 +590,7 @@ export default function AepsWorkspace({
                   { value: "", label: "-- Walk-in Customer --" },
                   ...customers.map((c) => ({
                     value: c.id,
-                    label: `${c.name} (${c.phone || c.code})`,
+                    label: `${c.name} (${maskMobile(c.phone) || c.code})`,
                   })),
                 ]}
                 placeholder="Search customer by name or phone…"
@@ -644,7 +646,7 @@ export default function AepsWorkspace({
               </div>
             </div>
 
-            {/* Aadhaar Last 4 Digits */}
+            {/* Aadhaar Last 4 Digits (Canonical Input) */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span>
@@ -657,11 +659,15 @@ export default function AepsWorkspace({
                   type="text"
                   maxLength={4}
                   value={aadhaarLast4}
-                  onChange={(e) => setAadhaarLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="5678"
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    setAadhaarLast4(digits);
+                  }}
+                  placeholder="3619"
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
+              <p className="text-[10px] text-slate-400">Enter exactly the last 4 digits of Aadhaar.</p>
             </div>
 
             {/* AEPS Service Portal */}
@@ -717,32 +723,48 @@ export default function AepsWorkspace({
               </div>
             )}
 
-            {/* Fee & Commission Inputs */}
+            {/* Distinct Customer Service Fee vs Portal Commission */}
             {operation === "withdrawal" && (
               <>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Service Fee Charged (₹)
+                    Customer Service Fee (₹)
                   </label>
                   <input
                     type="number"
                     value={serviceFee}
                     onChange={(e) => setServiceFee(e.target.value)}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                    placeholder="Fee charged to customer"
                   />
+                  <p className="text-[10px] text-slate-400">Charged directly to customer.</p>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Fee Deduction Method
+                    Portal Commission (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={portalCommission}
+                    onChange={(e) => setPortalCommission(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                    placeholder="Commission from portal"
+                  />
+                  <p className="text-[10px] text-slate-400">Commission credited by AEPS portal.</p>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Fee Collection Method
                   </label>
                   <select
                     value={feeSource}
                     onChange={(e) => setFeeSource(e.target.value as any)}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
                   >
-                    <option value="cut_from_withdrawal">Cut from cash handed to customer</option>
-                    <option value="separate_cash">Customer gives fee separately</option>
+                    <option value="cut_from_withdrawal">Deduct fee from cash handed over (Net Cash Handout)</option>
+                    <option value="separate_cash">Hand over full amount, collect fee separately as cash</option>
                   </select>
                 </div>
               </>
@@ -784,7 +806,7 @@ export default function AepsWorkspace({
                 </strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Aadhaar Last 4:</span>
+                <span className="text-slate-500">Aadhaar (Last 4):</span>
                 <strong className="text-slate-900 dark:text-white">
                   {aadhaarLast4 ? `**** ${aadhaarLast4}` : "Pending"}
                 </strong>
@@ -794,15 +816,19 @@ export default function AepsWorkspace({
                 <>
                   <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5">
                     <span className="text-slate-500">Withdrawal Amount:</span>
-                    <strong className="text-slate-900 dark:text-white">{inr(Number(amount))}</strong>
+                    <strong className="text-slate-900 dark:text-white">{inr(numAmount)}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Customer Service Fee:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(Number(serviceFee))}</strong>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Portal Commission:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(Number(portalCommission))}</strong>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
                   </div>
 
                   <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
@@ -863,7 +889,9 @@ export default function AepsWorkspace({
                 <th className="pb-2.5 font-bold">Customer &amp; Aadhaar</th>
                 <th className="pb-2.5 font-bold">Bank &amp; Portal</th>
                 <th className="pb-2.5 font-bold text-right">Withdrawal</th>
-                <th className="pb-2.5 font-bold text-right">Income</th>
+                <th className="pb-2.5 font-bold text-right">Fee</th>
+                <th className="pb-2.5 font-bold text-right">Comm</th>
+                <th className="pb-2.5 font-bold text-right">Total Income</th>
                 <th className="pb-2.5 font-bold text-center">Status</th>
                 <th className="pb-2.5 font-bold text-right">Receipt</th>
               </tr>
@@ -871,7 +899,7 @@ export default function AepsWorkspace({
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
               {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     No AEPS transactions found. Process a withdrawal above to see records.
                   </td>
                 </tr>
@@ -887,7 +915,7 @@ export default function AepsWorkspace({
                     <td className="py-3">
                       <div className="font-bold text-slate-900 dark:text-white">{t.customers?.name || "Walk-in"}</div>
                       <div className="text-[10px] text-slate-400">
-                        {t.customer_mobile ? `📱 ${t.customer_mobile}` : ""} {t.aadhaar_last4 ? `• **** ${t.aadhaar_last4}` : ""}
+                        {t.customer_mobile ? `📱 ${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `• **** ${t.aadhaar_last4}` : ""}
                       </div>
                     </td>
                     <td className="py-3">
@@ -897,7 +925,13 @@ export default function AepsWorkspace({
                     <td className="py-3 text-right font-black text-slate-900 dark:text-white">
                       {inr(t.amount)}
                     </td>
-                    <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                    <td className="py-3 text-right text-slate-600 dark:text-slate-400 font-semibold">
+                      {inr(Number(t.service_fee || 0))}
+                    </td>
+                    <td className="py-3 text-right text-slate-600 dark:text-slate-400 font-semibold">
+                      {inr(Number(t.portal_commission || 0))}
+                    </td>
+                    <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-black">
                       +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
                     </td>
                     <td className="py-3 text-center">
@@ -945,18 +979,26 @@ export default function AepsWorkspace({
             <div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2 dark:bg-white/5">
               <div className="flex justify-between">
                 <span className="text-slate-500">Withdrawal Amount:</span>
-                <strong className="text-base text-slate-900 dark:text-white">{inr(Number(amount))}</strong>
+                <strong className="text-base text-slate-900 dark:text-white">{inr(numAmount)}</strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer Bank:</span>
                 <strong className="text-slate-900 dark:text-white">{selectedBank?.name}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Aadhaar Last 4:</span>
+                <span className="text-slate-500">Aadhaar (Last 4):</span>
                 <strong className="text-slate-900 dark:text-white">**** {aadhaarLast4}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Cash to Hand Over:</span>
+                <span className="text-slate-500">Customer Service Fee:</span>
+                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Portal Commission:</span>
+                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10">
+                <span className="text-slate-700 font-bold dark:text-slate-300">Physical Cash to Hand Over:</span>
                 <strong className="text-emerald-600 dark:text-emerald-400 text-sm font-black">{inr(cashToHandOver)}</strong>
               </div>
             </div>
@@ -1069,8 +1111,10 @@ export default function AepsWorkspace({
             <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
               <div><span className="text-slate-400">Date:</span> <div className="font-bold">{selectedDetailTxn.transaction_date}</div></div>
               <div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div>
-              <div><span className="text-slate-400">Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
-              <div><span className="text-slate-400">Customer Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
+              <div><span className="text-slate-400">Withdrawal Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div>
+              <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee)}</div></div>
+              <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
+              <div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
               <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
               <div><span className="text-slate-400">Aadhaar:</span> <div className="font-bold">**** {selectedDetailTxn.aadhaar_last4 || "N/A"}</div></div>
               <div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.banks?.name || "N/A"}</div></div>

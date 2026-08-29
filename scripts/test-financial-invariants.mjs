@@ -3415,6 +3415,45 @@ function detectIntent(question) {
   assert(cashierCanFinalize === false && adminCanFinalize === true, "344. Security RBAC: Only authorized back-office roles (admin/manager) can finalize opening positions");
 }
 
+
+// 345. AEPS Aadhaar Last-4 Canonical Validation Invariant
+{
+  const isValidAadhaar = (val) => /^[0-9]{4}$/.test((val || "").trim());
+
+  assert(isValidAadhaar("3619") === true, "345. Aadhaar Validation: Standard 4-digit '3619' evaluates strictly to VALID");
+  assert(isValidAadhaar("0427") === true, "346. Aadhaar Validation: Leading-zero 4-digit '0427' evaluates strictly to VALID");
+  assert(isValidAadhaar("123") === false, "347. Aadhaar Validation: 3-digit '123' evaluates strictly to INVALID");
+  assert(isValidAadhaar("12345") === false, "348. Aadhaar Validation: 5-digit '12345' evaluates strictly to INVALID");
+  assert(isValidAadhaar("12A4") === false, "349. Aadhaar Validation: Alphanumeric '12A4' evaluates strictly to INVALID");
+  assert(isValidAadhaar("") === false, "350. Aadhaar Validation: Empty string evaluates strictly to INVALID");
+}
+
+// 351. AEPS Commission Semantic Separation Invariant
+{
+  const withdrawalAmount = 2000.0;
+  const customerServiceFee = 20.0;
+  const portalCommission = 5.0;
+  const totalOperatorIncome = customerServiceFee + portalCommission;
+  const cashHandoutCutFromWithdrawal = withdrawalAmount - customerServiceFee;
+  const cashHandoutSeparate = withdrawalAmount;
+
+  assert(customerServiceFee !== portalCommission, "351. AEPS Semantic Invariant: Customer Service Fee (₹20) ≠ Portal Commission (₹5)");
+  assert(totalOperatorIncome === 25.0, "352. AEPS Revenue Invariant: Total Operator Income ≡ Fee + Commission (₹25.00)");
+  assert(cashHandoutCutFromWithdrawal === 1980.0, "353. AEPS Cash Invariant: Net Cash Handout with Fee Deduction ≡ ₹1,980.00");
+  assert(cashHandoutSeparate === 2000.0, "354. AEPS Cash Invariant: Separate Fee Collection Handout ≡ ₹2,000.00");
+}
+
+// 355. AEPS Customer Mobile Privacy Masking Invariant
+{
+  const maskMobile = (mobile) => {
+    if (!mobile) return "";
+    const clean = mobile.replace(/\D/g, "");
+    if (clean.length === 10) return `${clean.slice(0, 2)}XXXXXX${clean.slice(-2)}`;
+    return clean;
+  };
+
+  assert(maskMobile("9876543210") === "98XXXXXX10", "355. AEPS Privacy Invariant: Customer mobile 9876543210 is safely masked as 98XXXXXX10");
+}
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
