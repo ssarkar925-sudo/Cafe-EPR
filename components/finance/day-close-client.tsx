@@ -333,7 +333,7 @@ export default function DayCloseClient({
                 openDay();
               }}
               disabled={busy}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:brightness-110 disabled:opacity-50"
+              className="btn-3d-tactile-primary inline-flex items-center gap-2 px-6 py-3 text-sm font-extrabold disabled:opacity-50"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
@@ -636,9 +636,9 @@ export default function DayCloseClient({
             <button
               onClick={closeDay}
               disabled={busy}
-              className="shrink-0 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
+              className="btn-3d-tactile-emerald shrink-0 px-6 py-3 text-sm font-black disabled:opacity-50"
             >
-              {busy ? "Closing..." : "Confirm Day Close"}
+              {busy ? "Closing..." : "🔒 Confirm Day Close"}
             </button>
           </div>
         </div>
