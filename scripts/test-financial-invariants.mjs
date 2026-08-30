@@ -4688,7 +4688,7 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes("LIVE AEPS SWITCH ONLINE"), "591. AEPS Command Center: Live AEPS switch badge present in hero");
   assert(aepsWorkspaceFile.includes("AEPS Biometric Cash Out"), "592. AEPS Command Center: Hero title present");
   assert(aepsWorkspaceFile.includes("AVAILABLE PLATFORM FLOAT"), "593. AEPS Command Center: Available platform float card present in hero");
-  assert(aepsWorkspaceFile.includes("AEPS POSITION"), "594. AEPS Command Center: Connected AEPS POSITION strip present");
+  assert(aepsWorkspaceFile.includes("AEPS SETTLEMENT BREAKDOWN"), "594. AEPS Command Center: Horizontal AEPS SETTLEMENT BREAKDOWN card present directly below hero");
   assert(aepsWorkspaceFile.includes("/finance/reconciliation"), "595. AEPS Command Center: Position strip links to /finance/reconciliation");
   assert(aepsWorkspaceFile.includes("BIOMETRIC CASH OUT"), "596. AEPS Command Center: Biometric Cash Out quick operation tile present");
   assert(aepsWorkspaceFile.includes("AEPS OPERATION LIFECYCLE"), "597. AEPS Command Center: 5-stage lifecycle workflow present");
