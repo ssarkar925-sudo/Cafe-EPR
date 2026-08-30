@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 const TOKEN_SCOPE = "read_operator_circle";
 const DEFAULT_TOKEN_BASE = "https://accounts.payu.in";
 const DEFAULT_BBPS_BASE = "https://bbps-sb.payu.in/payu-nbc/v2/nbc";
+// Server-only provider credentials are supplied through Vercel environment variables.
 
 type LookupResult = {
   operatorCode: string;
