@@ -135,15 +135,15 @@ export default function AepsWorkspace({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // Canonical Form State
+  // Canonical Clean Form State (Starts completely empty on fresh page load)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerMobile, setCustomerMobile] = useState<string>("");
   const [selectedBankId, setSelectedBankId] = useState<string>("");
   const [selectedPortalId, setSelectedPortalId] = useState<string>(initialPortals[0]?.id || "");
   const [aadhaarLast4, setAadhaarLast4] = useState<string>("");
-  const [amount, setAmount] = useState<string>("1000");
-  const [serviceFee, setServiceFee] = useState<string>("10");
-  const [portalCommission, setPortalCommission] = useState<string>("5");
+  const [amount, setAmount] = useState<string>("");
+  const [serviceFee, setServiceFee] = useState<string>("");
+  const [portalCommission, setPortalCommission] = useState<string>("");
   
   // Fee Treatment: "separate" (Collect Separately) vs "deduct" (Deduct From Payout)
   const [feeTreatment, setFeeTreatment] = useState<"separate" | "deduct">("separate");
@@ -277,6 +277,43 @@ export default function AepsWorkspace({
       );
     });
   }, [transactions, searchQuery, statusFilter]);
+
+  // Aggregated KPIs
+  const kpis = useMemo(() => {
+    let volume = 0;
+    let totalCashDisbursed = 0;
+    let fees = 0;
+    let commissions = 0;
+    let successCount = 0;
+
+    for (const t of filteredTxns) {
+      if (t.status === "success") {
+        successCount++;
+        const a = Number(t.amount || 0);
+        const f = Number(t.service_fee || 0);
+        const c = Number(t.portal_commission || 0);
+        volume += a;
+        fees += f;
+        commissions += c;
+        if (t.fee_source === "cut_from_withdrawal") {
+          totalCashDisbursed += Math.max(0, a - f);
+        } else {
+          totalCashDisbursed += a;
+        }
+      }
+    }
+
+    return {
+      count: filteredTxns.length,
+      successCount,
+      volume,
+      totalCashDisbursed,
+      fees,
+      commissions,
+      totalIncome: fees + commissions,
+      variance: 0,
+    };
+  }, [filteredTxns]);
 
   // Handle Scan & Fill Extraction
   function handleScanApply(fields: ScanFields) {
@@ -605,7 +642,14 @@ export default function AepsWorkspace({
       setTransactions((prev) => [completedRecord, ...prev]);
       setConfirmWindowOpen(false);
 
+      // Reset form to clean state after successful completion
+      setSelectedCustomerId("");
+      setCustomerMobile("");
+      setSelectedBankId("");
       setAadhaarLast4("");
+      setAmount("");
+      setServiceFee("");
+      setPortalCommission("");
       setReference("");
       setRemarks("");
 
@@ -681,7 +725,7 @@ export default function AepsWorkspace({
       {toastView}
 
       {/* ===============================================================================
-          1. AEPS PREMIUM DASHBOARD / HERO
+          1. AEPS PREMIUM HERO
       =============================================================================== */}
       <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-teal-500/20 blur-3xl" />
@@ -729,169 +773,69 @@ export default function AepsWorkspace({
       </section>
 
       {/* ===============================================================================
-          2. AEPS SETTLEMENT BREAKDOWN (FULL-WIDTH HORIZONTAL CARD DIRECTLY BELOW HERO)
+          2. COMPACT AEPS FINANCIAL / SETTLEMENT SUMMARY (INFORMATIONAL ONLY, NO ACTION BUTTON)
       =============================================================================== */}
-      <section className="relative overflow-hidden rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-slate-100/90 p-5 shadow-xs dark:border-white/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 space-y-4">
-        {/* Header Bar with Status and Reconciliation Link */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/70 pb-3.5 dark:border-white/10">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-              AEPS SETTLEMENT BREAKDOWN
-            </span>
-            <span className="text-xs text-slate-400">·</span>
-            <span className={`text-sm font-black ${aepsCurrentBalance < 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>
-              Float: {inr(aepsCurrentBalance)}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              ✓ RECONCILED
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-            <span>Synced {lastRefreshedAt}</span>
-            <Link
-              href="/finance/reconciliation"
-              className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition"
-            >
-              <span>View reconciliation</span>
-              <span>→</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Horizontal Financial Grid */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-          {/* Col 1: Operation */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Operation</span>
-            <p className="mt-0.5 text-xs font-black capitalize text-slate-900 dark:text-white truncate">{operation}</p>
-            <span className="text-[10px] text-slate-400">Mode</span>
-          </div>
-
-          {/* Col 2: Bank */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Bank</span>
-            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white truncate" title={selectedBank?.name || "None selected"}>
-              {selectedBank?.name || "Select bank"}
-            </p>
-            <span className="text-[10px] text-teal-600 dark:text-teal-400 truncate block">{portals.find(p => p.id === selectedPortalId)?.name || "Portal"}</span>
-          </div>
-
-          {/* Col 3: Aadhaar */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Aadhaar (Last 4)</span>
-            <p className="mt-0.5 text-xs font-mono font-black text-slate-900 dark:text-white">
-              {aadhaarLast4 ? `**** ${aadhaarLast4}` : "Pending"}
-            </p>
-            <span className="text-[10px] text-slate-400">Biometric Auth</span>
-          </div>
-
-          {/* Col 4: Withdrawal Amount */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Withdrawal Amount</span>
-            <p className="mt-0.5 text-sm font-black text-slate-900 dark:text-white">{inr(numAmount)}</p>
-            <span className="text-[10px] text-slate-400">Portal Debit</span>
-          </div>
-
-          {/* Col 5: Customer Service Fee */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Service Fee</span>
-            <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              {feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}
-            </p>
-            <span className="text-[10px] text-slate-400">Customer charge</span>
-          </div>
-
-          {/* Col 6: Fee Treatment & Mode */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Fee Treatment</span>
-            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white truncate">
-              {feeTreatment === "deduct" ? "✂️ Deducted" : `💵 ${customerPayMethod.toUpperCase()}`}
-            </p>
-            <span className="text-[10px] text-slate-400">
-              {feeTreatment === "deduct" ? "Cut from payout" : "Collected separate"}
-            </span>
-          </div>
-
-          {/* Col 7: Customer Cash Paid */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Customer Cash Paid</span>
-            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">
-              {inr(feeTreatment === "separate" && customerPayMethod === "cash" ? numAmount + numFee : numAmount)}
-            </p>
-            <span className="text-[10px] text-slate-400">Customer tender</span>
-          </div>
-
-          {/* Col 8: Total Net Income */}
-          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Net Income</span>
-            <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">+{inr(totalIncome)}</p>
-            <span className="text-[10px] text-teal-600 dark:text-teal-400">Fee + {inr(numComm)} Comm</span>
-          </div>
-        </div>
-
-        {/* Bottom Payout Bar with Physical Cash and Disburse CTA */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 rounded-2xl bg-indigo-50/80 p-4 text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200 border border-indigo-100 dark:border-indigo-900/40">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-2xl text-white shadow-md shadow-indigo-500/20">
-              💵
+      <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-slate-100/90 p-4.5 sm:p-5 shadow-xs dark:border-white/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950">
+        <div className="flex flex-col gap-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-3 dark:border-white/10">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                AEPS POSITION
+              </span>
+              <span className={`text-base font-black ${aepsCurrentBalance < 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>
+                {inr(aepsCurrentBalance)}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                ✓ RECONCILED
+              </span>
             </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
-                Physical Cash to Hand to Customer:
-              </div>
-              <div className="text-2xl sm:text-3xl font-black text-indigo-900 dark:text-white">
-                {inr(cashHanded)}
-              </div>
-              <p className="text-[10px] text-indigo-600/90 dark:text-indigo-300">
-                {feeTreatment === "deduct"
-                  ? `Deducted fee ₹${numFee} from ₹${numAmount} withdrawal`
-                  : `Full withdrawal ₹${numAmount} given; ₹${numFee} fee collected separately`}
-              </p>
-            </div>
-          </div>
 
-          {/* Controls: Receipt Format + Complete & Disburse Button */}
-          <div className="flex flex-wrap items-center gap-3 self-end sm:self-center">
-            {/* Receipt Format Switcher */}
-            <div className="flex items-center gap-1.5 rounded-xl border border-indigo-200/70 bg-white/90 p-1 dark:border-white/10 dark:bg-slate-900">
-              <span className="px-2 text-[10px] font-bold text-slate-500">Receipt:</span>
-              <button
-                type="button"
-                onClick={() => setReceiptMode("basic")}
-                className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
-                  receiptMode === "basic" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
-                }`}
+            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+              <span>Synced {lastRefreshedAt}</span>
+              <Link
+                href="/finance/reconciliation"
+                className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition"
               >
-                Basic
-              </button>
-              <button
-                type="button"
-                onClick={() => setReceiptMode("detailed")}
-                className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
-                  receiptMode === "detailed" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
-                }`}
-              >
-                Detailed
-              </button>
+                <span>View reconciliation</span>
+                <span>→</span>
+              </Link>
             </div>
+          </div>
 
-            {/* Complete & Disburse CTA */}
-            <button
-              type="button"
-              onClick={handleInitiateTransaction}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-emerald-500/20 transition hover:brightness-110 active:scale-[0.98]"
-            >
-              <span>✓ Complete &amp; Disburse</span>
-              <span className="font-mono text-sm">{inr(cashHanded)}</span>
-            </button>
+          {/* Connected Metrics Grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">WITHDRAWALS</p>
+              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(kpis.volume)}</p>
+              <p className="text-[10px] text-slate-400">{kpis.successCount} Completed</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">CASH OUT</p>
+              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(kpis.totalCashDisbursed)}</p>
+              <p className="text-[10px] text-slate-400">Till Handouts</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">SERVICE FEES</p>
+              <p className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">+{inr(kpis.fees)}</p>
+              <p className="text-[10px] text-slate-400">Customer Fees</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">COMMISSIONS</p>
+              <p className="mt-0.5 text-lg font-bold text-teal-600 dark:text-teal-400">+{inr(kpis.commissions)}</p>
+              <p className="text-[10px] text-slate-400">Portal Margin</p>
+            </div>
+            <div className="col-span-2 sm:col-span-1 rounded-xl border border-emerald-500/20 bg-emerald-50/40 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">VARIANCE</p>
+              <p className="mt-0.5 text-lg font-black text-emerald-700 dark:text-emerald-300">₹0.00</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Exact Match</p>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ===============================================================================
-          3. QUICK ACTIONS / SERVICE CONTROLS
+          3. QUICK OPERATIONS
       =============================================================================== */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -992,22 +936,15 @@ export default function AepsWorkspace({
       </section>
 
       {/* ===============================================================================
-          4. AEPS OPERATION WORKSPACE (FULL-WIDTH MODERN FORM)
+          4. AEPS OPERATION WORKSPACE (SIDE-BY-SIDE: LEFT INPUT FORM + RIGHT SETTLEMENT CONFIRMATION)
       =============================================================================== */}
-      <section ref={formRef} className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
-        {/* Top Bar: Operation Selector & Scan & Fill CTA */}
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3.5 dark:border-white/5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-              AEPS OPERATION WORKSPACE
-            </h2>
-            <span className="text-xs text-slate-400">·</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">Biometric Terminal</span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
+      <div ref={formRef} className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+        {/* Left (8 Cols): Transaction Input Form */}
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-8 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
+          {/* Top Bar: Operation Selector & Scan & Fill CTA */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
             {/* Operation Selector */}
-            <div className="flex items-center gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">
+            <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">
               {[
                 { id: "withdrawal", label: "🏧 Cash Withdrawal" },
                 { id: "enquiry", label: "🔍 Balance Enquiry" },
@@ -1032,324 +969,442 @@ export default function AepsWorkspace({
             <button
               type="button"
               onClick={() => setScanModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-teal-500/20 transition hover:brightness-110 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-teal-500/25 transition hover:brightness-110 active:scale-95"
             >
-              <span>📷 Scan &amp; Fill</span>
+              <span>📷 Scan &amp; Fill Receipt / SMS</span>
             </button>
           </div>
-        </div>
 
-        {/* Scanned Information Review Alert */}
-        {scannedReviewData && (
-          <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-xs dark:border-teal-900/40 dark:bg-teal-950/20">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-teal-900 dark:text-teal-300">✓ Information Detected from Scan</span>
-              <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+          {/* Scanned Information Review Alert */}
+          {scannedReviewData && (
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-xs dark:border-teal-900/40 dark:bg-teal-950/20">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-teal-900 dark:text-teal-300">✓ Information Detected from Scan</span>
+                <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                {scannedReviewData.mobile && <div><span className="text-slate-500">Mobile:</span> <strong>{maskMobile(scannedReviewData.mobile)}</strong></div>}
+                {scannedReviewData.aadhaarLast4 && <div><span className="text-slate-500">Aadhaar:</span> <strong>**** {scannedReviewData.aadhaarLast4}</strong></div>}
+                {scannedReviewData.bankName && (
+                  <div>
+                    <span className="text-slate-500">Bank:</span>{" "}
+                    <strong>{scannedReviewData.matchedBank ? `✓ ${scannedReviewData.matchedBank.name}` : `❓ ${scannedReviewData.bankName}`}</strong>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
-              {scannedReviewData.mobile && <div><span className="text-slate-500">Mobile:</span> <strong>{maskMobile(scannedReviewData.mobile)}</strong></div>}
-              {scannedReviewData.aadhaarLast4 && <div><span className="text-slate-500">Aadhaar:</span> <strong>**** {scannedReviewData.aadhaarLast4}</strong></div>}
-              {scannedReviewData.bankName && (
-                <div>
-                  <span className="text-slate-500">Bank:</span>{" "}
-                  <strong>{scannedReviewData.matchedBank ? `✓ ${scannedReviewData.matchedBank.name}` : `❓ ${scannedReviewData.bankName}`}</strong>
+          )}
+
+          {/* Form Fields Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Customer Search & Select */}
+            <div className="space-y-1 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer (CRM Profile)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setAddCustomerWindowOpen(true)}
+                  className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400"
+                >
+                  + Add New Customer
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={selectedCustomerId}
+                    onChange={setSelectedCustomerId}
+                    minSearchLength={2}
+                    minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…"
+                    options={[
+                      { value: "", label: "-- Walk-in Customer --" },
+                      ...customers.map((c) => ({
+                        value: c.id,
+                        label: `${c.name} (${maskMobile(c.phone) || c.code})`,
+                      })),
+                    ]}
+                    placeholder="Search customer (min 2 chars) or select Walk-in…"
+                  />
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Form Fields Grid */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Customer Search & Select (2 Cols) */}
-          <div className="space-y-1 sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer (CRM Profile)
-              </label>
-              <button
-                type="button"
-                onClick={() => setAddCustomerWindowOpen(true)}
-                className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400"
-              >
-                + Add New Customer
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <SearchableSelect
-                  value={selectedCustomerId}
-                  onChange={setSelectedCustomerId}
-                  minSearchLength={2}
-                  minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…"
-                  options={[
-                    { value: "", label: "-- Walk-in Customer --" },
-                    ...customers.map((c) => ({
-                      value: c.id,
-                      label: `${c.name} (${maskMobile(c.phone) || c.code})`,
-                    })),
-                  ]}
-                  placeholder="Search customer (min 2 chars) or select Walk-in…"
-                />
+                <button
+                  type="button"
+                  onClick={() => setAddCustomerWindowOpen(true)}
+                  className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  title="Add new customer to CRM"
+                >
+                  + Add
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setAddCustomerWindowOpen(true)}
-                className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                title="Add new customer to CRM"
-              >
-                + Add
-              </button>
             </div>
-          </div>
 
-          {/* Customer Mobile */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              Customer Mobile Number
-            </label>
-            <input
-              type="tel"
-              value={customerMobile}
-              onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-              placeholder="10-digit mobile number"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-            />
-          </div>
-
-          {/* Bank Auto-Match & Selection */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
+            {/* Customer Mobile */}
+            <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer's Bank <span className="text-rose-500">*</span>
+                Customer Mobile Number
               </label>
-              {selectedBank && (
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
-                  ✓ {selectedBank.name}
+              <input
+                type="tel"
+                value={customerMobile}
+                onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="10-digit mobile number"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+              />
+            </div>
+
+            {/* Bank Auto-Match & Selection */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer's Bank <span className="text-rose-500">*</span>
+                </label>
+                {selectedBank && (
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
+                    ✓ {selectedBank.name}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={selectedBankId}
+                    onChange={setSelectedBankId}
+                    options={[
+                      { value: "", label: "-- Select Bank --" },
+                      ...banks.map((b) => ({ value: b.id, label: b.name })),
+                    ]}
+                    placeholder="Search bank name…"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddBankWindowOpen(true)}
+                  className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  title="Add new bank to Master List"
+                >
+                  + Add
+                </button>
+              </div>
+            </div>
+
+            {/* Aadhaar Last 4 Digits */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                  XXXX - XXXX -
                 </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <SearchableSelect
-                  value={selectedBankId}
-                  onChange={setSelectedBankId}
-                  options={[
-                    { value: "", label: "-- Select Bank --" },
-                    ...banks.map((b) => ({ value: b.id, label: b.name })),
-                  ]}
-                  placeholder="Search bank name…"
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={aadhaarLast4}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    setAadhaarLast4(digits);
+                  }}
+                  placeholder="3619"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setAddBankWindowOpen(true)}
-                className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                title="Add new bank to Master List"
-              >
-                + Add
-              </button>
             </div>
-          </div>
 
-          {/* Aadhaar Last 4 Digits */}
-          <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                XXXX - XXXX -
-              </span>
+            {/* AEPS Service Portal */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                AEPS Service Portal <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={selectedPortalId}
+                onChange={(e) => setSelectedPortalId(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+              >
+                {portals.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Prominent Amount Input (When Withdrawal) */}
+            {operation === "withdrawal" && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Withdrawal Amount (₹) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
+                  />
+                </div>
+
+                {/* Quick Amount Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  {["500", "1000", "2000", "3000", "5000", "10000"].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setAmount(v)}
+                      className={`rounded-xl border px-3 py-1 text-xs font-black transition ${
+                        amount === v
+                          ? "border-teal-600 bg-teal-600 text-white shadow-xs"
+                          : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                      }`}
+                    >
+                      ₹{Number(v).toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Distinct Customer Service Fee vs Portal Commission */}
+            {operation === "withdrawal" && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Customer Service Fee (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={serviceFee}
+                    onChange={(e) => setServiceFee(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Portal Commission (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={portalCommission}
+                    onChange={(e) => setPortalCommission(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* 1. Fee Treatment Model (Separate Collection vs Deduct From Payout) */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Fee Treatment Model <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setFeeTreatment("separate")}
+                      className={`rounded-2xl border p-2.5 text-left transition ${
+                        feeTreatment === "separate"
+                          ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-black text-slate-900 dark:text-white">
+                        💵 Collect Fee Separately
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Customer receives full <strong>{inr(numAmount)}</strong> withdrawal cash; pays <strong>{inr(numFee)}</strong> fee separately.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFeeTreatment("deduct")}
+                      className={`rounded-2xl border p-2.5 text-left transition ${
+                        feeTreatment === "deduct"
+                          ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-black text-slate-900 dark:text-white">
+                        ✂️ Deduct from Payout
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Fee deducted directly. Customer receives net <strong>{inr(Math.max(0, numAmount - numFee))}</strong> cash handout.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Fee Collection Instrument (When Separate Fee) */}
+                {feeTreatment === "separate" && (
+                  <div className="space-y-1 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Fee Collection Instrument <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        { id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" },
+                        { id: "upi", label: "📱 UPI / QR Float", desc: "Merchant QR" },
+                        { id: "bank", label: "🏦 Bank Account", desc: "Direct deposit" },
+                        { id: "due", label: "📋 Customer Khata", desc: "Post to due" },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setCustomerPayMethod(m.id as any)}
+                          className={`rounded-xl border p-2 text-center transition ${
+                            customerPayMethod === m.id
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{m.label}</div>
+                          <div className="text-[10px] text-slate-400">{m.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Reference / RRN */}
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Bank RRN / Terminal Reference Number
+              </label>
               <input
                 type="text"
-                maxLength={4}
-                value={aadhaarLast4}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-                  setAadhaarLast4(digits);
-                }}
-                placeholder="3619"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="12-digit RRN / Auth Reference"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
           </div>
+        </div>
 
-          {/* AEPS Service Portal */}
-          <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              AEPS Service Portal <span className="text-rose-500">*</span>
-            </label>
-            <select
-              value={selectedPortalId}
-              onChange={(e) => setSelectedPortalId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-            >
-              {portals.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+        {/* Right (4 Cols): Live AEPS Settlement Breakdown with Complete & Disburse */}
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-4 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
+          <div className="border-b border-slate-100 pb-2.5 dark:border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
+            <h3 className="text-base font-black text-slate-900 dark:text-white">AEPS Settlement Breakdown</h3>
           </div>
 
-          {/* Prominent Amount Input (When Withdrawal) */}
-          {operation === "withdrawal" && (
-            <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Withdrawal Amount (₹) <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="1000"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
-                />
-              </div>
-
-              {/* Quick Amount Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                {["500", "1000", "2000", "3000", "5000", "10000"].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setAmount(v)}
-                    className={`rounded-xl border px-3 py-1 text-xs font-black transition ${
-                      amount === v
-                        ? "border-teal-600 bg-teal-600 text-white shadow-xs"
-                        : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                    }`}
-                  >
-                    ₹{Number(v).toLocaleString("en-IN")}
-                  </button>
-                ))}
-              </div>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Operation:</span>
+              <strong className="capitalize text-slate-900 dark:text-white">{operation}</strong>
             </div>
-          )}
+            <div className="flex justify-between">
+              <span className="text-slate-500">Selected Bank:</span>
+              <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
+                {selectedBank?.name || "None selected"}
+              </strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Aadhaar (Last 4):</span>
+              <strong className="text-slate-900 dark:text-white">
+                {aadhaarLast4 ? `**** ${aadhaarLast4}` : "Pending"}
+              </strong>
+            </div>
 
-          {/* Distinct Customer Service Fee vs Portal Commission */}
-          {operation === "withdrawal" && (
-            <>
-              <div className="space-y-1 sm:col-span-1 lg:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Customer Service Fee (₹)
-                </label>
-                <input
-                  type="number"
-                  value={serviceFee}
-                  onChange={(e) => setServiceFee(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
-                  placeholder="Fee charged to customer"
-                />
-              </div>
-
-              <div className="space-y-1 sm:col-span-1 lg:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Portal Commission (₹)
-                </label>
-                <input
-                  type="number"
-                  value={portalCommission}
-                  onChange={(e) => setPortalCommission(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
-                  placeholder="Commission from portal"
-                />
-              </div>
-
-              {/* 1. Fee Treatment Model (Separate Collection vs Deduct From Payout) */}
-              <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Fee Treatment Model <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => setFeeTreatment("separate")}
-                    className={`rounded-2xl border p-2.5 text-left transition ${
-                      feeTreatment === "separate"
-                        ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                    }`}
-                  >
-                    <div className="text-xs font-black text-slate-900 dark:text-white">
-                      💵 Collect Fee Separately
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                      Customer receives full <strong>{inr(numAmount)}</strong> withdrawal cash; pays <strong>{inr(numFee)}</strong> fee separately.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFeeTreatment("deduct")}
-                    className={`rounded-2xl border p-2.5 text-left transition ${
-                      feeTreatment === "deduct"
-                        ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                    }`}
-                  >
-                    <div className="text-xs font-black text-slate-900 dark:text-white">
-                      ✂️ Deduct from Payout
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                      Fee deducted directly. Customer receives net <strong>{inr(Math.max(0, numAmount - numFee))}</strong> cash handout.
-                    </p>
-                  </button>
+            {operation === "withdrawal" && (
+              <>
+                <div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5">
+                  <span className="text-slate-500">Withdrawal Amount:</span>
+                  <strong className="text-slate-900 dark:text-white">{inr(numAmount)}</strong>
                 </div>
-              </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Customer Service Fee:</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    {feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Fee Treatment:</span>
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                    {feeTreatment === "deduct" ? "✂️ Deducted from Payout" : `💵 Separate via ${customerPayMethod.toUpperCase()}`}
+                  </span>
+                </div>
+                {feeTreatment === "separate" && customerPayMethod === "cash" && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Customer Cash Paid:</span>
+                    <strong className="text-slate-900 dark:text-white font-bold">{inr(numAmount + numFee)}</strong>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Portal Commission:</span>
+                  <strong className="text-teal-600 dark:text-teal-400 font-bold">+{inr(numComm)}</strong>
+                </div>
+                <div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong>
+                </div>
 
-              {/* 2. Fee Collection Instrument (When Separate Fee) */}
-              {feeTreatment === "separate" && (
-                <div className="space-y-1 sm:col-span-2 lg:col-span-4 pt-1 border-t border-slate-100 dark:border-white/5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Fee Collection Instrument <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {[
-                      { id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" },
-                      { id: "upi", label: "📱 UPI / QR Float", desc: "Merchant QR" },
-                      { id: "bank", label: "🏦 Bank Account", desc: "Direct deposit" },
-                      { id: "due", label: "📋 Customer Khata", desc: "Post to due" },
-                    ].map((m) => (
+                {/* Receipt Details Preference Control */}
+                <div className="border-t border-slate-100 pt-2 dark:border-white/5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-bold">Receipt Format:</span>
+                    <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
                       <button
-                        key={m.id}
                         type="button"
-                        onClick={() => setCustomerPayMethod(m.id as any)}
-                        className={`rounded-xl border p-2 text-center transition ${
-                          customerPayMethod === m.id
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
-                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                        onClick={() => setReceiptMode("basic")}
+                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                          receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-teal-600 dark:text-white" : "text-slate-500"
                         }`}
                       >
-                        <div className="text-xs font-bold">{m.label}</div>
-                        <div className="text-[10px] text-slate-400">{m.desc}</div>
+                        Basic
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={() => setReceiptMode("detailed")}
+                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                          receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-teal-600 dark:text-white" : "text-slate-500"
+                        }`}
+                      >
+                        Detailed
+                      </button>
+                    </div>
                   </div>
                 </div>
-              )}
-            </>
-          )}
 
-          {/* Reference / RRN */}
-          <div className="space-y-1 sm:col-span-2 lg:col-span-4">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              Bank RRN / Terminal Reference Number
-            </label>
-            <input
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="12-digit RRN / Auth Reference"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
-            />
+                {/* Prominent Cash Handed Box */}
+                <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                    Physical Cash to Hand to Customer:
+                  </div>
+                  <div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">
+                    {inr(cashHanded)}
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
+                    {feeTreatment === "deduct"
+                      ? `Deducted fee ₹${numFee} from ₹${numAmount} withdrawal`
+                      : `Full withdrawal ₹${numAmount} given; ₹${numFee} fee collected separately`}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Primary Action Button (The single authoritative Complete & Disburse trigger) */}
+          <div className="space-y-1.5 pt-1">
+            <button
+              type="button"
+              onClick={handleInitiateTransaction}
+              className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-110 active:scale-[0.98]"
+            >
+              ✓ Complete &amp; Disburse {inr(cashHanded)}
+            </button>
+            <p className="text-center text-[10px] text-slate-400">
+              Deterministic double-entry settlement engine
+            </p>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* ===============================================================================
-          5. AEPS LIFECYCLE & PROVIDER STATUS
+          5. AEPS OPERATION LIFECYCLE
       =============================================================================== */}
       <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
@@ -1388,7 +1443,9 @@ export default function AepsWorkspace({
         </div>
       </section>
 
-      {/* Switch Status Rail */}
+      {/* ===============================================================================
+          6. PROVIDER / SWITCH STATUS RAIL
+      =============================================================================== */}
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-6">
         <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">AEPS SWITCH</span>
@@ -1417,7 +1474,7 @@ export default function AepsWorkspace({
       </section>
 
       {/* ===============================================================================
-          6. LIVE AEPS ACTIVITY
+          7. LIVE AEPS ACTIVITY
       =============================================================================== */}
       {recentTxn && (
         <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
@@ -1486,7 +1543,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          7. AEPS TRANSACTION HISTORY / CONSOLE LEDGER
+          8. AEPS TRANSACTION HISTORY / CONSOLE LEDGER
       =============================================================================== */}
       <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5">
