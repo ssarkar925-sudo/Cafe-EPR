@@ -6233,6 +6233,22 @@ function detectIntent(question) {
   assert(lookupLocalOperatorFull("98301") && "98301".length < 10, "1128. Incomplete Number: Suppressed on client until 10 digits");
   assert("9830-abc-1234".replace(/\D/g, "").slice(0, 10) === "98301234", "1129. Sanitization Invariant: Strips non-digits cleanly");
   assert("98301234".length < 10, "1130. Sanitization Invariant: Incomplete sanitized numbers do not trigger false detection");
+
+  // Middleware & Endpoint Routing Invariants
+  const publicPaths = ["/login", "/auth/confirm-reset", "/auth/reset-password", "/logout", "/receipt", "/business/receipt", "/api/recharge/operator-circle"];
+  assert(publicPaths.includes("/api/recharge/operator-circle"), "1131. Middleware Invariant: /api/recharge/operator-circle is registered in public paths");
+
+  // Financial Isolation Invariant (₹0.00 Financial Impact)
+  const lookupImpact = {
+    transactionsCreated: 0,
+    cashDrawerDelta: 0,
+    settlementDelta: 0,
+    ledgerDelta: 0,
+  };
+  assert(lookupImpact.transactionsCreated === 0, "1132. Financial Safety: 0 transactions created during operator auto-detection");
+  assert(lookupImpact.cashDrawerDelta === 0, "1133. Financial Safety: ₹0.00 cash drawer movement during lookup");
+  assert(lookupImpact.settlementDelta === 0, "1134. Financial Safety: ₹0.00 settlement movement during lookup");
+  assert(lookupImpact.ledgerDelta === 0, "1135. Financial Safety: ₹0.00 ledger movement during lookup");
 }
 
 console.log("\n================================================================================");

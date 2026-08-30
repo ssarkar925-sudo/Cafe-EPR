@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/logout",
   "/receipt",
   "/business/receipt",
+  "/api/recharge/operator-circle",
 ];
 
 function isPublic(pathname: string) {
@@ -90,10 +91,11 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Fast-path 1: Public customer receipts and confirmation routes don't need auth checks
+  // Fast-path 1: Public customer receipts, operator lookup and confirmation routes don't need auth checks
   if (
     pathname.startsWith("/receipt") ||
     pathname.startsWith("/business/receipt") ||
+    pathname === "/api/recharge/operator-circle" ||
     pathname === "/auth/confirm-reset" ||
     pathname === "/auth/reset-password" ||
     pathname === "/logout"
