@@ -1,0 +1,397 @@
+import { BillerCategory } from "@/components/business/utility-bill-workspace";
+import { BillerConfig } from "./types";
+
+export const BILLER_CONFIGS: BillerConfig[] = [
+  // Electricity
+  {
+    billerId: "wbsedcl",
+    billerName: "West Bengal State Electricity (WBSEDCL)",
+    shortName: "WBSEDCL",
+    categoryId: "electricity",
+    state: "West Bengal",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Consumer ID",
+        type: "number",
+        placeholder: "Enter 9-digit Consumer ID",
+        minLength: 9,
+        maxLength: 9,
+        regex: "^[0-9]{9}$",
+        required: true,
+        hint: "9-digit numeric Consumer ID found at top-right of WBSEDCL bill",
+      },
+      {
+        key: "mobileNumber",
+        label: "Registered Mobile Number",
+        type: "tel",
+        placeholder: "Enter 10-digit Mobile Number",
+        minLength: 10,
+        maxLength: 10,
+        regex: "^[0-9]{10}$",
+        required: false,
+        hint: "Optional registered mobile for SMS receipt",
+      },
+    ],
+  },
+  {
+    billerId: "cesc",
+    billerName: "CESC Limited (Kolkata & Howrah)",
+    shortName: "CESC",
+    categoryId: "electricity",
+    state: "West Bengal",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Customer / LT Account Number",
+        type: "number",
+        placeholder: "Enter 11-digit LT Account Number",
+        minLength: 11,
+        maxLength: 11,
+        regex: "^[0-9]{11}$",
+        required: true,
+        hint: "11-digit LT Account number printed on CESC bill",
+      },
+    ],
+  },
+  {
+    billerId: "tatapower_dl",
+    billerName: "Tata Power Delhi Distribution (TPDDL)",
+    shortName: "Tata Power",
+    categoryId: "electricity",
+    state: "Delhi",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "CA Number",
+        type: "number",
+        placeholder: "Enter 11-digit Contract Account Number",
+        minLength: 11,
+        maxLength: 11,
+        required: true,
+        hint: "11-digit CA number from Tata Power bill",
+      },
+    ],
+  },
+  {
+    billerId: "bses_rajdhani",
+    billerName: "BSES Rajdhani Power Limited",
+    shortName: "BSES Rajdhani",
+    categoryId: "electricity",
+    state: "Delhi",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "CA Number",
+        type: "number",
+        placeholder: "Enter 9-digit CA Number",
+        minLength: 9,
+        maxLength: 9,
+        required: true,
+      },
+    ],
+  },
+  {
+    billerId: "msedcl",
+    billerName: "Maharashtra State Electricity (MSEDCL)",
+    shortName: "Mahavitaran",
+    categoryId: "electricity",
+    state: "Maharashtra",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Consumer Number",
+        type: "number",
+        placeholder: "Enter 12-digit Consumer Number",
+        minLength: 12,
+        maxLength: 12,
+        required: true,
+      },
+      {
+        key: "buCode",
+        label: "Billing Unit (BU) Code",
+        type: "number",
+        placeholder: "Enter 4-digit BU Code (e.g. 4680)",
+        minLength: 4,
+        maxLength: 4,
+        required: true,
+        hint: "4-digit BU code printed next to consumer number",
+      },
+    ],
+  },
+
+  // Gas
+  {
+    billerId: "indane_lpg",
+    billerName: "Indian Oil (Indane LPG)",
+    shortName: "Indane Gas",
+    categoryId: "gas",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "17-Digit LPG ID or Registered Mobile",
+        type: "text",
+        placeholder: "Enter 17-digit LPG ID or 10-digit Mobile",
+        minLength: 10,
+        maxLength: 17,
+        required: true,
+        hint: "LPG ID from subscription voucher or cash memo",
+      },
+    ],
+  },
+  {
+    billerId: "igl",
+    billerName: "Indraprastha Gas Limited (IGL)",
+    shortName: "IGL",
+    categoryId: "gas",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "BP Number",
+        type: "number",
+        placeholder: "Enter 10-digit BP Number",
+        minLength: 10,
+        maxLength: 10,
+        required: true,
+      },
+    ],
+  },
+
+  // Water
+  {
+    billerId: "kmc_water",
+    billerName: "Kolkata Municipal Corporation (KMC)",
+    shortName: "KMC Water",
+    categoryId: "water",
+    state: "West Bengal",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "range",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Assessee Number",
+        type: "text",
+        placeholder: "Enter Assessee Number (e.g. 110820123456)",
+        minLength: 10,
+        maxLength: 15,
+        required: true,
+      },
+    ],
+  },
+
+  // Broadband
+  {
+    billerId: "airtel_broadband",
+    billerName: "Airtel Xstream Fiber",
+    shortName: "Airtel Fiber",
+    categoryId: "broadband",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 6,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "DSL / Account ID with STD Code",
+        type: "text",
+        placeholder: "Enter 10 or 11-digit DSL ID (e.g. 03324567890)",
+        minLength: 10,
+        maxLength: 12,
+        required: true,
+      },
+    ],
+  },
+  {
+    billerId: "jio_fiber",
+    billerName: "JioFiber Broadband",
+    shortName: "JioFiber",
+    categoryId: "broadband",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 6,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "JioFiber Service ID / Registered Mobile",
+        type: "text",
+        placeholder: "Enter 12-digit Service ID (e.g. 299123456789)",
+        minLength: 10,
+        maxLength: 12,
+        required: true,
+      },
+    ],
+  },
+
+  // DTH
+  {
+    billerId: "tata_play",
+    billerName: "Tata Play (Tata Sky)",
+    shortName: "Tata Play",
+    categoryId: "dth",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "range",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Subscriber ID / Registered Mobile",
+        type: "text",
+        placeholder: "Enter 10-digit Subscriber ID or Mobile",
+        minLength: 10,
+        maxLength: 10,
+        required: true,
+      },
+    ],
+  },
+  {
+    billerId: "airtel_dth",
+    billerName: "Airtel Digital TV",
+    shortName: "Airtel DTH",
+    categoryId: "dth",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "range",
+    defaultCommission: 5,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Customer ID",
+        type: "number",
+        placeholder: "Enter 10-digit Customer ID",
+        minLength: 10,
+        maxLength: 10,
+        required: true,
+      },
+    ],
+  },
+
+  // FASTag
+  {
+    billerId: "icici_fastag",
+    billerName: "ICICI Bank FASTag",
+    shortName: "ICICI FASTag",
+    categoryId: "fastag",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "range",
+    defaultCommission: 3,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Vehicle Registration Number",
+        type: "text",
+        placeholder: "Enter Vehicle Number (e.g. WB02AX1234)",
+        minLength: 9,
+        maxLength: 12,
+        required: true,
+        hint: "Vehicle registration number without spaces or hyphens",
+      },
+    ],
+  },
+
+  // Insurance
+  {
+    billerId: "lic_india",
+    billerName: "Life Insurance Corporation (LIC)",
+    shortName: "LIC of India",
+    categoryId: "insurance",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 10,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Policy Number",
+        type: "number",
+        placeholder: "Enter 9-digit Policy Number",
+        minLength: 9,
+        maxLength: 9,
+        required: true,
+      },
+    ],
+  },
+
+  // Loan EMI
+  {
+    billerId: "bajaj_finance",
+    billerName: "Bajaj Finance Limited",
+    shortName: "Bajaj Finance",
+    categoryId: "loan",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "range",
+    defaultCommission: 10,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Loan Account Number (LAN)",
+        type: "text",
+        placeholder: "Enter Loan Account Number",
+        minLength: 6,
+        maxLength: 20,
+        required: true,
+      },
+    ],
+  },
+];
+
+export function getBillerConfig(billerId: string): BillerConfig | null {
+  return BILLER_CONFIGS.find((b) => b.billerId === billerId) || null;
+}
+
+export function getFallbackBillerConfig(categoryId: string, name: string): BillerConfig {
+  return {
+    billerId: categoryId,
+    billerName: name,
+    shortName: name,
+    categoryId,
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "range",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "Consumer Number / Account ID",
+        type: "text",
+        placeholder: "Enter Customer Account / Identifier",
+        minLength: 4,
+        maxLength: 25,
+        required: true,
+      },
+    ],
+  };
+}

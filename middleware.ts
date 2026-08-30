@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/receipt",
   "/business/receipt",
   "/api/recharge/operator-circle",
+  "/api/bill-payment/fetch",
 ];
 
 function isPublic(pathname: string) {
@@ -96,6 +97,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/receipt") ||
     pathname.startsWith("/business/receipt") ||
     pathname === "/api/recharge/operator-circle" ||
+    pathname === "/api/bill-payment/fetch" ||
     pathname === "/auth/confirm-reset" ||
     pathname === "/auth/reset-password" ||
     pathname === "/logout"

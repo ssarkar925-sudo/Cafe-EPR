@@ -195,6 +195,7 @@ export default function Sidebar({
             icon: "billPayment",
             children: [
               { label: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge", icon: "recharge" },
+              { label: "Google Play Recharge", href: "/business/bill-payment/google-play", icon: "recharge" },
               { label: "Utility Bill Payment", href: "/business/bill-payment/utility", icon: "utility" },
             ],
           },

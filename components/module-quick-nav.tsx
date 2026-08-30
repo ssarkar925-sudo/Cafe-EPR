@@ -48,6 +48,7 @@ export const ALL_AVAILABLE_MODULES: QuickNavItem[] = [
   { id: "upi", label: "UPI Collections", href: "/business/upi", icon: "📱" },
   { id: "bill-payment", label: "Bill Payment", href: "/business/bill-payment", icon: "💳" },
   { id: "recharge", label: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge", icon: "🔋" },
+  { id: "google-play", label: "Google Play Recharge", href: "/business/bill-payment/google-play", icon: "▶️" },
   { id: "utility-bills", label: "Utility Bill Payment", href: "/business/bill-payment/utility", icon: "🧾" },
   { id: "banks", label: "Bank Accounts", href: "/business/banks", icon: "🏛️" },
   { id: "opening", label: "Opening Position", href: "/finance/opening-balances", icon: "🏛️" },

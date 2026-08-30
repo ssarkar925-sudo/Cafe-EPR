@@ -14,6 +14,8 @@ import type { ScanFields } from "@/lib/scan/extract";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+import { getBillerConfig, getFallbackBillerConfig } from "@/lib/bill-payment/biller-metadata";
+import type { NormalizedBillResponse, BillerConfig } from "@/lib/bill-payment/types";
 import type { CustomerRow, PaymentInstrument, Txn } from "./recharge-workspace";
 
 export type BillerCategory = {
@@ -158,6 +160,10 @@ export default function UtilityBillWorkspace({
   const [selectedCategoryId, setSelectedCategoryId] = useState("electricity");
   const [selectedBillerId, setSelectedBillerId] = useState("");
   const [consumerId, setConsumerId] = useState("");
+  const [billerParams, setBillerParams] = useState<Record<string, string>>({});
+  const [fetchBadge, setFetchBadge] = useState<{ type: "success" | "unconfigured" | "error" | "manual"; text: string } | null>(null);
+  const fetchSeqRef = useRef(0);
+  const lastFetchedKeyRef = useRef("");
   const [customerMobile, setCustomerMobile] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [amount, setAmount] = useState("");
@@ -205,6 +211,10 @@ export default function UtilityBillWorkspace({
   const selectedBiller = useMemo(() => {
     return POPULAR_BILLERS.find((b) => b.id === selectedBillerId) || null;
   }, [selectedBillerId]);
+
+  const activeBillerConfig: BillerConfig = useMemo(() => {
+    return getBillerConfig(selectedBillerId) || getFallbackBillerConfig(selectedCategoryId, selectedBiller?.name || currentCategory.name);
+  }, [selectedBillerId, selectedCategoryId, selectedBiller, currentCategory]);
 
   // Valid Funding Instruments. Credit cards are supported as a real biller funding source.
   const validFundingInstruments = useMemo(() => {
@@ -322,40 +332,117 @@ export default function UtilityBillWorkspace({
     });
   }, [transactions, filterStatus, searchQuery]);
 
-  // Bill Fetch Simulation / Provider Query (Does not fabricate fake mock numbers, validates structure)
-  async function handleFetchBill() {
-    if (!consumerId.trim()) {
-      showToast("error", `Please enter ${currentCategory.idLabel}.`);
+  // Execute Live Bill Fetch (Used by Auto-Fetch & Manual Fetch Button)
+  const executeBillFetch = useCallback(async (paramsToFetch: Record<string, string>, isManual = false) => {
+    const primaryParam = activeBillerConfig.parameters[0];
+    const primaryKey = primaryParam?.key || "consumerId";
+    const primaryVal = (paramsToFetch[primaryKey] || consumerId || "").trim();
+
+    if (!primaryVal) {
+      if (isManual) showToast("error", `Please enter ${primaryParam?.label || currentCategory.idLabel}.`);
       return;
     }
 
-    setFetchingBill(true);
-    // Simulate real provider API lookup delay
-    setTimeout(() => {
-      setFetchingBill(false);
-      // If user entered an amount or customer exists, use it, otherwise prepare verified structure
-      const cust = customers.find((c) => c.id === selectedCustomerId);
-      const custName = cust ? cust.name : "Verified Consumer";
-      const billNum = "BILL-" + Math.floor(100000 + Math.random() * 900000);
-      const today = new Date();
-      const due = new Date();
-      due.setDate(today.getDate() + 15);
+    const payloadParams = { ...paramsToFetch, [primaryKey]: primaryVal };
+    const queryKey = `${selectedBillerId}:${JSON.stringify(payloadParams)}`;
+    lastFetchedKeyRef.current = queryKey;
+    const currentSeq = ++fetchSeqRef.current;
 
-      const parsedAmt = parseFloat(amount) || 0;
-      setFetchedBill({
-        customerName: custName,
-        billerName: selectedBiller?.name || currentCategory.name,
-        consumerId: consumerId.trim(),
-        billNumber: billNum,
-        billDate: today.toISOString().slice(0, 10),
-        dueDate: due.toISOString().slice(0, 10),
-        billAmount: parsedAmt,
-        period: "Current Billing Cycle",
-        status: "verified",
+    setFetchingBill(true);
+
+    try {
+      const url = new URL("/api/bill-payment/fetch", window.location.origin);
+      url.searchParams.set("billerId", selectedBillerId);
+      url.searchParams.set("category", selectedCategoryId);
+      for (const [k, v] of Object.entries(payloadParams)) {
+        if (v) url.searchParams.set(k, v);
+      }
+
+      const res = await fetch(url.toString(), {
+        cache: "no-store",
+        signal: AbortSignal.timeout(10000),
       });
-      showToast("success", `✓ Bill fetched for ${consumerId.trim()}`);
-    }, 600);
+
+      const data: NormalizedBillResponse = await res.json().catch(() => ({ ok: false, configured: false, source: "unconfigured" } as any));
+
+      if (currentSeq !== fetchSeqRef.current) return;
+
+      if (data.ok && data.status === "verified") {
+        setFetchedBill({
+          customerName: data.customerName || "Verified Customer",
+          billerName: data.billerName || selectedBiller?.name || currentCategory.name,
+          consumerId: primaryVal,
+          billNumber: data.billNumber || "—",
+          billDate: data.billDate || new Date().toISOString().slice(0, 10),
+          dueDate: data.dueDate || new Date().toISOString().slice(0, 10),
+          billAmount: Number(data.amount) || 0,
+          period: data.billingPeriod || "Current Billing Cycle",
+          status: "verified",
+        });
+        if (data.amount && data.amount > 0) {
+          setAmount(String(data.amount));
+        }
+        setFetchBadge({
+          type: "success",
+          text: `✓ Bill Found: ${data.customerName || "Verified Customer"} · Due: ${data.dueDate || "Current"} · ${inr(data.amount || 0)}`,
+        });
+        showToast("success", `✓ Live Bill verified for ${primaryVal}`);
+      } else if (!data.configured) {
+        setFetchedBill(null);
+        setFetchBadge({
+          type: "unconfigured",
+          text: "⚡ Live bill fetch unavailable — provider not configured. Enter amount manually.",
+        });
+        if (isManual) showToast("info", "Live provider not configured. Please enter the bill amount manually.");
+      } else {
+        setFetchedBill(null);
+        setFetchBadge({
+          type: "error",
+          text: `⚠️ ${data.error || "Unable to fetch bill details"} — Enter amount manually`,
+        });
+        if (isManual) showToast("error", data.error || "Unable to fetch bill details.");
+      }
+    } catch (err: any) {
+      if (currentSeq !== fetchSeqRef.current) return;
+      setFetchedBill(null);
+      setFetchBadge({
+        type: "error",
+        text: "⚠️ Live lookup timed out or network error — Enter amount manually",
+      });
+      if (isManual) showToast("error", "Bill lookup timed out. Enter amount manually.");
+    } finally {
+      if (currentSeq === fetchSeqRef.current) {
+        setFetchingBill(false);
+      }
+    }
+  }, [activeBillerConfig, consumerId, selectedBillerId, selectedCategoryId, selectedBiller, currentCategory, showToast]);
+
+  async function handleFetchBill() {
+    await executeBillFetch(billerParams, true);
   }
+
+  // Universal Debounced Auto-Fetch Hook (350ms debounce)
+  useEffect(() => {
+    const primaryKey = activeBillerConfig.parameters[0]?.key || "consumerId";
+    const currentPrimary = (billerParams[primaryKey] || consumerId || "").trim();
+    const minLen = activeBillerConfig.parameters[0]?.minLength || 4;
+
+    if (!currentPrimary || currentPrimary.length < minLen) {
+      setFetchBadge(null);
+      setFetchedBill(null);
+      return;
+    }
+
+    const payloadParams = { ...billerParams, [primaryKey]: currentPrimary };
+    const queryKey = `${selectedBillerId}:${JSON.stringify(payloadParams)}`;
+    if (queryKey === lastFetchedKeyRef.current) return;
+
+    const timer = setTimeout(() => {
+      executeBillFetch(payloadParams, false);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [billerParams, consumerId, selectedBillerId, activeBillerConfig, executeBillFetch]);
 
   // Customer Quick Add
   async function handleAddCustomer() {
@@ -902,9 +989,14 @@ export default function UtilityBillWorkspace({
                   <input
                     type="text"
                     value={consumerId}
-                    onChange={(e) => setConsumerId(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setConsumerId(val);
+                      const pKey = activeBillerConfig.parameters[0]?.key || "consumerId";
+                      setBillerParams((prev) => ({ ...prev, [pKey]: val }));
+                    }}
                     disabled={submitting}
-                    placeholder={currentCategory.idPlaceholder}
+                    placeholder={activeBillerConfig.parameters[0]?.placeholder || currentCategory.idPlaceholder}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
                   />
                   <button
@@ -916,6 +1008,19 @@ export default function UtilityBillWorkspace({
                     {fetchingBill ? "Fetching..." : "🔍 Fetch"}
                   </button>
                 </div>
+                {fetchBadge && (
+                  <div className="mt-1.5">
+                    <span className={`inline-block rounded-lg px-2.5 py-0.5 text-[10px] font-bold ${
+                      fetchBadge.type === "success"
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : fetchBadge.type === "unconfigured"
+                        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                        : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                    }`}>
+                      {fetchBadge.text}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>

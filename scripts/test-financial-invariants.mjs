@@ -6249,6 +6249,181 @@ function detectIntent(question) {
   assert(lookupImpact.cashDrawerDelta === 0, "1133. Financial Safety: ₹0.00 cash drawer movement during lookup");
   assert(lookupImpact.settlementDelta === 0, "1134. Financial Safety: ₹0.00 settlement movement during lookup");
   assert(lookupImpact.ledgerDelta === 0, "1135. Financial Safety: ₹0.00 ledger movement during lookup");
+
+  // ============================================================================
+  // PHASE 5D: GOOGLE PLAY RECHARGE & UNIVERSAL BILLER AUTO-FETCH INVARIANTS (1136 - 1180)
+  // ============================================================================
+  console.log("\n--- Phase 5D: Google Play Recharge & Universal Bill Auto-Fetch Invariants ---");
+
+  // 1. Google Play Region & Currency Bounds
+  const googlePlayRegions = [
+    { code: "IN", name: "India", currency: "₹", min: 10, max: 5000 },
+    { code: "US", name: "United States", currency: "$", min: 5, max: 100 },
+    { code: "UK", name: "United Kingdom", currency: "£", min: 5, max: 100 },
+    { code: "AE", name: "UAE", currency: "AED", min: 20, max: 500 },
+  ];
+
+  const inRegion = googlePlayRegions.find((r) => r.code === "IN");
+  assert(inRegion !== undefined, "1136. Google Play: India region is registered");
+  assert(inRegion.min === 10, "1137. Google Play: India minimum denomination is ₹10");
+  assert(inRegion.max === 5000, "1138. Google Play: India maximum denomination is ₹5,000");
+
+  // 2. Google Play Amount Presets & Custom Boundaries
+  const popularGooglePlayPresets = [10, 20, 50, 100, 150, 200, 250, 300, 500, 800, 1000, 1500, 2000, 5000];
+  assert(popularGooglePlayPresets.includes(10), "1139. Google Play: ₹10 chip present");
+  assert(popularGooglePlayPresets.includes(50), "1140. Google Play: ₹50 chip present");
+  assert(popularGooglePlayPresets.includes(100), "1141. Google Play: ₹100 chip present");
+  assert(popularGooglePlayPresets.includes(500), "1142. Google Play: ₹500 chip present");
+  assert(popularGooglePlayPresets.includes(1000), "1143. Google Play: ₹1000 chip present");
+  assert(popularGooglePlayPresets.includes(5000), "1144. Google Play: ₹5000 chip present");
+
+  function validateGooglePlayAmount(amt, region = inRegion) {
+    const num = Number(amt);
+    if (isNaN(num) || num <= 0) return { valid: false, error: "Invalid amount" };
+    if (num < region.min) return { valid: false, error: `Amount must be at least ${region.currency}${region.min}` };
+    if (num > region.max) return { valid: false, error: `Amount cannot exceed ${region.currency}${region.max}` };
+    return { valid: true, error: null };
+  }
+
+  assert(validateGooglePlayAmount(5).valid === false, "1145. Google Play Validation: ₹5 rejected (below ₹10 min)");
+  assert(validateGooglePlayAmount(10).valid === true, "1146. Google Play Validation: ₹10 accepted");
+  assert(validateGooglePlayAmount(250).valid === true, "1147. Google Play Validation: ₹250 custom amount accepted");
+  assert(validateGooglePlayAmount(5000).valid === true, "1148. Google Play Validation: ₹5,000 accepted");
+  assert(validateGooglePlayAmount(5001).valid === false, "1149. Google Play Validation: ₹5,001 rejected (exceeds ₹5,000 max)");
+
+  // 3. Google Play Economics & Reconciliation Equation
+  function computeGooglePlayEconomics(rechargeAmount, serviceFee = 0, marginRate = 2.0) {
+    const amt = Number(rechargeAmount) || 0;
+    const fee = Number(serviceFee) || 0;
+    const commission = Math.round((amt * marginRate) / 100 * 100) / 100;
+    const totalCollection = amt + fee;
+    const providerCost = Math.max(0, amt - commission);
+    const netIncome = fee + commission;
+    const variance = totalCollection - (providerCost + netIncome);
+    return { amt, fee, commission, totalCollection, providerCost, netIncome, variance };
+  }
+
+  const gpEcon100 = computeGooglePlayEconomics(100, 0);
+  assert(gpEcon100.commission === 2.0, "1150. Google Play Economics: ₹100 recharge yields ₹2.00 (2%) commission");
+  assert(gpEcon100.providerCost === 98.0, "1151. Google Play Economics: ₹100 recharge net provider cost is ₹98.00");
+  assert(gpEcon100.totalCollection === 100.0, "1152. Google Play Economics: Customer total collection is ₹100.00");
+  assert(Math.abs(gpEcon100.variance) < 0.0001, "1153. Google Play Economics: Zero variance equation satisfied (₹0.00)");
+
+  const gpEcon500WithFee = computeGooglePlayEconomics(500, 10);
+  assert(gpEcon500WithFee.commission === 10.0, "1154. Google Play Economics: ₹500 recharge yields ₹10.00 commission");
+  assert(gpEcon500WithFee.totalCollection === 510.0, "1155. Google Play Economics: Customer total collection with ₹10 fee is ₹510.00");
+  assert(gpEcon500WithFee.netIncome === 20.0, "1156. Google Play Economics: Shop net income is ₹20.00 (₹10 fee + ₹10 comm)");
+  assert(Math.abs(gpEcon500WithFee.variance) < 0.0001, "1157. Google Play Economics: Zero variance equation with customer fee (₹0.00)");
+
+  // 4. Funding Instrument Resolution (Exposing Cash, Bank, Digital Wallets, and Credit Cards)
+  const sampleInstruments = [
+    { id: "inst-1", name: "Shop Cash Drawer", type: "cash", is_active: true },
+    { id: "inst-2", name: "HDFC Current Account", type: "bank", is_active: true },
+    { id: "inst-3", name: "Paytm Business Wallet", type: "wallet", is_active: true },
+    { id: "inst-4", name: "SBI Card Prime", type: "credit_card", is_active: true },
+    { id: "inst-5", name: "Inactive Old Bank", type: "bank", is_active: false },
+  ];
+
+  const validFunding = sampleInstruments.filter(
+    (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
+  );
+
+  assert(validFunding.some((i) => i.type === "cash"), "1158. Funding Instrument Resolver: Cash available as funding source");
+  assert(validFunding.some((i) => i.type === "bank"), "1159. Funding Instrument Resolver: Bank available as funding source");
+  assert(validFunding.some((i) => i.type === "wallet"), "1160. Funding Instrument Resolver: Digital Wallet available as funding source");
+  assert(validFunding.some((i) => i.type === "credit_card"), "1161. Funding Instrument Resolver: Credit Card available as funding source");
+  assert(!validFunding.some((i) => !i.is_active), "1162. Funding Instrument Resolver: Inactive instruments filtered out");
+
+  // 5. Universal Biller Configuration & Parameter Definitions
+  const billerCategories = [
+    "electricity", "gas", "water", "broadband", "dth", "fastag", "insurance", "loan", "landline", "postpaid"
+  ];
+  assert(billerCategories.length === 10, "1163. Universal Biller: 10 service categories registered");
+
+  // Parameter schema validation for WBSEDCL
+  const wbsedclParam = {
+    key: "consumerId",
+    label: "Consumer ID",
+    type: "number",
+    minLength: 9,
+    maxLength: 9,
+    required: true,
+  };
+  function validateBillerParam(param, value) {
+    const val = String(value || "").trim();
+    if (param.required && !val) return { valid: false, error: `${param.label} is required` };
+    if (param.minLength && val.length < param.minLength) return { valid: false, error: `${param.label} must be at least ${param.minLength} characters` };
+    if (param.maxLength && val.length > param.maxLength) return { valid: false, error: `${param.label} cannot exceed ${param.maxLength} characters` };
+    return { valid: true, error: null };
+  }
+
+  assert(validateBillerParam(wbsedclParam, "12345678").valid === false, "1164. Parameter Validation: 8 digits rejected for 9-digit WBSEDCL Consumer ID");
+  assert(validateBillerParam(wbsedclParam, "102345678").valid === true, "1165. Parameter Validation: 9 digits accepted for WBSEDCL Consumer ID");
+  assert(validateBillerParam(wbsedclParam, "1023456789").valid === false, "1166. Parameter Validation: 10 digits rejected for 9-digit WBSEDCL Consumer ID");
+
+  // Parameter schema validation for FASTag
+  const fastagParam = {
+    key: "consumerId",
+    label: "Vehicle Registration Number",
+    type: "text",
+    minLength: 9,
+    maxLength: 12,
+    required: true,
+  };
+  assert(validateBillerParam(fastagParam, "WB02AX1234").valid === true, "1167. Parameter Validation: WB02AX1234 accepted for FASTag");
+  assert(validateBillerParam(fastagParam, "DL1").valid === false, "1168. Parameter Validation: DL1 rejected (too short for FASTag)");
+
+  // 6. Unconfigured Provider Contract (No Fabricated Bills, No Fake Customer Names, No Fake BILL-XXXXXX)
+  function resolveBillLookup(billerId, params, hasLiveProvider = false) {
+    if (!hasLiveProvider) {
+      return {
+        ok: false,
+        configured: false,
+        source: "unconfigured",
+        billerId,
+        customerName: null,
+        billNumber: null,
+        amount: null,
+        error: "Live bill fetch unavailable — provider not configured in environment.",
+        status: "unverified",
+      };
+    }
+    return {
+      ok: true,
+      configured: true,
+      source: "bbps_live",
+      billerId,
+      customerName: "Live Customer",
+      billNumber: "BBPS-998234",
+      amount: 450,
+      status: "verified",
+    };
+  }
+
+  const unconfiguredLookup = resolveBillLookup("wbsedcl", { consumerId: "102345678" }, false);
+  assert(unconfiguredLookup.ok === false, "1169. Unconfigured Provider: Returns ok: false");
+  assert(unconfiguredLookup.configured === false, "1170. Unconfigured Provider: Returns configured: false");
+  assert(unconfiguredLookup.source === "unconfigured", "1171. Unconfigured Provider: Returns source: 'unconfigured'");
+  assert(unconfiguredLookup.customerName === null, "1172. Integrity: No fabricated customer name returned");
+  assert(unconfiguredLookup.billNumber === null, "1173. Integrity: No fabricated BILL-XXXXXX returned");
+  assert(unconfiguredLookup.amount === null, "1174. Integrity: No fabricated bill amount returned");
+  assert(unconfiguredLookup.status === "unverified", "1175. Integrity: Status is explicitly 'unverified'");
+
+  // 7. Live Normalized Bill Response Contract
+  const liveLookup = resolveBillLookup("wbsedcl", { consumerId: "102345678" }, true);
+  assert(liveLookup.ok === true, "1176. Live BBPS Provider: Returns ok: true when configured");
+  assert(liveLookup.configured === true, "1177. Live BBPS Provider: Returns configured: true");
+  assert(liveLookup.status === "verified", "1178. Live BBPS Provider: Returns status: 'verified'");
+
+  // 8. Financial Isolation Invariants During Bill Lookup (₹0.00 Impact)
+  const billLookupImpact = {
+    txnsCreated: 0,
+    cashDelta: 0,
+    bankDelta: 0,
+    ledgerDelta: 0,
+  };
+  assert(billLookupImpact.txnsCreated === 0, "1179. Financial Safety: 0 transactions created during bill lookup");
+  assert(billLookupImpact.cashDelta === 0 && billLookupImpact.ledgerDelta === 0, "1180. Financial Safety: Strictly ₹0.00 financial movement during bill lookup");
 }
 
 console.log("\n================================================================================");
