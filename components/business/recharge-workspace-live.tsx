@@ -32,7 +32,8 @@ type LookupResponse = {
 const normalize = (value: string) =>
   value
     .toLowerCase()
-    .replace(/vodafone\\s*idea/g, "vi")
+    .replace("vodafone idea", "vi")
+    .replace("vodafoneidea", "vi")
     .replace(/[^a-z0-9]+/g, "")
     .trim();
 
@@ -116,7 +117,7 @@ export default function RechargeWorkspaceLive(props: Props) {
     const runLookup = () => {
       const controls = findControls();
       if (!controls) return;
-      const mobile = controls.mobile.value.replace(/\\D/g, "");
+      const mobile = controls.mobile.value.replace(/[^0-9]/g, "");
       if (mobile.length !== 10 || mobile === lastLookup) return;
 
       if (timer) clearTimeout(timer);
