@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
+import UpiQrCode from "@/components/ui/upi-qr-code";
 
 type Field = {
   key: string;
@@ -55,6 +56,7 @@ export default function MasterClient({
   const [error, setError] = useState("");
   const [delTarget, setDelTarget] = useState<{ row: any; referenced: boolean } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [viewingQrRow, setViewingQrRow] = useState<any | null>(null);
   const supabase = createClient();
   const { showToast, toastView } = useToast();
 
@@ -256,6 +258,14 @@ export default function MasterClient({
                   >
                     Edit
                   </button>
+                  {row.upi_id && (
+                    <button
+                      onClick={() => setViewingQrRow(row)}
+                      className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
+                    >
+                      📱 View QR Code
+                    </button>
+                  )}
                   <button
                     onClick={() => requestDelete(row)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
@@ -386,6 +396,25 @@ export default function MasterClient({
             </div>
           }
         />
+      )}
+      {viewingQrRow && (
+        <Modal
+          onClose={() => setViewingQrRow(null)}
+          size="md"
+          accent="indigo"
+          icon="M12 18h.01M8 21h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"
+          title={`Merchant QR — ${viewingQrRow.display_name || viewingQrRow.name || "UPI QR"}`}
+          subtitle="Real scannable UPI payment QR code."
+        >
+          <div className="p-4">
+            <UpiQrCode
+              upiId={viewingQrRow.upi_id}
+              merchantName={viewingQrRow.display_name || viewingQrRow.name}
+              size={220}
+              onCopy={() => showToast("success", "UPI ID copied to clipboard.")}
+            />
+          </div>
+        </Modal>
       )}
       {toastView}
     </div>

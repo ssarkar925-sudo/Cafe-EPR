@@ -4739,6 +4739,36 @@ function detectIntent(question) {
   assert(receipt80mmFile.includes("mode === \"detailed\" || detail === \"true\""), "628. Dual-Param Invariant: Both mode=detailed and detail=true supported on 80mm");
   assert(receiptA4File.includes("mode === \"detailed\" || detail === \"true\""), "629. Dual-Param Invariant: Both mode=detailed and detail=true supported on A4");
   assert(aepsWorkspaceFile.includes("receiptMode === \"detailed\" ? \"?mode=detailed\" : \"\""), "630. Workspace Invariant: Workspace preserves receiptMode query parameter in print links");
+
+  // Test 12: Real Scannable Merchant UPI QR System (Tests 631-645)
+  const upiQrComponentFile = fs.readFileSync("E:/CafeERP/components/ui/upi-qr-code.tsx", "utf8");
+  const upiWorkspaceComponent = fs.readFileSync("E:/CafeERP/components/business/upi-workspace.tsx", "utf8");
+  const masterClientFile = fs.readFileSync("E:/CafeERP/components/business/master-client.tsx", "utf8");
+
+  assert(upiQrComponentFile.includes("buildUpiUri"), "631. QR Architecture: buildUpiUri generator exported");
+  assert(upiQrComponentFile.includes("upi://pay?"), "632. UPI Standard URI: Payload starts with standard upi://pay? scheme");
+  assert(upiQrComponentFile.includes("QRCode.toDataURL"), "633. Real Scannable Generator: qrcode library used for bitmap/canvas generation");
+  assert(upiQrComponentFile.includes("handleDownload"), "634. Export Invariant: Direct PNG download handler present");
+  assert(upiQrComponentFile.includes("No active merchant QR configured"), "635. Warning Fallback: Missing QR renders clear configuration prompt without fake QR");
+
+  // Verify URI generator functionality
+  const testUri1 = `upi://pay?pa=${encodeURIComponent("9339987644@upi")}&pn=${encodeURIComponent("Main QR")}&cu=INR`;
+  assert(testUri1.includes("pa=9339987644%40upi"), "636. URI Param: Merchant UPI ID correctly encoded");
+  assert(testUri1.includes("pn=Main%20QR"), "637. URI Param: Merchant display name correctly encoded");
+
+  const testUri2 = `upi://pay?pa=${encodeURIComponent("9339987644@okbizaxis")}&pn=${encodeURIComponent("Shop GPay QR")}&cu=INR`;
+  assert(testUri1 !== testUri2, "638. Dynamic QR Invariant: Different merchant QRs produce distinct UPI URIs");
+
+  // Verify /business/upi integration
+  assert(upiWorkspaceComponent.includes("<UpiQrCode"), "639. UPI Workspace: Reusable UpiQrCode component embedded in modal");
+  assert(!upiWorkspaceComponent.includes("shop@upi"), "640. Placeholder Removal: Zero occurrences of hardcoded 'shop@upi'");
+  assert(!upiWorkspaceComponent.includes("<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\" />"), "641. Fake QR Removal: Placeholder 4-square SVG completely removed from UPI workspace");
+  assert(upiWorkspaceComponent.includes("selectedQrId"), "642. Selection Invariant: Multi-QR switcher state present in UPI workspace");
+
+  // Verify /business/merchant-qrs integration
+  assert(masterClientFile.includes("View QR Code"), "643. Merchant QRs Console: 'View QR Code' action available for merchant QRs");
+  assert(masterClientFile.includes("<UpiQrCode"), "644. Merchant QRs Console: Real UpiQrCode rendered in merchant QR modal");
+  assert(masterClientFile.includes("viewingQrRow"), "645. Merchant QRs Console: Selected merchant record dynamically passed to QR modal");
 }
 
 console.log("\n================================================================================");

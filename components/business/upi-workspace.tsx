@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
 import { getWhatsAppConfig, renderWhatsAppTemplate, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+import UpiQrCode from "@/components/ui/upi-qr-code";
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -94,10 +95,15 @@ export default function UpiWorkspace({
   const [formQrId, setFormQrId] = useState<string>(qrs[0]?.id || "");
   const [formFeeSource, setFormFeeSource] = useState<"cut_from_withdrawal" | "customer_paid_extra">("cut_from_withdrawal");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedQrId, setSelectedQrId] = useState<string>("");
 
-  const primaryQr = useMemo(() => {
-    return qrs[0] || { display_name: "Shop Primary UPI QR", upi_id: "shop@upi" };
-  }, [qrs]);
+  const activeQr = useMemo(() => {
+    if (selectedQrId) {
+      const found = qrs.find((q) => q.id === selectedQrId);
+      if (found) return found;
+    }
+    return qrs[0] || null;
+  }, [qrs, selectedQrId]);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
@@ -519,17 +525,22 @@ export default function UpiWorkspace({
                 Receive customer payment via dynamic merchant QR
               </p>
               <p className="mt-2 font-mono text-[11px] text-slate-400">
-                Handle: <strong className="text-slate-700 dark:text-slate-300">{primaryQr.upi_id || "shop@upi"}</strong>
+                Handle: <strong className="text-slate-700 dark:text-slate-300">{activeQr?.upi_id || "No QR configured"}</strong>
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400">{primaryQr.display_name}</span>
+              <span className="text-xs text-slate-400">{activeQr?.display_name || "Merchant QR"}</span>
               <button
                 type="button"
-                onClick={() => setQrModalOpen(true)}
+                onClick={() => {
+                  if (qrs.length > 0 && !selectedQrId) {
+                    setSelectedQrId(qrs[0].id);
+                  }
+                  setQrModalOpen(true);
+                }}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
               >
-                <span>Show QR</span>
+                <span>View QR Code</span>
                 <span>→</span>
               </button>
             </div>
@@ -1038,44 +1049,39 @@ export default function UpiWorkspace({
       {/* ========================================================================= */}
       {qrModalOpen && (
         <Modal
-          title="Shop Merchant QR Code"
+          title={activeQr ? `Merchant QR — ${activeQr.display_name}` : "Merchant UPI Payment QR"}
           onClose={() => setQrModalOpen(false)}
         >
-          <div className="flex flex-col items-center justify-center p-4 text-center space-y-4">
-            <div className="rounded-2xl border-2 border-dashed border-indigo-500/30 bg-indigo-50/20 p-6 dark:bg-indigo-950/20">
-              <div className="flex h-44 w-44 items-center justify-center rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:ring-white/10">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-full w-full text-slate-800">
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="3" height="3" />
-                  <rect x="18" y="14" width="3" height="3" />
-                  <rect x="14" y="18" width="3" height="3" />
-                  <rect x="18" y="18" width="3" height="3" />
-                </svg>
+          <div className="p-4 space-y-4">
+            {/* Multiple QR Selector Tabs (When shop has multiple merchant QRs configured) */}
+            {qrs.length > 1 && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-slate-100 p-1 text-xs dark:bg-white/5">
+                {qrs.map((qr) => {
+                  const isSelected = selectedQrId ? selectedQrId === qr.id : qrs[0]?.id === qr.id;
+                  return (
+                    <button
+                      key={qr.id}
+                      type="button"
+                      onClick={() => setSelectedQrId(qr.id)}
+                      className={`rounded-xl px-3 py-1.5 font-bold transition ${
+                        isSelected
+                          ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
+                          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                      }`}
+                    >
+                      {qr.display_name}
+                    </button>
+                  );
+                })}
               </div>
-            </div>
+            )}
 
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white">{primaryQr.display_name}</h3>
-              <p className="mt-1 font-mono text-xs text-indigo-600 dark:text-indigo-400 font-bold">
-                {primaryQr.upi_id || "shop@upi"}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">
-                Scan with any UPI app (Google Pay, PhonePe, Paytm, BHIM)
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(primaryQr.upi_id || "shop@upi");
-                showToast("success", "UPI ID copied to clipboard.");
-              }}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-            >
-              Copy UPI Handle
-            </button>
+            <UpiQrCode
+              upiId={activeQr?.upi_id}
+              merchantName={activeQr?.display_name}
+              size={220}
+              onCopy={() => showToast("success", "UPI ID copied to clipboard.")}
+            />
           </div>
         </Modal>
       )}
