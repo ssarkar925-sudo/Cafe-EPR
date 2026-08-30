@@ -4806,6 +4806,23 @@ function detectIntent(question) {
   assert(dmtWorkspaceFile.includes("DMT TRANSFER COMPLETED SUCCESSFULLY"), "668. Success Invariant: Clear post-transaction confirmation state present");
   assert(dmtWorkspaceFile.includes("handleNewTransfer"), "669. Reset Invariant: Explicit New Transfer state reset handler present");
   assert(dmtWorkspaceFile.includes("LIVE DMT ACTIVITY"), "670. Live Activity: Recent transaction audit strip present");
+
+  // Test 14: DMT Funding Source — Cash Left + Default (Tests 671-680)
+  assert(dmtWorkspaceFile.includes("const [paidFrom, setPaidFrom] = useState<\"portal\" | \"bank\">(\"bank\");"), "671. Funding Source Default: paidFrom initialized to 'bank' (Cash default)");
+  assert(dmtWorkspaceFile.includes("setPaidFrom(\"bank\");"), "672. Clean Reset Invariant: handleNewTransfer resets paidFrom to 'bank'");
+  
+  // Verify Cash is the LEFT card and DMT Portal Wallet is the RIGHT card
+  const leftCashPos = dmtWorkspaceFile.indexOf("LEFT: 🏦 CASH");
+  const rightPortalPos = dmtWorkspaceFile.indexOf("RIGHT: 🛡️ DMT PORTAL WALLET");
+  assert(leftCashPos !== -1 && rightPortalPos !== -1 && leftCashPos < rightPortalPos, "673. Visual Position: Cash is LEFT card and DMT Portal Wallet is RIGHT card");
+
+  assert(dmtWorkspaceFile.includes("Shop cash/bank funding"), "674. Card Description: Shop cash/bank funding description present on Cash card");
+  assert(dmtWorkspaceFile.includes("Live DMT gateway wallet"), "675. Card Description: Live DMT gateway wallet description present on Portal card");
+  assert(dmtWorkspaceFile.includes("✓ SELECTED"), "676. Selected Badge: Clear visual selection pill present on active card");
+  assert(dmtWorkspaceFile.includes("Select Shop Bank Account"), "677. Bank Account Selector: 'Select Shop Bank Account' label present for Cash funding");
+  assert(dmtWorkspaceFile.includes("DMT Provider Gateway"), "678. Portal Selector: 'DMT Provider Gateway' label present for Portal funding");
+  assert(dmtWorkspaceFile.includes("TRANSFER FUNDING SOURCE (DISBURSEMENT)"), "679. Section Title: Standardized uppercase title present");
+  assert(dmtWorkspaceFile.includes("onClick={() => setPaidFrom(\"bank\")}") && dmtWorkspaceFile.includes("onClick={() => setPaidFrom(\"portal\")}"), "680. Switching Invariant: Bidirectional switching handlers present for Cash and Portal");
 }
 
 console.log("\n================================================================================");

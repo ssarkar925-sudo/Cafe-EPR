@@ -177,8 +177,8 @@ export default function DmtWorkspace({
   const [portalCharge, setPortalCharge] = useState<string>("");
   const [portalCommission, setPortalCommission] = useState<string>("");
 
-  // Step 6: Funding Source (Disbursement)
-  const [paidFrom, setPaidFrom] = useState<"portal" | "bank">("portal");
+  // Step 6: Funding Source (Disbursement) - Cash is Left and Default
+  const [paidFrom, setPaidFrom] = useState<"portal" | "bank">("bank");
   const [selectedPortalId, setSelectedPortalId] = useState<string>(initialPortals[0]?.id || "");
   const [selectedBankInstrumentId, setSelectedBankInstrumentId] = useState<string>(liveInstruments[0]?.id || "");
 
@@ -495,6 +495,7 @@ export default function DmtWorkspace({
     setReceiverName("");
     setReference("");
     setRemarks("");
+    setPaidFrom("bank");
     setLastCompletedTxn(null);
   }, []);
 
@@ -1765,49 +1766,102 @@ export default function DmtWorkspace({
                 </>
               )}
 
-              {/* 3. Disbursement Route / Funding Channel */}
-              <div className="space-y-1 sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
+              {/* 3. Disbursement Route / Funding Channel: Cash is Left and Default */}
+              <div className="space-y-2 sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Payout Funding Channel <span className="text-rose-500">*</span>
+                  TRANSFER FUNDING SOURCE (DISBURSEMENT) <span className="text-rose-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaidFrom("portal")}
-                    className={`rounded-xl border p-2.5 text-left transition ${
-                      paidFrom === "portal"
-                        ? "border-indigo-600 bg-indigo-50/80 shadow-xs dark:border-indigo-500 dark:bg-indigo-950/30"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">
-                      🌐 DMT Portal Float
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      Available: {inr(dmtFloat)}
-                    </div>
-                  </button>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* LEFT: 🏦 CASH */}
                   <button
                     type="button"
                     onClick={() => setPaidFrom("bank")}
-                    className={`rounded-xl border p-2.5 text-left transition ${
+                    className={`relative flex flex-col justify-between rounded-2xl border p-4 text-left transition ${
                       paidFrom === "bank"
-                        ? "border-indigo-600 bg-indigo-50/80 shadow-xs dark:border-indigo-500 dark:bg-indigo-950/30"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                        ? "border-indigo-600 bg-indigo-50/90 shadow-sm ring-2 ring-indigo-500/20 dark:border-indigo-500 dark:bg-indigo-950/40"
+                        : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-100/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                     }`}
                   >
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">
-                      🏦 Bank Account
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-black tracking-wide text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>🏦</span> CASH
+                        </span>
+                        {paidFrom === "bank" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-black text-white shadow-xs">
+                            ✓ SELECTED
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 text-lg font-black text-slate-900 dark:text-white">
+                        {inr(currentBankBalance)}
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Shop cash/bank funding
+                      </p>
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      Available: {inr(currentBankBalance)}
+                    {paidFrom === "bank" && (
+                      <div className="mt-3 text-[10px] font-black tracking-wider text-indigo-700 uppercase dark:text-indigo-300">
+                        SELECTED
+                      </div>
+                    )}
+                  </button>
+
+                  {/* RIGHT: 🛡️ DMT PORTAL WALLET */}
+                  <button
+                    type="button"
+                    onClick={() => setPaidFrom("portal")}
+                    className={`relative flex flex-col justify-between rounded-2xl border p-4 text-left transition ${
+                      paidFrom === "portal"
+                        ? "border-indigo-600 bg-indigo-50/90 shadow-sm ring-2 ring-indigo-500/20 dark:border-indigo-500 dark:bg-indigo-950/40"
+                        : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-100/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-black tracking-wide text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>🛡️</span> DMT PORTAL WALLET
+                        </span>
+                        {paidFrom === "portal" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-black text-white shadow-xs">
+                            ✓ SELECTED
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 text-lg font-black text-slate-900 dark:text-white">
+                        {inr(dmtFloat)}
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Live DMT gateway wallet
+                      </p>
                     </div>
+                    {paidFrom === "portal" && (
+                      <div className="mt-3 text-[10px] font-black tracking-wider text-indigo-700 uppercase dark:text-indigo-300">
+                        SELECTED
+                      </div>
+                    )}
                   </button>
                 </div>
               </div>
 
-              {/* Portal Selector if Paid From Portal */}
+              {/* Sub-selectors depending on funding source */}
+              {paidFrom === "bank" && (
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Select Shop Bank Account <span className="text-rose-500">*</span>
+                  </label>
+                  <SearchableSelect
+                    options={liveInstruments.map((inst) => ({
+                      value: inst.id,
+                      label: `${inst.name}${inst.account_number ? ` (•••• ${inst.account_number.slice(-4)})` : ""} — ${inr(inst.current_balance ?? 0)}`,
+                    }))}
+                    value={selectedBankInstrumentId}
+                    onChange={(val) => setSelectedBankInstrumentId(val)}
+                    placeholder="Select shop bank account…"
+                  />
+                </div>
+              )}
+
               {paidFrom === "portal" && (
                 <div className="space-y-1 sm:col-span-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
