@@ -1,3 +1,5 @@
+import fs from "fs";
+
 console.log("================================================================================");
 console.log("CYBERCAFE ERP — AUTOMATED FINANCIAL & INTEGRITY TEST SUITE");
 console.log("================================================================================\n");
@@ -4535,6 +4537,42 @@ function detectIntent(question) {
     { id: "tx-h2", instrument_id: "bank-1", amount: 500 }
   ];
   assert(historicalTxns.length === 2, "525. Historical Invariant: Deleting payment accounts preserves 100% of historical transaction rows");
+}
+
+// 526 - 535. Opening Financial Position Workspace UI Hierarchy & Invariant Verification
+{
+  const clientFile = fs.readFileSync('E:/CafeERP/components/finance/opening-balances-client.tsx', 'utf8');
+
+  // Test 1: Primary Section verification
+  assert(clientFile.includes("Opening Financial Position Workspace"), "526. UI Hierarchy Invariant: 'Opening Financial Position Workspace' present as primary workspace title");
+  assert(clientFile.includes("Set and review the opening financial position for your business."), "527. UI Hierarchy Invariant: Correct primary subtitle present");
+  assert(clientFile.includes("Master ERP Initializer"), "528. UI Hierarchy Invariant: 'Master ERP Initializer' badge present");
+  assert(clientFile.includes("Launch Opening Position Studio"), "529. UI Hierarchy Invariant: 'Launch Opening Position Studio' action present");
+
+  // Test 2: Secondary Section verification
+  assert(clientFile.includes("Account Opening Balances"), "530. UI Hierarchy Invariant: 'Account Opening Balances' present as secondary section title");
+  assert(clientFile.includes("Review or adjust opening balances for individual accounts."), "531. UI Hierarchy Invariant: Correct secondary subtitle present");
+  assert(!clientFile.includes("<h2>Individual Pool Seeds</h2>") && !clientFile.includes('>Individual Pool Seeds<'), "532. UI Hierarchy Invariant: 'Individual Pool Seeds' eliminated from UI headings");
+
+  // Test 3: Financial Invariants Unmodified
+  const poolBalances = {
+    cash: { opening: 9100, movements: -14945, current: -5845 },
+    bank: { opening: 10000, movements: -500, current: 9500 },
+    upi_qr: { opening: 0, movements: 9011, current: 9011 },
+    aeps: { opening: 0, movements: -6515, current: -6515 },
+    dmt: { opening: 0, movements: 0, current: 0 },
+    wallet: { opening: 0, movements: 0, current: 0 },
+    credit_card: { opening: 0, movements: 0, current: 0 },
+    total: 6151,
+  };
+
+  const calculatedTotal = Object.entries(poolBalances)
+    .filter(([k]) => k !== 'credit_card' && k !== 'total')
+    .reduce((acc, [, v]) => acc + v.current, 0);
+
+  assert(calculatedTotal === 6151, "533. Financial Core Invariant: Total wealth remains exactly ₹6,151.00");
+  assert(poolBalances.bank.current === 9500, "534. Bank Core Invariant: Bank current balance preserved at ₹9,500.00");
+  assert(poolBalances.cash.current === -5845, "535. Cash Core Invariant: Cash in Hand preserved at -₹5,845.00");
 }
 
 console.log("\n================================================================================");

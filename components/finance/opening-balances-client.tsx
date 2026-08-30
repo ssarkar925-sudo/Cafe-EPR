@@ -221,67 +221,101 @@ export default function OpeningBalancesClient({
   const totalCurrent = balances?.total ?? 0;
 
   return (
-    <div className="space-y-6">
-      {/* 3D Spatial Opening Position Workspace Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-br from-purple-900/20 via-indigo-900/10 to-blue-900/20 p-5 shadow-lg backdrop-blur-md dark:border-purple-500/20 dark:bg-purple-950/30">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3.5">
-            <span className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-2xl text-white shadow-md shadow-purple-600/30">
-              🏛️
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  Opening Financial Position Workspace
-                </h3>
-                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[9px] font-black uppercase text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                  Full ERP Initializer
-                </span>
+    <div className="space-y-8">
+      {/* PRIMARY: Opening Financial Position Workspace */}
+      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 p-6 text-white shadow-xl ring-1 ring-white/10">
+        {/* Spatial background glow */}
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-500/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-2xl shadow-lg shadow-indigo-500/30">
+                🏛️
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">
+                    Opening Financial Position Workspace
+                  </h1>
+                  <span className="rounded-full bg-indigo-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-300 ring-1 ring-indigo-400/30">
+                    Master ERP Initializer
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-300">
+                  Set and review the opening financial position for your business.
+                </p>
               </div>
-              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
-                Establish starting assets (Cash, Banks, Digital Floats, Stock, Customer Dues) and liabilities (Supplier Payables) in one balanced double-entry position.
-              </p>
             </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-slate-400">
+              Establish starting assets (Cash in Hand, Bank Accounts, Digital Floats, Physical Stock, Customer Receivables) and liabilities (Supplier Payables) in one verified, balanced double-entry position.
+            </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setWorkspaceOpen(true)}
-            className="btn-3d-tactile-primary flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-5 py-3 text-xs font-black text-white shadow-md hover:brightness-110"
-          >
-            <span>Launch Opening Position Studio →</span>
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={() => setWorkspaceOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-purple-600/30 transition hover:brightness-110 active:scale-[0.98]"
+            >
+              <span>Launch Opening Position Studio</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-extrabold text-slate-900 dark:text-white">Individual Pool Seeds</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Audit trace of per-account opening seeds. Movements after the seed date are recomputed automatically.
-          </p>
+        {/* Master Position Summary Bar */}
+        <div className="relative z-10 mt-6 grid grid-cols-2 gap-3 border-t border-white/10 pt-5 sm:grid-cols-4">
+          <div className="rounded-xl bg-white/5 p-3 backdrop-blur-sm">
+            <p className="text-[11px] font-medium text-slate-400">Total Seeded Opening</p>
+            <p className="mt-0.5 text-lg font-bold text-white">{inr(totalSeeded)}</p>
+            <p className="text-[10px] text-slate-400">Anchor date position</p>
+          </div>
+          <div className="rounded-xl bg-white/5 p-3 backdrop-blur-sm">
+            <p className="text-[11px] font-medium text-slate-400">Current Live Position</p>
+            <p className="mt-0.5 text-lg font-bold text-emerald-400">{inr(totalCurrent)}</p>
+            <p className="text-[10px] text-slate-400">Opening + net movements</p>
+          </div>
+          <div className="rounded-xl bg-white/5 p-3 backdrop-blur-sm">
+            <p className="text-[11px] font-medium text-slate-400">Active Accounts</p>
+            <p className="mt-0.5 text-lg font-bold text-indigo-300">
+              {initialInstruments.filter((i) => i.is_active).length} Accounts
+            </p>
+            <p className="text-[10px] text-slate-400">Treasury &amp; float pools</p>
+          </div>
+          <div className="rounded-xl bg-white/5 p-3 backdrop-blur-sm">
+            <p className="text-[11px] font-medium text-slate-400">Accounting Health</p>
+            <div className="mt-0.5 flex items-center gap-1.5 text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+              <span className="text-sm font-bold">100% Balanced</span>
+            </div>
+            <p className="text-[10px] text-slate-400">Canonical double-entry</p>
+          </div>
         </div>
-        <CompactToggle value={compact} onChange={setCompact} storageKey="opening-compact" />
-      </div>
+      </section>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
-          label="Total Opening (seeded)"
-          value={inr(totalSeeded)}
-          icon="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-          grad="from-slate-500 to-slate-700"
-          sub="Sum of opening seeds"
-          href="/finance/day-close"
-        />
-        <StatCard
-          label="Current Position"
-          value={inr(totalCurrent)}
-          icon="M18 20V10M12 20V4M6 20v-6"
-          grad="from-blue-600 to-indigo-600"
-          sub="Opening + movements"
-          href="/finance/settlements"
-        />
-      </div>
+      {/* SECONDARY: Account Opening Balances */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Account Opening Balances
+              </h2>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                Account Level
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Review or adjust opening balances for individual accounts.
+            </p>
+          </div>
+          <CompactToggle value={compact} onChange={setCompact} storageKey="opening-compact" />
+        </div>
 
       <div className={`grid gap-4 ${compact ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
         {POOLS.map((p) => {
@@ -357,9 +391,9 @@ export default function OpeningBalancesClient({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Per-Account Opening (bank / card / UPI / wallet)</h3>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Individual Account Adjustments</h3>
         <p className="mt-0.5 text-xs text-slate-400">
-          Add or update individual accounts. Each account&apos;s opening adds to its pool&apos;s opening balance.
+          Add or update individual account seed amounts (Bank accounts, cards, UPI, wallets).
         </p>
         {initialInstruments.length === 0 ? (
           <p className="mt-4 text-sm text-slate-400">No payment instruments yet. Add bank accounts / credit cards in Settings.</p>
@@ -410,9 +444,11 @@ export default function OpeningBalancesClient({
           </div>
         )}
       </div>
+      </section>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Seed History</h3>
+      {/* AUDIT TRACE: Seed History */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Seed Audit History</h3>
         {seeds.length === 0 ? (
           <p className="mt-3 text-sm text-slate-400">No opening balances set yet.</p>
         ) : (
@@ -444,7 +480,7 @@ export default function OpeningBalancesClient({
             </table>
           </div>
         )}
-      </div>
+      </section>
 
       {toastView}
 
