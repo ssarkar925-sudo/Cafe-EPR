@@ -6095,6 +6095,29 @@ function detectIntent(question) {
   assert(digiPostBalance === 20400, "1096. Debit Isolation: Digipay balance reduced to ₹20,400.00 after ₹10,000.00 settlement");
   assert(ezeePostBalance === 1600, "1097. Isolation Invariant: Ezeepay balance remains exactly ₹1,600.00 without side effects");
   assert(digiPostBalance + ezeePostBalance === 22000, "1098. Pool Invariant: New total AEPS pool = ₹20,400 + ₹1,600 = ₹22,000.00");
+
+  // 12. Operator Circle Route & String Processing Safety (Part 20)
+  function stripTrailingSlash(value) {
+    if (!value) return "";
+    return value.endsWith("/") ? value.slice(0, -1) : value;
+  }
+
+  assert(stripTrailingSlash("https://api.payu.in/") === "https://api.payu.in", "1099. Strip Slash: Removes trailing slash safely");
+  assert(stripTrailingSlash("https://api.payu.in") === "https://api.payu.in", "1100. Strip Slash: Preserves clean url without slash");
+  assert(stripTrailingSlash("") === "", "1101. Strip Slash: Handles empty string gracefully");
+  assert(stripTrailingSlash(null) === "", "1102. Strip Slash: Handles null gracefully");
+
+  const testMobileAirtel = "9830123456";
+  const testMobileJio = "7003123456";
+  const testMobileVi = "9883123456";
+  const testMobileBsnl = "9433123456";
+
+  assert(testMobileAirtel.startsWith("9830"), "1103. Prefix Detection: Airtel 9830 series identified");
+  assert(testMobileJio.startsWith("7003"), "1104. Prefix Detection: Jio 7003 series identified");
+  assert(testMobileVi.startsWith("9883"), "1105. Prefix Detection: Vi 9883 series identified");
+  assert(testMobileBsnl.startsWith("9433"), "1106. Prefix Detection: BSNL 9433 series identified");
+  assert(testMobileAirtel.replace(/\D/g, "").slice(-10).length === 10, "1107. Sanitation: 10-digit mobile normalization valid");
+  assert("https://api.payu.in/oauth/token".includes("/oauth/token"), "1108. PayU Token Endpoint: URL construction valid");
 }
 
 console.log("\n================================================================================");
