@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/patch-billing-workspaces.mjs",
+    "prebuild": "node scripts/patch-billing-workspaces-v2.mjs",
     "build": "next build",
     "start": "next start",
     "test": "node scripts/test-financial-invariants.mjs",
