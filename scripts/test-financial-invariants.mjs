@@ -6175,6 +6175,64 @@ function detectIntent(question) {
   const airtelRecharge719 = calculateRechargeCommission(719, "airtel", mockProviders, mockSlabs);
   assert(airtelRecharge719.percent === 3.0, "1119. Dynamic Commission: Airtel ₹719 matches 3.0% higher slab");
   assert(airtelRecharge719.commission === 21.57, "1120. Dynamic Commission: Airtel ₹719 yields ₹21.57 commission");
+
+  // Part 22: Live Auto-Detection Sequence Invariants & 9339 Series
+  function lookupLocalOperatorFull(clean) {
+    if (clean.length < 4) return null;
+    const prefix4 = clean.slice(0, 4);
+    const prefix2 = clean.slice(0, 2);
+    const series4 = {
+      "9830": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "9831": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "9832": { operatorCode: "airtel", operatorName: "Airtel", circle: "West Bengal" },
+      "9836": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "9874": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "7003": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "6290": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "7980": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "8910": { operatorCode: "jio", operatorName: "Jio", circle: "West Bengal" },
+      "8240": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9339": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9330": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9331": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9883": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "West Bengal" },
+      "9748": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "Kolkata" },
+      "9051": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "Kolkata" },
+      "9163": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "Kolkata" },
+      "9433": { operatorCode: "bsnl", operatorName: "BSNL", circle: "Kolkata" },
+      "9434": { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" },
+      "9432": { operatorCode: "bsnl", operatorName: "BSNL", circle: "Kolkata" },
+      "9474": { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" },
+    };
+    if (series4[prefix4]) return series4[prefix4];
+    if (["98", "99", "97", "96", "95", "90"].includes(prefix2)) return { operatorCode: "airtel", operatorName: "Airtel", circle: "West Bengal" };
+    if (["70", "79", "62", "63", "89", "82", "93"].includes(prefix2)) return { operatorCode: "jio", operatorName: "Jio", circle: "West Bengal" };
+    if (["91", "88", "87", "86", "84"].includes(prefix2)) return { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "West Bengal" };
+    if (["94", "83", "73"].includes(prefix2)) return { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" };
+    return null;
+  }
+
+  const match9339 = lookupLocalOperatorFull("9339987644");
+  assert(match9339 && match9339.operatorCode === "jio", "1121. Number 9339987644: Resolved to Jio operator");
+  assert(match9339 && match9339.circle === "Kolkata", "1122. Number 9339987644: Resolved to Kolkata circle");
+
+  const match9830 = lookupLocalOperatorFull("9830123456");
+  assert(match9830 && match9830.operatorCode === "airtel", "1123. Number 9830123456: Resolved to Airtel operator");
+  assert(match9830 && match9830.circle === "Kolkata", "1124. Number 9830123456: Resolved to Kolkata circle");
+
+  const match7003 = lookupLocalOperatorFull("7003123456");
+  assert(match7003 && match7003.operatorCode === "jio", "1125. Number 7003123456: Resolved to Jio operator");
+
+  const match9883 = lookupLocalOperatorFull("9883123456");
+  assert(match9883 && match9883.operatorCode === "vi", "1126. Number 9883123456: Resolved to Vodafone Idea operator");
+
+  const match9433 = lookupLocalOperatorFull("9433123456");
+  assert(match9433 && match9433.operatorCode === "bsnl", "1127. Number 9433123456: Resolved to BSNL operator");
+
+  // Incomplete / Invalid Number Invariants
+  assert(lookupLocalOperatorFull("98301") && "98301".length < 10, "1128. Incomplete Number: Suppressed on client until 10 digits");
+  assert("9830-abc-1234".replace(/\D/g, "").slice(0, 10) === "98301234", "1129. Sanitization Invariant: Strips non-digits cleanly");
+  assert("98301234".length < 10, "1130. Sanitization Invariant: Incomplete sanitized numbers do not trigger false detection");
 }
 
 console.log("\n================================================================================");

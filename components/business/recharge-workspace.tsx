@@ -245,7 +245,8 @@ export default function RechargeWorkspace({
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectedBadge, setDetectedBadge] = useState<string | null>(null);
   const [isManualOverride, setIsManualOverride] = useState(false);
-  const [lastLookupMobile, setLastLookupMobile] = useState("");
+  const lastLookupRef = useRef("");
+  const lookupSeqRef = useRef(0);
   const [amount, setAmount] = useState("");
   const [serviceFee, setServiceFee] = useState("0");
   const [selectedPlan, setSelectedPlan] = useState<PlanItem | null>(null);
@@ -313,55 +314,82 @@ export default function RechargeWorkspace({
 
   // Local prefix fallback engine
   const lookupLocalOperator = useCallback((clean: string) => {
+    if (clean.length < 4) return null;
     const prefix4 = clean.slice(0, 4);
     const prefix2 = clean.slice(0, 2);
-    if (["9830", "9831", "9832", "9836", "9874", "9433"].includes(prefix4)) {
-      return { operatorCode: "airtel", operatorName: "Airtel", circle: prefix4 === "9832" ? "West Bengal" : "Kolkata" };
-    } else if (["7003", "6290", "7980", "8910", "8240"].includes(prefix4)) {
-      return { operatorCode: "jio", operatorName: "Jio", circle: prefix4 === "8910" ? "West Bengal" : "Kolkata" };
-    } else if (["9883", "9748", "9051", "9163"].includes(prefix4)) {
-      return { operatorCode: "vi", operatorName: "Vodafone Idea", circle: prefix4 === "9883" ? "West Bengal" : "Kolkata" };
-    } else if (["9434", "9432", "9474"].includes(prefix4)) {
-      return { operatorCode: "bsnl", operatorName: "BSNL", circle: prefix4 === "9434" || prefix4 === "9474" ? "West Bengal" : "Kolkata" };
-    } else if (["98", "99", "97", "96", "95", "90"].includes(prefix2)) {
+
+    const series4: Record<string, { operatorCode: string; operatorName: string; circle: string }> = {
+      // Airtel
+      "9830": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "9831": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "9832": { operatorCode: "airtel", operatorName: "Airtel", circle: "West Bengal" },
+      "9836": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      "9874": { operatorCode: "airtel", operatorName: "Airtel", circle: "Kolkata" },
+      // Jio
+      "7003": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "6290": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "7980": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "8910": { operatorCode: "jio", operatorName: "Jio", circle: "West Bengal" },
+      "8240": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9339": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9330": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      "9331": { operatorCode: "jio", operatorName: "Jio", circle: "Kolkata" },
+      // Vodafone Idea (Vi)
+      "9883": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "West Bengal" },
+      "9748": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "Kolkata" },
+      "9051": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "Kolkata" },
+      "9163": { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "Kolkata" },
+      // BSNL
+      "9433": { operatorCode: "bsnl", operatorName: "BSNL", circle: "Kolkata" },
+      "9434": { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" },
+      "9432": { operatorCode: "bsnl", operatorName: "BSNL", circle: "Kolkata" },
+      "9474": { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" },
+    };
+
+    if (series4[prefix4]) return series4[prefix4];
+
+    if (["98", "99", "97", "96", "95", "90"].includes(prefix2)) {
       return { operatorCode: "airtel", operatorName: "Airtel", circle: "West Bengal" };
-    } else if (["70", "79", "62", "63", "89", "82"].includes(prefix2)) {
+    } else if (["70", "79", "62", "63", "89", "82", "93"].includes(prefix2)) {
       return { operatorCode: "jio", operatorName: "Jio", circle: "West Bengal" };
     } else if (["91", "88", "87", "86", "84"].includes(prefix2)) {
       return { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "West Bengal" };
     } else if (["94", "83", "73"].includes(prefix2)) {
       return { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" };
     }
+
     return null;
   }, []);
 
   // First-Class Debounced Operator & Circle Auto-Detection Hook
   useEffect(() => {
-    const clean = mobileNumber.replace(/\D/g, "");
+    const clean = mobileNumber.replace(/\D/g, "").slice(0, 10);
     if (clean.length < 10) {
       if (clean.length === 0) {
         setIsManualOverride(false);
         setDetectedBadge(null);
-        setLastLookupMobile("");
+        lastLookupRef.current = "";
       }
+      setIsDetecting(false);
       return;
     }
 
-    if (clean.length === 10 && clean !== lastLookupMobile && !isManualOverride) {
-      let active = true;
+    if (clean.length === 10 && clean !== lastLookupRef.current && !isManualOverride) {
+      lastLookupRef.current = clean;
+      const currentSeq = ++lookupSeqRef.current;
       setIsDetecting(true);
-      setLastLookupMobile(clean);
 
       const timer = setTimeout(async () => {
         try {
           const res = await fetch(`/api/recharge/operator-circle?mobile=${encodeURIComponent(clean)}`, {
             cache: "no-store",
+            signal: AbortSignal.timeout(6000),
           });
           const data = await res.json().catch(() => ({}));
 
-          if (!active) return;
+          if (currentSeq !== lookupSeqRef.current) return;
 
-          if (data && (data.ok || data.success) && (data.operatorCode || data.operator_code || data.operatorName || data.operator)) {
+          if (data && data.ok && (data.operatorCode || data.operator_code || data.operatorName || data.operator)) {
             const rawOpCode = String(data.operatorCode || data.operator_code || "").toLowerCase();
             const rawOpName = String(data.operatorName || data.operator || "").toLowerCase();
 
@@ -378,17 +406,16 @@ export default function RechargeWorkspace({
 
             if (matched) {
               setSelectedOperatorCode(matched.code);
-              const cir = data.circleName || data.circle;
-              if (cir && TELECOM_CIRCLES.includes(cir)) {
+              const cir = data.circleName || data.circle || "West Bengal";
+              if (TELECOM_CIRCLES.includes(cir)) {
                 setSelectedCircle(cir);
               }
-              const isPayU = data.source === "payu_live" || data.configured === true;
+              const isPayU = data.source === "payu_live";
               setDetectedBadge(
                 isPayU
-                  ? `🟢 PayU Verified: ${matched.name} (${cir || "West Bengal"})`
-                  : `⚡ Auto-detected: ${matched.name} (${cir || "West Bengal"})`
+                  ? `🟢 PayU Verified: ${matched.name} · ${cir}`
+                  : `⚡ Auto-detected: ${matched.name} · ${cir}`
               );
-              setIsDetecting(false);
               return;
             }
           }
@@ -400,9 +427,12 @@ export default function RechargeWorkspace({
             if (TELECOM_CIRCLES.includes(local.circle)) {
               setSelectedCircle(local.circle);
             }
-            setDetectedBadge(`⚡ Auto-detected: ${local.operatorName} (${local.circle})`);
+            setDetectedBadge(`⚡ Auto-detected: ${local.operatorName} · ${local.circle}`);
+          } else {
+            setDetectedBadge("Operator not detected — Select manually");
           }
         } catch (err) {
+          if (currentSeq !== lookupSeqRef.current) return;
           console.warn("Operator auto-detection notice:", err);
           const local = lookupLocalOperator(clean);
           if (local) {
@@ -410,19 +440,22 @@ export default function RechargeWorkspace({
             if (TELECOM_CIRCLES.includes(local.circle)) {
               setSelectedCircle(local.circle);
             }
-            setDetectedBadge(`⚡ Auto-detected: ${local.operatorName} (${local.circle})`);
+            setDetectedBadge(`⚡ Auto-detected: ${local.operatorName} · ${local.circle}`);
+          } else {
+            setDetectedBadge("Operator not detected — Select manually");
           }
         } finally {
-          if (active) setIsDetecting(false);
+          if (currentSeq === lookupSeqRef.current) {
+            setIsDetecting(false);
+          }
         }
-      }, 350);
+      }, 300);
 
       return () => {
-        active = false;
         clearTimeout(timer);
       };
     }
-  }, [mobileNumber, lastLookupMobile, isManualOverride, allOperators, lookupLocalOperator]);
+  }, [mobileNumber, isManualOverride, allOperators, lookupLocalOperator]);
 
   // Dynamic Commission & Provider Cost Calculation
   const commissionCalculation = useMemo(() => {
@@ -1111,13 +1144,19 @@ export default function RechargeWorkspace({
                 <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 animate-pulse">
                   🔍 Detecting operator &amp; circle…
                 </span>
-              ) : detectedBadge ? (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  {detectedBadge}
-                </span>
               ) : isManualOverride ? (
                 <span className="text-[10px] font-semibold text-slate-400">
                   Manual selection
+                </span>
+              ) : detectedBadge ? (
+                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                  detectedBadge.includes("PayU")
+                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : detectedBadge.includes("Auto-detected")
+                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                    : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                }`}>
+                  {detectedBadge}
                 </span>
               ) : (
                 <span className="text-[11px] text-slate-400">Select Telecom Provider</span>

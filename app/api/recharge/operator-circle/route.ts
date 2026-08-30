@@ -94,6 +94,7 @@ async function getPayUToken(clientId: string, clientSecret: string) {
       scope: TOKEN_SCOPE,
     }),
     cache: "no-store",
+    signal: AbortSignal.timeout(10000),
   });
 
   const body = await response.json().catch(() => ({}));
@@ -106,7 +107,7 @@ async function getPayUToken(clientId: string, clientSecret: string) {
 export async function GET(request: NextRequest) {
   const mobileNumber = clean(request.nextUrl.searchParams.get("mobile"));
   if (!/^[0-9]{10}$/.test(mobileNumber)) {
-    return NextResponse.json({ ok: false, error: "A valid 10-digit mobile number is required." }, { status: 400 });
+    return NextResponse.json({ ok: false, source: "invalid_input", error: "A valid 10-digit mobile number is required." }, { status: 400 });
   }
 
   const clientId = clean(process.env.PAYU_CLIENT_ID);
@@ -118,9 +119,10 @@ export async function GET(request: NextRequest) {
       {
         ok: false,
         configured: false,
-        error: "Live recharge provider is not configured. Add PAYU_CLIENT_ID, PAYU_CLIENT_SECRET and PAYU_AGENT_ID in the Production environment.",
+        source: "unconfigured",
+        error: "Live recharge provider is not configured in environment.",
       },
-      { status: 503 },
+      { status: 200 },
     );
   }
 
@@ -139,30 +141,37 @@ export async function GET(request: NextRequest) {
         authorization: `Bearer ${token}`,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(10000),
     });
 
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       return NextResponse.json(
-        { ok: false, configured: true, error: body?.message || "Operator lookup failed at provider.", provider: body },
-        { status: 502 },
+        { ok: false, configured: true, source: "payu_error", error: body?.message || "Operator lookup failed at provider.", provider: body },
+        { status: 200 },
       );
     }
 
     const result = extractLookup(body);
     if (!result) {
       return NextResponse.json(
-        { ok: false, configured: true, error: body?.message || "Provider returned no operator/circle match.", provider: body },
-        { status: 422 },
+        { ok: false, configured: true, source: "payu_unresolved", error: body?.message || "Provider returned no operator/circle match.", provider: body },
+        { status: 200 },
       );
     }
 
-    return NextResponse.json({ ok: true, configured: true, ...result }, { status: 200 });
-  } catch (error) {
-    console.error("[recharge/operator-circle] provider lookup failed", error);
+    return NextResponse.json({ ok: true, configured: true, source: "payu_live", ...result }, { status: 200 });
+  } catch (error: any) {
+    const isTimeout = error?.name === "TimeoutError" || error?.name === "AbortError";
+    console.error("[recharge/operator-circle] provider lookup error:", error);
     return NextResponse.json(
-      { ok: false, configured: true, error: error instanceof Error ? error.message : "Live operator lookup failed." },
-      { status: 502 },
+      {
+        ok: false,
+        configured: true,
+        source: isTimeout ? "payu_timeout" : "payu_error",
+        error: isTimeout ? "Operator lookup timed out" : (error instanceof Error ? error.message : "Live operator lookup failed."),
+      },
+      { status: isTimeout ? 504 : 200 },
     );
   }
 }
