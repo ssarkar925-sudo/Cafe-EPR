@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 import RechargeWorkspace from "@/components/business/recharge-workspace";
 import type {
   CustomerRow,
@@ -32,8 +32,7 @@ type LookupResponse = {
 const normalize = (value: string) =>
   value
     .toLowerCase()
-    .replace(/vodafone\\s*idea|vodafone|idea/g, "vi")
-    .replace(/telecom|mobile|limited|ltd|airtel|jio|bsnl/g, "")
+    .replace(/vodafone\\s*idea/g, "vi")
     .replace(/[^a-z0-9]+/g, "")
     .trim();
 
@@ -44,7 +43,14 @@ const operatorAliases: Record<string, string[]> = {
   bsnl: ["bsnl", "bharat sanchar nigam limited"],
 };
 
-function pickOperator(select: HTMLSelectElement, name?: string, code?: string) {
+function setNativeSelectValue(select: HTMLSelectElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+  setter?.call(select, value);
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function pickOperator(select: HTMLSelectElement | undefined, name?: string, code?: string) {
+  if (!select) return false;
   const wanted = [name, code].filter(Boolean).map((v) => normalize(String(v)));
   if (!wanted.length) return false;
 
@@ -57,24 +63,22 @@ function pickOperator(select: HTMLSelectElement, name?: string, code?: string) {
     for (const candidate of wanted) {
       if (value === candidate || text === candidate || value.includes(candidate) || text.includes(candidate)) return true;
       for (const [aliasKey, aliases] of Object.entries(operatorAliases)) {
-        if (candidate === normalize(aliasKey) || aliases.some((a) => candidate === normalize(a))) {
-          if (value === aliasKey || text === normalize(aliasKey) || aliases.some((a) => value.includes(normalize(a)) || text.includes(normalize(a)))) {
-            return true;
-          }
+        const candidateIsAlias = candidate === normalize(aliasKey) || aliases.some((alias) => candidate === normalize(alias));
+        if (candidateIsAlias && (value === aliasKey || text === normalize(aliasKey) || aliases.some((alias) => value.includes(normalize(alias)) || text.includes(normalize(alias))))) {
+          return true;
         }
       }
     }
     return false;
   });
 
-  if (!match || !match.value || select.value === match.value) return Boolean(match);
-  select.value = match.value;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+  if (!match || !match.value) return false;
+  if (select.value !== match.value) setNativeSelectValue(select, match.value);
   return true;
 }
 
-function pickCircle(select: HTMLSelectElement, name?: string) {
-  if (!name) return false;
+function pickCircle(select: HTMLSelectElement | undefined, name?: string) {
+  if (!select || !name) return false;
   const wanted = normalize(name);
   const options = Array.from(select.options);
   const match = options.find((option) => {
@@ -82,9 +86,9 @@ function pickCircle(select: HTMLSelectElement, name?: string) {
     const value = normalize(option.value);
     return text === wanted || value === wanted || text.includes(wanted) || wanted.includes(text);
   });
-  if (!match || !match.value || select.value === match.value) return Boolean(match);
-  select.value = match.value;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+
+  if (!match || !match.value) return false;
+  if (select.value !== match.value) setNativeSelectValue(select, match.value);
   return true;
 }
 
@@ -92,10 +96,11 @@ function findControls() {
   const mobile = document.querySelector<HTMLInputElement>('input[placeholder="Enter 10-digit mobile number"]');
   if (!mobile) return null;
 
-  const operator = Array.from(document.querySelectorAll<HTMLSelectElement>("select")).find((select) =>
+  const selects = Array.from(document.querySelectorAll<HTMLSelectElement>("select"));
+  const operator = selects.find((select) =>
     Array.from(select.options).some((option) => option.textContent?.includes("Choose Operator")),
   );
-  const circle = Array.from(document.querySelectorAll<HTMLSelectElement>("select")).find((select) =>
+  const circle = selects.find((select) =>
     Array.from(select.options).some((option) => option.textContent?.trim() === "West Bengal"),
   );
 
@@ -118,7 +123,6 @@ export default function RechargeWorkspaceLive(props: Props) {
       timer = setTimeout(async () => {
         controller?.abort();
         controller = new AbortController();
-        lastLookup = mobile;
 
         try {
           const response = await fetch(`/api/recharge/operator-circle?mobile=${encodeURIComponent(mobile)}`, {
@@ -136,18 +140,19 @@ export default function RechargeWorkspaceLive(props: Props) {
             return;
           }
 
+          lastLookup = mobile;
           const freshControls = findControls();
           if (!freshControls) return;
-          pickOperator(freshControls.operator!, result.operatorName, result.operatorCode);
-          pickCircle(freshControls.circle!, result.circleName || undefined);
+          pickOperator(freshControls.operator, result.operatorName, result.operatorCode);
+          pickCircle(freshControls.circle, result.circleName || undefined);
 
-          // Re-run the underlying controlled inputs once after React processes the change.
+          // React re-renders controlled selects after the native change event; bind again after that render.
           window.setTimeout(() => {
             const latest = findControls();
             if (!latest) return;
-            pickOperator(latest.operator!, result.operatorName, result.operatorCode);
-            pickCircle(latest.circle!, result.circleName || undefined);
-          }, 50);
+            pickOperator(latest.operator, result.operatorName, result.operatorCode);
+            pickCircle(latest.circle, result.circleName || undefined);
+          }, 75);
         } catch (error) {
           if ((error as Error)?.name !== "AbortError") {
             console.warn("[Recharge] Live operator lookup request failed.", error);
