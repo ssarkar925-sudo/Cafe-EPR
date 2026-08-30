@@ -58,21 +58,11 @@ function extractLookup(payload: any): LookupResult | null {
   const root = firstObject(payload?.payload) ?? firstObject(payload);
   if (!root) return null;
 
-  const operatorName = clean(
-    findValue(root, ["operatorName", "operator_name", "operator"]),
-  );
-  const operatorCode = clean(
-    findValue(root, ["operatorCode", "operator_code", "operatorId", "operator_id"]),
-  );
-  const circleName = clean(
-    findValue(root, ["circleName", "circle_name", "circle"]),
-  );
-  const circleId = clean(
-    findValue(root, ["circleId", "circle_id", "circleReferenceId", "circle_reference_id"]),
-  );
-  const connectionType = clean(
-    findValue(root, ["connectionType", "connection_type", "serviceType", "service_type"]),
-  );
+  const operatorName = clean(findValue(root, ["operatorName", "operator_name", "operator"]));
+  const operatorCode = clean(findValue(root, ["operatorCode", "operator_code", "operatorId", "operator_id"]));
+  const circleName = clean(findValue(root, ["circleName", "circle_name", "circle"]));
+  const circleId = clean(findValue(root, ["circleId", "circle_id", "circleReferenceId", "circle_reference_id"]));
+  const connectionType = clean(findValue(root, ["connectionType", "connection_type", "serviceType", "service_type"]));
 
   if (!operatorName && !operatorCode) return null;
   return {
@@ -84,9 +74,13 @@ function extractLookup(payload: any): LookupResult | null {
   };
 }
 
+function stripTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
 async function getPayUToken(clientId: string, clientSecret: string) {
-  const tokenBase = process.env.PAYU_TOKEN_BASE_URL || DEFAULT_TOKEN_BASE;
-  const response = await fetch(`${tokenBase.replace(/\\/$/, "")}/oauth/token`, {
+  const tokenBase = stripTrailingSlash(process.env.PAYU_TOKEN_BASE_URL || DEFAULT_TOKEN_BASE);
+  const response = await fetch(`${tokenBase}/oauth/token`, {
     method: "POST",
     headers: {
       accept: "application/json",
@@ -110,7 +104,7 @@ async function getPayUToken(clientId: string, clientSecret: string) {
 
 export async function GET(request: NextRequest) {
   const mobileNumber = clean(request.nextUrl.searchParams.get("mobile"));
-  if (!/^\\d{10}$/.test(mobileNumber)) {
+  if (!/^[0-9]{10}$/.test(mobileNumber)) {
     return NextResponse.json({ ok: false, error: "A valid 10-digit mobile number is required." }, { status: 400 });
   }
 
@@ -131,7 +125,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const token = await getPayUToken(clientId, clientSecret);
-    const bbpsBase = (process.env.PAYU_BBPS_BASE_URL || DEFAULT_BBPS_BASE).replace(/\\/$/, "");
+    const bbpsBase = stripTrailingSlash(process.env.PAYU_BBPS_BASE_URL || DEFAULT_BBPS_BASE);
     const url = new URL(`${bbpsBase}/getOperatorAndCircleInfo`);
     url.searchParams.set("agentId", agentId);
     url.searchParams.set("mobileNumber", mobileNumber);
