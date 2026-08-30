@@ -73,6 +73,7 @@ export default function OpeningBalancesClient({
   const { toastView } = useToast();
 
   const [balances, setBalances] = useState<PoolBalances | null>(initialBalances);
+  const [instruments, setInstruments] = useState<InstrumentRow[]>(initialInstruments);
   const [seeds, setSeeds] = useState<SeedRow[]>(initialSeeds);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [draftExists, setDraftExists] = useState(false);
@@ -94,16 +95,18 @@ export default function OpeningBalancesClient({
   }, []);
 
   async function refresh() {
-    const [{ data: b }, { data: s }] = await Promise.all([
+    const [{ data: b }, { data: s }, { data: insts }] = await Promise.all([
       supabase.rpc("get_pool_balances"),
       supabase
         .from("opening_balances")
         .select("id, pool, instrument_id, amount, as_of, remarks, created_at")
         .order("as_of", { ascending: false })
         .order("created_at", { ascending: false }),
+      supabase.from("payment_instruments").select("*").order("type").order("name"),
     ]);
     if (b) setBalances(b as any);
     if (s) setSeeds(s as any);
+    if (insts) setInstruments(insts as any);
     try {
       window.localStorage.removeItem("cafe_erp_opening_position_draft_v1");
       const raw = window.localStorage.getItem("cafe_erp_opening_position_draft_v2");
@@ -383,7 +386,7 @@ export default function OpeningBalancesClient({
       <OpeningPositionWorkspace
         isOpen={workspaceOpen}
         onClose={() => setWorkspaceOpen(false)}
-        instruments={initialInstruments}
+        instruments={instruments}
         customers={customers}
         suppliers={suppliers}
         products={products}

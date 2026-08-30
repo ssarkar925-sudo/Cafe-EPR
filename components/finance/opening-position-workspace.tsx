@@ -12,7 +12,6 @@ export type PaymentInstrument = {
   name: string;
   type: string;
   opening_balance?: number;
-  current_balance?: number;
   details?: any;
   is_active: boolean;
 };
@@ -124,6 +123,50 @@ function SvgIcon({ path, className = "h-4 w-4" }: { path: string; className?: st
   );
 }
 
+// Reconcile saved draft rows with current active master instruments
+function reconcileAccountsWithMaster(
+  draftRows: AccountRow[] | undefined,
+  activeInstruments: PaymentInstrument[],
+  defaultType: string,
+  fallbackName: string
+): AccountRow[] {
+  if (activeInstruments.length === 0) {
+    if (draftRows && draftRows.length > 0) {
+      return draftRows.filter((d) => !d.instrument_id);
+    }
+    return [
+      {
+        instrument_id: "",
+        name: fallbackName,
+        type: defaultType,
+        amount: 0,
+        remarks: "",
+      },
+    ];
+  }
+
+  const draftMap = new Map<string, AccountRow>();
+  if (Array.isArray(draftRows)) {
+    for (const d of draftRows) {
+      if (d.instrument_id) {
+        draftMap.set(d.instrument_id, d);
+      }
+    }
+  }
+
+  // Active instruments are authoritative: preserve draft values for existing, initialize 0 for new
+  return activeInstruments.map((inst) => {
+    const existing = draftMap.get(inst.id);
+    return {
+      instrument_id: inst.id,
+      name: inst.name,
+      type: defaultType,
+      amount: existing ? Number(existing.amount || 0) : Number(inst.opening_balance || 0),
+      remarks: existing ? existing.remarks || "" : "",
+    };
+  });
+}
+
 export default function OpeningPositionWorkspace({
   isOpen,
   onClose,
@@ -185,99 +228,64 @@ export default function OpeningPositionWorkspace({
   );
 
   // 1. Cash Accounts State (Account-Wise)
-  const [cashAccounts, setCashAccounts] = useState<AccountRow[]>(() => {
-    if (initialSnapshot?.cash_accounts && initialSnapshot.cash_accounts.length > 0) {
-      return initialSnapshot.cash_accounts;
-    }
-    if (activeCashInstruments.length > 0) {
-      return activeCashInstruments.map((c) => ({
-        instrument_id: c.id,
-        name: c.name,
-        type: "cash",
-        amount: Number(c.opening_balance || 0),
-        remarks: "",
-      }));
-    }
-    return [
-      {
-        instrument_id: "",
-        name: "Main Cash Drawer",
-        type: "cash",
-        amount: 0,
-        remarks: "",
-      },
-    ];
-  });
+  const [cashAccounts, setCashAccounts] = useState<AccountRow[]>(() =>
+    reconcileAccountsWithMaster(
+      initialSnapshot?.cash_accounts,
+      activeCashInstruments,
+      "cash",
+      "Main Cash Drawer"
+    )
+  );
 
   // 2. Bank Accounts State (Account-Wise)
-  const [bankAccounts, setBankAccounts] = useState<AccountRow[]>(() => {
-    if (initialSnapshot?.bank_accounts && initialSnapshot.bank_accounts.length > 0) {
-      return initialSnapshot.bank_accounts;
-    }
-    return activeBankInstruments.map((b) => ({
-      instrument_id: b.id,
-      name: b.name,
-      type: "bank",
-      amount: Number(b.opening_balance || 0),
-      remarks: "",
-    }));
-  });
+  const [bankAccounts, setBankAccounts] = useState<AccountRow[]>(() =>
+    reconcileAccountsWithMaster(
+      initialSnapshot?.bank_accounts,
+      activeBankInstruments,
+      "bank",
+      "Main Bank Account"
+    )
+  );
 
   // 3. UPI / Digital Settlement Accounts State (Account-Wise)
-  const [digitalAccounts, setDigitalAccounts] = useState<AccountRow[]>(() => {
-    if (initialSnapshot?.digital_accounts && initialSnapshot.digital_accounts.length > 0) {
-      return initialSnapshot.digital_accounts;
-    }
-    return activeUpiInstruments.map((u) => ({
-      instrument_id: u.id,
-      name: u.name,
-      type: "upi",
-      amount: Number(u.opening_balance || 0),
-      remarks: "",
-    }));
-  });
+  const [digitalAccounts, setDigitalAccounts] = useState<AccountRow[]>(() =>
+    reconcileAccountsWithMaster(
+      initialSnapshot?.digital_accounts,
+      activeUpiInstruments,
+      "upi",
+      "Main UPI Settlement"
+    )
+  );
 
   // 4. Digital Wallet Accounts State (Account-Wise)
-  const [walletAccounts, setWalletAccounts] = useState<AccountRow[]>(() => {
-    if (initialSnapshot?.wallet_accounts && initialSnapshot.wallet_accounts.length > 0) {
-      return initialSnapshot.wallet_accounts;
-    }
-    return activeWalletInstruments.map((w) => ({
-      instrument_id: w.id,
-      name: w.name,
-      type: "wallet",
-      amount: Number(w.opening_balance || 0),
-      remarks: "",
-    }));
-  });
+  const [walletAccounts, setWalletAccounts] = useState<AccountRow[]>(() =>
+    reconcileAccountsWithMaster(
+      initialSnapshot?.wallet_accounts,
+      activeWalletInstruments,
+      "wallet",
+      "Digital Wallet"
+    )
+  );
 
   // 5. AEPS Provider Floats State (Provider-Wise)
-  const [aepsProviderAccounts, setAepsProviderAccounts] = useState<AccountRow[]>(() => {
-    if (initialSnapshot?.aeps_accounts && initialSnapshot.aeps_accounts.length > 0) {
-      return initialSnapshot.aeps_accounts;
-    }
-    return activeAepsInstruments.map((a) => ({
-      instrument_id: a.id,
-      name: a.name,
-      type: "aeps_portal",
-      amount: Number(a.opening_balance || 0),
-      remarks: "",
-    }));
-  });
+  const [aepsProviderAccounts, setAepsProviderAccounts] = useState<AccountRow[]>(() =>
+    reconcileAccountsWithMaster(
+      initialSnapshot?.aeps_accounts,
+      activeAepsInstruments,
+      "aeps_portal",
+      "AEPS Float"
+    )
+  );
 
   // 6. DMT Provider Wallets State (Provider-Wise)
-  const [dmtProviderAccounts, setDmtProviderAccounts] = useState<AccountRow[]>(() => {
-    if (initialSnapshot?.dmt_accounts && initialSnapshot.dmt_accounts.length > 0) {
-      return initialSnapshot.dmt_accounts;
-    }
-    return activeDmtInstruments.map((d) => ({
-      instrument_id: d.id,
-      name: d.name,
-      type: "dmt_portal",
-      amount: Number(d.opening_balance || 0),
-      remarks: "",
-    }));
-  });
+  const [dmtProviderAccounts, setDmtProviderAccounts] = useState<AccountRow[]>(() =>
+    reconcileAccountsWithMaster(
+      initialSnapshot?.dmt_accounts,
+      activeDmtInstruments,
+      "dmt_portal",
+      "DMT Wallet"
+    )
+  );
 
   // 7. Customer Receivables
   const [receivables, setReceivables] = useState<ReceivableRow[]>(
@@ -317,90 +325,42 @@ export default function OpeningPositionWorkspace({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Sync instruments if lists change
+  // Synchronize when instruments change in parent/Settings
   useEffect(() => {
-    if (activeCashInstruments.length > 0 && cashAccounts.every((c) => !c.instrument_id)) {
-      setCashAccounts(
-        activeCashInstruments.map((c) => ({
-          instrument_id: c.id,
-          name: c.name,
-          type: "cash",
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeCashInstruments, cashAccounts]);
+    setCashAccounts((prev) =>
+      reconcileAccountsWithMaster(prev, activeCashInstruments, "cash", "Main Cash Drawer")
+    );
+  }, [activeCashInstruments]);
 
   useEffect(() => {
-    if (bankAccounts.length === 0 && activeBankInstruments.length > 0) {
-      setBankAccounts(
-        activeBankInstruments.map((b) => ({
-          instrument_id: b.id,
-          name: b.name,
-          type: "bank",
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeBankInstruments, bankAccounts.length]);
+    setBankAccounts((prev) =>
+      reconcileAccountsWithMaster(prev, activeBankInstruments, "bank", "Main Bank Account")
+    );
+  }, [activeBankInstruments]);
 
   useEffect(() => {
-    if (digitalAccounts.length === 0 && activeUpiInstruments.length > 0) {
-      setDigitalAccounts(
-        activeUpiInstruments.map((u) => ({
-          instrument_id: u.id,
-          name: u.name,
-          type: "upi",
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeUpiInstruments, digitalAccounts.length]);
+    setDigitalAccounts((prev) =>
+      reconcileAccountsWithMaster(prev, activeUpiInstruments, "upi", "Main UPI Settlement")
+    );
+  }, [activeUpiInstruments]);
 
   useEffect(() => {
-    if (walletAccounts.length === 0 && activeWalletInstruments.length > 0) {
-      setWalletAccounts(
-        activeWalletInstruments.map((w) => ({
-          instrument_id: w.id,
-          name: w.name,
-          type: "wallet",
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeWalletInstruments, walletAccounts.length]);
+    setWalletAccounts((prev) =>
+      reconcileAccountsWithMaster(prev, activeWalletInstruments, "wallet", "Digital Wallet")
+    );
+  }, [activeWalletInstruments]);
 
   useEffect(() => {
-    if (aepsProviderAccounts.length === 0 && activeAepsInstruments.length > 0) {
-      setAepsProviderAccounts(
-        activeAepsInstruments.map((a) => ({
-          instrument_id: a.id,
-          name: a.name,
-          type: "aeps_portal",
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeAepsInstruments, aepsProviderAccounts.length]);
+    setAepsProviderAccounts((prev) =>
+      reconcileAccountsWithMaster(prev, activeAepsInstruments, "aeps_portal", "AEPS Float")
+    );
+  }, [activeAepsInstruments]);
 
   useEffect(() => {
-    if (dmtProviderAccounts.length === 0 && activeDmtInstruments.length > 0) {
-      setDmtProviderAccounts(
-        activeDmtInstruments.map((d) => ({
-          instrument_id: d.id,
-          name: d.name,
-          type: "dmt_portal",
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeDmtInstruments, dmtProviderAccounts.length]);
+    setDmtProviderAccounts((prev) =>
+      reconcileAccountsWithMaster(prev, activeDmtInstruments, "dmt_portal", "DMT Wallet")
+    );
+  }, [activeDmtInstruments]);
 
   // Load Saved Draft v2 (and purge legacy v1 draft to prevent stale resurrection)
   useEffect(() => {
@@ -414,22 +374,64 @@ export default function OpeningPositionWorkspace({
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === "object") {
             if (parsed.opening_date) setOpeningDate(parsed.opening_date);
-            if (Array.isArray(parsed.cash_accounts) && parsed.cash_accounts.length > 0) setCashAccounts(parsed.cash_accounts);
-            if (Array.isArray(parsed.bank_accounts) && parsed.bank_accounts.length > 0) setBankAccounts(parsed.bank_accounts);
-            if (Array.isArray(parsed.digital_accounts) && parsed.digital_accounts.length > 0) setDigitalAccounts(parsed.digital_accounts);
-            if (Array.isArray(parsed.wallet_accounts) && parsed.wallet_accounts.length > 0) setWalletAccounts(parsed.wallet_accounts);
-            if (Array.isArray(parsed.aeps_accounts) && parsed.aeps_accounts.length > 0) setAepsProviderAccounts(parsed.aeps_accounts);
-            if (Array.isArray(parsed.dmt_accounts) && parsed.dmt_accounts.length > 0) setDmtProviderAccounts(parsed.dmt_accounts);
-            if (Array.isArray(parsed.receivables)) setReceivables(parsed.receivables);
-            if (Array.isArray(parsed.inventory)) setInventory(parsed.inventory);
-            if (Array.isArray(parsed.payables)) setPayables(parsed.payables);
+            if (Array.isArray(parsed.cash_accounts)) {
+              setCashAccounts(
+                reconcileAccountsWithMaster(parsed.cash_accounts, activeCashInstruments, "cash", "Main Cash Drawer")
+              );
+            }
+            if (Array.isArray(parsed.bank_accounts)) {
+              setBankAccounts(
+                reconcileAccountsWithMaster(parsed.bank_accounts, activeBankInstruments, "bank", "Main Bank Account")
+              );
+            }
+            if (Array.isArray(parsed.digital_accounts)) {
+              setDigitalAccounts(
+                reconcileAccountsWithMaster(parsed.digital_accounts, activeUpiInstruments, "upi", "Main UPI Settlement")
+              );
+            }
+            if (Array.isArray(parsed.wallet_accounts)) {
+              setWalletAccounts(
+                reconcileAccountsWithMaster(parsed.wallet_accounts, activeWalletInstruments, "wallet", "Digital Wallet")
+              );
+            }
+            if (Array.isArray(parsed.aeps_accounts)) {
+              setAepsProviderAccounts(
+                reconcileAccountsWithMaster(parsed.aeps_accounts, activeAepsInstruments, "aeps_portal", "AEPS Float")
+              );
+            }
+            if (Array.isArray(parsed.dmt_accounts)) {
+              setDmtProviderAccounts(
+                reconcileAccountsWithMaster(parsed.dmt_accounts, activeDmtInstruments, "dmt_portal", "DMT Wallet")
+              );
+            }
+            if (Array.isArray(parsed.receivables)) {
+              // Ensure customer still exists
+              const validCustIds = new Set(customers.map((c) => c.id));
+              setReceivables(
+                parsed.receivables.filter((r: ReceivableRow) => validCustIds.has(r.customer_id))
+              );
+            }
+            if (Array.isArray(parsed.inventory)) {
+              // Ensure product still exists
+              const validProdIds = new Set(products.map((p) => p.id));
+              setInventory(
+                parsed.inventory.filter((i: InventoryRow) => validProdIds.has(i.product_id))
+              );
+            }
+            if (Array.isArray(parsed.payables)) {
+              // Ensure supplier still exists
+              const validSuppIds = new Set(suppliers.map((s) => s.id));
+              setPayables(
+                parsed.payables.filter((p: PayableRow) => validSuppIds.has(p.supplier_id))
+              );
+            }
             if (Array.isArray(parsed.other_liabilities)) setOtherLiab(parsed.other_liabilities);
             if (parsed.remarks) setRemarks(parsed.remarks);
           }
         }
       } catch {}
     }
-  }, [initialSnapshot]);
+  }, [initialSnapshot, activeCashInstruments, activeBankInstruments, activeUpiInstruments, activeWalletInstruments, activeAepsInstruments, activeDmtInstruments, customers, products, suppliers]);
 
   // --- Derived Category Calculations ---
   const totalCash = useMemo(
@@ -693,8 +695,17 @@ export default function OpeningPositionWorkspace({
     }
   }
 
-  // Finalize Opening Position (Account-Wise Execution)
+  // Finalize Opening Position (Atomic Account-Wise Execution with Double-Post Guards)
   async function handleFinalize() {
+    // 1. Double-submit and finalization lock guards
+    if (status === "finalized") {
+      showToast("error", "Opening Position is already finalized.");
+      return;
+    }
+    if (submitting) {
+      return;
+    }
+
     if (!openingDate) {
       showToast("error", "Opening date is required.");
       return;
@@ -708,7 +719,24 @@ export default function OpeningPositionWorkspace({
     const supabase = createClient();
 
     try {
-      // 1. Post All Financial Account Rows to opening_balances & update payment_instruments
+      // 2. Database Double-Post Guard: Check if already finalized for this date
+      const { data: existingPos } = await supabase
+        .from("opening_positions")
+        .select("id, status")
+        .eq("opening_date", openingDate)
+        .eq("status", "finalized")
+        .limit(1);
+
+      if (existingPos && existingPos.length > 0) {
+        showToast("error", `An opening position is already finalized for ${openingDate}. Duplicate finalization blocked.`);
+        setStatus("finalized");
+        setConfirmOpen(false);
+        setReviewOpen(false);
+        setSubmitting(false);
+        return;
+      }
+
+      // 3. Post All Financial Account Rows to opening_balances & update payment_instruments
       const allFinancialRows = [
         ...cashAccounts.map((a) => ({ ...a, pool: "cash" })),
         ...bankAccounts.map((a) => ({ ...a, pool: "bank" })),
@@ -721,6 +749,24 @@ export default function OpeningPositionWorkspace({
       for (const row of allFinancialRows) {
         if (Number(row.amount) > 0) {
           const instId = row.instrument_id ? row.instrument_id : null;
+
+          // Clean up any stale opening seed on this as_of date for idempotency
+          if (instId) {
+            await supabase
+              .from("opening_balances")
+              .delete()
+              .eq("instrument_id", instId)
+              .eq("as_of", openingDate);
+          } else {
+            await supabase
+              .from("opening_balances")
+              .delete()
+              .eq("pool", row.pool)
+              .is("instrument_id", null)
+              .eq("as_of", openingDate);
+          }
+
+          // Insert verified opening seed
           await supabase.from("opening_balances").insert({
             pool: row.pool,
             instrument_id: instId,
@@ -741,7 +787,7 @@ export default function OpeningPositionWorkspace({
         }
       }
 
-      // 2. Customer Receivables
+      // 4. Customer Receivables
       for (const r of receivables) {
         if (Number(r.amount) > 0) {
           await supabase.from("customer_ledger").insert({
@@ -763,7 +809,7 @@ export default function OpeningPositionWorkspace({
         }
       }
 
-      // 3. Inventory Stock
+      // 5. Inventory Stock
       for (const i of inventory) {
         if (Number(i.qty) > 0) {
           await supabase
@@ -786,7 +832,7 @@ export default function OpeningPositionWorkspace({
         }
       }
 
-      // 4. Supplier Payables
+      // 6. Supplier Payables
       for (const p of payables) {
         if (Number(p.amount) > 0) {
           await supabase
@@ -810,7 +856,30 @@ export default function OpeningPositionWorkspace({
         }
       }
 
-      // 5. Audit Log
+      // 7. Authoritative Record in opening_positions table
+      await supabase.from("opening_positions").insert({
+        opening_date: openingDate,
+        status: "finalized",
+        total_assets: totalAssets,
+        total_liabilities: totalLiabilities,
+        opening_capital: openingCapital,
+        snapshot_data: {
+          cash_accounts: cashAccounts,
+          bank_accounts: bankAccounts,
+          digital_accounts: digitalAccounts,
+          wallet_accounts: walletAccounts,
+          aeps_accounts: aepsProviderAccounts,
+          dmt_accounts: dmtProviderAccounts,
+          receivables,
+          inventory,
+          payables,
+          other_liabilities: otherLiab,
+        },
+        remarks: remarks || "Opening Position Finalization",
+        finalized_at: new Date().toISOString(),
+      });
+
+      // 8. Audit Log
       await supabase.from("audit_logs").insert({
         action: "opening_position_finalized",
         entity: "opening_positions",
@@ -867,7 +936,15 @@ export default function OpeningPositionWorkspace({
       title={
         <div className="flex items-center gap-2">
           <span>Opening Position &amp; Balance Sheet Initializer</span>
-          <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+              status === "finalized"
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                : status === "draft"
+                ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                : "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+            }`}
+          >
             {status === "finalized"
               ? "Finalized & Active"
               : status === "draft"
@@ -895,7 +972,7 @@ export default function OpeningPositionWorkspace({
           >
             Review Summary
           </button>
-          {status !== "finalized" && (
+          {status !== "finalized" ? (
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
@@ -903,6 +980,11 @@ export default function OpeningPositionWorkspace({
             >
               <span>Finalize Opening Position →</span>
             </button>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-50/50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <SvgIcon path="M20 6 9 17 4 12" className="h-3.5 w-3.5" />
+              <span>Position Finalized</span>
+            </div>
           )}
         </div>
       }
