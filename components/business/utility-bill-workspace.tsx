@@ -88,6 +88,18 @@ export const POPULAR_BILLERS: BillerItem[] = [
   { id: "bsnl_broadband", categoryId: "broadband", name: "BSNL Bharat Fiber", shortName: "BSNL Fiber", commission: 6 },
   { id: "alliance_broadband", categoryId: "broadband", name: "Alliance Broadband (Kolkata)", shortName: "Alliance", state: "West Bengal", commission: 6 },
 
+  // DTH
+  { id: "tata_play", categoryId: "dth", name: "Tata Play (Tata Sky)", shortName: "Tata Play", commission: 5 },
+  { id: "airtel_dth", categoryId: "dth", name: "Airtel Digital TV", shortName: "Airtel DTH", commission: 5 },
+  { id: "dish_tv", categoryId: "dth", name: "Dish TV India", shortName: "Dish TV", commission: 5 },
+  { id: "sun_direct", categoryId: "dth", name: "Sun Direct DTH", shortName: "Sun Direct", commission: 5 },
+
+  // Postpaid Mobile
+  { id: "airtel_postpaid", categoryId: "postpaid", name: "Airtel Postpaid", shortName: "Airtel Postpaid", commission: 4 },
+  { id: "jio_postpaid", categoryId: "postpaid", name: "Jio Postpaid Plus", shortName: "Jio Postpaid", commission: 4 },
+  { id: "vi_postpaid", categoryId: "postpaid", name: "Vodafone Idea (Vi) Postpaid", shortName: "Vi Postpaid", commission: 4 },
+  { id: "bsnl_postpaid", categoryId: "postpaid", name: "BSNL Mobile Postpaid", shortName: "BSNL Postpaid", commission: 4 },
+
   // FASTag
   { id: "icici_fastag", categoryId: "fastag", name: "ICICI Bank FASTag", shortName: "ICICI FASTag", commission: 3 },
   { id: "paytm_fastag", categoryId: "fastag", name: "Paytm Payments Bank FASTag", shortName: "Paytm FASTag", commission: 3 },

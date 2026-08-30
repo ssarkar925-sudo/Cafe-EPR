@@ -253,6 +253,74 @@ export const BILLER_CONFIGS: BillerConfig[] = [
     ],
   },
 
+  // Postpaid Mobile
+  {
+    billerId: "airtel_postpaid",
+    billerName: "Airtel Postpaid",
+    shortName: "Airtel Postpaid",
+    categoryId: "postpaid",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "10-Digit Mobile Number",
+        type: "tel",
+        placeholder: "Enter 10-digit Airtel Mobile Number",
+        minLength: 10,
+        maxLength: 10,
+        regex: "^[0-9]{10}$",
+        required: true,
+      },
+    ],
+  },
+  {
+    billerId: "jio_postpaid",
+    billerName: "Jio Postpaid Plus",
+    shortName: "Jio Postpaid",
+    categoryId: "postpaid",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "10-Digit Mobile Number",
+        type: "tel",
+        placeholder: "Enter 10-digit Jio Mobile Number",
+        minLength: 10,
+        maxLength: 10,
+        regex: "^[0-9]{10}$",
+        required: true,
+      },
+    ],
+  },
+  {
+    billerId: "vi_postpaid",
+    billerName: "Vodafone Idea (Vi) Postpaid",
+    shortName: "Vi Postpaid",
+    categoryId: "postpaid",
+    supportsFetch: true,
+    supportsPayment: true,
+    amountMode: "exact",
+    defaultCommission: 4,
+    parameters: [
+      {
+        key: "consumerId",
+        label: "10-Digit Mobile Number",
+        type: "tel",
+        placeholder: "Enter 10-digit Vi Mobile Number",
+        minLength: 10,
+        maxLength: 10,
+        regex: "^[0-9]{10}$",
+        required: true,
+      },
+    ],
+  },
+
   // DTH
   {
     billerId: "tata_play",

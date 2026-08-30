@@ -31,7 +31,8 @@ export class LiveBbpsProvider implements BillProvider {
     this.clientId = config.clientId.trim();
     this.clientSecret = config.clientSecret.trim();
     this.agentId = config.agentId.trim();
-    this.bbpsBase = stripTrailingSlash(config.bbpsBase || process.env.PAYU_BBPS_BASE_URL || "https://bbps-sb.payu.in/payu-nbc/v2/nbc");
+    // Real Production Endpoints by default
+    this.bbpsBase = stripTrailingSlash(config.bbpsBase || process.env.PAYU_BBPS_BASE_URL || "https://bbps.payu.in/payu-nbc/v2/nbc");
     this.tokenBase = stripTrailingSlash(config.tokenBase || process.env.PAYU_TOKEN_BASE_URL || "https://accounts.payu.in");
   }
 
@@ -54,7 +55,7 @@ export class LiveBbpsProvider implements BillProvider {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.access_token) {
-      throw new Error(data?.error_description || data?.error || "BBPS authentication failed");
+      throw new Error(data?.error_description || data?.error || `BBPS OAuth authentication failed (${res.status})`);
     }
     return String(data.access_token);
   }
@@ -95,7 +96,7 @@ export class LiveBbpsProvider implements BillProvider {
           source: "provider_error",
           billerId: params.billerId,
           billerName,
-          error: body?.message || "Bill fetch failed at provider.",
+          error: body?.message || body?.error_message || `Provider lookup failed (${res.status})`,
           status: "error",
         };
       }
@@ -131,7 +132,7 @@ export class LiveBbpsProvider implements BillProvider {
         source: isTimeout ? "timeout" : "provider_error",
         billerId: params.billerId,
         billerName,
-        error: isTimeout ? "Bill fetch timed out" : (err instanceof Error ? err.message : "BBPS provider error"),
+        error: isTimeout ? "Live bill fetch timed out at provider (10s limit)" : (err instanceof Error ? err.message : "BBPS provider error"),
         status: "error",
       };
     }
@@ -159,12 +160,14 @@ export class UnconfiguredBillProvider implements BillProvider {
 }
 
 export function getBillProvider(): BillProvider {
-  const clientId = process.env.BBPS_CLIENT_ID || process.env.PAYU_CLIENT_ID;
-  const clientSecret = process.env.BBPS_CLIENT_SECRET || process.env.PAYU_CLIENT_SECRET;
-  const agentId = process.env.BBPS_AGENT_ID || process.env.PAYU_AGENT_ID;
+  const clientId = (process.env.BBPS_CLIENT_ID || process.env.PAYU_CLIENT_ID || "").trim();
+  const clientSecret = (process.env.BBPS_CLIENT_SECRET || process.env.PAYU_CLIENT_SECRET || "").trim();
+  const agentId = (process.env.BBPS_AGENT_ID || process.env.PAYU_AGENT_ID || "").trim();
+  const bbpsBase = (process.env.PAYU_BBPS_BASE_URL || "https://bbps.payu.in/payu-nbc/v2/nbc").trim();
+  const tokenBase = (process.env.PAYU_TOKEN_BASE_URL || "https://accounts.payu.in").trim();
 
   if (clientId && clientSecret && agentId) {
-    return new LiveBbpsProvider({ clientId, clientSecret, agentId });
+    return new LiveBbpsProvider({ clientId, clientSecret, agentId, bbpsBase, tokenBase });
   }
 
   return new UnconfiguredBillProvider();
