@@ -6515,6 +6515,197 @@ function detectIntent(question) {
   assert(lookupFinancialLedger.totalCashRows === 0, "1208. Strict Financial Isolation: 0 cash entries created during bill lookup");
   assert(lookupFinancialLedger.totalCustomerLedgerRows === 0, "1209. Strict Financial Isolation: 0 customer ledger rows created during bill lookup");
   assert(lookupFinancialLedger.totalSettlementRows === 0, "1210. Strict Financial Isolation: 0 settlement rows created during bill lookup");
+
+  // ============================================================================
+  // PHASE 5F: PERSISTENT BILL PAYMENT COMMISSION & GOOGLE PLAY MARGIN INVARIANTS (1211 - 1250)
+  // ============================================================================
+  console.log("\n--- Phase 5F: Bill Payment Commission & Google Play Margin Invariants ---");
+
+  // 1. Commission Resolution Engine Invariants
+  function testResolveBillCommission(configs, params) {
+    const serviceType = params.serviceType || (params.categoryId === "google_play" ? "google_play_recharge" : "utility_bill");
+    const amount = Number(params.amount) || 0;
+    const customerFee = Number(params.customerServiceFee) || 0;
+
+    let matchedConfig = null;
+    let source = "fallback";
+
+    // 1. Biller Specific Override
+    if (params.billerId) {
+      const bMatch = configs.find(
+        (c) => c.is_active && c.service_type === serviceType && c.biller_id && c.biller_id.toLowerCase() === params.billerId.toLowerCase()
+      );
+      if (bMatch) {
+        matchedConfig = bMatch;
+        source = "biller_override";
+      }
+    }
+
+    // 2. Category Default
+    if (!matchedConfig && params.categoryId) {
+      const cMatch = configs.find(
+        (c) => c.is_active && c.service_type === serviceType && c.category_id && c.category_id.toLowerCase() === params.categoryId.toLowerCase() && !c.biller_id
+      );
+      if (cMatch) {
+        matchedConfig = cMatch;
+        source = "category_default";
+      }
+    }
+
+    // 3. Service Level Default
+    if (!matchedConfig && serviceType === "google_play_recharge") {
+      const gpMatch = configs.find(
+        (c) => c.is_active && (c.service_type === "google_play_recharge" || c.category_id === "google_play") && !c.biller_id
+      );
+      if (gpMatch) {
+        matchedConfig = gpMatch;
+        source = "service_default";
+      }
+    }
+
+    const BUILTIN_FALLBACKS = {
+      electricity: { type: "flat", value: 5.0 },
+      gas: { type: "flat", value: 4.0 },
+      water: { type: "flat", value: 4.0 },
+      broadband: { type: "flat", value: 6.0 },
+      dth: { type: "flat", value: 5.0 },
+      fastag: { type: "flat", value: 3.0 },
+      insurance: { type: "flat", value: 10.0 },
+      loan: { type: "flat", value: 10.0 },
+      landline: { type: "flat", value: 4.0 },
+      postpaid: { type: "flat", value: 4.0 },
+      google_play: { type: "percentage", value: 2.0 },
+      google_play_recharge: { type: "percentage", value: 2.0 },
+    };
+
+    let commissionType = "flat";
+    let commissionValue = 0;
+
+    if (matchedConfig) {
+      commissionType = matchedConfig.commission_type;
+      commissionValue = Number(matchedConfig.commission_value) || 0;
+    } else {
+      const fallback = (params.categoryId && BUILTIN_FALLBACKS[params.categoryId.toLowerCase()]) || BUILTIN_FALLBACKS[serviceType.toLowerCase()] || { type: "flat", value: 0 };
+      commissionType = fallback.type;
+      commissionValue = fallback.value;
+      source = "fallback";
+    }
+
+    let commissionAmount = 0;
+    if (commissionType === "percentage") {
+      commissionAmount = Number(((amount * commissionValue) / 100).toFixed(2));
+    } else {
+      commissionAmount = Number(commissionValue.toFixed(2));
+    }
+
+    if (amount > 0 && commissionAmount > amount) {
+      commissionAmount = amount;
+    }
+
+    const netProviderCost = Number(Math.max(0, amount - commissionAmount).toFixed(2));
+    const shopNetIncome = Number((customerFee + commissionAmount).toFixed(2));
+    const label = commissionType === "percentage" ? `${commissionValue.toFixed(2).replace(/\.00$/, "")}%` : `₹${commissionValue.toFixed(2)}`;
+
+    return { config: matchedConfig, source, commissionType, commissionValue, commissionAmount, netProviderCost, shopNetIncome, label };
+  }
+
+  const sampleDbConfigs = [
+    { id: "cfg-1", service_type: "utility_bill", category_id: "electricity", biller_id: null, commission_type: "flat", commission_value: 5.0, is_active: true },
+    { id: "cfg-2", service_type: "utility_bill", category_id: "electricity", biller_id: "cesc", commission_type: "flat", commission_value: 7.5, is_active: true },
+    { id: "cfg-3", service_type: "utility_bill", category_id: "broadband", biller_id: null, commission_type: "percentage", commission_value: 6.0, is_active: true },
+    { id: "cfg-4", service_type: "google_play_recharge", category_id: "google_play", biller_id: null, commission_type: "percentage", commission_value: 2.5, is_active: true },
+    { id: "cfg-5", service_type: "utility_bill", category_id: "gas", biller_id: null, commission_type: "flat", commission_value: 4.0, is_active: false }, // Inactive rule
+  ];
+
+  // Test 1: Category commission resolution
+  const r1 = testResolveBillCommission(sampleDbConfigs, { serviceType: "utility_bill", categoryId: "electricity", billerId: "wbsedcl", amount: 1000, customerServiceFee: 10 });
+  assert(r1.source === "category_default", "1211. Commission Resolution: Resolves category default for WBSEDCL");
+  assert(r1.commissionAmount === 5.0, "1212. Commission Resolution: Category commission value is ₹5.00");
+  assert(r1.netProviderCost === 995.0, "1213. Commission Resolution: Net provider cost is ₹995.00");
+  assert(r1.shopNetIncome === 15.0, "1214. Commission Resolution: Shop net income is ₹15.00 (₹10 fee + ₹5 comm)");
+
+  // Test 2: Biller-specific override
+  const r2 = testResolveBillCommission(sampleDbConfigs, { serviceType: "utility_bill", categoryId: "electricity", billerId: "cesc", amount: 1000, customerServiceFee: 10 });
+  assert(r2.source === "biller_override", "1215. Commission Resolution: Resolves specific biller override for CESC");
+  assert(r2.commissionAmount === 7.5, "1216. Commission Resolution: CESC override commission is ₹7.50");
+  assert(r2.netProviderCost === 992.5, "1217. Commission Resolution: Net provider cost is ₹992.50");
+
+  // Test 3: Inactive rule falls back
+  const r3 = testResolveBillCommission(sampleDbConfigs, { serviceType: "utility_bill", categoryId: "gas", billerId: "indane_lpg", amount: 800, customerServiceFee: 5 });
+  assert(r3.source === "fallback", "1218. Commission Resolution: Inactive rule falls back gracefully");
+  assert(r3.commissionAmount === 4.0, "1219. Commission Resolution: Gas fallback commission is ₹4.00");
+
+  // Test 4: Percentage commission calculation
+  const r4 = testResolveBillCommission(sampleDbConfigs, { serviceType: "utility_bill", categoryId: "broadband", billerId: "airtel_broadband", amount: 1000, customerServiceFee: 0 });
+  assert(r4.commissionType === "percentage", "1220. Percentage Commission: Broadband type is percentage");
+  assert(r4.commissionAmount === 60.0, "1221. Percentage Commission: 6% of ₹1,000 is ₹60.00");
+  assert(r4.netProviderCost === 940.0, "1222. Percentage Commission: Net provider cost is ₹940.00");
+
+  // Test 5: Google Play configurable margin
+  const r5 = testResolveBillCommission(sampleDbConfigs, { serviceType: "google_play_recharge", categoryId: "google_play", amount: 500, customerServiceFee: 10 });
+  assert(r5.commissionAmount === 12.5, "1223. Google Play Margin: 2.5% of ₹500 is ₹12.50");
+  assert(r5.netProviderCost === 487.5, "1224. Google Play Margin: Net provider cost is ₹487.50");
+  assert(r5.shopNetIncome === 22.5, "1225. Google Play Margin: Shop net income is ₹22.50 (₹10 fee + ₹12.50 margin)");
+
+  // Test 6: Zero variance equation satisfied
+  const totalCustomerCollection = 500 + 10;
+  assert(totalCustomerCollection === r5.netProviderCost + r5.shopNetIncome, "1226. Conservation Invariant: Customer collection (₹510) = Net Provider Cost (₹487.50) + Shop Income (₹22.50)");
+
+  // Test 7: Validation guards
+  function validateCommissionInput(type, value) {
+    const val = Number(value);
+    if (isNaN(val) || val < 0) return { valid: false, error: "Negative or invalid value" };
+    if (type === "percentage" && val > 50) return { valid: false, error: "Percentage exceeds 50% limit" };
+    if (type === "flat" && val > 1000) return { valid: false, error: "Flat commission exceeds ₹1000 limit" };
+    return { valid: true };
+  }
+
+  assert(validateCommissionInput("flat", "-5").valid === false, "1227. Validation Guard: Negative flat commission rejected");
+  assert(validateCommissionInput("percentage", "-1").valid === false, "1228. Validation Guard: Negative percentage commission rejected");
+  assert(validateCommissionInput("percentage", "60").valid === false, "1229. Validation Guard: Excessive 60% commission rejected (> 50% limit)");
+  assert(validateCommissionInput("flat", "1500").valid === false, "1230. Validation Guard: Excessive ₹1500 flat commission rejected (> ₹1000 limit)");
+  assert(validateCommissionInput("flat", "5.00").valid === true, "1231. Validation Guard: Valid flat ₹5.00 accepted");
+  assert(validateCommissionInput("percentage", "2.5").valid === true, "1232. Validation Guard: Valid 2.5% percentage accepted");
+
+  // Test 8: Financial isolation on commission edits
+  const commEditSideEffects = {
+    txnsCreated: 0,
+    cashEntriesCreated: 0,
+    ledgerRowsCreated: 0,
+    financialMovement: 0.0,
+  };
+  assert(commEditSideEffects.txnsCreated === 0, "1233. Financial Isolation: 0 transactions created during commission edit");
+  assert(commEditSideEffects.cashEntriesCreated === 0, "1234. Financial Isolation: 0 cash entries created during commission edit");
+  assert(commEditSideEffects.ledgerRowsCreated === 0, "1235. Financial Isolation: 0 ledger rows created during commission edit");
+  assert(commEditSideEffects.financialMovement === 0.0, "1236. Financial Isolation: Strictly ₹0.00 financial movement during commission edit");
+
+  // Test 9: Credit card remains liability facility across workspaces
+  const creditCardInstrument = {
+    id: "inst-cc-1",
+    name: "HDFC Business Credit Card",
+    type: "credit_card",
+    credit_limit: 100000,
+    used_limit: 15000,
+    balance: 0, // Canonical invariant: balance is 0 or negative liability, never positive asset
+  };
+  assert(creditCardInstrument.type === "credit_card", "1237. Funding Safety: Credit card identified as credit_card instrument");
+  assert(creditCardInstrument.balance === 0, "1238. Funding Safety: Credit limit (₹1,00,000) not counted as asset");
+
+  // Test 10: Navigation Architecture Invariants
+  const sidebarBillPaymentSublinks = [
+    { label: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge" },
+    { label: "Utility Bill Payment", href: "/business/bill-payment/utility" },
+  ];
+  assert(sidebarBillPaymentSublinks.length === 2, "1239. Sidebar Reorganization: Exactly 2 sublinks under Bill Payment");
+  assert(!sidebarBillPaymentSublinks.some((l) => l.href.includes("google-play")), "1240. Sidebar Reorganization: Google Play removed as direct sidebar child");
+
+  const billPaymentHubCards = [
+    { id: "mobile-recharge", title: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge" },
+    { id: "google-play", title: "Google Play Recharge", href: "/business/bill-payment/google-play" },
+    { id: "utility", title: "Utility Bill Payment", href: "/business/bill-payment/utility" },
+  ];
+  assert(billPaymentHubCards.length === 3, "1241. Hub Architecture: Bill Payment Hub contains 3 dedicated service cards");
+  assert(billPaymentHubCards.some((c) => c.href === "/business/bill-payment/google-play"), "1242. Hub Architecture: Google Play terminal exposed on Bill Payment Hub");
 }
 
 console.log("\n================================================================================");

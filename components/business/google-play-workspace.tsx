@@ -15,6 +15,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import type { CustomerRow, PaymentInstrument, Txn } from "./recharge-workspace";
+import { resolveBillCommission, type BillCommissionConfig, type CommissionResolution } from "@/lib/bill-payment/commission";
+import CommissionEditModal from "@/components/business/commission-edit-modal";
 
 export const GOOGLE_PLAY_REGIONS = [
   { code: "IN", name: "India (₹ INR)", currency: "₹", flag: "🇮🇳", min: 10, max: 5000 },
@@ -57,6 +59,26 @@ export default function GooglePlayWorkspace({
   useRealtime(["transactions", "customers", "cash_entries", "payment_instruments"]);
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
+  const [commissionConfigs, setCommissionConfigs] = useState<BillCommissionConfig[]>([]);
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("bill_payment_commission_config")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!cancelled && data && data.length > 0) {
+          setCommissionConfigs(data as BillCommissionConfig[]);
+        }
+      } catch (err) {
+        console.warn("Commission query notice:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [instruments] = useState<PaymentInstrument[]>(initialPaymentInstruments);
 
@@ -110,11 +132,16 @@ export default function GooglePlayWorkspace({
   const custFee = parseFloat(serviceFee) || 0;
   const totalCustomerDebit = rechargeAmount + custFee;
 
-  // Standard commission calculation (2.0% baseline margin on Google Play recharges)
-  const commissionEarned = useMemo(() => {
-    if (rechargeAmount <= 0) return 0;
-    return Math.round((rechargeAmount * 2.0) / 100 * 100) / 100;
-  }, [rechargeAmount]);
+  const commissionResolution: CommissionResolution = useMemo(() => {
+    return resolveBillCommission(commissionConfigs, {
+      serviceType: "google_play_recharge",
+      categoryId: "google_play",
+      amount: rechargeAmount,
+      customerServiceFee: custFee,
+    });
+  }, [commissionConfigs, rechargeAmount, custFee]);
+
+  const commissionEarned = commissionResolution.commissionAmount;
 
   const netProviderCost = Math.max(0, rechargeAmount - commissionEarned);
   const netOperatorIncome = custFee + commissionEarned;
@@ -366,6 +393,15 @@ export default function GooglePlayWorkspace({
 
   return (
     <div className="space-y-6 pb-12">
+      <CommissionEditModal
+        open={commissionModalOpen}
+        onClose={() => setCommissionModalOpen(false)}
+        initialCategory="google_play"
+        initialServiceType="google_play_recharge"
+        onSaved={(saved) => {
+          setCommissionConfigs((prev) => [saved, ...prev.filter((c) => c.id !== saved.id)]);
+        }}
+      />
       {toastView}
 
       {/* Hero Banner */}
@@ -705,8 +741,17 @@ export default function GooglePlayWorkspace({
                 <span>Customer Service Fee</span>
                 <span>+{inr(custFee)}</span>
               </div>
-              <div className="flex justify-between text-amber-600 dark:text-amber-400 font-bold">
-                <span>Earned Margin (2.0%)</span>
+              <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-bold">
+                <div className="flex items-center gap-1.5">
+                  <span>Earned Margin ({commissionResolution.label})</span>
+                  <button
+                    type="button"
+                    onClick={() => setCommissionModalOpen(true)}
+                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-950/60 transition"
+                  >
+                    ⚙ Edit Margin
+                  </button>
+                </div>
                 <span>-{inr(commissionEarned)}</span>
               </div>
               <div className="border-t border-slate-200 pt-2 font-black dark:border-white/10">

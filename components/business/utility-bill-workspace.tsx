@@ -16,6 +16,8 @@ import { downloadCsv } from "@/components/ui/csv";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import { getBillerConfig, getFallbackBillerConfig } from "@/lib/bill-payment/biller-metadata";
 import type { NormalizedBillResponse, BillerConfig } from "@/lib/bill-payment/types";
+import { resolveBillCommission, type BillCommissionConfig, type CommissionResolution } from "@/lib/bill-payment/commission";
+import CommissionEditModal from "@/components/business/commission-edit-modal";
 import type { CustomerRow, PaymentInstrument, Txn } from "./recharge-workspace";
 
 export type BillerCategory = {
@@ -189,6 +191,26 @@ export default function UtilityBillWorkspace({
   // Bill Fetch State
   const [fetchingBill, setFetchingBill] = useState(false);
   const [fetchedBill, setFetchedBill] = useState<FetchedBill | null>(null);
+  const [commissionConfigs, setCommissionConfigs] = useState<BillCommissionConfig[]>([]);
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("bill_payment_commission_config")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!cancelled && data && data.length > 0) {
+          setCommissionConfigs(data as BillCommissionConfig[]);
+        }
+      } catch (err) {
+        console.warn("Commission config query notice:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Modals & Busy Locks
   const [submitting, setSubmitting] = useState(false);
@@ -255,14 +277,17 @@ export default function UtilityBillWorkspace({
   const custFee = parseFloat(serviceFee) || 0;
   const totalCustomerDebit = billAmount + custFee;
 
-  const commissionEarned = useMemo(() => {
-    if (billAmount <= 0) return 0;
-    if (!selectedBiller) return currentCategory.defaultCommission;
-    if (selectedBiller.isPercentage) {
-      return Math.round((billAmount * selectedBiller.commission) / 100 * 100) / 100;
-    }
-    return selectedBiller.commission;
-  }, [billAmount, selectedBiller, currentCategory]);
+  const commissionResolution: CommissionResolution = useMemo(() => {
+    return resolveBillCommission(commissionConfigs, {
+      serviceType: "utility_bill",
+      categoryId: selectedCategoryId,
+      billerId: selectedBillerId,
+      amount: billAmount,
+      customerServiceFee: custFee,
+    });
+  }, [commissionConfigs, selectedCategoryId, selectedBillerId, billAmount, custFee]);
+
+  const commissionEarned = commissionResolution.commissionAmount;
 
   const netProviderCost = Math.max(0, billAmount - commissionEarned);
   const netOperatorIncome = custFee + commissionEarned;
@@ -1214,8 +1239,17 @@ export default function UtilityBillWorkspace({
                 <span className="text-emerald-700 dark:text-emerald-400">{inr(totalCustomerDebit)}</span>
               </div>
 
-              <div className="flex justify-between text-[11px] text-amber-600 dark:text-amber-400 pt-1">
-                <span>Commission / Margin:</span>
+              <div className="flex items-center justify-between text-[11px] text-amber-600 dark:text-amber-400 pt-1">
+                <div className="flex items-center gap-1.5">
+                  <span>Commission / Margin ({commissionResolution.label}):</span>
+                  <button
+                    type="button"
+                    onClick={() => setCommissionModalOpen(true)}
+                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50 transition"
+                  >
+                    ⚙ Edit Margin
+                  </button>
+                </div>
                 <strong>-{inr(commissionEarned)}</strong>
               </div>
 
@@ -1649,6 +1683,15 @@ export default function UtilityBillWorkspace({
         />
       )}
 
+      <CommissionEditModal
+        open={commissionModalOpen}
+        onClose={() => setCommissionModalOpen(false)}
+        initialCategory={selectedCategoryId}
+        initialBillerId={selectedBillerId}
+        onSaved={(saved) => {
+          setCommissionConfigs((prev) => [saved, ...prev.filter((c) => c.id !== saved.id)]);
+        }}
+      />
       {toastView}
     </div>
   );

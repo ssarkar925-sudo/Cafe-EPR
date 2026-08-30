@@ -20,10 +20,10 @@ import AppearancePanel from "@/components/settings/appearance-panel";
 import { type SettingsRow, type InstrumentRow, type ServiceFavRow, type PaymentMethodRow, type MasterData, SETTINGS_GROUPS, TABS, tabMeta } from "@/components/settings/settings-config";
 
 const CATALOG_SECTIONS = ["products", "services", "categories"] as const;
-const BUSINESS_SECTIONS = ["banks", "portals", "merchant-qrs", "recharge", "recharge-slabs", "recharge-providers"] as const;
+const BUSINESS_SECTIONS = ["banks", "portals", "merchant-qrs", "recharge", "recharge-slabs", "recharge-providers", "bill-payment", "bill-commission"] as const;
 
 export default function SettingsClient({ initial, initialInstruments, initialServices = [], initialPaymentMethods = [], initialBanks, initialPortals, initialMerchantQrs, initialRechargeProviders, initialRechargeSlabs, initialProducts = [], initialCatalogServices = [], initialCategories = [], categoryCounts = {}, initialTab, initialSection }: { initial: SettingsRow | null; initialInstruments: InstrumentRow[]; initialServices?: ServiceFavRow[]; initialPaymentMethods?: PaymentMethodRow[]; initialBanks?: MasterData; initialPortals?: MasterData; initialMerchantQrs?: MasterData; initialRechargeProviders?: any[]; initialRechargeSlabs?: any[]; initialProducts?: any[]; initialCatalogServices?: any[]; initialCategories?: any[]; categoryCounts?: Record<string, number>; initialTab?: string; initialSection?: string; }) {
-  useRealtime(["payment_instruments", "cash_entries", "opening_balances", "transactions", "expenses", "settlements", "recharge_providers", "recharge_commission_slabs"]);
+  useRealtime(["payment_instruments", "cash_entries", "opening_balances", "transactions", "expenses", "settlements", "recharge_providers", "recharge_commission_slabs", "bill_payment_commission_config"]);
   const supabase = createClient();
   const router = useRouter();
   const { showToast, toastView } = useToast();
@@ -33,6 +33,9 @@ export default function SettingsClient({ initial, initialInstruments, initialSer
     if (!initialSection) return "banks";
     if (initialSection === "recharge-slabs" || initialSection === "recharge-providers" || initialSection === "recharge") {
       return "recharge";
+    }
+    if (initialSection === "bill-payment" || initialSection === "bill-commission") {
+      return "bill-payment";
     }
     if (["banks", "portals", "merchant-qrs"].includes(initialSection)) {
       return initialSection;
@@ -57,7 +60,7 @@ export default function SettingsClient({ initial, initialInstruments, initialSer
   const activeMeta = tabMeta[tab] ?? { title: "Settings", desc: "", group: "" };
   const filteredGroups = useMemo(() => { const q = searchQuery.trim().toLowerCase(); if (!q) return SETTINGS_GROUPS; return SETTINGS_GROUPS.map((g) => ({ ...g, items: g.items.filter((it) => it.label.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q) || g.label.toLowerCase().includes(q)) })).filter((g) => g.items.length > 0); }, [searchQuery]);
   function switchTab(key: string) { setTab(key); const url = new URL(window.location.href); url.searchParams.set("tab", key); if (key === "business-setup") url.searchParams.set("section", bizSection); else url.searchParams.delete("section"); window.history.replaceState(null, "", url.toString()); }
-  function switchBiz(section: string) { const normalized = (section === "recharge-slabs" || section === "recharge-providers") ? "recharge" : section; if (!["banks", "portals", "merchant-qrs", "recharge"].includes(normalized)) return; setBizSection(normalized); const url = new URL(window.location.href); url.searchParams.set("tab", "business-setup"); url.searchParams.set("section", normalized); window.history.replaceState(null, "", url.toString()); }
+  function switchBiz(section: string) { const normalized = (section === "recharge-slabs" || section === "recharge-providers") ? "recharge" : (section === "bill-commission" ? "bill-payment" : section); if (!["banks", "portals", "merchant-qrs", "recharge", "bill-payment"].includes(normalized)) return; setBizSection(normalized); const url = new URL(window.location.href); url.searchParams.set("tab", "business-setup"); url.searchParams.set("section", normalized); window.history.replaceState(null, "", url.toString()); }
   function switchCatalog(section: string) { setCatalogSection(section); const url = new URL(window.location.href); url.searchParams.set("tab", "catalog"); url.searchParams.set("section", section); window.history.replaceState(null, "", url.toString()); }
   async function save(e: React.FormEvent) { e.preventDefault(); setSaving(true); try { localStorage.setItem("sccomm-shop-upi-id", upiId.trim()); } catch {} const payload: any = { id: 1, shop_name: shopName.trim() || "Cafe ERP", phone, address, receipt_footer: footer, currency_symbol: currency, logo_url: logoUrl, gstin: gstin.trim() || null, tax_rate: Number(taxRate) || 0, upi_id: upiId.trim() || null }; let { error } = await supabase.from("settings").upsert(payload).single(); if (error && error.message?.includes("upi_id")) { delete payload.upi_id; const res = await supabase.from("settings").upsert(payload).single(); error = res.error; } setSaving(false); if (error) { showToast("error", error.message); return; } setSavedValues({ shopName: (shopName.trim() || "Cafe ERP").trim(), phone: phone.trim(), address: address.trim(), footer: footer.trim(), currency: currency.trim(), logoUrl, gstin: gstin.trim(), taxRate: String(Number(taxRate) || 0), upiId: upiId.trim() }); showToast("success", "Settings saved successfully."); logAudit({ action: "settings", entity: "settings", entity_id: "1", description: "Shop settings updated" }); router.refresh(); }
   return (
