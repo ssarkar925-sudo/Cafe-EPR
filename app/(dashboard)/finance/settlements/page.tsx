@@ -68,6 +68,7 @@ export default async function SettlementsPage() {
     <SettlementsClient
       initialSettlements={rows as any}
       initialSummary={parsedSummary}
+      initialPoolBalances={poolBalances as any}
       initialPortals={(portals ?? []) as any}
       initialQrs={(qrs ?? []) as any}
       initialPaymentInstruments={(paymentInstruments ?? []) as any}

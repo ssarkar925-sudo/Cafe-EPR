@@ -65,13 +65,31 @@ const ICONS = {
   search: "M11 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM21 21l-4.35-4.35",
 };
 
+export type PoolBalanceEntry = {
+  opening: number;
+  movements: number;
+  current: number;
+  seed_date?: string | null;
+};
+
+export type PoolBalances = {
+  cash: PoolBalanceEntry;
+  bank: PoolBalanceEntry;
+  wallet: PoolBalanceEntry;
+  dmt: PoolBalanceEntry;
+  aeps: PoolBalanceEntry;
+  upi_qr: PoolBalanceEntry;
+  credit_card: PoolBalanceEntry;
+  total?: number;
+};
+
 const POOL_CARDS = [
-  { key: "cash", label: "Cash in Hand", icon: ICONS.cash, grad: "from-indigo-500 to-violet-600", href: "/finance/cashbook" },
-  { key: "bank", label: "Bank Balance", icon: ICONS.bank, grad: "from-blue-500 to-indigo-600", href: "/finance/cashbook" },
-  { key: "wallet", label: "Wallet Balance", icon: ICONS.wallet, grad: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
-  { key: "dmt", label: "DMT Float", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", href: "/business/dmt" },
-  { key: "aeps", label: "AEPS Float", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", href: "/business/aeps" },
-  { key: "upi_qr", label: "UPI QR", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", href: "/business/upi" },
+  { key: "cash", label: "Physical Cash Drawer", poolName: "cash", icon: ICONS.cash, grad: "from-indigo-500 to-violet-600", href: "/finance/cashbook" },
+  { key: "bank", label: "Bank Available Balance", poolName: "bank", icon: ICONS.bank, grad: "from-blue-500 to-indigo-600", href: "/finance/cashbook" },
+  { key: "wallet", label: "Digital Wallet Float", poolName: "wallet", icon: ICONS.wallet, grad: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
+  { key: "aeps", label: "AEPS Current Float", poolName: "aeps", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", href: "/business/aeps" },
+  { key: "dmt", label: "DMT Transfer Float", poolName: "dmt", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", href: "/business/dmt" },
+  { key: "upi_qr", label: "UPI QR Float", poolName: "upi_qr", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", href: "/business/upi" },
 ];
 
 function Icon({ d, className }: { d: string; className?: string }) {
@@ -102,19 +120,24 @@ function fmtDate(d: string) {
 export default function SettlementsClient({
   initialSettlements,
   initialSummary,
+  initialPoolBalances = null,
   initialPortals = [],
   initialQrs = [],
   initialPaymentInstruments = [],
 }: {
   initialSettlements: SettlementRow[];
   initialSummary: SettlementSummary | null;
+  initialPoolBalances?: PoolBalances | null;
   initialPortals?: { id: string; name: string }[];
   initialQrs?: { id: string; display_name: string; upi_id?: string }[];
-  initialPaymentInstruments?: { id: string; name: string; type: string; details?: any; is_active?: boolean }[];
+  initialPaymentInstruments?: { id: string; name: string; type: string; opening_balance?: number; details?: any; is_active?: boolean }[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<SettlementRow[]>(initialSettlements);
   const [summary, setSummary] = useState<SettlementSummary | null>(initialSummary);
+  const [poolBalances, setPoolBalances] = useState<PoolBalances | null>(initialPoolBalances);
+  const [paymentInstruments, setPaymentInstruments] = useState(initialPaymentInstruments);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
   const [from, setFrom] = useState("");
@@ -129,12 +152,14 @@ export default function SettlementsClient({
   const [compact, setCompact] = useState(false);
   const { showToast, toastView } = useToast();
 
-  useRealtime(["settlements", "cash_entries"]);
+  useRealtime(["settlements", "cash_entries", "payment_instruments", "opening_balances"]);
 
   useEffect(() => {
     setRows(initialSettlements);
     setSummary(initialSummary);
-  }, [initialSettlements, initialSummary]);
+    setPoolBalances(initialPoolBalances);
+    setPaymentInstruments(initialPaymentInstruments);
+  }, [initialSettlements, initialSummary, initialPoolBalances, initialPaymentInstruments]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -153,7 +178,7 @@ export default function SettlementsClient({
 
   const refresh = async () => {
     const supabase = createClient();
-    const [{ data }, { data: poolBalances }, { data: sum }] = await Promise.all([
+    const [{ data }, { data: poolBals }, { data: sum }, { data: insts }] = await Promise.all([
       supabase
         .from("settlements")
         .select("id, settlement_number, settlement_type, settlement_date, from_pool, to_pool, direction, amount, reference, remarks, status, created_at, profiles(full_name)")
@@ -162,21 +187,24 @@ export default function SettlementsClient({
         .limit(1000),
       supabase.rpc("get_pool_balances"),
       supabase.rpc("get_settlement_summary"),
+      supabase.from("payment_instruments").select("*").eq("is_active", true).order("name"),
     ]);
     const mapped = (data ?? []).map((r: any) => ({
       ...r,
       profiles: r.profiles?.[0] ?? null,
     }));
     setRows(mapped as SettlementRow[]);
+    if (poolBals) setPoolBalances(poolBals as any);
+    if (insts) setPaymentInstruments(insts as any);
 
     const parsed: any = {
-      cash: Number(poolBalances?.cash?.current ?? 0),
-      bank: Number(poolBalances?.bank?.current ?? 0),
-      wallet: Number(poolBalances?.wallet?.current ?? 0),
-      dmt: Number(poolBalances?.dmt?.current ?? 0),
-      aeps: Number(poolBalances?.aeps?.current ?? 0),
-      upi_qr: Number(poolBalances?.upi_qr?.current ?? 0),
-      credit_card: Number(poolBalances?.credit_card?.current ?? 0),
+      cash: Number(poolBals?.cash?.current ?? 0),
+      bank: Number(poolBals?.bank?.current ?? 0),
+      wallet: Number(poolBals?.wallet?.current ?? 0),
+      dmt: Number(poolBals?.dmt?.current ?? 0),
+      aeps: Number(poolBals?.aeps?.current ?? 0),
+      upi_qr: Number(poolBals?.upi_qr?.current ?? 0),
+      credit_card: Number(poolBals?.credit_card?.current ?? 0),
       count: mapped.length,
     };
 
@@ -341,55 +369,236 @@ export default function SettlementsClient({
     showToast("success", `Exported ${filtered.length} settlements to CSV`);
   };
 
+  // Grouped payment accounts for provider-level breakdown
+  const aepsAccounts = useMemo(() => paymentInstruments.filter((i) => (i.type === "aeps_portal" || i.type === "aeps") && i.is_active), [paymentInstruments]);
+  const dmtAccounts = useMemo(() => paymentInstruments.filter((i) => (i.type === "dmt_portal" || i.type === "dmt") && i.is_active), [paymentInstruments]);
+  const bankAccounts = useMemo(() => paymentInstruments.filter((i) => i.type === "bank" && i.is_active), [paymentInstruments]);
+  const cashAccounts = useMemo(() => paymentInstruments.filter((i) => i.type === "cash" && i.is_active), [paymentInstruments]);
+  const walletAccounts = useMemo(() => paymentInstruments.filter((i) => i.type === "wallet" && i.is_active), [paymentInstruments]);
+  const upiAccounts = useMemo(() => paymentInstruments.filter((i) => i.type === "upi" && i.is_active), [paymentInstruments]);
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Settlements</h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Fund movements between cash, bank &amp; wallets · {summary?.count ?? 0} recorded
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-8">
+      {/* SECTION 1: LIVE TREASURY POSITIONS & CHANNEL FLOATS */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300">
+                LIVE CANONICAL POSITIONS
+              </span>
+            </div>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Live Treasury &amp; Float Positions
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Current available balances across cash drawer, bank accounts, and channel floats (Derived from opening positions and ledger movements — NOT settlement transactions).
+            </p>
+          </div>
           <button
-            onClick={exportCsv}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+            type="button"
+            onClick={() => setShowBreakdown(!showBreakdown)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
           >
-            <Icon d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" className="h-4 w-4" />
-            Export CSV
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            <Icon d={ICONS.plus} className="h-4 w-4" />
-            New Settlement
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+            </svg>
+            {showBreakdown ? "Hide Account Breakdown" : "View Account & Provider Breakdown"}
           </button>
         </div>
+
+        {/* 6 Core Liquid Pool Cards */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {POOL_CARDS.map((c) => {
+            const entry = poolBalances ? (poolBalances as any)[c.key] : null;
+            const currentVal = entry?.current ?? (summary as any)?.[c.key] ?? 0;
+            const openingVal = entry?.opening ?? 0;
+            const movVal = entry?.movements ?? 0;
+
+            return (
+              <StatCard
+                key={c.key}
+                label={c.label}
+                value={inr(currentVal)}
+                sub={
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                      <span>Op: {inr(openingVal)}</span>
+                      <span>·</span>
+                      <span>Mov: {inr(movVal)}</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      ✓ Reconciled
+                    </span>
+                  </div>
+                }
+                icon={c.icon}
+                grad={c.grad}
+                href={c.href}
+              />
+            );
+          })}
+        </div>
+
+        {/* Expandable Account & Provider-Level Breakdown */}
+        {showBreakdown && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="border-b border-slate-100 pb-3 dark:border-white/10">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Account &amp; Provider-Level Float Breakdown</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Real-time account balances contributing to canonical pool totals.</p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* AEPS Provider Breakdown */}
+              <div className="rounded-xl border border-amber-200/70 bg-amber-50/40 p-3.5 dark:border-amber-900/30 dark:bg-amber-950/20">
+                <div className="flex items-center justify-between border-b border-amber-200/50 pb-2 dark:border-amber-900/30">
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-300">AEPS Provider Floats</span>
+                  <span className="text-xs font-bold text-amber-950 dark:text-amber-200">{inr(poolBalances?.aeps?.current ?? summary?.aeps ?? 0)}</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {aepsAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                      <span>{acc.name}</span>
+                      <span className="font-mono font-medium">{inr(acc.opening_balance ?? 0)}</span>
+                    </div>
+                  ))}
+                  {aepsAccounts.length === 0 && (
+                    <p className="text-[11px] text-slate-400">No AEPS provider accounts configured</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Bank Accounts Breakdown */}
+              <div className="rounded-xl border border-blue-200/70 bg-blue-50/40 p-3.5 dark:border-blue-900/30 dark:bg-blue-950/20">
+                <div className="flex items-center justify-between border-b border-blue-200/50 pb-2 dark:border-blue-900/30">
+                  <span className="text-xs font-bold text-blue-900 dark:text-blue-300">Bank Accounts</span>
+                  <span className="text-xs font-bold text-blue-950 dark:text-blue-200">{inr(poolBalances?.bank?.current ?? summary?.bank ?? 0)}</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {bankAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                      <span>{acc.name}</span>
+                      <span className="font-mono font-medium">{inr(acc.opening_balance ?? 0)}</span>
+                    </div>
+                  ))}
+                  {bankAccounts.length === 0 && (
+                    <p className="text-[11px] text-slate-400">No bank accounts configured</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Physical Cash Accounts Breakdown */}
+              <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/40 p-3.5 dark:border-indigo-900/30 dark:bg-indigo-950/20">
+                <div className="flex items-center justify-between border-b border-indigo-200/50 pb-2 dark:border-indigo-900/30">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300">Physical Cash Accounts</span>
+                  <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">{inr(poolBalances?.cash?.current ?? summary?.cash ?? 0)}</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {cashAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                      <span>{acc.name}</span>
+                      <span className="font-mono font-medium">{inr(acc.opening_balance ?? 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Digital Wallets Breakdown */}
+              <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3.5 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                <div className="flex items-center justify-between border-b border-emerald-200/50 pb-2 dark:border-emerald-900/30">
+                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300">Digital Wallets</span>
+                  <span className="text-xs font-bold text-emerald-950 dark:text-emerald-200">{inr(poolBalances?.wallet?.current ?? summary?.wallet ?? 0)}</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {walletAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                      <span>{acc.name}</span>
+                      <span className="font-mono font-medium">{inr(acc.opening_balance ?? 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* DMT Provider Wallets */}
+              <div className="rounded-xl border border-violet-200/70 bg-violet-50/40 p-3.5 dark:border-violet-900/30 dark:bg-violet-950/20">
+                <div className="flex items-center justify-between border-b border-violet-200/50 pb-2 dark:border-violet-900/30">
+                  <span className="text-xs font-bold text-violet-900 dark:text-violet-300">DMT Transfer Floats</span>
+                  <span className="text-xs font-bold text-violet-950 dark:text-violet-200">{inr(poolBalances?.dmt?.current ?? summary?.dmt ?? 0)}</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {dmtAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                      <span>{acc.name}</span>
+                      <span className="font-mono font-medium">{inr(acc.opening_balance ?? 0)}</span>
+                    </div>
+                  ))}
+                  {dmtAccounts.length === 0 && (
+                    <p className="text-[11px] text-slate-400">No DMT accounts configured</p>
+                  )}
+                </div>
+              </div>
+
+              {/* UPI QR Accounts */}
+              <div className="rounded-xl border border-rose-200/70 bg-rose-50/40 p-3.5 dark:border-rose-900/30 dark:bg-rose-950/20">
+                <div className="flex items-center justify-between border-b border-rose-200/50 pb-2 dark:border-rose-900/30">
+                  <span className="text-xs font-bold text-rose-900 dark:text-rose-300">UPI Settlement Accounts</span>
+                  <span className="text-xs font-bold text-rose-950 dark:text-rose-200">{inr(poolBalances?.upi_qr?.current ?? summary?.upi_qr ?? 0)}</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {upiAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                      <span>{acc.name}</span>
+                      <span className="font-mono font-medium">{inr(acc.opening_balance ?? 0)}</span>
+                    </div>
+                  ))}
+                  {upiAccounts.length === 0 && (
+                    <p className="text-[11px] text-slate-400">No UPI accounts configured</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {POOL_CARDS.map((c) => (
-          <StatCard
-            key={c.key}
-            label={c.label}
-            value={inr((summary as any)?.[c.key] ?? 0)}
-            sub={
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                ✓ Reconciled
+      {/* SECTION 2: SETTLEMENT JOURNAL & FUND TRANSFERS */}
+      <div className="space-y-4 pt-2 border-t border-slate-200/70 dark:border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-700/10 dark:bg-blue-950/40 dark:text-blue-300">
+                INTER-POOL MOVEMENTS
               </span>
-            }
-            icon={c.icon}
-            grad={c.grad}
-            href={c.href}
-          />
-        ))}
-      </div>
+            </div>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Settlement Journal &amp; Fund Transfers
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Recorded fund transfers between cash drawer, bank accounts, wallets, and channel floats · {rows.length} transfers executed
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportCsv}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <Icon d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" className="h-4 w-4" />
+              Export CSV
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              <Icon d={ICONS.plus} className="h-4 w-4" />
+              New Settlement
+            </button>
+          </div>
+        </div>
 
       {/* Smart Float Health & Settlement Assistant */}
       {summary && (
-        <div className="mt-6 space-y-3">
+        <div className="space-y-3">
           {/* Active Float Health Trigger Alerts */}
           {((summary.dmt < 3000) || (summary.aeps > 50000) || (summary.upi_qr > 10000)) && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -614,14 +823,22 @@ export default function SettlementsClient({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
-                  No settlements match. Record your first fund movement.
+                <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                  <div className="mx-auto max-w-md space-y-1.5">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      0 settlement transfers recorded
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Opening positions and operational floats are tracked separately in the Live Treasury section above. Click "New Settlement" when you transfer funds between pools (e.g. AEPS Float to Bank, Counter Cash to Bank, Bank to DMT Float).
+                    </p>
+                  </div>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+    </div>
 
       <SettlementFormModal
         open={showForm}
