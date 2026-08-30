@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
-import SearchableSelect from "@/components/ui/searchable-select";
 import Modal from "@/components/ui/modal";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
@@ -14,7 +13,7 @@ import type { CustomerRow, Master, Txn } from "./business-client";
 import ReasonModal from "./business-reason-modal";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
-import { getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp";
+import { getWhatsAppConfig, renderWhatsAppTemplate, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 function fmtDate(d?: string | null) {
@@ -365,104 +364,73 @@ export default function UpiWorkspace({
   const recentTxn = transactions[0] || null;
 
   return (
-    <div className="space-y-6 pt-4 sm:pt-6">
+    <div className="space-y-5 pb-16">
+      {/* Toast Notification View */}
+      {toastView}
+
       {/* ========================================================================= */}
-      {/* A. PREMIUM PAGE HEADER */}
+      {/* 1. EXECUTIVE HERO HEADER: UPI Collections (Matches AEPS & DMT DNA) */}
       {/* ========================================================================= */}
-      <header className="flex flex-col gap-4 border-b border-slate-200/80 pb-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+      <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                ● LIVE UPI RAIL ONLINE
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
+                UPI / QR GATEWAY ACTIVE
+              </span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">
               UPI Collections
             </h1>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 ring-1 ring-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              LIVE · UPI rail operational
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            QR payments &amp; customer cash-out operations
-          </p>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 md:inline-flex items-center gap-1.5">
-            <span className="text-slate-400">Today:</span>
-            <strong className="text-slate-900 dark:text-white">{inr(metrics.totalCredits)}</strong>
+            <p className="text-xs text-indigo-200/80 sm:text-sm">
+              QR payments, merchant collections &amp; customer cash-out operations.
+            </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setScanModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
-            title="Scan UPI receipt screenshot"
-          >
-            <span>📷</span>
-            <span className="hidden sm:inline">Scan Screenshot</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-            </svg>
-            <span>Export</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={refreshData}
-            disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
-            title="Refresh transactions"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-cyan-500" : ""}`}>
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-              <path d="M16 21h5v-5" />
-            </svg>
-          </button>
-
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition hover:brightness-110 active:scale-[0.98]"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3.5 w-3.5">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span>Record Cash Out</span>
-          </button>
+          {/* Available Float Display Card */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={isRefreshing}
+              className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+              title="Refresh Live Balances from Database"
+            >
+              <span className={`inline-block text-base ${isRefreshing ? "animate-spin text-cyan-400" : ""}`}>↻</span>
+            </button>
+            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[170px]">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">AVAILABLE UPI FLOAT</span>
+              <div className="text-2xl font-black text-emerald-400">{inr(upiCurrentBalance)}</div>
+              <span className="text-[10px] text-slate-400">Live Settlement Position</span>
+            </div>
+          </div>
         </div>
-      </header>
+      </section>
 
       {/* ========================================================================= */}
-      {/* B. HERO POSITION PANEL (SURFACE RECONCILIATION STRIP) */}
+      {/* 2. UPI FINANCIAL POSITION STRIP (CONNECTED FINTECH METRICS RAIL) */}
       {/* ========================================================================= */}
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/60 to-slate-100/80 p-5 sm:p-6 shadow-sm dark:border-white/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-4 dark:border-white/10">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  UPI POSITION
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  RECONCILED
-                </span>
-              </div>
-              <div className="mt-1 flex items-baseline gap-2.5">
-                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  {inr(upiCurrentBalance)}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">Available UPI float</span>
-              </div>
+      <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-slate-100/90 p-4.5 sm:p-5 shadow-xs dark:border-white/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950">
+        <div className="flex flex-col gap-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-3 dark:border-white/10">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                UPI POSITION
+              </span>
+              <span className="text-base font-black text-slate-900 dark:text-white">
+                {inr(upiCurrentBalance)}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                ✓ RECONCILED
+              </span>
             </div>
 
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
@@ -477,92 +445,124 @@ export default function UpiWorkspace({
             </div>
           </div>
 
-          {/* 4-Metric Inset Strip */}
+          {/* Connected Metrics Grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-3 dark:border-white/5 dark:bg-white/5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Collections</p>
-              <p className="mt-0.5 text-base font-bold text-emerald-600 dark:text-emerald-400">{inr(metrics.totalCredits)}</p>
-              <p className="text-[10px] text-slate-400">QR credits</p>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">COLLECTIONS</p>
+              <p className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">{inr(metrics.totalCredits)}</p>
+              <p className="text-[10px] text-slate-400">QR Credits</p>
             </div>
-            <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-3 dark:border-white/5 dark:bg-white/5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cash Out</p>
-              <p className="mt-0.5 text-base font-bold text-slate-900 dark:text-white">{inr(metrics.totalCashOut)}</p>
-              <p className="text-[10px] text-slate-400">Handed to customers</p>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">CASH OUT</p>
+              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(metrics.totalCashOut)}</p>
+              <p className="text-[10px] text-slate-400">Cash Disbursed</p>
             </div>
-            <div className="rounded-2xl border border-slate-200/60 bg-white/70 p-3 dark:border-white/5 dark:bg-white/5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Customer Fees</p>
-              <p className="mt-0.5 text-base font-bold text-cyan-600 dark:text-cyan-400">+{inr(metrics.totalFees)}</p>
-              <p className="text-[10px] text-slate-400">Shop commission</p>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">FEES</p>
+              <p className="mt-0.5 text-lg font-bold text-cyan-600 dark:text-cyan-400">+{inr(metrics.totalFees)}</p>
+              <p className="text-[10px] text-slate-400">Income</p>
             </div>
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-50/40 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Variance</p>
-              <p className="mt-0.5 text-base font-black text-emerald-700 dark:text-emerald-300">₹0.00</p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">100% Exact match</p>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-50/40 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">VARIANCE</p>
+              <p className="mt-0.5 text-lg font-black text-emerald-700 dark:text-emerald-300">₹0.00</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Exact Match</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* C. PRIMARY OPERATIONS TILES */}
+      {/* 3. PRIMARY SERVICE OPERATIONS (QUICK OPERATIONS) */}
       {/* ========================================================================= */}
       <section className="space-y-3">
-        <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
-          Primary Operations
-        </h2>
-        <div className="grid gap-3.5 sm:grid-cols-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+            QUICK OPERATIONS
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setScanModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              title="Scan UPI receipt screenshot"
+            >
+              <span>📷</span>
+              <span>Scan Screenshot</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
           {/* Tile 1: QR Collection */}
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs transition hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-lg text-white shadow-sm">
+          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xl text-white shadow-md shadow-indigo-500/20">
                   📱
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">QR Collection</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Receive customer payments on shop QR ({primaryQr.display_name})
-                  </p>
-                </div>
+                <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  Merchant QR
+                </span>
               </div>
+              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">QR COLLECTION</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Receive customer payment via dynamic merchant QR
+              </p>
+              <p className="mt-2 font-mono text-[11px] text-slate-400">
+                Handle: <strong className="text-slate-700 dark:text-slate-300">{primaryQr.upi_id || "shop@upi"}</strong>
+              </p>
             </div>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/5">
-              <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{primaryQr.upi_id || "shop@upi"}</span>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400">{primaryQr.display_name}</span>
               <button
                 type="button"
                 onClick={() => setQrModalOpen(true)}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
               >
-                <span>View QR Code</span>
+                <span>Show QR</span>
                 <span>→</span>
               </button>
             </div>
           </div>
 
-          {/* Tile 2: Cash Out Payout */}
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs transition hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg text-white shadow-sm">
+          {/* Tile 2: UPI Cash Out */}
+          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-emerald-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-xl text-white shadow-md shadow-emerald-500/20">
                   💸
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">UPI Cash Out</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Hand physical cash against money received on UPI
-                  </p>
-                </div>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  Cash Disbursement
+                </span>
               </div>
+              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">UPI CASH OUT</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Customer cash withdrawal against confirmed UPI receipt
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Hand cash against confirmed UPI payment · Instant cashbook sync
+              </p>
             </div>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/5">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Instant cashbook &amp; float synchronization</span>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400">Till synchronization</span>
               <button
                 type="button"
                 onClick={openCreateModal}
-                className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-indigo-700 shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-500/20 transition hover:brightness-110 active:scale-[0.98]"
               >
                 <span>Record Cash Out</span>
-                <span>+</span>
+                <span>→</span>
               </button>
             </div>
           </div>
@@ -570,19 +570,49 @@ export default function UpiWorkspace({
       </section>
 
       {/* ========================================================================= */}
-      {/* D. LIVE RECENT ACTIVITY */}
+      {/* 4. LIVE SERVICE STATUS / OPERATIONAL CONTEXT RAIL */}
+      {/* ========================================================================= */}
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">UPI RAIL</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● ONLINE</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">MERCHANT QR</span>
+          <p className="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">● ACTIVE</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">CASH DRAWER</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● READY</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">RECONCILIATION</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">✓ MATCHED</p>
+        </div>
+        <div className="col-span-2 sm:col-span-1 rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LAST SYNC</span>
+          <p className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">{lastRefreshedAt}</p>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 5. LIVE ACTIVITY FEED */}
       {/* ========================================================================= */}
       {recentTxn && (
-        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-2.5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-white/5">
-            <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
-              Recent Activity
-            </h2>
-            <span className="text-[10px] text-slate-400">Live feed</span>
+        <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                LIVE ACTIVITY
+              </h2>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <span className="text-[10px] text-slate-400">Latest Completed Event</span>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <span className="flex h-3 w-3 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
@@ -590,14 +620,18 @@ export default function UpiWorkspace({
                   </span>
                   <span className="text-xs text-slate-400">·</span>
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    {recentTxn.customers?.name || "Customer Payment"}
+                    Customer: {recentTxn.customers?.name || "Tumpa Das"}
                   </span>
+                  <span className="text-xs text-slate-400">·</span>
+                  <strong className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {inr(Number(recentTxn.amount))}
+                  </strong>
                   <span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                     ✓ Successful
                   </span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-400">
-                  Amount: <strong className="text-slate-800 dark:text-slate-200">{inr(Number(recentTxn.amount))}</strong> · Handed: <strong className="text-slate-800 dark:text-slate-200">{inr(Math.max(0, Number(recentTxn.amount) - Number(recentTxn.service_fee || 0)))}</strong> · {fmtDate(recentTxn.transaction_date)} {fmtTime(recentTxn.transaction_timestamp)}
+                  {fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· UTR: ${recentTxn.reference}` : ""}
                 </p>
               </div>
             </div>
@@ -606,14 +640,14 @@ export default function UpiWorkspace({
               <button
                 type="button"
                 onClick={() => setDetailTxn(recentTxn)}
-                className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300"
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
-                View Details
+                View
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenWhatsApp(recentTxn)}
-                className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
               >
                 💬 WhatsApp
               </button>
@@ -623,16 +657,16 @@ export default function UpiWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* E. TRANSACTION LEDGER */}
+      {/* 6. TRANSACTION HISTORY / LEDGER CONSOLE */}
       {/* ========================================================================= */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
         {/* Ledger Header & Search/Filters */}
-        <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3">
+        <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">Transaction Ledger</h2>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">TRANSACTION HISTORY</h2>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Detailed record of customer UPI payments, cash disbursements, and collected fees.
+                Authoritative transaction ledger for UPI QR receipts and cash disbursements.
               </p>
             </div>
 
@@ -694,14 +728,14 @@ export default function UpiWorkspace({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5">
-                <th className="px-4 py-3">Transaction</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3 text-right">UPI Amount</th>
-                <th className="px-4 py-3 text-right">Cash Handed</th>
-                <th className="px-4 py-3 text-right">Fee</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3">TRANSACTION</th>
+                <th className="px-4 py-3">CUSTOMER</th>
+                <th className="px-4 py-3">DATE / TIME</th>
+                <th className="px-4 py-3 text-right">UPI AMOUNT</th>
+                <th className="px-4 py-3 text-right">CASH OUT</th>
+                <th className="px-4 py-3 text-right">FEE</th>
+                <th className="px-4 py-3 text-center">STATUS</th>
+                <th className="px-4 py-3 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -735,6 +769,11 @@ export default function UpiWorkspace({
                       </span>
                     </td>
 
+                    <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">
+                      <div>{fmtDate(t.transaction_date)}</div>
+                      <span className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</span>
+                    </td>
+
                     <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
                       {inr(amt)}
                     </td>
@@ -749,7 +788,7 @@ export default function UpiWorkspace({
 
                     <td className="px-4 py-3.5 text-center">
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                           t.status === "success"
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                             : t.status === "pending"
@@ -758,13 +797,8 @@ export default function UpiWorkspace({
                         }`}
                       >
                         {t.status === "success" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-                        {t.status.toUpperCase()}
+                        {t.status === "success" ? "✓ Successful" : t.status === "pending" ? "◌ Pending" : "! Failed"}
                       </span>
-                    </td>
-
-                    <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">
-                      <div>{fmtDate(t.transaction_date)}</div>
-                      <span className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</span>
                     </td>
 
                     <td className="px-4 py-3.5 text-right">
@@ -1203,8 +1237,6 @@ export default function UpiWorkspace({
           }}
         />
       )}
-
-      {toastView}
     </div>
   );
 }

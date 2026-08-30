@@ -4676,11 +4676,11 @@ function detectIntent(question) {
   assert(reconClientFile.includes("get_pool_balances"), "582. Canonical Source Invariant: Dedicated workspace consumes get_pool_balances RPC");
   assert(upiWorkspaceFile.includes("UPI POSITION"), "583. Operational UPI Invariant: /business/upi contains compact UPI POSITION card");
   assert(upiWorkspaceFile.includes("/finance/reconciliation"), "584. Operational UPI Invariant: Compact UPI card links directly to /finance/reconciliation");
-  assert(upiWorkspaceFile.includes("LIVE · UPI rail operational"), "585. Operational UPI Invariant: Live operational badge present on UPI header");
-  assert(upiWorkspaceFile.includes("QR Collection"), "586. UPI Workspace: QR Collection operation tile present");
-  assert(upiWorkspaceFile.includes("UPI Cash Out"), "587. UPI Workspace: UPI Cash Out operation tile present");
-  assert(upiWorkspaceFile.includes("Recent Activity"), "588. UPI Workspace: Recent Activity live strip present");
-  assert(upiWorkspaceFile.includes("Transaction Ledger"), "589. UPI Workspace: Redesigned transaction ledger present");
+  assert(upiWorkspaceFile.includes("LIVE UPI RAIL ONLINE"), "585. Operational UPI Invariant: Live operational badge present on UPI header");
+  assert(upiWorkspaceFile.includes("QR COLLECTION"), "586. UPI Workspace: QR Collection operation tile present");
+  assert(upiWorkspaceFile.includes("UPI CASH OUT"), "587. UPI Workspace: UPI Cash Out operation tile present");
+  assert(upiWorkspaceFile.includes("LIVE ACTIVITY"), "588. UPI Workspace: Recent Activity live strip present");
+  assert(upiWorkspaceFile.includes("TRANSACTION HISTORY"), "589. UPI Workspace: Redesigned transaction ledger present");
   assert(upiWorkspaceFile.includes("Record UPI Cash Out"), "590. UPI Workspace: Modal workflow for cash out recording present");
 }
 
