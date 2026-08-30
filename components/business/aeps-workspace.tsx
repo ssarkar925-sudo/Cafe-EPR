@@ -247,7 +247,7 @@ export default function AepsWorkspace({
 
   // Current canonical platform float
   const aepsCurrentBalance = useMemo(() => {
-    if (!livePool) return -6515;
+    if (!livePool) return 0;
     return Number(livePool.current ?? (Number(livePool.opening || 0) + Number(livePool.movements || 0)));
   }, [livePool]);
 

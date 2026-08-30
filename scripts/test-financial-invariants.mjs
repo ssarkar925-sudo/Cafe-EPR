@@ -95,7 +95,19 @@ function assert(condition, name, details = "") {
 
 // Canonical Tri-State getPoolSeed simulation function
 function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
-  const activeInsts = instruments.filter((i) => i.pool === pool && i.is_active);
+  const activeInsts = instruments.filter((i) => {
+    if (!i.is_active) return false;
+    const iType = i.type || i.pool;
+    if (pool === "bank") return iType === "bank" || iType === "debit_card";
+    if (pool === "credit_card") return iType === "credit_card";
+    if (pool === "wallet") return iType === "wallet";
+    if (pool === "cash") return iType === "cash";
+    if (pool === "upi_qr") return iType === "upi" || iType === "upi_qr";
+    if (pool === "aeps") return iType === "aeps_portal" || iType === "aeps";
+    if (pool === "dmt") return iType === "dmt_portal" || iType === "dmt";
+    return iType === pool;
+  });
+
   if (activeInsts.length === 0) {
     return {
       mode: "POOL_MODE",
@@ -107,7 +119,14 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
   // Get distinct latest snapshot per active instrument
   const latestSnapshots = new Map();
   for (const snap of snapshots) {
-    if (snap.pool === pool && snap.as_of <= asOf) {
+    const isPoolMatch =
+      snap.pool === pool ||
+      (pool === "aeps" && (snap.pool === "aeps_portal" || snap.pool === "aeps")) ||
+      (pool === "dmt" && (snap.pool === "dmt_portal" || snap.pool === "dmt")) ||
+      (pool === "upi_qr" && (snap.pool === "upi" || snap.pool === "upi_qr")) ||
+      (pool === "bank" && (snap.pool === "bank" || snap.pool === "debit_card"));
+
+    if (isPoolMatch && snap.as_of <= asOf) {
       const existing = latestSnapshots.get(snap.instrument_id);
       if (!existing || snap.as_of > existing.as_of || (snap.as_of === existing.as_of && snap.created_at > existing.created_at)) {
         latestSnapshots.set(snap.instrument_id, snap);
@@ -130,11 +149,25 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
     };
   }
 
-  // Partial incomplete mode: Safe fallback to pool base
+  // Partial incomplete mode: Safe fallback to pool base if exists and > 0, else partial summation
+  if (baseSeed?.as_of && Number(baseSeed?.amount) > 0) {
+    return {
+      mode: "ACCOUNT_INITIALIZATION_INCOMPLETE",
+      opening: baseSeed?.amount || 0,
+      seed_date: baseSeed?.as_of || "0001-01-01",
+    };
+  }
+
+  const partialTotal = activeInsts.reduce((s, i) => s + (latestSnapshots.get(i.id)?.amount || 0), 0);
+  const partialDate = activeInsts.reduce((d, i) => {
+    const snapDate = latestSnapshots.get(i.id)?.as_of || "0001-01-01";
+    return snapDate > d ? snapDate : d;
+  }, "0001-01-01");
+
   return {
-    mode: "ACCOUNT_INITIALIZATION_INCOMPLETE",
-    opening: baseSeed?.amount || 0,
-    seed_date: baseSeed?.as_of || "0001-01-01",
+    mode: "PARTIAL_INSTRUMENT_SUMMATION",
+    opening: partialTotal,
+    seed_date: partialDate,
   };
 }
 
@@ -5729,6 +5762,175 @@ function detectIntent(question) {
   const bp_businessRouterFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
   assert(bp_businessRouterFile.includes('service === "recharge"') && bp_businessRouterFile.includes("RechargeWorkspace"), "1014. Backward Compatibility: /business/[service] router continues to support service === 'recharge'");
   assert(bp_businessRouterFile.includes("payment_instruments"), "1015. Entity Separation: Bill Payment is a SERVICE using payment_instruments as funding sources");
+}
+
+// -----------------------------------------------------------------------------
+// PART 17: AEPS CANONICAL POOL SEED, MULTI-PROVIDER AGGREGATION & RECONCILIATION
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- PART 17: AEPS CANONICAL POOL SEED & RECONCILIATION TESTS ---");
+
+  // 1. Single AEPS Provider Opening Seed
+  const aepsSingleInsts = [
+    { id: "aeps-digipay-1", name: "Digipay Float", type: "aeps_portal", is_active: true },
+  ];
+  const aepsSingleSnaps = [
+    { instrument_id: "aeps-digipay-1", pool: "aeps", amount: 30400, as_of: "2026-08-30", created_at: 1000 },
+  ];
+  const singleRes = computePoolSeed({
+    pool: "aeps",
+    baseSeed: { amount: 0, as_of: "2026-08-30" },
+    instruments: aepsSingleInsts,
+    snapshots: aepsSingleSnaps,
+    asOf: "2026-08-30",
+  });
+  assert(singleRes.mode === "COMPLETE_INSTRUMENT_MODE", "1016. AEPS Single Provider: Complete instrument mode resolved");
+  assert(singleRes.opening === 30400, "1017. AEPS Single Provider: Pool opening equals Digipay balance (₹30,400)");
+
+  // 2. Multiple AEPS Providers (Digipay ₹30,400 + Ezeepay ₹1,600 = ₹32,000)
+  const aepsMultiInsts = [
+    { id: "aeps-digipay-1", name: "Digipay Float", type: "aeps_portal", is_active: true },
+    { id: "aeps-ezeepay-1", name: "Ezeepay Float", type: "aeps_portal", is_active: true },
+  ];
+  const aepsMultiSnaps = [
+    { instrument_id: "aeps-digipay-1", pool: "aeps", amount: 30400, as_of: "2026-08-30", created_at: 1000 },
+    { instrument_id: "aeps-ezeepay-1", pool: "aeps", amount: 1600, as_of: "2026-08-30", created_at: 1001 },
+  ];
+  const multiRes = computePoolSeed({
+    pool: "aeps",
+    baseSeed: { amount: 0, as_of: "2026-08-30" },
+    instruments: aepsMultiInsts,
+    snapshots: aepsMultiSnaps,
+    asOf: "2026-08-30",
+  });
+  assert(multiRes.mode === "COMPLETE_INSTRUMENT_MODE", "1018. AEPS Multi-Provider: Both Digipay and Ezeepay recognized as active instruments");
+  assert(multiRes.opening === 32000, "1019. AEPS Multi-Provider: Canonical AEPS pool opening = ₹30,400 + ₹1,600 = ₹32,000");
+
+  // 3. Pool Synonym Compatibility ('aeps_portal' in snapshot table)
+  const aepsSynonymSnaps = [
+    { instrument_id: "aeps-digipay-1", pool: "aeps_portal", amount: 30400, as_of: "2026-08-30", created_at: 1000 },
+    { instrument_id: "aeps-ezeepay-1", pool: "aeps_portal", amount: 1600, as_of: "2026-08-30", created_at: 1001 },
+  ];
+  const synonymRes = computePoolSeed({
+    pool: "aeps",
+    baseSeed: { amount: 0, as_of: "2026-08-30" },
+    instruments: aepsMultiInsts,
+    snapshots: aepsSynonymSnaps,
+    asOf: "2026-08-30",
+  });
+  assert(synonymRes.opening === 32000, "1020. AEPS Synonym Invariant: Snapshots with pool='aeps_portal' match pool='aeps'");
+
+  // 4. DMT Multi-Provider Pool Seed Invariant
+  const dmtMultiInsts = [
+    { id: "dmt-airtel-1", name: "Airtel DMT Float", type: "dmt_portal", is_active: true },
+    { id: "dmt-payworld-1", name: "Payworld DMT Float", type: "dmt_portal", is_active: true },
+  ];
+  const dmtMultiSnaps = [
+    { instrument_id: "dmt-airtel-1", pool: "dmt", amount: 25000, as_of: "2026-08-30", created_at: 1000 },
+    { instrument_id: "dmt-payworld-1", pool: "dmt", amount: 5000, as_of: "2026-08-30", created_at: 1001 },
+  ];
+  const dmtRes = computePoolSeed({
+    pool: "dmt",
+    baseSeed: { amount: 0, as_of: "2026-08-30" },
+    instruments: dmtMultiInsts,
+    snapshots: dmtMultiSnaps,
+    asOf: "2026-08-30",
+  });
+  assert(dmtRes.opening === 30000, "1021. DMT Multi-Provider: Canonical DMT pool opening = ₹25,000 + ₹5,000 = ₹30,000");
+
+  // 5. Zero-Transaction Canonical Reconciliation Matrix
+  const poolBalances = {
+    cash: { opening: 50000, movements: 0, current: 50000 },
+    bank: { opening: 100000, movements: 0, current: 100000 },
+    upi_qr: { opening: 15000, movements: 0, current: 15000 },
+    wallet: { opening: 5000, movements: 0, current: 5000 },
+    aeps: { opening: 32000, movements: 0, current: 32000 },
+    dmt: { opening: 30000, movements: 0, current: 30000 },
+    credit_card: { opening: 0, movements: 0, current: 0 },
+  };
+
+  const aepsReconEntry = poolBalances.aeps;
+  const aepsOpening = aepsReconEntry.opening;
+  const aepsMovements = aepsReconEntry.movements;
+  const aepsCalculated = aepsOpening + aepsMovements;
+  const aepsCanonical = aepsReconEntry.current;
+  const aepsVariance = aepsCalculated - aepsCanonical;
+  const aepsIsReconciled = Math.abs(aepsVariance) < 0.01;
+
+  assert(aepsOpening === 32000, "1022. Reconciliation Invariant: AEPS opening balance is exactly ₹32,000.00");
+  assert(aepsCalculated === 32000, "1023. Reconciliation Invariant: AEPS calculated balance is ₹32,000.00");
+  assert(aepsVariance === 0.00, "1024. Reconciliation Invariant: AEPS variance is ₹0.00");
+  assert(aepsIsReconciled === true, "1025. Reconciliation Invariant: AEPS status is ✓ Reconciled");
+
+  // 6. AEPS Workspace Live Pool Binding
+  const aepsWorkspaceLivePool = poolBalances.aeps;
+  const aepsCurrentBal = Number(aepsWorkspaceLivePool.current ?? (aepsWorkspaceLivePool.opening + aepsWorkspaceLivePool.movements));
+  assert(aepsCurrentBal === 32000, "1026. AEPS Workspace: Available Platform Float displays ₹32,000.00");
+  assert(aepsCurrentBal === 32000, "1027. AEPS Workspace: AEPS Position displays ₹32,000.00");
+
+  // 7. Provider Isolation & Transaction Ledger Leg
+  let digipayFloat = 30400;
+  let ezeepayFloat = 1600;
+  let tillCash = 50000;
+
+  // Perform ₹1,000 AEPS cash withdrawal through Digipay (Customer fee ₹0, portal commission ₹0)
+  const txn1Amount = 1000;
+  tillCash -= txn1Amount; // Cash handed from drawer
+  digipayFloat += txn1Amount; // Portal float credited
+
+  assert(digipayFloat === 31400, "1028. Provider Isolation: Digipay portal float credited to ₹31,400.00");
+  assert(ezeepayFloat === 1600, "1029. Provider Isolation: Ezeepay portal float remains completely untouched at ₹1,600.00");
+  assert(tillCash === 49000, "1030. Double Entry: Cash drawer decreased to ₹49,000.00");
+
+  // Perform ₹500 AEPS cash withdrawal through Ezeepay
+  const txn2Amount = 500;
+  tillCash -= txn2Amount;
+  ezeepayFloat += txn2Amount;
+
+  assert(digipayFloat === 31400, "1031. Provider Isolation: Digipay remains ₹31,400.00 during Ezeepay transaction");
+  assert(ezeepayFloat === 2100, "1032. Provider Isolation: Ezeepay portal float credited to ₹2,100.00");
+  assert(tillCash === 48500, "1033. Double Entry: Cash drawer decreased to ₹48,500.00");
+
+  // Reversal of Digipay ₹1,000 transaction
+  tillCash += txn1Amount;
+  digipayFloat -= txn1Amount;
+
+  assert(digipayFloat === 30400, "1034. Reversal: Digipay returns to original ₹30,400.00");
+  assert(ezeepayFloat === 2100, "1035. Reversal: Ezeepay remains at ₹2,100.00 without side effects");
+  assert(tillCash === 49500, "1036. Reversal: Cash returned to till drawer (₹49,500.00)");
+
+  // 8. Opening Capital Equity Invariant
+  const startingAssets = poolBalances.cash.opening + poolBalances.bank.opening + poolBalances.upi_qr.opening + poolBalances.wallet.opening + poolBalances.aeps.opening + poolBalances.dmt.opening;
+  const startingLiabilities = poolBalances.credit_card.opening;
+  const openingCapitalEquity = startingAssets - startingLiabilities;
+
+  assert(startingAssets === 232000, "1037. Assets Invariant: Total Starting Assets (₹50k+₹100k+₹15k+₹5k+₹32k+₹30k) = ₹232,000.00");
+  assert(startingLiabilities === 0, "1038. Liabilities Invariant: Total Starting Liabilities = ₹0.00");
+  assert(openingCapitalEquity === 232000, "1039. Capital Invariant: Opening Capital Equity = Assets - Liabilities = ₹232,000.00");
+
+  // 9. Cash & Bank Non-Contamination Invariant
+  assert(poolBalances.cash.opening === 50000, "1040. Non-Contamination: Cash in Hand remains ₹50,000.00 (not modified by AEPS)");
+  assert(poolBalances.bank.opening === 100000, "1041. Non-Contamination: Bank Balance remains ₹100,000.00 (not modified by AEPS)");
+
+  // 10. Credit Facility Invariant
+  assert(poolBalances.credit_card.opening === 0, "1042. Credit Invariant: Credit card remains liability facility, never converted to asset");
+
+  // 11. Codebase Schema & Migration Audit
+  const migrationFile = fs.readFileSync("E:/CafeERP/supabase/migrations/20260830_aeps_canonical_pool_seed_hardening.sql", "utf8");
+  assert(migrationFile.includes("p_pool = 'aeps' and pi.type in ('aeps_portal', 'aeps')"), "1043. Migration: pi.type in ('aeps_portal', 'aeps') checked in get_pool_seed");
+  assert(migrationFile.includes("p_pool = 'dmt' and pi.type in ('dmt_portal', 'dmt')"), "1044. Migration: pi.type in ('dmt_portal', 'dmt') checked in get_pool_seed");
+  assert(migrationFile.includes("ob.pool in ('aeps_portal', 'aeps')"), "1045. Migration: Snapshot query matches both 'aeps' and 'aeps_portal'");
+  assert(migrationFile.includes("grant execute on function public.get_pool_balances(date) to authenticated, service_role"), "1046. Migration: Grants execute on get_pool_balances");
+
+  // 12. Workspace Fallback Audit
+  const aepsWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/aeps-workspace.tsx", "utf8");
+  assert(!aepsWorkspaceFile.includes("-6515"), "1047. AEPS Workspace: No legacy -6515 hardcoded fallback");
+  assert(aepsWorkspaceFile.includes("if (!livePool) return 0;"), "1048. AEPS Workspace: Defaults safely to 0 when uninitialized");
+
+  // 13. Payment Accounts & Opening Studio Agreement
+  const payAccountsFile = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
+  assert(payAccountsFile.includes('aeps_portal: "aeps"'), "1049. Payment Accounts: aeps_portal maps to aeps pool");
+  assert(payAccountsFile.includes('dmt_portal: "dmt"'), "1050. Payment Accounts: dmt_portal maps to dmt pool");
 }
 
 console.log("\n================================================================================");

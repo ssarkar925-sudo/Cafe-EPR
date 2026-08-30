@@ -137,7 +137,9 @@ begin
     (p_pool = 'credit_card' and pi.type = 'credit_card') or
     (p_pool = 'wallet' and pi.type = 'wallet') or
     (p_pool = 'cash' and pi.type = 'cash') or
-    (p_pool = 'upi_qr' and pi.type = 'upi')
+    (p_pool = 'upi_qr' and pi.type = 'upi') or
+    (p_pool = 'aeps' and pi.type in ('aeps_portal', 'aeps')) or
+    (p_pool = 'dmt' and pi.type in ('dmt_portal', 'dmt'))
   ) and pi.is_active = true;
 
   -- 3. If active instruments exist, audit their snapshots in opening_balances
@@ -153,7 +155,13 @@ begin
         ob.as_of
       from public.opening_balances ob
       join public.payment_instruments pi on pi.id = ob.instrument_id
-      where ob.pool = p_pool
+      where (
+        ob.pool = p_pool or
+        (p_pool = 'aeps' and ob.pool in ('aeps_portal', 'aeps')) or
+        (p_pool = 'dmt' and ob.pool in ('dmt_portal', 'dmt')) or
+        (p_pool = 'upi_qr' and ob.pool in ('upi_qr', 'upi')) or
+        (p_pool = 'bank' and ob.pool in ('bank', 'debit_card'))
+      )
         and ob.instrument_id is not null
         and ob.as_of <= p_as_of
         and pi.is_active = true
