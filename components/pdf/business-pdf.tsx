@@ -112,12 +112,6 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
                   <Text>Cash Handed to Customer</Text>
                   <Text>{money(cashHanded)}</Text>
                 </View>
-                {Number(txn.portal_commission || 0) > 0 && (
-                  <View style={styles.row}>
-                    <Text style={styles.label}>Portal Commission</Text>
-                    <Text>+{money(txn.portal_commission)}</Text>
-                  </View>
-                )}
               </>
             )}
           </>

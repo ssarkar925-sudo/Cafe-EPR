@@ -4710,26 +4710,35 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes("AEPS CASH OUT COMPLETED SUCCESSFULLY"), "611. Success State: Post-transaction success confirmation card present");
   assert(aepsWorkspaceFile.includes("handleNewCashOut"), "612. Reset Invariant: Explicit New Cash Out reset handler present");
 
-  // Test 11: AEPS Receipt & Invoice Fee Privacy Logic (Tests 613-625)
+  // Test 11: AEPS Receipt & Invoice Customer/Internal Financial Privacy Logic (Tests 613-630)
   const receipt80mmFile = fs.readFileSync("E:/CafeERP/app/business/receipt/[id]/page.tsx", "utf8");
   const receiptA4File = fs.readFileSync("E:/CafeERP/app/business/receipt/[id]/a4/page.tsx", "utf8");
   const businessPdfFile = fs.readFileSync("E:/CafeERP/components/pdf/business-pdf.tsx", "utf8");
 
-  assert(receipt80mmFile.includes("const showFeeDetails = isDetailed;"), "613. 80mm Receipt: Centralized showFeeDetails display policy defined");
-  assert(receiptA4File.includes("const showFeeDetails = isDetailed;"), "614. A4 Invoice: Centralized showFeeDetails display policy defined");
-  assert(receipt80mmFile.includes("WITHDRAWAL"), "615. 80mm Receipt: Withdrawal amount rendered in basic & detailed modes");
-  assert(receiptA4File.includes("Withdrawal Amount"), "616. A4 Invoice: Withdrawal amount rendered in basic & detailed modes");
+  assert(receipt80mmFile.includes("const showCustomerFeeDetails = isDetailed;"), "613. 80mm Receipt: Centralized showCustomerFeeDetails display policy defined");
+  assert(receiptA4File.includes("const showCustomerFeeDetails = isDetailed;"), "614. A4 Invoice: Centralized showCustomerFeeDetails display policy defined");
+  assert(receipt80mmFile.includes("const showInternalBusinessEarnings = false;"), "615. 80mm Receipt: Internal business earnings strictly disabled");
+  assert(receiptA4File.includes("const showInternalBusinessEarnings = false;"), "616. A4 Invoice: Internal business earnings strictly disabled");
+
+  assert(receipt80mmFile.includes("WITHDRAWAL"), "617. 80mm Receipt: Withdrawal amount rendered in basic & detailed modes");
+  assert(receiptA4File.includes("Withdrawal Amount"), "618. A4 Invoice: Withdrawal amount rendered in basic & detailed modes");
   
-  // Verify Cash Handed is strictly hidden in Basic mode (inside showFeeDetails block only)
-  assert(receipt80mmFile.includes("{showFeeDetails && (\n                <>\n                  {Number(txn.service_fee || 0) > 0 && (\n                    <div className=\"flex justify-between text-[11px] text-slate-600\">\n                      <span>Service Fee"), "617. 80mm Privacy Invariant: Service fee strictly hidden when showFeeDetails is false");
-  assert(receipt80mmFile.includes("<span>CASH HANDED</span>"), "618. 80mm Privacy Invariant: CASH HANDED present only inside showFeeDetails block");
-  assert(receiptA4File.includes("<span>Cash Handed to Customer</span>"), "619. A4 Privacy Invariant: Cash Handed to Customer present only inside showFeeDetails block");
-  assert(receipt80mmFile.includes("<span>Net Operator Income</span>"), "620. 80mm Privacy Invariant: Net Operator Income present only in detailed breakdown");
-  assert(receiptA4File.includes("<span>Total Net Income</span>"), "621. A4 Privacy Invariant: Total Net Income present only in detailed breakdown");
-  assert(businessPdfFile.includes("showFees = false"), "622. PDF Generator: showFees defaults to false (Basic privacy mode)");
-  assert(receipt80mmFile.includes("href={`/business/receipt/${id}?mode=detailed`}"), "623. 80mm Switcher: Mode toggle links to ?mode=detailed");
-  assert(receiptA4File.includes("href={`/business/receipt/${id}/a4?mode=detailed`}"), "624. A4 Switcher: Mode toggle links to ?mode=detailed");
-  assert(aepsWorkspaceFile.includes("receiptMode === \"detailed\" ? \"?mode=detailed\" : \"\""), "625. Workspace Invariant: Workspace preserves receiptMode query parameter in print links");
+  // Verify Cash Handed & Service Fee are strictly guarded inside showCustomerFeeDetails
+  assert(receipt80mmFile.includes("{showCustomerFeeDetails && (\n                <>\n                  {Number(txn.service_fee || 0) > 0 && (\n                    <div className=\"flex justify-between text-[11px] text-slate-600\">\n                      <span>Service Fee"), "619. 80mm Privacy Invariant: Service fee strictly hidden in Basic mode");
+  assert(receipt80mmFile.includes("<span>CASH HANDED</span>"), "620. 80mm Privacy Invariant: CASH HANDED present only inside showCustomerFeeDetails block");
+  assert(receiptA4File.includes("<span>Cash Handed to Customer</span>"), "621. A4 Privacy Invariant: Cash Handed to Customer present only inside showCustomerFeeDetails block");
+
+  // Verify internal business earnings are NEVER rendered on AEPS customer receipts/invoices
+  assert(!receipt80mmFile.includes("Portal Commission") || receipt80mmFile.indexOf("Portal Commission") === -1, "622. Strict Internal Privacy: Portal Commission NOT rendered on AEPS 80mm receipt");
+  assert(!receipt80mmFile.includes("Net Operator Income"), "623. Strict Internal Privacy: Net Operator Income NOT rendered on AEPS 80mm receipt");
+  assert(!receiptA4File.includes("<span>Portal Commission</span>"), "624. Strict Internal Privacy: Portal Commission NOT rendered on AEPS A4 invoice");
+  assert(!receiptA4File.includes("<span>Total Net Income</span>"), "625. Strict Internal Privacy: Total Net Income NOT rendered on AEPS A4 invoice");
+  assert(!businessPdfFile.includes("Portal Commission"), "626. Strict Internal Privacy: Portal Commission NOT rendered on PDF generator");
+
+  assert(businessPdfFile.includes("showFees = false"), "627. PDF Generator: showFees defaults to false (Basic privacy mode)");
+  assert(receipt80mmFile.includes("mode === \"detailed\" || detail === \"true\""), "628. Dual-Param Invariant: Both mode=detailed and detail=true supported on 80mm");
+  assert(receiptA4File.includes("mode === \"detailed\" || detail === \"true\""), "629. Dual-Param Invariant: Both mode=detailed and detail=true supported on A4");
+  assert(aepsWorkspaceFile.includes("receiptMode === \"detailed\" ? \"?mode=detailed\" : \"\""), "630. Workspace Invariant: Workspace preserves receiptMode query parameter in print links");
 }
 
 console.log("\n================================================================================");
