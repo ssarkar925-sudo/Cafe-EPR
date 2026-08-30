@@ -732,7 +732,7 @@ export default function PaymentAccountsPanel({
           type,
           details,
           opening_balance: openingBal,
-          balance: openingBal,
+          is_active: true,
         })
         .select()
         .single();

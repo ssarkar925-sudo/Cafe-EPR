@@ -735,7 +735,6 @@ export default function OpeningPositionWorkspace({
               .from("payment_instruments")
               .update({
                 opening_balance: Number(row.amount),
-                current_balance: Number(row.amount),
               })
               .eq("id", instId);
           }
