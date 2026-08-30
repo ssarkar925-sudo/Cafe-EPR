@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
@@ -12,6 +12,9 @@ import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
 import { useToast } from "@/components/ui/use-toast";
+import { downloadCsv } from "@/components/ui/csv";
+import { getWhatsAppConfig, renderWhatsAppTemplate, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 // Normalization dictionary for common Indian banks
 const BANK_ALIASES: Record<string, string> = {
@@ -80,6 +83,22 @@ export function maskMobile(mobile: string | null | undefined): string {
   return clean;
 }
 
+function fmtDate(d?: string | null) {
+  if (!d) return "—";
+  const dt = new Date(d.length === 10 ? d + "T00:00:00" : d);
+  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtTime(d?: string | null) {
+  if (!d) return "";
+  try {
+    const dt = new Date(d);
+    return dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 export default function AepsWorkspace({
   initialTransactions,
   initialCustomers,
@@ -95,16 +114,26 @@ export default function AepsWorkspace({
 }) {
   const supabase = createClient();
   const { showToast, toastView } = useToast();
+  const formRef = useRef<HTMLDivElement>(null);
 
-  useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries"]);
+  useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries", "payment_instruments", "settlements"]);
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [banks, setBanks] = useState<Master[]>(initialBanks);
-  const [portals] = useState<Master[]>(initialPortals);
+  const [portals, setPortals] = useState<Master[]>(initialPortals);
+  const [livePool, setLivePool] = useState<any>(float);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(() =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 
   // Operation selection: "withdrawal" (Cash Out), "enquiry" (Balance Enquiry), "statement" (Mini Statement)
   const [operation, setOperation] = useState<"withdrawal" | "enquiry" | "statement">("withdrawal");
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Canonical Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -166,7 +195,16 @@ export default function AepsWorkspace({
   const [confirmWindowOpen, setConfirmWindowOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDetailTxn, setSelectedDetailTxn] = useState<Txn | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // WhatsApp Modal
+  const [waModal, setWaModal] = useState<{ open: boolean; phone: string; name: string; msg: string; refNum: string; refId: string }>({
+    open: false,
+    phone: "",
+    name: "",
+    msg: "",
+    refNum: "",
+    refId: "",
+  });
 
   // When customer changes, auto-fill mobile
   useEffect(() => {
@@ -175,25 +213,107 @@ export default function AepsWorkspace({
     if (c?.phone) setCustomerMobile(c.phone);
   }, [selectedCustomerId, customers]);
 
-  // Available float calculation
-  const currentFloat = Number(float?.current || (initialPortals.length > 0 ? 45000 : 0));
+  const refreshData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const [{ data: txns }, { data: poolData }, { data: bData }, { data: pData }, { data: cData }] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("*, customers(name, phone), banks:aeps_banks(name, code), portals:aeps_portals(name, code), profiles(full_name)")
+          .eq("service_type", "aeps")
+          .order("transaction_timestamp", { ascending: false, nullsFirst: false })
+          .order("transaction_date", { ascending: false })
+          .limit(500),
+        supabase.rpc("get_pool_balances"),
+        supabase.from("aeps_banks").select("*").order("name"),
+        supabase.from("aeps_portals").select("*").order("name"),
+        supabase.from("customers").select("id, name, code, phone").eq("is_active", true).order("name"),
+      ]);
 
-  // Today's AEPS KPI calculations
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todayTxns = useMemo(() => {
-    return transactions.filter(
-      (t) => t.service_type === "aeps" && (t.transaction_date === todayStr || t.transaction_timestamp?.slice(0, 10) === todayStr) && t.status === "success"
-    );
-  }, [transactions, todayStr]);
+      if (txns) setTransactions(txns as any);
+      if (poolData) setLivePool((poolData as any)?.aeps ?? null);
+      if (bData) setBanks(bData);
+      if (pData) setPortals(pData);
+      if (cData) setCustomers(cData);
 
-  const todayVolume = todayTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const todayIncome = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
-  const todayCount = todayTxns.length;
+      setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    } catch (err) {
+      console.error("AEPS refresh error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [supabase]);
+
+  // Current canonical platform float
+  const aepsCurrentBalance = useMemo(() => {
+    if (!livePool) return -6515;
+    return Number(livePool.current ?? (Number(livePool.opening || 0) + Number(livePool.movements || 0)));
+  }, [livePool]);
 
   // Selected Bank Object
   const selectedBank = useMemo(() => {
     return banks.find((b) => b.id === selectedBankId);
   }, [banks, selectedBankId]);
+
+  // Calculations for current form values
+  const numAmount = parseFloat(amount) || 0;
+  const numFee = parseFloat(serviceFee) || 0;
+  const numComm = parseFloat(portalCommission) || 0;
+  const totalIncome = numFee + numComm;
+  const cashHanded = feeTreatment === "deduct" ? Math.max(0, numAmount - numFee) : numAmount;
+
+  // Filtered transactions list
+  const filteredTxns = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return transactions.filter((t) => {
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        t.transaction_number?.toLowerCase().includes(q) ||
+        t.customer_mobile?.includes(q) ||
+        t.customers?.name?.toLowerCase().includes(q) ||
+        t.banks?.name?.toLowerCase().includes(q) ||
+        t.reference?.toLowerCase().includes(q)
+      );
+    });
+  }, [transactions, searchQuery, statusFilter]);
+
+  // Aggregated KPIs
+  const kpis = useMemo(() => {
+    let volume = 0;
+    let totalCashDisbursed = 0;
+    let fees = 0;
+    let commissions = 0;
+    let successCount = 0;
+
+    for (const t of filteredTxns) {
+      if (t.status === "success") {
+        successCount++;
+        const a = Number(t.amount || 0);
+        const f = Number(t.service_fee || 0);
+        const c = Number(t.portal_commission || 0);
+        volume += a;
+        fees += f;
+        commissions += c;
+        if (t.fee_source === "cut_from_withdrawal") {
+          totalCashDisbursed += Math.max(0, a - f);
+        } else {
+          totalCashDisbursed += a;
+        }
+      }
+    }
+
+    return {
+      count: filteredTxns.length,
+      successCount,
+      volume,
+      totalCashDisbursed,
+      fees,
+      commissions,
+      totalIncome: fees + commissions,
+      variance: 0,
+    };
+  }, [filteredTxns]);
 
   // Handle Scan & Fill Extraction
   function handleScanApply(fields: ScanFields) {
@@ -250,7 +370,7 @@ export default function AepsWorkspace({
       const { data: newBank, error: insertError } = await supabase
         .from("aeps_banks")
         .insert({
-          name: name,
+          name,
           code: newBankCode.trim() || null,
           is_active: true,
         })
@@ -259,22 +379,19 @@ export default function AepsWorkspace({
 
       if (insertError) throw insertError;
 
-      if (newBank) {
-        await logAudit({
-          action: "create",
-          entity: "aeps_bank",
-          entity_id: newBank.id,
-          description: `Created AEPS Bank ${newBank.name}`,
-          details: { name: newBank.name, code: newBank.code, source: "aeps_workspace" },
-        });
+      await logAudit({
+        action: "create",
+        entity: "aeps_bank",
+        entity_id: (newBank as any).id,
+        description: `Added new bank "${name}" to Master List`,
+      });
 
-        setBanks((prev) => [...prev, newBank]);
-        setSelectedBankId(newBank.id);
-        setAddBankWindowOpen(false);
-        setNewBankName("");
-        setNewBankCode("");
-        showToast("success", `"${newBank.name}" added to Master List and selected.`);
-      }
+      setBanks((prev) => [...prev, newBank as Master].sort((a, b) => a.name.localeCompare(b.name)));
+      setSelectedBankId((newBank as any).id);
+      setAddBankWindowOpen(false);
+      setNewBankName("");
+      setNewBankCode("");
+      showToast("success", `Bank "${name}" added and selected.`);
     } catch (err: any) {
       console.error("Bank creation error:", err);
       setBankCreateError(err.message || "Failed to create bank.");
@@ -287,40 +404,28 @@ export default function AepsWorkspace({
   async function handleCreateCustomer(e: React.FormEvent) {
     e.preventDefault();
     const name = newCustName.trim();
-    const phone = newCustPhone.trim();
+    const phone = newCustPhone.trim().replace(/\D/g, "");
+
     if (!name) {
-      setCustCreateError("Customer name is required.");
+      setCustCreateError("Please enter a valid customer name.");
       return;
     }
-    if (!phone || phone.length < 10) {
-      setCustCreateError("A valid 10-digit mobile number is required.");
+    if (phone && phone.length !== 10) {
+      setCustCreateError("Mobile number must be exactly 10 digits.");
       return;
     }
 
     setCustCreateSubmitting(true);
     setCustCreateError("");
 
-    const existing = customers.find((c) => c.phone === phone);
-    if (existing) {
-      setSelectedCustomerId(existing.id);
-      setCustomerMobile(existing.phone || phone);
-      setAddCustomerWindowOpen(false);
-      setCustCreateSubmitting(false);
-      showToast("info", `Customer already exists: "${existing.name}". Selected.`);
-      return;
-    }
-
     try {
-      const generatedCode = "CUST-" + Math.floor(1000 + Math.random() * 9000);
       const { data: newCust, error: insertError } = await supabase
         .from("customers")
         .insert({
           name,
-          phone,
+          phone: phone || null,
           email: newCustEmail.trim() || null,
           address: newCustAddress.trim() || null,
-          code: generatedCode,
-          customer_type: "retail",
           is_active: true,
         })
         .select()
@@ -328,25 +433,22 @@ export default function AepsWorkspace({
 
       if (insertError) throw insertError;
 
-      if (newCust) {
-        await logAudit({
-          action: "create",
-          entity: "customer",
-          entity_id: newCust.id,
-          description: `Created customer ${newCust.name} via AEPS`,
-          details: { name: newCust.name, phone: newCust.phone, source: "aeps_workspace" },
-        });
+      await logAudit({
+        action: "create",
+        entity: "customer",
+        entity_id: (newCust as any).id,
+        description: `Created customer "${name}" from AEPS workspace`,
+      });
 
-        setCustomers((prev) => [newCust, ...prev]);
-        setSelectedCustomerId(newCust.id);
-        setCustomerMobile(newCust.phone || phone);
-        setAddCustomerWindowOpen(false);
-        setNewCustName("");
-        setNewCustPhone("");
-        setNewCustEmail("");
-        setNewCustAddress("");
-        showToast("success", `Customer "${newCust.name}" registered and selected.`);
-      }
+      setCustomers((prev) => [...prev, newCust as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
+      setSelectedCustomerId((newCust as any).id);
+      if (phone) setCustomerMobile(phone);
+      setAddCustomerWindowOpen(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustEmail("");
+      setNewCustAddress("");
+      showToast("success", `Customer "${name}" created and assigned.`);
     } catch (err: any) {
       console.error("Customer creation error:", err);
       setCustCreateError(err.message || "Failed to create customer.");
@@ -355,7 +457,7 @@ export default function AepsWorkspace({
     }
   }
 
-  // Open Edit Modal for a Transaction
+  // Open Edit Modal for Non-Financial Reference Correction
   function handleOpenEdit(t: Txn) {
     setEditingTxn(t);
     setEditCustomerId(t.customer_id || "");
@@ -365,7 +467,7 @@ export default function AepsWorkspace({
     setEditTxnWindowOpen(true);
   }
 
-  // Save Transaction Corrections with Audit Trail
+  // Save Transaction Non-Financial Reference Correction
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingTxn) return;
@@ -393,7 +495,7 @@ export default function AepsWorkspace({
         action: "update",
         entity: "transaction",
         entity_id: editingTxn.id,
-        description: `Corrected non-financial fields on AEPS Txn #${editingTxn.transaction_number}`,
+        description: `Corrected non-financial reference on AEPS Txn #${editingTxn.transaction_number}`,
         details: {
           transaction_number: editingTxn.transaction_number,
           old_reference: editingTxn.reference,
@@ -420,7 +522,7 @@ export default function AepsWorkspace({
       );
 
       setEditTxnWindowOpen(false);
-      showToast("success", `Transaction #${editingTxn.transaction_number} updated with audit trail.`);
+      showToast("success", `Transaction #${editingTxn.transaction_number} updated.`);
     } catch (err: any) {
       console.error("Transaction edit error:", err);
       showToast("error", err.message || "Failed to update transaction.");
@@ -429,70 +531,37 @@ export default function AepsWorkspace({
     }
   }
 
-  // Authoritative Validation before opening confirmation
+  // Submit Initiation
   function handleInitiateTransaction() {
-    const num = Number(amount);
-    if (operation === "withdrawal" && (!num || num <= 0)) {
-      showToast("error", "Please enter a valid withdrawal amount.");
-      return;
-    }
     if (!selectedBankId) {
-      showToast("error", "Please select the customer's bank.");
+      showToast("error", "Please select customer's bank.");
       return;
     }
-    if (!selectedPortalId) {
-      showToast("error", "Please choose an AEPS service portal.");
+    const cleanAadhaar = aadhaarLast4.replace(/\D/g, "");
+    if (cleanAadhaar.length !== 4) {
+      showToast("error", "Please enter the last 4 digits of customer's Aadhaar.");
       return;
     }
-
-    const cleanAadhaar = (aadhaarLast4 || "").trim();
-    if (!/^[0-9]{4}$/.test(cleanAadhaar)) {
-      showToast("error", "Please enter the last 4 digits of Aadhaar (4 digits).");
-      return;
-    }
-
-    if (feeTreatment === "separate" && customerPayMethod === "due" && !selectedCustomerId) {
-      showToast("error", "Please select a registered customer to record fee as Due (Khata).");
+    if (operation === "withdrawal" && (!numAmount || numAmount <= 0)) {
+      showToast("error", "Please enter a valid withdrawal amount.");
       return;
     }
 
     setConfirmWindowOpen(true);
   }
 
-  // Effective financial amounts
-  const numAmount = Number(amount || 0);
-  const numFee = Number(serviceFee || 0);
-  const numComm = Number(portalCommission || 0);
-  const totalIncome = numFee + numComm;
-
-  // Exact Cash Handed to Customer calculation
-  const cashHanded =
-    operation !== "withdrawal"
-      ? 0
-      : feeTreatment === "deduct"
-      ? Math.max(0, numAmount - numFee)
-      : numAmount;
-
-  // Effective backend fee_source
-  const effectiveFeeSource =
-    feeTreatment === "deduct"
-      ? "cut_from_withdrawal"
-      : customerPayMethod === "upi"
-      ? "upi"
-      : "separate_cash";
-
-  // Effective customer collection method
-  const effectivePayMethod = feeTreatment === "deduct" ? "cash" : customerPayMethod;
-
-  // Execute Transaction
+  // Process Completed AEPS Withdrawal
   async function handleProcessTransaction() {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
-      const cleanAadhaar = (aadhaarLast4 || "").trim();
       const nowIso = new Date().toISOString();
       const dateStr = nowIso.slice(0, 10);
+      const cleanAadhaar = aadhaarLast4.replace(/\D/g, "").slice(0, 4);
+
+      const effectiveFeeSource = feeTreatment === "deduct" ? "cut_from_withdrawal" : "customer_paid_extra";
+      const effectivePayMethod = feeTreatment === "separate" ? customerPayMethod : "cash";
 
       const res = await supabase.rpc("create_business_txn", {
         p_service_type: "aeps",
@@ -578,6 +647,7 @@ export default function AepsWorkspace({
       setRemarks("");
 
       showToast("success", `₹${numAmount.toLocaleString("en-IN")} cash withdrawal completed. Cash handed: ₹${cashHanded.toLocaleString("en-IN")}`);
+      await refreshData();
     } catch (err: any) {
       console.error("AEPS error:", err);
       showToast("error", err.message || "Failed to complete AEPS transaction.");
@@ -586,19 +656,61 @@ export default function AepsWorkspace({
     }
   }
 
-  // Filtered transactions list
-  const filteredTxns = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return transactions;
-    return transactions.filter(
-      (t) =>
-        t.transaction_number?.toLowerCase().includes(q) ||
-        t.customer_mobile?.includes(q) ||
-        t.customers?.name?.toLowerCase().includes(q) ||
-        t.banks?.name?.toLowerCase().includes(q) ||
-        t.reference?.toLowerCase().includes(q)
-    );
-  }, [transactions, searchQuery]);
+  // Open WhatsApp Modal
+  const handleOpenWhatsApp = (t: Txn) => {
+    const rawPhone = t.customer_mobile || t.customers?.phone || "";
+    const appUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const receiptUrl = `${appUrl}/receipt/business/${t.id}`;
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.aeps_confirmation || DEFAULT_WA_TEMPLATES.aeps_confirmation || "AEPS Cash Withdrawal: {amount} successful for {customer_name}. Ref: {txn_id}";
+
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "SC Communications",
+      service_name: "AEPS Cash Out",
+      txn_id: t.transaction_number,
+      txn_date: t.transaction_date,
+      customer_name: t.customers?.name || "Customer",
+      customer_name_line: t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : "",
+      amount: inr(Number(t.amount)),
+      ref_number: t.reference || "-",
+      status: t.status.toUpperCase(),
+      receipt_url: receiptUrl,
+    });
+
+    setWaModal({
+      open: true,
+      phone: rawPhone,
+      name: t.customers?.name || "Customer",
+      msg,
+      refNum: t.transaction_number,
+      refId: t.id,
+    });
+  };
+
+  // Export CSV
+  const handleExportCsv = () => {
+    const filename = `AEPS_CashOut_${new Date().toISOString().slice(0, 10)}.csv`;
+    const headers = ["Txn Number", "Date", "Customer", "Mobile", "Aadhaar", "Bank", "Portal", "Amount", "Fee", "Commission", "Cash Handed", "Status", "RRN Reference"];
+    const rows = filteredTxns.map((t) => [
+      t.transaction_number,
+      t.transaction_date,
+      t.customers?.name || "Walk-in Customer",
+      t.customer_mobile || t.customers?.phone || "",
+      t.aadhaar_last4 ? `**** ${t.aadhaar_last4}` : "",
+      t.banks?.name || "",
+      t.portals?.name || "",
+      Number(t.amount),
+      Number(t.service_fee || 0),
+      Number(t.portal_commission || 0),
+      Number(t.fee_source === "cut_from_withdrawal" ? Math.max(0, Number(t.amount) - Number(t.service_fee || 0)) : t.amount),
+      t.status,
+      t.reference || "",
+    ]);
+    downloadCsv(filename, headers, rows);
+    showToast("success", "Exported AEPS transactions.");
+  };
+
+  const recentTxn = transactions[0] || null;
 
   return (
     <div className="space-y-5 pb-16">
@@ -606,87 +718,361 @@ export default function AepsWorkspace({
       {toastView}
 
       {/* ===============================================================================
-          1. HEADER & LIVE OPERATIONAL STATUS
+          1. AEPS PREMIUM HERO: Matching UPI & DMT Executive DNA
       =============================================================================== */}
-      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+      <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-teal-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                ● Live AEPS Switch Online
+                ● LIVE AEPS SWITCH ONLINE
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
-                Biometric Gateway Active
+                BIOMETRIC GATEWAY ACTIVE
               </span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">
               AEPS Biometric Cash Out
             </h1>
             <p className="text-xs text-indigo-200/80 sm:text-sm">
-              Instant Aadhaar cash withdrawal, micro-ATM disbursement, and live portal float settlement.
+              Instant Aadhaar cash withdrawal, micro-ATM disbursement and live portal float settlement.
             </p>
           </div>
 
-          {/* Available Float Card */}
-          <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Available Platform Float</span>
-            <div className="text-2xl font-black text-emerald-400">{inr(currentFloat)}</div>
-            <span className="text-[10px] text-slate-400">Live Settlement Pool</span>
+          {/* Available Float Display Card */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={isRefreshing}
+              className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+              title="Refresh Live Balances from Database"
+            >
+              <span className={`inline-block text-base ${isRefreshing ? "animate-spin text-teal-400" : ""}`}>↻</span>
+            </button>
+            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[180px]">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">AVAILABLE PLATFORM FLOAT</span>
+              <div className={`text-2xl font-black ${aepsCurrentBalance < 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                {inr(aepsCurrentBalance)}
+              </div>
+              <span className="text-[10px] text-slate-400">Live Settlement Pool</span>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* ===============================================================================
-          2. TODAY'S AEPS KPI SUMMARY
+          2. AEPS POSITION STRIP (CONNECTED FINTECH METRICS RAIL)
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Today's Withdrawals</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white">{inr(todayVolume)}</div>
-            <p className="text-xs text-slate-500">{todayCount} completed transactions</p>
-          </div>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">● 100% Settled</span>
-        </div>
+      <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-slate-100/90 p-4.5 sm:p-5 shadow-xs dark:border-white/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950">
+        <div className="flex flex-col gap-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-3 dark:border-white/10">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                AEPS POSITION
+              </span>
+              <span className={`text-base font-black ${aepsCurrentBalance < 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>
+                {inr(aepsCurrentBalance)}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                ✓ RECONCILED
+              </span>
+            </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Earned Income Today</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-emerald-600 sm:text-3xl dark:text-emerald-400">+{inr(todayIncome)}</div>
-            <p className="text-xs text-slate-500">Service Fees + Portal Commissions</p>
+            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+              <span>Synced {lastRefreshedAt}</span>
+              <Link
+                href="/finance/reconciliation"
+                className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition"
+              >
+                <span>View reconciliation</span>
+                <span>→</span>
+              </Link>
+            </div>
           </div>
-          <span className="text-[11px] text-slate-400">Direct Gross Profit Margin</span>
-        </div>
 
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Active Service Portals</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">{portals.length}</div>
-            <p className="text-xs text-slate-500">Fino, Spice Money, Payworld, RNFI</p>
+          {/* Connected Metrics Grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">WITHDRAWALS</p>
+              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(kpis.volume)}</p>
+              <p className="text-[10px] text-slate-400">{kpis.successCount} Completed</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">CASH OUT</p>
+              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(kpis.totalCashDisbursed)}</p>
+              <p className="text-[10px] text-slate-400">Till Handouts</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">SERVICE FEES</p>
+              <p className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">+{inr(kpis.fees)}</p>
+              <p className="text-[10px] text-slate-400">Customer Fees</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">COMMISSIONS</p>
+              <p className="mt-0.5 text-lg font-bold text-teal-600 dark:text-teal-400">+{inr(kpis.commissions)}</p>
+              <p className="text-[10px] text-slate-400">Portal Margin</p>
+            </div>
+            <div className="col-span-2 sm:col-span-1 rounded-xl border border-emerald-500/20 bg-emerald-50/40 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">VARIANCE</p>
+              <p className="mt-0.5 text-lg font-black text-emerald-700 dark:text-emerald-300">₹0.00</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Exact Match</p>
+            </div>
           </div>
-          <Link href="/business/portals" className="text-[11px] text-blue-600 font-bold hover:underline dark:text-blue-400">Manage Portals →</Link>
         </div>
-
-        <div className="bento-surface-interactive flex flex-col justify-between p-4 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Registered Banks</span>
-          <div className="my-1.5">
-            <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">{banks.length}</div>
-            <p className="text-xs text-slate-500">Authoritative Master Bank List</p>
-          </div>
-          <button type="button" onClick={() => setAddBankWindowOpen(true)} className="text-[11px] text-blue-600 font-bold text-left hover:underline dark:text-blue-400">
-            + Add New Bank
-          </button>
-        </div>
-      </div>
+      </section>
 
       {/* ===============================================================================
-          3. MAIN AEPS TRANSACTION WORKSPACE
+          3. PRIMARY OPERATIONS (QUICK OPERATIONS)
       =============================================================================== */}
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+            QUICK OPERATIONS
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setScanModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              title="Scan AEPS receipt screenshot or SMS"
+            >
+              <span>📷</span>
+              <span>Scan &amp; Fill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddBankWindowOpen(true)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <span>+ Add Bank</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddCustomerWindowOpen(true)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <span>+ Add Customer</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Tile 1: Biometric Cash Out */}
+          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-teal-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-teal-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-xl text-white shadow-md shadow-teal-500/20">
+                  👆
+                </div>
+                <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">
+                  Micro-ATM / AePS
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">BIOMETRIC CASH OUT</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Aadhaar-enabled customer withdrawal &amp; biometric authentication
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Deterministic double-entry settlement with till cashout
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400">Instant Till Cashout</span>
+              <button
+                type="button"
+                onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-teal-500/20 transition hover:brightness-110 active:scale-[0.98]"
+              >
+                <span>Start Cash Out</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tile 2: AEPS Service Portals */}
+          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-xl text-white shadow-md shadow-indigo-500/20">
+                  🌐
+                </div>
+                <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  {portals.length} Active Gateways
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">AEPS SERVICE PORTALS</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Fino, Spice Money, Payworld, RNFI &amp; settlement channels
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Authoritative multi-portal float tracking and ledger sync
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span>
+              <Link
+                href="/business/portals"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              >
+                <span>Manage Portals</span>
+                <span>→</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          4. AEPS CUSTOMER CASH-OUT FLOW (MODERN TERMINAL WORKFLOW)
+      =============================================================================== */}
+      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+            AEPS OPERATION LIFECYCLE
+          </h2>
+          <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">5-Stage Atomic Flow</span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+          <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+            <span className="font-mono text-[10px] font-bold text-slate-400">01. IDENTIFY</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Customer &amp; Bank</p>
+            <p className="text-[10px] text-slate-400">Aadhaar (Last 4) &amp; Bank select</p>
+          </div>
+          <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+            <span className="font-mono text-[10px] font-bold text-teal-600 dark:text-teal-400">02. AUTHENTICATE</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Biometric Scan</p>
+            <p className="text-[10px] text-slate-400">Fingerprint sensor verification</p>
+          </div>
+          <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+            <span className="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400">03. SWITCH</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Portal Credit</p>
+            <p className="text-[10px] text-slate-400">NPCI / Bank switch processing</p>
+          </div>
+          <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+            <span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">04. DISBURSE</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Cash Drawer Payout</p>
+            <p className="text-[10px] text-slate-400">Hand net physical currency</p>
+          </div>
+          <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+            <span className="font-mono text-[10px] font-bold text-cyan-600 dark:text-cyan-400">05. SETTLEMENT</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Ledger Synchronized</p>
+            <p className="text-[10px] text-slate-400">Float updated &amp; receipt ready</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          5. PROVIDER / SWITCH STATUS RAIL
+      =============================================================================== */}
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">AEPS SWITCH</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● ONLINE</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">BIOMETRIC</span>
+          <p className="mt-0.5 text-xs font-bold text-teal-600 dark:text-teal-400">● ACTIVE</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">MICRO-ATM</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● READY</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PORTALS</span>
+          <p className="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">● {portals.length} CONNECTED</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SETTLEMENT</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">✓ SYNCED</p>
+        </div>
+        <div className="col-span-2 sm:col-span-1 rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LAST SYNC</span>
+          <p className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">{lastRefreshedAt}</p>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          6. LIVE AEPS ACTIVITY
+      =============================================================================== */}
+      {recentTxn && (
+        <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                LIVE AEPS ACTIVITY
+              </h2>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <span className="text-[10px] text-slate-400">Latest Completed Event</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-3 w-3 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                    {recentTxn.transaction_number}
+                  </span>
+                  <span className="text-xs text-slate-400">·</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Customer: {recentTxn.customers?.name || "Walk-in"}
+                  </span>
+                  <span className="text-xs text-slate-400">·</span>
+                  <strong className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {inr(Number(recentTxn.amount))}
+                  </strong>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    ✓ {recentTxn.status.toUpperCase()}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· RRN: ${recentTxn.reference}` : ""} {recentTxn.banks?.name ? `· Bank: ${recentTxn.banks.name}` : ""}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setSelectedDetailTxn(recentTxn)}
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                View
+              </button>
+              <Link
+                href={`/business/receipt/${recentTxn.id}`}
+                target="_blank"
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                title="Print thermal receipt"
+              >
+                🖨️ Receipt
+              </Link>
+              <button
+                type="button"
+                onClick={() => handleOpenWhatsApp(recentTxn)}
+                className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
+                💬 WhatsApp
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ===============================================================================
+          7. MAIN AEPS TRANSACTION WORKSPACE (FORM & SETTLEMENT BREAKDOWN)
+      =============================================================================== */}
+      <div ref={formRef} className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         {/* Left (8 Cols): Transaction Form & Scan & Fill */}
-        <div className="bento-surface p-5 lg:col-span-8 dark:bg-slate-900/90 space-y-4">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-8 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
           {/* Top Bar: Operation Selector & Scan & Fill CTA */}
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
             {/* Operation Selector */}
@@ -702,7 +1088,7 @@ export default function AepsWorkspace({
                   onClick={() => setOperation(op.id as any)}
                   className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${
                     operation === op.id
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-blue-600 dark:text-white"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-teal-600 dark:text-white"
                       : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                   }`}
                 >
@@ -715,7 +1101,7 @@ export default function AepsWorkspace({
             <button
               type="button"
               onClick={() => setScanModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-blue-500/25 transition hover:brightness-110 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-teal-500/25 transition hover:brightness-110 active:scale-95"
             >
               <span>📷 Scan &amp; Fill Receipt / SMS</span>
             </button>
@@ -723,9 +1109,9 @@ export default function AepsWorkspace({
 
           {/* Scanned Information Review Alert */}
           {scannedReviewData && (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-xs dark:border-teal-900/40 dark:bg-teal-950/20">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-blue-900 dark:text-blue-300">✓ Information Detected from Scan</span>
+                <span className="font-bold text-teal-900 dark:text-teal-300">✓ Information Detected from Scan</span>
                 <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
@@ -752,7 +1138,7 @@ export default function AepsWorkspace({
                 <button
                   type="button"
                   onClick={() => setAddCustomerWindowOpen(true)}
-                  className="text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+                  className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400"
                 >
                   + Add New Customer
                 </button>
@@ -795,7 +1181,7 @@ export default function AepsWorkspace({
                 value={customerMobile}
                 onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 placeholder="10-digit mobile number"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
               />
             </div>
 
@@ -852,7 +1238,7 @@ export default function AepsWorkspace({
                     setAadhaarLast4(digits);
                   }}
                   placeholder="3619"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
                 />
               </div>
             </div>
@@ -865,7 +1251,7 @@ export default function AepsWorkspace({
               <select
                 value={selectedPortalId}
                 onChange={(e) => setSelectedPortalId(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
               >
                 {portals.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -886,7 +1272,7 @@ export default function AepsWorkspace({
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="1000"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
                   />
                 </div>
 
@@ -899,7 +1285,7 @@ export default function AepsWorkspace({
                       onClick={() => setAmount(v)}
                       className={`rounded-xl border px-3 py-1 text-xs font-black transition ${
                         amount === v
-                          ? "border-blue-600 bg-blue-600 text-white shadow-xs"
+                          ? "border-teal-600 bg-teal-600 text-white shadow-xs"
                           : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
                       }`}
                     >
@@ -921,7 +1307,7 @@ export default function AepsWorkspace({
                     type="number"
                     value={serviceFee}
                     onChange={(e) => setServiceFee(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
                     placeholder="Fee charged to customer"
                   />
                 </div>
@@ -934,7 +1320,7 @@ export default function AepsWorkspace({
                     type="number"
                     value={portalCommission}
                     onChange={(e) => setPortalCommission(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
                     placeholder="Commission from portal"
                   />
                 </div>
@@ -950,7 +1336,7 @@ export default function AepsWorkspace({
                       onClick={() => setFeeTreatment("separate")}
                       className={`rounded-2xl border p-2.5 text-left transition ${
                         feeTreatment === "separate"
-                          ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
+                          ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30"
                           : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
                       }`}
                     >
@@ -967,7 +1353,7 @@ export default function AepsWorkspace({
                       onClick={() => setFeeTreatment("deduct")}
                       className={`rounded-2xl border p-2.5 text-left transition ${
                         feeTreatment === "deduct"
-                          ? "border-blue-600 bg-blue-50/80 shadow-xs dark:border-blue-500 dark:bg-blue-950/30"
+                          ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30"
                           : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
                       }`}
                     >
@@ -1024,14 +1410,14 @@ export default function AepsWorkspace({
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 placeholder="12-digit RRN / Auth Reference"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
           </div>
         </div>
 
-        {/* Right (4 Cols): Live Transaction Summary & Action (Tight, cohesive vertical layout) */}
-        <div className="bento-surface p-5 lg:col-span-4 dark:bg-slate-900/90 space-y-4">
+        {/* Right (4 Cols): Live Transaction Summary & Action */}
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-4 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
           <div className="border-b border-slate-100 pb-2.5 dark:border-white/5">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
             <h3 className="text-base font-black text-slate-900 dark:text-white">AEPS Settlement Breakdown</h3>
@@ -1081,7 +1467,7 @@ export default function AepsWorkspace({
                 )}
                 <div className="flex justify-between">
                   <span className="text-slate-500">Portal Commission:</span>
-                  <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
+                  <strong className="text-teal-600 dark:text-teal-400 font-bold">+{inr(numComm)}</strong>
                 </div>
                 <div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5">
                   <span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span>
@@ -1091,13 +1477,13 @@ export default function AepsWorkspace({
                 {/* Receipt Details Preference Control */}
                 <div className="border-t border-slate-100 pt-2 dark:border-white/5">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 font-bold">Default Receipt Style:</span>
+                    <span className="text-slate-500 font-bold">Receipt Format:</span>
                     <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
                       <button
                         type="button"
                         onClick={() => setReceiptMode("basic")}
                         className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                          receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
+                          receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-teal-600 dark:text-white" : "text-slate-500"
                         }`}
                       >
                         Basic
@@ -1106,7 +1492,7 @@ export default function AepsWorkspace({
                         type="button"
                         onClick={() => setReceiptMode("detailed")}
                         className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                          receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-blue-600 dark:text-white" : "text-slate-500"
+                          receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-teal-600 dark:text-white" : "text-slate-500"
                         }`}
                       >
                         Detailed
@@ -1133,7 +1519,7 @@ export default function AepsWorkspace({
             )}
           </div>
 
-          {/* Primary Action Button (Immediately beneath the breakdown, visually connected) */}
+          {/* Primary Action Button */}
           <div className="space-y-1.5 pt-1">
             <button
               type="button"
@@ -1150,47 +1536,91 @@ export default function AepsWorkspace({
       </div>
 
       {/* ===============================================================================
-          4. RECENT AEPS TRANSACTIONS TABLE
+          8. AEPS TRANSACTION HISTORY / CONSOLE LEDGER
       =============================================================================== */}
-      <div className="bento-surface p-5 dark:bg-slate-900/90 space-y-3.5">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
-          <div>
-            <h3 className="font-bold text-slate-900 dark:text-white">Recent AEPS Cash Out Records</h3>
-            <p className="text-xs text-slate-400">Live ledger of biometric withdrawals and portal credits.</p>
+      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">AEPS TRANSACTION HISTORY</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Authoritative transaction ledger for Aadhaar biometric cash withdrawals and portal settlements.
+              </p>
+            </div>
+
+            {/* Segmented Status Filter */}
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
+              {[
+                { key: "all", label: `All (${transactions.length})` },
+                { key: "success", label: "Successful" },
+                { key: "pending", label: "Pending" },
+                { key: "failed", label: "Failed" },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`rounded-lg px-3 py-1 font-semibold transition ${
+                    statusFilter === tab.key
+                      ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
+                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by RRN, mobile, customer or bank…"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-          />
+
+          {/* Search & Export Controls */}
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by RRN reference, mobile, customer name, bank or portal…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
         </div>
 
+        {/* Ledger Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-400 dark:border-white/10">
-                <th className="pb-2 font-bold">Txn # / Time</th>
-                <th className="pb-2 font-bold">Customer &amp; Aadhaar</th>
-                <th className="pb-2 font-bold">Bank &amp; Portal</th>
-                <th className="pb-2 font-bold text-right">Withdrawal</th>
-                <th className="pb-2 font-bold text-center">Fee Treatment</th>
-                <th className="pb-2 font-bold text-right">Cash Handed</th>
-                <th className="pb-2 font-bold text-right">Total Income</th>
-                <th className="pb-2 font-bold text-center">Status</th>
-                <th className="pb-2 font-bold text-right">Actions</th>
+              <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5">
+                <th className="px-4 py-3">TRANSACTION</th>
+                <th className="px-4 py-3">CUSTOMER &amp; AADHAAR</th>
+                <th className="px-4 py-3">BANK &amp; PORTAL</th>
+                <th className="px-4 py-3">DATE / TIME</th>
+                <th className="px-4 py-3 text-right">WITHDRAWAL</th>
+                <th className="px-4 py-3 text-right">CASH HANDED</th>
+                <th className="px-4 py-3 text-right">FEE</th>
+                <th className="px-4 py-3 text-center">STATUS</th>
+                <th className="px-4 py-3 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
               {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-7 text-center text-slate-400">
-                    No AEPS transactions found. Process a withdrawal above to see records.
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                    No AEPS transactions match the selected filters.
                   </td>
                 </tr>
               ) : (
-                filteredTxns.slice(0, 15).map((t) => {
+                filteredTxns.map((t) => {
                   const isDeducted = t.fee_source === "cut_from_withdrawal";
                   const txnCashHanded = isDeducted
                     ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0))
@@ -1199,75 +1629,107 @@ export default function AepsWorkspace({
                   const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
 
                   return (
-                    <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                      <td className="py-2.5">
-                        <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
-                        <div className="text-[10px] text-slate-400">
-                          {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
-                        </div>
+                    <tr key={t.id} className="transition hover:bg-slate-50/70 dark:hover:bg-white/5">
+                      <td className="px-4 py-3.5">
+                        <div className="font-mono font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
+                        {t.reference && (
+                          <span className="text-[10px] text-slate-400 truncate max-w-[140px] block">
+                            RRN: {t.reference}
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2.5">
-                        <div className="font-bold text-slate-900 dark:text-white">{t.customers?.name || "Walk-in"}</div>
-                        <div className="text-[10px] text-slate-400">
-                          {t.customer_mobile ? `📱 ${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `• **** ${t.aadhaar_last4}` : ""}
-                        </div>
+
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">{t.customers?.name || "Walk-in"}</div>
+                        <span className="text-[10px] text-slate-400">
+                          {t.customer_mobile ? `${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `· **** ${t.aadhaar_last4}` : ""}
+                        </span>
                       </td>
-                      <td className="py-2.5">
-                        <div className="font-bold text-slate-900 dark:text-white">{t.banks?.name || "Bank"}</div>
-                        <div className="text-[10px] text-slate-400">{t.portals?.name || "Portal"}</div>
+
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">{t.banks?.name || "Bank"}</div>
+                        <span className="text-[10px] text-teal-600 dark:text-teal-400">{t.portals?.name || "Portal"}</span>
                       </td>
-                      <td className="py-2.5 text-right font-black text-slate-900 dark:text-white">
+
+                      <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400">
+                        <div>{fmtDate(t.transaction_date)}</div>
+                        <span className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right font-bold text-slate-900 dark:text-white">
                         {inr(t.amount)}
                       </td>
-                      <td className="py-2.5 text-center">
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                          {isDeducted
-                            ? "✂️ Deducted"
-                            : t.customer_pay_method === "upi"
-                            ? "📱 UPI"
-                            : t.customer_pay_method === "bank"
-                            ? "🏦 Bank"
-                            : t.customer_pay_method === "due"
-                            ? "📋 Due"
-                            : "💵 Cash"}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
+
+                      <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
                         {inr(txnCashHanded)}
                       </td>
-                      <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
-                        +{inr(Number(t.service_fee || 0) + Number(t.portal_commission || 0))}
+
+                      <td className="px-4 py-3.5 text-right font-semibold text-cyan-600 dark:text-cyan-400">
+                        +{inr(Number(t.service_fee || 0))}
                       </td>
-                      <td className="py-2.5 text-center">
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                          {t.status.toUpperCase()}
+
+                      <td className="px-4 py-3.5 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                            t.status === "success"
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              : t.status === "pending"
+                              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                              : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                          }`}
+                        >
+                          {t.status === "success" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                          {t.status === "success" ? "✓ Successful" : t.status === "pending" ? "◌ Pending" : "! Failed"}
                         </span>
                       </td>
-                      <td className="py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
                           <Link
                             href={receiptUrl}
                             target="_blank"
-                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                            title="Print 80mm Receipt"
+                            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                            title="Print 80mm thermal receipt"
                           >
-                            🖨️
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                              <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                              <path d="M6 14h12v8H6z" />
+                            </svg>
                           </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenWhatsApp(t)}
+                            className="rounded-lg p-1 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400"
+                            title="Send WhatsApp receipt"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => setSelectedDetailTxn(t)}
-                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
-                            title="View Transaction Breakdown"
+                            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                            title="View complete details"
                           >
-                            👁
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                              <circle cx="12" cy="12" r="1" />
+                              <circle cx="19" cy="12" r="1" />
+                              <circle cx="5" cy="12" r="1" />
+                            </svg>
                           </button>
+
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(t)}
-                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:bg-white/5 dark:text-blue-400"
-                            title="Edit Non-Financial Reference"
+                            className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400"
+                            title="Edit non-financial reference"
                           >
-                            ✏️
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                            </svg>
                           </button>
                         </div>
                       </td>
@@ -1278,10 +1740,10 @@ export default function AepsWorkspace({
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
       {/* ===============================================================================
-          5. CONFIRMATION MODAL
+          CONFIRMATION MODAL
       =============================================================================== */}
       {confirmWindowOpen && (
         <FloatingWindow
@@ -1324,7 +1786,7 @@ export default function AepsWorkspace({
               )}
               <div className="flex justify-between">
                 <span className="text-slate-500">Portal Commission:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numComm)}</strong>
+                <strong className="text-teal-600 dark:text-teal-400 font-bold">+{inr(numComm)}</strong>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10">
                 <span className="text-slate-700 font-bold dark:text-slate-300">Physical Cash to Hand to Customer:</span>
@@ -1359,7 +1821,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          6. ADD NEW BANK MODAL
+          ADD NEW BANK MODAL
       =============================================================================== */}
       {addBankWindowOpen && (
         <FloatingWindow
@@ -1385,7 +1847,7 @@ export default function AepsWorkspace({
                 value={newBankName}
                 onChange={(e) => setNewBankName(e.target.value)}
                 placeholder="e.g. Bandhan Bank Ltd"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1398,7 +1860,7 @@ export default function AepsWorkspace({
                 value={newBankCode}
                 onChange={(e) => setNewBankCode(e.target.value.toUpperCase())}
                 placeholder="e.g. BDBL"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1417,7 +1879,7 @@ export default function AepsWorkspace({
               <button
                 type="submit"
                 disabled={bankCreateSubmitting}
-                className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-teal-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50"
               >
                 {bankCreateSubmitting ? "Saving…" : "Add & Select Bank"}
               </button>
@@ -1427,7 +1889,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          7. ADD NEW CUSTOMER MODAL
+          ADD NEW CUSTOMER MODAL
       =============================================================================== */}
       {addCustomerWindowOpen && (
         <FloatingWindow
@@ -1453,7 +1915,7 @@ export default function AepsWorkspace({
                 value={newCustName}
                 onChange={(e) => setNewCustName(e.target.value)}
                 placeholder="e.g. Rahul Sharma"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1468,7 +1930,7 @@ export default function AepsWorkspace({
                 value={newCustPhone}
                 onChange={(e) => setNewCustPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 placeholder="10-digit mobile number"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1481,7 +1943,7 @@ export default function AepsWorkspace({
                 value={newCustEmail}
                 onChange={(e) => setNewCustEmail(e.target.value)}
                 placeholder="customer@email.com"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1494,7 +1956,7 @@ export default function AepsWorkspace({
                 value={newCustAddress}
                 onChange={(e) => setNewCustAddress(e.target.value)}
                 placeholder="e.g. Ward 4, Newtown"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1509,7 +1971,7 @@ export default function AepsWorkspace({
               <button
                 type="submit"
                 disabled={custCreateSubmitting}
-                className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-teal-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50"
               >
                 {custCreateSubmitting ? "Saving…" : "Save & Select"}
               </button>
@@ -1519,7 +1981,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          8. EDIT TRANSACTION MODAL (Controlled Non-Financial Corrections)
+          EDIT TRANSACTION MODAL
       =============================================================================== */}
       {editTxnWindowOpen && editingTxn && (
         <FloatingWindow
@@ -1561,7 +2023,7 @@ export default function AepsWorkspace({
                 type="tel"
                 value={editCustomerMobile}
                 onChange={(e) => setEditCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1574,7 +2036,7 @@ export default function AepsWorkspace({
                 value={editReference}
                 onChange={(e) => setEditReference(e.target.value)}
                 placeholder="RRN / Auth Reference"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1587,7 +2049,7 @@ export default function AepsWorkspace({
                 value={editRemarks}
                 onChange={(e) => setEditRemarks(e.target.value)}
                 placeholder="Add correction notes…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -1602,7 +2064,7 @@ export default function AepsWorkspace({
               <button
                 type="submit"
                 disabled={editSubmitting}
-                className="rounded-xl bg-blue-600 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-teal-600 px-5 py-2 font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50"
               >
                 {editSubmitting ? "Saving…" : "Save Correction"}
               </button>
@@ -1612,7 +2074,7 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          9. TRANSACTION DETAIL VIEW MODAL
+          TRANSACTION DETAIL VIEW MODAL
       =============================================================================== */}
       {selectedDetailTxn && (
         <FloatingWindow
@@ -1639,7 +2101,7 @@ export default function AepsWorkspace({
                   <div><span className="text-slate-400">Cash Handed to Customer:</span> <div className="font-black text-sm text-emerald-700 dark:text-emerald-400">{inr(detailCashHanded)}</div></div>
                   <div><span className="text-slate-400">Customer Service Fee:</span> <div className="font-bold text-emerald-600">{isDeducted ? `-${inr(selectedDetailTxn.service_fee)}` : `+${inr(selectedDetailTxn.service_fee)}`}</div></div>
                   <div><span className="text-slate-400">Fee Treatment:</span> <div className="font-bold text-slate-700 dark:text-slate-300">{isDeducted ? "Deducted from Payout" : `Separate via ${(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}`}</div></div>
-                  <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.portal_commission)}</div></div>
+                  <div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-teal-600 dark:text-teal-400">+{inr(selectedDetailTxn.portal_commission)}</div></div>
                   <div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div>
                   <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
                   <div><span className="text-slate-400">Aadhaar:</span> <div className="font-bold">**** {selectedDetailTxn.aadhaar_last4 || "N/A"}</div></div>
@@ -1654,7 +2116,7 @@ export default function AepsWorkspace({
                     <Link
                       href={receiptUrl}
                       target="_blank"
-                      className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-blue-600"
+                      className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-teal-600"
                     >
                       🖨️ 80mm
                     </Link>
@@ -1671,7 +2133,7 @@ export default function AepsWorkspace({
                         setSelectedDetailTxn(null);
                         handleOpenEdit(selectedDetailTxn);
                       }}
-                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
+                      className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 font-bold text-teal-700 hover:bg-teal-100 dark:border-teal-900/40 dark:bg-teal-950/40 dark:text-teal-300"
                     >
                       ✏️ Edit Reference
                     </button>
@@ -1691,7 +2153,24 @@ export default function AepsWorkspace({
       )}
 
       {/* ===============================================================================
-          10. SCAN & FILL MODAL
+          WHATSAPP SEND MODAL
+      =============================================================================== */}
+      {waModal.open && (
+        <WhatsAppSendModal
+          open={waModal.open}
+          onClose={() => setWaModal((prev) => ({ ...prev, open: false }))}
+          phone={waModal.phone}
+          initialMessage={waModal.msg}
+          recipientName={waModal.name}
+          messageType="banking_txn"
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
+          onSent={() => showToast("success", "WhatsApp receipt dispatched.")}
+        />
+      )}
+
+      {/* ===============================================================================
+          SCAN & FILL MODAL
       =============================================================================== */}
       {scanModalOpen && (
         <ScanFillModal

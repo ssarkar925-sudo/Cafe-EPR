@@ -4682,6 +4682,19 @@ function detectIntent(question) {
   assert(upiWorkspaceFile.includes("LIVE ACTIVITY"), "588. UPI Workspace: Recent Activity live strip present");
   assert(upiWorkspaceFile.includes("TRANSACTION HISTORY"), "589. UPI Workspace: Redesigned transaction ledger present");
   assert(upiWorkspaceFile.includes("Record UPI Cash Out"), "590. UPI Workspace: Modal workflow for cash out recording present");
+
+  // Test 9: AEPS Command Center Modernization (Tests 591-600)
+  const aepsWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/aeps-workspace.tsx", "utf8");
+  assert(aepsWorkspaceFile.includes("LIVE AEPS SWITCH ONLINE"), "591. AEPS Command Center: Live AEPS switch badge present in hero");
+  assert(aepsWorkspaceFile.includes("AEPS Biometric Cash Out"), "592. AEPS Command Center: Hero title present");
+  assert(aepsWorkspaceFile.includes("AVAILABLE PLATFORM FLOAT"), "593. AEPS Command Center: Available platform float card present in hero");
+  assert(aepsWorkspaceFile.includes("AEPS POSITION"), "594. AEPS Command Center: Connected AEPS POSITION strip present");
+  assert(aepsWorkspaceFile.includes("/finance/reconciliation"), "595. AEPS Command Center: Position strip links to /finance/reconciliation");
+  assert(aepsWorkspaceFile.includes("BIOMETRIC CASH OUT"), "596. AEPS Command Center: Biometric Cash Out quick operation tile present");
+  assert(aepsWorkspaceFile.includes("AEPS OPERATION LIFECYCLE"), "597. AEPS Command Center: 5-stage lifecycle workflow present");
+  assert(aepsWorkspaceFile.includes("LIVE AEPS ACTIVITY"), "598. AEPS Command Center: Live activity feed present");
+  assert(aepsWorkspaceFile.includes("AEPS TRANSACTION HISTORY"), "599. AEPS Command Center: Transaction history ledger present");
+  assert(aepsWorkspaceFile.includes("Confirm AEPS Cash Withdrawal"), "600. AEPS Command Center: Modal workflow for cash withdrawal present");
 }
 
 console.log("\n================================================================================");
