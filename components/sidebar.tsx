@@ -7,12 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarModal from "./profile/avatar-modal";
 
 export type BadgeTone = "emerald" | "amber" | "indigo" | "purple" | "rose" | "slate" | "blue";
+export type NavChild = {
+  label: string;
+  href: string;
+  icon?: string;
+  badge?: { text: string; tone: BadgeTone };
+};
 export type NavItem = {
   label: string;
   href: string;
   icon: string;
   badge?: { text: string; tone: BadgeTone };
   isSubHeader?: boolean;
+  children?: NavChild[];
 };
 export type NavSection = { title: string; items: NavItem[] };
 
@@ -37,6 +44,8 @@ const ICONS: Record<string, string> = {
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
   upi: "M12 18h.01M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
   recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+  billPayment: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z",
+  utility: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   banks: "M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4",
   qrs: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
   portals: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z",
@@ -143,6 +152,25 @@ export default function Sidebar({
       ])
   );
 
+  const [openSubItems, setOpenSubItems] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    if (pathname?.startsWith("/business/bill-payment") || pathname?.startsWith("/business/recharge")) {
+      s.add("Bill Payment");
+    }
+    return s;
+  });
+
+  function toggleSubItem(label: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpenSubItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
   const sections: NavSection[] = useMemo(
     () => [
       {
@@ -161,7 +189,15 @@ export default function Sidebar({
           { label: "AEPS Cash Out", href: "/business/aeps", icon: "aeps" },
           { label: "Money Transfer (DMT)", href: "/business/dmt", icon: "dmt" },
           { label: "UPI Collections", href: "/business/upi", icon: "upi" },
-          { label: "Mobile Recharge", href: "/business/recharge", icon: "recharge" },
+          {
+            label: "Bill Payment",
+            href: "/business/bill-payment",
+            icon: "billPayment",
+            children: [
+              { label: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge", icon: "recharge" },
+              { label: "Utility Bill Payment", href: "/business/bill-payment/utility", icon: "utility" },
+            ],
+          },
           // Management Sub-Section
           { label: "SERVICE MANAGEMENT", href: "#", icon: "", isSubHeader: true },
           { label: "Bank Accounts", href: "/business/banks", icon: "banks" },
@@ -239,12 +275,17 @@ export default function Sidebar({
   }
 
   const filteredSections = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sections;
+    if (!query.trim()) return sections;
+    const q = query.toLowerCase();
     return sections
       .map((sec) => ({
         ...sec,
-        items: sec.items.filter((it) => it.label.toLowerCase().includes(q) && !it.isSubHeader),
+        items: sec.items.filter(
+          (item) =>
+            item.label.toLowerCase().includes(q) ||
+            item.href.toLowerCase().includes(q) ||
+            item.children?.some((c) => c.label.toLowerCase().includes(q) || c.href.toLowerCase().includes(q))
+        ),
       }))
       .filter((sec) => sec.items.length > 0);
   }, [sections, query]);
@@ -430,6 +471,83 @@ export default function Sidebar({
                               className="pt-2 pb-1 px-3 text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-white/5 mt-1"
                             >
                               {item.label}
+                            </div>
+                          );
+                        }
+
+                        const hasChildren = Boolean(item.children && item.children.length > 0);
+                        const isSubOpen = openSubItems.has(item.label) || pathname?.startsWith(item.href) || Boolean(query);
+                        const isParentActive = isItemActive(item.href) || Boolean(item.children?.some((c) => isItemActive(c.href)));
+
+                        if (hasChildren && !collapsed) {
+                          return (
+                            <div key={item.href + idx} className="space-y-0.5">
+                              <div
+                                data-active={isParentActive ? "true" : "false"}
+                                style={{ color: isParentActive ? "#ffffff" : "var(--sidebar-text)" }}
+                                className={`group relative flex items-center justify-between rounded-2xl px-3 py-2 text-xs font-bold transition-all duration-200 ${
+                                  isParentActive
+                                    ? "active-nav-link bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
+                                    : "hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98]"
+                                }`}
+                              >
+                                <Link
+                                  href={item.href}
+                                  onClick={onMobileClose}
+                                  className="flex flex-1 items-center gap-3 overflow-hidden min-w-0"
+                                >
+                                  <span
+                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 ${
+                                      isParentActive
+                                        ? "bg-white/20 text-white shadow-xs"
+                                        : "bg-slate-100/80 text-slate-600 group-hover:scale-105 group-hover:text-blue-600 dark:bg-white/5 dark:text-slate-400 dark:group-hover:text-white"
+                                    }`}
+                                  >
+                                    <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
+                                  </span>
+                                  <span className="truncate">{item.label}</span>
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleSubItem(item.label, e)}
+                                  className={`p-1 rounded-lg hover:bg-white/20 transition ${
+                                    isParentActive ? "text-white/80 hover:text-white" : "text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                  }`}
+                                  title={isSubOpen ? "Collapse sub-services" : "Expand sub-services"}
+                                >
+                                  <Icon
+                                    d="m6 9 6 6 6-6"
+                                    className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                                      isSubOpen ? "rotate-0 text-current" : "-rotate-90 text-current"
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+
+                              {isSubOpen && (
+                                <div className="ml-5 pl-2.5 border-l border-slate-200 dark:border-white/10 space-y-0.5 pt-0.5">
+                                  {item.children?.map((child, cIdx) => {
+                                    const childActive = isItemActive(child.href);
+                                    return (
+                                      <Link
+                                        key={child.href + cIdx}
+                                        href={child.href}
+                                        onClick={onMobileClose}
+                                        data-active={childActive ? "true" : "false"}
+                                        className={`group relative flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 ${
+                                          childActive
+                                            ? "bg-blue-50 text-blue-600 font-bold dark:bg-blue-950/40 dark:text-blue-400"
+                                            : "text-slate-500 hover:bg-slate-100/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+                                        }`}
+                                      >
+                                        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60 group-hover:opacity-100" />
+                                        <span className="truncate">{child.label}</span>
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           );
                         }

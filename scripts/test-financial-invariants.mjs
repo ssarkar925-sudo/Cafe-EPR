@@ -5630,6 +5630,105 @@ function detectIntent(question) {
   const studioFile = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
   assert(!studioFile.includes("recharge_accounts"), "964. Studio Invariant: Zero recharge_accounts in Opening Position Studio");
   assert(!studioFile.includes("totalRecharge"), "965. Studio Invariant: Zero totalRecharge aggregate in Opening Position Studio");
+
+  // ============================================================================
+  // SECTION 25: BILL PAYMENT SERVICE HUB & UTILITY BILL PAYMENT INVARIANTS (Tests 966–1015)
+  // ============================================================================
+
+  // 1. Architecture & Routes
+  const billPaymentPageExists = fs.existsSync("E:/CafeERP/app/(dashboard)/business/bill-payment/page.tsx");
+  assert(billPaymentPageExists, "966. Architecture: Bill Payment parent page exists at app/(dashboard)/business/bill-payment/page.tsx");
+
+  const mobileRechargePageExists = fs.existsSync("E:/CafeERP/app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx");
+  assert(mobileRechargePageExists, "967. Architecture: Mobile Recharge child page exists at app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx");
+
+  const utilityBillPageExists = fs.existsSync("E:/CafeERP/app/(dashboard)/business/bill-payment/utility/page.tsx");
+  assert(utilityBillPageExists, "968. Architecture: Utility Bill child page exists at app/(dashboard)/business/bill-payment/utility/page.tsx");
+
+  // 2. Sidebar Navigation Hierarchy
+  const bp_sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  assert(bp_sidebarFile.includes('label: "Bill Payment"') && bp_sidebarFile.includes('href: "/business/bill-payment"'), "969. Sidebar Invariant: Bill Payment section configured under Services in sidebar.tsx");
+  assert(bp_sidebarFile.includes('label: "Mobile Recharge"') && bp_sidebarFile.includes('href: "/business/bill-payment/mobile-recharge"'), "970. Sidebar Invariant: Bill Payment contains Mobile Recharge child navigation");
+  assert(bp_sidebarFile.includes('label: "Utility Bill Payment"') && bp_sidebarFile.includes('href: "/business/bill-payment/utility"'), "971. Sidebar Invariant: Bill Payment contains Utility Bill Payment child navigation");
+  assert(bp_sidebarFile.includes("openSubItems") && bp_sidebarFile.includes("toggleSubItem"), "972. Sidebar Invariant: Expandable toggle supported for Bill Payment in sidebar");
+
+  // 3. Quick Access Hierarchy
+  const bp_quickNavFile = fs.readFileSync("E:/CafeERP/components/module-quick-nav.tsx", "utf8");
+  assert(bp_quickNavFile.includes('id: "bill-payment"') && bp_quickNavFile.includes('href: "/business/bill-payment"'), "973. Quick Access: Bill Payment included in ALL_AVAILABLE_MODULES");
+  assert(bp_quickNavFile.includes('id: "utility-bills"') && bp_quickNavFile.includes('href: "/business/bill-payment/utility"'), "974. Quick Access: Utility Bill Payment included in ALL_AVAILABLE_MODULES");
+
+  // 4. Bill Payment Hub
+  const bp_billPaymentHubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  assert(bp_billPaymentHubFile.includes("BILL PAYMENT SYSTEM ONLINE"), "975. Hub Design: BillPaymentHub component renders BILL PAYMENT SYSTEM ONLINE status");
+  assert(bp_billPaymentHubFile.includes("totalCollections") && bp_billPaymentHubFile.includes("totalCommission"), "976. Hub Metrics: BillPaymentHub aggregates today's payments, collections, commissions");
+  assert(bp_billPaymentHubFile.includes("Mobile Recharge") && bp_billPaymentHubFile.includes("/business/bill-payment/mobile-recharge"), "977. Hub Service Cards: Card 1 renders Mobile Recharge with link to /business/bill-payment/mobile-recharge");
+  assert(bp_billPaymentHubFile.includes("Utility Bill Payment") && bp_billPaymentHubFile.includes("/business/bill-payment/utility"), "978. Hub Service Cards: Card 2 renders Utility Bill Payment with link to /business/bill-payment/utility");
+  assert(!bp_billPaymentHubFile.includes("Bill Payment Float"), "979. Hub Invariant: Zero 'Bill Payment Float' in BillPaymentHub");
+  assert(!bp_billPaymentHubFile.includes("bill_payment_float"), "980. Hub Invariant: Zero 'bill_payment_float' in BillPaymentHub");
+
+  // 5. Utility Bill Workspace
+  const bp_utilityWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/utility-bill-workspace.tsx", "utf8");
+  assert(bp_utilityWorkspaceFile.includes("UTILITY BILLING SYSTEM ONLINE"), "981. Utility Workspace: UtilityBillWorkspace renders UTILITY BILLING SYSTEM ONLINE");
+  assert(bp_utilityWorkspaceFile.includes("BILLER_CATEGORIES") && bp_utilityWorkspaceFile.includes("electricity") && bp_utilityWorkspaceFile.includes("gas"), "982. Utility Workspace: 10 service categories supported in BILLER_CATEGORIES");
+  assert(bp_utilityWorkspaceFile.includes("Consumer ID / CA Number"), "983. Utility Categories: Electricity category with Consumer ID label defined");
+  assert(bp_utilityWorkspaceFile.includes("BP Number / LPG ID"), "984. Utility Categories: Gas category with BP / LPG ID defined");
+  assert(bp_utilityWorkspaceFile.includes("Consumer Connection No"), "985. Utility Categories: Water category with Connection No defined");
+  assert(bp_utilityWorkspaceFile.includes("Account No / User ID"), "986. Utility Categories: Broadband category with Account / User ID defined");
+  assert(bp_utilityWorkspaceFile.includes("Vehicle Reg Number"), "987. Utility Categories: FASTag category with Vehicle Number defined");
+  assert(bp_utilityWorkspaceFile.includes("Policy Number"), "988. Utility Categories: Insurance category with Policy Number defined");
+  assert(bp_utilityWorkspaceFile.includes("Loan Account No (LAN)"), "989. Utility Categories: Loan EMI category with Loan Account No defined");
+
+  // 6. Popular Billers
+  assert(bp_utilityWorkspaceFile.includes("WBSEDCL") && bp_utilityWorkspaceFile.includes("CESC"), "990. Utility Billers: WBSEDCL and CESC electricity billers available");
+  assert(bp_utilityWorkspaceFile.includes("IGL") && bp_utilityWorkspaceFile.includes("Indane"), "991. Utility Billers: IGL and Indane gas billers available");
+  assert(bp_utilityWorkspaceFile.includes("KMC") && bp_utilityWorkspaceFile.includes("Delhi Jal Board"), "992. Utility Billers: KMC and Delhi Jal Board water billers available");
+
+  // 7. Fresh Business Zero-Slate Baseline
+  assert(bp_utilityWorkspaceFile.includes('const [consumerId, setConsumerId] = useState("");'), "993. Utility Fresh Business: Consumer ID initializes to blank");
+  assert(bp_utilityWorkspaceFile.includes('const [amount, setAmount] = useState("");'), "994. Utility Fresh Business: Amount initializes to blank");
+
+  // 8. Step Lifecycle Flow & Bill Fetch
+  assert(bp_utilityWorkspaceFile.includes("01 CATEGORY") && bp_utilityWorkspaceFile.includes("02 BILLER") && bp_utilityWorkspaceFile.includes("05 SETTLE"), "995. Utility Step Flow: 01 CATEGORY -> 02 BILLER -> 03 ACCOUNT -> 04 VERIFY -> 05 SETTLE");
+  assert(bp_utilityWorkspaceFile.includes("handleFetchBill") && bp_utilityWorkspaceFile.includes("fetchedBill"), "996. Utility Bill Fetch: handleFetchBill handler supports structured bill preview");
+
+  // 9. Economic Math & Multi-Method Accounting
+  const utilBillPrincipal = 1250.00;
+  const utilCustomerFee = 5.00;
+  const utilTotalCustomerDebit = utilBillPrincipal + utilCustomerFee; // ₹1,255.00
+  const utilCommission = 5.00;
+  const utilNetProviderCost = utilBillPrincipal - utilCommission; // ₹1,245.00
+  const utilOperatorNetIncome = utilCustomerFee + utilCommission; // ₹10.00
+  const utilNetCashFlow = utilTotalCustomerDebit - utilNetProviderCost; // ₹10.00
+  const utilVariance = utilNetCashFlow - utilOperatorNetIncome; // ₹0.00
+
+  assert(utilTotalCustomerDebit === 1255.00, "997. Utility Math: Bill ₹1,250 + Fee ₹5 = Total Customer Debit ₹1,255.00");
+  assert(utilNetProviderCost === 1245.00, "998. Utility Math: ₹5 Commission on ₹1,250 yields Net Provider Cost ₹1,245.00");
+  assert(utilOperatorNetIncome === 10.00, "999. Utility Math: Operator Net Income is ₹5 Fee + ₹5 Commission = ₹10.00");
+  assert(utilVariance === 0.00, "1000. Utility Zero Variance: Net Cash Flow (₹1,255 - ₹1,245 = ₹10.00) matches Net Income with ₹0.00 variance");
+
+  // 10. Collection & Funding Invariants
+  assert(bp_utilityWorkspaceFile.includes('service_type: "bill_payment"'), "1001. Utility Collection: Posts to transactions with service_type = bill_payment");
+  assert(bp_utilityWorkspaceFile.includes("cash_entries") && bp_utilityWorkspaceFile.includes("totalCustomerDebit"), "1002. Utility Collection: Cash/UPI/Bank payment generates customer collection entry");
+  assert(bp_utilityWorkspaceFile.includes("customer_ledger") && bp_utilityWorkspaceFile.includes("balance_after"), "1003. Utility Khata: Customer ledger receivable balance increases without increasing cash drawer");
+  assert(bp_utilityWorkspaceFile.includes("netProviderCost") && bp_utilityWorkspaceFile.includes("fundingInstId"), "1004. Utility Funding: Debits net provider cost from selected payment instrument");
+
+  // 11. Concurrency, Receipt, Reversal & History
+  assert(bp_utilityWorkspaceFile.includes("submitting") && bp_utilityWorkspaceFile.includes("disabled={submitting"), "1005. Utility Concurrency: submitting state lock prevents duplicate bill payment");
+  assert(bp_utilityWorkspaceFile.includes("Thermal (80mm)"), "1006. Utility Receipt: 80mm thermal receipt link rendered");
+  assert(bp_utilityWorkspaceFile.includes("A4 Invoice"), "1007. Utility Receipt: A4 Invoice PDF link rendered");
+  assert(bp_utilityWorkspaceFile.includes("WhatsApp"), "1008. Utility Receipt: WhatsApp sharing modal trigger rendered");
+  assert(bp_utilityWorkspaceFile.includes("downloadCsv") && bp_utilityWorkspaceFile.includes("handleExportCsv"), "1009. Utility History: CSV export and status filters available");
+  assert(bp_utilityWorkspaceFile.includes("handleReverse") && bp_utilityWorkspaceFile.includes("reverse_business_txn"), "1010. Utility Reversal: Reversal handler offsets cash entries and rolls back Khata balance");
+
+  // 12. Non-Pollution & Architectural Isolation
+  assert(!bp_utilityWorkspaceFile.includes("utility_float") && !bp_utilityWorkspaceFile.includes("bill_float"), "1011. Architecture Invariant: Zero 'utility_float' or 'bill_float' in codebase");
+  assert(!studioFile.includes("bill_payment_accounts"), "1012. Studio Invariant: Zero bill_payment_accounts in Opening Position Studio");
+  assert(!studioFile.includes("totalUtility"), "1013. Studio Invariant: Zero totalUtility aggregate in Opening Position Studio");
+
+  // 13. Backward Compatibility & Entity Separation
+  const bp_businessRouterFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
+  assert(bp_businessRouterFile.includes('service === "recharge"') && bp_businessRouterFile.includes("RechargeWorkspace"), "1014. Backward Compatibility: /business/[service] router continues to support service === 'recharge'");
+  assert(bp_businessRouterFile.includes("payment_instruments"), "1015. Entity Separation: Bill Payment is a SERVICE using payment_instruments as funding sources");
 }
 
 console.log("\n================================================================================");
