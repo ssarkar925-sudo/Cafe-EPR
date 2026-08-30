@@ -44,18 +44,30 @@ const INST_POOL: Record<string, string> = {
 
 const ADD_ICON = "M12 5v14M5 12h14";
 
-export type UpiReconciliationState = {
+export type AccountReconDetail = {
+  id: string;
+  accountName: string;
+  accountType: string;
+  poolKey: string;
   currentBalance: number;
   openingBalance: number;
-  transactionCredits: number;
-  transactionOutflows: number;
+  credits: number;
+  debits: number;
   fees: number;
-  otherMovements: number;
   settlements: number;
+  otherMovements: number;
   calculatedBalance: number;
   canonicalBalance: number;
   variance: number;
   isReconciled: boolean;
+  statusLabel: string;
+  statusVariant: "reconciled" | "variance" | "linked" | "credit_limit";
+  isDebitCard?: boolean;
+  isCreditCard?: boolean;
+  parentBankName?: string;
+  parentBankBalance?: number;
+  creditLimit?: number;
+  usedLimit?: number;
   contributingTxns: {
     id: string;
     number: string;
@@ -67,11 +79,15 @@ export type UpiReconciliationState = {
   lastRefreshedAt: string;
 };
 
-const DEFAULT_UPI_RECON: UpiReconciliationState = {
+const DEFAULT_UPI_RECON: AccountReconDetail = {
+  id: "upi-default",
+  accountName: "Main UPI",
+  accountType: "upi",
+  poolKey: "upi_qr",
   currentBalance: 9011,
   openingBalance: 0,
-  transactionCredits: 9001,
-  transactionOutflows: 0,
+  credits: 9001,
+  debits: 0,
   fees: 10,
   otherMovements: 0,
   settlements: 0,
@@ -79,6 +95,8 @@ const DEFAULT_UPI_RECON: UpiReconciliationState = {
   canonicalBalance: 9011,
   variance: 0,
   isReconciled: true,
+  statusLabel: "✓ Reconciled",
+  statusVariant: "reconciled",
   contributingTxns: [],
   lastRefreshedAt: "Live",
 };
@@ -98,10 +116,11 @@ export default function PaymentAccountsPanel({
   const [instForm, setInstForm] = useState<InstForm>(EMPTY_FORM);
   const [deleteInst, setDeleteInst] = useState<{ row: InstrumentRow; referenced: boolean; linkedChildCardName?: string | null } | null>(null);
 
-  // Reconciliation State
-  const [upiRecon, setUpiRecon] = useState<UpiReconciliationState>(DEFAULT_UPI_RECON);
+  // Unified Reconciliation State
+  const [accountReconMap, setAccountReconMap] = useState<Record<string, AccountReconDetail>>({});
+  const [upiRecon, setUpiRecon] = useState<AccountReconDetail>(DEFAULT_UPI_RECON);
   const [upiDetailsExpanded, setUpiDetailsExpanded] = useState(false);
-  const [upiModalOpen, setUpiModalOpen] = useState(false);
+  const [selectedReconAccount, setSelectedReconAccount] = useState<AccountReconDetail | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -251,130 +270,276 @@ export default function PaymentAccountsPanel({
       });
       setInstruments(updated);
 
-      // ==========================================
-      // UPI RECONCILIATION ENGINE
-      // ==========================================
-      const upiSeed = (seeds ?? []).find((s: any) => s.pool === "upi_qr" || s.pool === "upi");
-      const upiOpening = Number(upiSeed?.amount ?? 0);
-
-      let upiCredits = 0;
-      let upiOutflows = 0;
-      let upiFees = 0;
-      const upiTxList: any[] = [];
-
-      for (const t of (txs ?? []) as any[]) {
-        const pCredit = Number(t.pool_credit) || 0;
-        const pOut = Number(t.pool_out) || 0;
-        const uFee = Number(t.upi_fee) || 0;
-
-        if (pCredit > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-          upiCredits += pCredit;
-          upiTxList.push({
-            id: t.id,
-            number: t.transaction_number || "TXN",
-            type: "QR Credit",
-            amount: pCredit,
-            date: t.created_at,
-            desc: `Customer QR payment (${inr(t.amount || pCredit)})`,
-          });
-        }
-
-        if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-          upiOutflows += pOut;
-          upiTxList.push({
-            id: t.id,
-            number: t.transaction_number || "TXN",
-            type: "Outflow",
-            amount: -pOut,
-            date: t.created_at,
-            desc: "UPI payout / settlement",
-          });
-        }
-
-        if (uFee > 0 || (t.fee_source === "upi" && Number(t.service_fee) > 0)) {
-          const feeAmt = uFee > 0 ? uFee : Number(t.service_fee);
-          upiFees += feeAmt;
-          upiTxList.push({
-            id: `${t.id}-fee`,
-            number: t.transaction_number || "TXN",
-            type: "Fee Collection",
-            amount: feeAmt,
-            date: t.created_at,
-            desc: `Service fee collected via UPI (${t.service_type?.toUpperCase()})`,
-          });
-        }
-      }
-
-      // UPI Settlements
-      let upiSettlementsIn = 0;
-      let upiSettlementsOut = 0;
-      const upiInst = (insts as InstrumentRow[])?.find((i) => i.type === "upi");
-      for (const s of (sets ?? []) as any[]) {
-        const amt = Number(s.amount) || 0;
-        if (upiInst && s.dest_instrument_id === upiInst.id) {
-          upiSettlementsIn += amt;
-          upiTxList.push({
-            id: s.id,
-            number: "SETTLEMENT",
-            type: "Settlement In",
-            amount: amt,
-            date: s.created_at,
-            desc: "Settlement received into UPI",
-          });
-        }
-        if (upiInst && s.source_instrument_id === upiInst.id) {
-          upiSettlementsOut += amt;
-          upiTxList.push({
-            id: s.id,
-            number: "SETTLEMENT",
-            type: "Settlement Out",
-            amount: -amt,
-            date: s.created_at,
-            desc: "UPI sweep / transfer to bank",
-          });
-        }
-      }
-
-      // UPI Other Movements (tagged cash_entries)
-      let upiOtherMovements = 0;
-      for (const e of (ces ?? []) as any[]) {
-        if (upiInst && e.instrument_id === upiInst.id) {
-          const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-          upiOtherMovements += delta;
-          upiTxList.push({
-            id: e.id,
-            number: "ENTRY",
-            type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
-            amount: delta,
-            date: e.created_at,
-            desc: e.remarks || "Direct cashbook adjustment",
-          });
-        }
-      }
-
-      const upiCalculated = upiOpening + upiCredits - upiOutflows + upiFees + upiOtherMovements + upiSettlementsIn - upiSettlementsOut;
-      const upiCanonical = Number(pool["upi_qr"]?.current ?? ((pool["upi_qr"]?.opening ?? 0) + (pool["upi_qr"]?.movements ?? 0)));
-      const upiVariance = upiCalculated - upiCanonical;
-      const upiReconciled = Math.abs(upiVariance) < 0.01;
-
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-      setUpiRecon({
-        currentBalance: upiCanonical,
-        openingBalance: upiOpening,
-        transactionCredits: upiCredits,
-        transactionOutflows: upiOutflows,
-        fees: upiFees,
-        otherMovements: upiOtherMovements,
-        settlements: upiSettlementsIn - upiSettlementsOut,
-        calculatedBalance: upiCalculated,
-        canonicalBalance: upiCanonical,
-        variance: upiVariance,
-        isReconciled: upiReconciled,
-        contributingTxns: upiTxList,
-        lastRefreshedAt: timeStr,
-      });
+      // =========================================================================
+      // BUILD UNIFIED RECONCILIATION OBJECTS FOR ALL ACCOUNTS
+      // =========================================================================
+      const reconMap: Record<string, AccountReconDetail> = {};
+
+      for (const inst of updated) {
+        const poolKey = POOL_MAP[inst.type] || "cash";
+        const poolEntry = pool[poolKey] || { opening: 0, movements: 0, current: 0 };
+        const isSingleAccount = (countPerType[inst.type] ?? 0) <= 1;
+
+        if (inst.type === "debit_card") {
+          const parentBankId = inst.details?.linked_bank_instrument_id || (updated.filter((b) => b.type === "bank").length === 1 ? updated.find((b) => b.type === "bank")?.id : null);
+          const parentBank = parentBankId ? updated.find((b) => b.id === parentBankId) : null;
+          const bankBalance = Number(parentBank?.balance ?? pool["bank"]?.current ?? 0);
+
+          reconMap[inst.id] = {
+            id: inst.id,
+            accountName: inst.name,
+            accountType: inst.type,
+            poolKey: "bank",
+            currentBalance: bankBalance,
+            openingBalance: Number(parentBank?.opening_balance ?? pool["bank"]?.opening ?? 0),
+            credits: 0,
+            debits: 0,
+            fees: 0,
+            settlements: 0,
+            otherMovements: 0,
+            calculatedBalance: bankBalance,
+            canonicalBalance: bankBalance,
+            variance: 0,
+            isReconciled: true,
+            statusLabel: "Linked to Bank",
+            statusVariant: "linked",
+            isDebitCard: true,
+            parentBankName: parentBank?.name || "Parent Bank Account",
+            parentBankBalance: bankBalance,
+            contributingTxns: [],
+            lastRefreshedAt: timeStr,
+          };
+          continue;
+        }
+
+        if (inst.type === "credit_card") {
+          const limit = Number(inst.details?.credit_limit || inst.opening_balance || 0);
+          const currentBal = Number(inst.balance || limit);
+          const used = limit > 0 ? Math.max(0, limit - currentBal) : 0;
+
+          reconMap[inst.id] = {
+            id: inst.id,
+            accountName: inst.name,
+            accountType: inst.type,
+            poolKey: "credit_card",
+            currentBalance: currentBal,
+            openingBalance: limit,
+            credits: 0,
+            debits: used,
+            fees: 0,
+            settlements: 0,
+            otherMovements: 0,
+            calculatedBalance: currentBal,
+            canonicalBalance: currentBal,
+            variance: 0,
+            isReconciled: true,
+            statusLabel: "Credit Facility",
+            statusVariant: "credit_limit",
+            isCreditCard: true,
+            creditLimit: limit,
+            usedLimit: used,
+            contributingTxns: [],
+            lastRefreshedAt: timeStr,
+          };
+          continue;
+        }
+
+        if (inst.type === "upi") {
+          const upiSeed = (seeds ?? []).find((s: any) => s.pool === "upi_qr" || s.pool === "upi");
+          const upiOpening = Number(upiSeed?.amount ?? 0);
+          let upiCredits = 0;
+          let upiOutflows = 0;
+          let upiFees = 0;
+          const upiTxList: any[] = [];
+
+          for (const t of (txs ?? []) as any[]) {
+            const pCredit = Number(t.pool_credit) || 0;
+            const pOut = Number(t.pool_out) || 0;
+            const uFee = Number(t.upi_fee) || 0;
+
+            if (pCredit > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
+              upiCredits += pCredit;
+              upiTxList.push({
+                id: t.id,
+                number: t.transaction_number || "TXN",
+                type: "QR Credit",
+                amount: pCredit,
+                date: t.created_at,
+                desc: `Customer QR payment (${inr(t.amount || pCredit)})`,
+              });
+            }
+
+            if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
+              upiOutflows += pOut;
+              upiTxList.push({
+                id: t.id,
+                number: t.transaction_number || "TXN",
+                type: "Outflow",
+                amount: -pOut,
+                date: t.created_at,
+                desc: "UPI payout / settlement",
+              });
+            }
+
+            if (uFee > 0 || (t.fee_source === "upi" && Number(t.service_fee) > 0)) {
+              const feeAmt = uFee > 0 ? uFee : Number(t.service_fee);
+              upiFees += feeAmt;
+              upiTxList.push({
+                id: `${t.id}-fee`,
+                number: t.transaction_number || "TXN",
+                type: "Fee Collection",
+                amount: feeAmt,
+                date: t.created_at,
+                desc: `Service fee collected via UPI (${t.service_type?.toUpperCase()})`,
+              });
+            }
+          }
+
+          let upiSetsIn = 0;
+          let upiSetsOut = 0;
+          for (const s of (sets ?? []) as any[]) {
+            const amt = Number(s.amount) || 0;
+            if (s.dest_instrument_id === inst.id) {
+              upiSetsIn += amt;
+              upiTxList.push({
+                id: s.id,
+                number: "SETTLEMENT",
+                type: "Settlement In",
+                amount: amt,
+                date: s.created_at,
+                desc: "Settlement received into UPI",
+              });
+            }
+            if (s.source_instrument_id === inst.id) {
+              upiSetsOut += amt;
+              upiTxList.push({
+                id: s.id,
+                number: "SETTLEMENT",
+                type: "Settlement Out",
+                amount: -amt,
+                date: s.created_at,
+                desc: "UPI sweep / transfer to bank",
+              });
+            }
+          }
+
+          let upiOther = 0;
+          for (const e of (ces ?? []) as any[]) {
+            if (e.instrument_id === inst.id) {
+              const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
+              upiOther += delta;
+              upiTxList.push({
+                id: e.id,
+                number: "ENTRY",
+                type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
+                amount: delta,
+                date: e.created_at,
+                desc: e.remarks || "Direct cashbook adjustment",
+              });
+            }
+          }
+
+          const upiCalculated = upiOpening + upiCredits - upiOutflows + upiFees + upiOther + upiSetsIn - upiSetsOut;
+          const upiCanonical = Number(pool["upi_qr"]?.current ?? ((pool["upi_qr"]?.opening ?? 0) + (pool["upi_qr"]?.movements ?? 0)));
+          const upiVariance = upiCalculated - upiCanonical;
+          const isUpiReconciled = Math.abs(upiVariance) < 0.01;
+
+          const upiDetail: AccountReconDetail = {
+            id: inst.id,
+            accountName: inst.name,
+            accountType: inst.type,
+            poolKey: "upi_qr",
+            currentBalance: upiCanonical,
+            openingBalance: upiOpening,
+            credits: upiCredits,
+            debits: upiOutflows,
+            fees: upiFees,
+            settlements: upiSetsIn - upiSetsOut,
+            otherMovements: upiOther,
+            calculatedBalance: upiCalculated,
+            canonicalBalance: upiCanonical,
+            variance: upiVariance,
+            isReconciled: isUpiReconciled,
+            statusLabel: isUpiReconciled ? "✓ Reconciled" : `⚠ Variance ${inr(upiVariance)}`,
+            statusVariant: isUpiReconciled ? "reconciled" : "variance",
+            contributingTxns: upiTxList,
+            lastRefreshedAt: timeStr,
+          };
+
+          reconMap[inst.id] = upiDetail;
+          setUpiRecon(upiDetail);
+          continue;
+        }
+
+        // Generic Accounts (Cash, Bank, AEPS Float, DMT Float, Wallet)
+        const opening = isSingleAccount ? (poolEntry.opening ?? 0) : Number(inst.opening_balance ?? 0);
+        const delta = isSingleAccount ? (poolEntry.movements ?? 0) : (instDeltas[inst.id] ?? 0);
+        const calculated = opening + delta;
+        const canonical = isSingleAccount ? (poolEntry.current ?? (poolEntry.opening + poolEntry.movements)) : calculated;
+        const variance = calculated - canonical;
+        const isReconciled = Math.abs(variance) < 0.01;
+
+        const txList: any[] = [];
+        for (const e of (ces ?? []) as any[]) {
+          if (e.instrument_id === inst.id) {
+            const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
+            txList.push({
+              id: e.id,
+              number: "CASH-ENTRY",
+              type: e.direction === "out" ? "Outflow" : "Inflow",
+              amount: amt,
+              date: e.created_at,
+              desc: e.remarks || "Direct cashbook posting",
+            });
+          }
+        }
+
+        for (const t of (txs ?? []) as any[]) {
+          let targetInstId = t.instrument_id;
+          if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
+            targetInstId = portalToInst[t.portal_id];
+          }
+          if (targetInstId === inst.id) {
+            const pCredit = Number(t.pool_credit) || 0;
+            const pOut = Number(t.pool_out) || 0;
+            txList.push({
+              id: t.id,
+              number: t.transaction_number || "TXN",
+              type: t.service_type?.toUpperCase() || "Service",
+              amount: pCredit - pOut,
+              date: t.created_at,
+              desc: `Portal movement (${t.service_type})`,
+            });
+          }
+        }
+
+        reconMap[inst.id] = {
+          id: inst.id,
+          accountName: inst.name,
+          accountType: inst.type,
+          poolKey,
+          currentBalance: canonical,
+          openingBalance: opening,
+          credits: delta > 0 ? delta : 0,
+          debits: delta < 0 ? -delta : 0,
+          fees: 0,
+          settlements: 0,
+          otherMovements: delta,
+          calculatedBalance: calculated,
+          canonicalBalance: canonical,
+          variance,
+          isReconciled,
+          statusLabel: isReconciled ? "✓ Reconciled" : `⚠ Variance ${inr(variance)}`,
+          statusVariant: isReconciled ? "reconciled" : "variance",
+          contributingTxns: txList,
+          lastRefreshedAt: timeStr,
+        };
+      }
+
+      setAccountReconMap(reconMap);
     } catch (err) {
       console.error("Reconciliation refresh error:", err);
     } finally {
@@ -720,10 +885,24 @@ export default function PaymentAccountsPanel({
     return d.notes || "—";
   }
 
+  function getAccountIcon(type: string) {
+    switch (type) {
+      case "bank": return "🏛️";
+      case "cash": return "💵";
+      case "upi": return "📱";
+      case "wallet": return "👛";
+      case "debit_card": return "💳";
+      case "credit_card": return "💳";
+      case "aeps_portal": return "🏧";
+      case "dmt_portal": return "💸";
+      default: return "💰";
+    }
+  }
+
   return (
     <div className={active ? "mt-6 space-y-6" : "hidden"}>
       {/* ========================================================================= */}
-      {/* 1. UPI RECONCILIATION COMMAND CARD (PROMINENT RECONCILIATION VISIBILITY) */}
+      {/* 1. UPI RECONCILIATION COMMAND CARD */}
       {/* ========================================================================= */}
       <section className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-5 sm:p-6 text-white shadow-xl ring-1 ring-white/10">
         {/* Subtle decorative glow */}
@@ -827,11 +1006,11 @@ export default function PaymentAccountsPanel({
               </div>
               <div>
                 <span className="text-slate-400">Transaction Credits:</span>
-                <p className="font-bold text-emerald-400">+{inr(upiRecon.transactionCredits)}</p>
+                <p className="font-bold text-emerald-400">+{inr(upiRecon.credits)}</p>
               </div>
               <div>
                 <span className="text-slate-400">Transaction Outflows:</span>
-                <p className="font-bold text-slate-300">-{inr(upiRecon.transactionOutflows)}</p>
+                <p className="font-bold text-slate-300">-{inr(upiRecon.debits)}</p>
               </div>
               <div>
                 <span className="text-slate-400">UPI Fees Collected:</span>
@@ -873,7 +1052,7 @@ export default function PaymentAccountsPanel({
 
             <button
               type="button"
-              onClick={() => setUpiModalOpen(true)}
+              onClick={() => setSelectedReconAccount(upiRecon)}
               className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-cyan-500"
             >
               <span>Open Detailed Trace &amp; Audit</span>
@@ -889,8 +1068,8 @@ export default function PaymentAccountsPanel({
               </div>
               <div className="space-y-1 font-mono text-[11px] leading-relaxed">
                 <p>Opening Balance ({inr(upiRecon.openingBalance)})</p>
-                <p>+ Sales &amp; Transaction Credits ({inr(upiRecon.transactionCredits)})</p>
-                <p>- Transaction Outflows ({inr(upiRecon.transactionOutflows)})</p>
+                <p>+ Sales &amp; Transaction Credits ({inr(upiRecon.credits)})</p>
+                <p>- Transaction Outflows ({inr(upiRecon.debits)})</p>
                 <p>+ UPI Fees Collected ({inr(upiRecon.fees)})</p>
                 <p>+ Other Cashbook Movements ({inr(upiRecon.otherMovements)})</p>
                 <p>+ Settlements Received - Settlements Swept ({inr(upiRecon.settlements)})</p>
@@ -952,6 +1131,7 @@ export default function PaymentAccountsPanel({
                 const currentBal = Number(row.balance) || 0;
                 const usedLimit = totalLimit > 0 ? Math.max(0, totalLimit - currentBal) : 0;
                 const usedPercent = totalLimit > 0 ? Math.min(100, Math.round((usedLimit / totalLimit) * 100)) : 0;
+                const recon = accountReconMap[row.id];
 
                 return (
                   <tr key={row.id} className={`border-b border-slate-50 dark:border-white/5 ${row.is_active ? "" : "bg-slate-50/50 dark:bg-white/5"}`}>
@@ -987,33 +1167,28 @@ export default function PaymentAccountsPanel({
 
                     {/* RECONCILIATION COLUMN */}
                     <td className="px-4 py-3 text-center">
-                      {row.type === "upi" ? (
-                        <button
-                          type="button"
-                          onClick={() => setUpiModalOpen(true)}
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition ${
-                            upiRecon.isReconciled
-                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40"
-                              : "bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300"
-                          }`}
-                          title="Click to view full UPI reconciliation trace"
-                        >
-                          <span>{upiRecon.isReconciled ? "✓ Reconciled" : `⚠ Variance ${inr(upiRecon.variance)}`}</span>
-                        </button>
-                      ) : row.type === "debit_card" ? (
-                        <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:ring-violet-800/30">
-                          Linked to Bank
-                        </span>
-                      ) : row.type === "credit_card" ? (
-                        <span className="inline-flex items-center rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700 ring-1 ring-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-300 dark:ring-cyan-800/30">
-                          Credit Limit
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-white/5 dark:text-slate-400">
-                          <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                          Reconciled
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => recon && setSelectedReconAccount(recon)}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition ${
+                          row.type === "debit_card"
+                            ? "bg-violet-50 text-violet-700 ring-1 ring-violet-200/80 hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800/40"
+                            : row.type === "credit_card"
+                            ? "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200/80 hover:bg-cyan-100 dark:bg-cyan-950/40 dark:text-cyan-300 dark:ring-cyan-800/40"
+                            : recon?.isReconciled !== false
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40"
+                            : "bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300"
+                        }`}
+                        title="Click to view full account reconciliation trace"
+                      >
+                        {row.type === "debit_card" ? (
+                          <span>Linked to Bank</span>
+                        ) : row.type === "credit_card" ? (
+                          <span>Credit Limit</span>
+                        ) : (
+                          <span>{recon?.statusLabel || "✓ Reconciled"}</span>
+                        )}
+                      </button>
                     </td>
 
                     <td className="px-4 py-3">
@@ -1082,13 +1257,13 @@ export default function PaymentAccountsPanel({
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. UPI ACCOUNT RECONCILIATION MODAL (PREMIUM FLOATING DESKTOP WINDOW) */}
+      {/* 3. UNIFIED ACCOUNT RECONCILIATION MODAL (DYNAMICALLY ADAPTIVE) */}
       {/* ========================================================================= */}
-      {upiModalOpen && (
+      {selectedReconAccount && (
         <Modal
-          onClose={() => setUpiModalOpen(false)}
+          onClose={() => setSelectedReconAccount(null)}
           as="div"
-          title="UPI Account Reconciliation"
+          title={`${selectedReconAccount.accountName} Reconciliation`}
           subtitle="Live balance verification and movement trace"
           icon="M12 18h.01M8 21h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H8a2 2 0 0 0 2 2v14a2 2 0 0 0 2 2z"
           accent="blue"
@@ -1098,7 +1273,7 @@ export default function PaymentAccountsPanel({
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span>Canonical Source: <strong>get_pool_balances</strong></span>
                 <span>·</span>
-                <span>Last verified {upiRecon.lastRefreshedAt}</span>
+                <span>Last verified {selectedReconAccount.lastRefreshedAt}</span>
               </div>
               <div className="flex gap-2">
                 <button
@@ -1111,7 +1286,7 @@ export default function PaymentAccountsPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUpiModalOpen(false)}
+                  onClick={() => setSelectedReconAccount(null)}
                   className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-900"
                 >
                   Close
@@ -1121,36 +1296,101 @@ export default function PaymentAccountsPanel({
           }
         >
           <div className="space-y-5">
+            {/* Header Badge Strip */}
+            <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 dark:bg-white/5">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{getAccountIcon(selectedReconAccount.accountType)}</span>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {selectedReconAccount.accountName}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Account Type: <strong className="text-slate-700 dark:text-slate-300">{selectedReconAccount.accountType.toUpperCase()}</strong> · Pool: <strong className="text-slate-700 dark:text-slate-300">{selectedReconAccount.poolKey}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                {selectedReconAccount.isDebitCard ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                    Linked to {selectedReconAccount.parentBankName}
+                  </span>
+                ) : selectedReconAccount.isCreditCard ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300">
+                    Credit Facility (Not Cash Wealth)
+                  </span>
+                ) : selectedReconAccount.isReconciled ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    ✓ 100% Reconciled
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                    ⚠ Variance {inr(selectedReconAccount.variance)}
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Balance Summary Header Cards */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-white/5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Balance</span>
-                <div className="mt-1 text-xl font-black text-cyan-600 dark:text-cyan-400">{inr(upiRecon.currentBalance)}</div>
-                <span className="text-[10px] text-slate-500">Active Live UPI Pool</span>
+                <div className="mt-1 text-xl font-black text-cyan-600 dark:text-cyan-400">{inr(selectedReconAccount.currentBalance)}</div>
+                <span className="text-[10px] text-slate-500">Live Active Balance</span>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-white/5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Expected Balance</span>
-                <div className="mt-1 text-xl font-black text-slate-900 dark:text-white">{inr(upiRecon.calculatedBalance)}</div>
-                <span className="text-[10px] text-slate-500">Sum of Tagged Movements</span>
+                <div className="mt-1 text-xl font-black text-slate-900 dark:text-white">{inr(selectedReconAccount.calculatedBalance)}</div>
+                <span className="text-[10px] text-slate-500">Movement Derivation</span>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-white/5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Canonical Pool</span>
-                <div className="mt-1 text-xl font-black text-blue-600 dark:text-blue-400">{inr(upiRecon.canonicalBalance)}</div>
-                <span className="text-[10px] text-slate-500">Database Double-Entry</span>
+                <div className="mt-1 text-xl font-black text-blue-600 dark:text-blue-400">{inr(selectedReconAccount.canonicalBalance)}</div>
+                <span className="text-[10px] text-slate-500">get_pool_balances</span>
               </div>
 
-              <div className={`rounded-2xl border p-3.5 ${upiRecon.isReconciled ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/20" : "border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-950/20"}`}>
+              <div className={`rounded-2xl border p-3.5 ${selectedReconAccount.isReconciled ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/20" : "border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-950/20"}`}>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Variance</span>
-                <div className={`mt-1 text-xl font-black ${upiRecon.isReconciled ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {inr(upiRecon.variance)}
+                <div className={`mt-1 text-xl font-black ${selectedReconAccount.isReconciled ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {inr(selectedReconAccount.variance)}
                 </div>
                 <span className="text-[10px] text-slate-500">
-                  {upiRecon.isReconciled ? "✓ 100% Balanced" : "Discrepancy"}
+                  {selectedReconAccount.isReconciled ? "✓ 100% Balanced" : "Discrepancy"}
                 </span>
               </div>
             </div>
+
+            {/* Special Context for Debit & Credit Cards */}
+            {selectedReconAccount.isDebitCard && (
+              <div className="rounded-2xl border border-violet-200/80 bg-violet-50/40 p-4 dark:border-violet-900/40 dark:bg-violet-950/20 text-xs text-violet-900 dark:text-violet-200 space-y-1.5">
+                <div className="font-bold text-violet-800 dark:text-violet-300">
+                  Debit Card Banking Linkage &amp; Non-Duplication Rule
+                </div>
+                <p>
+                  This debit card is an access instrument linked directly to <strong>{selectedReconAccount.parentBankName}</strong>. Its available balance ({inr(selectedReconAccount.parentBankBalance ?? 0)}) is an exact mirror of the parent bank account.
+                </p>
+                <p className="font-bold text-violet-700 dark:text-violet-300">
+                  Asset Aggregation Status: EXCLUDED (Prevents double counting of funds in Total Wealth).
+                </p>
+              </div>
+            )}
+
+            {selectedReconAccount.isCreditCard && (
+              <div className="rounded-2xl border border-cyan-200/80 bg-cyan-50/40 p-4 dark:border-cyan-900/40 dark:bg-cyan-950/20 text-xs text-cyan-900 dark:text-cyan-200 space-y-1.5">
+                <div className="font-bold text-cyan-800 dark:text-cyan-300">
+                  Credit Facility Accounting Rule
+                </div>
+                <p>
+                  Total Credit Limit: <strong>{inr(selectedReconAccount.creditLimit ?? 0)}</strong> · Currently Used: <strong>{inr(selectedReconAccount.usedLimit ?? 0)}</strong> · Available Credit: <strong>{inr(selectedReconAccount.currentBalance)}</strong>.
+                </p>
+                <p className="font-bold text-cyan-700 dark:text-cyan-300">
+                  Accounting Treatment: Credit Line facility (Excluded from cash net worth / wealth).
+                </p>
+              </div>
+            )}
 
             {/* Movement Breakdown Ledger */}
             <div>
@@ -1160,40 +1400,40 @@ export default function PaymentAccountsPanel({
               <div className="mt-2 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white text-xs dark:divide-white/5 dark:border-white/10 dark:bg-slate-900">
                 <div className="flex items-center justify-between p-3">
                   <span className="text-slate-600 dark:text-slate-400">Opening Seed Balance</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{inr(upiRecon.openingBalance)}</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{inr(selectedReconAccount.openingBalance)}</span>
                 </div>
                 <div className="flex items-center justify-between p-3">
-                  <span className="text-slate-600 dark:text-slate-400">+ Sales &amp; Transaction Credits (Customer QR Scan)</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">+{inr(upiRecon.transactionCredits)}</span>
+                  <span className="text-slate-600 dark:text-slate-400">+ Inflows &amp; Sales Credits</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">+{inr(selectedReconAccount.credits)}</span>
                 </div>
                 <div className="flex items-center justify-between p-3">
-                  <span className="text-slate-600 dark:text-slate-400">- Transaction Outflows &amp; Payouts</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">-{inr(upiRecon.transactionOutflows)}</span>
+                  <span className="text-slate-600 dark:text-slate-400">- Outflows, Expenses &amp; Payouts</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">-{inr(selectedReconAccount.debits)}</span>
                 </div>
-                <div className="flex items-center justify-between p-3">
-                  <span className="text-slate-600 dark:text-slate-400">+ Fees Collected via UPI Handle</span>
-                  <span className="font-bold text-cyan-600 dark:text-cyan-400">+{inr(upiRecon.fees)}</span>
-                </div>
-                <div className="flex items-center justify-between p-3">
-                  <span className="text-slate-600 dark:text-slate-400">+ Other Adjustments &amp; Cashbook Entries</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{inr(upiRecon.otherMovements)}</span>
-                </div>
-                <div className="flex items-center justify-between p-3">
-                  <span className="text-slate-600 dark:text-slate-400">+ Settlements Received - Bank Sweeps</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{inr(upiRecon.settlements)}</span>
-                </div>
+                {selectedReconAccount.fees > 0 && (
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-600 dark:text-slate-400">+ Fees Collected</span>
+                    <span className="font-bold text-cyan-600 dark:text-cyan-400">+{inr(selectedReconAccount.fees)}</span>
+                  </div>
+                )}
+                {selectedReconAccount.settlements !== 0 && (
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-600 dark:text-slate-400">+ Settlements Received - Bank Sweeps</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{inr(selectedReconAccount.settlements)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between bg-slate-50/80 p-3 font-bold text-slate-900 dark:bg-white/5 dark:text-white">
                   <span>= Total Calculated Balance</span>
-                  <span className="text-sm text-blue-600 dark:text-blue-400">{inr(upiRecon.calculatedBalance)}</span>
+                  <span className="text-sm text-blue-600 dark:text-blue-400">{inr(selectedReconAccount.calculatedBalance)}</span>
                 </div>
               </div>
             </div>
 
             {/* Contributing Transactions Audit List */}
-            {upiRecon.contributingTxns.length > 0 && (
+            {selectedReconAccount.contributingTxns.length > 0 && (
               <div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                  Contributing Activity ({upiRecon.contributingTxns.length})
+                  Contributing Activity ({selectedReconAccount.contributingTxns.length})
                 </h4>
                 <div className="mt-2 max-h-48 overflow-y-auto rounded-2xl border border-slate-200 bg-white text-xs dark:border-white/10 dark:bg-slate-900">
                   <table className="w-full text-left">
@@ -1206,7 +1446,7 @@ export default function PaymentAccountsPanel({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                      {upiRecon.contributingTxns.map((tx) => (
+                      {selectedReconAccount.contributingTxns.map((tx) => (
                         <tr key={tx.id}>
                           <td className="p-2.5 font-mono font-bold text-slate-900 dark:text-white">{tx.number}</td>
                           <td className="p-2.5 text-slate-500 dark:text-slate-400">{tx.type}</td>

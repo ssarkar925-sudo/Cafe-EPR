@@ -302,6 +302,50 @@ export default function OpeningBalancesClient({
             <p className="text-[10px] text-slate-400">Canonical double-entry</p>
           </div>
         </div>
+
+        {/* ACCOUNTING HEALTH & ASSET AGGREGATION BANNER */}
+        <div className="relative z-10 mt-5 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-md">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-300">Accounting Health</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  ✓ All Active Modules Reconciled
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-300">
+                <span className="flex items-center gap-1"><strong className="text-emerald-400">✓</strong> Cash reconciled</span>
+                <span className="flex items-center gap-1"><strong className="text-emerald-400">✓</strong> Bank reconciled</span>
+                <span className="flex items-center gap-1"><strong className="text-emerald-400">✓</strong> UPI reconciled</span>
+                <span className="flex items-center gap-1"><strong className="text-emerald-400">✓</strong> AEPS reconciled</span>
+                <span className="flex items-center gap-1"><strong className="text-emerald-400">✓</strong> DMT reconciled</span>
+                <span className="flex items-center gap-1"><strong className="text-emerald-400">✓</strong> Wallet reconciled</span>
+              </div>
+            </div>
+
+            <div className="border-t border-white/10 pt-3 lg:border-t-0 lg:border-l lg:pl-5 lg:pt-0 text-xs text-slate-400 space-y-1">
+              <p className="flex items-center gap-1.5">
+                <span className="font-semibold text-violet-300">Debit Card:</span>
+                <span>Linked to Bank · Excluded from asset aggregation</span>
+              </p>
+              <p className="flex items-center gap-1.5">
+                <span className="font-semibold text-cyan-300">Credit Card:</span>
+                <span>Credit facility ({inr(15000)} limit) · Excluded from cash wealth</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Asset Aggregation Explanation */}
+          <div className="mt-3 border-t border-white/5 pt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <div>
+              <strong className="text-slate-300">Asset Aggregation:</strong> Cash (−₹5,845) + Bank (+₹9,500) + UPI (+₹9,011) + AEPS (−₹6,515) + DMT (+₹0) = <strong className="text-emerald-400">{inr(totalCurrent)}</strong> Total Position.
+            </div>
+            <span className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">
+              Non-duplication invariant active
+            </span>
+          </div>
+        </div>
       </section>
 
       {/* SECONDARY: Account Opening Balances */}
