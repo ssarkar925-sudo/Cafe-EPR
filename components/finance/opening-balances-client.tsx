@@ -36,6 +36,8 @@ export type InstrumentRow = {
   name: string;
   type: string;
   is_active: boolean;
+  opening_balance?: number;
+  details?: Record<string, any>;
 };
 
 export type SeedRow = {
@@ -49,13 +51,13 @@ export type SeedRow = {
 };
 
 const POOLS: { key: keyof PoolBalances; label: string; icon: string; grad: string; hint: string }[] = [
-  { key: "cash", label: "Cash in Hand", icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01", grad: "from-indigo-500 to-violet-600", hint: "Physical cash at the counter" },
-  { key: "bank", label: "Bank Balance", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01", grad: "from-blue-500 to-indigo-600", hint: "All bank accounts combined" },
-  { key: "credit_card", label: "Credit Card Limit", icon: "M2 8h20v11H2zM2 12h20M6 16h4M7 3l3 5h4l3-5", grad: "from-cyan-500 to-sky-600", hint: "Available credit limit" },
-  { key: "wallet", label: "Wallet Balance", icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", grad: "from-emerald-500 to-teal-600", hint: "Digital wallet float" },
-  { key: "dmt", label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", grad: "from-violet-500 to-purple-600", hint: "Remittance float with provider" },
-  { key: "aeps", label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z", grad: "from-amber-500 to-orange-600", hint: "AEPS float with provider" },
-  { key: "upi_qr", label: "UPI QR", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", grad: "from-rose-500 to-pink-600", hint: "Shop UPI QR receipts" },
+  { key: "cash", label: "Cash in Hand", icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01", grad: "from-indigo-500 to-violet-600", hint: "Physical cash at the counter till" },
+  { key: "bank", label: "Bank Balance", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01", grad: "from-blue-500 to-indigo-600", hint: "All active bank accounts combined" },
+  { key: "credit_card", label: "Credit Card Limit", icon: "M2 8h20v11H2zM2 12h20M6 16h4M7 3l3 5h4l3-5", grad: "from-cyan-500 to-sky-600", hint: "Available credit limit (Excluded from cash wealth)" },
+  { key: "wallet", label: "Wallet Balance", icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", grad: "from-emerald-500 to-teal-600", hint: "Digital wallet floats" },
+  { key: "dmt", label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", grad: "from-violet-500 to-purple-600", hint: "DMT remittance provider floats" },
+  { key: "aeps", label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z", grad: "from-amber-500 to-orange-600", hint: "AEPS service provider floats" },
+  { key: "upi_qr", label: "UPI QR", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", grad: "from-rose-500 to-pink-600", hint: "Shop counter UPI QR receipts" },
 ];
 
 const INST_POOL: Record<string, string> = {
@@ -65,25 +67,29 @@ const INST_POOL: Record<string, string> = {
   credit_card: "credit_card",
   upi: "upi_qr",
   wallet: "wallet",
+  aeps_portal: "aeps",
+  dmt_portal: "dmt",
 };
 
 const POOL_LABEL: Record<string, string> = {
-  cash: "Cash",
-  bank: "Bank",
-  wallet: "Wallet",
+  cash: "Cash in Hand",
+  bank: "Bank Account",
+  wallet: "Digital Wallet",
   dmt: "DMT Float",
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
-  credit_card: "Credit Card",
+  credit_card: "Credit Card Limit",
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  cash: "Cash",
+  cash: "Cash Drawer",
   bank: "Bank Account",
   debit_card: "Debit Card",
   credit_card: "Credit Card",
-  upi: "UPI ID",
-  wallet: "Wallet",
+  upi: "UPI Handle / QR",
+  wallet: "Digital Wallet",
+  aeps_portal: "AEPS Provider Float",
+  dmt_portal: "DMT Remittance Float",
 };
 
 const inputClass =
@@ -391,10 +397,18 @@ export default function OpeningBalancesClient({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Individual Account Adjustments</h3>
-        <p className="mt-0.5 text-xs text-slate-400">
-          Add or update individual account seed amounts (Bank accounts, cards, UPI, wallets).
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-white/5">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Individual Account Adjustments</h3>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Per-account opening balances for bank accounts, cards, UPI handles, and provider floats.
+            </p>
+          </div>
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-400">
+            {initialInstruments.length} Instruments Configured
+          </span>
+        </div>
+
         {initialInstruments.length === 0 ? (
           <p className="mt-4 text-sm text-slate-400">No payment instruments yet. Add bank accounts / credit cards in Settings.</p>
         ) : (
@@ -404,40 +418,100 @@ export default function OpeningBalancesClient({
               if (!pool) return null;
               const seed = instrumentSeeds.get(inst.id);
               const isLocked = lockedInstruments.has(inst.id);
+              const isLinkedDebitCard = inst.type === "debit_card";
+              const parentBank = isLinkedDebitCard
+                ? initialInstruments.find(
+                    (b) =>
+                      b.id === inst.details?.linked_bank_instrument_id ||
+                      (b.type === "bank" && initialInstruments.filter((x) => x.type === "bank").length === 1)
+                  )
+                : null;
+
               return (
-                <div key={inst.id} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
-                  <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${inst.is_active ? "bg-emerald-500" : "bg-slate-300"}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-white">{inst.name}</p>
-                    <p className="text-xs text-slate-400">
-                      {TYPE_LABEL[inst.type] ?? inst.type} · {POOL_LABEL[pool] ?? pool}
-                      {seed ? ` · seeded ${inr(seed.amount)}` : " · not seeded"}
-                    </p>
-                    {isLocked && (
-                      <p className="mt-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                        🔒 Locked: Account has movements today
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex w-28 items-center gap-1.5">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Amt"
-                      disabled={isLocked}
-                      value={drafts[`inst-${inst.id}`] ?? ""}
-                      onChange={(e) => setDrafts((d) => ({ ...d, [`inst-${inst.id}`]: e.target.value }))}
-                      className={`w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:disabled:bg-white/5 dark:disabled:text-slate-500`}
+                <div
+                  key={inst.id}
+                  className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 transition ${
+                    isLinkedDebitCard
+                      ? "border-violet-200/80 bg-violet-50/30 dark:border-violet-900/30 dark:bg-violet-950/10"
+                      : inst.type === "credit_card"
+                      ? "border-cyan-200/80 bg-cyan-50/20 dark:border-cyan-900/30 dark:bg-cyan-950/10"
+                      : "border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                        inst.is_active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" : "bg-slate-300"
+                      }`}
                     />
-                    <button
-                      onClick={() => saveSeed(pool, inst.id, inst.name)}
-                      disabled={isLocked || busyKey === `inst-${inst.id}`}
-                      className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-40 dark:bg-white dark:text-slate-900"
-                    >
-                      {busyKey === `inst-${inst.id}` ? "..." : "Save"}
-                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                          {inst.name}
+                        </p>
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                          {TYPE_LABEL[inst.type] ?? inst.type}
+                        </span>
+                      </div>
+
+                      {isLinkedDebitCard ? (
+                        <div className="mt-1 space-y-0.5 text-[11px] text-violet-700 dark:text-violet-300">
+                          <p className="flex items-center gap-1 font-medium">
+                            <span>↳ Linked to:</span>
+                            <strong>{parentBank?.name || "Parent Bank Account"}</strong>
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Available: {inr(balances?.bank?.current ?? 0)} · Excluded from total asset aggregation
+                          </p>
+                        </div>
+                      ) : inst.type === "credit_card" ? (
+                        <div className="mt-1 text-[11px] text-cyan-700 dark:text-cyan-300">
+                          <p className="font-medium">
+                            Limit: {inr(inst.details?.credit_limit || inst.opening_balance || 0)}
+                            {seed ? ` · Seeded: ${inr(seed.amount)}` : ""}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Credit line · Not counted in total cash wealth
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                          Pool: <strong className="text-slate-700 dark:text-slate-300">{POOL_LABEL[pool] ?? pool}</strong>
+                          {seed ? ` · Seeded: ${inr(seed.amount)}` : " · No seed override"}
+                        </p>
+                      )}
+
+                      {isLocked && (
+                        <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                          🔒 Locked: Account has movements today
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {!isLinkedDebitCard && (
+                    <div className="flex items-center gap-2 border-t border-slate-100 pt-3 dark:border-white/5">
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Amount"
+                          disabled={isLocked}
+                          value={drafts[`inst-${inst.id}`] ?? ""}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [`inst-${inst.id}`]: e.target.value }))}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                        />
+                      </div>
+                      <button
+                        onClick={() => saveSeed(pool, inst.id, inst.name)}
+                        disabled={isLocked || busyKey === `inst-${inst.id}`}
+                        className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                      >
+                        {busyKey === `inst-${inst.id}` ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
