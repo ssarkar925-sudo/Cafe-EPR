@@ -4699,7 +4699,16 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes('const [serviceFee, setServiceFee] = useState<string>("")'), "602. Clean Form Invariant: Service fee starts empty without pre-filled values");
   assert(aepsWorkspaceFile.includes('const [portalCommission, setPortalCommission] = useState<string>("")'), "603. Clean Form Invariant: Portal commission starts empty without pre-filled values");
   assert(aepsWorkspaceFile.includes("AEPS Settlement Breakdown"), "604. Side-by-Side Invariant: Right-side Settlement Breakdown panel present");
-  assert(aepsWorkspaceFile.includes("✓ Complete &amp; Disburse"), "605. Single Action Invariant: Complete & Disburse trigger integrated in right settlement panel");
+  assert(aepsWorkspaceFile.includes("Complete & Disburse"), "605. Single Action Invariant: Complete & Disburse trigger integrated in right settlement panel");
+
+  // Test 10: AEPS UX Hardening & Transaction Safety (Tests 606-612)
+  assert(aepsWorkspaceFile.includes("isFormValid"), "606. Validation Invariant: Reactive isFormValid evaluation present");
+  assert(aepsWorkspaceFile.includes("cleanAadhaar.length !== 4"), "607. Aadhaar Guard: 4-digit Aadhaar length enforcement present");
+  assert(aepsWorkspaceFile.includes("cleanMobile.length !== 10"), "608. Mobile Guard: 10-digit mobile number validation present");
+  assert(aepsWorkspaceFile.includes("disabled={!isFormValid || isSubmitting}"), "609. UI Guard: Primary disbursement button disabled on invalid form or while submitting");
+  assert(aepsWorkspaceFile.includes("Processing Disbursement…"), "610. Processing Lock: Visual processing indicator during transaction execution");
+  assert(aepsWorkspaceFile.includes("AEPS CASH OUT COMPLETED SUCCESSFULLY"), "611. Success State: Post-transaction success confirmation card present");
+  assert(aepsWorkspaceFile.includes("handleNewCashOut"), "612. Reset Invariant: Explicit New Cash Out reset handler present");
 }
 
 console.log("\n================================================================================");
