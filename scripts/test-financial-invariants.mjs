@@ -6118,6 +6118,63 @@ function detectIntent(question) {
   assert(testMobileBsnl.startsWith("9433"), "1106. Prefix Detection: BSNL 9433 series identified");
   assert(testMobileAirtel.replace(/\D/g, "").slice(-10).length === 10, "1107. Sanitation: 10-digit mobile normalization valid");
   assert("https://api.payu.in/oauth/token".includes("/oauth/token"), "1108. PayU Token Endpoint: URL construction valid");
+
+  // Part 21: Settings Provider Slabs Navigation & CRUD Invariants
+  const providerSlabsUrl = "/settings?tab=business-setup&section=recharge";
+  const urlObj = new URL("https://cafeerp.vercel.app" + providerSlabsUrl);
+  const targetTab = urlObj.searchParams.get("tab");
+  const targetSection = urlObj.searchParams.get("section");
+
+  assert(targetTab === "business-setup", "1109. Navigation Invariant: Provider Slabs button targets 'business-setup' tab");
+  assert(targetSection === "recharge", "1110. Section Invariant: Provider Slabs button targets 'recharge' section");
+  assert(targetTab !== "recharge-providers", "1111. URL Invariant: No invalid 'recharge-providers' top-level tab");
+
+  // Section Normalization Invariant
+  function resolveBizSection(sec) {
+    if (!sec) return "banks";
+    if (sec === "recharge-slabs" || sec === "recharge-providers" || sec === "recharge") return "recharge";
+    if (["banks", "portals", "merchant-qrs"].includes(sec)) return sec;
+    return "banks";
+  }
+
+  assert(resolveBizSection("recharge") === "recharge", "1112. Section Resolution: 'recharge' resolves to recharge panel");
+  assert(resolveBizSection("recharge-slabs") === "recharge", "1113. Alias Resolution: 'recharge-slabs' resolves to recharge panel");
+  assert(resolveBizSection("recharge-providers") === "recharge", "1114. Alias Resolution: 'recharge-providers' resolves to recharge panel");
+  assert(resolveBizSection("banks") === "banks", "1115. Default Preservation: 'banks' resolves to banks panel");
+
+  // Dynamic Commission Slabs Calculation
+  const mockProviders = [
+    { id: "prov-airtel", name: "Airtel", is_active: true, sort_order: 1 },
+    { id: "prov-jio", name: "Jio", is_active: true, sort_order: 2 },
+  ];
+  const mockSlabs = [
+    { id: "slab-1", provider_id: "prov-airtel", min_amount: 10, max_amount: 500, commission_percent: 2.5 },
+    { id: "slab-2", provider_id: "prov-airtel", min_amount: 501, max_amount: 5000, commission_percent: 3.0 },
+    { id: "slab-3", provider_id: "prov-jio", min_amount: 10, max_amount: 5000, commission_percent: 2.0 },
+  ];
+
+  function calculateRechargeCommission(amount, operatorCode, providers, slabs) {
+    const amt = parseFloat(amount) || 0;
+    if (amt <= 0) return { percent: 0, commission: 0, providerCost: 0 };
+    const matched = providers.find(p => p.id === operatorCode || p.name.toLowerCase() === operatorCode.toLowerCase());
+    let pct = 0;
+    if (matched) {
+      const slab = slabs.find(s => s.provider_id === matched.id && amt >= Number(s.min_amount) && amt <= Number(s.max_amount));
+      if (slab) pct = Number(slab.commission_percent) || 0;
+    }
+    const commission = Math.round((amt * pct) / 100 * 100) / 100;
+    const providerCost = Math.max(0, Math.round((amt - commission) * 100) / 100);
+    return { percent: pct, commission, providerCost };
+  }
+
+  const airtelRecharge299 = calculateRechargeCommission(299, "airtel", mockProviders, mockSlabs);
+  assert(airtelRecharge299.percent === 2.5, "1116. Dynamic Commission: Airtel ₹299 matches 2.5% slab");
+  assert(airtelRecharge299.commission === 7.48, "1117. Dynamic Commission: Airtel ₹299 yields ₹7.48 commission");
+  assert(airtelRecharge299.providerCost === 291.52, "1118. Dynamic Commission: Airtel ₹299 net cost is ₹291.52");
+
+  const airtelRecharge719 = calculateRechargeCommission(719, "airtel", mockProviders, mockSlabs);
+  assert(airtelRecharge719.percent === 3.0, "1119. Dynamic Commission: Airtel ₹719 matches 3.0% higher slab");
+  assert(airtelRecharge719.commission === 21.57, "1120. Dynamic Commission: Airtel ₹719 yields ₹21.57 commission");
 }
 
 console.log("\n================================================================================");

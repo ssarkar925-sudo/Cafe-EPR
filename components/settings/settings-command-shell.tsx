@@ -389,7 +389,7 @@ function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onCl
 
         {/* Modal Window Content Scroll Area */}
         <div className="settings-module-content min-h-0 flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-950">
-          <SettingsClient {...props} initialTab={tab} key={tab} />
+          <SettingsClient {...props} initialTab={tab} initialSection={props.initialSection} key={`${tab}-${props.initialSection || ""}`} />
         </div>
 
         {/* Global Styles for Embedding inside the Module Shell */}

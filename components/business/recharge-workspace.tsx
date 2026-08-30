@@ -954,7 +954,7 @@ export default function RechargeWorkspace({
               <span>📷 Scan &amp; Fill</span>
             </button>
             <Link
-              href="/settings?tab=recharge-providers"
+              href="/settings?tab=business-setup&section=recharge"
               className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
             >
               <span>⚙️ Provider Slabs</span>
