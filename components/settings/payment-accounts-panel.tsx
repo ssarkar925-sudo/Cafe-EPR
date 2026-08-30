@@ -77,11 +77,14 @@ export default function PaymentAccountsPanel({
 
   const refreshLiveBalances = useCallback(async () => {
     // Fetch instruments, pool balances (includes day-close seeds + ALL sources),
-    // and per-instrument tagged cash_entries (fallback for multi-account pools)
-    const [{ data: insts }, poolResult, { data: ces }] = await Promise.all([
+    // tagged cash_entries, portals, transactions, and settlements
+    const [{ data: insts }, poolResult, { data: ces }, { data: portals }, { data: txs }, { data: sets }] = await Promise.all([
       supabase.from("payment_instruments").select("*").order("type").order("name"),
       supabase.rpc("get_pool_balances"),
       supabase.from("cash_entries").select("instrument_id, direction, amount").not("instrument_id", "is", null),
+      supabase.from("aeps_portals").select("id, payment_instrument_id"),
+      supabase.from("transactions").select("portal_id, instrument_id, pool_credit, pool_out, status").eq("status", "success"),
+      supabase.from("settlements").select("source_instrument_id, dest_instrument_id, amount, status").eq("status", "success"),
     ]);
 
     if (!insts) return;
@@ -95,12 +98,44 @@ export default function PaymentAccountsPanel({
       if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
     }
 
-    // Build instrument-tagged cash_entries map (fallback for multi-account pools)
-    const balMap: Record<string, number> = {};
+    // Map portal_id -> payment_instrument_id
+    const portalToInst: Record<string, string> = {};
+    for (const p of (portals ?? []) as { id: string; payment_instrument_id: string | null }[]) {
+      if (p.payment_instrument_id) portalToInst[p.id] = p.payment_instrument_id;
+    }
+
+    const instDeltas: Record<string, number> = {};
+    for (const i of insts as InstrumentRow[]) instDeltas[i.id] = 0;
+
+    // 1. Tagged cash entries
     for (const e of (ces ?? []) as { instrument_id: string | null; direction: string; amount: number | string }[]) {
       if (!e.instrument_id) continue;
       const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-      balMap[e.instrument_id] = (balMap[e.instrument_id] ?? 0) + delta;
+      instDeltas[e.instrument_id] = (instDeltas[e.instrument_id] ?? 0) + delta;
+    }
+
+    // 2. Tagged business transactions (AEPS / DMT / etc.)
+    for (const t of (txs ?? []) as { portal_id: string | null; instrument_id: string | null; pool_credit: number | string; pool_out: number | string }[]) {
+      let targetInstId = t.instrument_id;
+      if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
+        targetInstId = portalToInst[t.portal_id];
+      }
+      if (targetInstId && instDeltas[targetInstId] !== undefined) {
+        const pCredit = Number(t.pool_credit) || 0;
+        const pOut = Number(t.pool_out) || 0;
+        instDeltas[targetInstId] = (instDeltas[targetInstId] ?? 0) + (pCredit - pOut);
+      }
+    }
+
+    // 3. Tagged settlements
+    for (const s of (sets ?? []) as { source_instrument_id: string | null; dest_instrument_id: string | null; amount: number | string }[]) {
+      const amt = Number(s.amount) || 0;
+      if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
+        instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + amt;
+      }
+      if (s.source_instrument_id && instDeltas[s.source_instrument_id] !== undefined) {
+        instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - amt;
+      }
     }
 
     const updated = (insts as InstrumentRow[]).map((i) => {
@@ -122,7 +157,7 @@ export default function PaymentAccountsPanel({
         const creditEntry = pool["credit_card"];
         return {
           ...i,
-          balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0)),
+          balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0)),
         };
       }
 
@@ -135,10 +170,10 @@ export default function PaymentAccountsPanel({
         };
       }
 
-      // 4. Multi-account pool: individual opening + tagged cash_entries
+      // 4. Multi-account pool: individual opening + tagged movements
       return {
         ...i,
-        balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
+        balance: Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0),
       };
     });
     setInstruments(updated);

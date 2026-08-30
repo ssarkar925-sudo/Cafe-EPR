@@ -41,6 +41,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { data: categories },
     { data: rechargeProviders },
     { data: rechargeSlabs },
+    { data: activeTxns },
+    { data: settlementRows },
   ] = await Promise.all([
     supabase.from("settings").select("*").single(),
     needsAccounts ? supabase.from("payment_instruments").select("*").order("type").order("name") : empty<any[]>(),
@@ -58,6 +60,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     needsCatalog ? supabase.from("categories").select("*").order("name") : empty<any[]>(),
     needsBusiness ? supabase.from("recharge_providers").select("*").order("sort_order").order("name") : empty<any[]>(),
     needsBusiness ? supabase.from("recharge_commission_slabs").select("*") : empty<any[]>(),
+    needsAccounts ? supabase.from("transactions").select("portal_id, instrument_id, pool_credit, pool_out, status").eq("status", "success") : empty<any[]>(),
+    needsAccounts ? supabase.from("settlements").select("source_instrument_id, dest_instrument_id, amount, status").eq("status", "success") : empty<any[]>(),
   ]);
 
   const bankUsage: Record<string, number> = {};
@@ -87,11 +91,46 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   for (const i of (instruments ?? []) as any[]) {
     if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
   }
-  const balMap: Record<string, number> = {};
+
+  // Map portal_id -> payment_instrument_id
+  const portalToInst: Record<string, string> = {};
+  for (const p of (portals ?? []) as any[]) {
+    if (p.payment_instrument_id) portalToInst[p.id] = p.payment_instrument_id;
+  }
+
+  const instDeltas: Record<string, number> = {};
+  for (const i of (instruments ?? []) as any[]) instDeltas[i.id] = 0;
+
+  // 1. Tagged cash entries
   for (const e of (instBal ?? []) as any[]) {
     if (!e.instrument_id) continue;
-    balMap[e.instrument_id] = (balMap[e.instrument_id] ?? 0) + (e.direction === "out" ? -Number(e.amount) : Number(e.amount));
+    instDeltas[e.instrument_id] = (instDeltas[e.instrument_id] ?? 0) + (e.direction === "out" ? -Number(e.amount) : Number(e.amount));
   }
+
+  // 2. Tagged business transactions (AEPS / DMT / etc.)
+  for (const t of (activeTxns ?? []) as any[]) {
+    let targetInstId = t.instrument_id;
+    if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
+      targetInstId = portalToInst[t.portal_id];
+    }
+    if (targetInstId && instDeltas[targetInstId] !== undefined) {
+      const pCredit = Number(t.pool_credit) || 0;
+      const pOut = Number(t.pool_out) || 0;
+      instDeltas[targetInstId] = (instDeltas[targetInstId] ?? 0) + (pCredit - pOut);
+    }
+  }
+
+  // 3. Tagged settlements
+  for (const s of (settlementRows ?? []) as any[]) {
+    const amt = Number(s.amount) || 0;
+    if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
+      instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + amt;
+    }
+    if (s.source_instrument_id && instDeltas[s.source_instrument_id] !== undefined) {
+      instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - amt;
+    }
+  }
+
   const accounts = (instruments ?? []).map((i: any) => {
     const poolKey = POOL_MAP[i.type];
     const poolEntry = poolKey ? pool[poolKey] : undefined;
@@ -111,7 +150,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       const creditEntry = pool["credit_card"];
       return {
         ...i,
-        balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0)),
+        balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0)),
       };
     }
 
@@ -124,10 +163,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       };
     }
 
-    // 4. Multi-account pool: individual opening + tagged cash_entries
+    // 4. Multi-account pool: individual opening + tagged movements
     return {
       ...i,
-      balance: Number(i.opening_balance ?? 0) + (balMap[i.id] ?? 0),
+      balance: Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0),
     };
   });
 

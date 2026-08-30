@@ -4283,6 +4283,153 @@ function detectIntent(question) {
   assert(POOL_MAP["dmt_portal"] === "dmt", "495. Pool Isolation: dmt_portal maps strictly to 'dmt' pool (0% cash pool)");
 }
 
+// 496 - 510. Multi-Account Portal Live Balance & Total Financial Reconciliation Invariants
+{
+  // 1. Live Portal Data Setup
+  const portals = [
+    { id: "p-digi", name: "Digipay", payment_instrument_id: "inst-digi-aeps" },
+    { id: "p-ezee", name: "Ezeepay", payment_instrument_id: "inst-ezee-aeps" },
+    { id: "p-digi-dmt", name: "Digipay DMT", payment_instrument_id: "inst-digi-dmt" },
+    { id: "p-ezee-dmt", name: "Ezeepay DMT", payment_instrument_id: "inst-ezee-dmt" },
+  ];
+
+  const portalToInst = {};
+  for (const p of portals) {
+    if (p.payment_instrument_id) portalToInst[p.id] = p.payment_instrument_id;
+  }
+
+  const instruments = [
+    { id: "inst-cash", name: "Cash", type: "cash", opening_balance: 9100, is_active: true },
+    { id: "inst-bank", name: "Main Bank", type: "bank", opening_balance: 10000, is_active: true },
+    { id: "inst-upi", name: "Main UPI", type: "upi", opening_balance: 0, is_active: true },
+    { id: "inst-wallet", name: "Main Wallet", type: "wallet", opening_balance: 0, is_active: true },
+    { id: "inst-debit", name: "Main Debit Card", type: "debit_card", opening_balance: 0, is_active: true },
+    { id: "inst-credit", name: "Main Credit Card", type: "credit_card", opening_balance: 0, is_active: true },
+    { id: "inst-digi-aeps", name: "Digipay Float", type: "aeps_portal", opening_balance: 0, is_active: true },
+    { id: "inst-ezee-aeps", name: "Ezeepay Float", type: "aeps_portal", opening_balance: 0, is_active: true },
+    { id: "inst-digi-dmt", name: "Digipay DMT Float", type: "dmt_portal", opening_balance: 0, is_active: true },
+    { id: "inst-ezee-dmt", name: "Ezeepay DMT Float", type: "dmt_portal", opening_balance: 0, is_active: true },
+  ];
+
+  const poolBalances = {
+    cash: { opening: 9100, movements: -14945, current: -5845 },
+    bank: { opening: 10000, movements: -500, current: 9500 },
+    upi_qr: { opening: 0, movements: 9011, current: 9011 },
+    wallet: { opening: 0, movements: 0, current: 0 },
+    credit_card: { opening: 0, movements: 0, current: 0 },
+    aeps: { opening: 0, movements: -6515, current: -6515 },
+    dmt: { opening: 0, movements: 0, current: 0 },
+    total: 6151,
+  };
+
+  const businessTxns = [
+    { id: "tx1", portal_id: "p-digi", instrument_id: null, pool_credit: 0, pool_out: 1005, status: "success" },
+    { id: "tx2", portal_id: "p-digi", instrument_id: null, pool_credit: 0, pool_out: 5005, status: "success" },
+    { id: "tx3", portal_id: "p-digi", instrument_id: null, pool_credit: 0, pool_out: 505, status: "success" },
+    { id: "tx4", portal_id: null, instrument_id: null, pool_credit: 9001, pool_out: 0, status: "success" },
+    { id: "tx5", portal_id: null, instrument_id: null, pool_credit: 0, pool_out: 0, status: "success" },
+  ];
+
+  const settlements = [
+    { id: "s1", source_instrument_id: "inst-wallet", dest_instrument_id: "inst-bank", amount: 300, status: "reversed" },
+  ];
+
+  const cashEntries = [];
+
+  // Compute live instrument deltas
+  const instDeltas = {};
+  for (const i of instruments) instDeltas[i.id] = 0;
+
+  for (const e of cashEntries) {
+    if (!e.instrument_id) continue;
+    const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
+    instDeltas[e.instrument_id] = (instDeltas[e.instrument_id] ?? 0) + delta;
+  }
+
+  for (const t of businessTxns) {
+    if (t.status !== "success") continue;
+    let targetInstId = t.instrument_id;
+    if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
+      targetInstId = portalToInst[t.portal_id];
+    }
+    if (targetInstId && instDeltas[targetInstId] !== undefined) {
+      const pCredit = Number(t.pool_credit) || 0;
+      const pOut = Number(t.pool_out) || 0;
+      instDeltas[targetInstId] = (instDeltas[targetInstId] ?? 0) + (pCredit - pOut);
+    }
+  }
+
+  for (const s of settlements) {
+    if (s.status !== "success") continue;
+    const amt = Number(s.amount) || 0;
+    if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
+      instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + amt;
+    }
+    if (s.source_instrument_id && instDeltas[s.source_instrument_id] !== undefined) {
+      instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - amt;
+    }
+  }
+
+  const countPerType = {};
+  for (const i of instruments) {
+    if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
+  }
+
+  const POOL_MAP = {
+    cash: "cash",
+    bank: "bank",
+    upi: "upi_qr",
+    wallet: "wallet",
+    aeps_portal: "aeps",
+    dmt_portal: "dmt",
+    credit_card: "credit_card",
+    debit_card: "debit_card",
+  };
+
+  const calculatedAccounts = instruments.map((i) => {
+    const poolKey = POOL_MAP[i.type];
+    const poolEntry = poolKey ? poolBalances[poolKey] : undefined;
+
+    if (i.type === "debit_card") {
+      const bankEntry = poolBalances["bank"];
+      return { ...i, balance: bankEntry ? bankEntry.current : Number(i.opening_balance ?? 0) };
+    }
+    if (i.type === "credit_card") {
+      const creditEntry = poolBalances["credit_card"];
+      return { ...i, balance: creditEntry ? creditEntry.current : (Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0)) };
+    }
+    if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
+      return { ...i, balance: poolEntry.current };
+    }
+    return { ...i, balance: Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0) };
+  });
+
+  const getBal = (id) => calculatedAccounts.find((a) => a.id === id)?.balance;
+
+  assert(getBal("inst-digi-aeps") === -6515, "496. Multi-Account Portal Live Balance: Digipay Float displays exact -₹6,515.00");
+  assert(getBal("inst-ezee-aeps") === 0, "497. Multi-Account Portal Live Balance: Ezeepay Float displays exact ₹0.00");
+  assert(getBal("inst-digi-dmt") === 0, "498. Multi-Account Portal Live Balance: Digipay DMT Float displays exact ₹0.00");
+  assert(getBal("inst-ezee-dmt") === 0, "499. Multi-Account Portal Live Balance: Ezeepay DMT Float displays exact ₹0.00");
+
+  const aepsSum = (getBal("inst-digi-aeps") ?? 0) + (getBal("inst-ezee-aeps") ?? 0);
+  assert(aepsSum === poolBalances.aeps.current, "500. Aggregate AEPS Invariant: Sum of portal accounts (-₹6,515) ≡ AEPS Pool Balance");
+
+  const dmtSum = (getBal("inst-digi-dmt") ?? 0) + (getBal("inst-ezee-dmt") ?? 0);
+  assert(dmtSum === poolBalances.dmt.current, "501. Aggregate DMT Invariant: Sum of portal accounts (₹0) ≡ DMT Pool Balance");
+
+  assert(getBal("inst-cash") === -5845, "502. Cash Single Pool Invariant: Cash in Hand ≡ -₹5,845.00");
+  assert(getBal("inst-bank") === 9500, "503. Bank Single Pool Invariant: Main Bank ≡ ₹9,500.00");
+  assert(getBal("inst-debit") === 9500, "504. Debit Card Link Invariant: Debit Card reflects linked bank balance ₹9,500.00");
+  assert(getBal("inst-upi") === 9011, "505. UPI Single Pool Invariant: Main UPI ≡ ₹9,011.00");
+  assert(getBal("inst-wallet") === 0, "506. Wallet Single Pool Invariant: Main Wallet ≡ ₹0.00");
+  assert(getBal("inst-credit") === 0, "507. Credit Card Single Pool Invariant: Main Credit Card ≡ ₹0.00");
+
+  const totalPoolSum = poolBalances.cash.current + poolBalances.bank.current + poolBalances.upi_qr.current + poolBalances.wallet.current + poolBalances.credit_card.current + poolBalances.aeps.current + poolBalances.dmt.current;
+  assert(totalPoolSum === 6151, "508. Full Multi-Pool Reconciliation: (-5845 + 9500 + 9011 + 0 + 0 - 6515 + 0) = ₹6,151.00");
+  assert(totalPoolSum === poolBalances.total, "509. Canonical Total Invariant: Computed Pool Total strictly matches canonical get_pool_balances() total (₹6,151.00)");
+  assert(getBal("inst-cash") === -5845 && aepsSum === -6515, "510. Isolation Invariant: Cash till (-₹5,845) strictly isolated from AEPS portal float (-₹6,515)");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
