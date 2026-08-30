@@ -242,6 +242,10 @@ export default function RechargeWorkspace({
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedOperatorCode, setSelectedOperatorCode] = useState("");
   const [selectedCircle, setSelectedCircle] = useState("West Bengal");
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectedBadge, setDetectedBadge] = useState<string | null>(null);
+  const [isManualOverride, setIsManualOverride] = useState(false);
+  const [lastLookupMobile, setLastLookupMobile] = useState("");
   const [amount, setAmount] = useState("");
   const [serviceFee, setServiceFee] = useState("0");
   const [selectedPlan, setSelectedPlan] = useState<PlanItem | null>(null);
@@ -307,23 +311,118 @@ export default function RechargeWorkspace({
     }
   }, [validFundingInstruments, fundingInstId]);
 
-  // Auto-detect operator based on mobile prefix (optional convenience with override)
+  // Local prefix fallback engine
+  const lookupLocalOperator = useCallback((clean: string) => {
+    const prefix4 = clean.slice(0, 4);
+    const prefix2 = clean.slice(0, 2);
+    if (["9830", "9831", "9832", "9836", "9874", "9433"].includes(prefix4)) {
+      return { operatorCode: "airtel", operatorName: "Airtel", circle: prefix4 === "9832" ? "West Bengal" : "Kolkata" };
+    } else if (["7003", "6290", "7980", "8910", "8240"].includes(prefix4)) {
+      return { operatorCode: "jio", operatorName: "Jio", circle: prefix4 === "8910" ? "West Bengal" : "Kolkata" };
+    } else if (["9883", "9748", "9051", "9163"].includes(prefix4)) {
+      return { operatorCode: "vi", operatorName: "Vodafone Idea", circle: prefix4 === "9883" ? "West Bengal" : "Kolkata" };
+    } else if (["9434", "9432", "9474"].includes(prefix4)) {
+      return { operatorCode: "bsnl", operatorName: "BSNL", circle: prefix4 === "9434" || prefix4 === "9474" ? "West Bengal" : "Kolkata" };
+    } else if (["98", "99", "97", "96", "95", "90"].includes(prefix2)) {
+      return { operatorCode: "airtel", operatorName: "Airtel", circle: "West Bengal" };
+    } else if (["70", "79", "62", "63", "89", "82"].includes(prefix2)) {
+      return { operatorCode: "jio", operatorName: "Jio", circle: "West Bengal" };
+    } else if (["91", "88", "87", "86", "84"].includes(prefix2)) {
+      return { operatorCode: "vi", operatorName: "Vodafone Idea", circle: "West Bengal" };
+    } else if (["94", "83", "73"].includes(prefix2)) {
+      return { operatorCode: "bsnl", operatorName: "BSNL", circle: "West Bengal" };
+    }
+    return null;
+  }, []);
+
+  // First-Class Debounced Operator & Circle Auto-Detection Hook
   useEffect(() => {
     const clean = mobileNumber.replace(/\D/g, "");
-    if (clean.length >= 4 && !selectedOperatorCode) {
-      const prefix4 = clean.slice(0, 4);
-      const prefix2 = clean.slice(0, 2);
-      if (["9830", "9831", "9832", "9836", "9874", "9433"].includes(prefix4)) {
-        setSelectedOperatorCode("airtel");
-      } else if (["7003", "6290", "7980", "8910", "8240"].includes(prefix4)) {
-        setSelectedOperatorCode("jio");
-      } else if (["9883", "9748", "9051", "9163"].includes(prefix4)) {
-        setSelectedOperatorCode("vi");
-      } else if (["9434", "9432", "9474"].includes(prefix4)) {
-        setSelectedOperatorCode("bsnl");
+    if (clean.length < 10) {
+      if (clean.length === 0) {
+        setIsManualOverride(false);
+        setDetectedBadge(null);
+        setLastLookupMobile("");
       }
+      return;
     }
-  }, [mobileNumber, selectedOperatorCode]);
+
+    if (clean.length === 10 && clean !== lastLookupMobile && !isManualOverride) {
+      let active = true;
+      setIsDetecting(true);
+      setLastLookupMobile(clean);
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/recharge/operator-circle?mobile=${encodeURIComponent(clean)}`, {
+            cache: "no-store",
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (!active) return;
+
+          if (data && (data.ok || data.success) && (data.operatorCode || data.operator_code || data.operatorName || data.operator)) {
+            const rawOpCode = String(data.operatorCode || data.operator_code || "").toLowerCase();
+            const rawOpName = String(data.operatorName || data.operator || "").toLowerCase();
+
+            const matched = allOperators.find(
+              (o) =>
+                o.code.toLowerCase() === rawOpCode ||
+                rawOpName.includes(o.name.toLowerCase()) ||
+                o.name.toLowerCase().includes(rawOpName) ||
+                (rawOpName.includes("airtel") && o.code === "airtel") ||
+                (rawOpName.includes("jio") && o.code === "jio") ||
+                ((rawOpName.includes("vi") || rawOpName.includes("idea") || rawOpName.includes("voda")) && o.code === "vi") ||
+                (rawOpName.includes("bsnl") && o.code === "bsnl")
+            );
+
+            if (matched) {
+              setSelectedOperatorCode(matched.code);
+              const cir = data.circleName || data.circle;
+              if (cir && TELECOM_CIRCLES.includes(cir)) {
+                setSelectedCircle(cir);
+              }
+              const isPayU = data.source === "payu_live" || data.configured === true;
+              setDetectedBadge(
+                isPayU
+                  ? `🟢 PayU Verified: ${matched.name} (${cir || "West Bengal"})`
+                  : `⚡ Auto-detected: ${matched.name} (${cir || "West Bengal"})`
+              );
+              setIsDetecting(false);
+              return;
+            }
+          }
+
+          // Fallback to local prefix intelligence
+          const local = lookupLocalOperator(clean);
+          if (local) {
+            setSelectedOperatorCode(local.operatorCode);
+            if (TELECOM_CIRCLES.includes(local.circle)) {
+              setSelectedCircle(local.circle);
+            }
+            setDetectedBadge(`⚡ Auto-detected: ${local.operatorName} (${local.circle})`);
+          }
+        } catch (err) {
+          console.warn("Operator auto-detection notice:", err);
+          const local = lookupLocalOperator(clean);
+          if (local) {
+            setSelectedOperatorCode(local.operatorCode);
+            if (TELECOM_CIRCLES.includes(local.circle)) {
+              setSelectedCircle(local.circle);
+            }
+            setDetectedBadge(`⚡ Auto-detected: ${local.operatorName} (${local.circle})`);
+          }
+        } finally {
+          if (active) setIsDetecting(false);
+        }
+      }, 350);
+
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    }
+  }, [mobileNumber, lastLookupMobile, isManualOverride, allOperators, lookupLocalOperator]);
 
   // Dynamic Commission & Provider Cost Calculation
   const commissionCalculation = useMemo(() => {
@@ -1008,7 +1107,21 @@ export default function RechargeWorkspace({
               <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
                 2. Operator &amp; Circle *
               </label>
-              <span className="text-[11px] text-slate-400">Select Telecom Provider</span>
+              {isDetecting ? (
+                <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 animate-pulse">
+                  🔍 Detecting operator &amp; circle…
+                </span>
+              ) : detectedBadge ? (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  {detectedBadge}
+                </span>
+              ) : isManualOverride ? (
+                <span className="text-[10px] font-semibold text-slate-400">
+                  Manual selection
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400">Select Telecom Provider</span>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1018,7 +1131,11 @@ export default function RechargeWorkspace({
                   <button
                     key={op.code}
                     type="button"
-                    onClick={() => setSelectedOperatorCode(op.code)}
+                    onClick={() => {
+                      setIsManualOverride(true);
+                      setSelectedOperatorCode(op.code);
+                      setDetectedBadge(null);
+                    }}
                     disabled={submitting}
                     className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition duration-150 ${
                       isSelected
@@ -1041,7 +1158,11 @@ export default function RechargeWorkspace({
                 <label className="text-[11px] font-bold text-slate-500">More Operators / DTH</label>
                 <select
                   value={selectedOperatorCode}
-                  onChange={(e) => setSelectedOperatorCode(e.target.value)}
+                  onChange={(e) => {
+                    setIsManualOverride(true);
+                    setSelectedOperatorCode(e.target.value);
+                    setDetectedBadge(null);
+                  }}
                   disabled={submitting}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 >
@@ -1058,7 +1179,10 @@ export default function RechargeWorkspace({
                 <label className="text-[11px] font-bold text-slate-500">Telecom Circle / State</label>
                 <select
                   value={selectedCircle}
-                  onChange={(e) => setSelectedCircle(e.target.value)}
+                  onChange={(e) => {
+                    setIsManualOverride(true);
+                    setSelectedCircle(e.target.value);
+                  }}
                   disabled={submitting}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 >
