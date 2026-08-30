@@ -5965,19 +5965,24 @@ function detectIntent(question) {
   const sampleSummary = { count: sampleSettlementRows.length, aeps: 32000, cash: 47880, bank: 67766, wallet: 284, dmt: 0, upi_qr: 0 };
   assert(sampleSummary.count === 0, "1063. Transaction Count: Settlement count remains 0 when no transfer has occurred");
   assert(sampleSummary.aeps === 32000, "1064. Current Float: Available AEPS Float remains ₹32,000.00");
-  assert(settlementsClientFile.includes("0 settlement transfers recorded"), "1065. Empty State: Explains that opening positions are tracked separately from settlement transfers");
+  assert(settlementsClientFile.includes("No settlement transfers yet"), "1065. Empty State: Explains that no settlement transfers have occurred yet");
+  assert(settlementsClientFile.includes("Opening balances are excluded from this journal"), "1066. Empty State: Explicitly states opening balances are excluded from journal");
 
-  // 5. Zero Double-Counting & Wealth Conservation
+  // 5. Quick Presets Invariant (No Pre-filled Opening Balances)
+  assert(!settlementsClientFile.includes("amount: Math.max(0, Math.floor(summary.aeps))"), "1067. Quick Presets: Opening AEPS balance is not pre-filled as transfer amount");
+  assert(!settlementsClientFile.includes("amount: Math.max(0, Math.floor(summary.upi_qr))"), "1068. Quick Presets: Opening UPI balance is not pre-filled as transfer amount");
+
+  // 6. Zero Double-Counting & Wealth Conservation
   const initialAepsOpening = 32000;
   const recordedSettlementTransfers = 0;
   const currentAepsFloat = initialAepsOpening + recordedSettlementTransfers;
-  assert(currentAepsFloat === 32000, "1066. Invariant: Current AEPS Float = Opening (₹32k) + Transfers (₹0) = ₹32,000.00");
-  assert(initialAepsOpening === 32000, "1067. Invariant: Opening position finalization is sole source of initial ₹32,000.00");
+  assert(currentAepsFloat === 32000, "1069. Invariant: Current AEPS Float = Opening (₹32k) + Transfers (₹0) = ₹32,000.00");
+  assert(initialAepsOpening === 32000, "1070. Invariant: Opening position finalization is sole source of initial ₹32,000.00");
 
-  // 6. No Synthetic Settlement Record Created
+  // 7. No Synthetic Settlement Record Created
   const openingPositionFinalized = true;
   const settlementDbRowsCreated = 0;
-  assert(openingPositionFinalized && settlementDbRowsCreated === 0, "1068. Invariant: Opening Position Studio creates 0 rows in settlements table");
+  assert(openingPositionFinalized && settlementDbRowsCreated === 0, "1071. Invariant: Opening Position Studio creates 0 rows in settlements table");
 }
 
 console.log("\n================================================================================");

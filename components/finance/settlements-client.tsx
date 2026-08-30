@@ -693,14 +693,14 @@ export default function SettlementsClient({
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Quick Presets:</span>
               {[
-                { label: "⚡ AEPS → Bank", type: "aeps_to_bank", amount: Math.max(0, Math.floor(summary.aeps)), desc: `Settle AEPS Float (${inr(summary.aeps)})` },
-                { label: "⚡ UPI QR → Bank", type: "upi_qr_to_bank", amount: Math.max(0, Math.floor(summary.upi_qr)), desc: `Settle UPI QR (${inr(summary.upi_qr)})` },
-                { label: "⚡ Bank → DMT", type: "bank_to_dmt", amount: 10000, desc: "Top up DMT Float" },
-                { label: "⚡ Bank → Wallet", type: "bank_to_wallet", amount: 5000, desc: "Top up Digital Wallet Float" },
-                { label: "⚡ Bank → Credit Card", type: "bank_to_credit_card", amount: "", desc: "Pay Credit Card Bill from Bank" },
-                { label: "⚡ Cash → Credit Card", type: "cash_to_credit_card", amount: "", desc: "Pay Credit Card Bill with Cash" },
-                { label: "⚡ Bank Withdrawal", type: "bank_withdrawal", amount: "", desc: "Withdraw Cash for Drawer" },
-                { label: "⚡ Cash → Bank", type: "add_cash_to_bank", amount: "", desc: "Deposit Counter Cash" },
+                { label: "⚡ AEPS → Bank", type: "aeps_to_bank", amount: "", desc: "Transfer funds from AEPS Portal Float to Bank Account" },
+                { label: "⚡ UPI QR → Bank", type: "upi_qr_to_bank", amount: "", desc: "Sweep UPI QR Collections to Bank Account" },
+                { label: "⚡ Bank → DMT", type: "bank_to_dmt", amount: "", desc: "Top up DMT Transfer Float from Bank Account" },
+                { label: "⚡ Bank → Wallet", type: "bank_to_wallet", amount: "", desc: "Top up Digital Wallet Float from Bank Account" },
+                { label: "⚡ Bank → Credit Card", type: "bank_to_credit_card", amount: "", desc: "Pay Credit Card Outstanding from Bank" },
+                { label: "⚡ Cash → Credit Card", type: "cash_to_credit_card", amount: "", desc: "Pay Credit Card Outstanding with Cash" },
+                { label: "⚡ Bank Withdrawal", type: "bank_withdrawal", amount: "", desc: "Withdraw Cash from Bank for Cash Drawer" },
+                { label: "⚡ Cash → Bank", type: "add_cash_to_bank", amount: "", desc: "Deposit Counter Cash into Bank Account" },
               ].map((p) => (
                 <button
                   key={p.type}
@@ -755,7 +755,7 @@ export default function SettlementsClient({
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         <span className="text-sm text-slate-400">to</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
-        <span className="text-sm text-slate-500">{filtered.length} settlements</span>
+        <span className="text-sm text-slate-500">{filtered.length} transfers executed</span>
         <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-settlements-compact" />
       </div>
 
@@ -825,11 +825,11 @@ export default function SettlementsClient({
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                   <div className="mx-auto max-w-md space-y-1.5">
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                      0 settlement transfers recorded
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      No settlement transfers yet
                     </p>
-                    <p className="text-xs text-slate-400">
-                      Opening positions and operational floats are tracked separately in the Live Treasury section above. Click "New Settlement" when you transfer funds between pools (e.g. AEPS Float to Bank, Counter Cash to Bank, Bank to DMT Float).
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Opening balances are excluded from this journal. Record actual fund transfers between cash, bank, and channel floats as they occur.
                     </p>
                   </div>
                 </td>
