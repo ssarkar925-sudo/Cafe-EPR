@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import PosClient from "@/components/pos/pos-client";
 import PosOpsStrip from "@/components/pos/pos-ops-strip";
+import PosV2Shell from "@/components/pos/pos-v2-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -82,25 +83,28 @@ export default async function PosPage({
   const salesTodayAmount = activeInvoices.reduce((s: number, i: any) => s + Number(i.total), 0);
   const enabledMethods = (paymentMethods ?? []).map((p: any) => p.method);
   const initialEditingInvoice = editInvoiceRes?.data ?? null;
+  const posMode = mode === "quick" ? "quick" : "invoice";
 
   return (
     <div className="pos-premium-root">
-      <PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} />
-      <PosClient
-        products={(products ?? []) as any}
-        services={(services ?? []) as any}
-        customers={(customers ?? []) as any}
-        instruments={(instruments ?? []) as any}
-        salesTodayCount={salesTodayCount}
-        salesTodayAmount={salesTodayAmount}
-        initialCustomerId={customer || ""}
-        initialMode={mode === "quick" ? "quick" : "invoice"}
-        todayQuickSales={(todaysQuick ?? []) as any}
-        enabledMethods={enabledMethods}
-        canViewProfit={canViewProfit}
-        todayInvoices={(todaysInvoices ?? []) as any}
-        initialEditingInvoice={initialEditingInvoice as any}
-      />
+      <PosV2Shell mode={posMode} salesCount={salesTodayCount} salesAmount={salesTodayAmount}>
+        <PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} />
+        <PosClient
+          products={(products ?? []) as any}
+          services={(services ?? []) as any}
+          customers={(customers ?? []) as any}
+          instruments={(instruments ?? []) as any}
+          salesTodayCount={salesTodayCount}
+          salesTodayAmount={salesTodayAmount}
+          initialCustomerId={customer || ""}
+          initialMode={posMode}
+          todayQuickSales={(todaysQuick ?? []) as any}
+          enabledMethods={enabledMethods}
+          canViewProfit={canViewProfit}
+          todayInvoices={(todaysInvoices ?? []) as any}
+          initialEditingInvoice={initialEditingInvoice as any}
+        />
+      </PosV2Shell>
     </div>
   );
 }
