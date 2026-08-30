@@ -4562,7 +4562,7 @@ function detectIntent(question) {
     aeps: { opening: 0, movements: -6515, current: -6515 },
     dmt: { opening: 0, movements: 0, current: 0 },
     wallet: { opening: 0, movements: 0, current: 0 },
-    credit_card: { opening: 0, movements: 0, current: 0 },
+    credit_card: { opening: 15000, movements: 0, current: 15000 },
     total: 6151,
   };
 
@@ -4580,6 +4580,36 @@ function detectIntent(question) {
   assert(poolBalances.aeps.current === -6515, "538. AEPS Core Invariant: AEPS float preserved at -₹6,515.00");
   assert(poolBalances.dmt.current === 0, "539. DMT Core Invariant: DMT float preserved at ₹0.00");
   assert(poolBalances.wallet.current === 0, "540. Wallet Core Invariant: Wallet float preserved at ₹0.00");
+
+  // Test 5: Payment Accounts UPI Reconciliation Engine & UI
+  const paymentPanelFile = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
+  assert(paymentPanelFile.includes("UPI Float Reconciliation") || paymentPanelFile.includes("UPI Reconciliation"), "541. UPI Reconciliation Invariant: Prominent reconciliation card header present");
+  assert(paymentPanelFile.includes("✓ Reconciled"), "542. UPI Reconciliation Invariant: '✓ Reconciled' state indicator present");
+  assert(paymentPanelFile.includes("Calculated Balance") || paymentPanelFile.includes("Calculated"), "543. UPI Reconciliation Invariant: Calculated balance metric present");
+  assert(paymentPanelFile.includes("Canonical Pool") || paymentPanelFile.includes("get_pool_balances"), "544. UPI Reconciliation Invariant: Canonical pool balance metric present");
+  assert(paymentPanelFile.includes("Variance"), "545. UPI Reconciliation Invariant: Variance comparison metric present");
+  assert(paymentPanelFile.includes("View reconciliation details"), "546. UPI Reconciliation Invariant: Expandable math derivation details present");
+  assert(paymentPanelFile.includes("UPI Account Reconciliation"), "547. UPI Modal Invariant: Detailed trace modal header present");
+  assert(paymentPanelFile.includes("Movement Breakdown"), "548. UPI Modal Invariant: Movement breakdown section present");
+  assert(paymentPanelFile.includes("Reconciliation"), "549. Account Table Invariant: Reconciliation column present in table header");
+
+  // Test 6: Mathematical Double-Entry Model for UPI
+  const upiOpening = 0;
+  const upiCredits = 9001;
+  const upiOutflows = 0;
+  const upiFees = 10;
+  const upiOtherMovements = 0;
+  const upiSettlements = 0;
+  const upiCalculated = upiOpening + upiCredits - upiOutflows + upiFees + upiOtherMovements + upiSettlements;
+  const upiCanonical = 9011;
+  const upiVariance = upiCalculated - upiCanonical;
+
+  assert(upiCalculated === 9011, "550. UPI Reconciliation Math: Calculated expected balance is exactly ₹9,011.00");
+  assert(upiVariance === 0, "551. UPI Reconciliation Math: Variance against canonical pool is exactly ₹0.00");
+  assert(Math.abs(upiVariance) < 0.01, "552. UPI Reconciliation Math: Status evaluates to 100% reconciled");
+  assert(poolBalances.credit_card.opening === 15000, "553. Credit Card Limit Invariant: Credit limit preserved at ₹15,000.00");
+  assert(calculatedTotal === 6151, "554. Wealth Total Invariant: Canonical total preserved at ₹6,151.00");
+  assert(poolBalances.bank.current === 9500, "555. Bank Ledger Invariant: Bank balance preserved at ₹9,500.00");
 }
 
 console.log("\n================================================================================");

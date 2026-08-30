@@ -15,7 +15,7 @@ const MODULE_LAYOUT: Record<string, { modal: string; contentWidth: string }> = {
   general: { modal: "max-w-[780px] h-[min(680px,calc(100vh-48px))]", contentWidth: "720px" },
   receipt: { modal: "max-w-[920px] h-[min(740px,calc(100vh-48px))]", contentWidth: "860px" },
   tax: { modal: "max-w-[720px] h-[min(560px,calc(100vh-48px))]", contentWidth: "660px" },
-  "payment-accounts": { modal: "max-w-[1020px] h-[min(780px,calc(100vh-48px))]", contentWidth: "960px" },
+  "payment-accounts": { modal: "max-w-[1100px] h-[min(840px,calc(100vh-48px))]", contentWidth: "1040px" },
   "payment-methods": { modal: "max-w-[780px] h-[min(680px,calc(100vh-48px))]", contentWidth: "720px" },
   "quick-favorites": { modal: "max-w-[780px] h-[min(680px,calc(100vh-48px))]", contentWidth: "720px" },
   "business-setup": { modal: "max-w-[1120px] h-[min(820px,calc(100vh-48px))]", contentWidth: "1060px" },
