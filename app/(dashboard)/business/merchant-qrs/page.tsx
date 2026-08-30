@@ -31,7 +31,6 @@ export default async function MerchantQrsPage() {
       ]}
       rows={(data ?? []) as any}
       usage={usage}
-      display={(r) => r.display_name || r.name || ""}
     />
   );
 }
