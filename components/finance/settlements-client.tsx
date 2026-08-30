@@ -128,8 +128,8 @@ export default function SettlementsClient({
   initialSettlements: SettlementRow[];
   initialSummary: SettlementSummary | null;
   initialPoolBalances?: PoolBalances | null;
-  initialPortals?: { id: string; name: string }[];
-  initialQrs?: { id: string; display_name: string; upi_id?: string }[];
+  initialPortals?: { id: string; name: string; payment_instrument_id?: string | null }[];
+  initialQrs?: { id: string; display_name: string; upi_id?: string; payment_instrument_id?: string | null }[];
   initialPaymentInstruments?: { id: string; name: string; type: string; opening_balance?: number; details?: any; is_active?: boolean }[];
 }) {
   const router = useRouter();

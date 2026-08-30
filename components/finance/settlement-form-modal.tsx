@@ -76,8 +76,8 @@ export default function SettlementFormModal({
   busy: boolean;
   initialType?: SettlementType;
   initialAmount?: string | number;
-  portals?: { id: string; name: string }[];
-  qrs?: { id: string; display_name: string; upi_id?: string }[];
+  portals?: { id: string; name: string; payment_instrument_id?: string | null }[];
+  qrs?: { id: string; display_name: string; upi_id?: string; payment_instrument_id?: string | null }[];
   paymentAccounts?: { id: string; name: string; type: string; details?: any; is_active?: boolean; opening_balance?: number }[];
   poolBalances?: any;
   onSave: (payload: {
@@ -156,7 +156,7 @@ export default function SettlementFormModal({
   const isDestWallet = type === "upi_qr_to_wallet" || type === "bank_to_wallet";
   const isDestDmtPortal = type === "bank_to_dmt" || type === "wallet_to_dmt";
 
-  // Dynamic Current Available Balance Calculation for Selected Source
+  // Dynamic Current Available Balance Calculation for Selected Source (Strictly Account-Level, ZERO pool fallbacks)
   useEffect(() => {
     if (!open || !sourceId) {
       setAvailableBalance(null);
@@ -169,67 +169,134 @@ export default function SettlementFormModal({
     async function fetchLiveBalance() {
       try {
         if (type === "aeps_to_bank") {
-          const poolCurrent = Number(livePools?.aeps?.current ?? 0);
-          if (loadedPortals.length <= 1) {
-            setAvailableBalance(poolCurrent);
-          } else {
-            const seedDate = livePools?.aeps?.seed_date || new Date().toISOString().slice(0, 10);
-            const [{ data: txs }, { data: setts }] = await Promise.all([
-              supabase.from("transactions").select("amount").eq("service_type", "aeps").eq("portal_id", sourceId).gte("transaction_date", seedDate).eq("status", "success"),
-              supabase.from("settlements").select("amount, remarks").eq("from_pool", "aeps").gte("settlement_date", seedDate).eq("status", "success"),
-            ]);
-            const portalObj = loadedPortals.find((p) => p.id === sourceId);
-            const portalName = portalObj?.name?.toLowerCase() ?? "";
-            const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
-            const totalOut = (setts ?? [])
-              .filter((st: any) => !portalName || (st.remarks ?? "").toLowerCase().includes(portalName))
-              .reduce((s, st) => s + Number(st.amount || 0), 0);
-            const portalNet = totalIn - totalOut;
-            setAvailableBalance(portalNet > 0 ? portalNet : poolCurrent);
-          }
+          const portalObj = loadedPortals.find((p) => p.id === sourceId);
+          const portalName = (portalObj?.name ?? "").toLowerCase();
+          
+          // 1. Resolve exact linked financial instrument
+          const inst = loadedAccounts.find(
+            (i) => i.id === portalObj?.payment_instrument_id ||
+                   ((i.type === "aeps_portal" || i.type === "aeps") && (
+                     i.name.toLowerCase().includes(portalName) || portalName.includes(i.name.toLowerCase())
+                   ))
+          );
+
+          // 2. Resolve account-specific opening balance
+          const openingBal = Number(inst?.opening_balance ?? 0);
+          const seedDate = livePools?.aeps?.seed_date || "0001-01-01";
+
+          // 3. Resolve account-specific transactions and settlements
+          const [{ data: txs }, { data: setts }] = await Promise.all([
+            supabase
+              .from("transactions")
+              .select("amount")
+              .eq("service_type", "aeps")
+              .eq("portal_id", sourceId)
+              .gte("transaction_date", seedDate)
+              .eq("status", "success"),
+            supabase
+              .from("settlements")
+              .select("amount, source_instrument_id, remarks")
+              .eq("from_pool", "aeps")
+              .gte("settlement_date", seedDate)
+              .eq("status", "success"),
+          ]);
+
+          const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
+          const totalOut = (setts ?? [])
+            .filter((st: any) => {
+              if (st.source_instrument_id && inst?.id) {
+                return st.source_instrument_id === inst.id;
+              }
+              return !portalName || (st.remarks ?? "").toLowerCase().includes(portalName);
+            })
+            .reduce((s, st) => s + Number(st.amount || 0), 0);
+
+          // Account-Level Formula: Opening + Inflows - Outflows (NO fallback to pool total)
+          const accountBal = openingBal + totalIn - totalOut;
+          setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (type === "upi_qr_to_bank" || type === "upi_qr_to_wallet") {
-          const poolCurrent = Number(livePools?.upi_qr?.current ?? 0);
-          if (loadedQrs.length <= 1) {
-            setAvailableBalance(poolCurrent);
-          } else {
-            const seedDate = livePools?.upi_qr?.seed_date || new Date().toISOString().slice(0, 10);
-            const [{ data: txs }, { data: setts }] = await Promise.all([
-              supabase.from("transactions").select("amount").eq("service_type", "upi").eq("merchant_qr_id", sourceId).gte("transaction_date", seedDate).eq("status", "success"),
-              supabase.from("settlements").select("amount, remarks").eq("from_pool", "upi_qr").gte("settlement_date", seedDate).eq("status", "success"),
-            ]);
-            const qrObj = loadedQrs.find((q) => q.id === sourceId);
-            const qrName = qrObj?.display_name?.toLowerCase() ?? "";
-            const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
-            const totalOut = (setts ?? [])
-              .filter((st: any) => !qrName || (st.remarks ?? "").toLowerCase().includes(qrName))
-              .reduce((s, st) => s + Number(st.amount || 0), 0);
-            const qrNet = totalIn - totalOut;
-            setAvailableBalance(qrNet > 0 ? qrNet : poolCurrent);
-          }
+          const qrObj = loadedQrs.find((q) => q.id === sourceId);
+          const qrName = (qrObj?.display_name ?? "").toLowerCase();
+
+          const inst = loadedAccounts.find(
+            (i) => i.type === "upi" && (
+              i.name.toLowerCase().includes(qrName) || qrName.includes(i.name.toLowerCase())
+            )
+          );
+
+          const openingBal = Number(inst?.opening_balance ?? 0);
+          const seedDate = livePools?.upi_qr?.seed_date || "0001-01-01";
+
+          const [{ data: txs }, { data: setts }] = await Promise.all([
+            supabase
+              .from("transactions")
+              .select("amount")
+              .eq("service_type", "upi")
+              .eq("merchant_qr_id", sourceId)
+              .gte("transaction_date", seedDate)
+              .eq("status", "success"),
+            supabase
+              .from("settlements")
+              .select("amount, source_instrument_id, remarks")
+              .eq("from_pool", "upi_qr")
+              .gte("settlement_date", seedDate)
+              .eq("status", "success"),
+          ]);
+
+          const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
+          const totalOut = (setts ?? [])
+            .filter((st: any) => {
+              if (st.source_instrument_id && inst?.id) {
+                return st.source_instrument_id === inst.id;
+              }
+              return !qrName || (st.remarks ?? "").toLowerCase().includes(qrName);
+            })
+            .reduce((s, st) => s + Number(st.amount || 0), 0);
+
+          const accountBal = openingBal + totalIn - totalOut;
+          setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (isSourceWallet) {
-          const poolCurrent = Number(livePools?.wallet?.current ?? 0);
-          if (wallets.length <= 1) {
-            setAvailableBalance(poolCurrent);
-          } else {
-            const inst = loadedAccounts.find((i) => i.id === sourceId);
-            const seedDate = livePools?.wallet?.seed_date || "0001-01-01";
-            const { data: ces } = await supabase.from("cash_entries").select("direction, amount").eq("instrument_id", sourceId).gte("entry_date", seedDate);
-            const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
-            const bal = Number(inst?.opening_balance || 0) + flow;
-            setAvailableBalance(bal !== 0 ? bal : poolCurrent);
-          }
+          const inst = loadedAccounts.find((i) => i.id === sourceId);
+          const openingBal = Number(inst?.opening_balance ?? 0);
+          const seedDate = livePools?.wallet?.seed_date || "0001-01-01";
+
+          const { data: ces } = await supabase
+            .from("cash_entries")
+            .select("direction, amount")
+            .eq("instrument_id", sourceId)
+            .gte("entry_date", seedDate);
+
+          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
+          const accountBal = openingBal + flow;
+          setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (isSourceBank) {
-          const poolCurrent = Number(livePools?.bank?.current ?? 0);
-          if (bankAccounts.length <= 1) {
-            setAvailableBalance(poolCurrent);
-          } else {
-            const inst = loadedAccounts.find((i) => i.id === sourceId);
-            const seedDate = livePools?.bank?.seed_date || "0001-01-01";
-            const { data: ces } = await supabase.from("cash_entries").select("direction, amount").eq("instrument_id", sourceId).gte("entry_date", seedDate);
-            const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
-            const bal = Number(inst?.opening_balance || 0) + flow;
-            setAvailableBalance(bal !== 0 ? bal : poolCurrent);
-          }
+          const inst = loadedAccounts.find((i) => i.id === sourceId);
+          const openingBal = Number(inst?.opening_balance ?? 0);
+          const seedDate = livePools?.bank?.seed_date || "0001-01-01";
+
+          const { data: ces } = await supabase
+            .from("cash_entries")
+            .select("direction, amount")
+            .eq("instrument_id", sourceId)
+            .gte("entry_date", seedDate);
+
+          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
+          const accountBal = openingBal + flow;
+          setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
+        } else if (type === "add_cash_to_bank" || type === "cash_adjustment") {
+          const inst = loadedAccounts.find((i) => i.type === "cash");
+          const openingBal = Number(inst?.opening_balance ?? 0);
+          const seedDate = livePools?.cash?.seed_date || "0001-01-01";
+
+          const { data: ces } = await supabase
+            .from("cash_entries")
+            .select("direction, amount")
+            .eq("method", "cash")
+            .gte("entry_date", seedDate);
+
+          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
+          const accountBal = openingBal + flow;
+          setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         }
       } catch (err) {
         console.error("Error computing source balance:", err);
@@ -239,7 +306,7 @@ export default function SettlementFormModal({
     }
 
     fetchLiveBalance();
-  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet, wallets.length, bankAccounts.length]);
+  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet]);
 
   if (!open) return null;
 
@@ -253,16 +320,33 @@ export default function SettlementFormModal({
       return setError("Transfer amount must be a positive number greater than ₹0.00. Zero or negative amounts are strictly blocked.");
     }
 
-    // Mandatory Source Validation
+    // Insufficient Funds Guard against Account-Level Available Balance
+    if (availableBalance !== null && availableBalance >= 0 && amt > availableBalance) {
+      return setError(`Insufficient funds in selected account. Available: ${inr(availableBalance)}, Requested: ${inr(amt)}`);
+    }
+
+    // Mandatory Source Validation & Instrument Resolution
     let sourceLabel = "";
+    let sourceInstrumentId = sourceId || null;
+
     if (isSourceAepsPortal) {
-      if (!sourceId) return setError("Please select the AEPS Portal (e.g. CSC, EzeePay, Spice Money) that was settled.");
+      if (!sourceId) return setError("Please select the AEPS Portal (e.g. Digipay, Ezeepay) that was settled.");
       const p = loadedPortals.find((x) => x.id === sourceId);
       sourceLabel = p ? `Portal: ${p.name}` : "AEPS Portal";
+      sourceInstrumentId = p?.payment_instrument_id || loadedAccounts.find(
+        (i) => (i.type === "aeps_portal" || i.type === "aeps") && (
+          i.name.toLowerCase().includes((p?.name || "").toLowerCase()) || (p?.name || "").toLowerCase().includes(i.name.toLowerCase())
+        )
+      )?.id || sourceId;
     } else if (isSourceUpiQr) {
       if (!sourceId) return setError("Please select the Merchant QR (e.g. PhonePe QR, Google Pay QR) being settled.");
       const q = loadedQrs.find((x) => x.id === sourceId);
       sourceLabel = q ? `QR: ${q.display_name}` : "UPI QR";
+      sourceInstrumentId = (q as any)?.payment_instrument_id || loadedAccounts.find(
+        (i) => i.type === "upi" && (
+          i.name.toLowerCase().includes((q?.display_name || "").toLowerCase()) || (q?.display_name || "").toLowerCase().includes(i.name.toLowerCase())
+        )
+      )?.id || sourceId;
     } else if (isSourceBank) {
       if (!sourceId) return setError("Please select the Source Bank Account debited.");
       const b = bankAccounts.find((x) => x.id === sourceId);
@@ -273,8 +357,10 @@ export default function SettlementFormModal({
       sourceLabel = w ? `Wallet: ${w.name}` : "Digital Wallet";
     }
 
-    // Mandatory Destination Validation
+    // Mandatory Destination Validation & Instrument Resolution
     let destLabel = "";
+    let destInstrumentId = destId || null;
+
     if (isDestBank) {
       if (!destId) return setError("Please select the Destination Bank Account credited.");
       const b = bankAccounts.find((x) => x.id === destId);
@@ -288,6 +374,11 @@ export default function SettlementFormModal({
       if (!destId) return setError("Please select the DMT Portal receiving float.");
       const p = loadedPortals.find((x) => x.id === destId);
       destLabel = p ? `DMT: ${p.name}` : "DMT Portal";
+      destInstrumentId = p?.payment_instrument_id || loadedAccounts.find(
+        (i) => (i.type === "dmt_portal" || i.type === "dmt") && (
+          i.name.toLowerCase().includes((p?.name || "").toLowerCase()) || (p?.name || "").toLowerCase().includes(i.name.toLowerCase())
+        )
+      )?.id || destId;
     }
 
     // Auto-generate routing remarks
@@ -311,8 +402,8 @@ export default function SettlementFormModal({
       p_reference: reference.trim() || (sourceLabel ? `Ref: ${sourceLabel}` : ""),
       p_remarks: finalRemarks,
       p_direction: isAdjustment ? direction : "",
-      p_source_instrument_id: sourceId || null,
-      p_dest_instrument_id: destId || null,
+      p_source_instrument_id: sourceInstrumentId,
+      p_dest_instrument_id: destInstrumentId,
     });
   };
 
