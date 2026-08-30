@@ -656,6 +656,14 @@ export default function PaymentAccountsPanel({
     } else if (type === "credit_card") {
       const fullLimit = Number(instForm.credit_limit) || 0;
       const openingOutstanding = Number(instForm.opening_balance) || 0;
+      if (openingOutstanding < 0) {
+        showToast("error", "Opening outstanding debt cannot be negative.");
+        return;
+      }
+      if (fullLimit < 0) {
+        showToast("error", "Credit limit cannot be negative.");
+        return;
+      }
       details.credit_limit = String(fullLimit);
       details.used_limit = String(openingOutstanding);
       details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
@@ -672,9 +680,18 @@ export default function PaymentAccountsPanel({
     setAddingInst(true);
     if (instModal.mode === "edit" && instModal.row) {
       const prev = instModal.row;
+      const updatePayload: Record<string, any> = {
+        name,
+        type,
+        details,
+      };
+      if (type === "credit_card") {
+        updatePayload.opening_balance = openingBal;
+      }
+
       const { error } = await supabase
         .from("payment_instruments")
-        .update({ name, type, details })
+        .update(updatePayload)
         .eq("id", prev.id);
       setAddingInst(false);
       if (error) {
@@ -682,7 +699,17 @@ export default function PaymentAccountsPanel({
         return;
       }
 
-      let updatedList = instruments.map((x) => (x.id === prev.id ? { ...x, name, type, details } : x));
+      let updatedList = instruments.map((x) =>
+        x.id === prev.id
+          ? {
+              ...x,
+              name,
+              type,
+              details,
+              opening_balance: type === "credit_card" ? openingBal : x.opening_balance,
+            }
+          : x
+      );
 
       // BANK RENAME CASCADE:
       if (prev.type === "bank" && prev.name !== name) {
@@ -945,9 +972,9 @@ export default function PaymentAccountsPanel({
               {instruments.map((row) => {
                 const label = INSTRUMENT_TYPES.find((t) => t.value === row.type)?.label ?? row.type;
                 const totalLimit = Number(row.details?.credit_limit || 0);
-                const currentBal = Number(row.balance) || 0;
-                const usedLimit = totalLimit > 0 ? Math.max(0, totalLimit - currentBal) : 0;
-                const usedPercent = totalLimit > 0 ? Math.min(100, Math.round((usedLimit / totalLimit) * 100)) : 0;
+                const currentOutstanding = Number(row.opening_balance || 0);
+                const currentBal = Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));
+                const usedPercent = totalLimit > 0 ? Math.min(100, Math.round((currentOutstanding / totalLimit) * 10000) / 100) : 0;
                 const recon = accountReconMap[row.id];
 
                 return (
@@ -966,14 +993,14 @@ export default function PaymentAccountsPanel({
                             {inr(currentBal)} <span className="text-[10px] font-normal uppercase text-slate-400">Available</span>
                           </div>
                           <div className="flex items-center justify-end gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                            <span>Outstanding: <strong className={usedLimit > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-300"}>{inr(usedLimit)}</strong> / Limit {inr(totalLimit)}</span>
+                            <span>Outstanding: <strong className={currentOutstanding > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-300"}>{inr(currentOutstanding)}</strong> / Limit {inr(totalLimit)}</span>
                           </div>
                           <div className="h-1.5 w-28 ml-auto overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                             <div
                               className={`h-full transition-all ${
                                 usedPercent > 85 ? "bg-rose-500" : usedPercent > 50 ? "bg-amber-500" : "bg-emerald-500"
                               }`}
-                              style={{ width: `${usedPercent}%` }}
+                              style={{ width: `${Math.min(100, usedPercent)}%` }}
                             />
                           </div>
                         </div>
@@ -1201,7 +1228,7 @@ export default function PaymentAccountsPanel({
                   Credit Facility Accounting Rule
                 </div>
                 <p>
-                  Total Credit Limit: <strong>{inr(selectedReconAccount.creditLimit ?? 0)}</strong> · Currently Used: <strong>{inr(selectedReconAccount.usedLimit ?? 0)}</strong> · Available Credit: <strong>{inr(selectedReconAccount.currentBalance)}</strong>.
+                  Total Credit Limit: <strong>{inr(selectedReconAccount.creditLimit ?? 0)}</strong> · Outstanding Debt: <strong>{inr(selectedReconAccount.usedLimit ?? 0)}</strong> · Available Credit: <strong>{inr(selectedReconAccount.currentBalance)}</strong>.
                 </p>
                 <p className="font-bold text-cyan-700 dark:text-cyan-300">
                   Accounting Treatment: Credit Line facility (Excluded from cash net worth / wealth).
