@@ -34,10 +34,12 @@ const EMPTY_FORM: InstForm = {
 const INST_POOL: Record<string, string> = {
   cash: "cash",
   bank: "bank",
-  debit_card: "bank",
-  credit_card: "credit_card",
   upi: "upi_qr",
   wallet: "wallet",
+  aeps_portal: "aeps",
+  dmt_portal: "dmt",
+  credit_card: "credit_card",
+  debit_card: "debit_card",
 };
 
 const ADD_ICON = "M12 5v14M5 12h14";
@@ -206,6 +208,8 @@ export default function PaymentAccountsPanel({
       upi_id: d.upi_id ?? "",
       linked: d.linked ?? "",
       card_last4: d.card_last4 ?? "",
+      portal_code: d.portal_code ?? "",
+      agent_code: d.agent_code ?? "",
       notes: d.notes ?? "",
     });
     setInstModal({ mode: "edit", row });
@@ -237,6 +241,10 @@ export default function PaymentAccountsPanel({
       details.used_limit = String(usedLimit);
       details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
       details.bank_name = instForm.bank_name.trim();
+    } else if (type === "aeps_portal") {
+      details.portal_code = (instForm.portal_code ?? "").trim();
+    } else if (type === "dmt_portal") {
+      details.agent_code = (instForm.agent_code ?? "").trim();
     }
     details.notes = instForm.notes.trim();
 
@@ -370,6 +378,18 @@ export default function PaymentAccountsPanel({
       if (d.card_last4) parts.push("•••• " + d.card_last4);
       if (d.credit_limit) parts.push("Limit " + inr(Number(d.credit_limit)));
       return parts.join(" · ") || "Credit Card";
+    }
+    if (row.type === "aeps_portal") {
+      const parts: string[] = [];
+      if (d.portal_code) parts.push("Portal: " + d.portal_code);
+      if (d.notes) parts.push(d.notes);
+      return parts.join(" · ") || "AEPS Provider Float";
+    }
+    if (row.type === "dmt_portal") {
+      const parts: string[] = [];
+      if (d.agent_code) parts.push("Agent: " + d.agent_code);
+      if (d.notes) parts.push(d.notes);
+      return parts.join(" · ") || "DMT Remittance Float";
     }
     return d.notes || "—";
   }
@@ -693,12 +713,36 @@ export default function PaymentAccountsPanel({
               </div>
             )}
 
+            {instForm.type === "aeps_portal" && (
+              <div>
+                <label className={labelClass}>Portal Code / Identifier</label>
+                <input
+                  value={instForm.portal_code ?? ""}
+                  onChange={(e) => updateForm({ portal_code: e.target.value })}
+                  placeholder="e.g. DIGIPAY, EZEEPAY, SPICEMONEY"
+                  className={inputClass}
+                />
+              </div>
+            )}
+
+            {instForm.type === "dmt_portal" && (
+              <div>
+                <label className={labelClass}>Agent Code / DMT Provider ID</label>
+                <input
+                  value={instForm.agent_code ?? ""}
+                  onChange={(e) => updateForm({ agent_code: e.target.value })}
+                  placeholder="e.g. DMT-DIGIPAY-01, EZEEPAY-DMT"
+                  className={inputClass}
+                />
+              </div>
+            )}
+
             <div>
               <label className={labelClass}>Notes &amp; Description</label>
               <textarea
                 value={instForm.notes}
                 onChange={(e) => updateForm({ notes: e.target.value })}
-                placeholder="e.g. Credit card used for vendor inventory purchases and shop utility bills."
+                placeholder="e.g. Account details, usage guidelines, or branch notes."
                 rows={2}
                 className={inputClass}
               />

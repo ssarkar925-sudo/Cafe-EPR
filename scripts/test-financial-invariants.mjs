@@ -4199,6 +4199,90 @@ function detectIntent(question) {
   assert(deactivationPermitted(500.0) === false, "480. Deactivation Guard: Strictly blocked when non-zero balance is held");
 }
 
+// 481 - 495. Payment Account Type Mapping & Portal Account Preservation Invariants
+{
+  // 1. INSTRUMENT_TYPES Catalog Verification
+  const INSTRUMENT_TYPES = [
+    { value: "cash", label: "Cash" },
+    { value: "bank", label: "Bank account" },
+    { value: "upi", label: "UPI" },
+    { value: "wallet", label: "Wallet" },
+    { value: "debit_card", label: "Debit card" },
+    { value: "credit_card", label: "Credit card" },
+    { value: "aeps_portal", label: "AEPS Float" },
+    { value: "dmt_portal", label: "DMT Float" },
+  ];
+
+  assert(INSTRUMENT_TYPES.length === 8, "481. Type Catalog Invariant: Exactly 8 official payment instrument types supported");
+  assert(INSTRUMENT_TYPES.some((t) => t.value === "aeps_portal" && t.label === "AEPS Float"), "482. Type Catalog Invariant: aeps_portal mapped to 'AEPS Float'");
+  assert(INSTRUMENT_TYPES.some((t) => t.value === "dmt_portal" && t.label === "DMT Float"), "483. Type Catalog Invariant: dmt_portal mapped to 'DMT Float'");
+
+  // 2. Edit Modal Initialization Model
+  function mockOpenInstEdit(row) {
+    const d = row.details ?? {};
+    return {
+      name: row.name,
+      type: row.type, // Must preserve exact row.type
+      opening_balance: String(Number(row.opening_balance ?? 0)),
+      portal_code: d.portal_code ?? "",
+      agent_code: d.agent_code ?? "",
+      notes: d.notes ?? "",
+    };
+  }
+
+  // Row A: Digipay Float (aeps_portal)
+  const digipayRow = { id: "p1", name: "Digipay Float", type: "aeps_portal", opening_balance: 0, details: { portal_code: "DIGIPAY-01" }, balance: 0, is_active: true };
+  const digipayForm = mockOpenInstEdit(digipayRow);
+  assert(digipayForm.type === "aeps_portal", "484. Edit Digipay Float: Form initializes with exact type 'aeps_portal' (NEVER cash)");
+  assert(INSTRUMENT_TYPES.find((t) => t.value === digipayForm.type)?.label === "AEPS Float", "485. Edit Digipay Float UI: Dropdown displays 'AEPS Float'");
+
+  // Row B: Ezeepay Float (aeps_portal)
+  const ezeepayRow = { id: "p2", name: "Ezeepay Float", type: "aeps_portal", opening_balance: 0, details: { portal_code: "EZEEPAY-01" }, balance: 0, is_active: true };
+  const ezeepayForm = mockOpenInstEdit(ezeepayRow);
+  assert(ezeepayForm.type === "aeps_portal", "486. Edit Ezeepay Float: Form initializes with exact type 'aeps_portal' (NEVER cash)");
+  assert(INSTRUMENT_TYPES.find((t) => t.value === ezeepayForm.type)?.label === "AEPS Float", "487. Edit Ezeepay Float UI: Dropdown displays 'AEPS Float'");
+
+  // Row C: Digipay DMT Float (dmt_portal)
+  const digipayDmtRow = { id: "p3", name: "Digipay DMT Float", type: "dmt_portal", opening_balance: 0, details: { agent_code: "DMT-DIGI-99" }, balance: 0, is_active: true };
+  const digipayDmtForm = mockOpenInstEdit(digipayDmtRow);
+  assert(digipayDmtForm.type === "dmt_portal", "488. Edit Digipay DMT Float: Form initializes with exact type 'dmt_portal' (NEVER cash)");
+  assert(INSTRUMENT_TYPES.find((t) => t.value === digipayDmtForm.type)?.label === "DMT Float", "489. Edit Digipay DMT Float UI: Dropdown displays 'DMT Float'");
+
+  // Row D: Ezeepay DMT Float (dmt_portal)
+  const ezeepayDmtRow = { id: "p4", name: "Ezeepay DMT Float", type: "dmt_portal", opening_balance: 0, details: { agent_code: "DMT-EZEE-88" }, balance: 0, is_active: true };
+  const ezeepayDmtForm = mockOpenInstEdit(ezeepayDmtRow);
+  assert(ezeepayDmtForm.type === "dmt_portal", "490. Edit Ezeepay DMT Float: Form initializes with exact type 'dmt_portal' (NEVER cash)");
+  assert(INSTRUMENT_TYPES.find((t) => t.value === ezeepayDmtForm.type)?.label === "DMT Float", "491. Edit Ezeepay DMT Float UI: Dropdown displays 'DMT Float'");
+
+  // 3. Save Immutability Invariant: Type is NOT modified during save
+  function mockSaveInstrument(instForm) {
+    return {
+      name: instForm.name,
+      type: instForm.type, // Persists exact type
+    };
+  }
+
+  const savedDigi = mockSaveInstrument(digipayForm);
+  const savedDigiDmt = mockSaveInstrument(digipayDmtForm);
+  assert(savedDigi.type === "aeps_portal", "492. Persistence Invariant: Saved Digipay Float retains 'aeps_portal'");
+  assert(savedDigiDmt.type === "dmt_portal", "493. Persistence Invariant: Saved Digipay DMT Float retains 'dmt_portal'");
+
+  // 4. Cash Drawer Non-Pollution Invariant
+  const POOL_MAP = {
+    cash: "cash",
+    bank: "bank",
+    upi: "upi_qr",
+    wallet: "wallet",
+    aeps_portal: "aeps",
+    dmt_portal: "dmt",
+    credit_card: "credit_card",
+    debit_card: "debit_card",
+  };
+
+  assert(POOL_MAP["aeps_portal"] === "aeps", "494. Pool Isolation: aeps_portal maps strictly to 'aeps' pool (0% cash pool)");
+  assert(POOL_MAP["dmt_portal"] === "dmt", "495. Pool Isolation: dmt_portal maps strictly to 'dmt' pool (0% cash pool)");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

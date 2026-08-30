@@ -14,7 +14,7 @@ export type SettingsRow = {
 export type InstrumentRow = {
   id: string;
   name: string;
-  type: "cash" | "bank" | "upi" | "wallet" | "debit_card" | "credit_card";
+  type: "cash" | "bank" | "upi" | "wallet" | "debit_card" | "credit_card" | "aeps_portal" | "dmt_portal";
   is_active: boolean;
   details: any;
   opening_balance: number | string;
@@ -51,6 +51,8 @@ export type InstForm = {
   upi_id: string;
   linked: string;
   card_last4: string;
+  portal_code?: string;
+  agent_code?: string;
   notes: string;
 };
 
@@ -63,6 +65,8 @@ export const INSTRUMENT_TYPES: { value: InstrumentRow["type"]; label: string }[]
   { value: "wallet", label: "Wallet" },
   { value: "debit_card", label: "Debit card" },
   { value: "credit_card", label: "Credit card" },
+  { value: "aeps_portal", label: "AEPS Float" },
+  { value: "dmt_portal", label: "DMT Float" },
 ];
 
 export const TYPE_STYLE: Record<string, string> = {
@@ -72,6 +76,8 @@ export const TYPE_STYLE: Record<string, string> = {
   wallet: "bg-amber-50 text-amber-700 ring-amber-200",
   debit_card: "bg-violet-50 text-violet-700 ring-violet-200",
   credit_card: "bg-rose-50 text-rose-700 ring-rose-200",
+  aeps_portal: "bg-orange-50 text-orange-700 ring-orange-200",
+  dmt_portal: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200",
 };
 
 export const METHOD_STYLE: Record<string, string> = {
