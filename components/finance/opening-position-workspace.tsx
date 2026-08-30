@@ -92,7 +92,7 @@ export type OpeningPositionSnapshot = {
     wallet: number;
     aeps: number;
     dmt: number;
-    recharge: number;
+    recharge?: number;
   };
   receivables: ReceivableRow[];
   inventory: InventoryRow[];
@@ -180,13 +180,12 @@ export default function OpeningPositionWorkspace({
     }));
   });
 
-  // 3. Digital Floats
+  // 3. Digital Floats (UPI, Wallet, AEPS, DMT)
   const [digital, setDigital] = useState({
     upi_qr: initialSnapshot?.digital?.upi_qr || 0,
     wallet: initialSnapshot?.digital?.wallet || 0,
     aeps: initialSnapshot?.digital?.aeps || 0,
     dmt: initialSnapshot?.digital?.dmt || 0,
-    recharge: initialSnapshot?.digital?.recharge || 0,
   });
 
   // 4. Receivables
@@ -276,8 +275,7 @@ export default function OpeningPositionWorkspace({
       (Number(digital.upi_qr) || 0) +
       (Number(digital.wallet) || 0) +
       (Number(digital.aeps) || 0) +
-      (Number(digital.dmt) || 0) +
-      (Number(digital.recharge) || 0),
+      (Number(digital.dmt) || 0),
     [digital]
   );
   const totalReceivables = useMemo(
@@ -585,13 +583,12 @@ export default function OpeningPositionWorkspace({
         }
       }
 
-      // 3. Digital Floats
+      // 3. Digital Floats (UPI, Wallet, AEPS, DMT)
       const digitalPools = [
         { pool: "upi_qr", amt: digital.upi_qr, label: "UPI QR Float" },
         { pool: "wallet", amt: digital.wallet, label: "Digital Wallet Float" },
         { pool: "aeps", amt: digital.aeps, label: "AEPS Float" },
         { pool: "dmt", amt: digital.dmt, label: "DMT Float" },
-        { pool: "recharge", amt: digital.recharge, label: "Mobile Recharge Float" },
       ];
       for (const dp of digitalPools) {
         if (dp.amt > 0) {
@@ -1281,21 +1278,6 @@ export default function OpeningPositionWorkspace({
                   value={digital.dmt || ""}
                   onChange={(e) =>
                     setDigital((prev) => ({ ...prev, dmt: parseFloat(e.target.value) || 0 }))
-                  }
-                  disabled={status === "finalized"}
-                  placeholder="0.00"
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-white/2">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Mobile Recharge Float</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={digital.recharge || ""}
-                  onChange={(e) =>
-                    setDigital((prev) => ({ ...prev, recharge: parseFloat(e.target.value) || 0 }))
                   }
                   disabled={status === "finalized"}
                   placeholder="0.00"

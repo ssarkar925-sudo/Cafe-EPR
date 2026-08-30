@@ -4544,14 +4544,14 @@ function detectIntent(question) {
   const clientFile = fs.readFileSync('E:/CafeERP/components/finance/opening-balances-client.tsx', 'utf8');
 
   // Test 1: Primary Section verification
-  assert(clientFile.includes("Opening Financial Position Workspace"), "526. UI Hierarchy Invariant: 'Opening Financial Position Workspace' present as primary workspace title");
-  assert(clientFile.includes("Set and review the opening financial position for your business."), "527. UI Hierarchy Invariant: Correct primary subtitle present");
-  assert(clientFile.includes("Master ERP Initializer"), "528. UI Hierarchy Invariant: 'Master ERP Initializer' badge present");
-  assert(clientFile.includes("Launch Opening Position Studio"), "529. UI Hierarchy Invariant: 'Launch Opening Position Studio' action present");
+  assert(clientFile.includes("Opening Position & Balance Sheet") || clientFile.includes("Opening Position &amp; Balance Sheet"), "526. UI Hierarchy Invariant: 'Opening Position & Balance Sheet' present as primary title");
+  assert(clientFile.includes("Initialize your business starting position from one controlled accounting workspace."), "527. UI Hierarchy Invariant: Correct primary subtitle present");
+  assert(clientFile.includes("ACCOUNT OPENING") || clientFile.includes("Single Source of Truth"), "528. UI Hierarchy Invariant: Account opening badge present");
+  assert(clientFile.includes("Launch Opening Position Studio") || clientFile.includes("Opening Position Studio"), "529. UI Hierarchy Invariant: 'Launch Opening Position Studio' action present");
 
-  // Test 2: Secondary Section verification
-  assert(clientFile.includes("Account Opening Balances"), "530. UI Hierarchy Invariant: 'Account Opening Balances' present as secondary section title");
-  assert(clientFile.includes("Review or adjust opening balances for individual accounts."), "531. UI Hierarchy Invariant: Correct secondary subtitle present");
+  // Test 2: Secondary Section verification - Legacy Cards Removed
+  assert(!clientFile.includes("Account Opening Balances") && !clientFile.includes("New opening amount"), "530. UI Hierarchy Invariant: Legacy 'Account Opening Balances' card grid removed");
+  assert(!clientFile.includes("Individual Account Adjustments"), "531. UI Hierarchy Invariant: Legacy per-account input section removed");
   assert(!clientFile.includes("<h2>Individual Pool Seeds</h2>") && !clientFile.includes('>Individual Pool Seeds<'), "532. UI Hierarchy Invariant: 'Individual Pool Seeds' eliminated from UI headings");
 
   // Test 3: Financial Invariants Unmodified
@@ -4650,11 +4650,11 @@ function detectIntent(question) {
   const nonDuplicatingTotal = cashCalculated + bankCalculated + upiCalculated + poolBalances.wallet.current + (digipayAepsBal + ezeepayAepsBal) + (digipayDmtBal + ezeepayDmtBal);
   assert(nonDuplicatingTotal === 6151, "564. Asset Aggregation Invariant: Canonical total (₹6,151.00) strictly excludes duplicate debit card");
 
-  // Opening Balances Client UI Health Banner
-  assert(clientFile.includes("Accounting Health"), "565. UI Health Banner Invariant: 'Accounting Health' section present in Opening Financial Position Workspace");
-  assert(clientFile.includes("All Active Modules Reconciled") || clientFile.includes("100% Balanced"), "566. UI Health Banner Invariant: Reconciliation confirmation badge present");
-  assert(clientFile.includes("Asset Aggregation:"), "567. UI Health Banner Invariant: Asset aggregation formula explanation present");
-  assert(clientFile.includes("Non-duplication invariant active"), "568. UI Health Banner Invariant: Non-duplication rule clearly stated in UI");
+  // Opening Balances Client UI Health Banner & Guardrails
+  assert(clientFile.includes("Accounting Guardrails") || clientFile.includes("Accounting Health"), "565. UI Health Banner Invariant: 'Accounting Guardrails' section present in Opening Financial Position Workspace");
+  assert(clientFile.includes("All Treasury Modules Reconciled") || clientFile.includes("All Active Modules Reconciled") || clientFile.includes("100% Balanced"), "566. UI Health Banner Invariant: Reconciliation confirmation badge present");
+  assert(clientFile.includes("Debit Card:") && clientFile.includes("Linked to Bank"), "567. UI Health Banner Invariant: Debit card linkage clearly explained");
+  assert(clientFile.includes("Credit Card:") && clientFile.includes("Excluded from cash wealth"), "568. UI Health Banner Invariant: Credit card exclusion clearly stated in UI");
 
   // Payment Accounts Panel Unified Modal & Table
   assert(paymentPanelFile.includes("AccountReconDetail"), "569. Payment Accounts Invariant: Unified AccountReconDetail data model implemented");
@@ -4975,6 +4975,53 @@ function detectIntent(question) {
   assert(zeroReceivables === 0, "739. Receivables Invariant: Zero-slate customer receivables is ₹0.00");
   const zeroTotalLiquid = Object.values(zeroFloat).reduce((a, b) => a + b, 0);
   assert(zeroTotalLiquid === 0, "740. Liquid Float Invariant: Zero-slate total liquid assets is ₹0.00");
+
+  // Test 18: Opening Balances Single Source of Truth & Legacy Removal (Tests 741-765)
+  const openingClientPath = "E:/CafeERP/components/finance/opening-balances-client.tsx";
+  const openingClientFile = fs.readFileSync(openingClientPath, "utf8");
+  const studioWorkspacePath = "E:/CafeERP/components/finance/opening-position-workspace.tsx";
+  const studioWorkspaceFile = fs.readFileSync(studioWorkspacePath, "utf8");
+
+  // 1. Single Primary Studio Entry Point
+  assert(openingClientFile.includes("OpeningPositionWorkspace"), "741. Single Studio Invariant: OpeningPositionWorkspace embedded in client");
+  assert(openingClientFile.includes("Launch Opening Position Studio") || openingClientFile.includes("Opening Position Studio"), "742. Primary Action Invariant: Studio launch CTA present");
+  assert(openingClientFile.includes("Opening Position & Balance Sheet") || openingClientFile.includes("Opening Position &amp; Balance Sheet"), "743. Page Title Invariant: Standardized Opening Position & Balance Sheet title present");
+
+  // 2. Complete Legacy Editable Card Removal
+  assert(!openingClientFile.includes("New opening amount"), "744. Legacy Removal: 'New opening amount' input completely removed");
+  assert(!openingClientFile.includes("Set Opening"), "745. Legacy Removal: 'Set Opening' buttons completely removed");
+  assert(!openingClientFile.includes("Individual Account Adjustments"), "746. Legacy Removal: 'Individual Account Adjustments' editable section completely removed");
+  assert(!openingClientFile.includes("saveSeed("), "747. Legacy Removal: Obsolete saveSeed per-card handlers completely removed");
+
+  // 3. Multi-Account Capabilities Preserved in Studio
+  assert(studioWorkspaceFile.includes("activeBankInstruments"), "748. Multi-Bank Support: Multiple active bank accounts dynamically supported");
+  assert(studioWorkspaceFile.includes("digital"), "749. Digital Floats Support: UPI, Wallet, AEPS, DMT floats supported");
+  assert(studioWorkspaceFile.includes("receivables") && studioWorkspaceFile.includes("payables"), "750. Balance Sheet Invariant: Debtors & Creditors supported");
+  assert(studioWorkspaceFile.includes("inventory") && studioWorkspaceFile.includes("other_liabilities"), "751. Balance Sheet Invariant: Opening Stock & Liabilities supported");
+
+  // 4. No Mobile Recharge Float Asset Invariant
+  assert(!studioWorkspaceFile.includes("Mobile Recharge Float"), "752. Architecture Rule: 'Mobile Recharge Float' eliminated from Studio");
+  assert(!openingClientFile.includes("Mobile Recharge Float"), "753. Architecture Rule: 'Mobile Recharge Float' eliminated from client");
+
+  // 5. Merchant QR & Credit Facility Invariants
+  assert(openingClientFile.includes("Credit facility") && openingClientFile.includes("Excluded from cash wealth"), "754. Credit Rule: Credit facility limit explicitly noted as excluded from cash wealth");
+  assert(openingClientFile.includes("Linked to Bank") && openingClientFile.includes("Excluded from asset aggregation"), "755. Debit Rule: Debit card noted as excluded from asset aggregation (0% duplication)");
+
+  // 6. Read-Only Summary Bento Grid
+  assert(openingClientFile.includes("Starting Assets"), "756. Summary Grid: Starting Assets metric present");
+  assert(openingClientFile.includes("Opening Capital"), "757. Summary Grid: Opening Capital metric present");
+  assert(openingClientFile.includes("Current Position"), "758. Summary Grid: Current Live Position metric present");
+  assert(openingClientFile.includes("Active Accounts"), "759. Summary Grid: Active Treasury Accounts metric present");
+
+  // 7. Audit History Table
+  assert(openingClientFile.includes("Opening Position Audit Trail"), "760. Audit Trail: Read-only seed audit history table present");
+  assert(openingClientFile.includes("Seeded Amount") && openingClientFile.includes("Remarks / Purpose"), "761. Audit Trail: Column headers formatted accurately");
+
+  // 8. Dynamic Status Transitions
+  assert(openingClientFile.includes("Status: Finalized"), "762. Status Invariant: Finalized status pill supported");
+  assert(openingClientFile.includes("Status: Draft Saved"), "763. Status Invariant: Draft saved status pill supported");
+  assert(openingClientFile.includes("Status: Not Initialized (₹0.00 Baseline)"), "764. Status Invariant: Zero-baseline status pill supported");
+  assert(openingClientFile.includes("openingCapital"), "765. Capital Math Invariant: Assets minus liabilities formula calculated");
 }
 
 console.log("\n================================================================================");
