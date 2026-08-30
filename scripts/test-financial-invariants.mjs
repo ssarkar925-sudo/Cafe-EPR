@@ -4666,6 +4666,7 @@ function detectIntent(question) {
   assert(paymentPanelFile.includes("✓ 100% Reconciled"), "575. Modal Invariant: 100% Reconciled badge displayed for balanced accounts");
 
   // Test 8: Dedicated Financial Reconciliation Workspace UI & Architecture (Tests 576-590)
+  const upiWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/upi-workspace.tsx", "utf8");
   assert(reconClientFile.includes("Financial Reconciliation"), "576. Dedicated Workspace Invariant: 'Financial Reconciliation' title present");
   assert(reconClientFile.includes("Cross-module verification of live financial positions"), "577. Dedicated Workspace Invariant: Subtitle present");
   assert(reconClientFile.includes("All Accounts Reconciled"), "578. Dedicated Workspace Invariant: Top 'All Accounts Reconciled' badge present");
@@ -4673,9 +4674,14 @@ function detectIntent(question) {
   assert(reconClientFile.includes("Detailed Reconciliation"), "580. Dedicated Workspace Invariant: In-depth command center for selected pool present");
   assert(reconClientFile.includes("Contributing Activity") || reconClientFile.includes("contributingTxns"), "581. Dedicated Workspace Invariant: Contributing transaction ledger present");
   assert(reconClientFile.includes("get_pool_balances"), "582. Canonical Source Invariant: Dedicated workspace consumes get_pool_balances RPC");
-  assert(businessClientFile.includes("UPI POSITION"), "583. Operational UPI Invariant: /business/upi contains compact UPI POSITION card");
-  assert(businessClientFile.includes("/finance/reconciliation"), "584. Operational UPI Invariant: Compact UPI card links directly to /finance/reconciliation");
-  assert(businessClientFile.includes("✓ Reconciled · Var ₹0.00"), "585. Operational UPI Invariant: Compact reconciliation pill present on UPI page");
+  assert(upiWorkspaceFile.includes("UPI POSITION"), "583. Operational UPI Invariant: /business/upi contains compact UPI POSITION card");
+  assert(upiWorkspaceFile.includes("/finance/reconciliation"), "584. Operational UPI Invariant: Compact UPI card links directly to /finance/reconciliation");
+  assert(upiWorkspaceFile.includes("LIVE · UPI rail operational"), "585. Operational UPI Invariant: Live operational badge present on UPI header");
+  assert(upiWorkspaceFile.includes("QR Collection"), "586. UPI Workspace: QR Collection operation tile present");
+  assert(upiWorkspaceFile.includes("UPI Cash Out"), "587. UPI Workspace: UPI Cash Out operation tile present");
+  assert(upiWorkspaceFile.includes("Recent Activity"), "588. UPI Workspace: Recent Activity live strip present");
+  assert(upiWorkspaceFile.includes("Transaction Ledger"), "589. UPI Workspace: Redesigned transaction ledger present");
+  assert(upiWorkspaceFile.includes("Record UPI Cash Out"), "590. UPI Workspace: Modal workflow for cash out recording present");
 }
 
 console.log("\n================================================================================");

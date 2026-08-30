@@ -4,6 +4,7 @@ import { getUserRole, hasRole } from "@/lib/authz";
 import BusinessClient from "@/components/business/business-client";
 import AepsWorkspace from "@/components/business/aeps-workspace";
 import DmtWorkspace from "@/components/business/dmt-workspace";
+import UpiWorkspace from "@/components/business/upi-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,18 @@ export default async function BusinessServicePage({
         initialCustomers={(customers ?? []) as any}
         initialBanks={(banks ?? []) as any}
         initialPortals={(portals ?? []) as any}
+        paymentInstruments={(paymentInstruments ?? []) as any}
+        float={poolBal ?? null}
+      />
+    );
+  }
+
+  if (service === "upi") {
+    return (
+      <UpiWorkspace
+        initialTransactions={(transactions ?? []) as any}
+        initialCustomers={(customers ?? []) as any}
+        initialQrs={(qrs ?? []) as any}
         paymentInstruments={(paymentInstruments ?? []) as any}
         float={poolBal ?? null}
       />
