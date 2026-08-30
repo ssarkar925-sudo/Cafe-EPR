@@ -11,6 +11,9 @@ export type PaymentInstrument = {
   id: string;
   name: string;
   type: string;
+  opening_balance?: number;
+  current_balance?: number;
+  details?: any;
   is_active: boolean;
 };
 
@@ -39,9 +42,10 @@ export type ProductOption = {
   categories?: { name: string } | null;
 };
 
-export type BankRow = {
+export type AccountRow = {
   instrument_id: string;
   name: string;
+  type: string;
   amount: number;
   remarks: string;
 };
@@ -84,16 +88,12 @@ export type OpeningPositionSnapshot = {
   id?: string;
   opening_date: string;
   status: "draft" | "finalized" | "reversed";
-  cash: number;
-  cash_notes: string;
-  banks: BankRow[];
-  digital: {
-    upi_qr: number;
-    wallet: number;
-    aeps: number;
-    dmt: number;
-    recharge?: number;
-  };
+  cash_accounts: AccountRow[];
+  bank_accounts: AccountRow[];
+  digital_accounts: AccountRow[];
+  wallet_accounts: AccountRow[];
+  aeps_accounts: AccountRow[];
+  dmt_accounts: AccountRow[];
   receivables: ReceivableRow[];
   inventory: InventoryRow[];
   payables: PayableRow[];
@@ -105,7 +105,7 @@ export type OpeningPositionSnapshot = {
   finalized_at?: string;
 };
 
-const DRAFT_STORAGE_KEY = "cafe_erp_opening_position_draft_v1";
+export const DRAFT_STORAGE_KEY = "cafe_erp_opening_position_draft_v2";
 
 function SvgIcon({ path, className = "h-4 w-4" }: { path: string; className?: string }) {
   return (
@@ -145,7 +145,7 @@ export default function OpeningPositionWorkspace({
 }) {
   const { showToast, toastView } = useToast();
   const [activeTab, setActiveTab] = useState<
-    "overview" | "cash" | "banks" | "digital" | "receivables" | "inventory" | "payables" | "liabilities"
+    "overview" | "cash" | "banks" | "digital" | "wallets" | "aeps" | "dmt" | "receivables" | "inventory" | "payables" | "liabilities"
   >("overview");
 
   const [openingDate, setOpeningDate] = useState<string>(() => {
@@ -158,37 +158,128 @@ export default function OpeningPositionWorkspace({
   );
   const [remarks, setRemarks] = useState(initialSnapshot?.remarks || "");
 
-  // 1. Cash In Hand
-  const [cashAmount, setCashAmount] = useState<number>(initialSnapshot?.cash || 0);
-  const [cashNotes, setCashNotes] = useState<string>(initialSnapshot?.cash_notes || "");
-
-  // 2. Bank Accounts
+  // Filter Active Instruments by Type
+  const activeCashInstruments = useMemo(
+    () => instruments.filter((i) => i.type === "cash" && i.is_active),
+    [instruments]
+  );
   const activeBankInstruments = useMemo(
     () => instruments.filter((i) => i.type === "bank" && i.is_active),
     [instruments]
   );
+  const activeUpiInstruments = useMemo(
+    () => instruments.filter((i) => i.type === "upi" && i.is_active),
+    [instruments]
+  );
+  const activeWalletInstruments = useMemo(
+    () => instruments.filter((i) => i.type === "wallet" && i.is_active),
+    [instruments]
+  );
+  const activeAepsInstruments = useMemo(
+    () => instruments.filter((i) => i.type === "aeps_portal" && i.is_active),
+    [instruments]
+  );
+  const activeDmtInstruments = useMemo(
+    () => instruments.filter((i) => i.type === "dmt_portal" && i.is_active),
+    [instruments]
+  );
 
-  const [banks, setBanks] = useState<BankRow[]>(() => {
-    if (initialSnapshot?.banks && initialSnapshot.banks.length > 0) {
-      return initialSnapshot.banks;
+  // 1. Cash Accounts State (Account-Wise)
+  const [cashAccounts, setCashAccounts] = useState<AccountRow[]>(() => {
+    if (initialSnapshot?.cash_accounts && initialSnapshot.cash_accounts.length > 0) {
+      return initialSnapshot.cash_accounts;
+    }
+    if (activeCashInstruments.length > 0) {
+      return activeCashInstruments.map((c) => ({
+        instrument_id: c.id,
+        name: c.name,
+        type: "cash",
+        amount: Number(c.opening_balance || 0),
+        remarks: "",
+      }));
+    }
+    return [
+      {
+        instrument_id: "",
+        name: "Main Cash Drawer",
+        type: "cash",
+        amount: 0,
+        remarks: "",
+      },
+    ];
+  });
+
+  // 2. Bank Accounts State (Account-Wise)
+  const [bankAccounts, setBankAccounts] = useState<AccountRow[]>(() => {
+    if (initialSnapshot?.bank_accounts && initialSnapshot.bank_accounts.length > 0) {
+      return initialSnapshot.bank_accounts;
     }
     return activeBankInstruments.map((b) => ({
       instrument_id: b.id,
       name: b.name,
-      amount: 0,
+      type: "bank",
+      amount: Number(b.opening_balance || 0),
       remarks: "",
     }));
   });
 
-  // 3. Digital Floats (UPI, Wallet, AEPS, DMT)
-  const [digital, setDigital] = useState({
-    upi_qr: initialSnapshot?.digital?.upi_qr || 0,
-    wallet: initialSnapshot?.digital?.wallet || 0,
-    aeps: initialSnapshot?.digital?.aeps || 0,
-    dmt: initialSnapshot?.digital?.dmt || 0,
+  // 3. UPI / Digital Settlement Accounts State (Account-Wise)
+  const [digitalAccounts, setDigitalAccounts] = useState<AccountRow[]>(() => {
+    if (initialSnapshot?.digital_accounts && initialSnapshot.digital_accounts.length > 0) {
+      return initialSnapshot.digital_accounts;
+    }
+    return activeUpiInstruments.map((u) => ({
+      instrument_id: u.id,
+      name: u.name,
+      type: "upi",
+      amount: Number(u.opening_balance || 0),
+      remarks: "",
+    }));
   });
 
-  // 4. Receivables
+  // 4. Digital Wallet Accounts State (Account-Wise)
+  const [walletAccounts, setWalletAccounts] = useState<AccountRow[]>(() => {
+    if (initialSnapshot?.wallet_accounts && initialSnapshot.wallet_accounts.length > 0) {
+      return initialSnapshot.wallet_accounts;
+    }
+    return activeWalletInstruments.map((w) => ({
+      instrument_id: w.id,
+      name: w.name,
+      type: "wallet",
+      amount: Number(w.opening_balance || 0),
+      remarks: "",
+    }));
+  });
+
+  // 5. AEPS Provider Floats State (Provider-Wise)
+  const [aepsProviderAccounts, setAepsProviderAccounts] = useState<AccountRow[]>(() => {
+    if (initialSnapshot?.aeps_accounts && initialSnapshot.aeps_accounts.length > 0) {
+      return initialSnapshot.aeps_accounts;
+    }
+    return activeAepsInstruments.map((a) => ({
+      instrument_id: a.id,
+      name: a.name,
+      type: "aeps_portal",
+      amount: Number(a.opening_balance || 0),
+      remarks: "",
+    }));
+  });
+
+  // 6. DMT Provider Wallets State (Provider-Wise)
+  const [dmtProviderAccounts, setDmtProviderAccounts] = useState<AccountRow[]>(() => {
+    if (initialSnapshot?.dmt_accounts && initialSnapshot.dmt_accounts.length > 0) {
+      return initialSnapshot.dmt_accounts;
+    }
+    return activeDmtInstruments.map((d) => ({
+      instrument_id: d.id,
+      name: d.name,
+      type: "dmt_portal",
+      amount: Number(d.opening_balance || 0),
+      remarks: "",
+    }));
+  });
+
+  // 7. Customer Receivables
   const [receivables, setReceivables] = useState<ReceivableRow[]>(
     initialSnapshot?.receivables || []
   );
@@ -196,7 +287,7 @@ export default function OpeningPositionWorkspace({
   const [recAmount, setRecAmount] = useState("");
   const [recRemarks, setRecRemarks] = useState("");
 
-  // 5. Inventory
+  // 8. Inventory Stock
   const [inventory, setInventory] = useState<InventoryRow[]>(
     initialSnapshot?.inventory || []
   );
@@ -205,7 +296,7 @@ export default function OpeningPositionWorkspace({
   const [invCost, setInvCost] = useState("");
   const [invRemarks, setInvRemarks] = useState("");
 
-  // 6. Payables
+  // 9. Supplier Payables
   const [payables, setPayables] = useState<PayableRow[]>(
     initialSnapshot?.payables || []
   );
@@ -213,7 +304,7 @@ export default function OpeningPositionWorkspace({
   const [payAmount, setPayAmount] = useState("");
   const [payRemarks, setPayRemarks] = useState("");
 
-  // 7. Other Liabilities
+  // 10. Other Liabilities
   const [otherLiab, setOtherLiab] = useState<OtherLiabRow[]>(
     initialSnapshot?.other_liabilities || []
   );
@@ -221,24 +312,114 @@ export default function OpeningPositionWorkspace({
   const [liabAmount, setLiabAmount] = useState("");
   const [liabRemarks, setLiabRemarks] = useState("");
 
-  // Review & Finalize Modals
+  // Modals
   const [reviewOpen, setReviewOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load saved draft on first mount if no initialSnapshot passed
+  // Sync instruments if lists change
   useEffect(() => {
-    if (!initialSnapshot) {
+    if (activeCashInstruments.length > 0 && cashAccounts.every((c) => !c.instrument_id)) {
+      setCashAccounts(
+        activeCashInstruments.map((c) => ({
+          instrument_id: c.id,
+          name: c.name,
+          type: "cash",
+          amount: 0,
+          remarks: "",
+        }))
+      );
+    }
+  }, [activeCashInstruments, cashAccounts]);
+
+  useEffect(() => {
+    if (bankAccounts.length === 0 && activeBankInstruments.length > 0) {
+      setBankAccounts(
+        activeBankInstruments.map((b) => ({
+          instrument_id: b.id,
+          name: b.name,
+          type: "bank",
+          amount: 0,
+          remarks: "",
+        }))
+      );
+    }
+  }, [activeBankInstruments, bankAccounts.length]);
+
+  useEffect(() => {
+    if (digitalAccounts.length === 0 && activeUpiInstruments.length > 0) {
+      setDigitalAccounts(
+        activeUpiInstruments.map((u) => ({
+          instrument_id: u.id,
+          name: u.name,
+          type: "upi",
+          amount: 0,
+          remarks: "",
+        }))
+      );
+    }
+  }, [activeUpiInstruments, digitalAccounts.length]);
+
+  useEffect(() => {
+    if (walletAccounts.length === 0 && activeWalletInstruments.length > 0) {
+      setWalletAccounts(
+        activeWalletInstruments.map((w) => ({
+          instrument_id: w.id,
+          name: w.name,
+          type: "wallet",
+          amount: 0,
+          remarks: "",
+        }))
+      );
+    }
+  }, [activeWalletInstruments, walletAccounts.length]);
+
+  useEffect(() => {
+    if (aepsProviderAccounts.length === 0 && activeAepsInstruments.length > 0) {
+      setAepsProviderAccounts(
+        activeAepsInstruments.map((a) => ({
+          instrument_id: a.id,
+          name: a.name,
+          type: "aeps_portal",
+          amount: 0,
+          remarks: "",
+        }))
+      );
+    }
+  }, [activeAepsInstruments, aepsProviderAccounts.length]);
+
+  useEffect(() => {
+    if (dmtProviderAccounts.length === 0 && activeDmtInstruments.length > 0) {
+      setDmtProviderAccounts(
+        activeDmtInstruments.map((d) => ({
+          instrument_id: d.id,
+          name: d.name,
+          type: "dmt_portal",
+          amount: 0,
+          remarks: "",
+        }))
+      );
+    }
+  }, [activeDmtInstruments, dmtProviderAccounts.length]);
+
+  // Load Saved Draft v2 (and purge legacy v1 draft to prevent stale resurrection)
+  useEffect(() => {
+    if (!initialSnapshot && typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+        // Purge legacy draft key
+        window.localStorage.removeItem("cafe_erp_opening_position_draft_v1");
+
+        const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === "object") {
             if (parsed.opening_date) setOpeningDate(parsed.opening_date);
-            if (parsed.cash !== undefined) setCashAmount(Number(parsed.cash) || 0);
-            if (parsed.cash_notes) setCashNotes(parsed.cash_notes);
-            if (Array.isArray(parsed.banks)) setBanks(parsed.banks);
-            if (parsed.digital) setDigital(parsed.digital);
+            if (Array.isArray(parsed.cash_accounts) && parsed.cash_accounts.length > 0) setCashAccounts(parsed.cash_accounts);
+            if (Array.isArray(parsed.bank_accounts) && parsed.bank_accounts.length > 0) setBankAccounts(parsed.bank_accounts);
+            if (Array.isArray(parsed.digital_accounts) && parsed.digital_accounts.length > 0) setDigitalAccounts(parsed.digital_accounts);
+            if (Array.isArray(parsed.wallet_accounts) && parsed.wallet_accounts.length > 0) setWalletAccounts(parsed.wallet_accounts);
+            if (Array.isArray(parsed.aeps_accounts) && parsed.aeps_accounts.length > 0) setAepsProviderAccounts(parsed.aeps_accounts);
+            if (Array.isArray(parsed.dmt_accounts) && parsed.dmt_accounts.length > 0) setDmtProviderAccounts(parsed.dmt_accounts);
             if (Array.isArray(parsed.receivables)) setReceivables(parsed.receivables);
             if (Array.isArray(parsed.inventory)) setInventory(parsed.inventory);
             if (Array.isArray(parsed.payables)) setPayables(parsed.payables);
@@ -250,33 +431,30 @@ export default function OpeningPositionWorkspace({
     }
   }, [initialSnapshot]);
 
-  // Keep bank accounts in sync if new bank added
-  useEffect(() => {
-    if (banks.length === 0 && activeBankInstruments.length > 0) {
-      setBanks(
-        activeBankInstruments.map((b) => ({
-          instrument_id: b.id,
-          name: b.name,
-          amount: 0,
-          remarks: "",
-        }))
-      );
-    }
-  }, [activeBankInstruments, banks.length]);
-
-  // --- Calculations ---
-  const totalCash = Number(cashAmount) || 0;
+  // --- Derived Category Calculations ---
+  const totalCash = useMemo(
+    () => cashAccounts.reduce((sum, c) => sum + (Number(c.amount) || 0), 0),
+    [cashAccounts]
+  );
   const totalBanks = useMemo(
-    () => banks.reduce((sum, b) => sum + (Number(b.amount) || 0), 0),
-    [banks]
+    () => bankAccounts.reduce((sum, b) => sum + (Number(b.amount) || 0), 0),
+    [bankAccounts]
   );
   const totalDigital = useMemo(
-    () =>
-      (Number(digital.upi_qr) || 0) +
-      (Number(digital.wallet) || 0) +
-      (Number(digital.aeps) || 0) +
-      (Number(digital.dmt) || 0),
-    [digital]
+    () => digitalAccounts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
+    [digitalAccounts]
+  );
+  const totalWallets = useMemo(
+    () => walletAccounts.reduce((sum, w) => sum + (Number(w.amount) || 0), 0),
+    [walletAccounts]
+  );
+  const totalAeps = useMemo(
+    () => aepsProviderAccounts.reduce((sum, a) => sum + (Number(a.amount) || 0), 0),
+    [aepsProviderAccounts]
+  );
+  const totalDmt = useMemo(
+    () => dmtProviderAccounts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
+    [dmtProviderAccounts]
   );
   const totalReceivables = useMemo(
     () => receivables.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
@@ -290,12 +468,6 @@ export default function OpeningPositionWorkspace({
       ),
     [inventory]
   );
-
-  const totalAssets = useMemo(
-    () => totalCash + totalBanks + totalDigital + totalReceivables + totalInventory,
-    [totalCash, totalBanks, totalDigital, totalReceivables, totalInventory]
-  );
-
   const totalPayables = useMemo(
     () => payables.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
     [payables]
@@ -304,6 +476,29 @@ export default function OpeningPositionWorkspace({
     () => otherLiab.reduce((sum, l) => sum + (Number(l.amount) || 0), 0),
     [otherLiab]
   );
+
+  const totalAssets = useMemo(
+    () =>
+      totalCash +
+      totalBanks +
+      totalDigital +
+      totalWallets +
+      totalAeps +
+      totalDmt +
+      totalReceivables +
+      totalInventory,
+    [
+      totalCash,
+      totalBanks,
+      totalDigital,
+      totalWallets,
+      totalAeps,
+      totalDmt,
+      totalReceivables,
+      totalInventory,
+    ]
+  );
+
   const totalLiabilities = useMemo(
     () => totalPayables + totalOtherLiabilities,
     [totalPayables, totalOtherLiabilities]
@@ -449,9 +644,10 @@ export default function OpeningPositionWorkspace({
     }
     const amt = parseFloat(liabAmount);
     if (!amt || amt <= 0) {
-      showToast("error", "Please enter a valid amount.");
+      showToast("error", "Please enter a valid liability amount.");
       return;
     }
+
     setOtherLiab((prev) => [
       ...prev,
       {
@@ -464,40 +660,40 @@ export default function OpeningPositionWorkspace({
     setLiabTitle("");
     setLiabAmount("");
     setLiabRemarks("");
-    showToast("success", "Added liability entry.");
+    showToast("success", "Added starting liability");
   }
 
   function removeOtherLiab(id: string) {
     setOtherLiab((prev) => prev.filter((l) => l.id !== id));
   }
 
-  // Save Draft
+  // Save Draft to LocalStorage v2
   function handleSaveDraft() {
-    const draft: OpeningPositionSnapshot = {
-      opening_date: openingDate,
-      status: "draft",
-      cash: totalCash,
-      cash_notes: cashNotes,
-      banks,
-      digital,
-      receivables,
-      inventory,
-      payables,
-      other_liabilities: otherLiab,
-      total_assets: totalAssets,
-      total_liabilities: totalLiabilities,
-      opening_capital: openingCapital,
-      remarks,
-    };
-    try {
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
-      showToast("success", "Opening position draft saved successfully.");
-    } catch {
-      showToast("error", "Failed to save draft locally.");
+    if (typeof window !== "undefined") {
+      const draftData: OpeningPositionSnapshot = {
+        opening_date: openingDate,
+        status: "draft",
+        cash_accounts: cashAccounts,
+        bank_accounts: bankAccounts,
+        digital_accounts: digitalAccounts,
+        wallet_accounts: walletAccounts,
+        aeps_accounts: aepsProviderAccounts,
+        dmt_accounts: dmtProviderAccounts,
+        receivables,
+        inventory,
+        payables,
+        other_liabilities: otherLiab,
+        total_assets: totalAssets,
+        total_liabilities: totalLiabilities,
+        opening_capital: openingCapital,
+        remarks,
+      };
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+      showToast("success", "✓ Opening position draft saved to local workspace.");
     }
   }
 
-  // Finalize Opening Position
+  // Finalize Opening Position (Account-Wise Execution)
   async function handleFinalize() {
     if (!openingDate) {
       showToast("error", "Opening date is required.");
@@ -512,120 +708,70 @@ export default function OpeningPositionWorkspace({
     const supabase = createClient();
 
     try {
-      // 1. Attempt transactional RPC call
-      const { data: rpcRes, error: rpcErr } = await supabase.rpc("finalize_opening_position", {
-        p_opening_date: openingDate,
-        p_cash: totalCash,
-        p_cash_notes: cashNotes || "Opening Position Cash in Hand",
-        p_banks: banks.filter((b) => b.amount > 0),
-        p_digital: digital,
-        p_receivables: receivables,
-        p_inventory: inventory,
-        p_payables: payables,
-        p_other_liabilities: otherLiab,
-        p_remarks: remarks || "Initial Opening Position",
-      });
-
-      if (!rpcErr) {
-        setStatus("finalized");
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-        showToast("success", "✓ Opening position finalized and posted to double-entry ledger!");
-        setConfirmOpen(false);
-        setReviewOpen(false);
-        if (onFinalized) {
-          onFinalized({
-            opening_date: openingDate,
-            status: "finalized",
-            cash: totalCash,
-            cash_notes: cashNotes,
-            banks,
-            digital,
-            receivables,
-            inventory,
-            payables,
-            other_liabilities: otherLiab,
-            total_assets: totalAssets,
-            total_liabilities: totalLiabilities,
-            opening_capital: openingCapital,
-            remarks,
-            finalized_at: new Date().toISOString(),
-          });
-        }
-        return;
-      }
-
-      // If RPC is missing or errors out, execute client-side fallback
-      console.warn("RPC finalize_opening_position error, executing atomic client sequence:", rpcErr);
-
-      // 1. Cash Opening Balance
-      if (totalCash > 0) {
-        await supabase.from("opening_balances").insert({
-          pool: "cash",
-          instrument_id: null,
-          amount: totalCash,
-          as_of: openingDate,
-          remarks: cashNotes || "Opening Position Cash in Hand",
-          is_auto: false,
-        });
-      }
-
-      // 2. Bank Accounts
-      for (const b of banks) {
-        if (b.amount > 0) {
-          await supabase.from("opening_balances").insert({
-            pool: "bank",
-            instrument_id: b.instrument_id,
-            amount: b.amount,
-            as_of: openingDate,
-            remarks: b.remarks || `Opening Balance for ${b.name}`,
-            is_auto: false,
-          });
-        }
-      }
-
-      // 3. Digital Floats (UPI, Wallet, AEPS, DMT)
-      const digitalPools = [
-        { pool: "upi_qr", amt: digital.upi_qr, label: "UPI QR Float" },
-        { pool: "wallet", amt: digital.wallet, label: "Digital Wallet Float" },
-        { pool: "aeps", amt: digital.aeps, label: "AEPS Float" },
-        { pool: "dmt", amt: digital.dmt, label: "DMT Float" },
+      // 1. Post All Financial Account Rows to opening_balances & update payment_instruments
+      const allFinancialRows = [
+        ...cashAccounts.map((a) => ({ ...a, pool: "cash" })),
+        ...bankAccounts.map((a) => ({ ...a, pool: "bank" })),
+        ...digitalAccounts.map((a) => ({ ...a, pool: "upi_qr" })),
+        ...walletAccounts.map((a) => ({ ...a, pool: "wallet" })),
+        ...aepsProviderAccounts.map((a) => ({ ...a, pool: "aeps" })),
+        ...dmtProviderAccounts.map((a) => ({ ...a, pool: "dmt" })),
       ];
-      for (const dp of digitalPools) {
-        if (dp.amt > 0) {
+
+      for (const row of allFinancialRows) {
+        if (Number(row.amount) > 0) {
+          const instId = row.instrument_id ? row.instrument_id : null;
           await supabase.from("opening_balances").insert({
-            pool: dp.pool,
-            instrument_id: null,
-            amount: dp.amt,
+            pool: row.pool,
+            instrument_id: instId,
+            amount: Number(row.amount),
             as_of: openingDate,
-            remarks: `Opening Position ${dp.label}`,
+            remarks: row.remarks || `Opening Balance for ${row.name}`,
             is_auto: false,
           });
+
+          if (instId) {
+            await supabase
+              .from("payment_instruments")
+              .update({
+                opening_balance: Number(row.amount),
+                current_balance: Number(row.amount),
+              })
+              .eq("id", instId);
+          }
         }
       }
 
-      // 4. Customer Receivables
+      // 2. Customer Receivables
       for (const r of receivables) {
-        if (r.amount > 0) {
+        if (Number(r.amount) > 0) {
           await supabase.from("customer_ledger").insert({
             customer_id: r.customer_id,
             entry_date: openingDate,
             type: "opening",
             description: r.remarks || "Opening Receivable Balance",
-            debit: r.amount,
+            debit: Number(r.amount),
             credit: 0,
-            balance_after: r.amount,
+            balance_after: Number(r.amount),
           });
+          await supabase
+            .from("customers")
+            .update({
+              opening_balance: Number(r.amount),
+              balance: Number(r.amount),
+            })
+            .eq("id", r.customer_id);
         }
       }
 
-      // 5. Inventory
+      // 3. Inventory Stock
       for (const i of inventory) {
-        if (i.qty > 0) {
+        if (Number(i.qty) > 0) {
           await supabase
             .from("products")
             .update({
-              stock_qty: i.qty,
-              cost_price: i.unit_cost > 0 ? i.unit_cost : undefined,
+              stock_qty: Number(i.qty),
+              cost_price: Number(i.unit_cost) > 0 ? Number(i.unit_cost) : undefined,
             })
             .eq("id", i.product_id);
 
@@ -633,22 +779,22 @@ export default function OpeningPositionWorkspace({
             product_id: i.product_id,
             movement_date: openingDate,
             movement_type: "OPENING_STOCK",
-            qty_change: i.qty,
-            unit_cost: i.unit_cost,
-            stock_after: i.qty,
+            qty_change: Number(i.qty),
+            unit_cost: Number(i.unit_cost),
+            stock_after: Number(i.qty),
             remarks: i.remarks || "Opening Inventory Stock",
           });
         }
       }
 
-      // 6. Supplier Payables
+      // 4. Supplier Payables
       for (const p of payables) {
-        if (p.amount > 0) {
+        if (Number(p.amount) > 0) {
           await supabase
             .from("suppliers")
             .update({
-              opening_balance: p.amount,
-              current_balance: p.amount,
+              opening_balance: Number(p.amount),
+              current_balance: Number(p.amount),
             })
             .eq("id", p.supplier_id);
 
@@ -658,18 +804,18 @@ export default function OpeningPositionWorkspace({
             type: "opening",
             description: p.remarks || "Opening Payable Balance",
             debit: 0,
-            credit: p.amount,
-            balance_after: p.amount,
+            credit: Number(p.amount),
+            balance_after: Number(p.amount),
             ref_type: "opening",
           });
         }
       }
 
-      // 7. Audit Log
+      // 5. Audit Log
       await supabase.from("audit_logs").insert({
         action: "opening_position_finalized",
         entity: "opening_positions",
-        description: `Finalized Opening Position for ${openingDate} | Assets: ${totalAssets} | Liabilities: ${totalLiabilities} | Capital: ${openingCapital}`,
+        description: `Finalized Opening Position for ${openingDate} | Assets: ${inr(totalAssets)} | Liabilities: ${inr(totalLiabilities)} | Capital: ${inr(openingCapital)}`,
         details: {
           opening_date: openingDate,
           total_assets: totalAssets,
@@ -679,18 +825,23 @@ export default function OpeningPositionWorkspace({
       });
 
       setStatus("finalized");
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
       showToast("success", "✓ Opening position finalized and posted to double-entry ledger!");
       setConfirmOpen(false);
       setReviewOpen(false);
+
       if (onFinalized) {
         onFinalized({
           opening_date: openingDate,
           status: "finalized",
-          cash: totalCash,
-          cash_notes: cashNotes,
-          banks,
-          digital,
+          cash_accounts: cashAccounts,
+          bank_accounts: bankAccounts,
+          digital_accounts: digitalAccounts,
+          wallet_accounts: walletAccounts,
+          aeps_accounts: aepsProviderAccounts,
+          dmt_accounts: dmtProviderAccounts,
           receivables,
           inventory,
           payables,
@@ -703,7 +854,7 @@ export default function OpeningPositionWorkspace({
         });
       }
     } catch (err: any) {
-      console.error("Finalize error:", err);
+      console.error("Error finalizing opening position:", err);
       showToast("error", err.message || "Failed to finalize opening position.");
     } finally {
       setSubmitting(false);
@@ -714,95 +865,46 @@ export default function OpeningPositionWorkspace({
     <FloatingWindow
       isOpen={isOpen}
       onClose={onClose}
-      size="xl"
       title={
-        <div className="flex items-center gap-3">
-          <span className="icon-box-3d flex h-7 w-7 items-center justify-center rounded-xl bg-purple-600 text-white shadow-md shadow-purple-600/20">
-            <SvgIcon path="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          <span>Opening Position &amp; Balance Sheet Initializer</span>
+          <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+            {status === "finalized"
+              ? "Finalized & Active"
+              : status === "draft"
+              ? "Draft in Progress"
+              : "Not Initialized"}
           </span>
-          <div>
-            <h2 className="text-sm font-black text-slate-900 dark:text-white">
-              Opening Position &amp; Balance Sheet Initializer
-            </h2>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Declare what your business owns and owes on your starting date.
-            </p>
-          </div>
         </div>
       }
+      subtitle="Establish starting financial accounts, inventory stock, customer receivables, and supplier payables in one verified double-entry position."
       headerRight={
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 dark:border-white/10 dark:bg-slate-900">
-            <span className="text-[11px] font-bold text-slate-400">Opening Date:</span>
-            <input
-              type="date"
-              value={openingDate}
-              onChange={(e) => setOpeningDate(e.target.value)}
-              disabled={status === "finalized"}
-              className="bg-transparent text-xs font-black text-slate-900 outline-none dark:text-white"
-            />
-          </div>
-
-          <span
-            className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
-              status === "finalized"
-                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400"
-                : "bg-amber-500/10 text-amber-600 border border-amber-500/20 dark:text-amber-400"
-            }`}
-          >
-            ● {status === "finalized" ? "Finalized Position" : "Draft Mode"}
-          </span>
-        </div>
-      }
-      footer={
-        <div className="flex w-full items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-black ${
-                isBalanced
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
-                  : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300"
-              }`}
-            >
-              <span>{isBalanced ? "✓ POSITION BALANCED" : "! ATTENTION REQUIRED"}</span>
-            </span>
-
-            <span className="hidden text-xs text-slate-500 dark:text-slate-400 sm:inline">
-              Assets: <strong className="text-slate-800 dark:text-white">{inr(totalAssets)}</strong> · Liabilities:{" "}
-              <strong className="text-slate-800 dark:text-white">{inr(totalLiabilities)}</strong> · Opening Capital:{" "}
-              <strong className="text-purple-600 dark:text-purple-400">{inr(openingCapital)}</strong>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {status !== "finalized" && (
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Save Draft
-              </button>
-            )}
-
+        <div className="flex items-center gap-2">
+          {status !== "finalized" && (
             <button
               type="button"
-              onClick={() => setReviewOpen(true)}
-              className="rounded-xl border border-purple-200 bg-purple-50/60 px-3.5 py-2 text-xs font-bold text-purple-700 shadow-xs hover:bg-purple-100 dark:border-purple-900/50 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
+              onClick={handleSaveDraft}
+              className="btn-3d-tactile-secondary px-3 py-1.5 text-xs font-bold"
             >
-              Review Summary
+              Save Draft
             </button>
-
-            {status !== "finalized" && (
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(true)}
-                className="btn-3d-tactile-primary flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-md"
-              >
-                <span>Finalize Opening Position →</span>
-              </button>
-            )}
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setReviewOpen(true)}
+            className="btn-3d-tactile-secondary px-3 py-1.5 text-xs font-bold"
+          >
+            Review Summary
+          </button>
+          {status !== "finalized" && (
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
+              className="btn-3d-tactile-primary flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-md"
+            >
+              <span>Finalize Opening Position →</span>
+            </button>
+          )}
         </div>
       }
     >
@@ -814,7 +916,7 @@ export default function OpeningPositionWorkspace({
               id: "cash" as const,
               label: "Cash in Hand",
               val: inr(totalCash),
-              sub: "Physical cash float",
+              sub: `${cashAccounts.length} cash account${cashAccounts.length === 1 ? "" : "s"}`,
               icon: "💵",
               color: "border-indigo-500/20 hover:border-indigo-500/50",
             },
@@ -822,41 +924,41 @@ export default function OpeningPositionWorkspace({
               id: "banks" as const,
               label: "Bank Accounts",
               val: inr(totalBanks),
-              sub: `${banks.length} accounts`,
+              sub: `${bankAccounts.length} bank account${bankAccounts.length === 1 ? "" : "s"}`,
               icon: "🏦",
               color: "border-blue-500/20 hover:border-blue-500/50",
             },
             {
               id: "digital" as const,
-              label: "Digital Floats",
+              label: "UPI Accounts",
               val: inr(totalDigital),
-              sub: "UPI, AEPS, DMT, Wallets",
+              sub: `${digitalAccounts.length} settlement account${digitalAccounts.length === 1 ? "" : "s"}`,
               icon: "📱",
               color: "border-violet-500/20 hover:border-violet-500/50",
             },
             {
-              id: "inventory" as const,
-              label: "Inventory Stock",
-              val: inr(totalInventory),
-              sub: `${inventory.length} items listed`,
-              icon: "📦",
-              color: "border-amber-500/20 hover:border-amber-500/50",
-            },
-            {
-              id: "receivables" as const,
-              label: "Customer Dues",
-              val: inr(totalReceivables),
-              sub: `${receivables.length} debtors`,
-              icon: "👤",
+              id: "wallets" as const,
+              label: "Wallets",
+              val: inr(totalWallets),
+              sub: `${walletAccounts.length} digital wallet${walletAccounts.length === 1 ? "" : "s"}`,
+              icon: "👛",
               color: "border-emerald-500/20 hover:border-emerald-500/50",
             },
             {
-              id: "payables" as const,
-              label: "Supplier Dues",
-              val: inr(totalPayables),
-              sub: `${payables.length} creditors`,
-              icon: "🏷️",
-              color: "border-rose-500/20 hover:border-rose-500/50",
+              id: "aeps" as const,
+              label: "AEPS Floats",
+              val: inr(totalAeps),
+              sub: `${aepsProviderAccounts.length} provider float${aepsProviderAccounts.length === 1 ? "" : "s"}`,
+              icon: "🏧",
+              color: "border-amber-500/20 hover:border-amber-500/50",
+            },
+            {
+              id: "dmt" as const,
+              label: "DMT Wallets",
+              val: inr(totalDmt),
+              sub: `${dmtProviderAccounts.length} provider wallet${dmtProviderAccounts.length === 1 ? "" : "s"}`,
+              icon: "💸",
+              color: "border-cyan-500/20 hover:border-cyan-500/50",
             },
           ].map((card) => {
             const isCurrent = activeTab === card.id;
@@ -890,13 +992,16 @@ export default function OpeningPositionWorkspace({
         <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200/80 pb-2 dark:border-white/10">
           {[
             { id: "overview" as const, label: "Overview & Balance Sheet", icon: "📊" },
-            { id: "cash" as const, label: "1. Cash in Hand", icon: "💵" },
+            { id: "cash" as const, label: "1. Cash Accounts", icon: "💵" },
             { id: "banks" as const, label: "2. Bank Accounts", icon: "🏦" },
-            { id: "digital" as const, label: "3. Digital Floats", icon: "📱" },
-            { id: "receivables" as const, label: "4. Customer Dues", icon: "👤" },
-            { id: "inventory" as const, label: "5. Opening Stock", icon: "📦" },
-            { id: "payables" as const, label: "6. Supplier Dues", icon: "🏷️" },
-            { id: "liabilities" as const, label: "7. Other Liabilities", icon: "⚖️" },
+            { id: "digital" as const, label: "3. UPI Accounts", icon: "📱" },
+            { id: "wallets" as const, label: "4. Wallets", icon: "👛" },
+            { id: "aeps" as const, label: "5. AEPS Floats", icon: "🏧" },
+            { id: "dmt" as const, label: "6. DMT Wallets", icon: "💸" },
+            { id: "receivables" as const, label: "7. Customer Dues", icon: "👤" },
+            { id: "inventory" as const, label: "8. Opening Stock", icon: "📦" },
+            { id: "payables" as const, label: "9. Supplier Dues", icon: "🏷️" },
+            { id: "liabilities" as const, label: "10. Other Liabilities", icon: "⚖️" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -919,7 +1024,7 @@ export default function OpeningPositionWorkspace({
           <div className="space-y-4 animate-fade-in">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {/* Total Assets Bento */}
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 dark:border-emerald-500/10 dark:bg-emerald-950/20">
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-50/5 p-4 dark:border-emerald-500/10 dark:bg-emerald-950/20">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase text-emerald-700 dark:text-emerald-400">
                     Total Starting Assets
@@ -931,30 +1036,42 @@ export default function OpeningPositionWorkspace({
                 </div>
                 <ul className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400 border-t border-emerald-500/20 pt-2.5">
                   <li className="flex justify-between">
-                    <span>Cash in Hand:</span>
+                    <span>Cash Accounts ({cashAccounts.length}):</span>
                     <strong>{inr(totalCash)}</strong>
                   </li>
                   <li className="flex justify-between">
-                    <span>Bank Balances:</span>
+                    <span>Bank Accounts ({bankAccounts.length}):</span>
                     <strong>{inr(totalBanks)}</strong>
                   </li>
                   <li className="flex justify-between">
-                    <span>Digital &amp; Service Floats:</span>
+                    <span>UPI Settlement ({digitalAccounts.length}):</span>
                     <strong>{inr(totalDigital)}</strong>
                   </li>
                   <li className="flex justify-between">
-                    <span>Opening Stock Valuation:</span>
-                    <strong>{inr(totalInventory)}</strong>
+                    <span>Wallets ({walletAccounts.length}):</span>
+                    <strong>{inr(totalWallets)}</strong>
                   </li>
                   <li className="flex justify-between">
-                    <span>Customer Receivables:</span>
+                    <span>AEPS Floats ({aepsProviderAccounts.length}):</span>
+                    <strong>{inr(totalAeps)}</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>DMT Wallets ({dmtProviderAccounts.length}):</span>
+                    <strong>{inr(totalDmt)}</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Customer Receivables ({receivables.length}):</span>
                     <strong>{inr(totalReceivables)}</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Opening Stock Valuation ({inventory.length}):</span>
+                    <strong>{inr(totalInventory)}</strong>
                   </li>
                 </ul>
               </div>
 
               {/* Total Liabilities Bento */}
-              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 dark:border-rose-500/10 dark:bg-rose-950/20">
+              <div className="rounded-2xl border border-rose-500/20 bg-rose-50/5 p-4 dark:border-rose-500/10 dark:bg-rose-950/20">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase text-rose-700 dark:text-rose-400">
                     Total Starting Liabilities
@@ -966,18 +1083,18 @@ export default function OpeningPositionWorkspace({
                 </div>
                 <ul className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400 border-t border-rose-500/20 pt-2.5">
                   <li className="flex justify-between">
-                    <span>Supplier Payables:</span>
+                    <span>Supplier Payables ({payables.length}):</span>
                     <strong>{inr(totalPayables)}</strong>
                   </li>
                   <li className="flex justify-between">
-                    <span>Other External Liabilities:</span>
+                    <span>Other External Liabilities ({otherLiab.length}):</span>
                     <strong>{inr(totalOtherLiabilities)}</strong>
                   </li>
                 </ul>
               </div>
 
               {/* Opening Capital Equity Bento */}
-              <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4 dark:border-purple-500/10 dark:bg-purple-950/20">
+              <div className="rounded-2xl border border-purple-500/20 bg-purple-50/5 p-4 dark:border-purple-500/10 dark:bg-purple-950/20">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase text-purple-700 dark:text-purple-400">
                     Opening Capital (Owner Equity)
@@ -998,153 +1115,93 @@ export default function OpeningPositionWorkspace({
               </div>
             </div>
 
-            {/* Quick Action Navigation Grid */}
+            {/* Anchor Date & Setup */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900/80">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                Step-by-Step Position Categories
-              </h3>
-              <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("cash")}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 p-3 text-left transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>💵</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Cash in Hand</p>
-                      <p className="text-[10px] text-slate-400">Physical drawer cash</p>
-                    </div>
-                  </div>
-                  <strong className="text-xs">{inr(totalCash)}</strong>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("banks")}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 p-3 text-left transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>🏦</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Bank Accounts</p>
-                      <p className="text-[10px] text-slate-400">{banks.length} accounts configured</p>
-                    </div>
-                  </div>
-                  <strong className="text-xs">{inr(totalBanks)}</strong>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("digital")}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 p-3 text-left transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>📱</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Digital Floats</p>
-                      <p className="text-[10px] text-slate-400">UPI, AEPS, DMT floats</p>
-                    </div>
-                  </div>
-                  <strong className="text-xs">{inr(totalDigital)}</strong>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("receivables")}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 p-3 text-left transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>👤</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Customer Dues</p>
-                      <p className="text-[10px] text-slate-400">{receivables.length} customer debts</p>
-                    </div>
-                  </div>
-                  <strong className="text-xs">{inr(totalReceivables)}</strong>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("inventory")}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 p-3 text-left transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>📦</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Opening Stock</p>
-                      <p className="text-[10px] text-slate-400">{inventory.length} product stocks</p>
-                    </div>
-                  </div>
-                  <strong className="text-xs">{inr(totalInventory)}</strong>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("payables")}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/80 p-3 text-left transition hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>🏷️</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">Supplier Dues</p>
-                      <p className="text-[10px] text-slate-400">{payables.length} vendor payables</p>
-                    </div>
-                  </div>
-                  <strong className="text-xs">{inr(totalPayables)}</strong>
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Business Starting Anchor Date</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">The effective date for all opening balances and starting stock.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Effective Date:</label>
+                  <input
+                    type="date"
+                    value={openingDate}
+                    onChange={(e) => setOpeningDate(e.target.value)}
+                    disabled={status === "finalized"}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800 outline-none transition focus:border-blue-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: CASH IN HAND */}
+        {/* TAB 2: CASH ACCOUNTS (MULTI-CASH READY) */}
         {activeTab === "cash" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div>
                 <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  Physical Cash in Hand
+                  Cash Accounts (Tills &amp; Drawers)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Starting cash float available in the shop cash drawer on {openingDate}.
+                  Opening physical cash balances for your active shop cash drawers and counters.
                 </p>
               </div>
-              <strong className="text-lg font-black text-blue-600 dark:text-blue-400">
-                {inr(totalCash)}
-              </strong>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">CASH TOTAL</span>
+                <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">{inr(totalCash)}</p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Cash in Hand Amount (₹) *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={cashAmount || ""}
-                  onChange={(e) => setCashAmount(parseFloat(e.target.value) || 0)}
-                  disabled={status === "finalized"}
-                  placeholder="e.g. 25000"
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Optional Notes / Reference
-                </label>
-                <input
-                  type="text"
-                  value={cashNotes}
-                  onChange={(e) => setCashNotes(e.target.value)}
-                  disabled={status === "finalized"}
-                  placeholder="e.g. Verified main drawer count"
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {cashAccounts.map((c, idx) => (
+                <div
+                  key={c.instrument_id || `cash-${idx}`}
+                  className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 dark:text-white">{c.name}</span>
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                      Cash Account
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-[11px] font-bold text-slate-500">Starting Cash (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={c.amount || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setCashAccounts((prev) =>
+                          prev.map((item, i) => (i === idx ? { ...item, amount: val } : item))
+                        );
+                      }}
+                      disabled={status === "finalized"}
+                      placeholder="0.00"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={c.remarks}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCashAccounts((prev) =>
+                          prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                        );
+                      }}
+                      disabled={status === "finalized"}
+                      placeholder="Drawer location / notes"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1155,35 +1212,37 @@ export default function OpeningPositionWorkspace({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div>
                 <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  Bank Account Balances
+                  Bank Accounts
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Opening cleared balance for each bank account.
+                  Opening balances for your configured commercial current and savings bank accounts.
                 </p>
               </div>
-              <strong className="text-lg font-black text-blue-600 dark:text-blue-400">
-                {inr(totalBanks)}
-              </strong>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">BANK TOTAL</span>
+                <p className="text-lg font-black text-blue-600 dark:text-blue-400">{inr(totalBanks)}</p>
+              </div>
             </div>
 
-            {banks.length === 0 ? (
-              <p className="text-xs text-slate-400">No bank accounts configured in Business settings.</p>
+            {bankAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400 dark:border-white/10">
+                No bank accounts configured. Add bank accounts in Settings → Payment Accounts.
+              </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {banks.map((b, idx) => (
+                {bankAccounts.map((b, idx) => (
                   <div
-                    key={b.instrument_id || idx}
+                    key={b.instrument_id || `bank-${idx}`}
                     className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-900 dark:text-white">
-                        {b.name}
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{b.name}</span>
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                        Bank Account
                       </span>
-                      <span className="text-[10px] font-bold text-slate-400">Bank Account</span>
                     </div>
-
-                    <div className="mt-2.5">
-                      <label className="text-[11px] font-bold text-slate-500">Opening Balance (₹)</label>
+                    <div className="mt-3">
+                      <label className="text-[11px] font-bold text-slate-500">Starting Balance (₹)</label>
                       <input
                         type="number"
                         min="0"
@@ -1191,13 +1250,28 @@ export default function OpeningPositionWorkspace({
                         value={b.amount || ""}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value) || 0;
-                          setBanks((prev) =>
+                          setBankAccounts((prev) =>
                             prev.map((item, i) => (i === idx ? { ...item, amount: val } : item))
                           );
                         }}
                         disabled={status === "finalized"}
                         placeholder="0.00"
                         className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={b.remarks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBankAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="Branch / AC details"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
                       />
                     </div>
                   </div>
@@ -1207,88 +1281,311 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 4: DIGITAL FLOATS */}
+        {/* TAB 4: UPI / DIGITAL SETTLEMENT ACCOUNTS */}
         {activeTab === "digital" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div>
                 <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  Digital &amp; Service Floats
+                  UPI / Digital Settlement Accounts
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Pre-funded provider floats and digital wallet starting amounts.
+                  Pre-existing balances in digital settlement and aggregator accounts.
                 </p>
               </div>
-              <strong className="text-lg font-black text-purple-600 dark:text-purple-400">
-                {inr(totalDigital)}
-              </strong>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-white/2">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">UPI / QR Float</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={digital.upi_qr || ""}
-                  onChange={(e) =>
-                    setDigital((prev) => ({ ...prev, upi_qr: parseFloat(e.target.value) || 0 }))
-                  }
-                  disabled={status === "finalized"}
-                  placeholder="0.00"
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-white/2">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Digital Wallet</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={digital.wallet || ""}
-                  onChange={(e) =>
-                    setDigital((prev) => ({ ...prev, wallet: parseFloat(e.target.value) || 0 }))
-                  }
-                  disabled={status === "finalized"}
-                  placeholder="0.00"
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-white/2">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">AEPS Cash Float</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={digital.aeps || ""}
-                  onChange={(e) =>
-                    setDigital((prev) => ({ ...prev, aeps: parseFloat(e.target.value) || 0 }))
-                  }
-                  disabled={status === "finalized"}
-                  placeholder="0.00"
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-white/2">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">DMT Remittance Float</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={digital.dmt || ""}
-                  onChange={(e) =>
-                    setDigital((prev) => ({ ...prev, dmt: parseFloat(e.target.value) || 0 }))
-                  }
-                  disabled={status === "finalized"}
-                  placeholder="0.00"
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                />
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">UPI TOTAL</span>
+                <p className="text-lg font-black text-violet-600 dark:text-violet-400">{inr(totalDigital)}</p>
               </div>
             </div>
+
+            <div className="rounded-xl bg-violet-50/40 p-3 text-xs text-violet-700 dark:bg-violet-950/20 dark:text-violet-300">
+              💡 <strong>Merchant QR Protection:</strong> Merchant QR codes (e.g. 9339987644@upi) are payment collection channels linked to settlement accounts. They do not create separate independent asset balances.
+            </div>
+
+            {digitalAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400 dark:border-white/10">
+                No UPI settlement accounts configured. Add UPI accounts in Settings → Payment Accounts.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {digitalAccounts.map((d, idx) => (
+                  <div
+                    key={d.instrument_id || `upi-${idx}`}
+                    className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{d.name}</span>
+                      <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                        UPI Account
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <label className="text-[11px] font-bold text-slate-500">Starting Balance (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={d.amount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setDigitalAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, amount: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="0.00"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={d.remarks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDigitalAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="Settlement notes"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 5: CUSTOMER RECEIVABLES */}
+        {/* TAB 5: DIGITAL WALLETS */}
+        {activeTab === "wallets" && (
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  Digital Wallets
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pre-funded digital wallet accounts (e.g., Paytm, Mobikwik, Amazon Pay).
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">WALLET TOTAL</span>
+                <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{inr(totalWallets)}</p>
+              </div>
+            </div>
+
+            {walletAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400 dark:border-white/10">
+                No digital wallet accounts configured.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {walletAccounts.map((w, idx) => (
+                  <div
+                    key={w.instrument_id || `wallet-${idx}`}
+                    className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{w.name}</span>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        Wallet
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <label className="text-[11px] font-bold text-slate-500">Starting Float (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={w.amount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setWalletAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, amount: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="0.00"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={w.remarks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setWalletAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="Wallet notes"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 6: AEPS PROVIDER FLOATS (PROVIDER-WISE) */}
+        {activeTab === "aeps" && (
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  AEPS Provider Floats
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pre-funded settlement floats per genuine AEPS portal provider (e.g. Digipay, Ezeepay).
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">AEPS TOTAL</span>
+                <p className="text-lg font-black text-amber-600 dark:text-amber-400">{inr(totalAeps)}</p>
+              </div>
+            </div>
+
+            {aepsProviderAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400 dark:border-white/10">
+                No AEPS provider float accounts configured.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {aepsProviderAccounts.map((a, idx) => (
+                  <div
+                    key={a.instrument_id || `aeps-${idx}`}
+                    className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{a.name}</span>
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                        AEPS Float
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <label className="text-[11px] font-bold text-slate-500">Starting Float (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={a.amount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setAepsProviderAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, amount: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="0.00"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={a.remarks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAepsProviderAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="Provider portal notes"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 7: DMT PROVIDER WALLETS (PROVIDER-WISE) */}
+        {activeTab === "dmt" && (
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  DMT Provider Wallets
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pre-funded remittance wallets per genuine DMT provider gateway.
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">DMT TOTAL</span>
+                <p className="text-lg font-black text-cyan-600 dark:text-cyan-400">{inr(totalDmt)}</p>
+              </div>
+            </div>
+
+            {dmtProviderAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400 dark:border-white/10">
+                No DMT provider wallet accounts configured.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {dmtProviderAccounts.map((d, idx) => (
+                  <div
+                    key={d.instrument_id || `dmt-${idx}`}
+                    className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{d.name}</span>
+                      <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300">
+                        DMT Wallet
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <label className="text-[11px] font-bold text-slate-500">Starting Wallet Float (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={d.amount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setDmtProviderAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, amount: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="0.00"
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={d.remarks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDmtProviderAccounts((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                          );
+                        }}
+                        disabled={status === "finalized"}
+                        placeholder="DMT gateway notes"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 8: CUSTOMER RECEIVABLES */}
         {activeTab === "receivables" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -1339,7 +1636,7 @@ export default function OpeningPositionWorkspace({
                     type="text"
                     value={recRemarks}
                     onChange={(e) => setRecRemarks(e.target.value)}
-                    placeholder="Previous balance note"
+                    placeholder="e.g. Previous shop ledger"
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -1389,13 +1686,13 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 6: OPENING INVENTORY */}
+        {/* TAB 9: OPENING INVENTORY STOCK */}
         {activeTab === "inventory" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div>
                 <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  Opening Product Stock &amp; Inventory Valuation
+                  Opening Inventory Stock
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Enter physical stock count and purchase cost price for each product in stock.
@@ -1516,7 +1813,7 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 7: SUPPLIER PAYABLES */}
+        {/* TAB 10: SUPPLIER PAYABLES */}
         {activeTab === "payables" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -1617,7 +1914,7 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 8: OTHER LIABILITIES */}
+        {/* TAB 11: OTHER LIABILITIES */}
         {activeTab === "liabilities" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -1742,10 +2039,13 @@ export default function OpeningPositionWorkspace({
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-3 dark:bg-emerald-950/20">
                   <strong className="text-emerald-700 dark:text-emerald-400">ASSETS</strong>
-                  <div className="flex justify-between"><span>Cash in Hand:</span><span>{inr(totalCash)}</span></div>
-                  <div className="flex justify-between"><span>Bank Accounts ({banks.length}):</span><span>{inr(totalBanks)}</span></div>
-                  <div className="flex justify-between"><span>Digital Floats:</span><span>{inr(totalDigital)}</span></div>
-                  <div className="flex justify-between"><span>Inventory Valuation:</span><span>{inr(totalInventory)}</span></div>
+                  <div className="flex justify-between"><span>Cash Accounts ({cashAccounts.length}):</span><span>{inr(totalCash)}</span></div>
+                  <div className="flex justify-between"><span>Bank Accounts ({bankAccounts.length}):</span><span>{inr(totalBanks)}</span></div>
+                  <div className="flex justify-between"><span>UPI Accounts ({digitalAccounts.length}):</span><span>{inr(totalDigital)}</span></div>
+                  <div className="flex justify-between"><span>Wallets ({walletAccounts.length}):</span><span>{inr(totalWallets)}</span></div>
+                  <div className="flex justify-between"><span>AEPS Floats ({aepsProviderAccounts.length}):</span><span>{inr(totalAeps)}</span></div>
+                  <div className="flex justify-between"><span>DMT Wallets ({dmtProviderAccounts.length}):</span><span>{inr(totalDmt)}</span></div>
+                  <div className="flex justify-between"><span>Inventory Valuation ({inventory.length}):</span><span>{inr(totalInventory)}</span></div>
                   <div className="flex justify-between"><span>Customer Receivables ({receivables.length}):</span><span>{inr(totalReceivables)}</span></div>
                   <div className="flex justify-between font-black border-t border-emerald-500/20 pt-1">
                     <span>Total Assets:</span>
@@ -1836,7 +2136,7 @@ export default function OpeningPositionWorkspace({
             </div>
 
             <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-              ⚡ This will post starting cash float, bank balances, customer ledger debit seeds, supplier credits, and inventory starting stock atomically.
+              ⚡ This will post starting cash accounts, bank balances, digital accounts, wallet floats, AEPS &amp; DMT provider floats, customer ledger debit seeds, supplier credits, and inventory starting stock atomically.
             </p>
 
             <div className="mt-5 flex justify-end gap-2">

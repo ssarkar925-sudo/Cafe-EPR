@@ -78,10 +78,11 @@ export default function OpeningBalancesClient({
   const [draftExists, setDraftExists] = useState(false);
   const [draftSnapshot, setDraftSnapshot] = useState<OpeningPositionSnapshot | null>(null);
 
-  // Check if a saved draft exists in localStorage
+  // Check if a saved draft exists in localStorage (using versioned v2 key)
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem("cafe_erp_opening_position_draft_v1");
+      window.localStorage.removeItem("cafe_erp_opening_position_draft_v1");
+      const raw = window.localStorage.getItem("cafe_erp_opening_position_draft_v2");
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") {
@@ -104,7 +105,8 @@ export default function OpeningBalancesClient({
     if (b) setBalances(b as any);
     if (s) setSeeds(s as any);
     try {
-      const raw = window.localStorage.getItem("cafe_erp_opening_position_draft_v1");
+      window.localStorage.removeItem("cafe_erp_opening_position_draft_v1");
+      const raw = window.localStorage.getItem("cafe_erp_opening_position_draft_v2");
       if (raw) {
         const parsed = JSON.parse(raw);
         setDraftExists(true);
@@ -385,6 +387,7 @@ export default function OpeningBalancesClient({
         customers={customers}
         suppliers={suppliers}
         products={products}
+        initialSnapshot={draftSnapshot}
         onFinalized={async () => {
           await refresh();
         }}
