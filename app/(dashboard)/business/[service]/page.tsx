@@ -5,7 +5,7 @@ import BusinessClient from "@/components/business/business-client";
 import AepsWorkspace from "@/components/business/aeps-workspace";
 import DmtWorkspace from "@/components/business/dmt-workspace";
 import UpiWorkspace from "@/components/business/upi-workspace";
-import RechargeWorkspace from "@/components/business/recharge-workspace";
+import RechargeWorkspaceLive from "@/components/business/recharge-workspace-live";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +114,7 @@ export default async function BusinessServicePage({
 
   if (service === "recharge") {
     return (
-      <RechargeWorkspace
+      <RechargeWorkspaceLive
         initialTransactions={(transactions ?? []) as any}
         initialCustomers={(customers ?? []) as any}
         initialRechargeProviders={(rechargeProviders ?? []) as any}
