@@ -57,7 +57,7 @@ export default function PaymentAccountsPanel({
   const [addingInst, setAddingInst] = useState(false);
   const [instModal, setInstModal] = useState<{ mode: "create" | "edit"; row: InstrumentRow | null } | null>(null);
   const [instForm, setInstForm] = useState<InstForm>(EMPTY_FORM);
-  const [deleteInst, setDeleteInst] = useState<{ row: InstrumentRow; referenced: boolean } | null>(null);
+  const [deleteInst, setDeleteInst] = useState<{ row: InstrumentRow; referenced: boolean; linkedChildCardName?: string | null } | null>(null);
 
   useEffect(() => {
     setInstruments(initialInstruments);
@@ -142,13 +142,32 @@ export default function PaymentAccountsPanel({
       const poolKey = POOL_MAP[i.type];
       const poolEntry = poolKey ? pool[poolKey] : undefined;
 
-      // 1. Linked Debit Card: reflects linked bank account
+      // 1. Linked Debit Card: reflects its linked bank account
       if (i.type === "debit_card") {
-        const bankEntry = pool["bank"];
+        const linkedBankId = i.details?.linked_bank_instrument_id || (insts.filter((b) => b.type === "bank").length === 1 ? insts.find((b) => b.type === "bank")?.id : null);
+        const linkedBank = linkedBankId ? (insts as InstrumentRow[]).find((b) => b.id === linkedBankId) : null;
+        
+        let bankBal = 0;
+        let bankOpening = 0;
+        if (linkedBank) {
+          const bankPoolKey = POOL_MAP[linkedBank.type];
+          const bankPoolEntry = bankPoolKey ? pool[bankPoolKey] : undefined;
+          if (bankPoolEntry && (countPerType["bank"] ?? 0) <= 1) {
+            bankBal = bankPoolEntry.current ?? bankPoolEntry.opening + bankPoolEntry.movements;
+            bankOpening = bankPoolEntry.opening;
+          } else {
+            bankBal = Number(linkedBank.opening_balance ?? 0) + (instDeltas[linkedBank.id] ?? 0);
+            bankOpening = Number(linkedBank.opening_balance ?? 0);
+          }
+        } else if (pool["bank"]) {
+          bankBal = pool["bank"].current ?? pool["bank"].opening + pool["bank"].movements;
+          bankOpening = pool["bank"].opening;
+        }
+
         return {
           ...i,
-          balance: bankEntry ? (bankEntry.current ?? bankEntry.opening + bankEntry.movements) : Number(i.opening_balance ?? 0),
-          opening_balance: bankEntry?.opening ?? Number(i.opening_balance ?? 0),
+          balance: bankBal,
+          opening_balance: bankOpening,
         };
       }
 
@@ -231,6 +250,7 @@ export default function PaymentAccountsPanel({
 
   function openInstEdit(row: InstrumentRow) {
     const d = row.details ?? {};
+    const defaultBankId = instruments.filter((b) => b.type === "bank").length === 1 ? instruments.find((b) => b.type === "bank")?.id : "";
     setInstForm({
       name: row.name,
       type: row.type,
@@ -243,6 +263,8 @@ export default function PaymentAccountsPanel({
       upi_id: d.upi_id ?? "",
       linked: d.linked ?? "",
       card_last4: d.card_last4 ?? "",
+      linked_bank_instrument_id: d.linked_bank_instrument_id || (row.type === "debit_card" ? defaultBankId : ""),
+      custom_name: Boolean(d.custom_name),
       portal_code: d.portal_code ?? "",
       agent_code: d.agent_code ?? "",
       notes: d.notes ?? "",
@@ -258,7 +280,7 @@ export default function PaymentAccountsPanel({
       return;
     }
     const type = instForm.type;
-    const details: Record<string, string> = {};
+    const details: Record<string, any> = {};
     if (type === "bank") {
       details.bank_name = instForm.bank_name.trim();
       details.account_number = instForm.account_number.trim();
@@ -269,6 +291,8 @@ export default function PaymentAccountsPanel({
     } else if (type === "debit_card") {
       details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
       details.bank_name = instForm.bank_name.trim();
+      details.linked_bank_instrument_id = instForm.linked_bank_instrument_id || "";
+      details.custom_name = instForm.custom_name !== false;
     } else if (type === "credit_card") {
       const fullLimit = Number(instForm.credit_limit) || 0;
       const usedLimit = Number(instForm.used_limit) || 0;
@@ -291,24 +315,62 @@ export default function PaymentAccountsPanel({
 
     setAddingInst(true);
     if (instModal.mode === "edit" && instModal.row) {
+      const prev = instModal.row;
       const { error } = await supabase
         .from("payment_instruments")
         .update({ name, type, details })
-        .eq("id", instModal.row.id);
+        .eq("id", prev.id);
       setAddingInst(false);
       if (error) {
         showToast("error", error.message);
         return;
       }
-      const prev = instModal.row;
-      setInstruments((prevList) =>
-        prevList.map((x) => (x.id === prev.id ? { ...x, name, type, details } : x))
-      );
+
+      let updatedList = instruments.map((x) => (x.id === prev.id ? { ...x, name, type, details } : x));
+
+      // BANK RENAME CASCADE:
+      // If a bank is renamed, automatically check if it has a linked debit card with a system-generated name
+      if (prev.type === "bank" && prev.name !== name) {
+        const linkedCard = instruments.find(
+          (c) => c.type === "debit_card" && (c.details?.linked_bank_instrument_id === prev.id || (!c.details?.linked_bank_instrument_id && instruments.filter(b => b.type === "bank").length === 1))
+        );
+        if (linkedCard) {
+          const cardDetails = linkedCard.details ?? {};
+          const isSystemName = cardDetails.custom_name !== true || linkedCard.name === `${prev.name} Debit Card` || linkedCard.name === "Main Debit Card";
+          if (isSystemName) {
+            const nextCardName = `${name} Debit Card`;
+            const nextDetails = {
+              ...cardDetails,
+              bank_name: name,
+              linked_bank_instrument_id: prev.id,
+              custom_name: false,
+            };
+            const { error: cardErr } = await supabase
+              .from("payment_instruments")
+              .update({ name: nextCardName, details: nextDetails })
+              .eq("id", linkedCard.id);
+
+            if (!cardErr) {
+              updatedList = updatedList.map((x) =>
+                x.id === linkedCard.id ? { ...x, name: nextCardName, details: nextDetails } : x
+              );
+              logAudit({
+                action: "update",
+                entity: "payment_instrument",
+                entity_id: linkedCard.id,
+                description: `Linked debit card auto-renamed: ${linkedCard.name} → ${nextCardName}`,
+              });
+            }
+          }
+        }
+      }
+
+      setInstruments(updatedList);
       showToast("success", "Payment account updated.");
       logAudit({
         action: "update",
         entity: "payment_instrument",
-        entity_id: instModal.row.id,
+        entity_id: prev.id,
         description: `Payment account updated: ${name}`,
       });
     } else {
@@ -358,24 +420,76 @@ export default function PaymentAccountsPanel({
   }
 
   async function requestDeleteInstrument(row: InstrumentRow) {
+    // 1. Guard against deleting linked debit card directly
+    if (row.type === "debit_card") {
+      const parentBankId = row.details?.linked_bank_instrument_id || (instruments.filter(b => b.type === "bank").length === 1 ? instruments.find(b => b.type === "bank")?.id : null);
+      if (parentBankId) {
+        const parentBank = instruments.find((b) => b.id === parentBankId);
+        showToast(
+          "error",
+          `Cannot delete "${row.name}" directly because it is managed by "${parentBank?.name ?? "Bank"}". Delete or manage the parent bank account instead.`
+        );
+        return;
+      }
+    }
+
     const [{ count: p }, { count: c }, { data: qs }] = await Promise.all([
       supabase.from("payments").select("id", { count: "exact", head: true }).eq("instrument_id", row.id),
       supabase.from("cash_entries").select("id", { count: "exact", head: true }).eq("instrument_id", row.id),
       supabase.from("quick_sales").select("id").contains("payments", [{ instrument_id: row.id }]),
     ]);
     const referenced = (p ?? 0) > 0 || (c ?? 0) > 0 || (qs?.length ?? 0) > 0;
-    setDeleteInst({ row, referenced });
+
+    let linkedChildCardName: string | null = null;
+    if (row.type === "bank") {
+      const childCard = instruments.find(
+        (c) => c.type === "debit_card" && (c.details?.linked_bank_instrument_id === row.id || (!c.details?.linked_bank_instrument_id && instruments.filter(b => b.type === "bank").length === 1))
+      );
+      if (childCard) {
+        linkedChildCardName = childCard.name;
+      }
+    }
+
+    setDeleteInst({ row, referenced, linkedChildCardName });
   }
 
   async function confirmDeleteInstrument(row: InstrumentRow) {
+    // If bank account is deleted, also delete its linked debit card
+    let childCardId: string | null = null;
+    let childCardName: string | null = null;
+    if (row.type === "bank") {
+      const childCard = instruments.find(
+        (c) => c.type === "debit_card" && (c.details?.linked_bank_instrument_id === row.id || (!c.details?.linked_bank_instrument_id && instruments.filter(b => b.type === "bank").length === 1))
+      );
+      if (childCard) {
+        childCardId = childCard.id;
+        childCardName = childCard.name;
+      }
+    }
+
+    if (childCardId) {
+      await supabase.from("payment_instruments").delete().eq("id", childCardId);
+      logAudit({
+        action: "delete",
+        entity: "payment_instrument",
+        entity_id: childCardId,
+        description: `Linked debit card deleted along with parent bank: ${childCardName}`,
+      });
+    }
+
     const { error } = await supabase.from("payment_instruments").delete().eq("id", row.id);
     if (error) {
       showToast("error", error.message);
       return;
     }
-    setInstruments((prev) => prev.filter((x) => x.id !== row.id));
+    setInstruments((prev) => prev.filter((x) => x.id !== row.id && x.id !== childCardId));
     setDeleteInst(null);
-    showToast("success", `${row.name} deleted.`);
+    showToast(
+      "success",
+      childCardName
+        ? `${row.name} and linked debit card "${childCardName}" deleted.`
+        : `${row.name} deleted.`
+    );
     logAudit({
       action: "delete",
       entity: "payment_instrument",
@@ -387,7 +501,7 @@ export default function PaymentAccountsPanel({
   function disableReferencedInstrument() {
     const del = deleteInst;
     if (!del) return;
-    toggleInstrument(del.row);
+    toggleInstrument(del.row as InstrumentRow);
     setDeleteInst(null);
   }
 
@@ -403,7 +517,13 @@ export default function PaymentAccountsPanel({
     if (row.type === "upi") return d.upi_id || "";
     if (row.type === "debit_card") {
       const parts: string[] = [];
-      if (d.bank_name) parts.push(d.bank_name);
+      const parentBankId = d.linked_bank_instrument_id || (instruments.filter(b => b.type === "bank").length === 1 ? instruments.find(b => b.type === "bank")?.id : null);
+      const parentBank = parentBankId ? instruments.find((b) => b.id === parentBankId) : null;
+      if (parentBank) {
+        parts.push("Linked to " + parentBank.name);
+      } else if (d.bank_name) {
+        parts.push(d.bank_name);
+      }
       if (d.card_last4) parts.push("•••• " + d.card_last4);
       return parts.join(" · ") || "Debit Card";
     }
@@ -519,16 +639,29 @@ export default function PaymentAccountsPanel({
                             <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                           </svg>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => requestDeleteInstrument(row)}
-                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
-                          title="Delete account"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6m4-6v6" />
-                          </svg>
-                        </button>
+                        {row.type === "debit_card" && Boolean(row.details?.linked_bank_instrument_id || instruments.some(b => b.type === "bank")) ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10"
+                            title="Managed by parent bank account. Deleting the parent bank account will remove this card."
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3 text-slate-400">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            Managed by Bank
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => requestDeleteInstrument(row)}
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
+                            title="Delete account"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                              <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6m4-6v6" />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => toggleInstrument(row)}
@@ -724,7 +857,80 @@ export default function PaymentAccountsPanel({
               </div>
             )}
 
-            {(instForm.type === "debit_card" || instForm.type === "credit_card") && (
+            {instForm.type === "debit_card" && (
+              <div className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900/30 dark:bg-violet-950/20">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-violet-900 dark:text-violet-300">
+                    Linked Bank Relationship
+                  </span>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Linked Bank Account *</label>
+                  <select
+                    value={instForm.linked_bank_instrument_id ?? ""}
+                    onChange={(e) => {
+                      const bankId = e.target.value;
+                      const selectedBank = instruments.find((b) => b.id === bankId);
+                      const patch: Partial<InstForm> = {
+                        linked_bank_instrument_id: bankId,
+                      };
+                      if (selectedBank) {
+                        patch.bank_name = selectedBank.name;
+                        if (!instForm.custom_name || !instForm.name.trim() || instForm.name.endsWith("Debit Card")) {
+                          patch.name = `${selectedBank.name} Debit Card`;
+                          patch.custom_name = false;
+                        }
+                      }
+                      updateForm(patch);
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">-- Select Linked Bank Account --</option>
+                    {instruments
+                      .filter((i) => i.type === "bank")
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({b.details?.bank_name || "Bank"})
+                        </option>
+                      ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Debit card mirrors the available balance of its linked bank account without creating a second asset.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Bank Name / Issuer</label>
+                    <input
+                      value={instForm.bank_name}
+                      onChange={(e) => updateForm({ bank_name: e.target.value })}
+                      placeholder="e.g. HDFC, Axis, SBI"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Card Number (Last 4 Digits)</label>
+                    <input
+                      value={instForm.card_last4}
+                      onChange={(e) => updateForm({ card_last4: e.target.value })}
+                      maxLength={4}
+                      placeholder="1234"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {instForm.type === "credit_card" && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>Card Issuer / Bank Name</label>

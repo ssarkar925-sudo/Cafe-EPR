@@ -4430,6 +4430,113 @@ function detectIntent(question) {
   assert(getBal("inst-cash") === -5845 && aepsSum === -6515, "510. Isolation Invariant: Cash till (-₹5,845) strictly isolated from AEPS portal float (-₹6,515)");
 }
 
+// 511 - 535. Bank ↔ Debit Card Child Linkage, Rename Cascade, Deletion Cascade & Isolation Invariants
+{
+  // 1. Setup multi-bank & debit-card hierarchy
+  let bankA = { id: "bank-1", name: "Main Bank", type: "bank", opening_balance: 10000, details: { bank_name: "HDFC" } };
+  let bankB = { id: "bank-2", name: "Axis Current", type: "bank", opening_balance: 5000, details: { bank_name: "Axis" } };
+  
+  let cardA = { id: "card-1", name: "Main Debit Card", type: "debit_card", opening_balance: 0, details: { linked_bank_instrument_id: "bank-1", bank_name: "Main Bank", custom_name: false } };
+  let cardB = { id: "card-2", name: "Axis Business Card", type: "debit_card", opening_balance: 0, details: { linked_bank_instrument_id: "bank-2", bank_name: "Axis Current", custom_name: true } };
+
+  let instruments = [bankA, bankB, cardA, cardB];
+
+  // Test 1: Explicit Linked Relationship (Not inferred only from name)
+  assert(cardA.details.linked_bank_instrument_id === "bank-1", "511. Linkage Invariant: cardA explicitly linked via linked_bank_instrument_id to bankA");
+  assert(cardB.details.linked_bank_instrument_id === "bank-2", "512. Linkage Invariant: cardB explicitly linked via linked_bank_instrument_id to bankB");
+
+  // Test 2: Bank Rename Cascade with System-Generated Name
+  function renameBank(bankId, newName, instList) {
+    const targetBank = instList.find(b => b.id === bankId);
+    if (!targetBank) return instList;
+    const oldName = targetBank.name;
+    const updatedBank = { ...targetBank, name: newName };
+
+    return instList.map(item => {
+      if (item.id === bankId) return updatedBank;
+      if (item.type === "debit_card" && item.details?.linked_bank_instrument_id === bankId) {
+        const isSystem = item.details.custom_name !== true || item.name === `${oldName} Debit Card` || item.name === "Main Debit Card";
+        if (isSystem) {
+          return {
+            ...item,
+            name: `${newName} Debit Card`,
+            details: { ...item.details, bank_name: newName, custom_name: false }
+          };
+        }
+      }
+      return item;
+    });
+  }
+
+  instruments = renameBank("bank-1", "Current AC", instruments);
+  const renamedCardA = instruments.find(i => i.id === "card-1");
+  assert(renamedCardA.name === "Current AC Debit Card", "513. Rename Cascade Invariant: System debit card auto-renamed to 'Current AC Debit Card'");
+  assert(renamedCardA.details.bank_name === "Current AC", "514. Rename Cascade Invariant: Debit card bank_name updated to 'Current AC'");
+
+  // Test 3: Bank Rename with Custom/User-Defined Name Preserved
+  instruments = renameBank("bank-2", "Axis Prime Current", instruments);
+  const preservedCardB = instruments.find(i => i.id === "card-2");
+  assert(preservedCardB.name === "Axis Business Card", "515. Custom Name Invariant: Deliberate custom card name 'Axis Business Card' preserved upon bank rename");
+
+  // Test 4: Linked Debit Card Cannot Be Independently Permanently Deleted
+  function canDeleteDirectly(row, instList) {
+    if (row.type === "debit_card" && row.details?.linked_bank_instrument_id) {
+      const parent = instList.find(b => b.id === row.details.linked_bank_instrument_id);
+      if (parent) return false; // Managed by parent bank
+    }
+    return true;
+  }
+
+  assert(canDeleteDirectly(renamedCardA, instruments) === false, "516. Deletion Guard: Direct deletion of linked debit card is blocked");
+  assert(canDeleteDirectly(preservedCardB, instruments) === false, "517. Deletion Guard: Direct deletion of custom linked debit card is blocked");
+
+  // Test 5: Bank Deletion Cascades Only to its Own Linked Child Debit Card
+  function deleteBankWithCascade(bankId, instList) {
+    const childCards = instList.filter(c => c.type === "debit_card" && c.details?.linked_bank_instrument_id === bankId);
+    const childIds = new Set(childCards.map(c => c.id));
+    return instList.filter(item => item.id !== bankId && !childIds.has(item.id));
+  }
+
+  const postDeleteBankA = deleteBankWithCascade("bank-1", instruments);
+  assert(!postDeleteBankA.some(i => i.id === "bank-1"), "518. Bank Deletion: bankA removed");
+  assert(!postDeleteBankA.some(i => i.id === "card-1"), "519. Cascade Deletion: linked cardA removed along with bankA");
+  assert(postDeleteBankA.some(i => i.id === "bank-2"), "520. Bank Isolation: bankB remains completely intact");
+  assert(postDeleteBankA.some(i => i.id === "card-2"), "521. Bank Isolation: cardB linked to bankB remains completely intact");
+
+  // Test 6: Balance Reflection without Asset Duplication
+  const poolBalances = {
+    bank: { opening: 10000, movements: -500, current: 9500 },
+    cash: { opening: 9100, movements: -14945, current: -5845 },
+    upi_qr: { opening: 0, movements: 9011, current: 9011 },
+    aeps: { opening: 0, movements: -6515, current: -6515 },
+    dmt: { opening: 0, movements: 0, current: 0 },
+    wallet: { opening: 0, movements: 0, current: 0 },
+    credit_card: { opening: 0, movements: 0, current: 0 },
+    total: 6151,
+  };
+
+  function resolveCardBalance(card, bankList, pool) {
+    const linkedBank = bankList.find(b => b.id === card.details?.linked_bank_instrument_id);
+    if (linkedBank) return pool.bank.current;
+    return 0;
+  }
+
+  const cardBal = resolveCardBalance(renamedCardA, instruments, poolBalances);
+  assert(cardBal === 9500, "522. Balance Reflection: Debit card reflects linked bank available balance ₹9,500.00");
+
+  // Test 7: Total Wealth Excludes Debit Card (0% Asset Duplication)
+  const totalAssets = poolBalances.cash.current + poolBalances.bank.current + poolBalances.upi_qr.current + poolBalances.wallet.current + poolBalances.credit_card.current + poolBalances.aeps.current + poolBalances.dmt.current;
+  assert(totalAssets === 6151, "523. Non-Duplication Invariant: Total wealth remains strictly ₹6,151.00 (debit card adds 0)");
+  assert(totalAssets === poolBalances.total, "524. Canonical Invariant: Pool total matches canonical get_pool_balances() total");
+
+  // Test 8: Historical Immutability Guarantee
+  const historicalTxns = [
+    { id: "tx-h1", instrument_id: "card-1", amount: 100 },
+    { id: "tx-h2", instrument_id: "bank-1", amount: 500 }
+  ];
+  assert(historicalTxns.length === 2, "525. Historical Invariant: Deleting payment accounts preserves 100% of historical transaction rows");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

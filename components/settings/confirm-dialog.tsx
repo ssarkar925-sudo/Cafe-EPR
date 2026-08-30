@@ -1,6 +1,10 @@
 "use client";
 
-type ConfirmState = { row: { name?: string; label?: string }; referenced: boolean } | null;
+type ConfirmState = {
+  row: { name?: string; label?: string };
+  referenced: boolean;
+  linkedChildCardName?: string | null;
+} | null;
 
 export default function ConfirmDeleteModal({
   state,
@@ -49,8 +53,15 @@ export default function ConfirmDeleteModal({
           <>
             <h3 className="text-lg font-bold text-slate-900">Delete {kindTitle}?</h3>
             <p className="mt-1 text-sm text-slate-500">
-              “{name}” has no transaction history and will be permanently removed. This cannot be
-              undone.
+              {state.linkedChildCardName ? (
+                <>
+                  Deleting this bank account will also remove its linked debit card (<strong>“{state.linkedChildCardName}”</strong>). Continue?
+                </>
+              ) : (
+                <>
+                  “{name}” has no transaction history and will be permanently removed. This cannot be undone.
+                </>
+              )}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button

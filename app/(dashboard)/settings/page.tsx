@@ -131,17 +131,37 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     }
   }
 
-  const accounts = (instruments ?? []).map((i: any) => {
+  const instList = (instruments ?? []) as any[];
+  const accounts = instList.map((i: any) => {
     const poolKey = POOL_MAP[i.type];
     const poolEntry = poolKey ? pool[poolKey] : undefined;
 
-    // 1. Linked Debit Card: reflects linked bank account
+    // 1. Linked Debit Card: reflects its linked bank account
     if (i.type === "debit_card") {
-      const bankEntry = pool["bank"];
+      const linkedBankId = i.details?.linked_bank_instrument_id || (instList.filter((b: any) => b.type === "bank").length === 1 ? instList.find((b: any) => b.type === "bank")?.id : null);
+      const linkedBank = linkedBankId ? instList.find((b: any) => b.id === linkedBankId) : null;
+      
+      let bankBal = 0;
+      let bankOpening = 0;
+      if (linkedBank) {
+        const bankPoolKey = POOL_MAP[linkedBank.type];
+        const bankPoolEntry = bankPoolKey ? pool[bankPoolKey] : undefined;
+        if (bankPoolEntry && (countPerType["bank"] ?? 0) <= 1) {
+          bankBal = bankPoolEntry.current ?? bankPoolEntry.opening + bankPoolEntry.movements;
+          bankOpening = bankPoolEntry.opening;
+        } else {
+          bankBal = Number(linkedBank.opening_balance ?? 0) + (instDeltas[linkedBank.id] ?? 0);
+          bankOpening = Number(linkedBank.opening_balance ?? 0);
+        }
+      } else if (pool["bank"]) {
+        bankBal = pool["bank"].current ?? pool["bank"].opening + pool["bank"].movements;
+        bankOpening = pool["bank"].opening;
+      }
+
       return {
         ...i,
-        balance: bankEntry ? (bankEntry.current ?? bankEntry.opening + bankEntry.movements) : Number(i.opening_balance ?? 0),
-        opening_balance: bankEntry?.opening ?? Number(i.opening_balance ?? 0),
+        balance: bankBal,
+        opening_balance: bankOpening,
       };
     }
 

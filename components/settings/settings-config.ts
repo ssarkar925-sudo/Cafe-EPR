@@ -51,6 +51,8 @@ export type InstForm = {
   upi_id: string;
   linked: string;
   card_last4: string;
+  linked_bank_instrument_id?: string;
+  custom_name?: boolean;
   portal_code?: string;
   agent_code?: string;
   notes: string;
