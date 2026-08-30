@@ -38,6 +38,11 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
   const service = txn.service_type as keyof typeof SERVICE_TITLE;
   const title = SERVICE_TITLE[service] || String(txn.service_type).toUpperCase();
 
+  const isDeducted = txn.fee_source === "cut_from_withdrawal";
+  const cashHanded = isDeducted
+    ? Math.max(0, Number(txn.amount || 0) - Number(txn.service_fee || 0))
+    : Number(txn.amount || 0);
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -95,10 +100,26 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
               <Text>Withdrawal Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.moneyRow}>
-              <Text>Cash Handed to Customer</Text>
-              <Text>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</Text>
-            </View>
+            {showFees && (
+              <>
+                {Number(txn.service_fee || 0) > 0 && (
+                  <View style={styles.row}>
+                    <Text style={styles.label}>Service Fee ({isDeducted ? "Deducted" : "Separate"})</Text>
+                    <Text>{isDeducted ? `-${money(txn.service_fee)}` : `+${money(txn.service_fee)}`}</Text>
+                  </View>
+                )}
+                <View style={styles.moneyRow}>
+                  <Text>Cash Handed to Customer</Text>
+                  <Text>{money(cashHanded)}</Text>
+                </View>
+                {Number(txn.portal_commission || 0) > 0 && (
+                  <View style={styles.row}>
+                    <Text style={styles.label}>Portal Commission</Text>
+                    <Text>+{money(txn.portal_commission)}</Text>
+                  </View>
+                )}
+              </>
+            )}
           </>
         )}
 
@@ -145,10 +166,12 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
               <Text style={styles.label}>Transfer Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.moneyRow}>
-              <Text>Total Received from Customer</Text>
-              <Text>{money(Number(txn.amount) + Number(txn.service_fee || 0))}</Text>
-            </View>
+            {showFees && (
+              <View style={styles.moneyRow}>
+                <Text>Total Received from Customer</Text>
+                <Text>{money(Number(txn.amount) + Number(txn.service_fee || 0))}</Text>
+              </View>
+            )}
           </>
         )}
 
@@ -170,10 +193,12 @@ export default function BusinessPdf({ txn, settings, showFees = false }: Busines
               <Text>Cash-out Amount</Text>
               <Text>{money(txn.amount)}</Text>
             </View>
-            <View style={styles.moneyRow}>
-              <Text>Cash Handed to Customer</Text>
-              <Text>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</Text>
-            </View>
+            {showFees && (
+              <View style={styles.moneyRow}>
+                <Text>Cash Handed to Customer</Text>
+                <Text>{money(Number(txn.amount) - Number(txn.service_fee || 0))}</Text>
+              </View>
+            )}
           </>
         )}
 

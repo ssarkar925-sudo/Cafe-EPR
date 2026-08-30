@@ -20,7 +20,10 @@ export default async function BusinessReceiptA4Page({
 }) {
   const { id } = await params;
   const { mode, detail } = await searchParams;
+  
+  // Centralized Presentation Display Policy
   const isDetailed = mode === "detailed" || detail === "true";
+  const showFeeDetails = isDetailed;
 
   const supabase = createAdminClient();
 
@@ -64,7 +67,7 @@ export default async function BusinessReceiptA4Page({
     ? `${txn.customer_mobile.slice(0, 2)}••••••${txn.customer_mobile.slice(-2)}`
     : txn.customer_mobile;
 
-  // Exact Cash Handed calculation
+  // Exact Cash Handed calculation for detailed presentation
   const isDeducted = txn.fee_source === "cut_from_withdrawal";
   const cashHanded = isDeducted
     ? Math.max(0, Number(txn.amount || 0) - Number(txn.service_fee || 0))
@@ -111,13 +114,13 @@ export default async function BusinessReceiptA4Page({
             <div className="flex items-center rounded-xl bg-slate-100 p-1 text-xs font-bold">
               <Link
                 href={`/business/receipt/${id}/a4`}
-                className={`rounded-lg px-2.5 py-1 transition ${!isDetailed ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+                className={`rounded-lg px-2.5 py-1 transition ${!showFeeDetails ? "bg-white text-slate-900 shadow-xs font-black" : "text-slate-500 hover:text-slate-800"}`}
               >
-                Basic
+                Basic (Standard)
               </Link>
               <Link
                 href={`/business/receipt/${id}/a4?mode=detailed`}
-                className={`rounded-lg px-2.5 py-1 transition ${isDetailed ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
+                className={`rounded-lg px-2.5 py-1 transition ${showFeeDetails ? "bg-white text-slate-900 shadow-xs font-black" : "text-slate-500 hover:text-slate-800"}`}
               >
                 Detailed (With Fee)
               </Link>
@@ -127,7 +130,8 @@ export default async function BusinessReceiptA4Page({
               variant="business"
               data={{ txn, settings }}
               filename={`${txn.transaction_number}.pdf`}
-              receiptUrl={`/business/receipt/${id}${isDetailed ? "?mode=detailed" : ""}`}
+              showFees={showFeeDetails}
+              receiptUrl={`/business/receipt/${id}${showFeeDetails ? "?mode=detailed" : ""}`}
             />
           </div>
         </div>
@@ -188,29 +192,41 @@ export default async function BusinessReceiptA4Page({
                 <span>{money(txn.amount)}</span>
               </div>
 
-              {/* Fee Breakdown (Only in Detailed Mode) */}
-              {isDetailed && Number(txn.service_fee || 0) > 0 && (
+              {/* Fee & Settlement Breakdown: ONLY in Detailed Mode */}
+              {showFeeDetails && (
                 <>
-                  {isDeducted ? (
+                  {Number(txn.service_fee || 0) > 0 && (
                     <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
-                      <span>Service Fee (Deducted from Payout)</span>
-                      <span>-{money(txn.service_fee)}</span>
+                      <span>
+                        Service Fee ({isDeducted ? "Deducted from Payout" : `Collected Separately via ${txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"}`})
+                      </span>
+                      <span>{isDeducted ? `-${money(txn.service_fee)}` : `+${money(txn.service_fee)}`}</span>
                     </div>
-                  ) : (
+                  )}
+
+                  <div className="flex justify-between border-b border-slate-100 py-2 text-base font-bold text-slate-900">
+                    <span>Cash Handed to Customer</span>
+                    <span className="text-emerald-700">{money(cashHanded)}</span>
+                  </div>
+
+                  {Number(txn.portal_commission || 0) > 0 && (
                     <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
-                      <span>Service Fee (Collected Separately via {txn.customer_pay_method ? txn.customer_pay_method.toUpperCase() : "CASH"})</span>
-                      <span>+{money(txn.service_fee)}</span>
+                      <span>Portal Commission</span>
+                      <span className="text-teal-600">+{money(txn.portal_commission)}</span>
+                    </div>
+                  )}
+
+                  {(Number(txn.service_fee || 0) > 0 || Number(txn.portal_commission || 0) > 0) && (
+                    <div className="flex justify-between py-2 text-sm font-bold text-slate-900">
+                      <span>Total Net Income</span>
+                      <span className="text-emerald-700">+{money(Number(txn.service_fee || 0) + Number(txn.portal_commission || 0))}</span>
                     </div>
                   )}
                 </>
               )}
-
-              <div className="flex justify-between py-2 text-base font-bold text-slate-900">
-                <span>Cash Handed to Customer</span>
-                <span className="text-emerald-700">{money(cashHanded)}</span>
-              </div>
             </>
           )}
+
           {service === "dmt" && (
             <>
               <div className="flex justify-between border-b border-slate-100 py-1.5">
@@ -256,7 +272,7 @@ export default async function BusinessReceiptA4Page({
                 <span>Transfer Amount</span>
                 <span>{money(txn.amount)}</span>
               </div>
-              {isDetailed && (Number(txn.service_fee || 0) > 0 || Number(txn.portal_charge || 0) > 0) && (
+              {showFeeDetails && (Number(txn.service_fee || 0) > 0 || Number(txn.portal_charge || 0) > 0) && (
                 <>
                   {Number(txn.service_fee || 0) > 0 && (
                     <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
