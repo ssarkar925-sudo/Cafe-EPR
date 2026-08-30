@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import SettingsCommandShell from "@/components/settings/settings-command-shell";
-import UpiReconciliationCard from "@/components/settings/upi-reconciliation-card";
 
 export const dynamic = "force-dynamic";
 
@@ -197,25 +196,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   }
 
   return (
-    <>
-      <UpiReconciliationCard />
-      <SettingsCommandShell
-        initial={(settings ?? null) as any}
-        initialInstruments={accounts as any}
-        initialServices={(services ?? []) as any}
-        initialPaymentMethods={(paymentMethods ?? []) as any}
-        initialBanks={{ rows: (banks ?? []) as any, usage: bankUsage }}
-        initialPortals={{ rows: (portals ?? []) as any, usage: portalUsage }}
-        initialMerchantQrs={{ rows: (qrs ?? []) as any, usage: qrUsage }}
-        initialRechargeProviders={(rechargeProviders ?? []) as any}
-        initialRechargeSlabs={(rechargeSlabs ?? []) as any}
-        initialProducts={(products ?? []) as any}
-        initialCatalogServices={(catalogServices ?? []) as any}
-        initialCategories={(categories ?? []) as any}
-        categoryCounts={categoryCounts}
-        initialTab={activeTab}
-        initialSection={section}
-      />
-    </>
+    <SettingsCommandShell
+      initial={(settings ?? null) as any}
+      initialInstruments={accounts as any}
+      initialServices={(services ?? []) as any}
+      initialPaymentMethods={(paymentMethods ?? []) as any}
+      initialBanks={{ rows: (banks ?? []) as any, usage: bankUsage }}
+      initialPortals={{ rows: (portals ?? []) as any, usage: portalUsage }}
+      initialMerchantQrs={{ rows: (qrs ?? []) as any, usage: qrUsage }}
+      initialRechargeProviders={(rechargeProviders ?? []) as any}
+      initialRechargeSlabs={(rechargeSlabs ?? []) as any}
+      initialProducts={(products ?? []) as any}
+      initialCatalogServices={(catalogServices ?? []) as any}
+      initialCategories={(categories ?? []) as any}
+      categoryCounts={categoryCounts}
+      initialTab={activeTab}
+      initialSection={section}
+    />
   );
 }

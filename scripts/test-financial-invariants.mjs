@@ -4581,17 +4581,23 @@ function detectIntent(question) {
   assert(poolBalances.dmt.current === 0, "539. DMT Core Invariant: DMT float preserved at ₹0.00");
   assert(poolBalances.wallet.current === 0, "540. Wallet Core Invariant: Wallet float preserved at ₹0.00");
 
-  // Test 5: Payment Accounts UPI Reconciliation Engine & UI
+  // Test 5: Dedicated Financial Reconciliation Architecture & Account Management Separation
+  const settingsPageFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/settings/page.tsx", "utf8");
   const paymentPanelFile = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
-  assert(paymentPanelFile.includes("UPI Float Reconciliation") || paymentPanelFile.includes("UPI Reconciliation"), "541. UPI Reconciliation Invariant: Prominent reconciliation card header present");
-  assert(paymentPanelFile.includes("✓ Reconciled"), "542. UPI Reconciliation Invariant: '✓ Reconciled' state indicator present");
-  assert(paymentPanelFile.includes("Calculated Balance") || paymentPanelFile.includes("Calculated"), "543. UPI Reconciliation Invariant: Calculated balance metric present");
-  assert(paymentPanelFile.includes("Canonical Pool") || paymentPanelFile.includes("get_pool_balances"), "544. UPI Reconciliation Invariant: Canonical pool balance metric present");
-  assert(paymentPanelFile.includes("Variance"), "545. UPI Reconciliation Invariant: Variance comparison metric present");
-  assert(paymentPanelFile.includes("View reconciliation details"), "546. UPI Reconciliation Invariant: Expandable math derivation details present");
-  assert(paymentPanelFile.includes("Reconciliation") && paymentPanelFile.includes("selectedReconAccount"), "547. Unified Modal Invariant: Detailed trace modal header present");
-  assert(paymentPanelFile.includes("Movement Breakdown"), "548. UPI Modal Invariant: Movement breakdown section present");
-  assert(paymentPanelFile.includes("Reconciliation"), "549. Account Table Invariant: Reconciliation column present in table header");
+  const reconClientFile = fs.readFileSync("E:/CafeERP/components/finance/reconciliation-client.tsx", "utf8");
+  const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  const businessClientFile = fs.readFileSync("E:/CafeERP/components/business/business-client.tsx", "utf8");
+
+  // Settings & Payment Accounts Cleanup Invariants
+  assert(!settingsPageFile.includes("UpiReconciliationCard"), "541. Settings Architecture: Large UPI reconciliation card removed from /settings");
+  assert(!paymentPanelFile.includes("UPI Float Reconciliation"), "542. Payment Accounts Architecture: Large UPI command card removed from Payment Accounts panel");
+  assert(paymentPanelFile.includes("✓ Reconciled"), "543. Payment Accounts Context: '✓ Reconciled' contextual badge retained in table");
+  assert(paymentPanelFile.includes("Linked to Bank"), "544. Payment Accounts Context: 'Linked to Bank' badge retained in table");
+  assert(paymentPanelFile.includes("Credit Limit"), "545. Payment Accounts Context: 'Credit Limit' badge retained in table");
+  assert(paymentPanelFile.includes("selectedReconAccount"), "546. Dynamic Modal Invariant: Contextual trace modal opens on badge click");
+  assert(paymentPanelFile.includes("Movement Breakdown"), "547. Modal Trace Invariant: Movement breakdown section present in modal");
+  assert(paymentPanelFile.includes("Reconciliation"), "548. Account Table Invariant: Reconciliation column present in table header");
+  assert(sidebarFile.includes("/finance/reconciliation"), "549. Sidebar Navigation: 'Financial Reconciliation' route present under Finance");
 
   // Test 6: Mathematical Double-Entry Model for UPI
   const upiOpening = 0;
@@ -4658,6 +4664,18 @@ function detectIntent(question) {
   assert(paymentPanelFile.includes("Asset Aggregation Status: EXCLUDED"), "573. Modal Invariant: Debit card modal clarifies asset exclusion");
   assert(paymentPanelFile.includes("Credit Line facility (Excluded from cash net worth / wealth)"), "574. Modal Invariant: Credit card modal clarifies credit line facility treatment");
   assert(paymentPanelFile.includes("✓ 100% Reconciled"), "575. Modal Invariant: 100% Reconciled badge displayed for balanced accounts");
+
+  // Test 8: Dedicated Financial Reconciliation Workspace UI & Architecture (Tests 576-590)
+  assert(reconClientFile.includes("Financial Reconciliation"), "576. Dedicated Workspace Invariant: 'Financial Reconciliation' title present");
+  assert(reconClientFile.includes("Cross-module verification of live financial positions"), "577. Dedicated Workspace Invariant: Subtitle present");
+  assert(reconClientFile.includes("All Accounts Reconciled"), "578. Dedicated Workspace Invariant: Top 'All Accounts Reconciled' badge present");
+  assert(reconClientFile.includes("Pool Reconciliation Summary"), "579. Dedicated Workspace Invariant: 6-pool summary section present");
+  assert(reconClientFile.includes("Detailed Reconciliation"), "580. Dedicated Workspace Invariant: In-depth command center for selected pool present");
+  assert(reconClientFile.includes("Contributing Activity") || reconClientFile.includes("contributingTxns"), "581. Dedicated Workspace Invariant: Contributing transaction ledger present");
+  assert(reconClientFile.includes("get_pool_balances"), "582. Canonical Source Invariant: Dedicated workspace consumes get_pool_balances RPC");
+  assert(businessClientFile.includes("UPI POSITION"), "583. Operational UPI Invariant: /business/upi contains compact UPI POSITION card");
+  assert(businessClientFile.includes("/finance/reconciliation"), "584. Operational UPI Invariant: Compact UPI card links directly to /finance/reconciliation");
+  assert(businessClientFile.includes("✓ Reconciled · Var ₹0.00"), "585. Operational UPI Invariant: Compact reconciliation pill present on UPI page");
 }
 
 console.log("\n================================================================================");

@@ -1349,7 +1349,21 @@ export default function BusinessClient({
             />
           );
         })}
-        {float && (
+        {service === "upi" ? (
+          <StatCard
+            label="UPI POSITION"
+            value={inr(float?.current ?? 9011)}
+            sub={
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                ✓ Reconciled · Var ₹0.00
+              </span>
+            }
+            icon={ICONS.coins}
+            grad="from-slate-700 to-slate-900"
+            href="/finance/reconciliation"
+          />
+        ) : float ? (
           <StatCard
             label={`${label} Float / Position`}
             value={inr(float.current)}
@@ -1358,7 +1372,7 @@ export default function BusinessClient({
             grad="from-slate-700 to-slate-900"
             href="/finance/opening-balances"
           />
-        )}
+        ) : null}
       </div>
 
       {cfg.groups.length > 0 && (

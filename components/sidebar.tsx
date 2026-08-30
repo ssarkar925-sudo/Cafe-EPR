@@ -190,6 +190,7 @@ export default function Sidebar({
           { label: "Customer Ledger", href: "/finance/ledger", icon: "ledger" },
           { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
           { label: "Settlements & Float", href: "/finance/settlements", icon: "settlements" },
+          { label: "Financial Reconciliation", href: "/finance/reconciliation", icon: "audit", badge: { text: "Verify", tone: "emerald" } },
           { label: "Profit & Loss (P&L)", href: "/finance/pnl", icon: "pnl" },
           { label: "End-of-Day Close", href: "/finance/day-close", icon: "dayclose", badge: { text: "Lock", tone: "blue" } },
         ],
