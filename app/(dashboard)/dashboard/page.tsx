@@ -106,7 +106,7 @@ export default async function DashboardPage() {
   }
 
   // Credit Card Facility
-  const creditCardLimit = Number(rawPools.credit_card?.opening || 50000);
+  const creditCardLimit = Number(rawPools.credit_card?.opening || 0);
   const creditCardUsed = Number(rawPools.credit_card?.movements || 0);
   const creditCardAvailable = Math.max(0, creditCardLimit - creditCardUsed);
 
@@ -482,7 +482,7 @@ export default async function DashboardPage() {
 
   const dashboardPackage = {
     profile: {
-      name: profile?.full_name || user?.email?.split("@")[0] || "Saikat Sarkar",
+      name: profile?.full_name || user?.email?.split("@")[0] || "Operator",
       avatarUrl: profile?.avatar_url || null,
       role: userRole,
     },
@@ -561,8 +561,10 @@ export default async function DashboardPage() {
         margin: mtdRevenue > 0 ? Math.round((mtdProfit / mtdRevenue) * 1000) / 10 : 0,
       },
       fyYtd: {
-        txCount: 146,
-        avgTicket: 257.74,
+        txCount: invoices.length + quickSales.length + transactions.length,
+        avgTicket: (invoices.length + quickSales.length + transactions.length) > 0
+          ? Math.round((taxReport.revenue.total_operating_revenue / (invoices.length + quickSales.length + transactions.length)) * 100) / 100
+          : 0,
         revenue: taxReport.revenue.total_operating_revenue,
         profit: taxReport.pnl.net_profit,
         margin: taxReport.pnl.net_profit_margin_pct,

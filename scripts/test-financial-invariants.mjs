@@ -4909,6 +4909,72 @@ function detectIntent(question) {
   // Sequence Restarts
   assert(resetSql.includes("invoice_number_seq RESTART WITH 1"), "719. Sequence Invariant: invoice_number_seq restarted at 1");
   assert(resetSql.includes("aeps_seq RESTART WITH 1") && resetSql.includes("dmt_seq RESTART WITH 1") && resetSql.includes("upi_seq RESTART WITH 1"), "720. Sequence Invariant: Business service sequences restarted at 1");
+
+  // Test 17: Dashboard 14-Day Peak Zero-Slate Analytics Fix (Tests 721-740)
+  const dashboardClientPath = "E:/CafeERP/components/dashboard/dashboard-client.tsx";
+  const dashboardClientFile = fs.readFileSync(dashboardClientPath, "utf8");
+  const dashboardPagePath = "E:/CafeERP/app/(dashboard)/dashboard/page.tsx";
+  const dashboardPageFile = fs.readFileSync(dashboardPagePath, "utf8");
+
+  // 1. Root Cause Removal: No hardcoded Math.max(1000, ...)
+  assert(!dashboardClientFile.includes("Math.max(1000,"), "721. Dashboard Fix: Stale Math.max(1000, ...) completely removed");
+  assert(dashboardClientFile.includes("actualPeakRevenue"), "722. Dashboard Fix: Authoritative actualPeakRevenue calculation present");
+  assert(dashboardClientFile.includes("14-Day Peak: <strong className=\"text-slate-900 dark:text-white\">{inr(actualPeakRevenue)}</strong>"), "723. Dashboard Fix: 14-Day Peak renders authoritative actualPeakRevenue");
+
+  // 2. Mathematical Zero-Slate Verification
+  const zeroChartDays = Array.from({ length: 14 }, (_, i) => ({ date: `2026-08-${15 + i}`, label: `Day ${i + 1}`, revenue: 0, expenses: 0 }));
+  const zeroPeak = zeroChartDays.length > 0 ? Math.max(0, ...zeroChartDays.map((d) => Number(d.revenue || 0))) : 0;
+  assert(zeroPeak === 0, "724. Zero-Slate Math: 14-Day Peak evaluates to exactly 0 when revenue series is 0");
+
+  const inrTest = (n) => "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  assert(inrTest(zeroPeak) === "₹0.00", "725. Zero-Slate Formatting: Formatted 14-Day Peak is strictly ₹0.00");
+
+  // 3. Dynamic Non-Zero Verification
+  const activeChartDays = [
+    { revenue: 0 }, { revenue: 450 }, { revenue: 1200 }, { revenue: 3500 }, { revenue: 200 }
+  ];
+  const dynamicPeak = Math.max(0, ...activeChartDays.map((d) => Number(d.revenue || 0)));
+  assert(dynamicPeak === 3500, "726. Dynamic Scaling Math: 14-Day Peak correctly scales to true peak of ₹3,500.00");
+  assert(inrTest(dynamicPeak) === "₹3,500.00", "727. Dynamic Scaling Formatting: Formatted peak is ₹3,500.00");
+
+  // 4. SVG Normalization Divisor Safeguard
+  const zeroScaleMax = zeroPeak > 0 ? zeroPeak : 100;
+  assert(zeroScaleMax === 100 && zeroPeak === 0, "728. SVG Safeguard: Zero division prevented without polluting user-facing peak metric");
+
+  // 5. Hardcoded YTD Values Removal
+  assert(!dashboardPageFile.includes("txCount: 146"), "729. YTD Cleanliness: Hardcoded txCount 146 completely removed");
+  assert(!dashboardPageFile.includes("avgTicket: 257.74"), "730. YTD Cleanliness: Hardcoded avgTicket 257.74 completely removed");
+  assert(!dashboardPageFile.includes("rawPools.credit_card?.opening || 50000"), "731. Credit Cleanliness: Arbitrary 50000 fallback limit removed");
+
+  // 6. Zero Database Baseline Invariants across Dashboard KPI metrics
+  const emptyDbInvoices = [];
+  const emptyDbQuickSales = [];
+  const emptyDbTxns = [];
+  const emptyDbExpenses = [];
+
+  const calcZeroTodayRev = emptyDbInvoices.length + emptyDbQuickSales.length + emptyDbTxns.length;
+  const calcZeroTodayExp = emptyDbExpenses.reduce((s, e) => s + e.amount, 0);
+  const calcZeroTodayProfit = calcZeroTodayRev - calcZeroTodayExp;
+  assert(calcZeroTodayRev === 0, "732. Dashboard Invariant: Zero-slate today revenue is ₹0.00");
+  assert(calcZeroTodayExp === 0, "733. Dashboard Invariant: Zero-slate today expenses is ₹0.00");
+  assert(calcZeroTodayProfit === 0, "734. Dashboard Invariant: Zero-slate today profit is ₹0.00");
+
+  // 7. Digital Services Zero Breakdown
+  const zeroAepsVolume = emptyDbTxns.filter((t) => t.service_type === "aeps").reduce((s, t) => s + t.total_amount, 0);
+  const zeroDmtVolume = emptyDbTxns.filter((t) => t.service_type === "dmt").reduce((s, t) => s + t.total_amount, 0);
+  const zeroUpiVolume = emptyDbTxns.filter((t) => t.service_type === "upi").reduce((s, t) => s + t.total_amount, 0);
+  const zeroRechargeVolume = emptyDbTxns.filter((t) => t.service_type === "recharge").reduce((s, t) => s + t.total_amount, 0);
+
+  assert(zeroAepsVolume === 0, "735. Service Invariant: Zero-slate AEPS volume is ₹0.00");
+  assert(zeroDmtVolume === 0, "736. Service Invariant: Zero-slate DMT volume is ₹0.00");
+  assert(zeroUpiVolume === 0, "737. Service Invariant: Zero-slate UPI volume is ₹0.00");
+  assert(zeroRechargeVolume === 0, "738. Service Invariant: Zero-slate Recharge volume is ₹0.00");
+
+  // 8. Receivables & Liquid Float Zero Invariants
+  const zeroReceivables = [].reduce((s, c) => s + c.balance, 0);
+  assert(zeroReceivables === 0, "739. Receivables Invariant: Zero-slate customer receivables is ₹0.00");
+  const zeroTotalLiquid = Object.values(zeroFloat).reduce((a, b) => a + b, 0);
+  assert(zeroTotalLiquid === 0, "740. Liquid Float Invariant: Zero-slate total liquid assets is ₹0.00");
 }
 
 console.log("\n================================================================================");

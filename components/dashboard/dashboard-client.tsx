@@ -184,15 +184,16 @@ export default function DashboardClient({ data }: DashboardClientProps) {
 
   // Performance Chart Points
   const chartDays = data.chartDays || [];
-  const maxRevenue = Math.max(1000, ...chartDays.map((d: any) => d.revenue));
+  const actualPeakRevenue = chartDays.length > 0 ? Math.max(0, ...chartDays.map((d: any) => Number(d.revenue || 0))) : 0;
+  const chartScaleMax = actualPeakRevenue > 0 ? actualPeakRevenue : 100;
   const chartPoints = useMemo(() => {
     if (chartDays.length === 0) return "";
     return chartDays.map((d: any, idx: number) => {
       const x = (idx / (chartDays.length - 1)) * 560 + 20;
-      const y = 160 - (d.revenue / maxRevenue) * 130;
+      const y = 160 - (d.revenue / chartScaleMax) * 130;
       return `${x},${y}`;
     }).join(" ");
-  }, [chartDays, maxRevenue]);
+  }, [chartDays, chartScaleMax]);
 
   const chartAreaPath = useMemo(() => {
     if (chartDays.length === 0) return "";
@@ -445,7 +446,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   {/* Interactive Points */}
                   {chartDays.map((d: any, idx: number) => {
                     const x = (idx / (chartDays.length - 1)) * 560 + 20;
-                    const y = 160 - (d.revenue / maxRevenue) * 130;
+                    const y = 160 - (d.revenue / chartScaleMax) * 130;
                     return (
                       <g key={d.date} className="cursor-pointer group" onMouseEnter={() => setHoveredPoint(d)} onMouseLeave={() => setHoveredPoint(null)}>
                         <circle
@@ -484,7 +485,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
 
           <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 p-3 text-xs dark:bg-white/5">
             <span className="text-slate-600 dark:text-slate-300">
-              14-Day Peak: <strong className="text-slate-900 dark:text-white">{inr(maxRevenue)}</strong>
+              14-Day Peak: <strong className="text-slate-900 dark:text-white">{inr(actualPeakRevenue)}</strong>
             </span>
             <Link href="/reports" className="font-bold text-blue-600 hover:underline dark:text-blue-400">
               Comprehensive Reports Hub →
