@@ -143,13 +143,31 @@ export default function SettlementFormModal({
 
   const bankAccounts = loadedAccounts.filter((i) => i.type === "bank" || i.type === "debit_card");
   const wallets = loadedAccounts.filter((i) => i.type === "wallet");
+  const aepsPortals = useMemo(() => {
+    return loadedPortals.filter((p: any) => {
+      if (p.is_active === false) return false;
+      const code = (p.code || "").toUpperCase();
+      const name = (p.name || "").toUpperCase();
+      if (code.includes("DMT") || name.includes("DMT")) return false;
+      return true;
+    });
+  }, [loadedPortals]);
+
+  const dmtPortals = useMemo(() => {
+    return loadedPortals.filter((p: any) => {
+      if (p.is_active === false) return false;
+      const code = (p.code || "").toUpperCase();
+      const name = (p.name || "").toUpperCase();
+      if (code.includes("DMT") || name.includes("DMT")) return true;
+      return false;
+    });
+  }, [loadedPortals]);
 
   // Determine what source selector is needed
   const isSourceAepsPortal = type === "aeps_to_bank";
   const isSourceUpiQr = type === "upi_qr_to_bank" || type === "upi_qr_to_wallet";
   const isSourceBank = type === "bank_to_dmt" || type === "bank_withdrawal" || type === "bank_to_wallet";
   const isSourceWallet = type === "wallet_to_dmt" || type === "wallet_to_bank";
-  
 
   // Determine what dest selector is needed
   const isDestBank = type === "aeps_to_bank" || type === "upi_qr_to_bank" || type === "wallet_to_bank" || type === "add_cash_to_bank";
@@ -169,16 +187,20 @@ export default function SettlementFormModal({
     async function fetchLiveBalance() {
       try {
         if (type === "aeps_to_bank") {
-          const portalObj = loadedPortals.find((p) => p.id === sourceId);
+          const portalObj = loadedPortals.find((p) => p.id === sourceId || p.payment_instrument_id === sourceId);
           const portalName = (portalObj?.name ?? "").toLowerCase();
           
           // 1. Resolve exact linked financial instrument
           const inst = loadedAccounts.find(
-            (i) => i.id === portalObj?.payment_instrument_id ||
+            (i) => i.id === sourceId ||
+                   i.id === portalObj?.payment_instrument_id ||
                    ((i.type === "aeps_portal" || i.type === "aeps") && (
                      i.name.toLowerCase().includes(portalName) || portalName.includes(i.name.toLowerCase())
                    ))
           );
+
+          const effectiveInstrumentId = inst?.id || portalObj?.payment_instrument_id || sourceId;
+          const effectivePortalId = portalObj?.id || loadedPortals.find(p => p.payment_instrument_id === effectiveInstrumentId)?.id || sourceId;
 
           // 2. Resolve account-specific opening balance
           const openingBal = Number(inst?.opening_balance ?? 0);
@@ -190,7 +212,7 @@ export default function SettlementFormModal({
               .from("transactions")
               .select("amount")
               .eq("service_type", "aeps")
-              .eq("portal_id", sourceId)
+              .eq("portal_id", effectivePortalId)
               .gte("transaction_date", seedDate)
               .eq("status", "success"),
             supabase
@@ -204,8 +226,8 @@ export default function SettlementFormModal({
           const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
           const totalOut = (setts ?? [])
             .filter((st: any) => {
-              if (st.source_instrument_id && inst?.id) {
-                return st.source_instrument_id === inst.id;
+              if (st.source_instrument_id && effectiveInstrumentId) {
+                return st.source_instrument_id === effectiveInstrumentId;
               }
               return !portalName || (st.remarks ?? "").toLowerCase().includes(portalName);
             })
@@ -215,14 +237,19 @@ export default function SettlementFormModal({
           const accountBal = openingBal + totalIn - totalOut;
           setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (type === "upi_qr_to_bank" || type === "upi_qr_to_wallet") {
-          const qrObj = loadedQrs.find((q) => q.id === sourceId);
+          const qrObj = loadedQrs.find((q) => q.id === sourceId || (q as any).payment_instrument_id === sourceId);
           const qrName = (qrObj?.display_name ?? "").toLowerCase();
 
           const inst = loadedAccounts.find(
-            (i) => i.type === "upi" && (
-              i.name.toLowerCase().includes(qrName) || qrName.includes(i.name.toLowerCase())
-            )
+            (i) => i.id === sourceId ||
+                   i.id === (qrObj as any)?.payment_instrument_id ||
+                   (i.type === "upi" && (
+                     i.name.toLowerCase().includes(qrName) || qrName.includes(i.name.toLowerCase())
+                   ))
           );
+
+          const effectiveInstrumentId = inst?.id || (qrObj as any)?.payment_instrument_id || sourceId;
+          const effectiveQrId = qrObj?.id || loadedQrs.find(q => (q as any).payment_instrument_id === effectiveInstrumentId)?.id || sourceId;
 
           const openingBal = Number(inst?.opening_balance ?? 0);
           const seedDate = livePools?.upi_qr?.seed_date || "0001-01-01";
@@ -232,7 +259,7 @@ export default function SettlementFormModal({
               .from("transactions")
               .select("amount")
               .eq("service_type", "upi")
-              .eq("merchant_qr_id", sourceId)
+              .eq("merchant_qr_id", effectiveQrId)
               .gte("transaction_date", seedDate)
               .eq("status", "success"),
             supabase
@@ -246,8 +273,8 @@ export default function SettlementFormModal({
           const totalIn = (txs ?? []).reduce((s, t) => s + Number(t.amount || 0), 0);
           const totalOut = (setts ?? [])
             .filter((st: any) => {
-              if (st.source_instrument_id && inst?.id) {
-                return st.source_instrument_id === inst.id;
+              if (st.source_instrument_id && effectiveInstrumentId) {
+                return st.source_instrument_id === effectiveInstrumentId;
               }
               return !qrName || (st.remarks ?? "").toLowerCase().includes(qrName);
             })
@@ -331,20 +358,24 @@ export default function SettlementFormModal({
 
     if (isSourceAepsPortal) {
       if (!sourceId) return setError("Please select the AEPS Portal (e.g. Digipay, Ezeepay) that was settled.");
-      const p = loadedPortals.find((x) => x.id === sourceId);
+      const p = loadedPortals.find((x) => x.id === sourceId || x.payment_instrument_id === sourceId);
       sourceLabel = p ? `Portal: ${p.name}` : "AEPS Portal";
       sourceInstrumentId = p?.payment_instrument_id || loadedAccounts.find(
-        (i) => (i.type === "aeps_portal" || i.type === "aeps") && (
-          i.name.toLowerCase().includes((p?.name || "").toLowerCase()) || (p?.name || "").toLowerCase().includes(i.name.toLowerCase())
+        (i) => i.id === sourceId || (
+          (i.type === "aeps_portal" || i.type === "aeps") && (
+            i.name.toLowerCase().includes((p?.name || "").toLowerCase()) || (p?.name || "").toLowerCase().includes(i.name.toLowerCase())
+          )
         )
       )?.id || sourceId;
     } else if (isSourceUpiQr) {
       if (!sourceId) return setError("Please select the Merchant QR (e.g. PhonePe QR, Google Pay QR) being settled.");
-      const q = loadedQrs.find((x) => x.id === sourceId);
+      const q = loadedQrs.find((x) => x.id === sourceId || (x as any).payment_instrument_id === sourceId);
       sourceLabel = q ? `QR: ${q.display_name}` : "UPI QR";
       sourceInstrumentId = (q as any)?.payment_instrument_id || loadedAccounts.find(
-        (i) => i.type === "upi" && (
-          i.name.toLowerCase().includes((q?.display_name || "").toLowerCase()) || (q?.display_name || "").toLowerCase().includes(i.name.toLowerCase())
+        (i) => i.id === sourceId || (
+          i.type === "upi" && (
+            i.name.toLowerCase().includes((q?.display_name || "").toLowerCase()) || (q?.display_name || "").toLowerCase().includes(i.name.toLowerCase())
+          )
         )
       )?.id || sourceId;
     } else if (isSourceBank) {
@@ -372,11 +403,13 @@ export default function SettlementFormModal({
       destLabel = w ? `Wallet: ${w.name}` : "Digital Wallet";
     } else if (isDestDmtPortal) {
       if (!destId) return setError("Please select the DMT Portal receiving float.");
-      const p = loadedPortals.find((x) => x.id === destId);
+      const p = loadedPortals.find((x) => x.id === destId || x.payment_instrument_id === destId);
       destLabel = p ? `DMT: ${p.name}` : "DMT Portal";
       destInstrumentId = p?.payment_instrument_id || loadedAccounts.find(
-        (i) => (i.type === "dmt_portal" || i.type === "dmt") && (
-          i.name.toLowerCase().includes((p?.name || "").toLowerCase()) || (p?.name || "").toLowerCase().includes(i.name.toLowerCase())
+        (i) => i.id === destId || (
+          (i.type === "dmt_portal" || i.type === "dmt") && (
+            i.name.toLowerCase().includes((p?.name || "").toLowerCase()) || (p?.name || "").toLowerCase().includes(i.name.toLowerCase())
+          )
         )
       )?.id || destId;
     }
@@ -470,7 +503,7 @@ export default function SettlementFormModal({
                   onChange={(v) => setSourceId(v)}
                   options={[
                     { value: "", label: "Select AEPS Portal..." },
-                    ...loadedPortals.map((p) => ({ value: p.id, label: `🏢 ${p.name}` })),
+                    ...aepsPortals.map((p) => ({ value: p.id, label: `🏢 ${p.name}` })),
                   ]}
                   placeholder="Choose Portal (CSC, EzeePay, Spice)..."
                   showClear={false}
@@ -588,7 +621,7 @@ export default function SettlementFormModal({
                   onChange={(v) => setDestId(v)}
                   options={[
                     { value: "", label: "Select DMT Portal..." },
-                    ...loadedPortals.map((p) => ({ value: p.id, label: `🏢 ${p.name}` })),
+                    ...dmtPortals.map((p) => ({ value: p.id, label: `🏢 ${p.name}` })),
                   ]}
                   placeholder="Choose DMT Portal..."
                   showClear={false}

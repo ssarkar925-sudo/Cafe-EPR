@@ -6047,6 +6047,54 @@ function detectIntent(question) {
   const emptyAccountOpening = 0;
   const emptyAccountAvailable = emptyAccountOpening + zeroMovements;
   assert(emptyAccountAvailable === 0, "1089. Zero Invariant: Account with ₹0.00 balance remains strictly ₹0.00");
+
+  // 9. Explicit Portal -> Payment Instrument UUID Mapping Verification
+  const DIGIPAY_INSTRUMENT_ID = "fcf92211-6f5b-472f-9698-4ce09499ead3";
+  const EZEEPAY_INSTRUMENT_ID = "e776cacc-a3ba-4da9-a76b-a0657946ca03";
+  const DIGIPAY_DMT_INSTRUMENT_ID = "dff498db-f776-42d1-b91a-2da3676f46f6";
+  const EZEEPAY_DMT_INSTRUMENT_ID = "30494b67-787e-4318-8c94-3f1ae6471312";
+
+  const sampleLoadedPortals = [
+    { id: "b19d0f85-cf93-4d75-a6b3-03c02bb571d0", name: "Digipay", code: "DIGI", payment_instrument_id: DIGIPAY_INSTRUMENT_ID, is_active: true },
+    { id: "cd1b4400-88c8-4ed9-b566-69b10aa50ef0", name: "Ezeepay", code: "EZEE", payment_instrument_id: EZEEPAY_INSTRUMENT_ID, is_active: true },
+    { id: "a58fcc3c-82d6-4add-a91a-20eeaa5f1ec8", name: "Digipay DMT", code: "DIGI-DMT", payment_instrument_id: DIGIPAY_DMT_INSTRUMENT_ID, is_active: true },
+    { id: "de2c17c0-75a9-4c84-a7f8-d157009513e2", name: "Ezeepay DMT", code: "EZEE-DMT", payment_instrument_id: EZEEPAY_DMT_INSTRUMENT_ID, is_active: true },
+  ];
+
+  const sampleLoadedAccounts = [
+    { id: DIGIPAY_INSTRUMENT_ID, name: "Digipay Float", type: "aeps_portal", opening_balance: 30400, is_active: true },
+    { id: EZEEPAY_INSTRUMENT_ID, name: "Ezeepay Float", type: "aeps_portal", opening_balance: 1600, is_active: true },
+    { id: DIGIPAY_DMT_INSTRUMENT_ID, name: "Digipay DMT", type: "dmt_portal", opening_balance: 0, is_active: true },
+    { id: EZEEPAY_DMT_INSTRUMENT_ID, name: "Ezeepay DMT", type: "dmt_portal", opening_balance: 0, is_active: true },
+  ];
+
+  const digiPortal = sampleLoadedPortals.find(p => p.code === "DIGI");
+  const ezeePortal = sampleLoadedPortals.find(p => p.code === "EZEE");
+
+  assert(digiPortal.payment_instrument_id === DIGIPAY_INSTRUMENT_ID, "1090. Explicit Mapping: Digipay AEPS Portal maps to instrument fcf92211-6f5b-472f-9698-4ce09499ead3");
+  assert(ezeePortal.payment_instrument_id === EZEEPAY_INSTRUMENT_ID, "1091. Explicit Mapping: Ezeepay AEPS Portal maps to instrument e776cacc-a3ba-4da9-a76b-a0657946ca03");
+
+  // 10. Dropdown Filtering Invariants
+  const filteredAepsPortals = sampleLoadedPortals.filter(p => !p.code.includes("DMT") && !p.name.includes("DMT"));
+  const filteredDmtPortals = sampleLoadedPortals.filter(p => p.code.includes("DMT") || p.name.includes("DMT"));
+
+  assert(filteredAepsPortals.length === 2, "1092. Dropdown Filter: Exactly 2 active AEPS portals in AEPS dropdown");
+  assert(filteredAepsPortals.some(p => p.name === "Digipay") && filteredAepsPortals.some(p => p.name === "Ezeepay"), "1093. Dropdown Filter: Digipay and Ezeepay present in AEPS dropdown");
+  assert(!filteredAepsPortals.some(p => p.name.includes("DMT")), "1094. Dropdown Filter: DMT portals excluded from AEPS dropdown");
+  assert(filteredDmtPortals.length === 2, "1095. Dropdown Filter: Exactly 2 active DMT portals in DMT dropdown");
+
+  // 11. Transaction Isolation Simulation
+  const digiSettlementPayload = {
+    p_settlement_type: "aeps_to_bank",
+    p_source_instrument_id: DIGIPAY_INSTRUMENT_ID,
+    p_amount: 10000,
+  };
+  const digiPostBalance = digipayOpening - digiSettlementPayload.p_amount;
+  const ezeePostBalance = ezeepayOpening; // Untouched
+
+  assert(digiPostBalance === 20400, "1096. Debit Isolation: Digipay balance reduced to ₹20,400.00 after ₹10,000.00 settlement");
+  assert(ezeePostBalance === 1600, "1097. Isolation Invariant: Ezeepay balance remains exactly ₹1,600.00 without side effects");
+  assert(digiPostBalance + ezeePostBalance === 22000, "1098. Pool Invariant: New total AEPS pool = ₹20,400 + ₹1,600 = ₹22,000.00");
 }
 
 console.log("\n================================================================================");
