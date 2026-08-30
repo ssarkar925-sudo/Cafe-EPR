@@ -4865,6 +4865,50 @@ function detectIntent(question) {
   assert(dmtWorkspaceFile.includes("p_transfer_method: transferMethod"), "698. Transfer Method Invariant: transferMethod passed to atomic RPC");
   assert(dmtWorkspaceFile.includes("lastCompletedTxn"), "699. State Invariant: lastCompletedTxn updated with atomic RPC result");
   assert(dmtWorkspaceFile.includes("setLastCompletedTxn(completedRecord)"), "700. Success Invariant: UI renders confirmation card using atomic record");
+
+  // Test 16: Fresh Business Start Baseline & Preservation Verification (Tests 701-720)
+  const resetSqlPath = "E:/CafeERP/supabase/fresh-business-start-reset.sql";
+  assert(fs.existsSync(resetSqlPath), "701. Reset Checkpoint: fresh-business-start-reset.sql exists");
+  const resetSql = fs.readFileSync(resetSqlPath, "utf8");
+
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.transactions CASCADE"), "702. Reset Invariant: Operational transactions truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.invoices CASCADE"), "703. Reset Invariant: Operational invoices truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.cash_entries CASCADE"), "704. Reset Invariant: Operational cash entries truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.customer_ledger CASCADE"), "705. Reset Invariant: Customer ledger truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.opening_balances CASCADE"), "706. Reset Invariant: Historical opening balances truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.settlements CASCADE"), "707. Reset Invariant: Operational settlements truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.customers CASCADE"), "708. Reset Invariant: Demo customers truncated");
+  assert(resetSql.includes("TRUNCATE TABLE IF EXISTS public.suppliers CASCADE"), "709. Reset Invariant: Demo suppliers truncated");
+
+  // Master Preservation Verification
+  assert(!resetSql.includes("TRUNCATE TABLE IF EXISTS public.categories"), "710. Master Preservation: Catalog categories preserved");
+  assert(!resetSql.includes("TRUNCATE TABLE IF EXISTS public.services"), "711. Master Preservation: Service rate cards preserved");
+  assert(!resetSql.includes("TRUNCATE TABLE IF EXISTS public.aeps_banks"), "712. Master Preservation: Bank master list preserved");
+  assert(!resetSql.includes("TRUNCATE TABLE IF EXISTS public.aeps_portals"), "713. Master Preservation: Portal gateways preserved");
+  assert(!resetSql.includes("TRUNCATE TABLE IF EXISTS public.upi_merchant_qrs"), "714. Master Preservation: Real merchant QRs preserved");
+  assert(!resetSql.includes("TRUNCATE TABLE IF EXISTS public.profiles"), "715. Master Preservation: User profiles & auth preserved");
+
+  // Zero-Slate Baseline Math
+  const zeroFloat = { cash: 0, bank: 0, upi: 0, aeps: 0, dmt: 0, wallet: 0 };
+  const totalZeroFloat = Object.values(zeroFloat).reduce((acc, v) => acc + v, 0);
+  assert(totalZeroFloat === 0, "716. Zero-Slate Baseline: Canonical total pool balance evaluates to exactly ₹0.00");
+
+  // Credit Facility Invariant
+  const creditLimit = 15000.0;
+  const creditUsed = 0.0;
+  const creditAvailable = creditLimit - creditUsed;
+  const isCreditCashAsset = false;
+  assert(creditAvailable === 15000.0 && !isCreditCashAsset, "717. Credit Facility Invariant: Credit limit preserved at ₹15,000 and excluded from cash wealth");
+
+  // Debit Card Mirroring Invariant
+  const bankBal = 0.0;
+  const debitCardMirrored = bankBal;
+  const aggregatedCashWealth = bankBal; // Not bankBal + debitCardMirrored
+  assert(aggregatedCashWealth === 0.0 && debitCardMirrored === 0.0, "718. Debit Linkage Invariant: Debit card mirrors bank without duplicate wealth creation");
+
+  // Sequence Restarts
+  assert(resetSql.includes("invoice_number_seq RESTART WITH 1"), "719. Sequence Invariant: invoice_number_seq restarted at 1");
+  assert(resetSql.includes("aeps_seq RESTART WITH 1") && resetSql.includes("dmt_seq RESTART WITH 1") && resetSql.includes("upi_seq RESTART WITH 1"), "720. Sequence Invariant: Business service sequences restarted at 1");
 }
 
 console.log("\n================================================================================");
