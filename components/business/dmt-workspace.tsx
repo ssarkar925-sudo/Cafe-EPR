@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
@@ -12,6 +12,9 @@ import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
 import { useToast } from "@/components/ui/use-toast";
+import { downloadCsv } from "@/components/ui/csv";
+import { renderWhatsAppTemplate } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 // Bank alias normalization dictionary
 const BANK_ALIASES: Record<string, string> = {
@@ -90,6 +93,22 @@ export function maskAccount(acc: string | null | undefined): string {
   return clean;
 }
 
+function fmtDate(d?: string | null) {
+  if (!d) return "—";
+  const dt = new Date(d.length === 10 ? d + "T00:00:00" : d);
+  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtTime(d?: string | null) {
+  if (!d) return "";
+  try {
+    const dt = new Date(d);
+    return dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 export default function DmtWorkspace({
   initialTransactions,
   initialCustomers,
@@ -107,8 +126,18 @@ export default function DmtWorkspace({
 }) {
   const supabase = createClient();
   const { showToast, toastView } = useToast();
+  const formRef = useRef<HTMLDivElement>(null);
 
-  useRealtime(["transactions", "aeps_banks", "aeps_portals", "customers", "cash_entries", "saved_contacts", "payment_instruments", "settlements"]);
+  useRealtime([
+    "transactions",
+    "aeps_banks",
+    "aeps_portals",
+    "customers",
+    "cash_entries",
+    "saved_contacts",
+    "payment_instruments",
+    "settlements",
+  ]);
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
@@ -118,18 +147,22 @@ export default function DmtWorkspace({
 
   // Live Database Float Balances (Zero hardcoded defaults)
   const [dmtFloat, setDmtFloat] = useState<number>(() => Number(float?.current ?? float ?? 0));
+  const [cashInHand, setCashInHand] = useState<number>(0);
   const [bankPoolFloat, setBankPoolFloat] = useState<number>(0);
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(() =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 
   // Guided Transfer Mode: "bank_account" (IMPS/NEFT) vs "upi" (Instant UPI VPA)
   const [transferMethod, setTransferMethod] = useState<"bank_account" | "upi">("bank_account");
 
-  // Step 1: Sender / Customer Fields
+  // Step 1: Sender / Customer Fields (Clean initial state)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [senderName, setSenderName] = useState<string>("");
   const [senderMobile, setSenderMobile] = useState<string>("");
 
-  // Step 2 & 3: Beneficiary Fields (All Optional as per instruction)
+  // Step 2 & 3: Beneficiary Fields (Clean initial state)
   const [beneficiaryName, setBeneficiaryName] = useState<string>("");
   const [beneficiaryMobile, setBeneficiaryMobile] = useState<string>("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<string>("");
@@ -138,11 +171,11 @@ export default function DmtWorkspace({
   const [upiId, setUpiId] = useState<string>("");
   const [receiverName, setReceiverName] = useState<string>("");
 
-  // Step 4 & 5: Amount, Fee, Portal Charge & Portal Commission
-  const [amount, setAmount] = useState<string>("5000");
-  const [serviceFee, setServiceFee] = useState<string>("20");
-  const [portalCharge, setPortalCharge] = useState<string>("15");
-  const [portalCommission, setPortalCommission] = useState<string>("5");
+  // Step 4 & 5: Amount, Fee, Portal Charge & Portal Commission (Clean initial state)
+  const [amount, setAmount] = useState<string>("");
+  const [serviceFee, setServiceFee] = useState<string>("");
+  const [portalCharge, setPortalCharge] = useState<string>("");
+  const [portalCommission, setPortalCommission] = useState<string>("");
 
   // Step 6: Funding Source (Disbursement)
   const [paidFrom, setPaidFrom] = useState<"portal" | "bank">("portal");
@@ -152,15 +185,12 @@ export default function DmtWorkspace({
   // Step 7: Customer Collection Instrument
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
 
-  // Step 8: Reference & Remarks
+  // Step 8: Reference & Remarks (Clean initial state)
   const [reference, setReference] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
 
   // Receipt Print Preference (Basic default vs Detailed)
   const [receiptMode, setReceiptMode] = useState<"basic" | "detailed">("basic");
-
-  // Analytics Active Tab
-  const [analyticsTab, setAnalyticsTab] = useState<"overview" | "bank" | "portal" | "method" | "collection" | "funding">("overview");
 
   // Scan & Fill State
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -179,12 +209,28 @@ export default function DmtWorkspace({
   } | null>(null);
 
   // Modals & UI Lifecycle
-  const [confirmWindowOpen, setConfirmWindowOpen] = useState(false);
-  const [successWindowOpen, setSuccessWindowOpen] = useState(false);
   const [lastCompletedTxn, setLastCompletedTxn] = useState<Txn | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDetailTxn, setSelectedDetailTxn] = useState<Txn | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // WhatsApp Modal State
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    refNum: string;
+    refId: string;
+  }>({
+    open: false,
+    phone: "",
+    name: "",
+    msg: "",
+    refNum: "",
+    refId: "",
+  });
 
   // Add Customer Modal State
   const [addCustomerWindowOpen, setAddCustomerWindowOpen] = useState(false);
@@ -234,15 +280,26 @@ export default function DmtWorkspace({
   const refreshBalances = useCallback(async () => {
     setIsRefreshingBalances(true);
     try {
-      const [{ data: pools }, { data: insts }] = await Promise.all([
+      const [{ data: pools }, { data: insts }, { data: freshTxns }] = await Promise.all([
         supabase.rpc("get_pool_balances"),
         supabase.from("payment_instruments").select("*").order("name"),
+        supabase
+          .from("transactions")
+          .select("*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), profiles(full_name)")
+          .eq("service_type", "dmt")
+          .order("transaction_timestamp", { ascending: false, nullsFirst: false })
+          .order("transaction_date", { ascending: false })
+          .limit(500),
       ]);
 
       if (pools) {
         const dmt = (pools as any)?.dmt;
         if (dmt) {
           setDmtFloat(Number(dmt.current ?? dmt ?? 0));
+        }
+        const cash = (pools as any)?.cash;
+        if (cash) {
+          setCashInHand(Number(cash.current ?? cash ?? 0));
         }
         const bank = (pools as any)?.bank;
         if (bank) {
@@ -253,6 +310,12 @@ export default function DmtWorkspace({
       if (insts && Array.isArray(insts)) {
         setLiveInstruments(insts);
       }
+
+      if (freshTxns) {
+        setTransactions(freshTxns as any);
+      }
+
+      setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     } catch (err) {
       console.error("Failed to refresh live balances:", err);
     } finally {
@@ -281,43 +344,49 @@ export default function DmtWorkspace({
   }, [liveInstruments, selectedBankInstrumentId]);
 
   const currentBankBalance = useMemo(() => {
-    if (selectedBankInstrument && selectedBankInstrument.current_balance !== undefined && selectedBankInstrument.current_balance !== null) {
+    if (
+      selectedBankInstrument &&
+      selectedBankInstrument.current_balance !== undefined &&
+      selectedBankInstrument.current_balance !== null
+    ) {
       return Number(selectedBankInstrument.current_balance);
     }
     return bankPoolFloat;
   }, [selectedBankInstrument, bankPoolFloat]);
 
-  // Calculations for current inputs (Separating Revenue vs Provider Cost)
+  // Numeric parameters
   const numAmount = Number(amount || 0);
   const numFee = Number(serviceFee || 0);
   const numCharge = Number(portalCharge || 0);
   const numComm = Number(portalCommission || 0);
 
-  const totalCollected = numAmount + numFee + numCharge; // Principal + Fee + Charge (Total Customer Pays)
-  const businessRevenue = numFee + numComm; // Our Business Revenue
-  const providerCost = numCharge; // Provider Cost / Pass-through Charge
-  const netContribution = businessRevenue - providerCost; // Net Contribution to business
+  const totalCollected = numAmount + numFee + numCharge;
+  const businessRevenue = numFee + numComm;
+  const providerCost = numCharge;
+  const netContribution = businessRevenue - providerCost;
 
-  // Live Available Selected Float & Sufficiency Check
+  // Selected Float & Sufficiency Check
   const availableSelectedFloat = paidFrom === "portal" ? dmtFloat : currentBankBalance;
-  const isFloatInsufficient = numAmount > availableSelectedFloat;
-  const floatShortfall = Math.max(0, numAmount - availableSelectedFloat);
 
   // Today's DMT KPI calculations
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayTxns = useMemo(() => {
     return transactions.filter(
-      (t) => t.service_type === "dmt" && (t.transaction_date === todayStr || t.transaction_timestamp?.slice(0, 10) === todayStr) && t.status === "success"
+      (t) =>
+        t.service_type === "dmt" &&
+        (t.transaction_date === todayStr || t.transaction_timestamp?.slice(0, 10) === todayStr) &&
+        t.status === "success"
     );
   }, [transactions, todayStr]);
 
   const todayVolume = todayTxns.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const todayCustomerCollections = todayTxns.reduce((s, t) => s + Number(t.amount || 0) + Number(t.service_fee || 0) + Number(t.portal_charge || 0), 0);
+  const todayCustomerCollections = todayTxns.reduce(
+    (s, t) => s + Number(t.amount || 0) + Number(t.service_fee || 0) + Number(t.portal_charge || 0),
+    0
+  );
   const todayCustomerFees = todayTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0);
   const todayPortalCharges = todayTxns.reduce((s, t) => s + Number(t.portal_charge || 0), 0);
   const todayPortalCommission = todayTxns.reduce((s, t) => s + Number(t.portal_commission || 0), 0);
-  const todayBusinessRevenue = todayCustomerFees + todayPortalCommission;
-  const todayNetContribution = todayBusinessRevenue - todayPortalCharges;
   const todayCount = todayTxns.length;
 
   // Matched Master Bank Object for Beneficiary Bank
@@ -327,10 +396,14 @@ export default function DmtWorkspace({
 
   // Beneficiary Quick Suggestions from past transactions
   const beneficiarySuggestions = useMemo(() => {
-    const map = new Map<string, { name: string; bank: string; ifsc: string; account: string; upi: string; count: number }>();
+    const map = new Map<
+      string,
+      { name: string; bank: string; ifsc: string; account: string; upi: string; count: number }
+    >();
     for (const t of transactions) {
       if (t.service_type !== "dmt" || t.status !== "success") continue;
-      const key = t.transfer_method === "upi" ? (t.upi_id || "") : `${t.beneficiary_ifsc || ""}|${t.beneficiary_account || ""}`;
+      const key =
+        t.transfer_method === "upi" ? t.upi_id || "" : `${t.beneficiary_ifsc || ""}|${t.beneficiary_account || ""}`;
       if (!key || key === "|") continue;
 
       if (map.has(key)) {
@@ -346,10 +419,86 @@ export default function DmtWorkspace({
         });
       }
     }
-    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 6);
+    return Array.from(map.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
   }, [transactions]);
 
-  // Handle Scan & Fill Extraction with Review Guard
+  // Strict Form Validation Guard
+  const isFormValid = useMemo(() => {
+    if (numAmount <= 0) return false;
+    if (numCharge < 0 || numFee < 0 || numComm < 0) return false;
+    if (!reference.trim() || reference.trim().length < 6) return false;
+
+    if (transferMethod === "bank_account") {
+      if (!beneficiaryAccount.trim() || beneficiaryAccount.trim().length < 4) return false;
+      if (!beneficiaryIfsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase()))
+        return false;
+      if (!beneficiaryBank.trim()) return false;
+    } else {
+      if (!upiId.trim() || !upiId.includes("@")) return false;
+    }
+
+    if (senderMobile.trim() && senderMobile.trim().replace(/\D/g, "").length !== 10) return false;
+    if (paidFrom === "portal" && !selectedPortalId) return false;
+    if (paidFrom === "bank" && !selectedBankInstrumentId) return false;
+    if (customerPayMethod === "due" && !selectedCustomerId) return false;
+
+    return true;
+  }, [
+    numAmount,
+    numCharge,
+    numFee,
+    numComm,
+    reference,
+    transferMethod,
+    beneficiaryAccount,
+    beneficiaryIfsc,
+    beneficiaryBank,
+    upiId,
+    senderMobile,
+    paidFrom,
+    selectedPortalId,
+    selectedBankInstrumentId,
+    customerPayMethod,
+    selectedCustomerId,
+  ]);
+
+  // Current Active Lifecycle Step (1-5)
+  const currentStep = useMemo(() => {
+    if (!selectedCustomerId && !senderName.trim() && !senderMobile.trim()) return 1;
+    if (transferMethod === "bank_account") {
+      if (!beneficiaryAccount.trim() || !beneficiaryBank.trim()) return 2;
+      if (!beneficiaryIfsc.trim()) return 3;
+    } else {
+      if (!upiId.trim()) return 2;
+    }
+    if (numAmount <= 0) return 4;
+    return 5;
+  }, [selectedCustomerId, senderName, senderMobile, transferMethod, beneficiaryAccount, beneficiaryBank, beneficiaryIfsc, upiId, numAmount]);
+
+  // Reset to clean form for New Transfer
+  const handleNewTransfer = useCallback(() => {
+    setAmount("");
+    setServiceFee("");
+    setPortalCharge("");
+    setPortalCommission("");
+    setSelectedCustomerId("");
+    setSenderName("");
+    setSenderMobile("");
+    setBeneficiaryName("");
+    setBeneficiaryMobile("");
+    setBeneficiaryBank("");
+    setBeneficiaryIfsc("");
+    setBeneficiaryAccount("");
+    setUpiId("");
+    setReceiverName("");
+    setReference("");
+    setRemarks("");
+    setLastCompletedTxn(null);
+  }, []);
+
+  // Handle Scan & Fill Extraction
   function handleScanApply(fields: ScanFields) {
     setScannedReviewData({
       amount: fields.amount || undefined,
@@ -362,6 +511,7 @@ export default function DmtWorkspace({
       beneficiaryAccount: fields.beneficiary_account || undefined,
       upiId: fields.upi_id || undefined,
       serviceFee: fields.service_fee || undefined,
+      portalCharge: fields.portal_charge || undefined,
     });
 
     if (fields.amount) setAmount(fields.amount);
@@ -387,12 +537,12 @@ export default function DmtWorkspace({
   async function handleCreateCustomer(e: React.FormEvent) {
     e.preventDefault();
     const name = newCustName.trim();
-    const phone = newCustPhone.trim();
+    const phone = newCustPhone.trim().replace(/\D/g, "");
     if (!name) {
       setCustCreateError("Customer name is required.");
       return;
     }
-    if (!phone || phone.length < 10) {
+    if (phone && phone.length !== 10) {
       setCustCreateError("A valid 10-digit mobile number is required.");
       return;
     }
@@ -400,24 +550,13 @@ export default function DmtWorkspace({
     setCustCreateSubmitting(true);
     setCustCreateError("");
 
-    const existing = customers.find((c) => c.phone === phone);
-    if (existing) {
-      setSelectedCustomerId(existing.id);
-      setSenderName(existing.name);
-      setSenderMobile(existing.phone || phone);
-      setAddCustomerWindowOpen(false);
-      setCustCreateSubmitting(false);
-      showToast("info", `Customer "${existing.name}" already in CRM. Selected.`);
-      return;
-    }
-
     try {
       const generatedCode = "CUST-" + Math.floor(1000 + Math.random() * 9000);
       const { data: newCust, error: insertError } = await supabase
         .from("customers")
         .insert({
           name,
-          phone,
+          phone: phone || null,
           email: newCustEmail.trim() || null,
           address: newCustAddress.trim() || null,
           code: generatedCode,
@@ -457,19 +596,22 @@ export default function DmtWorkspace({
     }
   }
 
-  // Add Beneficiary Modal Handler with Optional Fields & Confirm Account Check
+  // Add Beneficiary Modal Handler
   async function handleCreateBeneficiary(e: React.FormEvent) {
     e.preventDefault();
     if (transferMethod === "bank_account") {
+      const ifsc = newBenIfsc.trim().toUpperCase();
       const acc = newBenAccount.trim();
       const confirmAcc = newBenConfirmAccount.trim();
-      const ifsc = newBenIfsc.trim().toUpperCase();
 
-      if (acc && confirmAcc && acc !== confirmAcc) {
-        setBenCreateError("Account number and Confirm Account Number do not match.");
+      if (!acc) {
+        setBenCreateError("Account number is required.");
         return;
       }
-
+      if (acc !== confirmAcc) {
+        setBenCreateError("Account numbers do not match.");
+        return;
+      }
       if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
         setBenCreateError("Please enter a valid 11-character IFSC code (e.g. SBIN0001234).");
         return;
@@ -479,16 +621,19 @@ export default function DmtWorkspace({
       setBenCreateError("");
 
       try {
-        const dedupeKey = `beneficiary|${ifsc || "ANY"}|${acc || "ANY"}`;
-        await supabase.from("saved_contacts").upsert({
-          key: dedupeKey,
-          kind: "beneficiary",
-          name: newBenName.trim() || null,
-          mobile: newBenMobile.trim() || null,
-          bank: newBenBank.trim() || null,
-          ifsc: ifsc || null,
-          account_number: acc || null,
-        }, { onConflict: "key" });
+        const dedupeKey = `bank|${ifsc || "ANY"}|${acc}`;
+        await supabase.from("saved_contacts").upsert(
+          {
+            key: dedupeKey,
+            kind: "beneficiary",
+            name: newBenName.trim() || null,
+            phone: newBenMobile.trim() || null,
+            bank_name: newBenBank.trim() || null,
+            ifsc: ifsc || null,
+            account_number: acc,
+          },
+          { onConflict: "key" }
+        );
 
         setBeneficiaryName(newBenName.trim());
         setBeneficiaryMobile(newBenMobile.trim());
@@ -503,7 +648,7 @@ export default function DmtWorkspace({
         setNewBenIfsc("");
         setNewBenAccount("");
         setNewBenConfirmAccount("");
-        showToast("success", "Beneficiary saved to address book.");
+        showToast("success", "Beneficiary saved and selected.");
       } catch (err: any) {
         console.error("Beneficiary save error:", err);
         setBenCreateError(err.message || "Failed to save beneficiary.");
@@ -522,20 +667,24 @@ export default function DmtWorkspace({
 
       try {
         const dedupeKey = `upi_receiver|${upi || "ANY"}`;
-        await supabase.from("saved_contacts").upsert({
-          key: dedupeKey,
-          kind: "upi_receiver",
-          name: newBenName.trim() || null,
-          upi_id: upi || null,
-        }, { onConflict: "key" });
+        await supabase.from("saved_contacts").upsert(
+          {
+            key: dedupeKey,
+            kind: "upi_receiver",
+            name: newBenName.trim() || null,
+            upi_id: upi || null,
+          },
+          { onConflict: "key" }
+        );
 
         setUpiId(upi);
         setReceiverName(newBenName.trim());
+        setBeneficiaryName(newBenName.trim());
 
         setAddBeneficiaryWindowOpen(false);
         setNewBenName("");
         setNewBenUpi("");
-        showToast("success", "UPI Receiver saved to address book.");
+        showToast("success", "UPI Receiver saved and selected.");
       } catch (err: any) {
         console.error("UPI receiver save error:", err);
         setBenCreateError(err.message || "Failed to save UPI receiver.");
@@ -716,7 +865,7 @@ export default function DmtWorkspace({
 
       await refreshBalances();
       setReverseWindowOpen(false);
-      showToast("success", `Transaction #${reversingTxn.transaction_number} reversed. Cash legs and balances updated.`);
+      showToast("success", `Transaction #${reversingTxn.transaction_number} reversed. Balances updated.`);
     } catch (err: any) {
       console.error("Reversal error:", err);
       showToast("error", err.message || "Failed to reverse transaction.");
@@ -725,70 +874,34 @@ export default function DmtWorkspace({
     }
   }
 
-  // Pre-submission Validation & Float Safety Guard (Beneficiary fields optional)
-  const handleInitiateTransfer = useCallback(() => {
-    if (!numAmount || numAmount <= 0) {
-      showToast("error", "Please enter a valid transfer amount.");
-      return;
-    }
-    if (numCharge < 0) {
-      showToast("error", "Portal / Provider charge cannot be negative.");
-      return;
-    }
-
-    // Format validation if non-empty
-    if (transferMethod === "bank_account") {
-      if (beneficiaryIfsc.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase())) {
-        showToast("error", "Please enter a valid 11-character IFSC code (e.g. SBIN0001234).");
-        return;
-      }
-    } else {
-      if (upiId.trim() && !upiId.includes("@")) {
-        showToast("error", "Please enter a valid beneficiary UPI ID (e.g. user@oksbi).");
-        return;
-      }
-    }
-
-    // Float Safety Check
-    if (paidFrom === "portal" && numAmount > dmtFloat) {
-      showToast("error", `Insufficient DMT Portal Float. (Available: ${inr(dmtFloat)}, Required: ${inr(numAmount)})`);
-      return;
-    }
-    if (paidFrom === "bank" && numAmount > currentBankBalance) {
-      showToast("error", `Insufficient Bank Balance. (Available: ${inr(currentBankBalance)}, Required: ${inr(numAmount)})`);
-      return;
-    }
-
-    if (!reference.trim() || reference.trim().length < 6) {
-      showToast("error", "Bank Reference / UTR Number is mandatory for DMT compliance.");
-      return;
-    }
-
-    if (customerPayMethod === "due" && !selectedCustomerId) {
-      showToast("error", "Please select a registered customer to record payment as Due (Khata).");
-      return;
-    }
-
-    setConfirmWindowOpen(true);
-  }, [numAmount, numCharge, transferMethod, beneficiaryIfsc, upiId, paidFrom, dmtFloat, currentBankBalance, reference, customerPayMethod, selectedCustomerId, showToast]);
-
-  // Keyboard shortcut listener (Ctrl+Enter to submit, Esc to close)
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.ctrlKey && e.key === "Enter") {
-        if (!confirmWindowOpen && !addCustomerWindowOpen && !addBeneficiaryWindowOpen && !editTxnWindowOpen && !reverseWindowOpen) {
-          e.preventDefault();
-          handleInitiateTransfer();
-        }
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleInitiateTransfer, confirmWindowOpen, addCustomerWindowOpen, addBeneficiaryWindowOpen, editTxnWindowOpen, reverseWindowOpen]);
+  // Open WhatsApp Modal
+  const handleOpenWhatsApp = useCallback((t: Txn) => {
+    const phone = t.customer_mobile || t.sender_mobile || (t.customers as any)?.phone || "";
+    const name = t.sender_name || (t.customers as any)?.name || "Customer";
+    const shopName = "CyberCafe ERP";
+    const text = renderWhatsAppTemplate("dmt_confirmation", {
+      shop_name: shopName,
+      customer_name: name,
+      customer_name_line: name ? `👤 Sender: ${name}\n` : "",
+      ref_number: t.reference || t.transaction_number,
+      date: t.transaction_date,
+      amount: inr(Number(t.amount)),
+      service_fee: inr(Number(t.service_fee || 0)),
+      receipt_url: `${window.location.origin}/business/receipt/${t.id}`,
+    });
+    setWaModal({
+      open: true,
+      phone,
+      name,
+      msg: text,
+      refNum: t.transaction_number,
+      refId: t.id,
+    });
+  }, []);
 
   // Execute Transfer Transaction (Double-submission guarded & Live Balance Refresh)
   async function handleProcessTransfer() {
-    if (isSubmitting) return;
+    if (!isFormValid || isSubmitting) return;
     setIsSubmitting(true);
 
     try {
@@ -835,9 +948,7 @@ export default function DmtWorkspace({
       if (newTxnId && numCharge > 0) {
         try {
           await supabase.from("transactions").update({ portal_charge: numCharge }).eq("id", newTxnId);
-        } catch (_) {
-          // Graceful fallback if database column migration is pending
-        }
+        } catch (_) {}
 
         const fullCollection = numAmount + numFee + numCharge;
         try {
@@ -849,9 +960,7 @@ export default function DmtWorkspace({
             await supabase.from("customers").update({ balance: adjustedBal }).eq("id", selectedCustomerId);
             await supabase.from("customer_ledger").update({ debit: fullCollection, balance_after: adjustedBal }).eq("ref_id", newTxnId);
           }
-        } catch (_) {
-          // Graceful adjustment fallback
-        }
+        } catch (_) {}
       }
 
       const completedRecord: Txn = {
@@ -897,31 +1006,67 @@ export default function DmtWorkspace({
 
       setTransactions((prev) => [completedRecord, ...prev]);
       setLastCompletedTxn(completedRecord);
-      setConfirmWindowOpen(false);
-      setSuccessWindowOpen(true);
 
       // Re-fetch Live Balances Immediately
       await refreshBalances();
 
-      // Reset transaction-specific inputs
-      setReference("");
-      setRemarks("");
-
-      showToast("success", `₹${numAmount.toLocaleString("en-IN")} DMT transfer completed to ${beneficiaryName || "beneficiary"}.`);
+      showToast("success", `₹${numAmount.toLocaleString("en-IN")} DMT transfer completed successfully.`);
     } catch (err: any) {
       console.error("DMT error:", err);
-      showToast("error", err.message || "Transfer could not be completed. Please verify UTR and details.");
+      showToast("error", err.message || "Transfer could not be completed. Please verify details.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  // Export CSV Handler
+  const handleExportCsv = () => {
+    const filename = `dmt-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    const headers = [
+      "Transaction No",
+      "Date",
+      "Sender",
+      "Sender Mobile",
+      "Beneficiary",
+      "Bank",
+      "Account",
+      "IFSC",
+      "Transfer Method",
+      "Amount",
+      "Service Fee",
+      "Provider Charge",
+      "Commission",
+      "Status",
+      "Reference",
+    ];
+    const rows = filteredTxns.map((t) => [
+      t.transaction_number,
+      t.transaction_date,
+      t.sender_name || t.customers?.name || "Walk-in",
+      t.customer_mobile || t.sender_mobile || "",
+      t.beneficiary_name || t.receiver_name || "",
+      t.beneficiary_bank || "",
+      t.beneficiary_account || "",
+      t.beneficiary_ifsc || "",
+      t.transfer_method || "bank_account",
+      t.amount,
+      t.service_fee || 0,
+      t.portal_charge || 0,
+      t.portal_commission || 0,
+      t.status,
+      t.reference || "",
+    ]);
+    downloadCsv(filename, headers, rows);
+    showToast("success", "Exported DMT transactions.");
+  };
+
   // Filtered transactions list
   const filteredTxns = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return transactions;
-    return transactions.filter(
-      (t) =>
+    return transactions.filter((t) => {
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
         t.transaction_number?.toLowerCase().includes(q) ||
         t.sender_name?.toLowerCase().includes(q) ||
         t.sender_mobile?.includes(q) ||
@@ -929,8 +1074,11 @@ export default function DmtWorkspace({
         t.beneficiary_account?.includes(q) ||
         t.upi_id?.toLowerCase().includes(q) ||
         t.reference?.toLowerCase().includes(q)
-    );
-  }, [transactions, searchQuery]);
+      );
+    });
+  }, [transactions, searchQuery, statusFilter]);
+
+  const recentTxn = transactions[0] || null;
 
   return (
     <div className="space-y-5 pb-16">
@@ -938,246 +1086,507 @@ export default function DmtWorkspace({
       {toastView}
 
       {/* ===============================================================================
-          1. EXECUTIVE HERO HEADER: Money Transfer (Domestic Remittance Command Center)
+          1. EXECUTIVE HERO HEADER
       =============================================================================== */}
-      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
+      <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 ● DMT SYSTEM ONLINE
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
-                IMPS / NEFT / UPI Payout Gateway
+                IMPS / NEFT / UPI PAYOUT GATEWAY ACTIVE
               </span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">
               Money Transfer
             </h1>
             <p className="text-xs text-indigo-200/80 sm:text-sm">
-              Domestic Remittance Command Center with distinct service fees, provider charges, and transparent business income.
+              Domestic Remittance Command Center with transparent provider wallet, customer payout, service fee and operator income tracking.
             </p>
           </div>
 
-          {/* Live Float Display Badges with Refresh Button */}
+          {/* Top-Right Live Balances Display */}
           <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
             <button
               type="button"
               onClick={refreshBalances}
               disabled={isRefreshingBalances}
-              className="rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+              className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50"
               title="Refresh Live Balances from Database"
             >
-              <span className={`inline-block text-base ${isRefreshingBalances ? "animate-spin" : ""}`}>↻</span>
+              <span className={`inline-block text-base ${isRefreshingBalances ? "animate-spin text-teal-400" : ""}`}>↻</span>
             </button>
-            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">DMT Portal Wallet</span>
-              <div className="text-xl font-black text-emerald-400">{inr(dmtFloat)}</div>
-              <span className="text-[9px] text-slate-400">Available Balance</span>
+            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[160px]">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">DMT PORTAL WALLET</span>
+              <div className={`text-2xl font-black ${dmtFloat < 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                {inr(dmtFloat)}
+              </div>
+              <span className="text-[10px] text-slate-400">Available Balance</span>
             </div>
-            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
-                {selectedBankInstrument?.name || "Shop Bank"}
-              </span>
-              <div className="text-xl font-black text-blue-400">{inr(currentBankBalance)}</div>
-              <span className="text-[9px] text-slate-400">Available Balance</span>
+            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[150px]">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">CASH IN HAND</span>
+              <div className={`text-2xl font-black ${cashInHand < 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                {inr(cashInHand)}
+              </div>
+              <span className="text-[10px] text-slate-400">Available Balance</span>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* ===============================================================================
-          2. SPATIAL FINANCIAL POSITION (7 Compact Bento Tiles)
+          2. DMT POSITION / COMPACT FINANCIAL SUMMARY STRIP
       =============================================================================== */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        {/* 1. Transfers */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Transfers</span>
-          <div className="my-1">
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{todayCount}</div>
-            <p className="text-[10px] text-slate-500">Successful today</p>
+      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3 border-b border-slate-100 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6 dark:border-white/5 min-w-[240px]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-black">
+              ₹
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">DMT POSITION</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  ● RECONCILED
+                </span>
+              </div>
+              <div className="text-lg font-black text-slate-900 dark:text-white">
+                Provider Wallet {inr(dmtFloat)}
+              </div>
+              <Link
+                href="/finance/reconciliation"
+                className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+              >
+                View reconciliation →
+              </Link>
+            </div>
           </div>
-          <span className="text-[10px] text-slate-400 font-medium">100% Settled</span>
-        </div>
 
-        {/* 2. Transfer Volume */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Transfer Volume</span>
-          <div className="my-1">
-            <div className="text-lg font-black text-slate-900 dark:text-white truncate">{inr(todayVolume)}</div>
-            <p className="text-[10px] text-slate-500">Principal Turnover</p>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium">Fiduciary Money</span>
-        </div>
-
-        {/* 3. Customer Collections */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Collections</span>
-          <div className="my-1">
-            <div className="text-lg font-black text-slate-900 dark:text-white truncate">{inr(todayCustomerCollections)}</div>
-            <p className="text-[10px] text-slate-500">Gross Money In</p>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium">Principal + Charges</span>
-        </div>
-
-        {/* 4. Service Fees */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Service Fees</span>
-          <div className="my-1">
-            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayCustomerFees)}</div>
-            <p className="text-[10px] text-slate-500">Customer Surcharge</p>
-          </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Business Income</span>
-        </div>
-
-        {/* 5. Provider Charges */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Provider Charges</span>
-          <div className="my-1">
-            <div className="text-lg font-black text-rose-600 dark:text-rose-400 truncate">-{inr(todayPortalCharges)}</div>
-            <p className="text-[10px] text-slate-500">Platform Cost</p>
-          </div>
-          <span className="text-[10px] text-rose-500 font-medium">Pass-Through Cost</span>
-        </div>
-
-        {/* 6. Net Contribution */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Net Contribution</span>
-          <div className="my-1">
-            <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 truncate">+{inr(todayNetContribution)}</div>
-            <p className="text-[10px] text-slate-500">Revenue - Costs</p>
-          </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Net Margin</span>
-        </div>
-
-        {/* 7. Available Float */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-3.5 dark:bg-slate-900/90">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Available Float</span>
-          <div className="my-1">
-            <div className="text-lg font-black text-indigo-900 dark:text-indigo-300 truncate">{inr(dmtFloat)}</div>
-            <p className="text-[10px] text-slate-500">DMT Portal Wallet</p>
-          </div>
-          <Link href="/finance/settlements" className="text-[10px] text-blue-600 font-bold hover:underline dark:text-blue-400">Top-up Float →</Link>
-        </div>
-      </div>
-
-      {/* ===============================================================================
-          3. MAIN TRANSACTION COMMAND CENTER (8-Step Guided Workflow)
-      =============================================================================== */}
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-        {/* Left (8 Cols): Guided Steps 1 to 8 */}
-        <div className="bento-surface p-5 lg:col-span-8 dark:bg-slate-900/90 space-y-5">
-          {/* Top Bar: Transfer Method Switcher & Scan & Fill CTA */}
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
-            <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">
-              {[
-                { id: "bank_account", label: "🏦 BANK TRANSFER", sub: "IMPS / NEFT" },
-                { id: "upi", label: "⚡ UPI TRANSFER", sub: "Instant VPA" },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setTransferMethod(m.id as any)}
-                  className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${
-                    transferMethod === m.id
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-violet-600 dark:text-white"
-                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                  }`}
-                >
-                  <span>{m.label}</span>
-                  <span className="ml-1.5 text-[10px] opacity-75">({m.sub})</span>
-                </button>
-              ))}
+          {/* Connected Metrics Grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 flex-1 text-center">
+            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TRANSFERS</span>
+              <div className="mt-0.5 text-xs font-black text-slate-900 dark:text-white">{inr(todayVolume)}</div>
+              <span className="text-[9px] text-slate-400">{todayCount} Transfers</span>
             </div>
 
+            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">COLLECTIONS</span>
+              <div className="mt-0.5 text-xs font-black text-slate-900 dark:text-white">{inr(todayCustomerCollections)}</div>
+              <span className="text-[9px] text-slate-400">Gross Payout</span>
+            </div>
+
+            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUSTOMER FEES</span>
+              <div className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">+{inr(todayCustomerFees)}</div>
+              <span className="text-[9px] text-emerald-600/80">Surcharges</span>
+            </div>
+
+            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PROVIDER CHARGES</span>
+              <div className="mt-0.5 text-xs font-black text-rose-600 dark:text-rose-400">-{inr(todayPortalCharges)}</div>
+              <span className="text-[9px] text-rose-500/80">Pass-through</span>
+            </div>
+
+            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">COMMISSION</span>
+              <div className="mt-0.5 text-xs font-black text-teal-600 dark:text-teal-400">+{inr(todayPortalCommission)}</div>
+              <span className="text-[9px] text-teal-600/80">Gateway Credit</span>
+            </div>
+
+            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">VARIANCE</span>
+              <div className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">₹0.00</div>
+              <span className="text-[9px] text-emerald-600/80">Canonical Match</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          3. QUICK OPERATIONS
+      =============================================================================== */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+            DMT OPERATIONS
+          </h2>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setScanModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-violet-500/25 transition hover:brightness-110 active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              title="Scan remittance receipt or SMS"
             >
-              <span>📷 Scan &amp; Fill Receipt / SMS</span>
+              <span>📷</span>
+              <span>Scan &amp; Fill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddBankWindowOpen(true)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <span>+ Add Bank</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddCustomerWindowOpen(true)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <span>+ Add Customer</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddBeneficiaryWindowOpen(true)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <span>+ Add Beneficiary</span>
             </button>
           </div>
+        </div>
 
-          {/* Scanned Information Review Alert */}
-          {scannedReviewData && (
-            <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 text-xs dark:border-violet-900/40 dark:bg-violet-950/20">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-violet-900 dark:text-violet-300">✓ Information Detected from Scan</span>
-                <button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Tile 1: Domestic Money Transfer */}
+          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white shadow-md shadow-indigo-500/20">
+                  💸
+                </div>
+                <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  IMPS / NEFT / UPI
+                </span>
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
-                {scannedReviewData.senderName && <div><span className="text-slate-500">Sender:</span> <strong>{scannedReviewData.senderName}</strong></div>}
-                {scannedReviewData.beneficiaryName && <div><span className="text-slate-500">Beneficiary:</span> <strong>{scannedReviewData.beneficiaryName}</strong></div>}
-                {scannedReviewData.amount && <div><span className="text-slate-500">Amount:</span> <strong>₹{scannedReviewData.amount}</strong></div>}
-                {scannedReviewData.reference && <div><span className="text-slate-500">UTR:</span> <strong>{scannedReviewData.reference}</strong></div>}
-              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">DOMESTIC MONEY TRANSFER</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Send money to any supported bank account or UPI VPA instantly
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Transparent service fees, provider charges, and live wallet settlement
+              </p>
             </div>
-          )}
-
-          {/* STEP 1: SENDER / CUSTOMER (CRM LINK WITH PRIVACY SEARCH >= 2 CHARACTERS) */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 1 · Sender Information</span>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400">Instant IMPS / Realtime UPI</span>
               <button
                 type="button"
-                onClick={() => setAddCustomerWindowOpen(true)}
-                className="text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+                onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition hover:brightness-110 active:scale-[0.98]"
               >
-                + Add Customer to CRM
+                <span>Start Transfer</span>
+                <span>→</span>
               </button>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-              <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Select Registered Customer (Optional)
-                </label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <SearchableSelect
-                      value={selectedCustomerId}
-                      onChange={setSelectedCustomerId}
-                      minSearchLength={2}
-                      minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…"
-                      options={[
-                        { value: "", label: "-- Walk-in Customer --" },
-                        ...customers.map((c) => ({
-                          value: c.id,
-                          label: `${c.name} (${maskMobile(c.phone) || c.code})`,
-                        })),
-                      ]}
-                      placeholder="Search customer (min 2 chars) or select Walk-in…"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAddCustomerWindowOpen(true)}
-                    className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                  >
-                    + Add
-                  </button>
+          {/* Tile 2: DMT Service Portals */}
+          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-violet-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-violet-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-xl text-white shadow-md shadow-violet-500/20">
+                  🌐
+                </div>
+                <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                  {portals.length} Active Gateways
+                </span>
+              </div>
+              <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">DMT SERVICE PORTALS</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Digipay, Ezeepay, RNFI &amp; connected remittance channels
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Authoritative float synchronization and double-entry ledger sync
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-400 truncate max-w-[200px]">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span>
+              <Link
+                href="/business/portals"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              >
+                <span>Manage Portals</span>
+                <span>→</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          4. DMT SERVICE STATUS RAIL
+      =============================================================================== */}
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">DMT SWITCH</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● ONLINE</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">BENEFICIARY</span>
+          <p className="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">● READY</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PAYOUT GATEWAY</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● CONNECTED</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PORTALS</span>
+          <p className="mt-0.5 text-xs font-bold text-violet-600 dark:text-violet-400">● {portals.length} CONNECTED</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SETTLEMENT</span>
+          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">✓ SYNCED</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LAST SYNC</span>
+          <p className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">{lastRefreshedAt}</p>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          5. 5-STAGE DMT OPERATION LIFECYCLE
+      =============================================================================== */}
+      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+            DMT OPERATION LIFECYCLE
+          </h2>
+          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">5-Stage Atomic Flow</span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 1 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+            <span className={`font-mono text-[10px] font-bold ${currentStep >= 1 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>01. IDENTIFY</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Customer &amp; Sender</p>
+            <p className="text-[10px] text-slate-400">Sender CRM &amp; 10-digit mobile</p>
+          </div>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 2 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+            <span className={`font-mono text-[10px] font-bold ${currentStep >= 2 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>02. BENEFICIARY</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Account / VPA</p>
+            <p className="text-[10px] text-slate-400">Bank account or UPI handle</p>
+          </div>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 3 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+            <span className={`font-mono text-[10px] font-bold ${currentStep >= 3 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>03. VERIFY</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Routing &amp; IFSC</p>
+            <p className="text-[10px] text-slate-400">IMPS / NEFT / Gateway check</p>
+          </div>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 4 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+            <span className={`font-mono text-[10px] font-bold ${currentStep >= 4 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>04. TRANSFER</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Principal &amp; Fee</p>
+            <p className="text-[10px] text-slate-400">Collection &amp; provider charges</p>
+          </div>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 5 ? "bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+            <span className={`font-mono text-[10px] font-bold ${currentStep >= 5 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>05. SETTLE</span>
+            <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Disburse &amp; Sync</p>
+            <p className="text-[10px] text-slate-400">Float sync &amp; double-entry ledger</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===============================================================================
+          6. MAIN DMT OPERATION WORKSPACE (SIDE-BY-SIDE: TERMINAL + SETTLEMENT CONFIRMATION)
+      =============================================================================== */}
+      <div ref={formRef} className="space-y-4">
+        {/* Success Confirmation Card (When transaction has just completed) */}
+        {lastCompletedTxn && (
+          <div className="relative overflow-hidden rounded-[24px] border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-indigo-500/5 to-slate-900/40 p-5 sm:p-6 backdrop-blur-md dark:border-emerald-500/30 shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-500/20 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-xl text-white shadow-md shadow-emerald-500/30">
+                  ✓
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-emerald-900 dark:text-emerald-300">
+                    DMT TRANSFER COMPLETED SUCCESSFULLY
+                  </h3>
+                  <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                    Deterministic remittance ledger updated and provider wallet synchronized.
+                  </p>
                 </div>
               </div>
 
+              <button
+                type="button"
+                onClick={handleNewTransfer}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-md hover:bg-emerald-700 transition"
+              >
+                <span>+ New Transfer</span>
+              </button>
+            </div>
+
+            {/* Completed Transaction Details Grid */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 rounded-2xl bg-white/70 p-4 dark:bg-white/5 border border-emerald-500/10 text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">TXN NUMBER:</span>
+                <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">{lastCompletedTxn.transaction_number}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">SENDER:</span>
+                <p className="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{lastCompletedTxn.sender_name || lastCompletedTxn.customers?.name || "Walk-in"}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">BENEFICIARY:</span>
+                <p className="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{lastCompletedTxn.beneficiary_name || lastCompletedTxn.receiver_name || "Beneficiary"}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">TRANSFER AMOUNT:</span>
+                <p className="font-black text-slate-900 dark:text-white mt-0.5">{inr(lastCompletedTxn.amount)}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">TOTAL DEBIT:</span>
+                <p className="font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {inr(Number(lastCompletedTxn.amount || 0) + Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_charge || 0))}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">OPERATOR INCOME:</span>
+                <p className="font-black text-teal-600 dark:text-teal-400 mt-0.5">
+                  +{inr(Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_commission || 0) - Number(lastCompletedTxn.portal_charge || 0))}
+                </p>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/business/receipt/${lastCompletedTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
+                  target="_blank"
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 dark:bg-indigo-600"
+                >
+                  🖨️ Thermal Receipt
+                </Link>
+                <Link
+                  href={`/business/receipt/${lastCompletedTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
+                  target="_blank"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  📄 A4 Invoice
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleOpenWhatsApp(lastCompletedTxn)}
+                  className="rounded-xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                >
+                  💬 Send WhatsApp
+                </button>
+              </div>
+
+              {/* Receipt Mode Toggle */}
+              <div className="flex items-center rounded-xl bg-white/80 p-1 text-[11px] font-bold border border-slate-200 dark:bg-white/5 dark:border-white/10">
+                <span className="text-slate-400 pl-1.5 pr-2">Receipt:</span>
+                <button
+                  type="button"
+                  onClick={() => setReceiptMode("basic")}
+                  className={`rounded-lg px-2 py-1 transition ${receiptMode === "basic" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`}
+                >
+                  Basic (Customer)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReceiptMode("detailed")}
+                  className={`rounded-lg px-2 py-1 transition ${receiptMode === "detailed" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`}
+                >
+                  Detailed (With Fee)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Side-by-Side Workspace Layout */}
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+          {/* LEFT: DMT Transfer Terminal (8 cols) */}
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-8 space-y-5">
+            {/* Header & Mode Switcher */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-white/5">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  DMT TRANSFER TERMINAL
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Instant domestic remittance via IMPS, NEFT or UPI payout gateway.
+                </p>
+              </div>
+
+              {/* Transfer Mode Pills */}
+              <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold dark:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setTransferMethod("bank_account")}
+                  className={`rounded-lg px-3 py-1.5 transition ${
+                    transferMethod === "bank_account"
+                      ? "bg-white text-slate-900 shadow-xs dark:bg-indigo-600 dark:text-white"
+                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  🏦 Bank Account (IMPS/NEFT)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransferMethod("upi")}
+                  className={`rounded-lg px-3 py-1.5 transition ${
+                    transferMethod === "upi"
+                      ? "bg-white text-slate-900 shadow-xs dark:bg-indigo-600 dark:text-white"
+                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  ⚡ UPI VPA (Instant)
+                </button>
+              </div>
+            </div>
+
+            {/* Form Fields Grid */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* 1. Sender / Customer Attribution */}
+              <div className="space-y-1 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Sender / Customer (Optional Attribution)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAddCustomerWindowOpen(true)}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    + New Customer
+                  </button>
+                </div>
+                <SearchableSelect
+                  options={[
+                    { value: "", label: "-- Walk-in Sender (No CRM Profile) --" },
+                    ...customers.map((c) => ({
+                      value: c.id,
+                      label: `${c.name}${c.phone ? ` (${c.phone})` : ""}`,
+                    })),
+                  ]}
+                  value={selectedCustomerId}
+                  onChange={(val) => setSelectedCustomerId(val)}
+                  placeholder="Search sender by name or mobile…"
+                />
+              </div>
+
+              {/* Sender Name & Mobile */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Sender Name (Optional)
+                  Sender Name
                 </label>
                 <input
                   type="text"
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Full name of remitter (defaults to Walk-in)"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Sender Mobile Number (Optional)
+                  Sender Mobile (10-Digit)
                 </label>
                 <input
                   type="tel"
@@ -1185,1188 +1594,915 @@ export default function DmtWorkspace({
                   value={senderMobile}
                   onChange={(e) => setSenderMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="10-digit mobile number"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs outline-none transition focus:bg-white dark:focus:bg-slate-900 ${
+                    senderMobile.length > 0 && senderMobile.length !== 10
+                      ? "border-rose-300 bg-rose-50/30 text-rose-900 focus:border-rose-500 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300"
+                      : "border-slate-200 bg-slate-50/50 text-slate-900 focus:border-indigo-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  }`}
                 />
+                {senderMobile.length > 0 && senderMobile.length !== 10 && (
+                  <p className="text-[10px] text-rose-500">Mobile must be exactly 10 digits.</p>
+                )}
               </div>
-            </div>
-          </div>
 
-          {/* STEP 2 & 3: BENEFICIARY / DESTINATION (ALL BENEFICIARY IDENTIFIERS OPTIONAL) */}
-          <div className="space-y-2.5 pt-1">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 2 &amp; 3 · Beneficiary &amp; Bank Destination</span>
-              <button
-                type="button"
-                onClick={() => setAddBeneficiaryWindowOpen(true)}
-                className="text-[11px] font-bold text-violet-600 hover:underline dark:text-violet-400"
-              >
-                + Add Beneficiary
-              </button>
-            </div>
+              {/* Beneficiary Quick Suggestions */}
+              {beneficiarySuggestions.length > 0 && (
+                <div className="sm:col-span-2 space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      QUICK BENEFICIARY SUGGESTIONS
+                    </span>
+                    <span className="text-[10px] text-slate-400">Click to autofill</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {beneficiarySuggestions.map((b, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setBeneficiaryName(b.name);
+                          if (b.upi) {
+                            setUpiId(b.upi);
+                            setTransferMethod("upi");
+                          } else {
+                            setBeneficiaryBank(b.bank);
+                            setBeneficiaryIfsc(b.ifsc);
+                            setBeneficiaryAccount(b.account);
+                            setTransferMethod("bank_account");
+                          }
+                        }}
+                        className="rounded-xl border border-slate-200 bg-slate-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:border-indigo-400 hover:bg-indigo-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                      >
+                        👤 {b.name} {b.bank ? `· ${b.bank}` : ""} ({b.account ? maskAccount(b.account) : b.upi})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            {/* Quick Beneficiary Chips */}
-            {beneficiarySuggestions.length > 0 && (
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400">Recent Beneficiaries:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {beneficiarySuggestions.map((s, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setBeneficiaryName(s.name);
-                        setBeneficiaryBank(s.bank);
-                        setBeneficiaryIfsc(s.ifsc);
-                        setBeneficiaryAccount(s.account);
-                        if (s.upi) {
-                          setUpiId(s.upi);
-                          setTransferMethod("upi");
-                        } else {
-                          setTransferMethod("bank_account");
-                        }
+              {/* 2. Beneficiary Section */}
+              {transferMethod === "bank_account" ? (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Beneficiary Name
+                    </label>
+                    <input
+                      type="text"
+                      value={beneficiaryName}
+                      onChange={(e) => setBeneficiaryName(e.target.value)}
+                      placeholder="e.g. Suman Mondal"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Beneficiary Mobile (Optional)
+                    </label>
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      value={beneficiaryMobile}
+                      onChange={(e) => setBeneficiaryMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="10-digit mobile"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                    />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Beneficiary Bank <span className="text-rose-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAddBankWindowOpen(true)}
+                        className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                      >
+                        + Add Bank
+                      </button>
+                    </div>
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "-- Select Beneficiary Bank --" },
+                        ...banks.map((b) => ({ value: b.name, label: b.name })),
+                      ]}
+                      value={beneficiaryBank}
+                      onChange={(val) => setBeneficiaryBank(val)}
+                      placeholder="Search bank name…"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Account Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={beneficiaryAccount}
+                      onChange={(e) => setBeneficiaryAccount(e.target.value.replace(/\s+/g, ""))}
+                      placeholder="Enter account number"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 font-mono text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900 font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Bank IFSC Code <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={11}
+                      value={beneficiaryIfsc}
+                      onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
+                      placeholder="e.g. SBIN0001234"
+                      className={`w-full rounded-xl border px-3.5 py-2.5 font-mono text-xs outline-none transition focus:bg-white dark:focus:bg-slate-900 font-bold ${
+                        beneficiaryIfsc.length > 0 && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc)
+                          ? "border-rose-300 bg-rose-50/30 text-rose-900 focus:border-rose-500 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300"
+                          : "border-slate-200 bg-slate-50/50 text-slate-900 focus:border-indigo-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                      }`}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Beneficiary UPI ID (VPA) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value.trim().toLowerCase())}
+                      placeholder="e.g. username@oksbi or 9876543210@paytm"
+                      className={`w-full rounded-xl border px-3.5 py-2.5 font-mono text-xs outline-none transition focus:bg-white dark:focus:bg-slate-900 font-bold ${
+                        upiId.length > 0 && !upiId.includes("@")
+                          ? "border-rose-300 bg-rose-50/30 text-rose-900 focus:border-rose-500 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300"
+                          : "border-slate-200 bg-slate-50/50 text-slate-900 focus:border-indigo-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Receiver / Beneficiary Name
+                    </label>
+                    <input
+                      type="text"
+                      value={receiverName}
+                      onChange={(e) => {
+                        setReceiverName(e.target.value);
+                        setBeneficiaryName(e.target.value);
                       }}
-                      className="rounded-xl border border-slate-200 bg-slate-100/70 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-violet-50 hover:border-violet-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                      placeholder="e.g. Suman Mondal"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* 3. Disbursement Route / Funding Channel */}
+              <div className="space-y-1 sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Payout Funding Channel <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaidFrom("portal")}
+                    className={`rounded-xl border p-2.5 text-left transition ${
+                      paidFrom === "portal"
+                        ? "border-indigo-600 bg-indigo-50/80 shadow-xs dark:border-indigo-500 dark:bg-indigo-950/30"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">
+                      🌐 DMT Portal Float
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      Available: {inr(dmtFloat)}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaidFrom("bank")}
+                    className={`rounded-xl border p-2.5 text-left transition ${
+                      paidFrom === "bank"
+                        ? "border-indigo-600 bg-indigo-50/80 shadow-xs dark:border-indigo-500 dark:bg-indigo-950/30"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">
+                      🏦 Bank Account
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      Available: {inr(currentBankBalance)}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Portal Selector if Paid From Portal */}
+              {paidFrom === "portal" && (
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    DMT Provider Gateway <span className="text-rose-500">*</span>
+                  </label>
+                  <SearchableSelect
+                    options={portals.map((p) => ({ value: p.id, label: p.name }))}
+                    value={selectedPortalId}
+                    onChange={(val) => setSelectedPortalId(val)}
+                    placeholder="Select remittance portal…"
+                  />
+                </div>
+              )}
+
+              {/* 4. Financial Inputs: Amount, Fee, Portal Charge, Commission */}
+              <div className="space-y-1 sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Transfer Amount (₹) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="any"
+                  required
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-lg font-black text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
+                />
+
+                {/* Quick Amount Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1.5">
+                  {[500, 1000, 2000, 5000, 10000].map((quickAmt) => (
+                    <button
+                      key={quickAmt}
+                      type="button"
+                      onClick={() => setAmount(String(quickAmt))}
+                      className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-xs transition hover:border-indigo-400 hover:bg-indigo-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
-                      {s.name} {s.account ? `(${maskAccount(s.account)})` : s.upi ? `(${s.upi})` : ""}
+                      +₹{quickAmt >= 1000 ? `${quickAmt / 1000}K` : quickAmt}
                     </button>
                   ))}
                 </div>
               </div>
-            )}
 
-            {transferMethod === "bank_account" ? (
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Account Number (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={beneficiaryAccount}
-                    onChange={(e) => setBeneficiaryAccount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 100023456789 (Optional)"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-widest outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    IFSC Code (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={11}
-                    value={beneficiaryIfsc}
-                    onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase())}
-                    placeholder="e.g. SBIN0001234 (Optional)"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={beneficiaryName}
-                    onChange={(e) => setBeneficiaryName(e.target.value)}
-                    placeholder="Recipient name (Optional)"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Beneficiary Bank Name (Optional)
-                    </label>
-                    {matchedBeneficiaryBank && (
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[140px]">
-                        ✓ Authoritative Match
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={beneficiaryBank}
-                    onChange={(e) => setBeneficiaryBank(e.target.value)}
-                    placeholder="e.g. State Bank of India (Optional)"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary UPI ID (VPA) (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={upiId}
-                    onChange={(e) => setUpiId(e.target.value.toLowerCase())}
-                    placeholder="e.g. rahul@oksbi / 9876543210@paytm (Optional)"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wide outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-                  />
-                </div>
-
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Receiver Display Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={receiverName}
-                    onChange={(e) => setReceiverName(e.target.value)}
-                    placeholder="Recipient verified display name (Optional)"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* STEP 4 & 5: TRANSFER AMOUNT, SERVICE FEE, PORTAL CHARGE & COMMISSION */}
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4 &amp; 5 · Transfer Amount &amp; Charges Breakdown</span>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Transfer Principal Amount (₹) <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="5000"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
-                />
-              </div>
-
-              {/* Quick Amount Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                {["500", "1000", "2000", "3000", "5000", "10000", "25000"].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setAmount(v)}
-                    className={`rounded-xl border px-3 py-1 text-xs font-black transition ${
-                      amount === v
-                        ? "border-violet-600 bg-violet-600 text-white shadow-xs"
-                        : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                    }`}
-                  >
-                    ₹{Number(v).toLocaleString("en-IN")}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {/* 1. Customer Service Fee */}
+              {/* Fee, Provider Charge & Commission Row */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Customer Service Fee (₹)
-                  </label>
-                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Our Income</span>
-                </div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer Service Fee (₹)
+                </label>
                 <input
                   type="number"
+                  min="0"
+                  step="any"
                   value={serviceFee}
                   onChange={(e) => setServiceFee(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  placeholder="Fee charged to customer"
+                  placeholder="0.00"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900 font-bold"
                 />
               </div>
 
-              {/* 2. Portal / Provider Charge */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Portal / Provider Charge (₹)
-                  </label>
-                  <span className="text-[9px] font-bold text-rose-500">Provider Cost</span>
-                </div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Portal / Provider Charge (₹)
+                </label>
                 <input
                   type="number"
+                  min="0"
+                  step="any"
                   value={portalCharge}
                   onChange={(e) => setPortalCharge(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  placeholder="Provider fee charged to us"
+                  placeholder="0.00"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900 font-bold"
                 />
               </div>
 
-              {/* 3. Portal Commission */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Portal Commission (₹)
-                  </label>
-                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Our Margin</span>
-                </div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Portal Commission (₹)
+                </label>
                 <input
                   type="number"
+                  min="0"
+                  step="any"
                   value={portalCommission}
                   onChange={(e) => setPortalCommission(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  placeholder="Commission from provider"
+                  placeholder="0.00"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900 font-bold text-teal-600 dark:text-teal-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer Pays Via <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  {[
+                    { id: "cash", label: "💵 Cash" },
+                    { id: "upi", label: "📱 UPI" },
+                    { id: "bank", label: "🏦 Bank" },
+                    { id: "due", label: "📋 Khata" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setCustomerPayMethod(m.id as any)}
+                      className={`rounded-xl border p-2 text-center text-xs font-bold transition ${
+                        customerPayMethod === m.id
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs dark:bg-indigo-950/40 dark:text-indigo-200"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reference & Remarks */}
+              <div className="space-y-1 sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Bank Reference / UTR Number <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  placeholder="12-digit Bank Reference / UTR Number (Mandatory for Compliance)"
+                  className={`w-full rounded-xl border px-3.5 py-2.5 font-mono text-xs outline-none transition focus:bg-white dark:focus:bg-slate-900 font-bold ${
+                    reference.length > 0 && reference.trim().length < 6
+                      ? "border-rose-300 bg-rose-50/30 text-rose-900 focus:border-rose-500 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300"
+                      : "border-slate-200 bg-slate-50/50 text-slate-900 focus:border-indigo-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Remarks / Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="Optional audit notes…"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
                 />
               </div>
             </div>
           </div>
 
-          {/* STEP 6 & 7: FUNDING SOURCE & COLLECTION METHOD */}
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 6 &amp; 7 · Funding Source &amp; Customer Collection</span>
-              <button
-                type="button"
-                onClick={refreshBalances}
-                disabled={isRefreshingBalances}
-                className="text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
-              >
-                ↻ Refresh Live Float
-              </button>
-            </div>
-
-            {/* Funding Source (Disbursement) */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Transfer Funding Source (Disbursement) <span className="text-rose-500">*</span>
-              </label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setPaidFrom("portal")}
-                  className={`rounded-2xl border p-2.5 text-left transition ${
-                    paidFrom === "portal"
-                      ? "border-violet-600 bg-violet-50/80 shadow-xs dark:border-violet-500 dark:bg-violet-950/30"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 dark:text-white">👛 DMT Portal Wallet</span>
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{inr(dmtFloat)}</span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                    Disburses {inr(numAmount)} principal from live DMT gateway wallet pool.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaidFrom("bank")}
-                  className={`rounded-2xl border p-2.5 text-left transition ${
-                    paidFrom === "bank"
-                      ? "border-violet-600 bg-violet-50/80 shadow-xs dark:border-violet-500 dark:bg-violet-950/30"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 dark:text-white">
-                      🏦 {selectedBankInstrument?.name || "Shop Bank Account"}
-                    </span>
-                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{inr(currentBankBalance)}</span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                    Disburses {inr(numAmount)} principal from shop bank account via Net Banking.
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            {/* Select Bank Instrument if multiple shop bank accounts */}
-            {paidFrom === "bank" && liveInstruments.length > 1 && (
-              <div className="space-y-1 pt-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Select Shop Bank Account
-                </label>
-                <select
-                  value={selectedBankInstrumentId}
-                  onChange={(e) => setSelectedBankInstrumentId(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                >
-                  {liveInstruments.map((inst) => (
-                    <option key={inst.id} value={inst.id}>
-                      {inst.name} ({inr(Number(inst.current_balance ?? bankPoolFloat ?? 0))})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Float Insufficiency Alert Guard */}
-            {isFloatInsufficient && (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
-                <div className="flex items-center gap-1.5 font-black">
-                  <span>⚠ INSUFFICIENT {paidFrom === "portal" ? "DMT PORTAL FLOAT" : "BANK BALANCE"}</span>
-                </div>
-                <div className="mt-1 grid grid-cols-3 gap-2 text-[11px]">
-                  <div><span className="text-slate-500">Required:</span> <strong>{inr(numAmount)}</strong></div>
-                  <div><span className="text-slate-500">Available:</span> <strong>{inr(availableSelectedFloat)}</strong></div>
-                  <div><span className="text-rose-600">Shortfall:</span> <strong className="text-rose-600">{inr(floatShortfall)}</strong></div>
-                </div>
-                <p className="mt-1 text-[10px] text-slate-500">Transaction submission is blocked to protect against negative settlement float.</p>
-              </div>
-            )}
-
-            {/* Customer Collection Instrument */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer Paid You Via (Collection Method) <span className="text-rose-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {[
-                  { id: "cash", label: "💵 Cash Drawer", desc: "Cash Inflow" },
-                  { id: "upi", label: "📱 UPI QR", desc: "Merchant QR" },
-                  { id: "bank", label: "🏦 Bank Deposit", desc: "Direct Bank" },
-                  { id: "due", label: "📋 Customer Khata", desc: "Post to Due" },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setCustomerPayMethod(m.id as any)}
-                    className={`rounded-xl border p-2 text-center transition ${
-                      customerPayMethod === m.id
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
-                    }`}
-                  >
-                    <div className="text-xs font-bold">{m.label}</div>
-                    <div className="text-[10px] text-slate-400">{m.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* STEP 8: BANK REFERENCE / UTR */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Bank Reference / UTR Number <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="12-digit UTR / RRN / IMPS Auth Reference"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Right (4 Cols): DMT Money Flow Visualizer & Live Order Review */}
-        <div className="bento-surface p-5 lg:col-span-4 dark:bg-slate-900/90 space-y-4">
-          <div className="border-b border-slate-100 pb-2.5 dark:border-white/5">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 9 · Review &amp; Settlement</span>
-            <h3 className="text-base font-black text-slate-900 dark:text-white">DMT Money Flow Visualizer</h3>
-          </div>
-
-          {/* VISUAL MONEY FLOW MAP */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs dark:border-white/10 dark:bg-white/5 space-y-3">
-            {/* Leg 1: Customer Collection */}
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Customer Total Collection</span>
-                <div className="font-black text-slate-900 dark:text-white text-base">{inr(totalCollected)}</div>
-              </div>
-              <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
-                via {customerPayMethod.toUpperCase()}
-              </span>
-            </div>
-
-            {/* Leg 2: Principal, Fee & Provider Charge Breakdown */}
-            <div className="space-y-1 rounded-xl bg-white p-2.5 text-[11px] shadow-xs dark:bg-slate-900">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Transfer Principal:</span>
-                <span className="font-bold">{inr(numAmount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Customer Service Fee:</span>
-                <span className="font-bold text-emerald-600">+{inr(numFee)}</span>
-              </div>
-              {numCharge > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Portal / Provider Charge:</span>
-                  <span className="font-bold text-rose-500">+{inr(numCharge)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Leg 3: Beneficiary Disbursed */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-white/10">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">2. Beneficiary Receives</span>
-                <div className="font-black text-indigo-900 dark:text-indigo-300 text-sm">{inr(numAmount)}</div>
-              </div>
-              <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                from {paidFrom === "portal" ? "PORTAL" : "BANK"}
-              </span>
-            </div>
-
-            {/* Leg 4: Operator Margin Breakdown */}
-            <div className="space-y-1 rounded-xl bg-emerald-50/50 p-2.5 text-[11px] dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Business Revenue (Fee + Comm):</span>
-                <span className="font-bold text-emerald-700 dark:text-emerald-400">+{inr(businessRevenue)}</span>
-              </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Provider Cost (Charge):</span>
-                <span className="font-bold text-rose-600 dark:text-rose-400">-{inr(providerCost)}</span>
-              </div>
-              <div className="flex justify-between items-center pt-1 border-t border-emerald-200 dark:border-emerald-800/40 text-xs">
-                <span className="font-bold text-slate-900 dark:text-white">Net DMT Contribution:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400">+{inr(netContribution)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed Summary Metrics */}
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Customer:</span>
-              <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
-                {senderName || "Walk-in Customer"}
-              </strong>
-            </div>
-
-            <div className="flex justify-between">
-              <span className="text-slate-500">Beneficiary:</span>
-              <strong className="text-slate-900 dark:text-white truncate max-w-[160px]">
-                {transferMethod === "upi" ? (upiId || "Pending / Optional") : (beneficiaryName || beneficiaryAccount ? maskAccount(beneficiaryAccount) : "Pending / Optional")}
-              </strong>
-            </div>
-
-            <div className="flex justify-between">
-              <span className="text-slate-500">Transfer Method:</span>
-              <strong className="text-slate-900 dark:text-white">
-                {transferMethod === "bank_account" ? "Bank IMPS/NEFT" : "UPI Remittance"}
-              </strong>
-            </div>
-
-            <div className="flex justify-between">
-              <span className="text-slate-500">Funding Balance:</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">
-                {inr(availableSelectedFloat)} ({paidFrom === "portal" ? "DMT Portal" : "Shop Bank"})
-              </strong>
-            </div>
-
-            {/* Receipt Print Preference */}
-            <div className="border-t border-slate-100 pt-2 dark:border-white/5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500 font-bold">Receipt Format:</span>
-                <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5">
-                  <button
-                    type="button"
-                    onClick={() => setReceiptMode("basic")}
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                      receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-violet-600 dark:text-white" : "text-slate-500"
-                    }`}
-                  >
-                    Basic (Amount Only)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptMode("detailed")}
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
-                      receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-violet-600 dark:text-white" : "text-slate-500"
-                    }`}
-                  >
-                    Detailed
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Primary Action Button */}
-          <div className="space-y-2 pt-1">
-            <button
-              type="button"
-              onClick={handleInitiateTransfer}
-              disabled={isFloatInsufficient}
-              className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ✓ Confirm &amp; Transfer {inr(numAmount)}
-            </button>
-            <div className="text-center text-[10px] text-slate-400 space-y-0.5">
-              <p>Customer Collection: <strong>{inr(totalCollected)}</strong> · Beneficiary: <strong>{inr(numAmount)}</strong> · Net Margin: <strong className="text-emerald-600">+{inr(netContribution)}</strong></p>
-              <p>Shortcut: <strong>Ctrl + Enter</strong> to initiate transfer</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ===============================================================================
-          4. FINANCIAL AUDIT & RECONCILIATION PANEL
-      =============================================================================== */}
-      <div className="bento-surface p-4 dark:bg-slate-900/90 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2 dark:border-white/5">
-          <div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">DMT Financial Reconciliation</h4>
-            <p className="text-[11px] text-slate-400">All remittance transfers are isolated from retail trading revenue and balanced against cash/digital pools.</p>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs font-bold pt-1 sm:pt-0">
-            <Link href="/finance/cashbook" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">View Cashbook →</Link>
-            <Link href="/customers" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Customer Ledger →</Link>
-            <Link href="/finance/settlements" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Settlements →</Link>
-            <Link href="/finance/pnl" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">P&amp;L →</Link>
-            <Link href="/reports" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Reports →</Link>
-            <Link href="/audit" className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300">Audit Trail →</Link>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-6">
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-slate-900 dark:text-white">{inr(numAmount)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Customer Collection:</span> <div className="font-black text-slate-900 dark:text-white">{inr(totalCollected)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Service Fee (Income):</span> <div className="font-black text-emerald-600">+{inr(numFee)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Portal Charge (Cost):</span> <div className="font-black text-rose-500">-{inr(numCharge)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Portal Commission:</span> <div className="font-black text-emerald-600">+{inr(numComm)}</div></div>
-          <div className="rounded-xl bg-slate-50 p-2 dark:bg-white/5"><span className="text-slate-400">Net Contribution:</span> <div className="font-black text-emerald-600">+{inr(netContribution)}</div></div>
-        </div>
-      </div>
-
-      {/* ===============================================================================
-          5. DMT ANALYTICS & TRANSACTION ACTIVITY WORKSPACE
-      =============================================================================== */}
-      <div className="bento-surface p-5 dark:bg-slate-900/90 space-y-4">
-        {/* Navigation Switcher between Activity Ledger & Analytics Dimensions */}
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[
-              { id: "overview", label: "Transaction Activity" },
-              { id: "bank", label: "By Bank" },
-              { id: "portal", label: "By Portal" },
-              { id: "method", label: "By Transfer Method" },
-              { id: "collection", label: "By Collection Method" },
-              { id: "funding", label: "By Funding Source" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setAnalyticsTab(tab.id as any)}
-                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                  analyticsTab === tab.id
-                    ? "bg-slate-900 text-white shadow-xs dark:bg-violet-600"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by UTR, customer, beneficiary, or account…"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-          />
-        </div>
-
-        {/* Dynamic Content Based on Analytics Tab */}
-        {analyticsTab === "overview" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-400 dark:border-white/10">
-                  <th className="pb-2 font-bold">Txn / Time</th>
-                  <th className="pb-2 font-bold">Customer</th>
-                  <th className="pb-2 font-bold">Beneficiary &amp; Destination</th>
-                  <th className="pb-2 font-bold text-right">Transfer</th>
-                  <th className="pb-2 font-bold text-center">Collection</th>
-                  <th className="pb-2 font-bold text-center">Funding</th>
-                  <th className="pb-2 font-bold text-right">Fee</th>
-                  <th className="pb-2 font-bold text-right">Charge</th>
-                  <th className="pb-2 font-bold text-right">Net</th>
-                  <th className="pb-2 font-bold text-center">Status</th>
-                  <th className="pb-2 font-bold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">
-                {filteredTxns.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="py-7 text-center text-slate-400">
-                      No DMT transactions found. Process a money transfer above to see records.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTxns.slice(0, 15).map((t) => {
-                    const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
-                    const txnFee = Number(t.service_fee || 0);
-                    const txnCharge = Number(t.portal_charge || 0);
-                    const txnComm = Number(t.portal_commission || 0);
-                    const txnCollection = Number(t.amount || 0) + txnFee + txnCharge;
-                    const txnNet = (txnFee + txnComm) - txnCharge;
-
-                    return (
-                      <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                        <td className="py-2.5">
-                          <div className="font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {t.transaction_timestamp ? new Date(t.transaction_timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : t.transaction_date}
-                          </div>
-                        </td>
-                        <td className="py-2.5">
-                          <div className="font-bold text-slate-900 dark:text-white">{t.sender_name || t.customers?.name || "Walk-in"}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {t.sender_mobile ? `📱 ${maskMobile(t.sender_mobile)}` : ""}
-                          </div>
-                        </td>
-                        <td className="py-2.5">
-                          <div className="font-bold text-slate-900 dark:text-white">
-                            {t.beneficiary_name || t.receiver_name || "Beneficiary"}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {t.transfer_method === "upi" ? (
-                              <span>{t.upi_id || "UPI VPA"}</span>
-                            ) : (
-                              <span>{t.beneficiary_bank || "Bank"} {t.beneficiary_account ? `• ${maskAccount(t.beneficiary_account)}` : ""}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-right font-black text-slate-900 dark:text-white">
-                          {inr(t.amount)}
-                        </td>
-                        <td className="py-2.5 text-center">
-                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                            {(t.customer_pay_method || "CASH").toUpperCase()} {inr(txnCollection)}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-center">
-                          <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-                            {(t.paid_from || "PORTAL").toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                          +{inr(txnFee)}
-                        </td>
-                        <td className="py-2.5 text-right font-medium text-rose-600 dark:text-rose-400">
-                          -{inr(txnCharge)}
-                        </td>
-                        <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
-                          +{inr(txnNet)}
-                        </td>
-                        <td className="py-2.5 text-center">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            t.status === "reversed"
-                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
-                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                          }`}>
-                            {t.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Link
-                              href={receiptUrl}
-                              target="_blank"
-                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                              title="Print 80mm Receipt"
-                            >
-                              🖨️
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedDetailTxn(t)}
-                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400"
-                              title="View Transaction Audit Breakdown"
-                            >
-                              👁
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(t)}
-                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 dark:bg-white/5 dark:text-blue-400"
-                              title="Edit Non-Financial Reference"
-                            >
-                              ✏️
-                            </button>
-                            {t.status === "success" && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReverse(t)}
-                                className="rounded-lg bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400"
-                                title="Reverse Transaction"
-                              >
-                                ↩️
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          /* Analytics Breakdown Views */
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(() => {
-              const groupingKey =
-                analyticsTab === "bank"
-                  ? "beneficiary_bank"
-                  : analyticsTab === "portal"
-                  ? "portal_id"
-                  : analyticsTab === "method"
-                  ? "transfer_method"
-                  : analyticsTab === "collection"
-                  ? "customer_pay_method"
-                  : "paid_from";
-
-              const map = new Map<string, { count: number; volume: number; revenue: number; cost: number; net: number }>();
-              for (const t of transactions) {
-                if (t.service_type !== "dmt" || t.status !== "success") continue;
-                let rawVal = (t as any)[groupingKey] || "Other / Unassigned";
-                if (analyticsTab === "portal") {
-                  rawVal = portals.find((p) => p.id === rawVal)?.name || "Default Portal";
-                }
-                const cur = map.get(rawVal) || { count: 0, volume: 0, revenue: 0, cost: 0, net: 0 };
-                cur.count++;
-                cur.volume += Number(t.amount || 0);
-                const r = Number(t.service_fee || 0) + Number(t.portal_commission || 0);
-                const c = Number(t.portal_charge || 0);
-                cur.revenue += r;
-                cur.cost += c;
-                cur.net += (r - c);
-                map.set(rawVal, cur);
-              }
-
-              const rows = Array.from(map.entries()).sort((a, b) => b[1].volume - a[1].volume);
-
-              if (rows.length === 0) {
-                return (
-                  <div className="col-span-full py-8 text-center text-xs text-slate-400">
-                    No transactions recorded for this breakdown dimension yet.
-                  </div>
-                );
-              }
-
-              return rows.map(([label, metrics], idx) => (
-                <div key={idx} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5 dark:border-white/10 dark:bg-white/5 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-900 dark:text-white capitalize text-xs">{label}</span>
-                    <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                      {metrics.count} txns
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Volume:</span>
-                    <strong className="text-slate-900 dark:text-white">{inr(metrics.volume)}</strong>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Revenue:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400">+{inr(metrics.revenue)}</strong>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Provider Cost:</span>
-                    <strong className="text-rose-600 dark:text-rose-400">-{inr(metrics.cost)}</strong>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1 border-t border-slate-200 dark:border-white/10">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">Net Margin:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(metrics.net)}</strong>
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        )}
-      </div>
-
-      {/* ===============================================================================
-          6. CONFIRMATION REVIEW MODAL
-      =============================================================================== */}
-      {confirmWindowOpen && (
-        <FloatingWindow
-          isOpen={confirmWindowOpen}
-          size="sm"
-          title="CONFIRM DMT TRANSFER"
-          onClose={() => setConfirmWindowOpen(false)}
-        >
-          <div className="p-5 space-y-4">
-            <div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2 dark:bg-white/5">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Customer:</span>
-                <strong className="text-slate-900 dark:text-white">{senderName || "Walk-in Customer"}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Beneficiary:</span>
-                <strong className="text-slate-900 dark:text-white">
-                  {transferMethod === "upi" ? (upiId || "UPI VPA (Optional)") : `${beneficiaryName || "Beneficiary"} ${beneficiaryAccount ? `(${maskAccount(beneficiaryAccount)})` : ""}`}
-                </strong>
-              </div>
-              {transferMethod === "bank_account" && beneficiaryIfsc && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Bank &amp; IFSC:</span>
-                  <strong className="text-slate-900 dark:text-white">{beneficiaryIfsc} · {beneficiaryBank || "Bank"}</strong>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10">
-                <span className="text-slate-500">Transfer Principal:</span>
-                <strong className="text-base text-slate-900 dark:text-white">{inr(numAmount)}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Customer Service Fee:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(numFee)}</strong>
-              </div>
-              {numCharge > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Portal / Provider Charge:</span>
-                  <strong className="text-rose-500 font-bold">+{inr(numCharge)}</strong>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-slate-200 pt-1 dark:border-white/10">
-                <span className="text-slate-500">Customer Pays:</span>
-                <strong className="text-slate-900 dark:text-white font-black">{inr(totalCollected)} via {customerPayMethod.toUpperCase()}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Funding:</span>
-                <strong className="text-slate-900 dark:text-white">
-                  {paidFrom === "portal" ? "DMT PORTAL" : (selectedBankInstrument?.name || "SHOP BANK")}
-                </strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">UTR / Reference:</span>
-                <strong className="text-slate-900 dark:text-white">{reference}</strong>
-              </div>
-              <div className="flex justify-between border-t border-slate-200 pt-1.5 dark:border-white/10">
-                <span className="text-slate-500 font-bold">Net Business Contribution:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">+{inr(netContribution)} (Rev {inr(businessRevenue)} - Cost {inr(providerCost)})</strong>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500">
-              Please verify recipient account details before confirming. Remittances cannot be recalled after submission.
-            </p>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setConfirmWindowOpen(false)}
-                disabled={isSubmitting}
-                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleProcessTransfer}
-                disabled={isSubmitting}
-                className="rounded-xl bg-violet-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
-              >
-                {isSubmitting ? "Processing…" : `Confirm & Send ${inr(numAmount)}`}
-              </button>
-            </div>
-          </div>
-        </FloatingWindow>
-      )}
-
-      {/* ===============================================================================
-          7. TRANSACTION SUCCESS MODAL
-      =============================================================================== */}
-      {successWindowOpen && lastCompletedTxn && (
-        <FloatingWindow
-          isOpen={successWindowOpen}
-          size="sm"
-          title="✓ TRANSFER SUCCESSFUL"
-          onClose={() => setSuccessWindowOpen(false)}
-        >
-          <div className="p-5 space-y-4 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl dark:bg-emerald-950/40">
-              ✓
-            </div>
-            <div>
-              <h4 className="text-lg font-black text-slate-900 dark:text-white">
-                {inr(lastCompletedTxn.amount)}
-              </h4>
-              <p className="text-xs text-slate-500">
-                Txn #{lastCompletedTxn.transaction_number} · UTR: {lastCompletedTxn.reference}
+          {/* RIGHT: Order Summary & Settlement Breakdown (4 cols) */}
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-4 space-y-4 sticky top-6">
+            <div className="border-b border-slate-100 pb-3 dark:border-white/5">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                DMT ORDER SUMMARY
+              </h3>
+              <p className="text-xs text-slate-400">
+                Authoritative settlement breakdown &amp; income attribution.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-slate-50 p-3 text-xs text-left space-y-1 dark:bg-white/5">
-              <div className="flex justify-between"><span className="text-slate-400">Transfer:</span> <strong>{inr(lastCompletedTxn.amount)}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Beneficiary Received:</span> <strong>{inr(lastCompletedTxn.amount)}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Customer Paid:</span> <strong>{inr(Number(lastCompletedTxn.amount || 0) + Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_charge || 0))} via {(lastCompletedTxn.customer_pay_method || "CASH").toUpperCase()}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Net Business Margin:</span> <strong className="text-emerald-600">+{inr((Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_commission || 0)) - Number(lastCompletedTxn.portal_charge || 0))}</strong></div>
+            <div className="space-y-2.5 text-xs">
+              <div className="flex justify-between text-slate-500">
+                <span>Operation:</span>
+                <span className="font-bold text-slate-900 dark:text-white">Money Transfer</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Method:</span>
+                <span className="font-bold text-slate-900 dark:text-white uppercase">{transferMethod === "upi" ? "UPI VPA" : "IMPS / NEFT"}</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Sender:</span>
+                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[150px]">{senderName || "Walk-in"}</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Beneficiary:</span>
+                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[150px]">{beneficiaryName || "—"}</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Target / Account:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white truncate max-w-[150px]">
+                  {transferMethod === "upi" ? (upiId || "—") : beneficiaryAccount ? maskAccount(beneficiaryAccount) : "—"}
+                </span>
+              </div>
+
+              <div className="my-2 border-t border-dashed border-slate-200 dark:border-white/10" />
+
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Transfer Principal:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{inr(numAmount)}</span>
+              </div>
+
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Customer Service Fee:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">+{inr(numFee)}</span>
+              </div>
+
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Provider Charge:</span>
+                <span className="font-bold text-rose-600 dark:text-rose-400">+{inr(numCharge)}</span>
+              </div>
+
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Portal Commission:</span>
+                <span className="font-bold text-teal-600 dark:text-teal-400">+{inr(numComm)}</span>
+              </div>
+
+              {/* Total Customer Debit Highlight */}
+              <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
+                <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                  Total Customer Debit:
+                </div>
+                <div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">
+                  {inr(totalCollected)}
+                </div>
+                <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
+                  Principal {inr(numAmount)} + Fee {inr(numFee)} + Charge {inr(numCharge)}
+                </p>
+              </div>
+
+              {/* Operator Net Income */}
+              <div className="flex justify-between py-1 text-slate-600 dark:text-slate-400">
+                <span className="font-bold">Operator Net Income:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">+{inr(netContribution)}</span>
+              </div>
+
+              <div className="flex justify-between py-1 text-slate-600 dark:text-slate-400">
+                <span>Provider Wallet Impact:</span>
+                <span className="font-bold text-rose-600 dark:text-rose-400">-{inr(numAmount)}</span>
+              </div>
+
+              {/* Float Warning if insufficient */}
+              {availableSelectedFloat < numAmount && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+                  ⚠️ <strong>Float Warning:</strong> Selected channel float ({inr(availableSelectedFloat)}) is less than transfer amount ({inr(numAmount)}).
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-center gap-2 pt-2">
-              <Link
-                href={`/business/receipt/${lastCompletedTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
-                target="_blank"
-                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 dark:bg-violet-600"
-              >
-                🖨️ Print 80mm
-              </Link>
-              <Link
-                href={`/business/receipt/${lastCompletedTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
-                target="_blank"
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-              >
-                📄 Print A4
-              </Link>
+            {/* Single Primary Complete Transfer Action */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
               <button
                 type="button"
-                onClick={() => {
-                  setSuccessWindowOpen(false);
-                  setSelectedDetailTxn(lastCompletedTxn);
-                }}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                onClick={handleProcessTransfer}
+                disabled={!isFormValid || isSubmitting}
+                className={`w-full rounded-2xl py-3.5 text-sm font-black transition ${
+                  isFormValid && !isSubmitting
+                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 hover:brightness-110 active:scale-[0.98]"
+                    : "cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200 dark:border-white/5 dark:bg-white/5 dark:text-slate-500"
+                }`}
               >
-                👁 View Transaction
+                {isSubmitting ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Processing Transfer…
+                  </span>
+                ) : isFormValid ? (
+                  `✓ Complete Transfer ${inr(totalCollected)}`
+                ) : (
+                  "Complete Required Fields to Transfer"
+                )}
               </button>
+              <p className="text-center text-[10px] text-slate-400">
+                Deterministic double-entry remittance settlement
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ===============================================================================
+          7. LIVE ACTIVITY FEED
+      =============================================================================== */}
+      {recentTxn && (
+        <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                LIVE DMT ACTIVITY
+              </h2>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <span className="text-[10px] text-slate-400">Latest Completed Event</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-3 w-3 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                    {recentTxn.transaction_number}
+                  </span>
+                  <span className="text-xs text-slate-400">·</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Sender: {recentTxn.sender_name || recentTxn.customers?.name || "Walk-in"}
+                  </span>
+                  <span className="text-xs text-slate-400">→</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Ben: {recentTxn.beneficiary_name || recentTxn.receiver_name || "Beneficiary"}
+                  </span>
+                  <span className="text-xs text-slate-400">·</span>
+                  <strong className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {inr(Number(recentTxn.amount))}
+                  </strong>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 capitalize">
+                    ✓ {recentTxn.status}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· UTR: ${recentTxn.reference}` : ""}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
               <button
                 type="button"
-                onClick={() => setSuccessWindowOpen(false)}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300"
+                onClick={() => setSelectedDetailTxn(recentTxn)}
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
-                + New Transfer
+                View
+              </button>
+              <Link
+                href={`/business/receipt/${recentTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
+                target="_blank"
+                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                title="Print receipt"
+              >
+                🖨️ Receipt
+              </Link>
+              <button
+                type="button"
+                onClick={() => handleOpenWhatsApp(recentTxn)}
+                className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
+                💬 WhatsApp
               </button>
             </div>
           </div>
-        </FloatingWindow>
+        </section>
       )}
 
       {/* ===============================================================================
-          8. ADD CUSTOMER MODAL
+          8. DMT TRANSACTION HISTORY / CONSOLE LEDGER
       =============================================================================== */}
-      {addCustomerWindowOpen && (
-        <FloatingWindow
-          isOpen={addCustomerWindowOpen}
-          size="sm"
-          title="Add New Customer to CRM"
-          onClose={() => setAddCustomerWindowOpen(false)}
-        >
-          <form onSubmit={handleCreateCustomer} className="p-5 space-y-4">
-            {custCreateError && (
-              <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
-                {custCreateError}
-              </div>
-            )}
+      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">DMT TRANSACTION HISTORY</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Authoritative transaction ledger for domestic remittances and gateway settlements.
+              </p>
+            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer Name <span className="text-rose-500">*</span>
-              </label>
+            {/* Segmented Status Filter */}
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
+              {[
+                { key: "all", label: `All (${transactions.length})` },
+                { key: "success", label: "Successful" },
+                { key: "pending", label: "Pending" },
+                { key: "failed", label: "Failed" },
+                { key: "reversed", label: "Reversed" },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`rounded-lg px-3 py-1 font-semibold transition ${
+                    statusFilter === tab.key
+                      ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
+                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Search & Export Controls */}
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between">
+            <div className="flex-1">
               <input
                 type="text"
-                required
-                value={newCustName}
-                onChange={(e) => setNewCustName(e.target.value)}
-                placeholder="e.g. Rahul Sharma"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by UTR reference, mobile, sender, beneficiary, account or bank…"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
               />
             </div>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Mobile Number <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="tel"
-                required
-                maxLength={10}
-                value={newCustPhone}
-                onChange={(e) => setNewCustPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                placeholder="10-digit mobile number"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
+        {/* Ledger Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5">
+              <tr>
+                <th className="py-3 pl-4 pr-3">Txn No / Date</th>
+                <th className="px-3 py-3">Sender / Customer</th>
+                <th className="px-3 py-3">Beneficiary / Bank</th>
+                <th className="px-3 py-3 text-right">Transfer Amount</th>
+                <th className="px-3 py-3 text-right">Total Debit</th>
+                <th className="px-3 py-3 text-center">Method</th>
+                <th className="px-3 py-3 text-center">Status</th>
+                <th className="px-3 py-3 text-right pr-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filteredTxns.map((t) => {
+                const isReversed = t.status === "reversed";
+                const fullDebit = Number(t.amount || 0) + Number(t.service_fee || 0) + Number(t.portal_charge || 0);
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Email Address (Optional)
-              </label>
-              <input
-                type="email"
-                value={newCustEmail}
-                onChange={(e) => setNewCustEmail(e.target.value)}
-                placeholder="customer@email.com"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
+                return (
+                  <tr key={t.id} className="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
+                    <td className="py-3 pl-4 pr-3">
+                      <div className="font-mono font-bold text-slate-900 dark:text-white">
+                        {t.transaction_number}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {fmtDate(t.transaction_date)}
+                      </div>
+                    </td>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Address (Optional)
-              </label>
-              <input
-                type="text"
-                value={newCustAddress}
-                onChange={(e) => setNewCustAddress(e.target.value)}
-                placeholder="Ward / Village / Town"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
+                    <td className="px-3 py-3">
+                      <div className="font-bold text-slate-900 dark:text-white">
+                        {t.sender_name || t.customers?.name || "Walk-in"}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {maskMobile(t.customer_mobile || t.sender_mobile)}
+                      </div>
+                    </td>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setAddCustomerWindowOpen(false)}
-                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={custCreateSubmitting}
-                className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {custCreateSubmitting ? "Saving…" : "Save & Select"}
-              </button>
-            </div>
-          </form>
-        </FloatingWindow>
-      )}
+                    <td className="px-3 py-3">
+                      <div className="font-bold text-slate-900 dark:text-white">
+                        {t.beneficiary_name || t.receiver_name || "Beneficiary"}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {t.transfer_method === "upi"
+                          ? t.upi_id
+                          : `${t.beneficiary_bank || "Bank"} (${maskAccount(t.beneficiary_account)})`}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-3 text-right font-black text-slate-900 dark:text-white">
+                      {inr(t.amount)}
+                    </td>
+
+                    <td className="px-3 py-3 text-right font-bold text-indigo-600 dark:text-indigo-400">
+                      {inr(fullDebit)}
+                    </td>
+
+                    <td className="px-3 py-3 text-center">
+                      <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300 uppercase">
+                        {t.transfer_method === "upi" ? "UPI" : "IMPS/NEFT"}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-3 text-center">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          isReversed
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                            : t.status === "success"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300"
+                        }`}
+                      >
+                        {t.status.toUpperCase()}
+                      </span>
+                    </td>
+
+                    <td className="px-3 py-3 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDetailTxn(t)}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          View
+                        </button>
+                        <Link
+                          href={`/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
+                          target="_blank"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                          title="Print Receipt"
+                        >
+                          🖨️
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenWhatsApp(t)}
+                          className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          title="Send WhatsApp"
+                        >
+                          💬
+                        </button>
+                        {!isReversed && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReverse(t)}
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
+                            title="Reverse transaction"
+                          >
+                            Reverse
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredTxns.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-slate-400">
+                    No DMT transactions found matching the filter criteria.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* ===============================================================================
-          9. ADD BENEFICIARY MODAL (All Fields Optional & Confirm Account Check)
+          TRANSACTION DETAIL VIEW MODAL
       =============================================================================== */}
-      {addBeneficiaryWindowOpen && (
+      {selectedDetailTxn && (
         <FloatingWindow
-          isOpen={addBeneficiaryWindowOpen}
-          size="sm"
-          title="Add Beneficiary to Address Book"
-          onClose={() => setAddBeneficiaryWindowOpen(false)}
+          isOpen={Boolean(selectedDetailTxn)}
+          size="md"
+          title={`DMT Transaction #${selectedDetailTxn.transaction_number}`}
+          onClose={() => setSelectedDetailTxn(null)}
         >
-          <form onSubmit={handleCreateBeneficiary} className="p-5 space-y-4">
-            {benCreateError && (
-              <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
-                {benCreateError}
+          {(() => {
+            const totalDebit =
+              Number(selectedDetailTxn.amount || 0) +
+              Number(selectedDetailTxn.service_fee || 0) +
+              Number(selectedDetailTxn.portal_charge || 0);
+
+            const receiptUrl = `/business/receipt/${selectedDetailTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
+            const invoiceUrl = `/business/receipt/${selectedDetailTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
+
+            return (
+              <div className="p-5 space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
+                  <div>
+                    <span className="text-slate-400">Date:</span>
+                    <div className="font-bold">{selectedDetailTxn.transaction_date}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Status:</span>
+                    <div className="font-bold text-emerald-600 uppercase">{selectedDetailTxn.status}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Transfer Amount:</span>
+                    <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Total Customer Debit:</span>
+                    <div className="font-black text-sm text-indigo-700 dark:text-indigo-400">{inr(totalDebit)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Customer Service Fee:</span>
+                    <div className="font-bold text-emerald-600">+{inr(selectedDetailTxn.service_fee || 0)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Provider Charge:</span>
+                    <div className="font-bold text-rose-600">+{inr(selectedDetailTxn.portal_charge || 0)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Portal Commission:</span>
+                    <div className="font-bold text-teal-600">+{inr(selectedDetailTxn.portal_commission || 0)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Total Operator Income:</span>
+                    <div className="font-black text-emerald-600">
+                      +{inr(
+                        Number(selectedDetailTxn.service_fee || 0) +
+                          Number(selectedDetailTxn.portal_commission || 0) -
+                          Number(selectedDetailTxn.portal_charge || 0)
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Sender:</span>
+                    <div className="font-bold">{selectedDetailTxn.sender_name || selectedDetailTxn.customers?.name || "Walk-in"}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Beneficiary:</span>
+                    <div className="font-bold">{selectedDetailTxn.beneficiary_name || selectedDetailTxn.receiver_name || "Beneficiary"}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Bank / Channel:</span>
+                    <div className="font-bold">{selectedDetailTxn.beneficiary_bank || "Bank"}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Account / IFSC:</span>
+                    <div className="font-mono font-bold">
+                      {selectedDetailTxn.transfer_method === "upi" ? selectedDetailTxn.upi_id : `${maskAccount(selectedDetailTxn.beneficiary_account)} (${selectedDetailTxn.beneficiary_ifsc})`}
+                    </div>
+                  </div>
+                  {selectedDetailTxn.reference && (
+                    <div className="col-span-2">
+                      <span className="text-slate-400">UTR / Reference:</span>
+                      <div className="font-mono font-bold">{selectedDetailTxn.reference}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Accounting Trace */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3.5 dark:border-white/10 dark:bg-white/5 space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    ACCOUNTING LEDGER TRACE
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                    <p>• <strong>Payment Inflow:</strong> +{inr(totalDebit)} credited via {(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()} drawer.</p>
+                    <p>• <strong>Provider Wallet Outflow:</strong> -{inr(selectedDetailTxn.amount)} debited from {selectedDetailTxn.portals?.name || "DMT Portal"} float.</p>
+                    <p>• <strong>Revenue Recognized:</strong> +{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0) - Number(selectedDetailTxn.portal_charge || 0))} net income recorded.</p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={receiptUrl}
+                      target="_blank"
+                      className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 dark:bg-indigo-600"
+                    >
+                      🖨️ Thermal Receipt
+                    </Link>
+                    <Link
+                      href={invoiceUrl}
+                      target="_blank"
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      📄 A4 Invoice
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWhatsApp(selectedDetailTxn)}
+                      className="rounded-xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    >
+                      💬 WhatsApp
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDetailTxn(null);
+                        handleOpenEdit(selectedDetailTxn);
+                      }}
+                      className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+                    >
+                      Edit Attribution
+                    </button>
+                    {selectedDetailTxn.status !== "reversed" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDetailTxn(null);
+                          handleOpenReverse(selectedDetailTxn);
+                        }}
+                        className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400"
+                      >
+                        Reverse Txn
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-
-            {transferMethod === "bank_account" ? (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Account Number (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newBenAccount}
-                    onChange={(e) => setNewBenAccount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 100023456789 (Optional)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black tracking-widest outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Confirm Account Number (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newBenConfirmAccount}
-                    onChange={(e) => setNewBenConfirmAccount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Re-enter bank account number"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black tracking-widest outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    IFSC Code (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={11}
-                    value={newBenIfsc}
-                    onChange={(e) => setNewBenIfsc(e.target.value.toUpperCase())}
-                    placeholder="e.g. SBIN0001234 (Optional)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black tracking-wider outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newBenName}
-                    onChange={(e) => setNewBenName(e.target.value)}
-                    placeholder="Recipient name (Optional)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Bank Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newBenBank}
-                    onChange={(e) => setNewBenBank(e.target.value)}
-                    placeholder="e.g. State Bank of India (Optional)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Beneficiary UPI ID (VPA) (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newBenUpi}
-                    onChange={(e) => setNewBenUpi(e.target.value.toLowerCase())}
-                    placeholder="user@upi (Optional)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Receiver Display Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newBenName}
-                    onChange={(e) => setNewBenName(e.target.value)}
-                    placeholder="Recipient verified name (Optional)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setAddBeneficiaryWindowOpen(false)}
-                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={benCreateSubmitting}
-                className="rounded-xl bg-violet-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
-              >
-                {benCreateSubmitting ? "Saving…" : "Save Beneficiary"}
-              </button>
-            </div>
-          </form>
+            );
+          })()}
         </FloatingWindow>
       )}
 
       {/* ===============================================================================
-          10. EDIT TRANSACTION MODAL (Non-Financial Corrections)
+          EDIT TRANSACTION MODAL
       =============================================================================== */}
       {editTxnWindowOpen && editingTxn && (
         <FloatingWindow
@@ -2377,7 +2513,25 @@ export default function DmtWorkspace({
         >
           <form onSubmit={handleSaveEdit} className="p-5 space-y-4 text-xs">
             <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-              <strong>Immutable Audit Safeguard:</strong> Transfer amount ({inr(editingTxn.amount)}) and settlement ledger entries are permanently locked. You may update sender attribution, reference UTR, or remarks.
+              <strong>Immutable Audit Safeguard:</strong> Transfer amount ({inr(editingTxn.amount)}) and settlement ledger entries are permanently locked. You may update attribution, UTR reference, or remarks.
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Customer Attribution
+              </label>
+              <SearchableSelect
+                options={[
+                  { value: "", label: "-- Walk-in (No Attribution) --" },
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name}${c.phone ? ` (${c.phone})` : ""}`,
+                  })),
+                ]}
+                value={editCustomerId}
+                onChange={(val) => setEditCustomerId(val)}
+                placeholder="Assign registered customer…"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -2388,44 +2542,34 @@ export default function DmtWorkspace({
                 type="text"
                 value={editSenderName}
                 onChange={(e) => setEditSenderName(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                placeholder="Sender name"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Sender Mobile
-              </label>
-              <input
-                type="tel"
-                value={editSenderMobile}
-                onChange={(e) => setEditSenderMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Bank Reference / UTR Number
+                Bank UTR / Reference
               </label>
               <input
                 type="text"
                 value={editReference}
                 onChange={(e) => setEditReference(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                placeholder="Correct UTR number"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Operator Remarks / Notes
+                Audit Correction Remarks
               </label>
               <input
                 type="text"
                 value={editRemarks}
                 onChange={(e) => setEditRemarks(e.target.value)}
                 placeholder="Add correction notes…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
 
@@ -2440,7 +2584,7 @@ export default function DmtWorkspace({
               <button
                 type="submit"
                 disabled={editSubmitting}
-                className="rounded-xl bg-blue-600 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 px-5 py-2 font-bold text-white shadow-md hover:bg-indigo-700 disabled:opacity-50"
               >
                 {editSubmitting ? "Saving…" : "Save Correction"}
               </button>
@@ -2450,7 +2594,7 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          11. REVERSE TRANSACTION MODAL
+          REVERSE TRANSACTION MODAL
       =============================================================================== */}
       {reverseWindowOpen && reversingTxn && (
         <FloatingWindow
@@ -2461,26 +2605,19 @@ export default function DmtWorkspace({
         >
           <form onSubmit={handleProcessReverse} className="p-5 space-y-4 text-xs">
             <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
-              <strong>Transaction Reversal Warning:</strong> This will reverse the customer collection of {inr(Number(reversingTxn.amount || 0) + Number(reversingTxn.service_fee || 0) + Number(reversingTxn.portal_charge || 0))} and adjust double-entry ledger postings. The original transaction is permanently preserved as 'REVERSED'.
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-3 space-y-1 dark:bg-white/5">
-              <div className="flex justify-between"><span className="text-slate-400">Txn Number:</span> <strong>{reversingTxn.transaction_number}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Transfer Principal:</span> <strong>{inr(reversingTxn.amount)}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">Beneficiary:</span> <strong>{reversingTxn.beneficiary_name || "Beneficiary"}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-400">UTR:</span> <strong>{reversingTxn.reference}</strong></div>
+              <strong>Atomic Double-Entry Reversal:</strong> Reversing this remittance will reverse cash collection, restore provider float ({inr(reversingTxn.amount)}), and adjust the general ledger atomically.
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Reason for Reversal <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
+              <textarea
                 required
+                rows={3}
                 value={reverseReason}
                 onChange={(e) => setReverseReason(e.target.value)}
-                placeholder="e.g. Bank IMPS timeout / Sender cancellation"
+                placeholder="e.g. Bank transaction failed / Account number incorrect"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-rose-500 dark:border-white/10 dark:bg-white/5"
               />
             </div>
@@ -2506,123 +2643,324 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          12. DETAILED TRANSACTION AUDIT VIEW MODAL
+          ADD CUSTOMER MODAL
       =============================================================================== */}
-      {selectedDetailTxn && (
+      {addCustomerWindowOpen && (
         <FloatingWindow
-          isOpen={Boolean(selectedDetailTxn)}
-          size="md"
-          title={`DMT Audit Breakdown #${selectedDetailTxn.transaction_number}`}
-          onClose={() => setSelectedDetailTxn(null)}
+          isOpen={addCustomerWindowOpen}
+          size="sm"
+          title="Add New Customer"
+          onClose={() => setAddCustomerWindowOpen(false)}
         >
-          {(() => {
-            const receiptUrl = `/business/receipt/${selectedDetailTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
-            const invoiceUrl = `/business/receipt/${selectedDetailTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`;
-            const dtAmount = Number(selectedDetailTxn.amount || 0);
-            const dtFee = Number(selectedDetailTxn.service_fee || 0);
-            const dtCharge = Number(selectedDetailTxn.portal_charge || 0);
-            const dtComm = Number(selectedDetailTxn.portal_commission || 0);
-            const dtCollection = dtAmount + dtFee + dtCharge;
-            const dtRevenue = dtFee + dtComm;
-            const dtNet = dtRevenue - dtCharge;
-
-            return (
-              <div className="p-5 space-y-4 text-xs">
-                {/* 1. Transaction Overview */}
-                <div className="border-b border-slate-100 pb-2 dark:border-white/5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Transaction Overview</span>
-                  <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
-                    <div><span className="text-slate-400">Date &amp; Time:</span> <div className="font-bold">{selectedDetailTxn.transaction_date} {selectedDetailTxn.transaction_timestamp ? new Date(selectedDetailTxn.transaction_timestamp).toLocaleTimeString() : ""}</div></div>
-                    <div><span className="text-slate-400">Status:</span> <div className={`font-bold ${selectedDetailTxn.status === "reversed" ? "text-rose-600" : "text-emerald-600"}`}>{selectedDetailTxn.status.toUpperCase()}</div></div>
-                    <div className="col-span-2"><span className="text-slate-400">UTR / Reference:</span> <div className="font-mono font-bold text-slate-900 dark:text-white">{selectedDetailTxn.reference}</div></div>
-                  </div>
-                </div>
-
-                {/* 2. Sender & Beneficiary */}
-                <div className="border-b border-slate-100 pb-2 dark:border-white/5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">2. Parties (Customer &amp; Beneficiary)</span>
-                  <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
-                    <div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.sender_name || selectedDetailTxn.customers?.name || "Walk-in"}</div></div>
-                    <div><span className="text-slate-400">Customer Mobile:</span> <div className="font-bold">{selectedDetailTxn.sender_mobile ? maskMobile(selectedDetailTxn.sender_mobile) : "N/A"}</div></div>
-                    <div><span className="text-slate-400">Beneficiary:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_name || selectedDetailTxn.receiver_name || "Beneficiary"}</div></div>
-                    <div><span className="text-slate-400">Account / VPA:</span> <div className="font-mono font-bold">{selectedDetailTxn.transfer_method === "upi" ? selectedDetailTxn.upi_id : (selectedDetailTxn.beneficiary_account ? maskAccount(selectedDetailTxn.beneficiary_account) : "N/A")}</div></div>
-                    {selectedDetailTxn.beneficiary_ifsc && <div><span className="text-slate-400">Bank &amp; IFSC:</span> <div className="font-bold">{selectedDetailTxn.beneficiary_bank || "Bank"} · {selectedDetailTxn.beneficiary_ifsc}</div></div>}
-                  </div>
-                </div>
-
-                {/* 3. Financial Money Flow Breakdown */}
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">3. Financial Money Flow</span>
-                  <div className="mt-1 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-3 dark:bg-white/5 text-xs">
-                    <div><span className="text-slate-400">Transfer Principal:</span> <div className="font-black text-sm">{inr(dtAmount)}</div></div>
-                    <div><span className="text-slate-400">Customer Service Fee (Income):</span> <div className="font-bold text-emerald-600">+{inr(dtFee)}</div></div>
-                    <div><span className="text-slate-400">Portal / Provider Charge (Cost):</span> <div className="font-bold text-rose-500">-{inr(dtCharge)}</div></div>
-                    <div><span className="text-slate-400">Total Customer Collection:</span> <div className="font-black text-sm text-slate-900 dark:text-white">{inr(dtCollection)} via {(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}</div></div>
-                    <div><span className="text-slate-400">Funding Source:</span> <div className="font-bold">{(selectedDetailTxn.paid_from || "PORTAL").toUpperCase()}</div></div>
-                    <div><span className="text-slate-400">Portal Commission (Income):</span> <div className="font-bold text-emerald-600">+{inr(dtComm)}</div></div>
-                    <div className="col-span-2 pt-1 border-t border-slate-200 dark:border-white/10 flex justify-between">
-                      <span className="font-bold text-slate-700 dark:text-slate-300">Net Business Contribution:</span>
-                      <strong className="font-black text-emerald-600">+{inr(dtNet)} (Revenue {inr(dtRevenue)} - Cost {inr(dtCharge)})</strong>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedDetailTxn.remarks && (
-                  <div className="rounded-xl border border-slate-200 p-2.5 text-[11px] text-slate-600 dark:border-white/10 dark:text-slate-400">
-                    <strong>Remarks:</strong> {selectedDetailTxn.remarks}
-                  </div>
-                )}
-
-                <div className="flex justify-between items-center pt-2">
-                  <div className="flex gap-2">
-                    <Link
-                      href={receiptUrl}
-                      target="_blank"
-                      className="rounded-xl bg-slate-900 px-3.5 py-2 font-bold text-white hover:bg-slate-800 dark:bg-violet-600"
-                    >
-                      🖨️ 80mm Receipt
-                    </Link>
-                    <Link
-                      href={invoiceUrl}
-                      target="_blank"
-                      className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      📄 A4 Invoice
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedDetailTxn(null);
-                        handleOpenEdit(selectedDetailTxn);
-                      }}
-                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
-                    >
-                      ✏️ Edit Reference
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDetailTxn(null)}
-                    className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100"
-                  >
-                    Close
-                  </button>
-                </div>
+          <form onSubmit={handleCreateCustomer} className="p-5 space-y-4">
+            {custCreateError && (
+              <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                {custCreateError}
               </div>
-            );
-          })()}
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Customer Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={newCustName}
+                onChange={(e) => setNewCustName(e.target.value)}
+                placeholder="e.g. Rahul Sharma"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Mobile Number
+              </label>
+              <input
+                type="tel"
+                maxLength={10}
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="10-digit mobile number"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Email Address (Optional)
+              </label>
+              <input
+                type="email"
+                value={newCustEmail}
+                onChange={(e) => setNewCustEmail(e.target.value)}
+                placeholder="customer@email.com"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Address (Optional)
+              </label>
+              <input
+                type="text"
+                value={newCustAddress}
+                onChange={(e) => setNewCustAddress(e.target.value)}
+                placeholder="e.g. Newtown, Kolkata"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddCustomerWindowOpen(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={custCreateSubmitting}
+                className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {custCreateSubmitting ? "Saving…" : "Save & Select"}
+              </button>
+            </div>
+          </form>
         </FloatingWindow>
       )}
 
       {/* ===============================================================================
-          13. SCAN & FILL MODAL
+          ADD BENEFICIARY MODAL
+      =============================================================================== */}
+      {addBeneficiaryWindowOpen && (
+        <FloatingWindow
+          isOpen={addBeneficiaryWindowOpen}
+          size="sm"
+          title="Add New Beneficiary"
+          onClose={() => setAddBeneficiaryWindowOpen(false)}
+        >
+          <form onSubmit={handleCreateBeneficiary} className="p-5 space-y-4 text-xs">
+            {benCreateError && (
+              <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                {benCreateError}
+              </div>
+            )}
+
+            {transferMethod === "bank_account" ? (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Beneficiary Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newBenName}
+                    onChange={(e) => setNewBenName(e.target.value)}
+                    placeholder="e.g. Suman Mondal"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Beneficiary Bank
+                  </label>
+                  <SearchableSelect
+                    options={banks.map((b) => ({ value: b.name, label: b.name }))}
+                    value={newBenBank}
+                    onChange={(val) => setNewBenBank(val)}
+                    placeholder="Select bank…"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Account Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newBenAccount}
+                    onChange={(e) => setNewBenAccount(e.target.value.replace(/\s+/g, ""))}
+                    placeholder="Enter account number"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Confirm Account Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newBenConfirmAccount}
+                    onChange={(e) => setNewBenConfirmAccount(e.target.value.replace(/\s+/g, ""))}
+                    placeholder="Re-enter account number"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Bank IFSC Code
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={11}
+                    value={newBenIfsc}
+                    onChange={(e) => setNewBenIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
+                    placeholder="e.g. SBIN0001234"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Beneficiary Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newBenName}
+                    onChange={(e) => setNewBenName(e.target.value)}
+                    placeholder="e.g. Suman Mondal"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    UPI ID (VPA) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newBenUpi}
+                    onChange={(e) => setNewBenUpi(e.target.value.trim().toLowerCase())}
+                    placeholder="e.g. user@oksbi"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddBeneficiaryWindowOpen(false)}
+                className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={benCreateSubmitting}
+                className="rounded-xl bg-indigo-600 px-5 py-2 font-bold text-white shadow-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {benCreateSubmitting ? "Saving…" : "Save & Select"}
+              </button>
+            </div>
+          </form>
+        </FloatingWindow>
+      )}
+
+      {/* ===============================================================================
+          ADD BANK MODAL
+      =============================================================================== */}
+      {addBankWindowOpen && (
+        <FloatingWindow
+          isOpen={addBankWindowOpen}
+          size="sm"
+          title="Add New Bank"
+          onClose={() => setAddBankWindowOpen(false)}
+        >
+          <form onSubmit={handleCreateBank} className="p-5 space-y-4 text-xs">
+            {bankCreateError && (
+              <div className="rounded-xl bg-rose-50 p-3 font-bold text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                {bankCreateError}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Bank Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={newBankName}
+                onChange={(e) => setNewBankName(e.target.value)}
+                placeholder="e.g. Bank of Maharashtra"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Short Code (Optional)
+              </label>
+              <input
+                type="text"
+                value={newBankCode}
+                onChange={(e) => setNewBankCode(e.target.value.toUpperCase())}
+                placeholder="e.g. BOM"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddBankWindowOpen(false)}
+                className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={bankCreateSubmitting}
+                className="rounded-xl bg-indigo-600 px-5 py-2 font-bold text-white shadow-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {bankCreateSubmitting ? "Saving…" : "Save Bank"}
+              </button>
+            </div>
+          </form>
+        </FloatingWindow>
+      )}
+
+      {/* ===============================================================================
+          SCAN & FILL MODAL
       =============================================================================== */}
       {scanModalOpen && (
         <ScanFillModal
           open={scanModalOpen}
           mode="dmt"
+          title="Scan & Fill DMT Remittance"
           onClose={() => setScanModalOpen(false)}
           onApply={handleScanApply}
+        />
+      )}
+
+      {/* ===============================================================================
+          WHATSAPP SEND MODAL
+      =============================================================================== */}
+      {waModal.open && (
+        <WhatsAppSendModal
+          open={waModal.open}
+          onClose={() => setWaModal((prev) => ({ ...prev, open: false }))}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType="dmt_confirmation"
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
+          onSent={() => showToast("success", "WhatsApp receipt dispatched.")}
         />
       )}
     </div>

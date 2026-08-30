@@ -4769,6 +4769,43 @@ function detectIntent(question) {
   assert(masterClientFile.includes("View QR Code"), "643. Merchant QRs Console: 'View QR Code' action available for merchant QRs");
   assert(masterClientFile.includes("<UpiQrCode"), "644. Merchant QRs Console: Real UpiQrCode rendered in merchant QR modal");
   assert(masterClientFile.includes("viewingQrRow"), "645. Merchant QRs Console: Selected merchant record dynamically passed to QR modal");
+
+  // Test 13: DMT Money Transfer Command Center Hardening (Tests 646-670)
+  const dmtWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/dmt-workspace.tsx", "utf8");
+
+  assert(dmtWorkspaceFile.includes("● DMT SYSTEM ONLINE"), "646. DMT Command Center: Live system status banner in hero");
+  assert(dmtWorkspaceFile.includes("IMPS / NEFT / UPI PAYOUT GATEWAY ACTIVE"), "647. DMT Command Center: Payout gateway badge in hero");
+  assert(dmtWorkspaceFile.includes("DMT PORTAL WALLET"), "648. DMT Command Center: Authoritative DMT portal float card in hero");
+  assert(dmtWorkspaceFile.includes("CASH IN HAND"), "649. DMT Command Center: Cash in hand metric card in hero");
+  assert(dmtWorkspaceFile.includes("DMT POSITION"), "650. DMT Position Rail: Canonical position strip directly below hero");
+  assert(dmtWorkspaceFile.includes("View reconciliation →"), "651. DMT Position Rail: Direct deep link to /finance/reconciliation");
+  assert(dmtWorkspaceFile.includes("DOMESTIC MONEY TRANSFER"), "652. Quick Operations: Primary money transfer tile present");
+  assert(dmtWorkspaceFile.includes("DMT SERVICE PORTALS"), "653. Quick Operations: Remittance provider portals tile present");
+  assert(dmtWorkspaceFile.includes("DMT SERVICE STATUS RAIL") || dmtWorkspaceFile.includes("DMT SWITCH"), "654. Status Rail: Operational health indicators present");
+  assert(dmtWorkspaceFile.includes("01. IDENTIFY") && dmtWorkspaceFile.includes("05. SETTLE"), "655. Lifecycle Invariant: 5-Stage DMT Operation Lifecycle present");
+  assert(dmtWorkspaceFile.includes("DMT TRANSFER TERMINAL"), "656. Side-by-Side Invariant: Left Transfer Terminal workspace present");
+  assert(dmtWorkspaceFile.includes("DMT ORDER SUMMARY"), "657. Side-by-Side Invariant: Right Order Summary panel present");
+  
+  // Clean initial state tests (No hardcoded demo values)
+  assert(dmtWorkspaceFile.includes("const [amount, setAmount] = useState<string>(\"\");"), "658. Clean Form Invariant: Transfer amount starts empty");
+  assert(dmtWorkspaceFile.includes("const [serviceFee, setServiceFee] = useState<string>(\"\");"), "659. Clean Form Invariant: Service fee starts empty");
+  assert(dmtWorkspaceFile.includes("const [portalCharge, setPortalCharge] = useState<string>(\"\");"), "660. Clean Form Invariant: Portal charge starts empty");
+  assert(dmtWorkspaceFile.includes("const [portalCommission, setPortalCommission] = useState<string>(\"\");"), "661. Clean Form Invariant: Portal commission starts empty");
+
+  // Strict Validation & Double-submit guards
+  assert(dmtWorkspaceFile.includes("isFormValid"), "662. Validation Invariant: Reactive isFormValid evaluation present");
+  assert(dmtWorkspaceFile.includes("reference.trim().length < 6"), "663. Compliance Guard: Mandatory UTR / reference validation present");
+  assert(dmtWorkspaceFile.includes("isSubmitting"), "664. Double-Submit Invariant: isSubmitting guard present on execution");
+  assert(dmtWorkspaceFile.includes("Processing Transfer…"), "665. Visual Feedback: Processing indicator present during transfer execution");
+
+  // Dynamic Primary Action
+  assert(dmtWorkspaceFile.includes("✓ Complete Transfer"), "666. Dynamic Action: Primary Complete Transfer includes dynamic total debit");
+  assert(dmtWorkspaceFile.includes("disabled={!isFormValid || isSubmitting}"), "667. UI Guard: Transfer action strictly disabled until valid");
+
+  // Post-Transaction Success State & Reset
+  assert(dmtWorkspaceFile.includes("DMT TRANSFER COMPLETED SUCCESSFULLY"), "668. Success Invariant: Clear post-transaction confirmation state present");
+  assert(dmtWorkspaceFile.includes("handleNewTransfer"), "669. Reset Invariant: Explicit New Transfer state reset handler present");
+  assert(dmtWorkspaceFile.includes("LIVE DMT ACTIVITY"), "670. Live Activity: Recent transaction audit strip present");
 }
 
 console.log("\n================================================================================");
