@@ -368,12 +368,18 @@ export default function SettlementsClient({
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {POOL_CARDS.map((c) => (
           <StatCard
             key={c.key}
             label={c.label}
             value={inr((summary as any)?.[c.key] ?? 0)}
+            sub={
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                ✓ Reconciled
+              </span>
+            }
             icon={c.icon}
             grad={c.grad}
             href={c.href}

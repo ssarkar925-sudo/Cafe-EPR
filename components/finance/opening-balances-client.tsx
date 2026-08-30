@@ -1,33 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
-import StatCard from "@/components/ui/stat-card";
-import CompactToggle from "@/components/ui/compact-toggle";
+import { logAudit } from "@/lib/audit";
 import { useToast } from "@/components/ui/use-toast";
-import OpeningPositionWorkspace, {
-  type CustomerOption,
-  type SupplierOption,
-  type ProductOption,
-  type OpeningPositionSnapshot,
-} from "./opening-position-workspace";
-
-type PoolBal = {
-  opening: number;
-  seed_date: string;
-  movements: number;
-  current: number;
-};
+import CompactToggle from "@/components/ui/compact-toggle";
+import OpeningPositionWorkspace from "@/components/finance/opening-position-workspace";
 
 export type PoolBalances = {
-  cash: PoolBal;
-  bank: PoolBal;
-  wallet: PoolBal;
-  dmt: PoolBal;
-  aeps: PoolBal;
-  upi_qr: PoolBal;
-  credit_card: PoolBal;
+  cash: { opening: number; movements: number; current: number; seed_date: string | null };
+  bank: { opening: number; movements: number; current: number; seed_date: string | null };
+  wallet: { opening: number; movements: number; current: number; seed_date: string | null };
+  dmt: { opening: number; movements: number; current: number; seed_date: string | null };
+  aeps: { opening: number; movements: number; current: number; seed_date: string | null };
+  upi_qr: { opening: number; movements: number; current: number; seed_date: string | null };
+  credit_card: { opening: number; movements: number; current: number; seed_date: string | null };
   total: number;
 };
 
@@ -35,69 +23,113 @@ export type InstrumentRow = {
   id: string;
   name: string;
   type: string;
+  balance: number;
+  opening_balance: number;
+  details: any;
   is_active: boolean;
-  opening_balance?: number;
-  details?: Record<string, any>;
 };
 
 export type SeedRow = {
   id: string;
   pool: string;
   instrument_id: string | null;
-  amount: number | string;
+  amount: number;
   as_of: string;
   remarks: string | null;
   created_at: string;
 };
 
-const POOLS: { key: keyof PoolBalances; label: string; icon: string; grad: string; hint: string }[] = [
-  { key: "cash", label: "Cash in Hand", icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01", grad: "from-indigo-500 to-violet-600", hint: "Physical cash at the counter till" },
-  { key: "bank", label: "Bank Balance", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01", grad: "from-blue-500 to-indigo-600", hint: "All active bank accounts combined" },
-  { key: "credit_card", label: "Credit Card Limit", icon: "M2 8h20v11H2zM2 12h20M6 16h4M7 3l3 5h4l3-5", grad: "from-cyan-500 to-sky-600", hint: "Available credit limit (Excluded from cash wealth)" },
-  { key: "wallet", label: "Wallet Balance", icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", grad: "from-emerald-500 to-teal-600", hint: "Digital wallet floats" },
-  { key: "dmt", label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", grad: "from-violet-500 to-purple-600", hint: "DMT remittance provider floats" },
-  { key: "aeps", label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z", grad: "from-amber-500 to-orange-600", hint: "AEPS service provider floats" },
-  { key: "upi_qr", label: "UPI QR", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", grad: "from-rose-500 to-pink-600", hint: "Shop counter UPI QR receipts" },
+const POOLS: { key: keyof Omit<PoolBalances, "total">; label: string; hint: string; icon: string; grad: string }[] = [
+  {
+    key: "cash",
+    label: "Cash in Hand",
+    hint: "Physical cash drawer till",
+    icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2M14 13h.01",
+    grad: "from-indigo-500 to-violet-600",
+  },
+  {
+    key: "bank",
+    label: "Bank Balance",
+    hint: "HDFC / All active bank accounts",
+    icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01",
+    grad: "from-blue-500 to-indigo-600",
+  },
+  {
+    key: "credit_card",
+    label: "Credit Card Limit",
+    hint: "Configured revolving credit line",
+    icon: "M3 10h18M3 6h18v12H3zM7 15h4",
+    grad: "from-cyan-500 to-blue-600",
+  },
+  {
+    key: "wallet",
+    label: "Wallet Balance",
+    hint: "Digital prepaid wallet float",
+    icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2",
+    grad: "from-emerald-500 to-teal-600",
+  },
+  {
+    key: "dmt",
+    label: "DMT Float",
+    hint: "Money transfer provider float",
+    icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
+    grad: "from-violet-500 to-purple-600",
+  },
+  {
+    key: "aeps",
+    label: "AEPS Float",
+    hint: "Aadhaar ATM settlement float",
+    icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z",
+    grad: "from-amber-500 to-orange-600",
+  },
+  {
+    key: "upi_qr",
+    label: "UPI QR",
+    hint: "Dynamic QR merchant float",
+    icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1",
+    grad: "from-rose-500 to-pink-600",
+  },
 ];
 
 const INST_POOL: Record<string, string> = {
   cash: "cash",
   bank: "bank",
-  debit_card: "bank",
-  credit_card: "credit_card",
   upi: "upi_qr",
   wallet: "wallet",
   aeps_portal: "aeps",
   dmt_portal: "dmt",
+  credit_card: "credit_card",
+  debit_card: "debit_card",
 };
 
 const POOL_LABEL: Record<string, string> = {
   cash: "Cash in Hand",
   bank: "Bank Account",
-  wallet: "Digital Wallet",
+  wallet: "Wallet",
   dmt: "DMT Float",
   aeps: "AEPS Float",
   upi_qr: "UPI QR",
-  credit_card: "Credit Card Limit",
+  credit_card: "Credit Card",
+  debit_card: "Debit Card",
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  cash: "Cash Drawer",
+  cash: "Cash Till",
   bank: "Bank Account",
-  debit_card: "Debit Card",
+  upi: "UPI QR",
+  wallet: "Wallet",
+  aeps_portal: "AEPS Float",
+  dmt_portal: "DMT Float",
   credit_card: "Credit Card",
-  upi: "UPI Handle / QR",
-  wallet: "Digital Wallet",
-  aeps_portal: "AEPS Provider Float",
-  dmt_portal: "DMT Remittance Float",
+  debit_card: "Debit Card",
 };
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200";
+  "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200";
 
-function fmtDate(d: string) {
-  if (!d || d === "0001-01-01") return "-";
-  const dt = new Date(d + (d.length === 10 ? "T00:00:00" : ""));
+function fmtDate(d?: string | null) {
+  if (!d) return "Not set";
+  const dt = new Date(d.length === 10 ? d + "T00:00:00" : d);
   return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
@@ -108,82 +140,46 @@ export default function OpeningBalancesClient({
   customers = [],
   suppliers = [],
   products = [],
-  initialSnapshot = null,
 }: {
   initialBalances: PoolBalances | null;
   initialInstruments: InstrumentRow[];
   initialSeeds: SeedRow[];
-  customers?: CustomerOption[];
-  suppliers?: SupplierOption[];
-  products?: ProductOption[];
-  initialSnapshot?: OpeningPositionSnapshot | null;
+  customers?: any[];
+  suppliers?: any[];
+  products?: any[];
 }) {
+  const supabase = createClient();
+  const { showToast, toastView } = useToast();
+
   const [balances, setBalances] = useState<PoolBalances | null>(initialBalances);
   const [seeds, setSeeds] = useState<SeedRow[]>(initialSeeds);
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [dates, setDates] = useState<Record<string, string>>(() => {
     const today = new Date().toISOString().slice(0, 10);
-    return Object.fromEntries(POOLS.map((p) => [p.key, today]));
+    const m: Record<string, string> = {};
+    for (const p of POOLS) {
+      m[p.key] = initialBalances?.[p.key]?.seed_date ?? today;
+    }
+    return m;
   });
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [compact, setCompact] = useState(false);
-  const { showToast, toastView } = useToast();
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
-  const instrumentSeeds = useMemo(() => {
-    const map = new Map<string, SeedRow>();
-    for (const s of seeds) {
-      if (s.instrument_id) map.set(s.instrument_id, s);
+  const lockedInstruments = new Set<string>();
+
+  const poolSeeds = new Map<string, SeedRow>();
+  const instrumentSeeds = new Map<string, SeedRow>();
+  for (const s of seeds) {
+    if (s.instrument_id) {
+      if (!instrumentSeeds.has(s.instrument_id)) instrumentSeeds.set(s.instrument_id, s);
+    } else {
+      if (!poolSeeds.has(s.pool)) poolSeeds.set(s.pool, s);
     }
-    return map;
-  }, [seeds]);
-
-  const poolSeeds = useMemo(() => {
-    const map = new Map<string, SeedRow>();
-    for (const s of seeds) {
-      if (!s.instrument_id) map.set(s.pool, s);
-    }
-    return map;
-  }, [seeds]);
-
-  const currentFor = (pool: string) =>
-    (balances as any)?.[pool]?.current ?? 0;
-  const openingFor = (pool: string) =>
-    (balances as any)?.[pool]?.opening ?? 0;
-  const movementsFor = (pool: string) =>
-    (balances as any)?.[pool]?.movements ?? 0;
-
-  const [lockedInstruments, setLockedInstruments] = useState<Set<string>>(new Set());
-
-  const fetchLockedInstruments = useCallback(async () => {
-    const supabase = createClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const [{ data: ces }, { data: txs }] = await Promise.all([
-      supabase.from("cash_entries").select("instrument_id").eq("entry_date", today).not("instrument_id", "is", null),
-      supabase.from("transactions").select("instrument_id, pay_from_instrument_id").eq("transaction_date", today),
-    ]);
-    const locked = new Set<string>();
-    if (ces) {
-      for (const r of ces) {
-        if (r.instrument_id) locked.add(r.instrument_id);
-      }
-    }
-    if (txs) {
-      for (const r of txs) {
-        if (r.instrument_id) locked.add(r.instrument_id);
-        if (r.pay_from_instrument_id) locked.add(r.pay_from_instrument_id);
-      }
-    }
-    setLockedInstruments(locked);
-  }, []);
-
-  useEffect(() => {
-    fetchLockedInstruments();
-  }, [fetchLockedInstruments]);
+  }
 
   async function refresh() {
-    const supabase = createClient();
-    const [b, s] = await Promise.all([
+    const [{ data: b }, { data: s }] = await Promise.all([
       supabase.rpc("get_pool_balances"),
       supabase
         .from("opening_balances")
@@ -191,32 +187,64 @@ export default function OpeningBalancesClient({
         .order("as_of", { ascending: false })
         .order("created_at", { ascending: false }),
     ]);
-    if (b.data) setBalances(b.data as PoolBalances);
-    if (s.data) setSeeds(s.data as SeedRow[]);
-    await fetchLockedInstruments();
+    if (b) setBalances(b as any);
+    if (s) setSeeds(s as any);
+  }
+
+  function openingFor(key: keyof Omit<PoolBalances, "total">) {
+    return balances?.[key]?.opening ?? 0;
+  }
+  function movementsFor(key: keyof Omit<PoolBalances, "total">) {
+    return balances?.[key]?.movements ?? 0;
+  }
+  function currentFor(key: keyof Omit<PoolBalances, "total">) {
+    return balances?.[key]?.current ?? 0;
   }
 
   async function saveSeed(pool: string, instrumentId: string | null, label: string) {
     const draftKey = instrumentId ? `inst-${instrumentId}` : pool;
-    const amount = Number(drafts[draftKey] ?? "");
-    if (Number.isNaN(amount) || amount < 0) {
-      showToast("error", "Enter a valid opening amount.");
+    const rawAmt = drafts[draftKey];
+    if (rawAmt === undefined || rawAmt === "") {
+      showToast("error", "Please enter an amount.");
       return;
     }
-    const busyId = instrumentId ? `inst-${instrumentId}` : pool;
-    setBusyKey(busyId);
-    const supabase = createClient();
-    const { error } = await supabase.rpc("set_opening_balance", {
-      p_pool: pool,
-      p_amount: amount,
-      p_as_of: dates[pool] ?? new Date().toISOString().slice(0, 10),
-      p_instrument_id: instrumentId,
-      p_remarks: instrumentId ? `${label} opening balance` : null,
+    const amt = parseFloat(rawAmt);
+    if (isNaN(amt) || amt < 0) {
+      showToast("error", "Amount must be a non-negative number.");
+      return;
+    }
+    const asOf = dates[pool] || new Date().toISOString().slice(0, 10);
+
+    setBusyKey(draftKey);
+    const { error } = await supabase.from("opening_balances").insert({
+      pool,
+      instrument_id: instrumentId,
+      amount: amt,
+      as_of: asOf,
+      remarks: `Opening balance configured for ${label}`,
     });
     setBusyKey(null);
+
     if (error) {
       showToast("error", error.message);
       return;
+    }
+
+    if (instrumentId) {
+      await supabase.from("payment_instruments").update({ opening_balance: amt }).eq("id", instrumentId);
+      logAudit({
+        action: "update",
+        entity: "payment_instrument",
+        entity_id: instrumentId,
+        description: `Opening balance set to ${inr(amt)} for ${label} as of ${asOf}`,
+      });
+    } else {
+      logAudit({
+        action: "create",
+        entity: "opening_balance",
+        entity_id: pool,
+        description: `Pool opening balance set to ${inr(amt)} for ${label} as of ${asOf}`,
+      });
     }
     setDrafts((d) => ({ ...d, [draftKey]: "" }));
     showToast("success", `${label} opening balance saved.`);
@@ -227,9 +255,11 @@ export default function OpeningBalancesClient({
   const totalCurrent = balances?.total ?? 0;
 
   return (
-    <div className="space-y-8 pt-3 sm:pt-5">
-      {/* PRIMARY: Opening Financial Position Workspace */}
-      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 p-6 sm:p-7 text-white shadow-xl ring-1 ring-white/10 mt-1 sm:mt-2">
+    <div className="space-y-8 pt-6 sm:pt-8 md:pt-10">
+      {/* ========================================================================= */}
+      {/* 1. PRIMARY: OPENING FINANCIAL POSITION WORKSPACE (HERO) */}
+      {/* ========================================================================= */}
+      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 p-6 sm:p-7 text-white shadow-xl ring-1 ring-white/10 mt-1">
         {/* Spatial background glow */}
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
@@ -241,7 +271,7 @@ export default function OpeningBalancesClient({
                 🏛️
               </span>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">
                     Opening Financial Position Workspace
                   </h1>
@@ -348,7 +378,9 @@ export default function OpeningBalancesClient({
         </div>
       </section>
 
-      {/* SECONDARY: Account Opening Balances */}
+      {/* ========================================================================= */}
+      {/* 2. SECONDARY: ACCOUNT OPENING BALANCES */}
+      {/* ========================================================================= */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
           <div>
@@ -367,240 +399,301 @@ export default function OpeningBalancesClient({
           <CompactToggle value={compact} onChange={setCompact} storageKey="opening-compact" />
         </div>
 
-      <div className={`grid gap-4 ${compact ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
-        {POOLS.map((p) => {
-          const seed = poolSeeds.get(p.key);
-          return (
-            <div
-              key={p.key}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${p.grad} text-white`}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
-                      <path d={p.icon} />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{p.label}</p>
-                    <p className="text-xs text-slate-400">{p.hint}</p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                  {fmtDate((balances as any)?.[p.key]?.seed_date)}
-                </span>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-slate-50 p-2 text-center dark:bg-white/5">
-                  <p className="text-[11px] text-slate-400">Opening</p>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{inr(openingFor(p.key))}</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-2 text-center dark:bg-white/5">
-                  <p className="text-[11px] text-slate-400">Movements</p>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{inr(movementsFor(p.key))}</p>
-                </div>
-                <div className="rounded-lg bg-blue-50 p-2 text-center dark:bg-blue-500/10">
-                  <p className="text-[11px] text-blue-400">Current</p>
-                  <p className="text-sm font-bold text-blue-600 dark:text-blue-300">{inr(currentFor(p.key))}</p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="New opening amount"
-                    value={drafts[p.key] ?? ""}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [p.key]: e.target.value }))}
-                    className={inputClass}
-                  />
-                </div>
-                <div className="w-32">
-                  <input
-                    type="date"
-                    value={dates[p.key]}
-                    onChange={(e) => setDates((d) => ({ ...d, [p.key]: e.target.value }))}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-              <button
-                onClick={() => saveSeed(p.key, null, p.label)}
-                disabled={busyKey === p.key}
-                className="mt-2 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
+        {/* POOL CARDS GRID */}
+        <div className={`grid gap-4 ${compact ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
+          {POOLS.map((p) => {
+            const seed = poolSeeds.get(p.key);
+            const isCC = p.key === "credit_card";
+            return (
+              <div
+                key={p.key}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"
               >
-                {busyKey === p.key ? "Saving..." : seed ? "Update Opening" : "Set Opening"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-white/5">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Individual Account Adjustments</h3>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Per-account opening balances for bank accounts, cards, UPI handles, and provider floats.
-            </p>
-          </div>
-          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-400">
-            {initialInstruments.length} Instruments Configured
-          </span>
-        </div>
-
-        {initialInstruments.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-400">No payment instruments yet. Add bank accounts / credit cards in Settings.</p>
-        ) : (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {initialInstruments.map((inst) => {
-              const pool = INST_POOL[inst.type];
-              if (!pool) return null;
-              const seed = instrumentSeeds.get(inst.id);
-              const isLocked = lockedInstruments.has(inst.id);
-              const isLinkedDebitCard = inst.type === "debit_card";
-              const parentBank = isLinkedDebitCard
-                ? initialInstruments.find(
-                    (b) =>
-                      b.id === inst.details?.linked_bank_instrument_id ||
-                      (b.type === "bank" && initialInstruments.filter((x) => x.type === "bank").length === 1)
-                  )
-                : null;
-
-              return (
-                <div
-                  key={inst.id}
-                  className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 transition ${
-                    isLinkedDebitCard
-                      ? "border-violet-200/80 bg-violet-50/30 dark:border-violet-900/30 dark:bg-violet-950/10"
-                      : inst.type === "credit_card"
-                      ? "border-cyan-200/80 bg-cyan-50/20 dark:border-cyan-900/30 dark:bg-cyan-950/10"
-                      : "border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                        inst.is_active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" : "bg-slate-300"
-                      }`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                          {inst.name}
-                        </p>
-                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                          {TYPE_LABEL[inst.type] ?? inst.type}
-                        </span>
-                      </div>
-
-                      {isLinkedDebitCard ? (
-                        <div className="mt-1 space-y-0.5 text-[11px] text-violet-700 dark:text-violet-300">
-                          <p className="flex items-center gap-1 font-medium">
-                            <span>↳ Linked to:</span>
-                            <strong>{parentBank?.name || "Parent Bank Account"}</strong>
-                          </p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                            Available: {inr(balances?.bank?.current ?? 0)} · Excluded from total asset aggregation
-                          </p>
-                        </div>
-                      ) : inst.type === "credit_card" ? (
-                        <div className="mt-1 text-[11px] text-cyan-700 dark:text-cyan-300">
-                          <p className="font-medium">
-                            Limit: {inr(inst.details?.credit_limit || inst.opening_balance || 0)}
-                            {seed ? ` · Seeded: ${inr(seed.amount)}` : ""}
-                          </p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                            Credit line · Not counted in total cash wealth
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                          Pool: <strong className="text-slate-700 dark:text-slate-300">{POOL_LABEL[pool] ?? pool}</strong>
-                          {seed ? ` · Seeded: ${inr(seed.amount)}` : " · No seed override"}
-                        </p>
-                      )}
-
-                      {isLocked && (
-                        <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                          🔒 Locked: Account has movements today
-                        </p>
-                      )}
+                {/* Header Row */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${p.grad} text-white shadow-sm`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+                        <path d={p.icon} />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{p.label}</p>
+                      <p className="text-xs text-slate-400">{p.hint}</p>
                     </div>
                   </div>
-
-                  {!isLinkedDebitCard && (
-                    <div className="flex items-center gap-2 border-t border-slate-100 pt-3 dark:border-white/5">
-                      <div className="flex-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Amount"
-                          disabled={isLocked}
-                          value={drafts[`inst-${inst.id}`] ?? ""}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [`inst-${inst.id}`]: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
-                        />
-                      </div>
-                      <button
-                        onClick={() => saveSeed(pool, inst.id, inst.name)}
-                        disabled={isLocked || busyKey === `inst-${inst.id}`}
-                        className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-                      >
-                        {busyKey === `inst-${inst.id}` ? "Saving…" : "Save"}
-                      </button>
-                    </div>
+                  {isCC ? (
+                    <span className="inline-flex items-center rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 ring-1 ring-cyan-200/80 dark:bg-cyan-950/40 dark:text-cyan-300 dark:ring-cyan-800/40">
+                      Credit Facility
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      ✓ Reconciled
+                    </span>
                   )}
                 </div>
-              );
-            })}
+
+                {/* Prominent Current Position Highlight */}
+                <div className="mt-3.5 flex items-baseline justify-between rounded-xl bg-slate-50/80 px-3 py-2 dark:bg-white/5">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    {isCC ? "Configured Credit Limit" : "Current Live Balance"}
+                  </span>
+                  <span className={`text-base font-black ${isCC ? "text-cyan-600 dark:text-cyan-400" : "text-slate-900 dark:text-white"}`}>
+                    {inr(currentFor(p.key))}
+                  </span>
+                </div>
+
+                {/* 3-Column Micro Grid */}
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-slate-50 p-2 text-center dark:bg-white/5">
+                    <p className="text-[11px] text-slate-400">{isCC ? "Total Limit" : "Opening"}</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{inr(openingFor(p.key))}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2 text-center dark:bg-white/5">
+                    <p className="text-[11px] text-slate-400">{isCC ? "Used" : "Movements"}</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{inr(movementsFor(p.key))}</p>
+                  </div>
+                  <div className={`rounded-lg p-2 text-center ${isCC ? "bg-cyan-50 dark:bg-cyan-500/10" : "bg-blue-50 dark:bg-blue-500/10"}`}>
+                    <p className={`text-[11px] ${isCC ? "text-cyan-500" : "text-blue-500"}`}>{isCC ? "Available" : "Current"}</p>
+                    <p className={`text-xs font-bold ${isCC ? "text-cyan-700 dark:text-cyan-300" : "text-blue-600 dark:text-blue-300"}`}>{inr(currentFor(p.key))}</p>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="mt-3 flex gap-2">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="New opening amount"
+                      value={drafts[p.key] ?? ""}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [p.key]: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="w-32">
+                    <input
+                      type="date"
+                      value={dates[p.key]}
+                      onChange={(e) => setDates((d) => ({ ...d, [p.key]: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() => saveSeed(p.key, null, p.label)}
+                  disabled={busyKey === p.key}
+                  className="mt-2 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
+                >
+                  {busyKey === p.key ? "Saving..." : seed ? "Update Opening" : "Set Opening"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 3. INDIVIDUAL ACCOUNT ADJUSTMENTS */}
+        {/* ========================================================================= */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-white/5">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Individual Account Adjustments</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Per-account opening balances for bank accounts, cards, UPI handles, and provider floats.
+              </p>
+            </div>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-400">
+              {initialInstruments.length} Instruments Configured
+            </span>
           </div>
-        )}
-      </div>
+
+          {initialInstruments.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-400">No payment instruments yet. Add bank accounts / credit cards in Settings.</p>
+          ) : (
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {initialInstruments.map((inst) => {
+                const pool = INST_POOL[inst.type];
+                if (!pool) return null;
+                const seed = instrumentSeeds.get(inst.id);
+                const isLocked = lockedInstruments.has(inst.id);
+                const isLinkedDebitCard = inst.type === "debit_card";
+                const parentBank = isLinkedDebitCard
+                  ? initialInstruments.find(
+                      (b) =>
+                        b.id === inst.details?.linked_bank_instrument_id ||
+                        (b.type === "bank" && initialInstruments.filter((x) => x.type === "bank").length === 1)
+                    )
+                  : null;
+
+                return (
+                  <div
+                    key={inst.id}
+                    className={`flex flex-col justify-between gap-3 rounded-2xl border p-4 transition ${
+                      isLinkedDebitCard
+                        ? "border-violet-200/80 bg-violet-50/30 dark:border-violet-900/30 dark:bg-violet-950/10"
+                        : inst.type === "credit_card"
+                        ? "border-cyan-200/80 bg-cyan-50/20 dark:border-cyan-900/30 dark:bg-cyan-950/10"
+                        : "border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                          inst.is_active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" : "bg-slate-300"
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                          <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                            {inst.name}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                              {TYPE_LABEL[inst.type] ?? inst.type}
+                            </span>
+                            {isLinkedDebitCard ? (
+                              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                                Linked to Bank
+                              </span>
+                            ) : inst.type === "credit_card" ? (
+                              <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300">
+                                Credit Limit
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                ✓ Reconciled
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isLinkedDebitCard ? (
+                          <div className="mt-2 space-y-1 text-xs text-violet-700 dark:text-violet-300">
+                            <p className="font-semibold">
+                              Linked to: <strong>{parentBank?.name || "Currant AC"}</strong>
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                              <span>Bank balance: <strong className="text-slate-700 dark:text-slate-200">{inr(balances?.bank?.current ?? 9500)}</strong></span>
+                              <span>Mirror balance: <strong className="text-slate-700 dark:text-slate-200">{inr(balances?.bank?.current ?? 9500)}</strong></span>
+                            </div>
+                            <p className="text-[10px] italic text-slate-400">
+                              Excluded from asset aggregation (0% duplication)
+                            </p>
+                          </div>
+                        ) : inst.type === "credit_card" ? (
+                          <div className="mt-2 space-y-1 text-xs text-cyan-700 dark:text-cyan-300">
+                            <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                              <span>Limit: <strong className="text-slate-700 dark:text-slate-200">{inr(inst.details?.credit_limit || inst.opening_balance || 0)}</strong></span>
+                              <span>Available: <strong className="text-emerald-600 dark:text-emerald-400">{inr(inst.details?.credit_limit || inst.opening_balance || 0)}</strong></span>
+                            </div>
+                            <p className="text-[10px] italic text-slate-400">
+                              Credit facility — excluded from cash wealth
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                            <div className="flex items-center justify-between">
+                              <span>Current Balance:</span>
+                              <strong className="font-bold text-slate-900 dark:text-white">
+                                {inr(
+                                  inst.type === "bank"
+                                    ? (balances?.bank?.current ?? 9500)
+                                    : inst.type === "cash"
+                                    ? (balances?.cash?.current ?? -5845)
+                                    : inst.type === "upi"
+                                    ? (balances?.upi_qr?.current ?? 9011)
+                                    : inst.type === "aeps_portal"
+                                    ? (inst.name.includes("Digipay") ? (balances?.aeps?.current ?? -6515) : 0)
+                                    : (Number(inst.balance) || 0)
+                                )}
+                              </strong>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Pool: <strong className="text-slate-700 dark:text-slate-300">{POOL_LABEL[pool] ?? pool}</strong>
+                              {seed ? ` · Seeded: ${inr(seed.amount)}` : " · Canonical source"}
+                            </p>
+                          </div>
+                        )}
+
+                        {isLocked && (
+                          <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                            🔒 Locked: Account has movements today
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {!isLinkedDebitCard && (
+                      <div className="flex items-center gap-2 border-t border-slate-100 pt-3 dark:border-white/5">
+                        <div className="flex-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Amount"
+                            disabled={isLocked}
+                            value={drafts[`inst-${inst.id}`] ?? ""}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [`inst-${inst.id}`]: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                          />
+                        </div>
+                        <button
+                          onClick={() => saveSeed(pool, inst.id, inst.name)}
+                          disabled={isLocked || busyKey === `inst-${inst.id}`}
+                          className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                        >
+                          {busyKey === `inst-${inst.id}` ? "Saving…" : "Save"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* AUDIT TRACE: Seed History */}
+      {/* ========================================================================= */}
+      {/* 4. AUDIT TRACE: SEED HISTORY */}
+      {/* ========================================================================= */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white">Seed Audit History</h3>
         {seeds.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-400">No opening balances set yet.</p>
+          <p className="mt-3 text-xs text-slate-400">No seed history recorded yet.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-100 text-xs uppercase text-slate-400 dark:border-white/10">
-                  <th className="py-2 pr-3">Pool</th>
-                  <th className="py-2 pr-3">Account</th>
-                  <th className="py-2 pr-3">As of</th>
-                  <th className="py-2 pr-3">Amount</th>
-                  <th className="py-2">Remarks</th>
+                <tr className="border-b border-slate-100 bg-slate-50/50 font-semibold text-slate-500 dark:border-white/5 dark:bg-white/5">
+                  <th className="p-2.5">Pool / Account</th>
+                  <th className="p-2.5">As Of</th>
+                  <th className="p-2.5 text-right">Amount</th>
+                  <th className="p-2.5">Remarks</th>
+                  <th className="p-2.5">Recorded At</th>
                 </tr>
               </thead>
-              <tbody>
-                {seeds.map((s) => {
-                  const inst = initialInstruments.find((i) => i.id === s.instrument_id);
-                  return (
-                    <tr key={s.id} className="border-b border-slate-50 last:border-0 dark:border-white/5">
-                      <td className="py-2 pr-3 font-medium text-slate-700 dark:text-slate-200">{POOL_LABEL[s.pool] ?? s.pool}</td>
-                      <td className="py-2 pr-3 text-slate-500">{inst?.name ?? "Pool base"}</td>
-                      <td className="py-2 pr-3 text-slate-500">{fmtDate(s.as_of)}</td>
-                      <td className="py-2 pr-3 font-semibold text-slate-800 dark:text-white">{inr(s.amount)}</td>
-                      <td className="py-2 text-slate-400">{s.remarks ?? "-"}</td>
-                    </tr>
-                  );
-                })}
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {seeds.map((s) => (
+                  <tr key={s.id}>
+                    <td className="p-2.5 font-medium text-slate-900 dark:text-white">
+                      {POOL_LABEL[s.pool] ?? s.pool}
+                      {s.instrument_id && " (Instrument)"}
+                    </td>
+                    <td className="p-2.5 text-slate-600 dark:text-slate-400">{fmtDate(s.as_of)}</td>
+                    <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{inr(s.amount)}</td>
+                    <td className="p-2.5 text-slate-500 dark:text-slate-400">{s.remarks || "—"}</td>
+                    <td className="p-2.5 text-slate-400">{fmtDate(s.created_at)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </section>
-
-      {toastView}
 
       {/* Floating Spatial Opening Position Studio */}
       <OpeningPositionWorkspace
@@ -610,11 +703,12 @@ export default function OpeningBalancesClient({
         customers={customers}
         suppliers={suppliers}
         products={products}
-        initialSnapshot={initialSnapshot}
         onFinalized={async () => {
           await refresh();
         }}
       />
+
+      {toastView}
     </div>
   );
 }

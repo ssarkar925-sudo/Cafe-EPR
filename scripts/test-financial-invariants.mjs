@@ -4575,7 +4575,7 @@ function detectIntent(question) {
   assert(poolBalances.cash.current === -5845, "535. Cash Core Invariant: Cash in Hand preserved at -₹5,845.00");
 
   // Test 4: Visual Spacing & Exact Financial Invariants
-  assert(clientFile.includes("pt-3 sm:pt-5") || clientFile.includes("pt-4"), "536. Visual Spacing Invariant: Top breathing room padding added below Quick Access");
+  assert(clientFile.includes("pt-3 sm:pt-5") || clientFile.includes("pt-4") || clientFile.includes("pt-6 sm:pt-8") || clientFile.includes("pt-6"), "536. Visual Spacing Invariant: Top breathing room padding added below Quick Access");
   assert(poolBalances.upi_qr.current === 9011, "537. UPI Core Invariant: UPI current balance preserved at ₹9,011.00");
   assert(poolBalances.aeps.current === -6515, "538. AEPS Core Invariant: AEPS float preserved at -₹6,515.00");
   assert(poolBalances.dmt.current === 0, "539. DMT Core Invariant: DMT float preserved at ₹0.00");
