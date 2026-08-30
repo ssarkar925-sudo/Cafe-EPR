@@ -221,9 +221,9 @@ export default function OpeningBalancesClient({
   const totalCurrent = balances?.total ?? 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pt-3 sm:pt-5">
       {/* PRIMARY: Opening Financial Position Workspace */}
-      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 p-6 text-white shadow-xl ring-1 ring-white/10">
+      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 p-6 sm:p-7 text-white shadow-xl ring-1 ring-white/10 mt-1 sm:mt-2">
         {/* Spatial background glow */}
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />

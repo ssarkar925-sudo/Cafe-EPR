@@ -4573,6 +4573,13 @@ function detectIntent(question) {
   assert(calculatedTotal === 6151, "533. Financial Core Invariant: Total wealth remains exactly ₹6,151.00");
   assert(poolBalances.bank.current === 9500, "534. Bank Core Invariant: Bank current balance preserved at ₹9,500.00");
   assert(poolBalances.cash.current === -5845, "535. Cash Core Invariant: Cash in Hand preserved at -₹5,845.00");
+
+  // Test 4: Visual Spacing & Exact Financial Invariants
+  assert(clientFile.includes("pt-3 sm:pt-5") || clientFile.includes("pt-4"), "536. Visual Spacing Invariant: Top breathing room padding added below Quick Access");
+  assert(poolBalances.upi_qr.current === 9011, "537. UPI Core Invariant: UPI current balance preserved at ₹9,011.00");
+  assert(poolBalances.aeps.current === -6515, "538. AEPS Core Invariant: AEPS float preserved at -₹6,515.00");
+  assert(poolBalances.dmt.current === 0, "539. DMT Core Invariant: DMT float preserved at ₹0.00");
+  assert(poolBalances.wallet.current === 0, "540. Wallet Core Invariant: Wallet float preserved at ₹0.00");
 }
 
 console.log("\n================================================================================");
