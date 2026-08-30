@@ -244,12 +244,17 @@ export default function PaymentAccountsPanel({
           };
         }
 
-        // 2. Credit Card: reflects available credit limit
+        // 2. Credit Card: reflects available credit limit & tracks outstanding liability
         if (i.type === "credit_card") {
-          const creditEntry = pool["credit_card"];
+          const limit = Number(i.details?.credit_limit || 0);
+          const openingOutstanding = Number(i.opening_balance || 0);
+          const delta = instDeltas[i.id] ?? 0;
+          const currentOutstanding = Math.max(0, openingOutstanding + delta);
+          const availableCredit = Math.max(0, limit - currentOutstanding);
           return {
             ...i,
-            balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0)),
+            balance: availableCredit,
+            opening_balance: openingOutstanding,
           };
         }
 
@@ -316,31 +321,33 @@ export default function PaymentAccountsPanel({
         }
 
         if (inst.type === "credit_card") {
-          const limit = Number(inst.details?.credit_limit || inst.opening_balance || 0);
-          const currentBal = Number(inst.balance || limit);
-          const used = limit > 0 ? Math.max(0, limit - currentBal) : 0;
+          const limit = Number(inst.details?.credit_limit || 0);
+          const openingOutstanding = Number(inst.opening_balance || 0);
+          const delta = instDeltas[inst.id] ?? 0;
+          const currentOutstanding = Math.max(0, openingOutstanding + delta);
+          const availableCredit = Math.max(0, limit - currentOutstanding);
 
           reconMap[inst.id] = {
             id: inst.id,
             accountName: inst.name,
             accountType: inst.type,
             poolKey: "credit_card",
-            currentBalance: currentBal,
-            openingBalance: limit,
+            currentBalance: availableCredit,
+            openingBalance: openingOutstanding,
             credits: 0,
-            debits: used,
+            debits: currentOutstanding,
             fees: 0,
             settlements: 0,
             otherMovements: 0,
-            calculatedBalance: currentBal,
-            canonicalBalance: currentBal,
+            calculatedBalance: availableCredit,
+            canonicalBalance: availableCredit,
             variance: 0,
             isReconciled: true,
             statusLabel: "Credit Facility",
             statusVariant: "credit_limit",
             isCreditCard: true,
             creditLimit: limit,
-            usedLimit: used,
+            usedLimit: currentOutstanding,
             contributingTxns: [],
             lastRefreshedAt: timeStr,
           };
@@ -648,9 +655,9 @@ export default function PaymentAccountsPanel({
       details.custom_name = instForm.custom_name !== false;
     } else if (type === "credit_card") {
       const fullLimit = Number(instForm.credit_limit) || 0;
-      const usedLimit = Number(instForm.used_limit) || 0;
+      const openingOutstanding = Number(instForm.opening_balance) || 0;
       details.credit_limit = String(fullLimit);
-      details.used_limit = String(usedLimit);
+      details.used_limit = String(openingOutstanding);
       details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
       details.bank_name = instForm.bank_name.trim();
     } else if (type === "aeps_portal") {
@@ -660,10 +667,7 @@ export default function PaymentAccountsPanel({
     }
     details.notes = instForm.notes.trim();
 
-    const openingBal =
-      type === "credit_card"
-        ? Math.max(0, (Number(instForm.credit_limit) || 0) - (Number(instForm.used_limit) || 0))
-        : Number(instForm.opening_balance) || 0;
+    const openingBal = Number(instForm.opening_balance) || 0;
 
     setAddingInst(true);
     if (instModal.mode === "edit" && instModal.row) {
@@ -962,7 +966,7 @@ export default function PaymentAccountsPanel({
                             {inr(currentBal)} <span className="text-[10px] font-normal uppercase text-slate-400">Available</span>
                           </div>
                           <div className="flex items-center justify-end gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                            <span>Used: <strong className="text-rose-600 dark:text-rose-400">{inr(usedLimit)}</strong> / {inr(totalLimit)}</span>
+                            <span>Outstanding: <strong className={usedLimit > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-300"}>{inr(usedLimit)}</strong> / Limit {inr(totalLimit)}</span>
                           </div>
                           <div className="h-1.5 w-28 ml-auto overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                             <div
@@ -1344,17 +1348,34 @@ export default function PaymentAccountsPanel({
               </div>
 
               {instForm.type === "credit_card" ? (
-                <div>
-                  <label className={labelClass}>Total Credit Limit (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={instForm.credit_limit}
-                    onChange={(e) => updateForm({ credit_limit: e.target.value })}
-                    placeholder="e.g. 50000"
-                    className={inputClass}
-                  />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:col-span-2">
+                  <div>
+                    <label className={labelClass}>Total Credit Limit (₹) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={instForm.credit_limit}
+                      onChange={(e) => updateForm({ credit_limit: e.target.value })}
+                      placeholder="e.g. 50000"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Opening Outstanding Owed (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={instForm.opening_balance}
+                      onChange={(e) => updateForm({ opening_balance: e.target.value })}
+                      placeholder="0.00 (Default ₹0 for fresh business)"
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      Amount currently owed. Set to 0.00 for fresh business zero-slate.
+                    </p>
+                  </div>
                 </div>
               ) : instForm.type === "debit_card" ? (
                 <div>

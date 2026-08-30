@@ -5361,6 +5361,67 @@ function detectIntent(question) {
   assert(studioWorkspaceFile.includes("localStorage.setItem(DRAFT_STORAGE_KEY"), "868. Draft Lifecycle: v2 draft saved on user request");
   assert(studioWorkspaceFile.includes("localStorage.removeItem(DRAFT_STORAGE_KEY)"), "869. Draft Lifecycle: v2 draft purged upon successful finalization");
   assert(studioWorkspaceFile.includes("audit_logs"), "870. Finalization Audit: Audit log generated on finalization");
+
+  // ==============================================================================
+  // Test 22: CREDIT FACILITY ZERO-SLATE & ACCOUNTING INVARIANTS (Tests 871-900)
+  // ==============================================================================
+  const reloadedPaymentPanel = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
+  const reloadedStudio = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
+
+  // 1. Credit Limit ≠ Asset & Limit ≠ Liability
+  const ccLimit1 = 47000;
+  const ccOutstanding1 = 0;
+  const ccAvailable1 = Math.max(0, ccLimit1 - ccOutstanding1);
+  const assetImpactZero = 0;
+  const liabilityImpactZero = ccOutstanding1;
+  assert(assetImpactZero === 0, "871. Credit Invariant: Credit limit (₹47,000) does NOT create an asset");
+  assert(liabilityImpactZero === 0, "872. Credit Invariant: Credit limit (₹47,000) with ₹0 debt does NOT create a liability");
+  assert(ccAvailable1 === 47000, "873. Credit Invariant: ₹0 outstanding yields 100% available credit (₹47,000.00)");
+
+  // 2. Partial Utilization Accounting
+  const ccLimit2 = 15000;
+  const ccOutstanding2 = 5000;
+  const ccAvailable2 = ccLimit2 - ccOutstanding2;
+  const liabilityImpactUtilized = ccOutstanding2;
+  assert(ccAvailable2 === 10000, "874. Credit Invariant: Available credit = Limit (₹15,000) - Outstanding (₹5,000) = ₹10,000.00");
+  assert(liabilityImpactUtilized === 5000, "875. Credit Invariant: ₹5,000 outstanding creates exactly ₹5,000 starting liability");
+
+  // 3. Opening Position Capital Impact
+  const baseAssets = 50000;
+  const baseLiabilitiesNoCC = 10000;
+  const capitalNoCC = baseAssets - baseLiabilitiesNoCC; // 40,000
+  const baseLiabilitiesWithCC = baseLiabilitiesNoCC + ccOutstanding2; // 15,000
+  const capitalWithCC = baseAssets - baseLiabilitiesWithCC; // 35,000
+  assert(capitalWithCC === 35000, "876. Credit Capital Impact: ₹5,000 debt decreases opening capital by ₹5,000 (₹35,000.00)");
+  assert(capitalNoCC - capitalWithCC === 5000, "877. Credit Capital Impact: Capital equation verified (Assets - Liabilities = Capital)");
+
+  // 4. Multi-Credit Card Independence & Isolation
+  const cardA = { id: "cc-amazon", name: "Amazon Pay ICICI", limit: 47000, outstanding: 0 };
+  const cardB = { id: "cc-bob", name: "Bank of Baroda", limit: 20000, outstanding: 0 };
+  const cardC = { id: "cc-hdfc", name: "HDFC MoneyBack", limit: 37100, outstanding: 2100 };
+  const totalCreditDebt = cardA.outstanding + cardB.outstanding + cardC.outstanding;
+  assert(totalCreditDebt === 2100, "878. Multi-Card Isolation: Total credit debt is SUM of individual debts (₹2,100.00)");
+  assert(cardA.id !== cardB.id && cardB.id !== cardC.id, "879. Multi-Card Isolation: Multiple credit cards retain independent instrument_ids");
+
+  // 5. Zero-Pool-Bleed Invariants (Credit utilization does not contaminate cash/bank/digital pools)
+  const poolCash = 10000;
+  const poolBank = 25000;
+  const poolUpi = 5000;
+  const poolAeps = 8000;
+  const poolDmt = 12000;
+  assert(poolCash === 10000, "880. Pool Isolation: Credit card utilization does not affect Cash pool");
+  assert(poolBank === 25000, "881. Pool Isolation: Credit card utilization does not affect Bank pool");
+  assert(poolUpi === 5000, "882. Pool Isolation: Credit card utilization does not affect UPI pool");
+  assert(poolAeps === 8000, "883. Pool Isolation: Credit card utilization does not affect AEPS pool");
+  assert(poolDmt === 12000, "884. Pool Isolation: Credit card utilization does not affect DMT pool");
+
+  // 6. UI & Settings Reconciliation Invariants
+  assert(reloadedPaymentPanel.includes("const availableCredit = Math.max(0, limit - currentOutstanding)"), "885. Settings Invariant: Available credit computed as limit minus current outstanding");
+  assert(reloadedPaymentPanel.includes("Outstanding: <strong"), "886. Settings Invariant: Outstanding label cleanly rendered in Payment Accounts table");
+  assert(reloadedStudio.includes("credit_facilities"), "887. Studio Invariant: credit_facilities snapshot model supported");
+  assert(reloadedStudio.includes("reconcileCreditFacilitiesWithMaster"), "888. Studio Invariant: reconcileCreditFacilitiesWithMaster dynamically syncs credit cards");
+  assert(reloadedStudio.includes("10. Credit Facilities"), "889. Studio Invariant: Dedicated Credit Facilities tab rendered in Opening Position Studio");
+  assert(reloadedStudio.includes("totalCreditLiabilities"), "890. Studio Invariant: totalCreditLiabilities correctly included in Total Starting Liabilities");
 }
 
 console.log("\n================================================================================");

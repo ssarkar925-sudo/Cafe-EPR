@@ -49,6 +49,14 @@ export type AccountRow = {
   remarks: string;
 };
 
+export type CreditFacilityRow = {
+  instrument_id: string;
+  name: string;
+  credit_limit: number;
+  opening_outstanding: number;
+  remarks: string;
+};
+
 export type ReceivableRow = {
   id: string;
   customer_id: string;
@@ -93,6 +101,7 @@ export type OpeningPositionSnapshot = {
   wallet_accounts: AccountRow[];
   aeps_accounts: AccountRow[];
   dmt_accounts: AccountRow[];
+  credit_facilities?: CreditFacilityRow[];
   receivables: ReceivableRow[];
   inventory: InventoryRow[];
   payables: PayableRow[];
@@ -154,7 +163,6 @@ function reconcileAccountsWithMaster(
     }
   }
 
-  // Active instruments are authoritative: preserve draft values for existing, initialize 0 for new
   return activeInstruments.map((inst) => {
     const existing = draftMap.get(inst.id);
     return {
@@ -162,6 +170,33 @@ function reconcileAccountsWithMaster(
       name: inst.name,
       type: defaultType,
       amount: existing ? Number(existing.amount || 0) : Number(inst.opening_balance || 0),
+      remarks: existing ? existing.remarks || "" : "",
+    };
+  });
+}
+
+// Reconcile saved credit facilities with current active master credit instruments
+function reconcileCreditFacilitiesWithMaster(
+  draftRows: CreditFacilityRow[] | undefined,
+  activeInstruments: PaymentInstrument[]
+): CreditFacilityRow[] {
+  const draftMap = new Map<string, CreditFacilityRow>();
+  if (Array.isArray(draftRows)) {
+    for (const d of draftRows) {
+      if (d.instrument_id) draftMap.set(d.instrument_id, d);
+    }
+  }
+
+  return activeInstruments.map((inst) => {
+    const existing = draftMap.get(inst.id);
+    const configuredLimit = Number(inst.details?.credit_limit || 0);
+    return {
+      instrument_id: inst.id,
+      name: inst.name,
+      credit_limit: configuredLimit,
+      opening_outstanding: existing
+        ? Number(existing.opening_outstanding || 0)
+        : Number(inst.opening_balance || 0),
       remarks: existing ? existing.remarks || "" : "",
     };
   });
@@ -188,7 +223,18 @@ export default function OpeningPositionWorkspace({
 }) {
   const { showToast, toastView } = useToast();
   const [activeTab, setActiveTab] = useState<
-    "overview" | "cash" | "banks" | "digital" | "wallets" | "aeps" | "dmt" | "receivables" | "inventory" | "payables" | "liabilities"
+    | "overview"
+    | "cash"
+    | "banks"
+    | "digital"
+    | "wallets"
+    | "aeps"
+    | "dmt"
+    | "receivables"
+    | "inventory"
+    | "payables"
+    | "credit_cards"
+    | "liabilities"
   >("overview");
 
   const [openingDate, setOpeningDate] = useState<string>(() => {
@@ -224,6 +270,10 @@ export default function OpeningPositionWorkspace({
   );
   const activeDmtInstruments = useMemo(
     () => instruments.filter((i) => i.type === "dmt_portal" && i.is_active),
+    [instruments]
+  );
+  const activeCreditInstruments = useMemo(
+    () => instruments.filter((i) => i.type === "credit_card" && i.is_active),
     [instruments]
   );
 
@@ -287,7 +337,15 @@ export default function OpeningPositionWorkspace({
     )
   );
 
-  // 7. Customer Receivables
+  // 7. Credit Facility Liabilities State (Card-Wise)
+  const [creditAccounts, setCreditAccounts] = useState<CreditFacilityRow[]>(() =>
+    reconcileCreditFacilitiesWithMaster(
+      initialSnapshot?.credit_facilities,
+      activeCreditInstruments
+    )
+  );
+
+  // 8. Customer Receivables
   const [receivables, setReceivables] = useState<ReceivableRow[]>(
     initialSnapshot?.receivables || []
   );
@@ -295,7 +353,7 @@ export default function OpeningPositionWorkspace({
   const [recAmount, setRecAmount] = useState("");
   const [recRemarks, setRecRemarks] = useState("");
 
-  // 8. Inventory Stock
+  // 9. Inventory Stock
   const [inventory, setInventory] = useState<InventoryRow[]>(
     initialSnapshot?.inventory || []
   );
@@ -304,7 +362,7 @@ export default function OpeningPositionWorkspace({
   const [invCost, setInvCost] = useState("");
   const [invRemarks, setInvRemarks] = useState("");
 
-  // 9. Supplier Payables
+  // 10. Supplier Payables
   const [payables, setPayables] = useState<PayableRow[]>(
     initialSnapshot?.payables || []
   );
@@ -312,7 +370,7 @@ export default function OpeningPositionWorkspace({
   const [payAmount, setPayAmount] = useState("");
   const [payRemarks, setPayRemarks] = useState("");
 
-  // 10. Other Liabilities
+  // 11. Other Liabilities
   const [otherLiab, setOtherLiab] = useState<OtherLiabRow[]>(
     initialSnapshot?.other_liabilities || []
   );
@@ -362,11 +420,16 @@ export default function OpeningPositionWorkspace({
     );
   }, [activeDmtInstruments]);
 
+  useEffect(() => {
+    setCreditAccounts((prev) =>
+      reconcileCreditFacilitiesWithMaster(prev, activeCreditInstruments)
+    );
+  }, [activeCreditInstruments]);
+
   // Load Saved Draft v2 (and purge legacy v1 draft to prevent stale resurrection)
   useEffect(() => {
     if (!initialSnapshot && typeof window !== "undefined") {
       try {
-        // Purge legacy draft key
         window.localStorage.removeItem("cafe_erp_opening_position_draft_v1");
 
         const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY);
@@ -404,22 +467,24 @@ export default function OpeningPositionWorkspace({
                 reconcileAccountsWithMaster(parsed.dmt_accounts, activeDmtInstruments, "dmt_portal", "DMT Wallet")
               );
             }
+            if (Array.isArray(parsed.credit_facilities)) {
+              setCreditAccounts(
+                reconcileCreditFacilitiesWithMaster(parsed.credit_facilities, activeCreditInstruments)
+              );
+            }
             if (Array.isArray(parsed.receivables)) {
-              // Ensure customer still exists
               const validCustIds = new Set(customers.map((c) => c.id));
               setReceivables(
                 parsed.receivables.filter((r: ReceivableRow) => validCustIds.has(r.customer_id))
               );
             }
             if (Array.isArray(parsed.inventory)) {
-              // Ensure product still exists
               const validProdIds = new Set(products.map((p) => p.id));
               setInventory(
                 parsed.inventory.filter((i: InventoryRow) => validProdIds.has(i.product_id))
               );
             }
             if (Array.isArray(parsed.payables)) {
-              // Ensure supplier still exists
               const validSuppIds = new Set(suppliers.map((s) => s.id));
               setPayables(
                 parsed.payables.filter((p: PayableRow) => validSuppIds.has(p.supplier_id))
@@ -431,7 +496,19 @@ export default function OpeningPositionWorkspace({
         }
       } catch {}
     }
-  }, [initialSnapshot, activeCashInstruments, activeBankInstruments, activeUpiInstruments, activeWalletInstruments, activeAepsInstruments, activeDmtInstruments, customers, products, suppliers]);
+  }, [
+    initialSnapshot,
+    activeCashInstruments,
+    activeBankInstruments,
+    activeUpiInstruments,
+    activeWalletInstruments,
+    activeAepsInstruments,
+    activeDmtInstruments,
+    activeCreditInstruments,
+    customers,
+    products,
+    suppliers,
+  ]);
 
   // --- Derived Category Calculations ---
   const totalCash = useMemo(
@@ -458,6 +535,14 @@ export default function OpeningPositionWorkspace({
     () => dmtProviderAccounts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
     [dmtProviderAccounts]
   );
+  const totalCreditLiabilities = useMemo(
+    () =>
+      creditAccounts.reduce(
+        (sum, c) => sum + (Number(c.opening_outstanding) || 0),
+        0
+      ),
+    [creditAccounts]
+  );
   const totalReceivables = useMemo(
     () => receivables.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
     [receivables]
@@ -479,6 +564,7 @@ export default function OpeningPositionWorkspace({
     [otherLiab]
   );
 
+  // Total Starting Assets (strictly excludes credit facilities)
   const totalAssets = useMemo(
     () =>
       totalCash +
@@ -501,19 +587,17 @@ export default function OpeningPositionWorkspace({
     ]
   );
 
+  // Total Starting Liabilities (payables + other liabilities + credit facility outstanding debt)
   const totalLiabilities = useMemo(
-    () => totalPayables + totalOtherLiabilities,
-    [totalPayables, totalOtherLiabilities]
+    () => totalPayables + totalOtherLiabilities + totalCreditLiabilities,
+    [totalPayables, totalOtherLiabilities, totalCreditLiabilities]
   );
 
+  // Opening Capital Equity: Derived directly from Assets minus Liabilities
   const openingCapital = useMemo(
     () => totalAssets - totalLiabilities,
     [totalAssets, totalLiabilities]
   );
-
-  const isBalanced = useMemo(() => {
-    return Math.abs(totalAssets - (totalLiabilities + openingCapital)) < 0.01;
-  }, [totalAssets, totalLiabilities, openingCapital]);
 
   // Handlers for List Additions
   function addReceivable() {
@@ -681,6 +765,7 @@ export default function OpeningPositionWorkspace({
         wallet_accounts: walletAccounts,
         aeps_accounts: aepsProviderAccounts,
         dmt_accounts: dmtProviderAccounts,
+        credit_facilities: creditAccounts,
         receivables,
         inventory,
         payables,
@@ -697,14 +782,11 @@ export default function OpeningPositionWorkspace({
 
   // Finalize Opening Position (Atomic Account-Wise Execution with Double-Post Guards)
   async function handleFinalize() {
-    // 1. Double-submit and finalization lock guards
     if (status === "finalized") {
       showToast("error", "Opening Position is already finalized.");
       return;
     }
-    if (submitting) {
-      return;
-    }
+    if (submitting) return;
 
     if (!openingDate) {
       showToast("error", "Opening date is required.");
@@ -719,7 +801,7 @@ export default function OpeningPositionWorkspace({
     const supabase = createClient();
 
     try {
-      // 2. Database Double-Post Guard: Check if already finalized for this date
+      // 1. Database Double-Post Guard
       const { data: existingPos } = await supabase
         .from("opening_positions")
         .select("id, status")
@@ -736,7 +818,7 @@ export default function OpeningPositionWorkspace({
         return;
       }
 
-      // 3. Post All Financial Account Rows to opening_balances & update payment_instruments
+      // 2. Post Financial Asset Account Rows to opening_balances
       const allFinancialRows = [
         ...cashAccounts.map((a) => ({ ...a, pool: "cash" })),
         ...bankAccounts.map((a) => ({ ...a, pool: "bank" })),
@@ -750,7 +832,6 @@ export default function OpeningPositionWorkspace({
         if (Number(row.amount) > 0) {
           const instId = row.instrument_id ? row.instrument_id : null;
 
-          // Clean up any stale opening seed on this as_of date for idempotency
           if (instId) {
             await supabase
               .from("opening_balances")
@@ -766,7 +847,6 @@ export default function OpeningPositionWorkspace({
               .eq("as_of", openingDate);
           }
 
-          // Insert verified opening seed
           await supabase.from("opening_balances").insert({
             pool: row.pool,
             instrument_id: instId,
@@ -784,6 +864,33 @@ export default function OpeningPositionWorkspace({
               })
               .eq("id", instId);
           }
+        }
+      }
+
+      // 3. Post Credit Facility Starting Liabilities (if outstanding debt exists)
+      for (const c of creditAccounts) {
+        if (Number(c.opening_outstanding) > 0) {
+          await supabase
+            .from("opening_balances")
+            .delete()
+            .eq("instrument_id", c.instrument_id)
+            .eq("as_of", openingDate);
+
+          await supabase.from("opening_balances").insert({
+            pool: "credit_card",
+            instrument_id: c.instrument_id,
+            amount: Number(c.opening_outstanding),
+            as_of: openingDate,
+            remarks: c.remarks || `Opening Credit Card Outstanding for ${c.name}`,
+            is_auto: false,
+          });
+
+          await supabase
+            .from("payment_instruments")
+            .update({
+              opening_balance: Number(c.opening_outstanding),
+            })
+            .eq("id", c.instrument_id);
         }
       }
 
@@ -870,6 +977,7 @@ export default function OpeningPositionWorkspace({
           wallet_accounts: walletAccounts,
           aeps_accounts: aepsProviderAccounts,
           dmt_accounts: dmtProviderAccounts,
+          credit_facilities: creditAccounts,
           receivables,
           inventory,
           payables,
@@ -910,6 +1018,7 @@ export default function OpeningPositionWorkspace({
           wallet_accounts: walletAccounts,
           aeps_accounts: aepsProviderAccounts,
           dmt_accounts: dmtProviderAccounts,
+          credit_facilities: creditAccounts,
           receivables,
           inventory,
           payables,
@@ -1082,7 +1191,8 @@ export default function OpeningPositionWorkspace({
             { id: "receivables" as const, label: "7. Customer Dues", icon: "👤" },
             { id: "inventory" as const, label: "8. Opening Stock", icon: "📦" },
             { id: "payables" as const, label: "9. Supplier Dues", icon: "🏷️" },
-            { id: "liabilities" as const, label: "10. Other Liabilities", icon: "⚖️" },
+            { id: "credit_cards" as const, label: "10. Credit Facilities", icon: "💳" },
+            { id: "liabilities" as const, label: "11. Other Liabilities", icon: "⚖️" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1168,6 +1278,10 @@ export default function OpeningPositionWorkspace({
                     <strong>{inr(totalPayables)}</strong>
                   </li>
                   <li className="flex justify-between">
+                    <span>Credit Facility Debt ({creditAccounts.length}):</span>
+                    <strong className={totalCreditLiabilities > 0 ? "text-rose-600" : ""}>{inr(totalCreditLiabilities)}</strong>
+                  </li>
+                  <li className="flex justify-between">
                     <span>Other External Liabilities ({otherLiab.length}):</span>
                     <strong>{inr(totalOtherLiabilities)}</strong>
                   </li>
@@ -1218,7 +1332,7 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 2: CASH ACCOUNTS (MULTI-CASH READY) */}
+        {/* TAB 2: CASH ACCOUNTS */}
         {activeTab === "cash" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -1516,7 +1630,7 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 6: AEPS PROVIDER FLOATS (PROVIDER-WISE) */}
+        {/* TAB 6: AEPS PROVIDER FLOATS */}
         {activeTab === "aeps" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -1591,7 +1705,7 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 7: DMT PROVIDER WALLETS (PROVIDER-WISE) */}
+        {/* TAB 7: DMT PROVIDER WALLETS */}
         {activeTab === "dmt" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -1734,7 +1848,6 @@ export default function OpeningPositionWorkspace({
               </div>
             )}
 
-            {/* List */}
             {receivables.length === 0 ? (
               <p className="py-4 text-center text-xs text-slate-400">No customer receivables added.</p>
             ) : (
@@ -1854,7 +1967,6 @@ export default function OpeningPositionWorkspace({
               </div>
             )}
 
-            {/* List */}
             {inventory.length === 0 ? (
               <p className="py-4 text-center text-xs text-slate-400">No opening inventory rows added.</p>
             ) : (
@@ -1962,7 +2074,6 @@ export default function OpeningPositionWorkspace({
               </div>
             )}
 
-            {/* List */}
             {payables.length === 0 ? (
               <p className="py-4 text-center text-xs text-slate-400">No supplier payables added.</p>
             ) : (
@@ -1995,7 +2106,106 @@ export default function OpeningPositionWorkspace({
           </div>
         )}
 
-        {/* TAB 11: OTHER LIABILITIES */}
+        {/* TAB 11: CREDIT FACILITIES (STARTING LIABILITIES) */}
+        {activeTab === "credit_cards" && (
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  Credit Facilities (Starting Liabilities)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pre-existing debt owed on commercial credit cards/facilities. Defaults to ₹0.00 for fresh zero-slate business.
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-400">CREDIT DEBT TOTAL</span>
+                <p className="text-lg font-black text-rose-600 dark:text-rose-400">{inr(totalCreditLiabilities)}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-cyan-50/40 p-3.5 text-xs text-cyan-900 dark:bg-cyan-950/20 dark:text-cyan-200">
+              💳 <strong>Financing Line Rule:</strong> Credit limits (e.g. ₹47,000) are revolving credit facilities and do NOT add to cash or starting assets. Only enter an amount in &quot;Opening Outstanding&quot; if you actually owe pre-existing debt on your opening anchor date.
+            </div>
+
+            {creditAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-400 dark:border-white/10">
+                No credit card accounts configured. Configure credit cards in Settings → Payment Accounts.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {creditAccounts.map((c, idx) => {
+                  const limit = Number(c.credit_limit || 0);
+                  const outstanding = Number(c.opening_outstanding || 0);
+                  const available = Math.max(0, limit - outstanding);
+
+                  return (
+                    <div
+                      key={c.instrument_id || `cc-${idx}`}
+                      className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/5 dark:bg-white/2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900 dark:text-white">{c.name}</span>
+                        <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300">
+                          Credit Facility
+                        </span>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span>Total Facility Limit:</span>
+                        <strong className="font-bold text-slate-900 dark:text-white">{inr(limit)}</strong>
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="text-[11px] font-bold text-slate-500">Opening Outstanding Debt (₹)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={c.opening_outstanding || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setCreditAccounts((prev) =>
+                              prev.map((item, i) =>
+                                i === idx ? { ...item, opening_outstanding: val } : item
+                              )
+                            );
+                          }}
+                          disabled={status === "finalized"}
+                          placeholder="0.00 (Default ₹0 for fresh business)"
+                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Available Credit:</span>
+                        <strong className="text-emerald-600 dark:text-emerald-400">{inr(available)}</strong>
+                      </div>
+
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={c.remarks}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCreditAccounts((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, remarks: val } : item))
+                            );
+                          }}
+                          disabled={status === "finalized"}
+                          placeholder="Terms / notes"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 12: OTHER LIABILITIES */}
         {activeTab === "liabilities" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-900 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
@@ -2061,7 +2271,6 @@ export default function OpeningPositionWorkspace({
               </div>
             )}
 
-            {/* List */}
             {otherLiab.length === 0 ? (
               <p className="py-4 text-center text-xs text-slate-400">No other liabilities added.</p>
             ) : (
@@ -2137,6 +2346,7 @@ export default function OpeningPositionWorkspace({
                 <div className="space-y-2 rounded-xl border border-rose-500/20 bg-rose-50/30 p-3 dark:bg-rose-950/20">
                   <strong className="text-rose-700 dark:text-rose-400">LIABILITIES &amp; EQUITY</strong>
                   <div className="flex justify-between"><span>Supplier Payables ({payables.length}):</span><span>{inr(totalPayables)}</span></div>
+                  <div className="flex justify-between"><span>Credit Facility Debt ({creditAccounts.length}):</span><span className={totalCreditLiabilities > 0 ? "text-rose-600 font-bold" : ""}>{inr(totalCreditLiabilities)}</span></div>
                   <div className="flex justify-between"><span>Other Liabilities ({otherLiab.length}):</span><span>{inr(totalOtherLiabilities)}</span></div>
                   <div className="flex justify-between font-black border-t border-rose-500/20 pt-1">
                     <span>Total Liabilities:</span>
@@ -2217,7 +2427,7 @@ export default function OpeningPositionWorkspace({
             </div>
 
             <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-              ⚡ This will post starting cash accounts, bank balances, digital accounts, wallet floats, AEPS &amp; DMT provider floats, customer ledger debit seeds, supplier credits, and inventory starting stock atomically.
+              ⚡ This will post starting cash accounts, bank balances, digital accounts, wallet floats, AEPS &amp; DMT provider floats, credit facility starting debt, customer ledger debit seeds, supplier credits, and inventory starting stock atomically.
             </p>
 
             <div className="mt-5 flex justify-end gap-2">

@@ -321,7 +321,7 @@ export default function OpeningBalancesClient({
               </p>
               <p className="flex items-center gap-1.5">
                 <span className="font-semibold text-cyan-300">Credit Card:</span>
-                <span>Credit facility ({inr(creditLimit)} limit) · Excluded from cash wealth</span>
+                <span>Credit facility {creditLimit > 0 ? `(${inr(creditLimit)} limit) ` : ""}· Excluded from cash wealth</span>
               </p>
             </div>
           </div>
