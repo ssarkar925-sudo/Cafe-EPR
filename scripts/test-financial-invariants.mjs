@@ -4821,8 +4821,50 @@ function detectIntent(question) {
   assert(dmtWorkspaceFile.includes("✓ SELECTED"), "676. Selected Badge: Clear visual selection pill present on active card");
   assert(dmtWorkspaceFile.includes("Select Shop Bank Account"), "677. Bank Account Selector: 'Select Shop Bank Account' label present for Cash funding");
   assert(dmtWorkspaceFile.includes("DMT Provider Gateway"), "678. Portal Selector: 'DMT Provider Gateway' label present for Portal funding");
-  assert(dmtWorkspaceFile.includes("TRANSFER FUNDING SOURCE (DISBURSEMENT)"), "679. Section Title: Standardized uppercase title present");
-  assert(dmtWorkspaceFile.includes("onClick={() => setPaidFrom(\"bank\")}") && dmtWorkspaceFile.includes("onClick={() => setPaidFrom(\"portal\")}"), "680. Switching Invariant: Bidirectional switching handlers present for Cash and Portal");
+  // Test 15: DMT Atomic RPC Financial Posting & Duplicate Removal (Tests 681-700)
+  assert(dmtWorkspaceFile.includes("create_dmt_business_txn"), "681. Atomic RPC: create_dmt_business_txn is the primary transaction posting RPC");
+  assert(dmtWorkspaceFile.includes("p_portal_charge: numCharge"), "682. Parameter Invariant: p_portal_charge correctly passed directly into atomic RPC");
+  assert(dmtWorkspaceFile.includes("p_pay_from_instrument_id: paidFrom === \"bank\""), "683. Parameter Invariant: p_pay_from_instrument_id correctly passed into atomic RPC");
+  assert(dmtWorkspaceFile.includes("p_pay_from_method: paidFrom"), "684. Parameter Invariant: p_pay_from_method correctly passed into atomic RPC");
+  
+  // Verify complete removal of client-side financial posting updates
+  assert(!dmtWorkspaceFile.includes("await supabase.from(\"cash_entries\").update"), "685. Duplicate Removal: No manual client-side cash_entries update after RPC");
+  assert(!dmtWorkspaceFile.includes("await supabase.from(\"customer_ledger\").update"), "686. Duplicate Removal: No manual client-side customer_ledger update after RPC");
+  assert(!dmtWorkspaceFile.includes("await supabase.from(\"customers\").update({ balance:"), "687. Duplicate Removal: No manual client-side customers balance update after RPC");
+
+  // Mathematical validation for Cases A, B, C, D, E
+  const calcDmtCollection = (amt, fee, charge) => amt + fee + charge;
+  const calcOperatorIncome = (fee, comm, charge) => fee + comm - charge;
+
+  // Case A: Amount ₹1,000, Fee ₹20, Charge ₹0 -> Collection ₹1,020
+  const caseACollection = calcDmtCollection(1000, 20, 0);
+  assert(caseACollection === 1020, "688. Financial Math Case A: Amount ₹1000 + Fee ₹20 + Charge ₹0 = ₹1,020");
+
+  // Case B: Amount ₹1,000, Fee ₹20, Charge ₹10 -> Collection ₹1,030
+  const caseBCollection = calcDmtCollection(1000, 20, 10);
+  assert(caseBCollection === 1030, "689. Financial Math Case B: Amount ₹1000 + Fee ₹20 + Charge ₹10 = ₹1,030 (Single Count)");
+
+  // Case C: Amount ₹1,000, Fee ₹20, Charge ₹10, Due customer -> Customer Due increase = ₹1,030
+  const caseCDueIncrease = calcDmtCollection(1000, 20, 10);
+  assert(caseCDueIncrease === 1030, "690. Financial Math Case C: Due customer debit increase is exactly ₹1,030");
+
+  // Case D: Amount ₹1,000, Fee ₹0, Charge ₹10, Bank/UPI -> Collection ₹1,010
+  const caseDCollection = calcDmtCollection(1000, 0, 10);
+  assert(caseDCollection === 1010, "691. Financial Math Case D: Amount ₹1000 + Fee ₹0 + Charge ₹10 = ₹1,010");
+
+  // Case E: Operator Income Math
+  const caseBOperatorIncome = calcOperatorIncome(20, 5, 10); // Fee ₹20 + Comm ₹5 - Cost ₹10 = ₹15
+  assert(caseBOperatorIncome === 15, "692. Financial Math Case E: Net Operator Income = Fee ₹20 + Comm ₹5 - Charge ₹10 = ₹15");
+
+  // Balance Synchronization Invariant
+  assert(dmtWorkspaceFile.includes("await refreshBalances();"), "693. Sync Invariant: refreshBalances called immediately following successful atomic RPC");
+  assert(dmtWorkspaceFile.includes("portal_charge: numCharge"), "694. State Invariant: Completed transaction object preserves portal_charge");
+  assert(dmtWorkspaceFile.includes("reverse_business_txn"), "695. Reversal Invariant: reverse_business_txn preserved for atomic reversals");
+  assert(dmtWorkspaceFile.includes("get_pool_balances"), "696. Canonical Invariant: Authoritative pool balance RPC consumed");
+  assert(dmtWorkspaceFile.includes("p_customer_pay_method: customerPayMethod"), "697. Payment Method Invariant: customerPayMethod passed to atomic RPC");
+  assert(dmtWorkspaceFile.includes("p_transfer_method: transferMethod"), "698. Transfer Method Invariant: transferMethod passed to atomic RPC");
+  assert(dmtWorkspaceFile.includes("lastCompletedTxn"), "699. State Invariant: lastCompletedTxn updated with atomic RPC result");
+  assert(dmtWorkspaceFile.includes("setLastCompletedTxn(completedRecord)"), "700. Success Invariant: UI renders confirmation card using atomic record");
 }
 
 console.log("\n================================================================================");

@@ -909,7 +909,7 @@ export default function DmtWorkspace({
       const nowIso = new Date().toISOString();
       const dateStr = nowIso.slice(0, 10);
 
-      const res = await supabase.rpc("create_business_txn", {
+      const res = await supabase.rpc("create_dmt_business_txn", {
         p_service_type: "dmt",
         p_transaction_date: dateStr,
         p_transaction_timestamp: nowIso,
@@ -937,32 +937,17 @@ export default function DmtWorkspace({
         p_fee_source: null,
         p_paid_from: paidFrom,
         p_customer_pay_method: customerPayMethod,
+        p_pay_from_instrument_id: paidFrom === "bank" ? selectedBankInstrumentId || null : null,
+        p_pay_from_method: paidFrom,
         p_receiver_name: receiverName.trim() || null,
+        p_portal_charge: numCharge,
       });
 
       if (res.error) throw res.error;
 
-      const newTxnId = (res.data as any)?.id;
-      const newTxnNum = (res.data as any)?.transaction_number || "DMT-NEW";
-
-      // If portal charge is present, update transaction record and adjust customer collection
-      if (newTxnId && numCharge > 0) {
-        try {
-          await supabase.from("transactions").update({ portal_charge: numCharge }).eq("id", newTxnId);
-        } catch (_) {}
-
-        const fullCollection = numAmount + numFee + numCharge;
-        try {
-          if (customerPayMethod === "cash") {
-            await supabase.from("cash_entries").update({ amount: fullCollection }).eq("ref_id", newTxnId).eq("direction", "in");
-          } else if (customerPayMethod === "due" && selectedCustomerId) {
-            const { data: cust } = await supabase.from("customers").select("balance").eq("id", selectedCustomerId).single();
-            const adjustedBal = Number(cust?.balance || 0) + numCharge;
-            await supabase.from("customers").update({ balance: adjustedBal }).eq("id", selectedCustomerId);
-            await supabase.from("customer_ledger").update({ debit: fullCollection, balance_after: adjustedBal }).eq("ref_id", newTxnId);
-          }
-        } catch (_) {}
-      }
+      const resData = (res.data as any) || {};
+      const newTxnId = resData.id || resData.txn_id || null;
+      const newTxnNum = resData.transaction_number || resData.txn_number || "DMT-NEW";
 
       const completedRecord: Txn = {
         id: newTxnId || crypto.randomUUID(),
