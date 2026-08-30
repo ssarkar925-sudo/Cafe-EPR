@@ -1,3 +1,4 @@
+// BILLING_WORKSPACE_PATCH_SAFE_V1
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -205,10 +206,10 @@ export default function UtilityBillWorkspace({
     return POPULAR_BILLERS.find((b) => b.id === selectedBillerId) || null;
   }, [selectedBillerId]);
 
-  // Valid Funding Instruments (Active Cash, Bank, UPI, Wallet)
+  // Valid Funding Instruments. Credit cards are supported as a real biller funding source.
   const validFundingInstruments = useMemo(() => {
     return instruments.filter(
-      (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal"].includes(i.type)
+      (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
     );
   }, [instruments]);
 
@@ -525,7 +526,7 @@ export default function UtilityBillWorkspace({
       if (netProviderCost > 0 && selectedFundingAccount) {
         await supabase.from("cash_entries").insert({
           entry_date: todayDate,
-          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : "upi",
+          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : selectedFundingAccount.type === "credit_card" ? "credit_card" : selectedFundingAccount.type === "wallet" ? "wallet" : "upi",
           direction: "out",
           amount: netProviderCost,
           description: `Bill ${nextNum} settlement to ${billerName} from ${selectedFundingAccount.name}`,
@@ -1036,7 +1037,7 @@ export default function UtilityBillWorkspace({
             >
               {validFundingInstruments.map((inst) => (
                 <option key={inst.id} value={inst.id}>
-                  {inst.type === "cash" ? "💵" : inst.type === "bank" ? "🏦" : inst.type === "upi" ? "📱" : "👛"} {inst.name} ({inst.type.toUpperCase()})
+                  {inst.type === "cash" ? "💵" : inst.type === "bank" ? "🏦" : inst.type === "upi" ? "📱" : inst.type === "credit_card" ? "💳" : "👛"} {inst.name} ({inst.type.toUpperCase()})
                 </option>
               ))}
             </select>

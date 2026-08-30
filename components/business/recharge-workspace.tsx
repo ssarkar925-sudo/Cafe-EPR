@@ -1,3 +1,4 @@
+// BILLING_WORKSPACE_PATCH_SAFE_V1
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -120,6 +121,7 @@ const OPERATOR_CATALOG: { name: string; code: string; color: string; icon: strin
 // Curated Popular Telecom Plans
 export type PlanItem = {
   id: string;
+  provider_id?: string | null;
   category: string;
   amount: number;
   validity: string;
@@ -207,10 +209,25 @@ export default function RechargeWorkspace({
     "transactions",
     "recharge_providers",
     "recharge_commission_slabs",
+    "recharge_plan_catalog",
     "customers",
     "cash_entries",
     "payment_instruments",
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("recharge_plan_catalog")
+        .select("id,provider_id,category,amount,validity,data,voice,sms,description,badge")
+        .eq("is_active", true)
+        .order("sort_order")
+        .order("amount");
+      if (!cancelled && data && data.length > 0) setCatalogPlans(data as PlanItem[]);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // State
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
@@ -218,6 +235,7 @@ export default function RechargeWorkspace({
   const [providers, setProviders] = useState<RechargeProvider[]>(initialRechargeProviders);
   const [slabs, setSlabs] = useState<RechargeSlab[]>(initialRechargeSlabs);
   const [instruments, setInstruments] = useState<PaymentInstrument[]>(initialPaymentInstruments);
+  const [catalogPlans, setCatalogPlans] = useState<PlanItem[]>(SAMPLE_PLANS);
 
   // Form Inputs (Zero demo prefill)
   const [mobileNumber, setMobileNumber] = useState("");
@@ -274,10 +292,10 @@ export default function RechargeWorkspace({
     return list;
   }, [providers]);
 
-  // Valid Funding Instruments (Active Cash, Bank, UPI, Wallet accounts - Excludes pure debit mirrors and credit limits)
+  // Valid Funding Instruments. Credit cards are supported as a real provider/gateway funding source.
   const validFundingInstruments = useMemo(() => {
     return instruments.filter(
-      (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal"].includes(i.type)
+      (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
     );
   }, [instruments]);
 
@@ -330,15 +348,6 @@ export default function RechargeWorkspace({
       if (slab) {
         pct = Number(slab.commission_percent) || 0;
       }
-    }
-
-    // Standard baseline margin if no DB slab configured (e.g. 1.5% - 2.5%)
-    if (pct === 0) {
-      if (selectedOperatorCode === "jio") pct = 1.8;
-      else if (selectedOperatorCode === "airtel") pct = 1.5;
-      else if (selectedOperatorCode === "vi") pct = 2.5;
-      else if (selectedOperatorCode === "bsnl") pct = 3.0;
-      else pct = 2.0;
     }
 
     const commission = Math.round((amt * pct) / 100 * 100) / 100;
@@ -615,7 +624,7 @@ export default function RechargeWorkspace({
       if (netProviderCost > 0 && selectedFundingAccount) {
         await supabase.from("cash_entries").insert({
           entry_date: todayDate,
-          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : "upi",
+          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : selectedFundingAccount.type === "credit_card" ? "credit_card" : selectedFundingAccount.type === "wallet" ? "wallet" : "upi",
           direction: "out",
           amount: netProviderCost,
           description: `Recharge ${nextNum} settlement to ${operatorName} from ${selectedFundingAccount.name}`,
@@ -1090,9 +1099,20 @@ export default function RechargeWorkspace({
               ))}
             </div>
 
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[10, 20, 49, 99, 149, 199, 249, 299, 349, 399, 499, 599, 719, 799, 859, 999, 1499, 1999, 2999, 3599].map((preset) => (
+                <button key={preset} type="button" onClick={() => { setAmount(String(preset)); setSelectedPlan(null); }} disabled={submitting} className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition ${Number(amount) === preset ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"}`}>₹{preset}</button>
+              ))}
+              <a href="/business/bill-payment/mobile-recharge/plans" className="rounded-lg border border-dashed border-indigo-300 px-2.5 py-1.5 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500/40 dark:text-indigo-300">⚙ Customize</a>
+            </div>
             {/* Plan Cards Slider */}
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 max-h-48 overflow-y-auto pr-1">
-              {SAMPLE_PLANS.filter((p) => p.category === planCategory).map((plan) => {
+              {catalogPlans.filter((p) => {
+                if (p.category !== planCategory) return false;
+                if (!p.provider_id) return true;
+                const selected = providers.find((x) => x.id === selectedOperatorCode || x.name.toLowerCase() === (allOperators.find((o) => o.code === selectedOperatorCode)?.name || "").toLowerCase());
+                return !!selected && p.provider_id === selected.id;
+              }).map((plan) => {
                 const isSelected = selectedPlan?.id === plan.id || Number(amount) === plan.amount;
                 return (
                   <button
@@ -1213,7 +1233,7 @@ export default function RechargeWorkspace({
             >
               {validFundingInstruments.map((inst) => (
                 <option key={inst.id} value={inst.id}>
-                  {inst.type === "cash" ? "💵" : inst.type === "bank" ? "🏦" : inst.type === "upi" ? "📱" : "👛"} {inst.name} ({inst.type.toUpperCase()})
+                  {inst.type === "cash" ? "💵" : inst.type === "bank" ? "🏦" : inst.type === "upi" ? "📱" : inst.type === "credit_card" ? "💳" : "👛"} {inst.name} ({inst.type.toUpperCase()})
                 </option>
               ))}
             </select>
