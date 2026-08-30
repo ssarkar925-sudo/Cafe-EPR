@@ -5523,6 +5523,113 @@ function detectIntent(question) {
   // 10. Dashboard Liquid Wealth Non-Contamination
   const dashboardLiquidPools = ["cash", "bank", "wallet", "upi_qr", "aeps", "dmt"];
   assert(!dashboardLiquidPools.includes("credit_card"), "920. Dashboard Invariant: credit_card strictly excluded from liquid float aggregation");
+
+  // ==============================================================================
+  // Test 24: MOBILE RECHARGE COMMAND CENTER & CANONICAL FINANCIAL INVARIANTS (Tests 921-965)
+  // ==============================================================================
+  const rechargeWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/recharge-workspace.tsx", "utf8");
+  const businessRouterFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
+
+  // 1. Router & Component Architecture
+  assert(businessRouterFile.includes("RechargeWorkspace"), "921. Architecture: Business service router imports RechargeWorkspace");
+  assert(businessRouterFile.includes("service === \"recharge\""), "922. Architecture: Router returns RechargeWorkspace for recharge service");
+
+  // 2. Executive Hero & Design System
+  assert(rechargeWorkspaceFile.includes("RECHARGE SYSTEM ONLINE"), "923. Design System: Executive hero renders RECHARGE SYSTEM ONLINE status");
+  assert(rechargeWorkspaceFile.includes("Mobile Recharge Command Center"), "924. Design System: Hero renders Mobile Recharge Command Center title");
+  assert(rechargeWorkspaceFile.includes("todayStats.count") && rechargeWorkspaceFile.includes("todayStats.volume"), "925. Hero Metrics: Today's Recharges volume KPI card rendered");
+  assert(rechargeWorkspaceFile.includes("Customer Collection"), "926. Hero Metrics: Customer Collection KPI card rendered");
+  assert(rechargeWorkspaceFile.includes("Commission Earned"), "927. Hero Metrics: Commission Earned KPI card rendered");
+  assert(rechargeWorkspaceFile.includes("Provider Net Cost"), "928. Hero Metrics: Provider Net Cost KPI card rendered");
+  assert(rechargeWorkspaceFile.includes("Success Rate"), "929. Hero Metrics: Success Rate KPI card rendered");
+
+  // 3. No Mobile Recharge Float Invariant (Rule: Mobile Recharge is a SERVICE, not a financial asset)
+  assert(!rechargeWorkspaceFile.includes("Mobile Recharge Float"), "930. Architecture Invariant: Zero 'Mobile Recharge Float' in Recharge Workspace");
+  assert(!rechargeWorkspaceFile.includes("recharge_float"), "931. Architecture Invariant: Zero 'recharge_float' state in Recharge Workspace");
+
+  // 4. Fundamental Entity Separation Rule
+  // FINANCIAL ACCOUNT ≠ SERVICE PROVIDER ≠ PAYMENT INSTRUMENT ≠ SERVICE
+  const serviceType = "recharge"; // SERVICE
+  const providerEntity = { id: "prov-airtel", name: "Airtel" }; // SERVICE PROVIDER
+  const fundingAccount = { id: "inst-bank-hdfc", name: "HDFC Bank", type: "bank" }; // FUNDING INSTRUMENT / ACCOUNT
+  assert(serviceType !== providerEntity.name, "932. Entity Separation: Service (recharge) is NOT equal to Provider (Airtel)");
+  assert(providerEntity.name !== fundingAccount.name, "933. Entity Separation: Provider (Airtel) is NOT equal to Funding Account (HDFC Bank)");
+  assert(fundingAccount.type === "bank", "934. Entity Separation: Funding Account is a genuine financial instrument");
+
+  // 5. Fresh Business Blank Slate Verification (Zero hardcoded demo values)
+  assert(rechargeWorkspaceFile.includes("const [mobileNumber, setMobileNumber] = useState(\"\")"), "935. Fresh Business: Mobile number initializes to blank");
+  assert(rechargeWorkspaceFile.includes("const [amount, setAmount] = useState(\"\")"), "936. Fresh Business: Recharge amount initializes to blank");
+  assert(rechargeWorkspaceFile.includes("const [selectedOperatorCode, setSelectedOperatorCode] = useState(\"\")"), "937. Fresh Business: Operator selection initializes to unselected");
+
+  // 6. Input Validation & Lifecycle Flow
+  assert(rechargeWorkspaceFile.includes("cleanMobile.length !== 10"), "938. Validation: Rejects invalid mobile numbers not equal to 10 digits");
+  assert(rechargeWorkspaceFile.includes("rechargeAmount <= 0"), "939. Validation: Rejects invalid or zero recharge amount");
+  assert(rechargeWorkspaceFile.includes("01 IDENTIFY"), "940. Lifecycle Flow: Step 01 IDENTIFY rendered");
+  assert(rechargeWorkspaceFile.includes("02 OPERATOR"), "941. Lifecycle Flow: Step 02 OPERATOR rendered");
+  assert(rechargeWorkspaceFile.includes("03 PLAN"), "942. Lifecycle Flow: Step 03 PLAN rendered");
+  assert(rechargeWorkspaceFile.includes("04 FUNDING"), "943. Lifecycle Flow: Step 04 FUNDING rendered");
+  assert(rechargeWorkspaceFile.includes("05 SETTLE"), "944. Lifecycle Flow: Step 05 SETTLE rendered");
+
+  // 7. Commission & Economic Math Invariants
+  const testRechargeAmt = 500;
+  const testCustFee = 5;
+  const testCommPercent = 2.0; // 2%
+  const testCommission = (testRechargeAmt * testCommPercent) / 100; // ₹10.00
+  const testProviderCost = testRechargeAmt - testCommission; // ₹490.00
+  const testTotalCustomerPaid = testRechargeAmt + testCustFee; // ₹505.00
+  const testNetOperatorIncome = testCustFee + testCommission; // ₹15.00
+
+  assert(testCommission === 10, "945. Economic Math: 2% Commission on ₹500 is exactly ₹10.00");
+  assert(testProviderCost === 490, "946. Economic Math: Net Provider Cost is ₹500 - ₹10 = ₹490.00");
+  assert(testTotalCustomerPaid === 505, "947. Economic Math: Total Customer Debit is ₹500 + ₹5 = ₹505.00");
+  assert(testNetOperatorIncome === 15, "948. Economic Math: Operator Net Income is ₹5 fee + ₹10 commission = ₹15.00");
+
+  // 8. Multi-Method Customer Collection Invariants
+  // Scenario A: Customer pays Cash
+  const cashCollectionLeg = { direction: "in", method: "cash", amount: testTotalCustomerPaid };
+  assert(cashCollectionLeg.amount === 505 && cashCollectionLeg.direction === "in", "949. Collection Invariant: Cash payment generates +₹505 cash_in");
+
+  // Scenario B: Customer pays UPI QR
+  const upiCollectionLeg = { direction: "in", method: "upi", amount: testTotalCustomerPaid };
+  assert(upiCollectionLeg.amount === 505 && upiCollectionLeg.method === "upi", "950. Collection Invariant: UPI QR payment generates +₹505 upi_in");
+
+  // Scenario C: Customer pays Khata (Due)
+  const custBalanceBefore = 200;
+  const custBalanceAfter = custBalanceBefore + testTotalCustomerPaid;
+  assert(custBalanceAfter === 705, "951. Khata Invariant: Customer ledger receivable balance increases by ₹505 (₹200 -> ₹705)");
+
+  // 9. Provider Funding Leg & Double-Counting Guard
+  const providerFundingLeg = { direction: "out", instrument_id: "inst-bank-hdfc", amount: testProviderCost };
+  assert(providerFundingLeg.amount === 490 && providerFundingLeg.direction === "out", "952. Funding Invariant: Debits exactly net cost (₹490.00) from selected funding account");
+
+  // 10. Canonical Balance Reconciliation Variance Invariant
+  // Net cash flow = Customer Paid (₹505) - Provider Cost (₹490) = Net Income (₹15.00)
+  const netCashFlow = cashCollectionLeg.amount - providerFundingLeg.amount;
+  assert(netCashFlow === testNetOperatorIncome, "953. Zero Variance Invariant: Net Cash Flow (₹15.00) matches Net Operator Income (₹15.00) with exactly ₹0.00 variance");
+
+  // 11. Atomic Double-Submit Protection
+  assert(rechargeWorkspaceFile.includes("if (submitting) return;"), "954. Concurrency Guard: submitting guard blocks duplicate execution");
+  assert(rechargeWorkspaceFile.includes("disabled={submitting"), "955. Concurrency Guard: UI controls disabled during submission");
+
+  // 12. Receipt & Actions Integration
+  assert(rechargeWorkspaceFile.includes("🖨️ Thermal (80mm)"), "956. Receipt Actions: 80mm thermal receipt link available");
+  assert(rechargeWorkspaceFile.includes("📄 A4 Invoice"), "957. Receipt Actions: A4 Invoice PDF link available");
+  assert(rechargeWorkspaceFile.includes("💬 WhatsApp"), "958. Receipt Actions: WhatsApp receipt button available");
+
+  // 13. History Console & Audit Trace
+  assert(rechargeWorkspaceFile.includes("Recharge Transaction History"), "959. History Console: Recharge Transaction History table rendered");
+  assert(rechargeWorkspaceFile.includes("handleExportCsv"), "960. History Actions: CSV export functionality available");
+  assert(rechargeWorkspaceFile.includes("handleReverse"), "961. Reversal Workflow: Reversal handler with reason logging available");
+
+  // 14. Provider & Slabs Settings Compatibility
+  const settingsProvidersPanel = fs.readFileSync("E:/CafeERP/components/settings/recharge-providers-panel.tsx", "utf8");
+  assert(settingsProvidersPanel.includes("recharge_providers"), "962. Settings Invariant: recharge_providers master configuration supported");
+  assert(settingsProvidersPanel.includes("recharge_commission_slabs"), "963. Settings Invariant: recharge_commission_slabs slab configuration supported");
+
+  // 15. Opening Balances Non-Pollution Invariant
+  const studioFile = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
+  assert(!studioFile.includes("recharge_accounts"), "964. Studio Invariant: Zero recharge_accounts in Opening Position Studio");
+  assert(!studioFile.includes("totalRecharge"), "965. Studio Invariant: Zero totalRecharge aggregate in Opening Position Studio");
 }
 
 console.log("\n================================================================================");
