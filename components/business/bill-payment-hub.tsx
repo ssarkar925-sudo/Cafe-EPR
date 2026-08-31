@@ -400,7 +400,7 @@ export default function BillPaymentHub({
     return filteredHistory.slice(start, start + pageSize);
   }, [filteredHistory, currentPage, pageSize]);
 
-  // --- STRICT PAYMENT ACCOUNT & METHOD VALIDATION ---
+  // --- FUNDING ACCOUNT VALIDATION ---
   function validatePaymentAccount(method: string, instrumentId: string): { valid: boolean; error?: string } {
     if (method === "due") return { valid: true };
     if (!instrumentId) {
@@ -412,24 +412,6 @@ export default function BillPaymentHub({
     }
     if (inst.is_active === false) {
       return { valid: false, error: `Selected account "${inst.name}" is deactivated. Please select an active instrument.` };
-    }
-
-    // Method vs Instrument Type Compatibility
-    const itype = inst.type.toLowerCase();
-    if (method === "cash" && itype !== "cash") {
-      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is CASH.` };
-    }
-    if (method === "bank" && !["bank", "savings_bank", "current_bank"].includes(itype)) {
-      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is BANK.` };
-    }
-    if (method === "upi" && !["upi", "merchant_qr", "bank"].includes(itype)) {
-      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is UPI.` };
-    }
-    if (method === "wallet" && !["wallet", "dmt_portal", "aeps_portal"].includes(itype)) {
-      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is WALLET.` };
-    }
-    if ((method === "credit_card" || method === "card") && !["credit_card", "card", "bank"].includes(itype)) {
-      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is CREDIT CARD.` };
     }
 
     return { valid: true };

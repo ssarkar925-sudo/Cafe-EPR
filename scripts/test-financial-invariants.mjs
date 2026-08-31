@@ -7113,28 +7113,22 @@ function detectIntent(question) {
   assert(activeInsts.some(i => i.type === "wallet"), "1322. Payment Instruments: Contains Wallet");
   assert(activeInsts.some(i => i.type === "credit_card"), "1323. Payment Instruments: Contains Credit Card");
 
-  // Test 3: Payment Account & Method Validation Guard
+  // Test 3: Funding Account Validation Guard (Decoupled Customer Collection vs Shop Funding)
   function validatePaymentAccount(method, instId, instruments) {
     if (method === "due") return { valid: true };
     if (!instId) return { valid: false, error: "Missing instrument" };
     const inst = instruments.find(i => i.id === instId);
     if (!inst) return { valid: false, error: "Instrument not found" };
     if (inst.is_active === false) return { valid: false, error: "Instrument inactive" };
-    const itype = inst.type.toLowerCase();
-    if (method === "cash" && itype !== "cash") return { valid: false, error: `Incompatible: ${itype} with cash` };
-    if (method === "bank" && !["bank", "savings_bank", "current_bank"].includes(itype)) return { valid: false, error: `Incompatible: ${itype} with bank` };
-    if (method === "upi" && !["upi", "merchant_qr", "bank"].includes(itype)) return { valid: false, error: `Incompatible: ${itype} with upi` };
-    if (method === "wallet" && !["wallet", "dmt_portal", "aeps_portal"].includes(itype)) return { valid: false, error: `Incompatible: ${itype} with wallet` };
-    if (method === "credit_card" && !["credit_card", "card", "bank"].includes(itype)) return { valid: false, error: `Incompatible: ${itype} with credit_card` };
     return { valid: true };
   }
 
-  const check1 = validatePaymentAccount("cash", "inst-3", mockInstruments); // Bank with Cash
-  assert(check1.valid === false, "1324. Validation Guard: Bank instrument with Cash payment method rejected");
-  const check2 = validatePaymentAccount("bank", "inst-3", mockInstruments); // Bank with Bank
-  assert(check2.valid === true, "1325. Validation Guard: Bank instrument with Bank payment method accepted");
-  const check3 = validatePaymentAccount("upi", "inst-2", mockInstruments); // UPI with UPI
-  assert(check3.valid === true, "1326. Validation Guard: UPI instrument with UPI payment method accepted");
+  const check1 = validatePaymentAccount("cash", "inst-3", mockInstruments); // Customer Cash, Shop Bank funding
+  assert(check1.valid === true, "1324. Funding Flexibility: Customer Cash with Bank Funding Account (Currant AC) accepted");
+  const check2 = validatePaymentAccount("cash", "inst-5", mockInstruments); // Customer Cash, Shop Credit Card funding
+  assert(check2.valid === true, "1325. Funding Flexibility: Customer Cash with Credit Card Funding (ICICI Rupay) accepted");
+  const check3 = validatePaymentAccount("upi", "inst-3", mockInstruments); // Customer UPI, Shop Bank funding
+  assert(check3.valid === true, "1326. Funding Flexibility: Customer UPI with Bank Funding Account accepted");
   const check4 = validatePaymentAccount("cash", "inst-6", mockInstruments); // Inactive instrument
   assert(check4.valid === false, "1327. Validation Guard: Deactivated instrument rejected");
 
