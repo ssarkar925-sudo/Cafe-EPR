@@ -5,6 +5,8 @@ export type BillCommissionConfig = {
   service_type: string;
   category_id?: string | null;
   biller_id?: string | null;
+  category_name?: string | null;
+  biller_name?: string | null;
   commission_type: CommissionType;
   commission_value: number;
   is_active: boolean;
@@ -23,19 +25,20 @@ export type CommissionResolution = {
   label: string;
 };
 
+// Default commission for Utility & Google Play is ₹0.00 unless explicitly configured in bill_payment_commission_config
 export const BUILTIN_CATEGORY_COMMISSIONS: Record<string, { type: CommissionType; value: number }> = {
-  electricity: { type: "flat", value: 5.0 },
-  gas: { type: "flat", value: 4.0 },
-  water: { type: "flat", value: 4.0 },
-  broadband: { type: "flat", value: 6.0 },
-  dth: { type: "flat", value: 5.0 },
-  fastag: { type: "flat", value: 3.0 },
-  insurance: { type: "flat", value: 10.0 },
-  loan: { type: "flat", value: 10.0 },
-  landline: { type: "flat", value: 4.0 },
-  postpaid: { type: "flat", value: 4.0 },
-  google_play: { type: "percentage", value: 2.0 },
-  google_play_recharge: { type: "percentage", value: 2.0 },
+  electricity: { type: "flat", value: 0.0 },
+  gas: { type: "flat", value: 0.0 },
+  water: { type: "flat", value: 0.0 },
+  broadband: { type: "flat", value: 0.0 },
+  dth: { type: "flat", value: 0.0 },
+  fastag: { type: "flat", value: 0.0 },
+  insurance: { type: "flat", value: 0.0 },
+  loan: { type: "flat", value: 0.0 },
+  landline: { type: "flat", value: 0.0 },
+  postpaid: { type: "flat", value: 0.0 },
+  google_play: { type: "flat", value: 0.0 },
+  google_play_recharge: { type: "flat", value: 0.0 },
 };
 
 export function resolveBillCommission(
@@ -87,7 +90,7 @@ export function resolveBillCommission(
   }
 
   // 3. Service Level Default Configuration
-  if (!matchedConfig && serviceType === "google_play_recharge") {
+  if (!matchedConfig && (serviceType === "google_play_recharge" || params.categoryId === "google_play")) {
     const gpMatch = configs.find(
       (c) =>
         c.is_active &&
@@ -107,13 +110,9 @@ export function resolveBillCommission(
     commissionType = matchedConfig.commission_type;
     commissionValue = Number(matchedConfig.commission_value) || 0;
   } else {
-    // Safe Builtin Fallback
-    const fallback =
-      (params.categoryId && BUILTIN_CATEGORY_COMMISSIONS[params.categoryId.toLowerCase()]) ||
-      BUILTIN_CATEGORY_COMMISSIONS[serviceType.toLowerCase()] ||
-      { type: "flat", value: 0 };
-    commissionType = fallback.type;
-    commissionValue = fallback.value;
+    // Default fallback is strictly 0.00
+    commissionType = "flat";
+    commissionValue = 0.0;
     source = "fallback";
   }
 

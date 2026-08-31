@@ -78,13 +78,17 @@ export function isGooglePlayTxn(t: Txn): boolean {
     return true;
   }
   if (t.service_type === "recharge") {
-    if ((t.transaction_number || "").startsWith("GPL")) return true;
+    if ((t.transaction_number || "").startsWith("GPL") || (t.transaction_number || "").startsWith("GPR")) return true;
     const rem = (t.remarks || "").toLowerCase();
     if (rem.includes("google play") || rem.includes("play store") || rem.includes("redeem code") || rem.includes("voucher")) {
       return true;
     }
   }
   return false;
+}
+
+export function isMobileRechargeTxn(t: Txn): boolean {
+  return !isUtilityBillTxn(t) && !isGooglePlayTxn(t);
 }
 
 export default function BillPaymentHub({
@@ -114,15 +118,14 @@ export default function BillPaymentHub({
   const searchParams = useSearchParams();
   const { showToast, toastView } = useToast();
 
-  const [activeTab, setActiveTab] = useState<"recharge" | "utility" | "history" | "commission">(() => {
-    if (initialTab === "utility" || initialTab === "history" || initialTab === "commission" || initialTab === "recharge") {
-      return initialTab;
+  const [activeTab, setActiveTab] = useState<"recharge" | "google_play" | "utility" | "history" | "commission">(() => {
+    if (["recharge", "google_play", "utility", "history", "commission"].includes(initialTab)) {
+      return initialTab as any;
     }
     return "recharge";
   });
 
-  const [rechargeSubTab, setRechargeSubTab] = useState<"mobile" | "google_play">("mobile");
-  const [historyScope, setHistoryScope] = useState<"all" | "recent" | "mobile" | "utility">("all");
+  const [historyScope, setHistoryScope] = useState<"all" | "recent" | "mobile" | "google_play" | "utility">("all");
 
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
@@ -132,7 +135,7 @@ export default function BillPaymentHub({
   const [billCommissions, setBillCommissions] = useState<BillCommissionConfig[]>(initialBillCommissions);
 
   // Sync active tab with query string
-  function handleTabChange(tabKey: "recharge" | "utility" | "history" | "commission") {
+  function handleTabChange(tabKey: "recharge" | "google_play" | "utility" | "history" | "commission") {
     setActiveTab(tabKey);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tabKey);
@@ -174,6 +177,12 @@ export default function BillPaymentHub({
   const [editRemarks, setEditRemarks] = useState<string>("");
   const [editStatus, setEditStatus] = useState<"success" | "pending" | "failed" | "reversed">("success");
   const [editing, setEditing] = useState<boolean>(false);
+  const [editValidationErr, setEditValidationErr] = useState<string | null>(null);
+
+  // Active payment instruments from DB
+  const activeInstruments = useMemo(() => {
+    return paymentInstruments.filter((i) => i.is_active !== false);
+  }, [paymentInstruments]);
 
   // Populate Complete Edit Form when a transaction is opened for editing
   useEffect(() => {
@@ -185,13 +194,15 @@ export default function BillPaymentHub({
       setEditServiceFee(String(editTxn.service_fee ?? "0"));
       setEditCommission(String(editTxn.portal_commission ?? "0"));
       setEditPayMethod(editTxn.customer_pay_method || "cash");
-      setEditFundingInstId(editTxn.instrument_id || "");
+      const currentInstId = (editTxn as any).pay_from_instrument_id || editTxn.instrument_id || "";
+      setEditFundingInstId(currentInstId);
       setEditRemarks(editTxn.remarks || "");
       setEditStatus(editTxn.status);
+      setEditValidationErr(null);
     }
   }, [editTxn]);
 
-  // Robust Classification Helper
+  // Classification Helper
   const classifyTxn = useCallback((t: Txn) => {
     const isGooglePlay = isGooglePlayTxn(t);
     const isUtility = isUtilityBillTxn(t);
@@ -308,11 +319,13 @@ export default function BillPaymentHub({
   const filteredHistory = useMemo(() => {
     let list = [...transactions];
 
-    // 1. Scope Filter (Recent, Mobile, Utility, All)
+    // 1. Scope Filter (All, Recent, Mobile, Google Play, Utility)
     if (historyScope === "recent") {
       list = list.slice(0, 20);
     } else if (historyScope === "mobile") {
-      list = list.filter((t) => !isUtilityBillTxn(t));
+      list = list.filter((t) => isMobileRechargeTxn(t));
+    } else if (historyScope === "google_play") {
+      list = list.filter((t) => isGooglePlayTxn(t));
     } else if (historyScope === "utility") {
       list = list.filter((t) => isUtilityBillTxn(t));
     }
@@ -374,7 +387,7 @@ export default function BillPaymentHub({
 
     // 7. Payment Account Filter
     if (accountFilter !== "all") {
-      list = list.filter((t) => t.instrument_id === accountFilter);
+      list = list.filter((t) => t.instrument_id === accountFilter || (t as any).pay_from_instrument_id === accountFilter);
     }
 
     return list;
@@ -387,32 +400,56 @@ export default function BillPaymentHub({
     return filteredHistory.slice(start, start + pageSize);
   }, [filteredHistory, currentPage, pageSize]);
 
-  // Instruments filtered by selected edit payment method
-  const filteredEditInstruments = useMemo(() => {
-    if (!editPayMethod) return paymentInstruments;
-    if (editPayMethod === "cash") {
-      return paymentInstruments.filter((i) => i.type === "cash");
+  // --- STRICT PAYMENT ACCOUNT & METHOD VALIDATION ---
+  function validatePaymentAccount(method: string, instrumentId: string): { valid: boolean; error?: string } {
+    if (method === "due") return { valid: true };
+    if (!instrumentId) {
+      return { valid: false, error: "Please select a funding account / register from the configured payment instruments." };
     }
-    if (editPayMethod === "bank") {
-      return paymentInstruments.filter((i) => i.type === "bank");
+    const inst = paymentInstruments.find((i) => i.id === instrumentId);
+    if (!inst) {
+      return { valid: false, error: "Selected funding account does not exist in the configured payment instruments." };
     }
-    if (editPayMethod === "upi") {
-      return paymentInstruments.filter((i) => ["upi", "merchant_qr", "bank"].includes(i.type));
+    if (inst.is_active === false) {
+      return { valid: false, error: `Selected account "${inst.name}" is deactivated. Please select an active instrument.` };
     }
-    if (editPayMethod === "wallet") {
-      return paymentInstruments.filter((i) => ["wallet", "dmt_portal", "aeps_portal"].includes(i.type));
+
+    // Method vs Instrument Type Compatibility
+    const itype = inst.type.toLowerCase();
+    if (method === "cash" && itype !== "cash") {
+      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is CASH.` };
     }
-    if (editPayMethod === "credit_card" || editPayMethod === "card") {
-      return paymentInstruments.filter((i) => ["credit_card", "bank"].includes(i.type));
+    if (method === "bank" && !["bank", "savings_bank", "current_bank"].includes(itype)) {
+      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is BANK.` };
     }
-    return paymentInstruments;
-  }, [paymentInstruments, editPayMethod]);
+    if (method === "upi" && !["upi", "merchant_qr", "bank"].includes(itype)) {
+      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is UPI.` };
+    }
+    if (method === "wallet" && !["wallet", "dmt_portal", "aeps_portal"].includes(itype)) {
+      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is WALLET.` };
+    }
+    if ((method === "credit_card" || method === "card") && !["credit_card", "card", "bank"].includes(itype)) {
+      return { valid: false, error: `Selected funding account "${inst.name}" is a ${itype.toUpperCase()} account, but customer payment method is CREDIT CARD.` };
+    }
+
+    return { valid: true };
+  }
 
   // --- ACTIONS ---
 
-  // 1. COMPLETE TRANSACTION EDIT HANDLER (Atomic Reconciliation Architecture)
+  // 1. COMPLETE TRANSACTION EDIT HANDLER (Atomic Financial Reconciliation)
   async function handleSaveCompleteEdit() {
     if (!editTxn || editing) return;
+    setEditValidationErr(null);
+
+    // Validation Guard
+    const val = validatePaymentAccount(editPayMethod, editFundingInstId);
+    if (!val.valid) {
+      setEditValidationErr(val.error || "Validation error in payment account selection.");
+      showToast("error", val.error || "Invalid funding account selection.");
+      return;
+    }
+
     setEditing(true);
 
     try {
@@ -421,6 +458,8 @@ export default function BillPaymentHub({
       const parsedComm = Number(editCommission) || 0;
       const parsedProviderCost = Math.max(0, parsedAmount - parsedComm);
       const totalCustomerPaid = parsedAmount + parsedFee;
+
+      const fundingInst = paymentInstruments.find((i) => i.id === editFundingInstId);
 
       const financialChanged =
         parsedAmount !== Number(editTxn.amount) ||
@@ -443,6 +482,8 @@ export default function BillPaymentHub({
           pool_out: parsedProviderCost,
           customer_pay_method: editPayMethod,
           instrument_id: editFundingInstId || null,
+          pay_from_instrument_id: editFundingInstId || null,
+          pay_from_method: fundingInst?.type || editPayMethod,
           remarks: editRemarks.trim() || null,
           status: editStatus,
           cash_in: editPayMethod === "cash" ? totalCustomerPaid : 0,
@@ -469,7 +510,6 @@ export default function BillPaymentHub({
 
         if (editStatus === "success") {
           const entryDate = editTxn.transaction_date || new Date().toISOString().slice(0, 10);
-          const fundingInst = paymentInstruments.find((i) => i.id === editFundingInstId);
 
           // Insert Corrected Customer Collection Leg
           if (editPayMethod !== "due" && totalCustomerPaid > 0) {
@@ -513,6 +553,7 @@ export default function BillPaymentHub({
             fee: editTxn.service_fee,
             commission: editTxn.portal_commission,
             method: editTxn.customer_pay_method,
+            instrument: editTxn.instrument_id,
             status: editTxn.status,
           },
           updated: {
@@ -520,6 +561,7 @@ export default function BillPaymentHub({
             fee: parsedFee,
             commission: parsedComm,
             method: editPayMethod,
+            instrument: editFundingInstId,
             status: editStatus,
           },
         },
@@ -639,7 +681,7 @@ export default function BillPaymentHub({
                 </span>
               </div>
               <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-                Process mobile top-ups, Google Play vouchers, BBPS utility bill collections (Electricity, Gas, Water, Broadband), and complete journal history.
+                Unified operations for Mobile Top-ups, Google Play Vouchers, BBPS Utility Bills (Electricity, Gas, Water, Broadband), and Complete Transaction Journal.
               </p>
             </div>
           </div>
@@ -658,7 +700,7 @@ export default function BillPaymentHub({
         </div>
       </div>
 
-      {/* 2. Segmented Workspace Tabs */}
+      {/* 2. Primary 5 Workspace Tabs */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-1">
         <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
           <button
@@ -670,7 +712,19 @@ export default function BillPaymentHub({
             }`}
           >
             <span>📱</span>
-            <span>Mobile &amp; Digital Recharge</span>
+            <span>Mobile Recharge</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("google_play")}
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition select-none ${
+              activeTab === "google_play"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600"
+                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+            }`}
+          >
+            <span>🎮</span>
+            <span>Google Play Recharge</span>
           </button>
 
           <button
@@ -682,7 +736,7 @@ export default function BillPaymentHub({
             }`}
           >
             <span>🏢</span>
-            <span>Utility Bill Payment (BBPS)</span>
+            <span>Utility Bill Payment</span>
           </button>
 
           <button
@@ -714,60 +768,33 @@ export default function BillPaymentHub({
         </div>
       </div>
 
-      {/* 3. Tab Workspace Content */}
+      {/* 3. Workspace Tab Views */}
 
-      {/* TAB 1: Mobile & Digital Recharge (Prepaid, DTH & Google Play) */}
+      {/* TAB 1: Mobile Recharge Terminal */}
       {activeTab === "recharge" && (
         <div className="space-y-6">
-          {/* Sub-Switch: Mobile / DTH vs Google Play */}
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
-            <button
-              onClick={() => setRechargeSubTab("mobile")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-                rechargeSubTab === "mobile"
-                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              }`}
-            >
-              <span>📱</span>
-              <span>Prepaid Mobile &amp; DTH</span>
-            </button>
-
-            <button
-              onClick={() => setRechargeSubTab("google_play")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-                rechargeSubTab === "google_play"
-                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              }`}
-            >
-              <span>🎮</span>
-              <span>Google Play Recharge</span>
-              <span className="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 text-[9px] font-extrabold">
-                2.5% Margin
-              </span>
-            </button>
-          </div>
-
-          {rechargeSubTab === "mobile" ? (
-            <RechargeWorkspace
-              initialTransactions={transactions}
-              initialCustomers={customers}
-              initialRechargeProviders={rechargeProviders}
-              initialRechargeSlabs={rechargeSlabs}
-              initialPaymentInstruments={paymentInstruments}
-            />
-          ) : (
-            <GooglePlayWorkspace
-              initialTransactions={transactions}
-              initialCustomers={customers}
-              initialPaymentInstruments={paymentInstruments}
-            />
-          )}
+          <RechargeWorkspace
+            initialTransactions={transactions}
+            initialCustomers={customers}
+            initialRechargeProviders={rechargeProviders}
+            initialRechargeSlabs={rechargeSlabs}
+            initialPaymentInstruments={paymentInstruments}
+          />
         </div>
       )}
 
-      {/* TAB 2: Utility Bill Payment (BBPS 10 Categories) */}
+      {/* TAB 2: Google Play Recharge Terminal */}
+      {activeTab === "google_play" && (
+        <div className="space-y-6">
+          <GooglePlayWorkspace
+            initialTransactions={transactions}
+            initialCustomers={customers}
+            initialPaymentInstruments={paymentInstruments}
+          />
+        </div>
+      )}
+
+      {/* TAB 3: Utility Bill Payment (BBPS 10 Categories) */}
       {activeTab === "utility" && (
         <div className="space-y-6">
           <UtilityBillWorkspace
@@ -778,11 +805,11 @@ export default function BillPaymentHub({
         </div>
       )}
 
-      {/* TAB 3: Payment History & All Journal */}
+      {/* TAB 4: Payment History & All Journal */}
       {activeTab === "history" && (
         <div className="space-y-6">
           {/* History Scope Switcher */}
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
+          <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
             <button
               onClick={() => { setHistoryScope("all"); setCurrentPage(1); }}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
@@ -813,7 +840,18 @@ export default function BillPaymentHub({
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
             >
-              📱 Mobile &amp; Google Play History
+              📱 Mobile Recharge History
+            </button>
+
+            <button
+              onClick={() => { setHistoryScope("google_play"); setCurrentPage(1); }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                historyScope === "google_play"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              🎮 Google Play Recharge History
             </button>
 
             <button
@@ -925,6 +963,7 @@ export default function BillPaymentHub({
                   <option value="upi">UPI</option>
                   <option value="bank">Bank</option>
                   <option value="wallet">Wallet</option>
+                  <option value="credit_card">Credit Card</option>
                   <option value="due">Khata Due</option>
                 </select>
               </div>
@@ -1158,7 +1197,7 @@ export default function BillPaymentHub({
         </div>
       )}
 
-      {/* TAB 4: Commission Rules Manager */}
+      {/* TAB 5: Commission Rules Manager */}
       {activeTab === "commission" && (
         <div className="space-y-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
@@ -1167,7 +1206,7 @@ export default function BillPaymentHub({
                 BBPS &amp; Recharge Commission Matrix
               </h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Configure retailer commission rules for utility billers and mobile recharge operators. Changes apply strictly to future transactions; historical snapshots remain unchanged.
+                Configure retailer commission rules. By default, Utility Bill and Google Play commissions are ₹0.00 unless explicitly configured here. Changes apply to future transactions only; historical snapshots remain frozen.
               </p>
             </div>
             <button
@@ -1192,8 +1231,8 @@ export default function BillPaymentHub({
               <div className="space-y-2">
                 {BILLER_CATEGORIES.map((cat) => {
                   const custom = billCommissions.find((c) => c.category_id === cat.id && !c.biller_id);
-                  const isPct = custom ? custom.commission_type === "percentage" : Boolean(cat.isPercentage);
-                  const val = custom ? custom.commission_value : cat.defaultCommission;
+                  const isPct = custom ? custom.commission_type === "percentage" : false;
+                  const val = custom ? custom.commission_value : 0.0;
 
                   return (
                     <div
@@ -1209,8 +1248,8 @@ export default function BillPaymentHub({
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                          {isPct ? `${val}%` : `₹${Number(val).toFixed(2)}`}
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-extrabold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          {custom ? (isPct ? `${val}%` : `₹${Number(val).toFixed(2)}`) : "₹0.00 (Default)"}
                         </span>
                         <button
                           onClick={() => {
@@ -1220,8 +1259,8 @@ export default function BillPaymentHub({
                                 category_id: cat.id,
                                 category_name: cat.name,
                                 service_type: "utility_bill",
-                                commission_type: isPct ? "percentage" : "flat",
-                                commission_value: Number(val),
+                                commission_type: "flat",
+                                commission_value: 0,
                                 is_active: true,
                               } as any)
                             );
@@ -1402,6 +1441,13 @@ export default function BillPaymentHub({
               <span className="font-mono font-bold text-slate-500">{editTxn.transaction_number}</span>
             </div>
 
+            {/* Validation Error Alert */}
+            {editValidationErr && (
+              <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs font-semibold text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-300">
+                ⚠️ {editValidationErr}
+              </div>
+            )}
+
             {/* Target & Customer Details */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -1482,16 +1528,18 @@ export default function BillPaymentHub({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Funding Account / Register</label>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Funding Account / Register ({activeInstruments.length} Available)
+                </label>
                 <select
                   value={editFundingInstId}
                   onChange={(e) => setEditFundingInstId(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 >
-                  <option value="">-- Select Funding Account --</option>
-                  {filteredEditInstruments.map((i) => (
+                  <option value="">-- Select Active Funding Account --</option>
+                  {activeInstruments.map((i) => (
                     <option key={i.id} value={i.id}>
-                      {i.name} ({i.type.toUpperCase()})
+                      {i.name} ({i.type.toUpperCase()}) {(i as any).current_balance != null || i.balance != null ? `· ${inr(Number((i as any).current_balance ?? i.balance ?? 0))}` : ""}
                     </option>
                   ))}
                 </select>
