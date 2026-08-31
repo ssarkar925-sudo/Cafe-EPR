@@ -270,19 +270,33 @@ export default function Sidebar({
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* 1. Brand Header */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 dark:border-white/10 px-4">
-          <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-white/20">
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="Logo" className="h-6 w-6 object-contain" />
-              ) : (
-                <span className="text-lg font-black">☕</span>
-              )}
-            </div>
+        {/* 1. Brand Header with Dynamic Collapse / Expand Button */}
+        {collapsed ? (
+          <div className="flex h-16 shrink-0 flex-col items-center justify-center border-b border-slate-200/80 dark:border-white/10 px-2 py-2">
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 border border-blue-200/90 dark:bg-blue-950/60 dark:text-blue-400 dark:border-blue-500/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 hover:scale-105 shadow-md shadow-blue-500/10 transition z-50 cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-5 w-5">
+                <path d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 dark:border-white/10 px-4">
+            <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-white/20">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="Logo" className="h-6 w-6 object-contain" />
+                ) : (
+                  <span className="text-lg font-black">☕</span>
+                )}
+              </div>
 
-            {!collapsed && (
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-black tracking-tight text-slate-900 dark:text-white">
@@ -294,9 +308,22 @@ export default function Sidebar({
                   Daily Counter Operations
                 </span>
               </div>
-            )}
-          </Link>
-        </div>
+            </Link>
+
+            {/* Collapse Sidebar Button */}
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+              className="hidden lg:flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4">
+                <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* 2. Fast Navigation Search (Expanded mode only) */}
         {!collapsed && (

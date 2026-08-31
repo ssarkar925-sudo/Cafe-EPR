@@ -191,8 +191,23 @@ export default function DashboardShell({
       >
         {/* Desktop Luxury Floating Top Bar */}
         <header className="sticky top-3 z-20 hidden h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/90 px-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 lg:flex mb-4">
-          {/* Breadcrumb & Title */}
+          {/* Breadcrumb & Title with Toggle Button */}
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white transition cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                {collapsed ? (
+                  <path d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                ) : (
+                  <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                )}
+              </svg>
+            </button>
             <div>
               <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
                 <span>Café ERP</span>

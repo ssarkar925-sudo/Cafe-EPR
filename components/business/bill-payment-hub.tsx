@@ -14,6 +14,7 @@ import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import CommissionEditModal from "@/components/business/commission-edit-modal";
 import RechargeWorkspace from "@/components/business/recharge-workspace";
 import UtilityBillWorkspace from "@/components/business/utility-bill-workspace";
+import GooglePlayWorkspace from "@/components/business/google-play-workspace";
 import { BILLER_CATEGORIES, POPULAR_BILLERS } from "@/components/business/utility-bill-workspace";
 import type { CustomerRow, PaymentInstrument, RechargeProvider, RechargeSlab, Txn } from "@/components/business/recharge-workspace";
 import type { BillCommissionConfig } from "@/lib/bill-payment/commission";
@@ -43,6 +44,49 @@ export function maskMobile(mobile: string | null | undefined): string {
   return clean;
 }
 
+export function isUtilityBillTxn(t: Txn): boolean {
+  if (!t) return false;
+  if (t.service_type === "bill_payment" || t.service_type === "utility_bill" || t.service_type === "utility") {
+    return true;
+  }
+  if (t.service_type === "recharge" || t.service_type === "recharge_due") {
+    if ((t as any).pool_credit_type === "utility") return true;
+    if ((t.transaction_number || "").startsWith("BIL")) return true;
+    const rem = (t.remarks || "").toLowerCase();
+    if (
+      rem.includes("utility") ||
+      rem.includes("bill") ||
+      rem.includes("electricity") ||
+      rem.includes("wbsedcl") ||
+      rem.includes("cesc") ||
+      rem.includes("gas") ||
+      rem.includes("water") ||
+      rem.includes("broadband") ||
+      rem.includes("fastag") ||
+      rem.includes("insurance") ||
+      rem.includes("consumer")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isGooglePlayTxn(t: Txn): boolean {
+  if (!t) return false;
+  if (t.service_type === "google_play_recharge" || t.service_type === "google_play") {
+    return true;
+  }
+  if (t.service_type === "recharge") {
+    if ((t.transaction_number || "").startsWith("GPL")) return true;
+    const rem = (t.remarks || "").toLowerCase();
+    if (rem.includes("google play") || rem.includes("play store") || rem.includes("redeem code") || rem.includes("voucher")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function BillPaymentHub({
   initialTransactions,
   initialCustomers = [],
@@ -64,7 +108,7 @@ export default function BillPaymentHub({
   initialCategory?: string;
   initialProvider?: string;
 }) {
-  useRealtime(["transactions", "cash_entries", "recharge_commission_slabs", "bill_payment_commission_config"]);
+  useRealtime(["transactions", "cash_entries", "recharge_commission_slabs", "bill_payment_commission_config", "payment_instruments", "customers"]);
   const supabase = createClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,14 +121,17 @@ export default function BillPaymentHub({
     return "recharge";
   });
 
+  const [rechargeSubTab, setRechargeSubTab] = useState<"mobile" | "google_play">("mobile");
+  const [historyScope, setHistoryScope] = useState<"all" | "recent" | "mobile" | "utility">("all");
+
   const [transactions, setTransactions] = useState<Txn[]>(initialTransactions);
-  const [customers] = useState<CustomerRow[]>(initialCustomers);
+  const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [rechargeProviders] = useState<RechargeProvider[]>(initialRechargeProviders);
   const [rechargeSlabs, setRechargeSlabs] = useState<RechargeSlab[]>(initialRechargeSlabs);
-  const [paymentInstruments] = useState<PaymentInstrument[]>(initialPaymentInstruments);
+  const [paymentInstruments, setPaymentInstruments] = useState<PaymentInstrument[]>(initialPaymentInstruments);
   const [billCommissions, setBillCommissions] = useState<BillCommissionConfig[]>(initialBillCommissions);
 
-  // Sync tab with URL
+  // Sync active tab with query string
   function handleTabChange(tabKey: "recharge" | "utility" | "history" | "commission") {
     setActiveTab(tabKey);
     const url = new URL(window.location.href);
@@ -115,45 +162,47 @@ export default function BillPaymentHub({
   const [commissionModalOpen, setCommissionModalOpen] = useState(false);
   const [selectedCommissionConfig, setSelectedCommissionConfig] = useState<BillCommissionConfig | null>(null);
 
-  // Edit Form Fields
-  const [editMobile, setEditMobile] = useState("");
-  const [editRef, setEditRef] = useState("");
-  const [editRemarks, setEditRemarks] = useState("");
-  const [editCommission, setEditCommission] = useState("");
-  const [editing, setEditing] = useState(false);
+  // --- COMPLETE TRANSACTION EDIT FORM STATE ---
+  const [editCustomerId, setEditCustomerId] = useState<string>("");
+  const [editMobile, setEditMobile] = useState<string>("");
+  const [editRef, setEditRef] = useState<string>("");
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editServiceFee, setEditServiceFee] = useState<string>("0");
+  const [editCommission, setEditCommission] = useState<string>("0");
+  const [editPayMethod, setEditPayMethod] = useState<string>("cash");
+  const [editFundingInstId, setEditFundingInstId] = useState<string>("");
+  const [editRemarks, setEditRemarks] = useState<string>("");
+  const [editStatus, setEditStatus] = useState<"success" | "pending" | "failed" | "reversed">("success");
+  const [editing, setEditing] = useState<boolean>(false);
 
+  // Populate Complete Edit Form when a transaction is opened for editing
   useEffect(() => {
     if (editTxn) {
+      setEditCustomerId(editTxn.customer_id || "");
       setEditMobile(editTxn.customer_mobile || "");
       setEditRef(editTxn.reference || "");
+      setEditAmount(String(editTxn.amount ?? ""));
+      setEditServiceFee(String(editTxn.service_fee ?? "0"));
+      setEditCommission(String(editTxn.portal_commission ?? "0"));
+      setEditPayMethod(editTxn.customer_pay_method || "cash");
+      setEditFundingInstId(editTxn.instrument_id || "");
       setEditRemarks(editTxn.remarks || "");
-      setEditCommission(String(editTxn.portal_commission ?? 0));
+      setEditStatus(editTxn.status);
     }
   }, [editTxn]);
 
-  // Classification Helper: identifies whether a transaction is Recharge, Utility Bill, or Google Play
+  // Robust Classification Helper
   const classifyTxn = useCallback((t: Txn) => {
-    const isGooglePlay =
-      t.service_type === "google_play_recharge" ||
-      t.service_type === "google_play" ||
-      (t.service_type === "recharge" && ((t.remarks || "").toLowerCase().includes("google play") || (t.transaction_number || "").startsWith("GPL")));
-
-    const isUtility =
-      t.service_type === "bill_payment" ||
-      t.service_type === "utility_bill" ||
-      t.service_type === "utility" ||
-      (t.service_type === "recharge" &&
-        ((t as any).pool_credit_type === "utility" ||
-          (t.remarks || "").toLowerCase().includes("utility") ||
-          (t.remarks || "").toLowerCase().includes("bill") ||
-          (t.transaction_number || "").startsWith("BIL")));
+    const isGooglePlay = isGooglePlayTxn(t);
+    const isUtility = isUtilityBillTxn(t);
+    const isRecharge = !isGooglePlay && !isUtility;
 
     let categoryIcon = "⚡";
     let typeLabel = "Utility Bill";
     let subCategory = "general";
 
     if (isGooglePlay) {
-      typeLabel = "Google Play";
+      typeLabel = "Google Play Recharge";
       categoryIcon = "🎮";
       subCategory = "google_play";
     } else if (isUtility) {
@@ -178,6 +227,18 @@ export default function BillPaymentHub({
         typeLabel = "DTH Bill";
         categoryIcon = "📺";
         subCategory = "dth";
+      } else if (rem.includes("fastag")) {
+        typeLabel = "FASTag Recharge";
+        categoryIcon = "🚗";
+        subCategory = "fastag";
+      } else if (rem.includes("insurance")) {
+        typeLabel = "Insurance Premium";
+        categoryIcon = "🛡️";
+        subCategory = "insurance";
+      } else if (rem.includes("loan")) {
+        typeLabel = "Loan EMI Repayment";
+        categoryIcon = "🏦";
+        subCategory = "loan";
       } else {
         typeLabel = "Utility Bill";
         categoryIcon = "🏢";
@@ -189,12 +250,22 @@ export default function BillPaymentHub({
       subCategory = "recharge";
     }
 
-    const providerName = t.providers?.name || (t.remarks ? t.remarks.split("-")[1]?.split("(")[0]?.trim() : "") || (isUtility ? "BBPS Biller" : "Telecom Operator");
+    let providerName = t.providers?.name;
+    if (!providerName && t.remarks) {
+      if (t.remarks.includes(" - ")) {
+        providerName = t.remarks.split(" - ")[1]?.split(" (")[0]?.trim();
+      } else {
+        providerName = t.remarks.split(" (")[0]?.trim();
+      }
+    }
+    if (!providerName) {
+      providerName = isUtility ? "BBPS Biller" : isGooglePlay ? "Google Play" : "Telecom Operator";
+    }
 
     return {
       isGooglePlay,
       isUtility,
-      isRecharge: !isGooglePlay && !isUtility,
+      isRecharge,
       typeLabel,
       categoryIcon,
       subCategory,
@@ -237,7 +308,16 @@ export default function BillPaymentHub({
   const filteredHistory = useMemo(() => {
     let list = [...transactions];
 
-    // Search query
+    // 1. Scope Filter (Recent, Mobile, Utility, All)
+    if (historyScope === "recent") {
+      list = list.slice(0, 20);
+    } else if (historyScope === "mobile") {
+      list = list.filter((t) => !isUtilityBillTxn(t));
+    } else if (historyScope === "utility") {
+      list = list.filter((t) => isUtilityBillTxn(t));
+    }
+
+    // 2. Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((t) => {
@@ -248,12 +328,13 @@ export default function BillPaymentHub({
           (t.reference || "").toLowerCase().includes(q) ||
           (t.remarks || "").toLowerCase().includes(q) ||
           (t.customers?.name || "").toLowerCase().includes(q) ||
-          info.providerName.toLowerCase().includes(q)
+          info.providerName.toLowerCase().includes(q) ||
+          info.typeLabel.toLowerCase().includes(q)
         );
       });
     }
 
-    // Service Filter
+    // 3. Service Filter
     if (serviceFilter !== "all") {
       list = list.filter((t) => {
         const info = classifyTxn(t);
@@ -264,12 +345,12 @@ export default function BillPaymentHub({
       });
     }
 
-    // Status Filter
+    // 4. Status Filter
     if (statusFilter !== "all") {
       list = list.filter((t) => t.status === statusFilter);
     }
 
-    // Date Filter
+    // 5. Date Filter
     if (dateFilter !== "all") {
       const now = new Date();
       if (dateFilter === "today") {
@@ -286,18 +367,18 @@ export default function BillPaymentHub({
       }
     }
 
-    // Payment Method Filter
+    // 6. Payment Method Filter
     if (payMethodFilter !== "all") {
       list = list.filter((t) => (t.customer_pay_method || "").toLowerCase() === payMethodFilter.toLowerCase());
     }
 
-    // Payment Account Filter
+    // 7. Payment Account Filter
     if (accountFilter !== "all") {
       list = list.filter((t) => t.instrument_id === accountFilter);
     }
 
     return list;
-  }, [transactions, searchQuery, serviceFilter, statusFilter, dateFilter, payMethodFilter, accountFilter, todayStr, classifyTxn]);
+  }, [transactions, historyScope, searchQuery, serviceFilter, statusFilter, dateFilter, payMethodFilter, accountFilter, todayStr, classifyTxn]);
 
   // Paginated List
   const totalPages = Math.max(1, Math.ceil(filteredHistory.length / pageSize));
@@ -306,78 +387,155 @@ export default function BillPaymentHub({
     return filteredHistory.slice(start, start + pageSize);
   }, [filteredHistory, currentPage, pageSize]);
 
+  // Instruments filtered by selected edit payment method
+  const filteredEditInstruments = useMemo(() => {
+    if (!editPayMethod) return paymentInstruments;
+    if (editPayMethod === "cash") {
+      return paymentInstruments.filter((i) => i.type === "cash");
+    }
+    if (editPayMethod === "bank") {
+      return paymentInstruments.filter((i) => i.type === "bank");
+    }
+    if (editPayMethod === "upi") {
+      return paymentInstruments.filter((i) => ["upi", "merchant_qr", "bank"].includes(i.type));
+    }
+    if (editPayMethod === "wallet") {
+      return paymentInstruments.filter((i) => ["wallet", "dmt_portal", "aeps_portal"].includes(i.type));
+    }
+    if (editPayMethod === "credit_card" || editPayMethod === "card") {
+      return paymentInstruments.filter((i) => ["credit_card", "bank"].includes(i.type));
+    }
+    return paymentInstruments;
+  }, [paymentInstruments, editPayMethod]);
+
   // --- ACTIONS ---
 
-  // 1. Edit Handler with Atomic Financial Adjustment
-  async function handleSaveEdit() {
+  // 1. COMPLETE TRANSACTION EDIT HANDLER (Atomic Reconciliation Architecture)
+  async function handleSaveCompleteEdit() {
     if (!editTxn || editing) return;
     setEditing(true);
 
     try {
-      const amt = Number(editTxn.amount) || 0;
-      const newComm = Number(editCommission) || 0;
-      const fee = Number(editTxn.service_fee) || 0;
-      const newProviderCost = Math.max(0, amt - newComm);
+      const parsedAmount = Number(editAmount) || 0;
+      const parsedFee = Number(editServiceFee) || 0;
+      const parsedComm = Number(editCommission) || 0;
+      const parsedProviderCost = Math.max(0, parsedAmount - parsedComm);
+      const totalCustomerPaid = parsedAmount + parsedFee;
 
-      // Update transaction row
-      const { data: updated, error } = await supabase
+      const financialChanged =
+        parsedAmount !== Number(editTxn.amount) ||
+        parsedFee !== Number(editTxn.service_fee || 0) ||
+        parsedComm !== Number(editTxn.portal_commission || 0) ||
+        editPayMethod !== (editTxn.customer_pay_method || "cash") ||
+        editFundingInstId !== (editTxn.instrument_id || "") ||
+        editStatus !== editTxn.status;
+
+      // 1. Update Transaction Row
+      const { data: updated, error: updateErr } = await supabase
         .from("transactions")
         .update({
+          customer_id: editCustomerId || null,
           customer_mobile: editMobile.replace(/\D/g, "") || null,
           reference: editRef.trim() || null,
+          amount: parsedAmount,
+          service_fee: parsedFee,
+          portal_commission: parsedComm,
+          pool_out: parsedProviderCost,
+          customer_pay_method: editPayMethod,
+          instrument_id: editFundingInstId || null,
           remarks: editRemarks.trim() || null,
-          portal_commission: newComm,
-          pool_out: newProviderCost,
+          status: editStatus,
+          cash_in: editPayMethod === "cash" ? totalCustomerPaid : 0,
+          bank_in: editPayMethod === "bank" || editPayMethod === "upi" ? totalCustomerPaid : 0,
         })
         .eq("id", editTxn.id)
         .select("*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)")
         .single();
 
-      if (error) {
-        showToast("error", error.message);
+      if (updateErr) {
+        showToast("error", updateErr.message);
         setEditing(false);
         return;
       }
 
-      // Reconcile cash_entries if commission changed
-      if (editTxn.instrument_id && newProviderCost !== Number(editTxn.pool_out)) {
+      // 2. Atomic Reconciliation of Financial Postings
+      if (financialChanged) {
+        // Delete existing cash_entries for this transaction
         await supabase
           .from("cash_entries")
-          .update({ amount: newProviderCost })
-          .eq("ref_id", editTxn.id)
-          .eq("direction", "out");
+          .delete()
+          .eq("ref_type", "transaction")
+          .eq("ref_id", editTxn.id);
+
+        if (editStatus === "success") {
+          const entryDate = editTxn.transaction_date || new Date().toISOString().slice(0, 10);
+          const fundingInst = paymentInstruments.find((i) => i.id === editFundingInstId);
+
+          // Insert Corrected Customer Collection Leg
+          if (editPayMethod !== "due" && totalCustomerPaid > 0) {
+            await supabase.from("cash_entries").insert({
+              entry_date: entryDate,
+              method: editPayMethod === "cash" ? "cash" : editPayMethod === "upi" ? "upi" : "bank",
+              direction: "in",
+              amount: totalCustomerPaid,
+              description: `Collection for ${editTxn.transaction_number} (${editPayMethod.toUpperCase()}) [Reconciled]`,
+              ref_type: "transaction",
+              ref_id: editTxn.id,
+              instrument_id: fundingInst?.id || null,
+            });
+          }
+
+          // Insert Corrected Provider Funding Leg
+          if (parsedProviderCost > 0 && fundingInst) {
+            await supabase.from("cash_entries").insert({
+              entry_date: entryDate,
+              method: fundingInst.type === "cash" ? "cash" : fundingInst.type === "bank" ? "bank" : fundingInst.type === "wallet" ? "wallet" : "upi",
+              direction: "out",
+              amount: parsedProviderCost,
+              description: `Settlement for ${editTxn.transaction_number} from ${fundingInst.name} [Reconciled]`,
+              ref_type: "transaction",
+              ref_id: editTxn.id,
+              instrument_id: fundingInst.id,
+            });
+          }
+        }
       }
 
+      // 3. Audit Trail Logging
       await logAudit({
         action: "edit",
         entity: "transaction",
         entity_id: editTxn.id,
-        description: `Updated Bill Payment / Recharge ${editTxn.transaction_number}`,
+        description: `Complete Edit & Reconciliation on ${editTxn.transaction_number}`,
         details: {
           previous: {
-            mobile: editTxn.customer_mobile,
-            reference: editTxn.reference,
+            amount: editTxn.amount,
+            fee: editTxn.service_fee,
             commission: editTxn.portal_commission,
+            method: editTxn.customer_pay_method,
+            status: editTxn.status,
           },
           updated: {
-            mobile: editMobile,
-            reference: editRef,
-            commission: newComm,
+            amount: parsedAmount,
+            fee: parsedFee,
+            commission: parsedComm,
+            method: editPayMethod,
+            status: editStatus,
           },
         },
       });
 
       setTransactions((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...updated } : t)));
       setEditTxn(null);
-      showToast("success", `✓ Transaction ${editTxn.transaction_number} updated successfully.`);
+      showToast("success", `✓ Transaction ${editTxn.transaction_number} reconciled and saved successfully.`);
     } catch (err: any) {
-      showToast("error", err.message || "Failed to update transaction.");
+      showToast("error", err.message || "Failed to save transaction edits.");
     } finally {
       setEditing(false);
     }
   }
 
-  // 2. Reverse / Delete Handler
+  // 2. Reverse / Void Handler
   async function handleConfirmReverse() {
     if (!reverseTxn || reversing) return;
     setReversing(true);
@@ -385,7 +543,7 @@ export default function BillPaymentHub({
     try {
       const { error } = await supabase.rpc("reverse_business_txn", {
         p_txn_id: reverseTxn.id,
-        p_reason: reverseReason.trim() || "User requested cancellation / reversal in Bill Payment Hub",
+        p_reason: reverseReason.trim() || "User requested reversal in Bill Payment Hub",
       });
 
       if (error) {
@@ -419,7 +577,7 @@ export default function BillPaymentHub({
     setPrintTxn(txn);
     setTimeout(() => {
       window.print();
-    }, 200);
+    }, 250);
   }
 
   // 4. WhatsApp Message Generator
@@ -429,36 +587,36 @@ export default function BillPaymentHub({
     const timeStr = fmtTime(t.transaction_timestamp);
     const amt = inr(Number(t.amount) || 0);
 
-    if (info.isRecharge) {
-      return `*RECHARGE RECEIPT — SARKAR COMMUNICATION*\n` +
-        `Txn ID: ${t.transaction_number}\n` +
-        `Mobile: ${t.customer_mobile || "—"}\n` +
-        `Operator: ${info.providerName}\n` +
-        `Amount: ${amt}\n` +
-        `Date: ${dateStr} ${timeStr}\n` +
-        `Status: Successful\n\n` +
-        `Thank you for recharging with us!`;
-    }
-
     if (info.isGooglePlay) {
       return `*GOOGLE PLAY RECHARGE RECEIPT — SARKAR COMMUNICATION*\n` +
         `Txn ID: ${t.transaction_number}\n` +
         `Recharge Amount: ${amt}\n` +
         `Voucher / Code: ${t.reference || "—"}\n` +
         `Date: ${dateStr} ${timeStr}\n` +
-        `Status: Successful\n\n` +
+        `Status: ${t.status.toUpperCase()}\n\n` +
         `Redeem code in Google Play Store > Payments & Subscriptions.`;
     }
 
-    return `*UTILITY BILL PAYMENT RECEIPT — SARKAR COMMUNICATION*\n` +
+    if (info.isUtility) {
+      return `*UTILITY BILL PAYMENT RECEIPT — SARKAR COMMUNICATION*\n` +
+        `Txn ID: ${t.transaction_number}\n` +
+        `Biller: ${info.providerName}\n` +
+        `Consumer / Ref: ${t.reference || "—"}\n` +
+        `Bill Amount: ${amt}\n` +
+        `Total Paid: ${inr((Number(t.amount) || 0) + (Number(t.service_fee) || 0))}\n` +
+        `Date: ${dateStr} ${timeStr}\n` +
+        `Status: ${t.status.toUpperCase()}\n\n` +
+        `Thank you for paying your bill with us!`;
+    }
+
+    return `*MOBILE RECHARGE RECEIPT — SARKAR COMMUNICATION*\n` +
       `Txn ID: ${t.transaction_number}\n` +
-      `Biller: ${info.providerName}\n` +
-      `Consumer / Ref: ${t.reference || "—"}\n` +
-      `Bill Amount: ${amt}\n` +
-      `Total Paid: ${inr((Number(t.amount) || 0) + (Number(t.service_fee) || 0))}\n` +
+      `Mobile: ${t.customer_mobile || "—"}\n` +
+      `Operator: ${info.providerName}\n` +
+      `Amount: ${amt}\n` +
       `Date: ${dateStr} ${timeStr}\n` +
-      `Status: Successful\n\n` +
-      `Thank you for paying your bill with us!`;
+      `Status: ${t.status.toUpperCase()}\n\n` +
+      `Thank you for recharging with us!`;
   }
 
   return (
@@ -481,7 +639,7 @@ export default function BillPaymentHub({
                 </span>
               </div>
               <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-                Process mobile recharges, BBPS utility bill settlements (Electricity, Gas, Water, Broadband), and manage journal history.
+                Process mobile top-ups, Google Play vouchers, BBPS utility bill collections (Electricity, Gas, Water, Broadband), and complete journal history.
               </p>
             </div>
           </div>
@@ -512,7 +670,7 @@ export default function BillPaymentHub({
             }`}
           >
             <span>📱</span>
-            <span>Mobile Recharge</span>
+            <span>Mobile &amp; Digital Recharge</span>
           </button>
 
           <button
@@ -558,20 +716,58 @@ export default function BillPaymentHub({
 
       {/* 3. Tab Workspace Content */}
 
-      {/* TAB 1: Mobile Recharge */}
+      {/* TAB 1: Mobile & Digital Recharge (Prepaid, DTH & Google Play) */}
       {activeTab === "recharge" && (
         <div className="space-y-6">
-          <RechargeWorkspace
-            initialTransactions={transactions}
-            initialCustomers={customers}
-            initialRechargeProviders={rechargeProviders}
-            initialRechargeSlabs={rechargeSlabs}
-            initialPaymentInstruments={paymentInstruments}
-          />
+          {/* Sub-Switch: Mobile / DTH vs Google Play */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
+            <button
+              onClick={() => setRechargeSubTab("mobile")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                rechargeSubTab === "mobile"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              <span>📱</span>
+              <span>Prepaid Mobile &amp; DTH</span>
+            </button>
+
+            <button
+              onClick={() => setRechargeSubTab("google_play")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                rechargeSubTab === "google_play"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              <span>🎮</span>
+              <span>Google Play Recharge</span>
+              <span className="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 text-[9px] font-extrabold">
+                2.5% Margin
+              </span>
+            </button>
+          </div>
+
+          {rechargeSubTab === "mobile" ? (
+            <RechargeWorkspace
+              initialTransactions={transactions}
+              initialCustomers={customers}
+              initialRechargeProviders={rechargeProviders}
+              initialRechargeSlabs={rechargeSlabs}
+              initialPaymentInstruments={paymentInstruments}
+            />
+          ) : (
+            <GooglePlayWorkspace
+              initialTransactions={transactions}
+              initialCustomers={customers}
+              initialPaymentInstruments={paymentInstruments}
+            />
+          )}
         </div>
       )}
 
-      {/* TAB 2: Utility Bill Payment */}
+      {/* TAB 2: Utility Bill Payment (BBPS 10 Categories) */}
       {activeTab === "utility" && (
         <div className="space-y-6">
           <UtilityBillWorkspace
@@ -585,6 +781,53 @@ export default function BillPaymentHub({
       {/* TAB 3: Payment History & All Journal */}
       {activeTab === "history" && (
         <div className="space-y-6">
+          {/* History Scope Switcher */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
+            <button
+              onClick={() => { setHistoryScope("all"); setCurrentPage(1); }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                historyScope === "all"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              📜 All History ({transactions.length})
+            </button>
+
+            <button
+              onClick={() => { setHistoryScope("recent"); setCurrentPage(1); }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                historyScope === "recent"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              ⚡ Recent Payment Journal (Latest 20)
+            </button>
+
+            <button
+              onClick={() => { setHistoryScope("mobile"); setCurrentPage(1); }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                historyScope === "mobile"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              📱 Mobile &amp; Google Play History
+            </button>
+
+            <button
+              onClick={() => { setHistoryScope("utility"); setCurrentPage(1); }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                historyScope === "utility"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              🏢 Utility Bill Payment History
+            </button>
+          </div>
+
           {/* Filter Bar */}
           <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
@@ -620,13 +863,14 @@ export default function BillPaymentHub({
                 >
                   <option value="all">All Services</option>
                   <option value="recharge">📱 Mobile Recharge</option>
+                  <option value="google_play">🎮 Google Play</option>
                   <option value="utility_all">🏢 All Utility Bills</option>
                   <option value="electricity">⚡ Electricity</option>
                   <option value="gas">🔥 Gas &amp; LPG</option>
                   <option value="water">💧 Water Supply</option>
                   <option value="broadband">📡 Broadband</option>
                   <option value="dth">📺 DTH Cable</option>
-                  <option value="google_play">🎮 Google Play</option>
+                  <option value="fastag">🚗 FASTag</option>
                 </select>
               </div>
 
@@ -695,7 +939,7 @@ export default function BillPaymentHub({
                   <tr>
                     <th className="px-4 py-3.5">Date / Time</th>
                     <th className="px-4 py-3.5">Txn No</th>
-                    <th className="px-4 py-3.5">Service &amp; Biller</th>
+                    <th className="px-4 py-3.5">Service &amp; Provider</th>
                     <th className="px-4 py-3.5">Target / Consumer</th>
                     <th className="px-4 py-3.5">Bill Amount</th>
                     <th className="px-4 py-3.5">Fee &amp; Margin</th>
@@ -736,7 +980,7 @@ export default function BillPaymentHub({
                             </span>
                           </td>
 
-                          {/* Service & Biller */}
+                          {/* Service & Provider */}
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
                               <span className="text-base">{info.categoryIcon}</span>
@@ -811,10 +1055,10 @@ export default function BillPaymentHub({
                             </span>
                           </td>
 
-                          {/* Actions */}
+                          {/* Actions Group (5 Actions) */}
                           <td className="px-4 py-3.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
-                              {/* View */}
+                              {/* 1. View */}
                               <button
                                 onClick={() => setViewTxn(t)}
                                 title="View Details"
@@ -823,7 +1067,7 @@ export default function BillPaymentHub({
                                 👁️
                               </button>
 
-                              {/* Edit */}
+                              {/* 2. Edit */}
                               <button
                                 onClick={() => setEditTxn(t)}
                                 title="Edit Transaction"
@@ -832,7 +1076,7 @@ export default function BillPaymentHub({
                                 ✏️
                               </button>
 
-                              {/* Print */}
+                              {/* 3. Print */}
                               <button
                                 onClick={() => triggerPrint(t)}
                                 title="Print Receipt"
@@ -841,7 +1085,7 @@ export default function BillPaymentHub({
                                 🖨️
                               </button>
 
-                              {/* WhatsApp */}
+                              {/* 4. WhatsApp */}
                               <button
                                 onClick={() => setWhatsAppTxn(t)}
                                 title="Send WhatsApp"
@@ -850,7 +1094,7 @@ export default function BillPaymentHub({
                                 💬
                               </button>
 
-                              {/* Reverse / Delete */}
+                              {/* 5. Delete / Reverse */}
                               <button
                                 onClick={() => setReverseTxn(t)}
                                 title="Reverse / Cancel"
@@ -923,7 +1167,7 @@ export default function BillPaymentHub({
                 BBPS &amp; Recharge Commission Matrix
               </h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Configure retailer commission rules for utility billers and mobile recharge operators. Changes apply strictly to future transactions.
+                Configure retailer commission rules for utility billers and mobile recharge operators. Changes apply strictly to future transactions; historical snapshots remain unchanged.
               </p>
             </div>
             <button
@@ -1028,26 +1272,31 @@ export default function BillPaymentHub({
       {viewTxn && (
         <FloatingWindow
           isOpen={Boolean(viewTxn)}
-          title={`Transaction ${viewTxn.transaction_number}`}
+          title={`Transaction Details: ${viewTxn.transaction_number}`}
           onClose={() => setViewTxn(null)}
           size="lg"
         >
           <div className="space-y-6 p-6">
             {/* Header pill */}
             <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/50">
-              <div>
-                <span className="block text-base font-black text-slate-900 dark:text-white">
-                  {classifyTxn(viewTxn).providerName}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {fmtDate(viewTxn.transaction_timestamp || viewTxn.transaction_date)} at{" "}
-                  {fmtTime(viewTxn.transaction_timestamp)}
-                </span>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{classifyTxn(viewTxn).categoryIcon}</span>
+                <div>
+                  <span className="block text-base font-black text-slate-900 dark:text-white">
+                    {classifyTxn(viewTxn).providerName}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {classifyTxn(viewTxn).typeLabel} · {fmtDate(viewTxn.transaction_timestamp || viewTxn.transaction_date)} at{" "}
+                    {fmtTime(viewTxn.transaction_timestamp)}
+                  </span>
+                </div>
               </div>
               <span
                 className={`rounded-full px-3 py-1 text-xs font-bold ${
                   viewTxn.status === "success"
                     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                    : viewTxn.status === "reversed"
+                    ? "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300"
                     : "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300"
                 }`}
               >
@@ -1101,7 +1350,7 @@ export default function BillPaymentHub({
                   <span className="font-bold">-{inr(Number(viewTxn.pool_out) || 0)}</span>
                 </div>
                 <div className="flex justify-between border-t border-indigo-200/60 pt-1 font-bold text-emerald-700 dark:text-emerald-300">
-                  <span>Net Shop Income:</span>
+                  <span>Net Shop Operating Margin:</span>
                   <span>
                     +{inr((Number(viewTxn.service_fee) || 0) + (Number(viewTxn.portal_commission) || 0))}
                   </span>
@@ -1111,6 +1360,10 @@ export default function BillPaymentHub({
 
             {/* Details */}
             <div className="space-y-2 text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                <span className="text-slate-400">Customer Name:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{viewTxn.customers?.name || "Counter Customer"}</span>
+              </div>
               <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
                 <span className="text-slate-400">Customer Target / Mobile:</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
@@ -1130,67 +1383,176 @@ export default function BillPaymentHub({
         </FloatingWindow>
       )}
 
-      {/* --- MODAL 2: EDIT TRANSACTION --- */}
+      {/* --- MODAL 2: COMPLETE TRANSACTION EDITOR --- */}
       {editTxn && (
         <Modal
-          title={`Edit Transaction ${editTxn.transaction_number}`}
+          title={`Edit & Reconcile Transaction: ${editTxn.transaction_number}`}
           onClose={() => setEditTxn(null)}
+          size="lg"
         >
-          <div className="space-y-4 p-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Customer Mobile / Phone</label>
-              <input
-                type="text"
-                value={editMobile}
-                onChange={(e) => setEditMobile(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold dark:border-white/10 dark:bg-slate-800"
-              />
+          <div className="space-y-5 p-2 text-xs">
+            {/* Header read-only badge */}
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
+              <div className="flex items-center gap-2">
+                <span className="text-base">{classifyTxn(editTxn).categoryIcon}</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {classifyTxn(editTxn).typeLabel} · {classifyTxn(editTxn).providerName}
+                </span>
+              </div>
+              <span className="font-mono font-bold text-slate-500">{editTxn.transaction_number}</span>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Operator Reference / Txn ID</label>
-              <input
-                type="text"
-                value={editRef}
-                onChange={(e) => setEditRef(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold dark:border-white/10 dark:bg-slate-800"
-              />
+            {/* Target & Customer Details */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Customer Target / Mobile</label>
+                <input
+                  type="text"
+                  value={editMobile}
+                  onChange={(e) => setEditMobile(e.target.value)}
+                  placeholder="10-digit mobile number"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Consumer / Operator Reference ID</label>
+                <input
+                  type="text"
+                  value={editRef}
+                  onChange={(e) => setEditRef(e.target.value)}
+                  placeholder="Consumer ID / Reference"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Commission Override (₹)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={editCommission}
-                onChange={(e) => setEditCommission(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold dark:border-white/10 dark:bg-slate-800"
-              />
+            {/* Financial Economics */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Bill / Recharge Amount (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-bold text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Customer Service Fee (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editServiceFee}
+                  onChange={(e) => setEditServiceFee(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-bold text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Commission Override (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editCommission}
+                  onChange={(e) => setEditCommission(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-bold text-emerald-600 dark:border-white/10 dark:bg-slate-800 dark:text-emerald-400"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Remarks</label>
-              <textarea
-                rows={2}
-                value={editRemarks}
-                onChange={(e) => setEditRemarks(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-2.5 text-xs font-semibold dark:border-white/10 dark:bg-slate-800"
-              />
+            {/* Payment Method & Payment Account Linking */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Customer Payment Method</label>
+                <select
+                  value={editPayMethod}
+                  onChange={(e) => setEditPayMethod(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold uppercase dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="cash">Cash Collection</option>
+                  <option value="upi">UPI / QR Scan</option>
+                  <option value="bank">Bank Transfer</option>
+                  <option value="wallet">Wallet Balance</option>
+                  <option value="credit_card">Credit Card</option>
+                  <option value="due">Khata (Customer Due)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Funding Account / Register</label>
+                <select
+                  value={editFundingInstId}
+                  onChange={(e) => setEditFundingInstId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">-- Select Funding Account --</option>
+                  {filteredEditInstruments.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name} ({i.type.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            {/* Remarks & Status */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Remarks / Internal Notes</label>
+                <input
+                  type="text"
+                  value={editRemarks}
+                  onChange={(e) => setEditRemarks(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Transaction Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 font-bold uppercase dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="success">🟢 Success</option>
+                  <option value="pending">🟡 Pending</option>
+                  <option value="failed">🔴 Failed</option>
+                  <option value="reversed">⚪ Reversed</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Calculated Net Margin Preview */}
+            <div className="rounded-xl bg-emerald-50/70 p-3 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-500/20 flex justify-between items-center">
+              <div>
+                <span className="block font-bold text-emerald-800 dark:text-emerald-300">Reconciled Economics</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                  Customer Total: {inr((Number(editAmount) || 0) + (Number(editServiceFee) || 0))} · Provider Cost: {inr(Math.max(0, (Number(editAmount) || 0) - (Number(editCommission) || 0)))}
+                </span>
+              </div>
+              <span className="text-base font-black text-emerald-700 dark:text-emerald-300">
+                +{inr((Number(editServiceFee) || 0) + (Number(editCommission) || 0))} Net Margin
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200/80 dark:border-white/10">
               <button
+                type="button"
                 onClick={() => setEditTxn(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold dark:border-white/10"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSaveEdit}
+                type="button"
+                onClick={handleSaveCompleteEdit}
                 disabled={editing}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:bg-blue-700"
+                className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:bg-blue-700 transition"
               >
-                {editing ? "Saving…" : "Save Changes"}
+                {editing ? "Reconciling…" : "Save & Reconcile"}
               </button>
             </div>
           </div>
@@ -1200,10 +1562,10 @@ export default function BillPaymentHub({
       {/* --- MODAL 3: REVERSE TRANSACTION CONFIRMATION --- */}
       {reverseTxn && (
         <Modal
-          title={`Reverse Transaction ${reverseTxn.transaction_number}`}
+          title={`Reverse Transaction: ${reverseTxn.transaction_number}`}
           onClose={() => setReverseTxn(null)}
         >
-          <div className="space-y-4 p-2">
+          <div className="space-y-4 p-2 text-xs">
             <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-800 dark:border-rose-500/30 dark:bg-rose-950/40 dark:text-rose-300">
               <span className="block font-bold">⚠️ Warning: Financial Reversal</span>
               <p className="mt-1">
@@ -1224,12 +1586,14 @@ export default function BillPaymentHub({
 
             <div className="flex justify-end gap-2 pt-2">
               <button
+                type="button"
                 onClick={() => setReverseTxn(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold dark:border-white/10"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleConfirmReverse}
                 disabled={reversing}
                 className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-rose-500/25 hover:bg-rose-700"
@@ -1244,7 +1608,7 @@ export default function BillPaymentHub({
       {/* --- MODAL 4: PRINT RECEIPT DIALOG --- */}
       {printTxn && (
         <Modal title="Print Receipt" onClose={() => setPrintTxn(null)}>
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 text-xs">
             <div id="printable-receipt" className="rounded-2xl border border-slate-200 p-6 bg-white text-slate-900 space-y-4 font-mono text-xs shadow-sm">
               <div className="text-center border-b pb-3">
                 <span className="text-base font-black tracking-tight block">SARKAR COMMUNICATION</span>
@@ -1268,7 +1632,7 @@ export default function BillPaymentHub({
                   <span className="font-bold">{classifyTxn(printTxn).providerName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Target:</span>
+                  <span>Target / Ref:</span>
                   <span className="font-bold">{printTxn.customer_mobile || printTxn.reference}</span>
                 </div>
               </div>
@@ -1298,12 +1662,14 @@ export default function BillPaymentHub({
 
             <div className="flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => setPrintTxn(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold"
               >
                 Close
               </button>
               <button
+                type="button"
                 onClick={() => window.print()}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
               >
@@ -1317,7 +1683,7 @@ export default function BillPaymentHub({
       {/* --- MODAL 5: WHATSAPP DISPATCH MODAL --- */}
       {whatsAppTxn && (
         <Modal title="WhatsApp Receipt" onClose={() => setWhatsAppTxn(null)}>
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 text-xs">
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 text-xs dark:border-emerald-500/30 dark:bg-emerald-950/30">
               <span className="block font-bold text-emerald-800 dark:text-emerald-300">
                 Message Preview:
@@ -1329,6 +1695,7 @@ export default function BillPaymentHub({
 
             <div className="flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => setWhatsAppTxn(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold dark:border-white/10"
               >

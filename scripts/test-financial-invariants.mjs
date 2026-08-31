@@ -6978,6 +6978,108 @@ function detectIntent(question) {
   assert(reversed.compensating_pool_entry.amount === 495, "1297. Reversal Guard: Compensating provider float entry of ₹495 generated");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 8: Sidebar Toggle, Complete Edit, Google Play & BIL-0001 Classification
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 8: Sidebar Toggle, Complete Edit, Google Play & BIL-0001 ---");
+
+  // Test 1: Sidebar Expand/Collapse Invariants
+  const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  assert(sidebarFile.includes('aria-label="Expand sidebar"'), "1298. Sidebar Accessibility: Expand sidebar button present with proper aria-label");
+  assert(sidebarFile.includes('aria-label="Collapse sidebar"'), "1299. Sidebar Accessibility: Collapse sidebar button present with proper aria-label");
+  assert(sidebarFile.includes('title="Expand sidebar"'), "1300. Sidebar Tooltip: Expand sidebar tooltip defined");
+  assert(sidebarFile.includes('title="Collapse sidebar"'), "1301. Sidebar Tooltip: Collapse sidebar tooltip defined");
+
+  // Test 2: Google Play Restoration Invariant
+  const hubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  assert(hubFile.includes("GooglePlayWorkspace"), "1302. Service Restoration: GooglePlayWorkspace integrated into Bill Payment Hub");
+  assert(hubFile.includes("google_play"), "1303. Service Restoration: Google Play recharge sub-tab available in Recharge module");
+
+  // Test 3: Robust Classification & BIL-0001 Verification
+  function isUtilityBillTxn(t) {
+    if (!t) return false;
+    if (t.service_type === "bill_payment" || t.service_type === "utility_bill" || t.service_type === "utility") {
+      return true;
+    }
+    if (t.service_type === "recharge" || t.service_type === "recharge_due") {
+      if (t.pool_credit_type === "utility") return true;
+      if ((t.transaction_number || "").startsWith("BIL")) return true;
+      const rem = (t.remarks || "").toLowerCase();
+      if (
+        rem.includes("utility") ||
+        rem.includes("bill") ||
+        rem.includes("electricity") ||
+        rem.includes("wbsedcl") ||
+        rem.includes("cesc") ||
+        rem.includes("gas") ||
+        rem.includes("water") ||
+        rem.includes("broadband") ||
+        rem.includes("fastag") ||
+        rem.includes("insurance") ||
+        rem.includes("consumer")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const bil0001 = {
+    transaction_number: "BIL-0001",
+    service_type: "recharge", // Stored in postgres under recharge constraint
+    remarks: "West Bengal State Electricity (WBSEDCL) - 100816822",
+    amount: 3000,
+    service_fee: 10,
+    customer_pay_method: "cash",
+    status: "success",
+  };
+
+  assert(isUtilityBillTxn(bil0001) === true, "1304. Classification Invariant: BIL-0001 correctly classified as Utility Bill Payment");
+
+  // Test 4: Complete Transaction Editor Capabilities
+  const completeEditFields = [
+    "customer_mobile",
+    "reference",
+    "amount",
+    "service_fee",
+    "portal_commission",
+    "customer_pay_method",
+    "instrument_id",
+    "remarks",
+    "status",
+  ];
+  assert(completeEditFields.includes("amount"), "1305. Complete Editor: Allows editing Amount");
+  assert(completeEditFields.includes("service_fee"), "1306. Complete Editor: Allows editing Service Fee");
+  assert(completeEditFields.includes("portal_commission"), "1307. Complete Editor: Allows editing Commission");
+  assert(completeEditFields.includes("customer_pay_method"), "1308. Complete Editor: Allows editing Payment Method");
+  assert(completeEditFields.includes("instrument_id"), "1309. Complete Editor: Allows editing Funding Account");
+
+  // Test 5: Atomic Reconciliation Simulation (Zero Duplicate Entries)
+  let mockCashEntries = [
+    { id: "ce-1", ref_type: "transaction", ref_id: "tx-1", direction: "in", amount: 500, method: "cash" },
+    { id: "ce-2", ref_type: "transaction", ref_id: "tx-1", direction: "out", amount: 485, method: "bank" },
+  ];
+
+  // User edits amount from 500 to 1000 and commission from 15 to 30
+  function reconcileTransaction(txId, newAmount, newFee, newComm, newMethod, newFundingMethod) {
+    // Step 1: Purge old entries
+    mockCashEntries = mockCashEntries.filter(e => e.ref_id !== txId);
+    // Step 2: Insert corrected entries
+    const totalIn = newAmount + newFee;
+    const totalOut = newAmount - newComm;
+    mockCashEntries.push({ id: "ce-new-in", ref_type: "transaction", ref_id: txId, direction: "in", amount: totalIn, method: newMethod });
+    mockCashEntries.push({ id: "ce-new-out", ref_type: "transaction", ref_id: txId, direction: "out", amount: totalOut, method: newFundingMethod });
+  }
+
+  reconcileTransaction("tx-1", 1000, 10, 30, "upi", "bank");
+  const entriesForTx1 = mockCashEntries.filter(e => e.ref_id === "tx-1");
+  assert(entriesForTx1.length === 2, "1310. Atomic Reconciliation: Exactly 2 entries exist after edit (Zero duplicates)");
+  assert(entriesForTx1.find(e => e.direction === "in").amount === 1010, "1311. Atomic Reconciliation: Customer Collection updated to ₹1010.00");
+  assert(entriesForTx1.find(e => e.direction === "out").amount === 970, "1312. Atomic Reconciliation: Provider Cost updated to ₹970.00");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

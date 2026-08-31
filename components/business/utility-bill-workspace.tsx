@@ -54,6 +54,34 @@ export type BillerItem = {
   isPercentage?: boolean;
 };
 
+export function isUtilityBillTxn(t: Txn): boolean {
+  if (!t) return false;
+  if (t.service_type === "bill_payment" || t.service_type === "utility_bill" || t.service_type === "utility") {
+    return true;
+  }
+  if (t.service_type === "recharge" || t.service_type === "recharge_due") {
+    if ((t as any).pool_credit_type === "utility") return true;
+    if ((t.transaction_number || "").startsWith("BIL")) return true;
+    const rem = (t.remarks || "").toLowerCase();
+    if (
+      rem.includes("utility") ||
+      rem.includes("bill") ||
+      rem.includes("electricity") ||
+      rem.includes("wbsedcl") ||
+      rem.includes("cesc") ||
+      rem.includes("gas") ||
+      rem.includes("water") ||
+      rem.includes("broadband") ||
+      rem.includes("fastag") ||
+      rem.includes("insurance") ||
+      rem.includes("consumer")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export const POPULAR_BILLERS: BillerItem[] = [
   // Electricity
   { id: "wbsedcl", categoryId: "electricity", name: "West Bengal State Electricity (WBSEDCL)", shortName: "WBSEDCL", state: "West Bengal", commission: 5 },
@@ -303,7 +331,7 @@ export default function UtilityBillWorkspace({
     const todayTxns = transactions.filter(
       (t) =>
         t.transaction_date === todayStr &&
-        ["bill_payment", "utility_bill"].includes(t.service_type)
+        isUtilityBillTxn(t)
     );
 
     let count = 0;
@@ -352,7 +380,7 @@ export default function UtilityBillWorkspace({
   // Filtered History
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
-      if (!["bill_payment", "utility_bill"].includes(t.service_type)) return false;
+      if (!isUtilityBillTxn(t)) return false;
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
