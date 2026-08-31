@@ -1,4 +1,4 @@
-name: Fix bill payment numbering
+name: Fix bill payment transaction number insertion order
 
 on:
   push:
@@ -15,51 +15,33 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Patch bill payment transaction numbering
+      - name: Correct transaction number payload
+        shell: python
         run: |
-          python - <<'PY'
           from pathlib import Path
-
           p = Path('components/business/utility-bill-workspace.tsx')
-          s = p.read_text()
+          s = p.read_text(encoding='utf-8')
+          needle = '''      const insertPayload = {\n        transaction_number: txnNumber,'''
+          replacement = '''      const insertPayload = {\n        transaction_number: nextNum,'''
+          if needle in s:
+              s = s.replace(needle, replacement, 1)
+              p.write_text(s, encoding='utf-8')
+          elif 'transaction_number: nextNum,' in s:
+              print('Transaction payload is already correct.')
+          else:
+              raise SystemExit('Transaction payload marker not found')
 
-          old = '''      // 1. Generate Transaction Number\n      const { count } = await supabase\n        .from("transactions")\n        .select("id", { count: "exact", head: true })\n        .in("service_type", ["bill_payment", "utility_bill"]);\n      const nextNum = "BIL-" + String((count ?? 0) + 1).padStart(4, "0");'''
-          new = '''      // 1. Generate a collision-resistant transaction number.\n      // Count-based numbering is race-prone: two simultaneous payments can read the same count.\n      const nextNum = `BIL-${todayDate.replace(/-/g, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;'''
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif 'crypto.randomUUID().replace(/-/g, "").slice(0, 10)' not in s:
-              raise SystemExit('Expected transaction-number block not found')
-
-          marker = '''      } else {\n        newTxn = primaryTxn;\n      }\n\n      // 3. Customer Collection Accounting Leg'''
-          replacement = '''      } else {\n        newTxn = primaryTxn;\n      }\n\n      // Always use the database record's actual transaction number for every downstream posting/audit.\n      const txnNumber = newTxn.transaction_number || nextNum;\n\n      // 3. Customer Collection Accounting Leg'''
-          if marker in s and 'const txnNumber = newTxn.transaction_number || nextNum;' not in s:
-              s = s.replace(marker, replacement, 1)
-
-          replacements = {
-              'Bill ${nextNum} collection': 'Bill ${txnNumber} collection',
-              'Utility Bill ${nextNum}': 'Utility Bill ${txnNumber}',
-              'Bill ${nextNum} settlement': 'Bill ${txnNumber} settlement',
-              'Paid Utility Bill ${nextNum}': 'Paid Utility Bill ${txnNumber}',
-              'transaction_number: nextNum,': 'transaction_number: txnNumber,',
-              '✓ Bill payment ${nextNum} processed successfully!': '✓ Bill payment ${txnNumber} processed successfully!',
-          }
-          for a, b in replacements.items():
-              s = s.replace(a, b)
-
-          p.write_text(s)
-          PY
-
-      - name: Commit patch
+      - name: Commit fix
+        shell: bash
         run: |
           if git diff --quiet -- components/business/utility-bill-workspace.tsx; then
-            echo "No patch needed"
+            echo "No changes needed"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add components/business/utility-bill-workspace.tsx
-          git commit -m "Fix bill payment transaction number race"
+          git commit -m "fix(bill): correct transaction number payload"
           git push
