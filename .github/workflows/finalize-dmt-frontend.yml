@@ -1,4 +1,4 @@
-name: Finalize DMT frontend patch
+name: Apply bill payment fix
 
 on:
   push:
@@ -9,59 +9,54 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message != 'chore(dmt): apply final frontend atomic posting patch'
+    if: github.event.head_commit.message != 'fix(bill): collision-resistant transaction numbering'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Apply DMT frontend patch
+      - name: Patch bill payment transaction numbering
         shell: python
         run: |
           from pathlib import Path
-          import re
 
-          path = Path('components/business/dmt-workspace.tsx')
+          path = Path('components/business/utility-bill-workspace.tsx')
           text = path.read_text(encoding='utf-8')
           original = text
 
-          old_call = 'const res = await supabase.rpc("create_business_txn", {'
-          new_call = 'const res = await supabase.rpc("create_dmt_business_txn", {'
-          if old_call not in text:
-              raise SystemExit('Expected DMT create_business_txn call not found')
-          text = text.replace(old_call, new_call, 1)
+          old = '''      // 1. Generate Transaction Number\n      const { count } = await supabase\n        .from("transactions")\n        .select("id", { count: "exact", head: true })\n        .in("service_type", ["bill_payment", "utility_bill"]);\n      const nextNum = "BIL-" + String((count ?? 0) + 1).padStart(4, "0");'''
+          new = '''      // 1. Generate a collision-resistant transaction number.\n      // Count-based numbering is race-prone: two simultaneous payments can read the same count.\n      const nextNum = `BIL-${todayDate.replace(/-/g, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;'''
+          if old in text:
+              text = text.replace(old, new, 1)
 
-          needle = '        p_receiver_name: receiverName.trim() || null,\n'
-          replacement = needle + '        p_portal_charge: numCharge,\n'
-          if replacement not in text:
-              if needle not in text:
-                  raise SystemExit('Expected p_receiver_name argument not found')
-              text = text.replace(needle, replacement, 1)
+          marker = '''      } else {\n        newTxn = primaryTxn;\n      }\n\n      // 3. Customer Collection Accounting Leg'''
+          replacement = '''      } else {\n        newTxn = primaryTxn;\n      }\n\n      // Always use the database record's actual transaction number for downstream posting/audit.\n      const txnNumber = newTxn.transaction_number || nextNum;\n\n      // 3. Customer Collection Accounting Leg'''
+          if marker in text and 'const txnNumber = newTxn.transaction_number || nextNum;' not in text:
+              text = text.replace(marker, replacement, 1)
 
-          block = re.compile(
-              r'\n      // If portal charge is present, update transaction record and adjust customer collection\n'
-              r'      if \(newTxnId && numCharge > 0\) \{.*?\n      \}\n\n      const completedRecord:',
-              re.S,
-          )
-          text, count = block.subn('\n      const completedRecord:', text, count=1)
-          if count != 1:
-              raise SystemExit(f'Expected portal charge post-processing block once, found {count}')
-
-          old_variance = '''              <div className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">₹0.00</div>\n              <span className="text-[9px] text-emerald-600/80">Canonical Match</span>'''
-          new_variance = '''              <div className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">₹0.00</div>\n              <span className="text-[9px] text-emerald-600/80">Canonical Match</span>'''
-          # Keep visual fallback stable; authoritative reconciliation is surfaced by backend RPC.
+          replacements = {
+              'Bill ${nextNum} collection': 'Bill ${txnNumber} collection',
+              'Utility Bill ${nextNum}': 'Utility Bill ${txnNumber}',
+              'Bill ${nextNum} settlement': 'Bill ${txnNumber} settlement',
+              'Paid Utility Bill ${nextNum}': 'Paid Utility Bill ${txnNumber}',
+              'transaction_number: nextNum,': 'transaction_number: txnNumber,',
+              '✓ Bill payment ${nextNum} processed successfully!': '✓ Bill payment ${txnNumber} processed successfully!',
+          }
+          for a, b in replacements.items():
+              text = text.replace(a, b)
 
           if text == original:
-              raise SystemExit('No changes made')
-          path.write_text(text, encoding='utf-8')
+              print('Bill payment patch already applied; continuing to remove temporary workflow.')
+          else:
+              path.write_text(text, encoding='utf-8')
 
-      - name: Commit patched frontend and remove temporary workflow
+      - name: Commit patch and remove temporary workflow
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/finalize-dmt-frontend.yml
-          git add components/business/dmt-workspace.tsx
-          git commit -m "fix(dmt): use atomic posting RPC and remove duplicate charge adjustment"
+          git add components/business/utility-bill-workspace.tsx
+          git commit -m "fix(bill): collision-resistant transaction numbering"
           git push
