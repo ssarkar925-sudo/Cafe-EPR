@@ -1,17 +1,22 @@
 /**
- * Authoritative Payment Accounts & Instrument Live Balance Engine
- * 
- * Invariant:
- * 1. For NORMAL ACCOUNTS (Cash, Bank, UPI, Wallets, AEPS/DMT Floats):
- *    Current Balance = Opening Balance + Total Valid Inflows - Total Valid Outflows
- * 
- * 2. For CREDIT CARDS (Credit Facilities / Liabilities):
- *    - CREDIT LIMIT: Fixed configured limit (never altered by financial transactions).
- *    - USED CREDIT: Initial Used + Total Outflows (charges/funding) - Total Inflows (repayments).
- *    - AVAILABLE CREDIT: Credit Limit - Used Credit.
- * 
- * 3. For DEBIT CARDS:
- *    - Reflects live balance of the linked parent bank account.
+ * Canonical Payment Account Balance Engine
+ *
+ * IMPORTANT:
+ * `cash_entries` is the account-movement ledger. Transactions, expenses,
+ * purchases and settlements are business/source documents and must not be
+ * added a second time here. They already generate account movements.
+ *
+ * Normal account:
+ *   opening + inflows - outflows = current balance
+ *
+ * Credit card:
+ *   credit limit = fixed configuration
+ *   used credit = opening utilization + charges - repayments
+ *   available credit = limit - used
+ *
+ * Debit card:
+ *   mirrors its explicitly linked bank account and is not added to liquid
+ *   totals as a second asset.
  */
 
 export type InstrumentType =
@@ -80,61 +85,18 @@ export interface CalculateBalancesParams {
   instruments: RawPaymentInstrument[];
   cashEntries?: Array<{
     id?: string;
+    ref_id?: string | null;
     instrument_id?: string | null;
     direction?: string | null;
     amount?: number | string | null;
     method?: string | null;
     created_at?: string | null;
   }> | null;
-  settlements?: Array<{
-    id?: string;
-    source_instrument_id?: string | null;
-    dest_instrument_id?: string | null;
-    from_pool?: string | null;
-    to_pool?: string | null;
-    amount?: number | string | null;
-    status?: string | null;
-    created_at?: string | null;
-  }> | null;
-  transactions?: Array<{
-    id?: string;
-    instrument_id?: string | null;
-    customer_instrument_id?: string | null;
-    funding_instrument_id?: string | null;
-    portal_id?: string | null;
-    service_type?: string | null;
-    total_amount?: number | string | null;
-    amount?: number | string | null;
-    service_fee?: number | string | null;
-    portal_commission?: number | string | null;
-    portal_charge?: number | string | null;
-    pool_credit?: number | string | null;
-    pool_out?: number | string | null;
-    customer_pay_method?: string | null;
-    status?: string | null;
-    created_at?: string | null;
-  }> | null;
-  expenses?: Array<{
-    id?: string;
-    payment_instrument_id?: string | null;
-    payment_method?: string | null;
-    amount?: number | string | null;
-    status?: string | null;
-    created_at?: string | null;
-  }> | null;
-  purchases?: Array<{
-    id?: string;
-    payment_instrument_id?: string | null;
-    payment_method?: string | null;
-    paid_amount?: number | string | null;
-    amount?: number | string | null;
-    status?: string | null;
-    created_at?: string | null;
-  }> | null;
-  portals?: Array<{
-    id: string;
-    payment_instrument_id?: string | null;
-  }> | null;
+  settlements?: Array<Record<string, any>> | null;
+  transactions?: Array<Record<string, any>> | null;
+  expenses?: Array<Record<string, any>> | null;
+  purchases?: Array<Record<string, any>> | null;
+  portals?: Array<{ id: string; payment_instrument_id?: string | null }> | null;
 }
 
 export const POOL_TYPE_MAP: Record<string, string> = {
@@ -151,230 +113,122 @@ export const POOL_TYPE_MAP: Record<string, string> = {
   debit_card: "debit_card",
 };
 
+function money(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
 /**
- * Calculates live reconciled balances for every payment instrument.
+ * Calculates balances from ONE movement source only: cash_entries.
+ * This prevents the previous double-counting bug where the same business
+ * transaction was counted once from cash_entries and again from transactions,
+ * expenses, purchases or settlements.
  */
 export function calculateAccountBalances({
   instruments,
   cashEntries = [],
-  settlements = [],
-  transactions = [],
-  expenses = [],
-  purchases = [],
-  portals = [],
 }: CalculateBalancesParams): ReconciledAccountBalance[] {
   const safeInsts = instruments ?? [];
-  const safeCes = cashEntries ?? [];
-  const safeSets = settlements ?? [];
-  const safeTxs = transactions ?? [];
-  const safeExpenses = expenses ?? [];
-  const safePurchases = purchases ?? [];
-  const safePortals = portals ?? [];
+  const safeEntries = cashEntries ?? [];
 
-  // Map portal_id -> instrument_id
-  const portalToInst: Record<string, string> = {};
-  for (const p of safePortals) {
-    if (p.payment_instrument_id) {
-      portalToInst[p.id] = p.payment_instrument_id;
-    }
-  }
-
-  // Count active instruments per normalized type
-  const countPerType: Record<string, number> = {};
-  for (const inst of safeInsts) {
-    if (inst.is_active !== false) {
-      const pKey = POOL_TYPE_MAP[inst.type] || inst.type;
-      countPerType[pKey] = (countPerType[pKey] ?? 0) + 1;
-    }
-  }
-
-  // Track raw inflows and outflows per instrument ID
-  const instInflows: Record<string, number> = {};
-  const instOutflows: Record<string, number> = {};
+  const inflows: Record<string, number> = {};
+  const outflows: Record<string, number> = {};
 
   for (const inst of safeInsts) {
-    instInflows[inst.id] = 0;
-    instOutflows[inst.id] = 0;
+    inflows[inst.id] = 0;
+    outflows[inst.id] = 0;
   }
 
-  // Helper to resolve single instrument by type/method if untagged
-  function getSingleInstIdForType(methodOrType: string): string | null {
-    const norm = POOL_TYPE_MAP[methodOrType] || methodOrType;
-    if (countPerType[norm] === 1) {
-      const found = safeInsts.find(
-        (i) => i.is_active !== false && (POOL_TYPE_MAP[i.type] === norm || i.type === methodOrType)
-      );
-      return found?.id ?? null;
-    }
-    return null;
+  // Every financial write must produce an account movement with instrument_id.
+  // Only legacy entries without an instrument_id are resolved when there is
+  // exactly one active account of that method/type; ambiguous entries are not
+  // assigned to an arbitrary account.
+  const activeByPool: Record<string, string[]> = {};
+  for (const inst of safeInsts) {
+    if (inst.is_active === false) continue;
+    const key = POOL_TYPE_MAP[inst.type] ?? inst.type;
+    (activeByPool[key] ??= []).push(inst.id);
   }
 
-  // 1. CASH ENTRIES
-  for (const ce of safeCes) {
-    const amt = Math.abs(Number(ce.amount) || 0);
-    if (amt <= 0) continue;
+  for (const entry of safeEntries) {
+    const amount = money(entry.amount);
+    if (amount <= 0) continue;
 
-    let targetId = ce.instrument_id;
-    if (!targetId && ce.method) {
-      targetId = getSingleInstIdForType(ce.method);
+    let instrumentId = entry.instrument_id ?? null;
+    if (!instrumentId && entry.method) {
+      const key = POOL_TYPE_MAP[entry.method] ?? entry.method;
+      const candidates = activeByPool[key] ?? [];
+      if (candidates.length === 1) instrumentId = candidates[0];
     }
 
-    if (targetId && instInflows[targetId] !== undefined) {
-      if (ce.direction === "in" || ce.direction === "deposit") {
-        instInflows[targetId] = (instInflows[targetId] ?? 0) + amt;
-      } else if (ce.direction === "out" || ce.direction === "withdrawal") {
-        instOutflows[targetId] = (instOutflows[targetId] ?? 0) + amt;
-      }
-    }
-  }
+    if (!instrumentId || inflows[instrumentId] === undefined) continue;
 
-  // 2. SETTLEMENTS
-  for (const s of safeSets) {
-    if (s.status === "failed" || s.status === "reversed") continue;
-    const amt = Math.abs(Number(s.amount) || 0);
-    if (amt <= 0) continue;
-
-    let srcId = s.source_instrument_id;
-    if (!srcId && s.from_pool) {
-      srcId = getSingleInstIdForType(s.from_pool);
-    }
-    if (srcId && instOutflows[srcId] !== undefined) {
-      instOutflows[srcId] = (instOutflows[srcId] ?? 0) + amt;
-    }
-
-    let destId = s.dest_instrument_id;
-    if (!destId && s.to_pool) {
-      destId = getSingleInstIdForType(s.to_pool);
-    }
-    if (destId && instInflows[destId] !== undefined) {
-      instInflows[destId] = (instInflows[destId] ?? 0) + amt;
-    }
-  }
-
-  // 3. BUSINESS TRANSACTIONS (Zone 1 Collection vs Zone 2 Provider Funding)
-  for (const tx of safeTxs) {
-    if (tx.status === "failed" || tx.status === "reversed") continue;
-
-    const totalAmt = Math.abs(Number(tx.total_amount || tx.amount) || 0);
-    const poolCredit = Math.abs(Number(tx.pool_credit) || 0);
-    const poolOut = Math.abs(Number(tx.pool_out) || 0);
-
-    // Zone 1: Customer Collection (Inflow to shop)
-    let custInstId = tx.customer_instrument_id;
-    if (!custInstId && tx.customer_pay_method) {
-      custInstId = getSingleInstIdForType(tx.customer_pay_method);
-    }
-    if (custInstId && instInflows[custInstId] !== undefined && totalAmt > 0) {
-      instInflows[custInstId] = (instInflows[custInstId] ?? 0) + totalAmt;
-    }
-
-    // Zone 2: Provider Funding / Float Outflow
-    let fundingInstId = tx.funding_instrument_id;
-    if (!fundingInstId && tx.portal_id && portalToInst[tx.portal_id]) {
-      fundingInstId = portalToInst[tx.portal_id];
-    }
-    if (!fundingInstId && tx.instrument_id) {
-      fundingInstId = tx.instrument_id;
-    }
-
-    if (fundingInstId && (instOutflows[fundingInstId] !== undefined || instInflows[fundingInstId] !== undefined)) {
-      if (poolCredit > 0) {
-        instInflows[fundingInstId] = (instInflows[fundingInstId] ?? 0) + poolCredit;
-      }
-      if (poolOut > 0) {
-        instOutflows[fundingInstId] = (instOutflows[fundingInstId] ?? 0) + poolOut;
-      } else if (poolCredit === 0 && totalAmt > 0) {
-        instOutflows[fundingInstId] = (instOutflows[fundingInstId] ?? 0) + totalAmt;
-      }
-    }
-  }
-
-  // 4. EXPENSES (Store operating outflows)
-  for (const exp of safeExpenses) {
-    if (exp.status === "cancelled") continue;
-    const amt = Math.abs(Number(exp.amount) || 0);
-    if (amt <= 0) continue;
-
-    let targetId = exp.payment_instrument_id;
-    if (!targetId && exp.payment_method) {
-      targetId = getSingleInstIdForType(exp.payment_method);
-    }
-    if (targetId && instOutflows[targetId] !== undefined) {
-      instOutflows[targetId] = (instOutflows[targetId] ?? 0) + amt;
-    }
-  }
-
-  // 5. PURCHASES (Vendor stock procurements)
-  for (const pur of safePurchases) {
-    if (pur.status === "cancelled") continue;
-    const amt = Math.abs(Number(pur.paid_amount || pur.amount) || 0);
-    if (amt <= 0) continue;
-
-    let targetId = pur.payment_instrument_id;
-    if (!targetId && pur.payment_method) {
-      targetId = getSingleInstIdForType(pur.payment_method);
-    }
-    if (targetId && instOutflows[targetId] !== undefined) {
-      instOutflows[targetId] = (instOutflows[targetId] ?? 0) + amt;
+    const direction = String(entry.direction ?? "").toLowerCase();
+    if (direction === "in" || direction === "deposit") {
+      inflows[instrumentId] += amount;
+    } else if (direction === "out" || direction === "withdrawal") {
+      outflows[instrumentId] += amount;
     }
   }
 
   const now = new Date();
-  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const timeStr = now.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 
-  // First pass: Build normal & credit accounts
-  const preliminaryResults: ReconciledAccountBalance[] = safeInsts.map((inst) => {
-    const opening = Number(inst.opening_balance || 0);
-    const inflows = instInflows[inst.id] ?? 0;
-    const outflows = instOutflows[inst.id] ?? 0;
-    const netDelta = inflows - outflows;
+  const preliminary: ReconciledAccountBalance[] = safeInsts.map((inst) => {
+    const opening = money(inst.opening_balance);
+    const totalInflows = money(inflows[inst.id]);
+    const totalOutflows = money(outflows[inst.id]);
+    const netMovement = money(totalInflows - totalOutflows);
+    const isCreditCard = inst.type === "credit_card";
+    const isDebitCard = inst.type === "debit_card";
 
-    const isCredit = inst.type === "credit_card";
-    const isDebit = inst.type === "debit_card";
-    const poolKey = POOL_TYPE_MAP[inst.type] || inst.type;
-
-    let calcBal = opening + netDelta;
-    let limit = 0;
-    let used = 0;
-    let available = 0;
+    let creditLimit = 0;
+    let usedLimit = 0;
+    let availableCredit = 0;
+    let calculatedBalance = money(opening + netMovement);
     let statusLabel = "✓ Reconciled";
     let statusVariant: "reconciled" | "variance" | "linked" | "credit_limit" = "reconciled";
 
-    if (isCredit) {
-      // 1. Credit Limit is fixed and constant
-      limit = Number(inst.details?.credit_limit || (opening > 0 ? opening : 50000));
-      // 2. Used Credit tracks initial utilization + all charges (outflows) - repayments (inflows)
-      const initialUsed = Number(inst.details?.used_limit || 0);
-      used = Math.max(0, initialUsed + outflows - inflows);
-      // 3. Available Credit = Credit Limit - Used Credit
-      available = Math.max(0, limit - used);
-      calcBal = available;
-      statusLabel = `Available: ₹${available.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    if (isCreditCard) {
+      creditLimit = money(inst.details?.credit_limit);
+      // opening_balance represents opening card utilization/debt.
+      // used_limit is supported for migrated cards where it is explicitly set.
+      const openingUsed = money(inst.details?.used_limit ?? inst.opening_balance);
+      usedLimit = Math.max(0, money(openingUsed + totalOutflows - totalInflows));
+      availableCredit = Math.max(0, money(creditLimit - usedLimit));
+      calculatedBalance = availableCredit;
+      statusLabel = `Available: ₹${availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
       statusVariant = "credit_limit";
     }
 
-    const displayed = Number(inst.balance ?? calcBal);
-    const variance = Number((displayed - calcBal).toFixed(2));
+    // `balance` is legacy/display data only. We expose the canonical calculated
+    // value and flag any stale stored balance instead of allowing it to win.
+    const storedBalance = inst.balance == null ? calculatedBalance : money(inst.balance);
+    const variance = money(storedBalance - calculatedBalance);
 
     return {
       id: inst.id,
       name: inst.name,
       type: inst.type,
-      poolKey,
+      poolKey: POOL_TYPE_MAP[inst.type] ?? inst.type,
       isActive: inst.is_active !== false,
-      openingBalance: isCredit ? limit : opening,
-      totalInflows: inflows,
-      totalOutflows: outflows,
-      netMovement: netDelta,
-      calculatedBalance: calcBal,
-      displayedBalance: displayed,
+      openingBalance: isCreditCard ? creditLimit : opening,
+      totalInflows,
+      totalOutflows,
+      netMovement,
+      calculatedBalance,
+      displayedBalance: calculatedBalance,
       variance,
       isReconciled: Math.abs(variance) < 0.01,
-      isCreditCard: isCredit,
-      creditLimit: limit,
-      usedLimit: used,
-      availableCredit: isCredit ? available : 0,
-      isDebitCard: isDebit,
+      isCreditCard,
+      creditLimit,
+      usedLimit,
+      availableCredit,
+      isDebitCard,
       statusLabel,
       statusVariant,
       details: (inst.details ?? {}) as Record<string, any>,
@@ -382,30 +236,38 @@ export function calculateAccountBalances({
     };
   });
 
-  // Second pass: Link Debit Cards to parent bank accounts
-  const finalResults: ReconciledAccountBalance[] = preliminaryResults.map((acc) => {
-    if (!acc.isDebitCard) return acc;
+  // Debit cards are representations of their parent bank account, never a
+  // second pool of money. Require an explicit link when multiple banks exist.
+  return preliminary.map((account) => {
+    if (!account.isDebitCard) return account;
 
-    const parentBankId =
-      acc.details?.linked_bank_instrument_id ||
-      (preliminaryResults.filter((b) => b.type === "bank").length === 1
-        ? preliminaryResults.find((b) => b.type === "bank")?.id
-        : null);
+    const linkedId = account.details?.linked_bank_instrument_id as string | undefined;
+    const banks = preliminary.filter((candidate) => candidate.type === "bank" && candidate.isActive);
+    const parent = linkedId
+      ? preliminary.find((candidate) => candidate.id === linkedId)
+      : banks.length === 1
+        ? banks[0]
+        : undefined;
 
-    const parentBank = parentBankId ? preliminaryResults.find((b) => b.id === parentBankId) : null;
-    const parentBal = parentBank ? parentBank.calculatedBalance : acc.calculatedBalance;
+    if (!parent) {
+      return {
+        ...account,
+        statusLabel: "⚠ Bank link required",
+        statusVariant: "variance" as const,
+      };
+    }
 
     return {
-      ...acc,
-      calculatedBalance: parentBal,
-      displayedBalance: parentBal,
-      parentBankId: parentBankId ?? undefined,
-      parentBankName: parentBank?.name || "Linked Bank Account",
-      parentBankBalance: parentBal,
-      statusLabel: `Linked to ${parentBank?.name || "Bank"}`,
-      statusVariant: "linked",
+      ...account,
+      calculatedBalance: parent.calculatedBalance,
+      displayedBalance: parent.calculatedBalance,
+      variance: 0,
+      isReconciled: true,
+      parentBankId: parent.id,
+      parentBankName: parent.name,
+      parentBankBalance: parent.calculatedBalance,
+      statusLabel: `Linked to ${parent.name}`,
+      statusVariant: "linked" as const,
     };
   });
-
-  return finalResults;
 }
