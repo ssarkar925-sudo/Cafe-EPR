@@ -15,6 +15,20 @@ const PUBLIC_PATHS = [
   "/api/bill-payment/fetch",
 ];
 
+const FINANCE_MODULES = new Set([
+  "cashbook",
+  "journal",
+  "settlements",
+  "trial-balance",
+  "expenses",
+  "pnl",
+  "ledger",
+  "reconciliation",
+  "opening-balances",
+  "accounts",
+  "day-close",
+]);
+
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
@@ -25,9 +39,8 @@ function hasAuthCookie(request: NextRequest): boolean {
     .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
 }
 
-// In-memory rate limiter tracker
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_LOGIN_ATTEMPTS = 15; // Max 15 attempts per min per IP
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 15;
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(ip: string): boolean {
@@ -37,9 +50,7 @@ function checkRateLimit(ip: string): boolean {
     ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
-  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
-    return false; // Rate limit exceeded
-  }
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) return false;
   entry.count++;
   return true;
 }
@@ -59,32 +70,27 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const financeMatch = pathname.match(/^\/finance\/([^/]+)\/?$/);
+  const financeModule = financeMatch?.[1] && FINANCE_MODULES.has(financeMatch[1]) ? financeMatch[1] : null;
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
-  // Rate-limit sensitive API, Login, and Public Receipt routes
-  if (
-    pathname === "/login" ||
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/receipt") ||
-    pathname.startsWith("/business/receipt")
-  ) {
-    if (!checkRateLimit(clientIp)) {
-      return applySecurityHeaders(
-        new NextResponse("Rate limit exceeded. Please wait 1 minute before trying again.", {
-          status: 429,
-          headers: { "Retry-After": "60" },
-        })
-      );
-    }
+  // Rate-limit login submissions only. Applying the login limiter to every API
+  // request made normal POS/realtime traffic fail after 15 requests per minute.
+  // This remains an edge-local guard; durable abuse prevention belongs at the
+  // authentication/provider layer rather than in process memory.
+  if (pathname === "/login" && request.method === "POST" && !checkRateLimit(clientIp)) {
+    return applySecurityHeaders(
+      new NextResponse("Too many sign-in attempts. Please wait 1 minute before trying again.", {
+        status: 429,
+        headers: { "Retry-After": "60" },
+      })
+    );
   }
 
-  // Missing Supabase env vars fallback
   if (!SUPABASE_URL || !SUPABASE_ANON) {
     if (isPublic(pathname)) return applySecurityHeaders(NextResponse.next());
     if (pathname.startsWith("/api")) {
-      return applySecurityHeaders(
-        NextResponse.json({ error: "Server not configured" }, { status: 500 })
-      );
+      return applySecurityHeaders(NextResponse.json({ error: "Server not configured" }, { status: 500 }));
     }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -92,7 +98,6 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Fast-path 1: Public customer receipts, operator lookup and confirmation routes don't need auth checks
   if (
     pathname.startsWith("/receipt") ||
     pathname.startsWith("/business/receipt") ||
@@ -107,17 +112,13 @@ export async function middleware(request: NextRequest) {
 
   const hasCookie = hasAuthCookie(request);
 
-  // Fast-path 2: Visiting login page with NO auth cookie -> render immediately (0ms latency)
   if (pathname === "/login" && !hasCookie) {
     return applySecurityHeaders(NextResponse.next());
   }
 
-  // Fast-path 3: Visiting protected page with NO auth cookie
   if (!isPublic(pathname) && !hasCookie) {
     if (pathname.startsWith("/api")) {
-      return applySecurityHeaders(
-        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      );
+      return applySecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -125,7 +126,6 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Active session exists: create Supabase client for validation/refresh
   let response = applySecurityHeaders(NextResponse.next({ request }));
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
@@ -134,22 +134,16 @@ export async function middleware(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
-        );
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = applySecurityHeaders(NextResponse.next({ request }));
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        );
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
   });
 
   let user: { id: string } | null = null;
   try {
-    const {
-      data: { user: u },
-    } = await supabase.auth.getUser();
+    const { data: { user: u } } = await supabase.auth.getUser();
     user = u;
   } catch {
     user = null;
@@ -159,6 +153,7 @@ export async function middleware(request: NextRequest) {
     const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
     return atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
   }
+
   function extractAccessToken(): string | null {
     const chunks: string[] = [];
     for (let i = 0; i < 6; i++) {
@@ -176,6 +171,7 @@ export async function middleware(request: NextRequest) {
       return null;
     }
   }
+
   let cookiePrefix = "sb-auth-token";
   try {
     const host = SUPABASE_URL.split("//")[1] || "";
@@ -184,6 +180,7 @@ export async function middleware(request: NextRequest) {
   } catch {
     cookiePrefix = "sb-auth-token";
   }
+
   const accessToken = extractAccessToken();
   let aal1SessionWithMfa = false;
   if (user && accessToken) {
@@ -200,9 +197,7 @@ export async function middleware(request: NextRequest) {
 
   if ((!user || aal1SessionWithMfa) && !isPublic(pathname)) {
     if (pathname.startsWith("/api")) {
-      return applySecurityHeaders(
-        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      );
+      return applySecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -214,6 +209,18 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return applySecurityHeaders(NextResponse.redirect(url));
+  }
+
+  // Finance module links are rewritten into the Finance Hub after authentication.
+  // This is deliberately a rewrite, never a redirect, so the module stays inside
+  // the same application workspace and the existing links continue to work.
+  if (user && !aal1SessionWithMfa && financeModule) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = "/finance";
+    rewriteUrl.searchParams.set("module", financeModule);
+    const rewritten = applySecurityHeaders(NextResponse.rewrite(rewriteUrl, { request }));
+    response.cookies.getAll().forEach((cookie) => rewritten.cookies.set(cookie.name, cookie.value));
+    return rewritten;
   }
 
   return response;

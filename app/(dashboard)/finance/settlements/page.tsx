@@ -10,6 +10,7 @@ export default async function SettlementsPage() {
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const supabase = await createClient();
+  const today = new Date().toISOString().split("T")[0];
 
   const [
     { data: settlements },
@@ -27,7 +28,7 @@ export default async function SettlementsPage() {
       .order("settlement_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000),
-    supabase.rpc("get_pool_balances"),
+    supabase.rpc("get_pool_balances", { p_as_of: today }),
     supabase.rpc("get_settlement_summary"),
     supabase.from("aeps_portals").select("*").order("name"),
     supabase.from("upi_merchant_qrs").select("*").order("display_name"),
@@ -58,9 +59,7 @@ export default async function SettlementsPage() {
     });
   } else if (summary && typeof summary === "object") {
     Object.keys(parsedSummary).forEach((k) => {
-      if (typeof (summary as any)[k] === "number") {
-        parsedSummary[k] = (summary as any)[k];
-      }
+      if (typeof (summary as any)[k] === "number") parsedSummary[k] = (summary as any)[k];
     });
   }
 

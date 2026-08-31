@@ -591,12 +591,10 @@ export default function UtilityBillWorkspace({
       const todayDate = todayIso.slice(0, 10);
       const billerName = selectedBiller?.name || currentCategory.name;
 
-      // 1. Generate Transaction Number
-      const { count } = await supabase
-        .from("transactions")
-        .select("id", { count: "exact", head: true })
-        .in("service_type", ["bill_payment", "utility_bill"]);
-      const nextNum = "BIL-" + String((count ?? 0) + 1).padStart(4, "0");
+      // 1. Generate a collision-resistant transaction number.
+      // Count-based numbering is race-prone: two simultaneous payments can read the same count.
+      const nextNum = `BIL-${todayDate.replace(/-/g, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+      const txnNumber = nextNum;
 
       // 2. Post to Canonical transactions Table
       const insertPayload = {
@@ -607,7 +605,8 @@ export default function UtilityBillWorkspace({
         transaction_timestamp: todayIso,
         customer_id: selectedCustomerId || null,
         customer_mobile: customerMobile.replace(/\D/g, "") || null,
-        reference: reference.trim() || consumerId.trim(),
+        reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,
+
         remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
         status: "success",
         instrument_id: fundingInstId,
@@ -672,7 +671,7 @@ export default function UtilityBillWorkspace({
           method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",
           direction: "in",
           amount: totalCustomerDebit,
-          description: `Bill ${nextNum} collection for ${billerName} (${customerPayMethod.toUpperCase()})`,
+          description: `Bill ${txnNumber} collection for ${billerName} (${customerPayMethod.toUpperCase()})`,
           ref_type: "transaction",
           ref_id: newTxn.id,
           instrument_id: payInst?.id || null,
@@ -692,7 +691,7 @@ export default function UtilityBillWorkspace({
           customer_id: selectedCustomerId,
           entry_date: todayDate,
           type: "invoice",
-          description: `Utility Bill ${nextNum} (${billerName}) on credit (Khata)`,
+          description: `Utility Bill ${txnNumber} (${billerName}) on credit (Khata)`,
           debit: totalCustomerDebit,
           credit: 0,
           balance_after: newBal,
@@ -708,7 +707,7 @@ export default function UtilityBillWorkspace({
           method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : selectedFundingAccount.type === "credit_card" ? "credit_card" : selectedFundingAccount.type === "wallet" ? "wallet" : "upi",
           direction: "out",
           amount: netProviderCost,
-          description: `Bill ${nextNum} settlement to ${billerName} from ${selectedFundingAccount.name}`,
+          description: `Bill ${txnNumber} settlement to ${billerName} from ${selectedFundingAccount.name}`,
           ref_type: "transaction",
           ref_id: newTxn.id,
           instrument_id: selectedFundingAccount.id,
@@ -720,9 +719,9 @@ export default function UtilityBillWorkspace({
         action: "create",
         entity: "transaction",
         entity_id: newTxn.id,
-        description: `Paid Utility Bill ${nextNum} for ${billerName} | Consumer ID: ${consumerId.trim()} | Amount: ${inr(billAmount)} | Commission: ${inr(commissionEarned)}`,
+        description: `Paid Utility Bill ${txnNumber} for ${billerName} | Consumer ID: ${consumerId.trim()} | Amount: ${inr(billAmount)} | Commission: ${inr(commissionEarned)}`,
         details: {
-          transaction_number: nextNum,
+          transaction_number: txnNumber,
           category: currentCategory.name,
           biller: billerName,
           consumer_id: consumerId.trim(),
@@ -746,7 +745,7 @@ export default function UtilityBillWorkspace({
 
       setTransactions((prev) => [formattedTxn, ...prev]);
       setReceiptTxn(formattedTxn);
-      showToast("success", `✓ Bill payment ${nextNum} processed successfully!`);
+      showToast("success", `✓ Bill payment ${txnNumber} processed successfully!`);
 
       // Reset form
       setConsumerId("");

@@ -18,34 +18,7 @@ export default async function InventoryPage() {
     .order("name")
     .limit(1000);
 
-  if (productsError) {
-    return (
-      <div className="min-h-[calc(100vh-9rem)] bg-slate-50/60 px-4 py-5 sm:px-6 lg:px-8 dark:bg-slate-950">
-        <div className="mx-auto max-w-[1500px]">
-          <section className="rounded-3xl border border-rose-200 bg-white p-6 shadow-sm dark:border-rose-500/20 dark:bg-slate-900 sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-rose-600 dark:text-rose-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-current" /> Inventory unavailable
-                </div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-950 dark:text-white">Inventory data could not be loaded.</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-                  No inventory totals or stock alerts are being shown because the product data request failed. This prevents stale or misleading ERP figures from appearing as zero.
-                </p>
-              </div>
-              <Link href="/inventory" className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-900">
-                Retry <span>↻</span>
-              </Link>
-            </div>
-            <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50/70 p-4 dark:border-rose-500/10 dark:bg-rose-500/5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">Technical status</p>
-              <p className="mt-1 text-sm text-rose-800/80 dark:text-rose-200/80">The inventory product query returned an error. Check the server/database connection and permissions, then retry.</p>
-            </div>
-          </section>
-        </div>
-      </div>
-    );
-  }
+  if (productsError) return <div className="p-8">Inventory data could not be loaded. <Link href="/inventory">Retry</Link></div>;
 
   const rows = (products ?? []) as Array<{ id: string; name: string; code: string | null; stock_qty: number | null; cost_price: number | null; reorder_level: number | null }>;
   const totalUnits = rows.reduce((s, p) => s + Number(p.stock_qty ?? 0), 0);
