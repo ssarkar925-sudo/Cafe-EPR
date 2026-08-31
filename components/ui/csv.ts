@@ -1,4 +1,5 @@
 export function downloadCsv(filename: string, headers: (string | number)[], rows: (string | number)[][]) {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
   const csv = [headers, ...rows]
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
     .join("\n");
