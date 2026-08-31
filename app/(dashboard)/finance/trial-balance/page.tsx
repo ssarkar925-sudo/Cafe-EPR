@@ -10,6 +10,7 @@ export default async function TrialBalancePage() {
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const supabase = await createClient();
+  const today = new Date().toISOString().split("T")[0];
 
   const [{ data: instruments }, { data: entries }, { data: openingBalances }, { data: poolBalances }] =
     await Promise.all([
@@ -22,7 +23,7 @@ export default async function TrialBalancePage() {
         .from("opening_balances")
         .select("pool, instrument_id, amount, as_of")
         .order("as_of", { ascending: false }),
-      supabase.rpc("get_pool_balances"),
+      supabase.rpc("get_pool_balances", { p_as_of: today }),
     ]);
 
   return (
