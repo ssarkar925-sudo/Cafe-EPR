@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - components/business/utility-bill-workspace.tsx
+      - .github/workflows/fix-bill-payment-numbering.yml
 
 permissions:
   contents: write
@@ -21,7 +22,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           p = Path('components/business/utility-bill-workspace.tsx')
           s = p.read_text()
