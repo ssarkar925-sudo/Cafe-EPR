@@ -7614,6 +7614,39 @@ function detectIntent(question) {
   assert(fs.existsSync("E:/CafeERP/app/(dashboard)/business/whatsapp/page.tsx"), "1429. Route Integrity: /business/whatsapp page file exists");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 16: Security & System Settings Duplicate Cleanup Invariants
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 16: Security & System Settings Duplicate Cleanup Invariants ---");
+
+  // 1. Security Page Cleanliness (No duplicate launchers to Settings / AI)
+  const securityPage = fs.readFileSync("E:/CafeERP/app/(dashboard)/security/page.tsx", "utf8");
+  assert(!securityPage.includes("SecurityHub"), "1430. Security: Obsolete SecurityHub duplicate launcher removed");
+  assert(securityPage.includes("SecurityCenterClient"), "1431. Security: Direct SecurityCenterClient rendering verified");
+  assert(!fs.existsSync("E:/CafeERP/components/security/security-hub.tsx"), "1432. Security: Obsolete security-hub.tsx file deleted");
+
+  // 2. System Settings Cleanliness (No duplicate operational workspaces)
+  const settingsPage = fs.readFileSync("E:/CafeERP/app/(dashboard)/settings/page.tsx", "utf8");
+  assert(settingsPage.includes("SystemSettingsClient"), "1433. Settings: Canonical SystemSettingsClient rendered");
+  const sysSettingsClient = fs.readFileSync("E:/CafeERP/components/settings/system-settings-client.tsx", "utf8");
+  assert(!sysSettingsClient.includes("WhatsAppTrackerPanel"), "1434. Settings: Operational WhatsApp panel not duplicated in settings");
+  assert(!fs.existsSync("E:/CafeERP/components/settings/settings-command-shell.tsx"), "1435. Settings: Obsolete settings-command-shell.tsx deleted");
+
+  // 3. AI Self-Audit Canonical Boundary
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/ai/self-audit/page.tsx"), "1436. Tools Hub: Canonical /ai/self-audit page verified");
+
+  // 4. Security Audit Log Canonical Boundary
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/audit/page.tsx"), "1437. Reports Hub: Canonical /audit page verified");
+
+  // 5. Staff Accounts Canonical Boundary
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/staff/page.tsx"), "1438. Admin Hub: Canonical /staff page verified");
+
+  // 6. WhatsApp Desk Canonical Boundary
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/business/whatsapp/page.tsx"), "1439. Business Hub: Canonical /business/whatsapp page verified");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

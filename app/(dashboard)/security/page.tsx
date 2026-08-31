@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import SecurityCenterClient from "@/components/security/security-center";
-import SecurityHub from "@/components/security/security-hub";
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +19,18 @@ export default async function SecurityPage() {
     supabase.from("expenses").select("id, amount, expense_date").limit(500),
   ]);
   const shopName = settings?.shop_name || "Sarkar Communication";
-  return <div className="space-y-10"><SecurityHub shopName={shopName} /><div className="border-t border-slate-200 pt-8 dark:border-white/10"><SecurityCenterClient shopName={shopName} customers={(customers ?? []) as any} invoices={(invoices ?? []) as any} products={(products ?? []) as any} settlements={(settlements ?? []) as any} cashEntries={(cashEntries ?? []) as any} expenses={(expenses ?? []) as any} /></div></div>;
+  return (
+    <div className="space-y-6">
+      <SecurityCenterClient
+        shopName={shopName}
+        customers={(customers ?? []) as any}
+        invoices={(invoices ?? []) as any}
+        products={(products ?? []) as any}
+        settlements={(settlements ?? []) as any}
+        cashEntries={(cashEntries ?? []) as any}
+        expenses={(expenses ?? []) as any}
+      />
+    </div>
+  );
 }
+
