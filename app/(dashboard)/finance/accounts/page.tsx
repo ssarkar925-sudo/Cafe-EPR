@@ -120,18 +120,50 @@ export default async function FinanceAccountsPage({
     typeof params.deactivated === "string" ? "Account deactivated." :
     typeof params.error === "string" ? `Action failed: ${params.error}` : null;
 
+  // Aggregate summary metrics
+  const normalAccounts = reconciledBalances.filter((a) => !a.isCreditCard && !a.isDebitCard);
+  const creditCards = reconciledBalances.filter((a) => a.isCreditCard);
+  const totalLiquidAssets = normalAccounts.reduce((sum, a) => sum + (a.calculatedBalance > 0 ? a.calculatedBalance : 0), 0);
+  const totalCreditLimit = creditCards.reduce((sum, c) => sum + c.creditLimit, 0);
+  const totalCreditUsed = creditCards.reduce((sum, c) => sum + c.usedLimit, 0);
+  const totalCreditAvailable = creditCards.reduce((sum, c) => sum + c.availableCredit, 0);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">Finance / Payment Accounts</p>
-            <h1 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">Payment Accounts</h1>
+            <h1 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">Payment Accounts &amp; Treasury</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Live calculated balances for cash, bank accounts, UPI, wallets, float matrix, and credit instruments.
+              Live calculated balances for cash, bank accounts, UPI, wallets, and independent Credit Facility limits &amp; utilization.
             </p>
           </div>
           <a href="/finance" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">← Finance Hub</a>
+        </div>
+
+        {/* Overview Bento Cards */}
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Liquid Cash &amp; Bank</div>
+            <div className="mt-1 text-xl font-black text-slate-900 dark:text-white">₹{totalLiquidAssets.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="mt-0.5 text-[11px] text-emerald-600 font-semibold">{normalAccounts.length} Active Liquid Accounts</div>
+          </div>
+          <div className="rounded-2xl border border-purple-100 bg-purple-50/40 p-4 dark:border-purple-900/20 dark:bg-purple-950/10">
+            <div className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Total Credit Limit</div>
+            <div className="mt-1 text-xl font-black text-purple-900 dark:text-purple-100">₹{totalCreditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="mt-0.5 text-[11px] text-purple-600 dark:text-purple-400 font-semibold">{creditCards.length} Configured Card Facilities</div>
+          </div>
+          <div className="rounded-2xl border border-rose-100 bg-rose-50/40 p-4 dark:border-rose-900/20 dark:bg-rose-950/10">
+            <div className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Used Credit / Debt</div>
+            <div className="mt-1 text-xl font-black text-rose-900 dark:text-rose-100">₹{totalCreditUsed.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="mt-0.5 text-[11px] text-rose-600 dark:text-rose-400 font-semibold">Active Credit Utilization</div>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 dark:border-emerald-900/20 dark:bg-emerald-950/10">
+            <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Available Credit</div>
+            <div className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100">₹{totalCreditAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="mt-0.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">Limit − Used Utilization</div>
+          </div>
         </div>
       </header>
 
@@ -175,12 +207,14 @@ export default async function FinanceAccountsPage({
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="border-b border-slate-200 px-6 py-4 dark:border-white/10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white">Authoritative Account Balances</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Current Balance = Opening Balance + Total Inflows - Total Outflows</p>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">Configured Accounts &amp; Treasury Balances</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Liquid Accounts: Balance = Opening + Inflows − Outflows | Credit Cards: Available = Credit Limit − Used Credit
+            </p>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Live Inflow/Outflow Engine
+            Live Inflow/Outflow Engine Active
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -189,11 +223,11 @@ export default async function FinanceAccountsPage({
               <tr>
                 <th className="px-6 py-3">Account Name</th>
                 <th className="px-6 py-3">Type</th>
-                <th className="px-6 py-3 text-right">Opening</th>
-                <th className="px-6 py-3 text-right">Inflow (+)</th>
-                <th className="px-6 py-3 text-right">Outflow (-)</th>
-                <th className="px-6 py-3 text-right font-black text-slate-900 dark:text-white">Calculated Balance</th>
-                <th className="px-6 py-3 text-center">Status</th>
+                <th className="px-6 py-3 text-right">Opening / Credit Limit</th>
+                <th className="px-6 py-3 text-right">Inflow / Repayment (+)</th>
+                <th className="px-6 py-3 text-right">Outflow / Charged (-)</th>
+                <th className="px-6 py-3 text-right font-black text-slate-900 dark:text-white">Calculated Position</th>
+                <th className="px-6 py-3 text-center">Status / Breakdown</th>
                 <th className="px-6 py-3 text-center">Action</th>
               </tr>
             </thead>
@@ -203,8 +237,8 @@ export default async function FinanceAccountsPage({
                   <td className="px-6 py-4">
                     <div className="font-bold text-slate-900 dark:text-white">{acc.name}</div>
                     {acc.isCreditCard && (
-                      <div className="text-[11px] text-slate-500">
-                        Limit: ₹{acc.creditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })} | Used: ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                        💳 Fixed Limit: ₹{acc.creditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     )}
                     {acc.isDebitCard && (
@@ -219,7 +253,13 @@ export default async function FinanceAccountsPage({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                    ₹{acc.openingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    {acc.isCreditCard ? (
+                      <div className="font-bold text-purple-700 dark:text-purple-300">
+                        ₹{acc.creditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                    ) : (
+                      `₹${acc.openingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right font-mono font-medium text-emerald-600 dark:text-emerald-400">
                     {acc.totalInflows > 0 ? `+₹${acc.totalInflows.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
@@ -227,18 +267,41 @@ export default async function FinanceAccountsPage({
                   <td className="px-6 py-4 text-right font-mono font-medium text-rose-600 dark:text-rose-400">
                     {acc.totalOutflows > 0 ? `-₹${acc.totalOutflows.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
                   </td>
-                  <td className="px-6 py-4 text-right font-mono text-base font-black text-slate-900 dark:text-white">
-                    ₹{acc.calculatedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  <td className="px-6 py-4 text-right font-mono">
+                    {acc.isCreditCard ? (
+                      <div>
+                        <div className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                          ₹{acc.availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                          Used: ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-base font-black text-slate-900 dark:text-white">
+                        ₹{acc.calculatedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                      acc.statusVariant === "credit_limit" ? "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300" :
-                      acc.statusVariant === "linked" ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300" :
-                      acc.isReconciled ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" :
-                      "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-                    }`}>
-                      {acc.statusLabel}
-                    </span>
+                    {acc.isCreditCard ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                          Available: ₹{acc.availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                          (Debt: ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
+                        </span>
+                      </div>
+                    ) : (
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                        acc.statusVariant === "linked" ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300" :
+                        acc.isReconciled ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" :
+                        "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                      }`}>
+                        {acc.statusLabel}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-center">
                     {acc.isActive && role === "admin" ? (

@@ -7663,7 +7663,7 @@ function detectIntent(question) {
       name: "ICICI Rupay & Platinum",
       type: "credit_card",
       opening_balance: 13764,
-      details: { credit_limit: 50000, used_limit: 0 }
+      details: { credit_limit: 13764, used_limit: 0 }
     }
   ];
 
@@ -7697,7 +7697,7 @@ function detectIntent(question) {
     { id: "acc-paytm", name: "Paytm Business Wallet", type: "wallet", opening_balance: 3000 },
     { id: "acc-aeps", name: "PayNearby AEPS Portal Float", type: "aeps", opening_balance: 8000 },
     { id: "acc-dmt", name: "SpiceMoney DMT Float", type: "dmt", opening_balance: 5500 },
-    { id: "acc-icici-cc", name: "ICICI Rupay Credit Card", type: "credit_card", opening_balance: 13764, details: { credit_limit: 50000 } },
+    { id: "acc-icici-cc", name: "ICICI Rupay Credit Card", type: "credit_card", opening_balance: 13764, details: { credit_limit: 13764 } },
     { id: "acc-sbi-debit", name: "SBI Platinum Debit Card", type: "debit_card", opening_balance: 0, details: { linked_bank_instrument_id: "acc-sbi" } },
   ];
 
@@ -7781,6 +7781,125 @@ function detectIntent(question) {
 
   // 3. Mapping Invariant: Customer Cash ₹3,010 does NOT leak into ICICI CC
   assert(iciciAcc.totalInflows === 2000, "1455. Zone Separation: Customer Cash payment strictly isolated from provider funding instrument");
+}
+
+
+// -----------------------------------------------------------------------------
+// PHASE 18: Credit Card Three-Concept Accounting & Multi-Card Invariants
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 18: Credit Card Three-Concept Model & Multi-Card Invariants ---");
+
+  const { calculateAccountBalances } = await import("../lib/finance/account-balances.ts");
+
+  // 1. User Scenario Progression: ₹20,000 Limit Lifecycle
+  const baseCard = [
+    {
+      id: "card-test-20k",
+      name: "HDFC Millennia Credit Card",
+      type: "credit_card",
+      opening_balance: 20000,
+      details: { credit_limit: 20000, used_limit: 0 }
+    }
+  ];
+
+  // Step 1: Charge ₹3,000
+  const step1Txs = [
+    { id: "tx-c1", funding_instrument_id: "card-test-20k", pool_out: 3000, status: "success" }
+  ];
+  const r1 = calculateAccountBalances({ instruments: baseCard, transactions: step1Txs });
+  assert(r1[0].creditLimit === 20000, "1456. Card Lifecycle: Step 1 Credit Limit remains strictly ₹20,000.00");
+  assert(r1[0].usedLimit === 3000, "1457. Card Lifecycle: Step 1 Used Credit is strictly ₹3,000.00");
+  assert(r1[0].availableCredit === 17000, "1458. Card Lifecycle: Step 1 Available Credit is strictly ₹17,000.00");
+
+  // Step 2: Charge another ₹2,000 (Total Outflows: ₹5,000)
+  const step2Txs = [
+    { id: "tx-c1", funding_instrument_id: "card-test-20k", pool_out: 3000, status: "success" },
+    { id: "tx-c2", funding_instrument_id: "card-test-20k", pool_out: 2000, status: "success" },
+  ];
+  const r2 = calculateAccountBalances({ instruments: baseCard, transactions: step2Txs });
+  assert(r2[0].creditLimit === 20000, "1459. Card Lifecycle: Step 2 Credit Limit remains strictly ₹20,000.00");
+  assert(r2[0].usedLimit === 5000, "1460. Card Lifecycle: Step 2 Used Credit increases to strictly ₹5,000.00");
+  assert(r2[0].availableCredit === 15000, "1461. Card Lifecycle: Step 2 Available Credit decreases to strictly ₹15,000.00");
+
+  // Step 3: Repayment ₹1,000 (Total Inflows: ₹1,000, Total Outflows: ₹5,000)
+  const step3Settlements = [
+    { id: "set-repay-1", dest_instrument_id: "card-test-20k", amount: 1000, status: "success" }
+  ];
+  const r3 = calculateAccountBalances({
+    instruments: baseCard,
+    transactions: step2Txs,
+    settlements: step3Settlements
+  });
+  assert(r3[0].creditLimit === 20000, "1462. Card Lifecycle: Step 3 Credit Limit remains strictly ₹20,000.00");
+  assert(r3[0].usedLimit === 4000, "1463. Card Lifecycle: Step 3 Used Credit reduces to strictly ₹4,000.00");
+  assert(r3[0].availableCredit === 16000, "1464. Card Lifecycle: Step 3 Available Credit restores to strictly ₹16,000.00");
+
+  // 2. Full Multi-Card Portfolio Evaluation (8 Named Cards)
+  const portfolioCards = [
+    { id: "c-icici", name: "ICICI Rupay & Platinum", type: "credit_card", opening_balance: 13764, details: { credit_limit: 13764 } },
+    { id: "c-kotak", name: "Kotak League Rupay", type: "credit_card", opening_balance: 25000, details: { credit_limit: 25000 } },
+    { id: "c-amazon", name: "Amazon Pay", type: "credit_card", opening_balance: 40000, details: { credit_limit: 40000 } },
+    { id: "c-bob", name: "Bank of Baroda", type: "credit_card", opening_balance: 30000, details: { credit_limit: 30000 } },
+    { id: "c-indus-pin", name: "INDUSIND Pinnacle", type: "credit_card", opening_balance: 100000, details: { credit_limit: 100000 } },
+    { id: "c-indus-rupay", name: "INDUSIND Rupay", type: "credit_card", opening_balance: 35000, details: { credit_limit: 35000 } },
+    { id: "c-moneyback", name: "Money Back", type: "credit_card", opening_balance: 50000, details: { credit_limit: 50000 } },
+    { id: "c-tata", name: "Tata Nue Rupay", type: "credit_card", opening_balance: 45000, details: { credit_limit: 45000 } },
+  ];
+
+  const portfolioActivity = [
+    { id: "p-tx-1", funding_instrument_id: "c-icici", pool_out: 3000, status: "success" },
+    { id: "p-tx-2", funding_instrument_id: "c-amazon", pool_out: 2500, status: "success" },
+    { id: "p-tx-3", funding_instrument_id: "c-indus-pin", pool_out: 12000, status: "success" },
+    { id: "p-tx-4", funding_instrument_id: "c-indus-rupay", pool_out: 4200, status: "success" },
+    { id: "p-tx-5", funding_instrument_id: "c-moneyback", pool_out: 5000, status: "success" },
+    { id: "p-tx-6", funding_instrument_id: "c-tata", pool_out: 1500, status: "success" },
+  ];
+
+  const pRes = calculateAccountBalances({
+    instruments: portfolioCards,
+    transactions: portfolioActivity
+  });
+
+  const getCard = (id) => pRes.find(c => c.id === id);
+
+  // ICICI: Limit 13,764, Used 3,000, Available 10,764
+  const icici = getCard("c-icici");
+  assert(icici.creditLimit === 13764 && icici.usedLimit === 3000 && icici.availableCredit === 10764, "1465. Portfolio: ICICI Rupay & Platinum evaluated correctly");
+
+  // Kotak: Limit 25,000, Used 0, Available 25,000
+  const kotak = getCard("c-kotak");
+  assert(kotak.creditLimit === 25000 && kotak.usedLimit === 0 && kotak.availableCredit === 25000, "1466. Portfolio: Kotak League Rupay has ₹0.00 usage");
+
+  // Amazon Pay: Limit 40,000, Used 2,500, Available 37,500
+  const amazon = getCard("c-amazon");
+  assert(amazon.creditLimit === 40000 && amazon.usedLimit === 2500 && amazon.availableCredit === 37500, "1467. Portfolio: Amazon Pay evaluated correctly");
+
+  // Bank of Baroda: Limit 30,000, Used 0, Available 30,000
+  const bob = getCard("c-bob");
+  assert(bob.creditLimit === 30000 && bob.usedLimit === 0 && bob.availableCredit === 30000, "1468. Portfolio: Bank of Baroda evaluated correctly");
+
+  // INDUSIND Pinnacle: Limit 100,000, Used 12,000, Available 88,000
+  const indusPin = getCard("c-indus-pin");
+  assert(indusPin.creditLimit === 100000 && indusPin.usedLimit === 12000 && indusPin.availableCredit === 88000, "1469. Portfolio: INDUSIND Pinnacle evaluated correctly");
+
+  // INDUSIND Rupay: Limit 35,000, Used 4,200, Available 30,800
+  const indusRupay = getCard("c-indus-rupay");
+  assert(indusRupay.creditLimit === 35000 && indusRupay.usedLimit === 4200 && indusRupay.availableCredit === 30800, "1470. Portfolio: INDUSIND Rupay evaluated correctly");
+
+  // Money Back: Limit 50,000, Used 5,000, Available 45,000
+  const moneyback = getCard("c-moneyback");
+  assert(moneyback.creditLimit === 50000 && moneyback.usedLimit === 5000 && moneyback.availableCredit === 45000, "1471. Portfolio: Money Back evaluated correctly");
+
+  // Tata Nue Rupay: Limit 45,000, Used 1,500, Available 43,500
+  const tata = getCard("c-tata");
+  assert(tata.creditLimit === 45000 && tata.usedLimit === 1500 && tata.availableCredit === 43500, "1472. Portfolio: Tata Nue Rupay evaluated correctly");
+
+  // 3. UI Template Checks
+  const accountsPageContent = fs.readFileSync("E:/CafeERP/app/(dashboard)/finance/accounts/page.tsx", "utf8");
+  assert(accountsPageContent.includes("Fixed Limit") || accountsPageContent.includes("creditLimit"), "1473. UI Invariant: Credit Limit prominently rendered");
+  assert(accountsPageContent.includes("usedLimit") && accountsPageContent.includes("availableCredit"), "1474. UI Invariant: Used Credit and Available Credit distinctly rendered");
+  assert(accountsPageContent.includes("Total Credit Limit") && accountsPageContent.includes("Available Credit"), "1475. UI Invariant: Bento summary cards render Credit Facility aggregations");
 }
 
 console.log("\n================================================================================");

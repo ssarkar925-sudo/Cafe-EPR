@@ -1,16 +1,17 @@
 /**
  * Authoritative Payment Accounts & Instrument Live Balance Engine
  * 
- * Invariant: For EVERY payment instrument:
- * Current Balance = Opening Balance + Total Valid Inflows - Total Valid Outflows
+ * Invariant:
+ * 1. For NORMAL ACCOUNTS (Cash, Bank, UPI, Wallets, AEPS/DMT Floats):
+ *    Current Balance = Opening Balance + Total Valid Inflows - Total Valid Outflows
  * 
- * Credit Cards:
- * Tracks Credit Limit, Current Used Utilization, and Current Available Credit.
- * Outflow (charges/provider funding) increases used credit and decreases available credit.
- * Inflow (bill repayment/settlement) decreases used credit and restores available credit.
+ * 2. For CREDIT CARDS (Credit Facilities / Liabilities):
+ *    - CREDIT LIMIT: Fixed configured limit (never altered by financial transactions).
+ *    - USED CREDIT: Initial Used + Total Outflows (charges/funding) - Total Inflows (repayments).
+ *    - AVAILABLE CREDIT: Credit Limit - Used Credit.
  * 
- * Debit Cards:
- * Reflects the live balance of the linked parent bank account.
+ * 3. For DEBIT CARDS:
+ *    - Reflects live balance of the linked parent bank account.
  */
 
 export type InstrumentType =
@@ -340,12 +341,15 @@ export function calculateAccountBalances({
     let statusVariant: "reconciled" | "variance" | "linked" | "credit_limit" = "reconciled";
 
     if (isCredit) {
+      // 1. Credit Limit is fixed and constant
       limit = Number(inst.details?.credit_limit || (opening > 0 ? opening : 50000));
+      // 2. Used Credit tracks initial utilization + all charges (outflows) - repayments (inflows)
       const initialUsed = Number(inst.details?.used_limit || 0);
       used = Math.max(0, initialUsed + outflows - inflows);
+      // 3. Available Credit = Credit Limit - Used Credit
       available = Math.max(0, limit - used);
-      calcBal = opening + netDelta; // Available balance tracks net delta (e.g. 13,764 - 3,000 = 10,764)
-      statusLabel = `Available: ₹${calcBal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+      calcBal = available;
+      statusLabel = `Available: ₹${available.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
       statusVariant = "credit_limit";
     }
 
@@ -358,7 +362,7 @@ export function calculateAccountBalances({
       type: inst.type,
       poolKey,
       isActive: inst.is_active !== false,
-      openingBalance: opening,
+      openingBalance: isCredit ? limit : opening,
       totalInflows: inflows,
       totalOutflows: outflows,
       netMovement: netDelta,
@@ -369,7 +373,7 @@ export function calculateAccountBalances({
       isCreditCard: isCredit,
       creditLimit: limit,
       usedLimit: used,
-      availableCredit: isCredit ? calcBal : 0,
+      availableCredit: isCredit ? available : 0,
       isDebitCard: isDebit,
       statusLabel,
       statusVariant,
