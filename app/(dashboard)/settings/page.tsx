@@ -1,196 +1,84 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { getUserRole, hasRole } from "@/lib/authz";
-import SettingsClient from "@/components/settings/settings-client";
 
 export const dynamic = "force-dynamic";
 
-type QueryResult<T> = { data: T | null };
-const empty = <T,>(): Promise<QueryResult<T>> => Promise.resolve({ data: null });
+type Card = { title: string; description: string; href: string; group: string };
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; section?: string }> }) {
+const CARDS: Card[] = [
+  { group: "POS", title: "Quick Sale Favorites", description: "Configure the fast-access services used directly at the billing counter.", href: "/pos" },
+  { group: "POS", title: "Payment Methods", description: "Manage counter tender options and checkout behavior from the POS workflow.", href: "/pos" },
+  { group: "Finance", title: "Payment Accounts", description: "Cash, bank, UPI, wallet and card instruments belong to Finance.", href: "/finance/accounts" },
+  { group: "Finance", title: "Opening Balances", description: "Opening liquid balances and float seeds are controlled in Finance.", href: "/finance/opening-balances" },
+  { group: "Finance", title: "Settlements & Float", description: "Move money between bank, wallet and service floats from Finance.", href: "/finance/settlements" },
+  { group: "Finance", title: "Reconciliation", description: "Verify instrument balances and financial invariants in Finance.", href: "/finance/reconciliation" },
+  { group: "Bill Payment", title: "Recharge Providers & Slabs", description: "Operator providers and retailer commission slabs belong to Bill Payment.", href: "/business/bill-payment" },
+  { group: "Bill Payment", title: "BBPS Commissions", description: "Utility commission and surcharge rules belong to Bill Payment.", href: "/business/bill-payment" },
+  { group: "Bill Payment", title: "Recharge Plans", description: "Manage live prepaid tariff packs from the recharge module.", href: "/business/bill-payment/mobile-recharge/plans" },
+  { group: "Bill Payment", title: "Google Play Margins", description: "Configure voucher margins and customer fees from Bill Payment.", href: "/business/bill-payment/google-play" },
+  { group: "AEPS / Digital", title: "AEPS Banks", description: "Commercial bank masters used by AEPS are managed in the Business Hub.", href: "/business/banks" },
+  { group: "AEPS / Digital", title: "Service Portals", description: "Portal connections and float mappings belong to the Business Hub.", href: "/business/portals" },
+  { group: "AEPS / Digital", title: "Merchant QRs", description: "Counter UPI QR profiles belong to the Business Hub.", href: "/business/merchant-qrs" },
+  { group: "Inventory", title: "Products & Services", description: "Catalog masters are managed from the Catalog/Inventory workspace.", href: "/catalog" },
+  { group: "Inventory", title: "Stock Controls", description: "Inventory behavior and stock operations belong to Inventory.", href: "/inventory" },
+  { group: "Business", title: "Store Identity & Tax", description: "Business identity, GST and invoice configuration are surfaced with the operational business workflows.", href: "/invoices" },
+];
+
+const SYSTEM = [
+  { title: "Security", description: "Credentials, 2FA and terminal security.", href: "/security" },
+  { title: "Staff", description: "Users, roles and permissions.", href: "/staff" },
+  { title: "Audit", description: "Immutable operational audit history.", href: "/audit" },
+  { title: "AI Control Center", description: "Diagnostics and automated financial checks.", href: "/ai" },
+];
+
+export default async function SettingsPage() {
   const role = await getUserRole();
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
 
-  const { tab, section } = await searchParams;
-  const activeTab = tab || "general";
-  const supabase = await createClient();
-
-  // Preload all settings datasets so every module is ready on first open.
-  const needsAccounts = true;
-  const needsFavorites = true;
-  const needsMethods = true;
-  const needsBusiness = true;
-  const needsCatalog = true;
-
-  const [
-    { data: settings },
-    { data: instruments },
-    { data: services },
-    { data: paymentMethods },
-    { data: banks },
-    { data: bankTxn },
-    { data: portals },
-    { data: portalTxn },
-    { data: qrs },
-    { data: qrTxn },
-    { data: instBal },
-    { data: products },
-    { data: catalogServices },
-    { data: categories },
-    { data: rechargeProviders },
-    { data: rechargeSlabs },
-    { data: activeTxns },
-    { data: settlementRows },
-  ] = await Promise.all([
-    supabase.from("settings").select("*").single(),
-    needsAccounts ? supabase.from("payment_instruments").select("*").order("type").order("name") : empty<any[]>(),
-    needsFavorites ? supabase.from("services").select("id, name, sale_price, is_quick_favorite, quick_sort").eq("is_active", true).order("is_quick_favorite", { ascending: false }).order("quick_sort").order("name") : empty<any[]>(),
-    needsMethods ? supabase.from("payment_methods").select("*").order("sort_order").order("label") : empty<any[]>(),
-    needsBusiness ? supabase.from("aeps_banks").select("*").order("name") : empty<any[]>(),
-    needsBusiness ? supabase.from("transactions").select("bank_id").eq("service_type", "aeps") : empty<any[]>(),
-    needsBusiness ? supabase.from("aeps_portals").select("*").order("name") : empty<any[]>(),
-    needsBusiness ? supabase.from("transactions").select("portal_id").eq("service_type", "aeps") : empty<any[]>(),
-    needsBusiness ? supabase.from("upi_merchant_qrs").select("*").order("display_name") : empty<any[]>(),
-    needsBusiness ? supabase.from("transactions").select("merchant_qr_id").eq("service_type", "upi") : empty<any[]>(),
-    needsAccounts ? supabase.from("cash_entries").select("instrument_id, direction, amount").not("instrument_id", "is", null) : empty<any[]>(),
-    needsCatalog ? supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false }).limit(500) : empty<any[]>(),
-    needsCatalog ? supabase.from("services").select("*, categories(name)").order("created_at", { ascending: false }).limit(500) : empty<any[]>(),
-    needsCatalog ? supabase.from("categories").select("*").order("name") : empty<any[]>(),
-    needsBusiness ? supabase.from("recharge_providers").select("*").order("sort_order").order("name") : empty<any[]>(),
-    needsBusiness ? supabase.from("recharge_commission_slabs").select("*") : empty<any[]>(),
-    needsAccounts ? supabase.from("transactions").select("portal_id, instrument_id, pool_credit, pool_out, status").eq("status", "success") : empty<any[]>(),
-    needsAccounts ? supabase.from("settlements").select("source_instrument_id, dest_instrument_id, amount, status").eq("status", "success") : empty<any[]>(),
-  ]);
-
-  const bankUsage: Record<string, number> = {};
-  for (const t of (bankTxn ?? []) as any[]) if (t.bank_id) bankUsage[t.bank_id] = (bankUsage[t.bank_id] ?? 0) + 1;
-  const portalUsage: Record<string, number> = {};
-  for (const t of (portalTxn ?? []) as any[]) if (t.portal_id) portalUsage[t.portal_id] = (portalUsage[t.portal_id] ?? 0) + 1;
-  const qrUsage: Record<string, number> = {};
-  for (const t of (qrTxn ?? []) as any[]) if (t.merchant_qr_id) qrUsage[t.merchant_qr_id] = (qrUsage[t.merchant_qr_id] ?? 0) + 1;
-
-  const POOL_MAP: Record<string, string> = {
-    cash: "cash",
-    bank: "bank",
-    upi: "upi_qr",
-    wallet: "wallet",
-    aeps_portal: "aeps",
-    dmt_portal: "dmt",
-    credit_card: "credit_card",
-    debit_card: "debit_card",
-  };
-  let pool: Record<string, { opening: number; movements: number; current: number }> = {};
-  if (needsAccounts) {
-    const { data: poolData } = await supabase.rpc("get_pool_balances");
-    pool = (poolData ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
-  }
-
-  const countPerType: Record<string, number> = {};
-  for (const i of (instruments ?? []) as any[]) {
-    if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
-  }
-
-  // Map portal_id -> payment_instrument_id
-  const portalToInst: Record<string, string> = {};
-  for (const p of (portals ?? []) as any[]) {
-    if (p.payment_instrument_id) portalToInst[p.id] = p.payment_instrument_id;
-  }
-
-  const instDeltas: Record<string, number> = {};
-  for (const i of (instruments ?? []) as any[]) instDeltas[i.id] = 0;
-
-  // 1. Tagged cash entries
-  for (const e of (instBal ?? []) as any[]) {
-    if (!e.instrument_id) continue;
-    instDeltas[e.instrument_id] = (instDeltas[e.instrument_id] ?? 0) + (e.direction === "out" ? -Number(e.amount) : Number(e.amount));
-  }
-
-  // 2. Tagged business transactions (AEPS / DMT / etc.)
-  for (const t of (activeTxns ?? []) as any[]) {
-    let targetInstId = t.instrument_id;
-    if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
-      targetInstId = portalToInst[t.portal_id];
-    }
-    if (targetInstId && instDeltas[targetInstId] !== undefined) {
-      const pCredit = Number(t.pool_credit) || 0;
-      const pOut = Number(t.pool_out) || 0;
-      instDeltas[targetInstId] = (instDeltas[targetInstId] ?? 0) + (pCredit - pOut);
-    }
-  }
-
-  // 3. Tagged settlements
-  for (const s of (settlementRows ?? []) as any[]) {
-    if (s.source_instrument_id && instDeltas[s.source_instrument_id] !== undefined) {
-      instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - Number(s.amount);
-    }
-    if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
-      instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + Number(s.amount);
-    }
-  }
-
-  // Build full instrument balance map
-  const accounts = (instruments ?? []).map((i: any) => {
-    // 1. Debit card reflects linked bank account
-    if (i.type === "debit_card") {
-      const linkedBank = (instruments ?? []).find((b: any) => b.id === i.details?.linked_bank_instrument_id);
-      let bankLiveBalance = 0;
-      if (linkedBank) {
-        if ((countPerType["bank"] ?? 0) <= 1) {
-          const bankPool = pool["bank"];
-          bankLiveBalance = bankPool ? (bankPool.current ?? bankPool.opening + bankPool.movements) : Number(linkedBank.opening_balance ?? 0);
-        } else {
-          bankLiveBalance = Number(linkedBank.opening_balance ?? 0) + (instDeltas[linkedBank.id] ?? 0);
-        }
-      }
-      return {
-        ...i,
-        opening_balance: 0,
-        balance: bankLiveBalance,
-      };
-    }
-
-    const poolKey = POOL_MAP[i.type];
-    const poolEntry = poolKey ? pool[poolKey] : null;
-
-    // 2. Single-account pool
-    if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
-      return {
-        ...i,
-        opening_balance: poolEntry.opening,
-        balance: poolEntry.current ?? poolEntry.opening + poolEntry.movements,
-      };
-    }
-
-    // 3. Multi-account pool: individual opening + tagged movements
-    return {
-      ...i,
-      balance: Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0),
-    };
-  });
-
-  const categoryCounts: Record<string, number> = {};
-  for (const x of [...(products ?? []), ...(catalogServices ?? [])] as any[]) {
-    if (x.category_id) categoryCounts[x.category_id] = (categoryCounts[x.category_id] ?? 0) + 1;
-  }
+  const groups = Array.from(new Set(CARDS.map((c) => c.group)));
 
   return (
-    <SettingsClient
-      initial={(settings ?? null) as any}
-      initialInstruments={accounts as any}
-      initialServices={(services ?? []) as any}
-      initialPaymentMethods={(paymentMethods ?? []) as any}
-      initialBanks={{ rows: (banks ?? []) as any, usage: bankUsage }}
-      initialPortals={{ rows: (portals ?? []) as any, usage: portalUsage }}
-      initialMerchantQrs={{ rows: (qrs ?? []) as any, usage: qrUsage }}
-      initialRechargeProviders={(rechargeProviders ?? []) as any}
-      initialRechargeSlabs={(rechargeSlabs ?? []) as any}
-      initialProducts={(products ?? []) as any}
-      initialCatalogServices={(catalogServices ?? []) as any}
-      initialCategories={(categories ?? []) as any}
-      categoryCounts={categoryCounts}
-      initialTab={activeTab}
-      initialSection={section}
-    />
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 lg:px-8">
+      <header className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">System Control</p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-white">Settings are now owned by their Hubs</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-500 dark:text-slate-400">Operational configuration is no longer a second navigation system. Open a module below and continue working in its owning Hub. System-only controls remain here.</p>
+      </header>
+
+      {groups.map((group) => (
+        <section key={group}>
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">{group}</h2>
+              <p className="text-xs text-slate-500">Configuration is kept beside the workflow it controls.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {CARDS.filter((c) => c.group === group).map((card) => (
+              <Link key={card.title} href={card.href} className="group rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-500/40">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-extrabold text-slate-900 dark:text-white">{card.title}</h3>
+                  <span className="text-blue-600 transition group-hover:translate-x-1">→</span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{card.description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      <section>
+        <h2 className="mb-3 text-lg font-black text-slate-900 dark:text-white">System-only controls</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SYSTEM.map((item) => (
+            <Link key={item.title} href={item.href} className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-blue-300 hover:shadow-lg dark:border-white/10 dark:bg-slate-900">
+              <h3 className="font-extrabold text-slate-900 dark:text-white">{item.title}</h3>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.description}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
