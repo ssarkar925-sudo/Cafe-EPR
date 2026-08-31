@@ -1,24 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { getHub } from "@/lib/navigation/hub-navigation";
+import { useEffect, useState } from "react";
+import { getHub, type Hub } from "@/lib/navigation/hub-navigation";
 
 export default function HubPage({ params }: { params: Promise<{ hub: string }> }) {
-  // Hub pages intentionally keep module navigation in-place. The module route is not used for navigation.
   const [hubId, setHubId] = useState<string | null>(null);
-  const [hub, setHub] = useState<ReturnType<typeof getHub>>(null);
+  const [hub, setHub] = useState<Hub | undefined>(undefined);
 
-  if (!hubId) {
-    void params.then(({ hub: id }) => { setHubId(id); setHub(getHub(id)); });
-    return <div className="mx-auto max-w-7xl p-8"><div className="h-32 animate-pulse rounded-[28px] bg-slate-100 dark:bg-white/5" /></div>;
-  }
+  useEffect(() => {
+    let active = true;
+    void params.then(({ hub: id }) => {
+      if (!active) return;
+      setHubId(id);
+      setHub(getHub(id));
+    });
+    return () => { active = false; };
+  }, [params]);
+
+  if (!hubId) return <div className="mx-auto max-w-7xl p-8"><div className="h-32 animate-pulse rounded-[28px] bg-slate-100 dark:bg-white/5" /></div>;
   if (!hub) return <div className="p-8 text-sm font-bold">Hub not found.</div>;
 
   return <HubContent hub={hub} />;
 }
 
-function HubContent({ hub }: { hub: NonNullable<ReturnType<typeof getHub>> }) {
+function HubContent({ hub }: { hub: Hub }) {
   const [openId, setOpenId] = useState<string | null>(hub.modules[0]?.id ?? null);
 
   return (
