@@ -3,18 +3,15 @@ export type MainModule={id:string;label:string;description:string;items:WorkingI
 export type Hub={id:string;label:string;description:string;icon:string;modules:MainModule[]};
 
 // Canonical ownership: every capability has one mother Hub and one canonical entry point.
-// Contextual workflows may invoke specialized pages, but Hub navigation exposes only the
-// minimum canonical working places. Child workflows belong inside their parent workspace.
+// Contextual workflows may invoke specialized pages, but Hub navigation exposes only the minimum canonical working places.
 export const HUBS:Hub[]=[
 {id:"sales",label:"Sales Hub",description:"Sell, bill, serve customers and manage returns",icon:"◈",modules:[
-{id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[
-{label:"POS",description:"Full counter billing workstation with Invoice and Quick Sale modes",href:"/pos",shortcut:"F2"},
-{label:"Invoices & Sales",description:"Search, review and manage invoices and completed sales",href:"/invoices"}]},
+{id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[{label:"POS",description:"Full counter billing workstation with Invoice and Quick Sale modes",href:"/pos",shortcut:"F2"},{label:"Invoices & Sales",description:"Search, review and manage invoices and completed sales",href:"/invoices"}]},
 {id:"customers",label:"Customers",description:"Customer directory, balances and credit controls",items:[{label:"Customer Directory",description:"Profiles, balances, credit controls and transaction history",href:"/customers"}]},
 {id:"returns",label:"Returns",description:"Refunds, returns and credit reversals",items:[{label:"Returns & Credit",description:"Process returns and reversal vouchers",href:"/returns"}]}
 ]},
 {id:"operations",label:"Operations Hub",description:"Catalog, stock, purchasing and suppliers",icon:"▦",modules:[
-{id:"catalog",label:"Catalog",description:"Products, services and master data",items:[{label:"Products",description:"Manage product catalog",href:"/catalog/products"},{label:"Services",description:"Manage service rate cards",href:"/catalog/services"},{label:"Categories",description:"Organize catalog hierarchy",href:"/catalog/categories"},{label:"Brands",description:"Manage product brands",href:"/catalog/brands"},{label:"Units",description:"Manage units of measure",href:"/catalog/units"}]},
+{id:"catalog",label:"Catalog",description:"Products, services and master data",items:[{label:"Catalog",description:"Manage products, services, categories, brands and units in one master-data workspace",href:"/catalog"}]},
 {id:"inventory",label:"Inventory",description:"Stock control and movement history",items:[{label:"Inventory & Stock",description:"Stock levels, valuation and reorder control",href:"/inventory"}]},
 {id:"purchases",label:"Purchases",description:"Procurement and supplier intake",items:[{label:"Purchases",description:"Review supplier purchases and start new procurement",href:"/purchases"}]},
 {id:"suppliers",label:"Suppliers",description:"Vendor master and procurement relationships",items:[{label:"Suppliers",description:"Supplier directory, balances and payment history",href:"/suppliers"}]}
