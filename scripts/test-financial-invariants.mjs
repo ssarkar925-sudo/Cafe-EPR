@@ -7647,6 +7647,142 @@ function detectIntent(question) {
   assert(fs.existsSync("E:/CafeERP/app/(dashboard)/business/whatsapp/page.tsx"), "1439. Business Hub: Canonical /business/whatsapp page verified");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 17: Payment Accounts Live Calculated Balance & Inflow/Outflow Engine
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 17: Payment Accounts Live Balance & Multi-Account Invariants ---");
+
+  const { calculateAccountBalances } = await import("../lib/finance/account-balances.ts");
+
+  // 1. Specific Bug Regression Test: ICICI Rupay opening = 13,764, outflow = 3,000 => 10,764
+  const testInsts = [
+    {
+      id: "inst-icici",
+      name: "ICICI Rupay & Platinum",
+      type: "credit_card",
+      opening_balance: 13764,
+      details: { credit_limit: 50000, used_limit: 0 }
+    }
+  ];
+
+  const testSettlements = [
+    {
+      id: "set-01",
+      source_instrument_id: "inst-icici",
+      dest_instrument_id: null,
+      amount: 3000,
+      status: "success"
+    }
+  ];
+
+  const res1 = calculateAccountBalances({
+    instruments: testInsts,
+    settlements: testSettlements
+  });
+
+  assert(res1.length === 1, "1440. Account Balances: Exactly 1 instrument evaluated");
+  assert(res1[0].openingBalance === 13764, "1441. Account Balances: ICICI Opening Balance is strictly ₹13,764.00");
+  assert(res1[0].totalOutflows === 3000, "1442. Account Balances: Outflow strictly equals ₹3,000.00");
+  assert(res1[0].totalInflows === 0, "1443. Account Balances: Inflow strictly equals ₹0.00");
+  assert(res1[0].calculatedBalance === 10764, "1444. Account Balances: Calculated Live Balance is strictly ₹10,764.00");
+  assert(res1[0].availableCredit === 10764, "1445. Account Balances: Available Credit tracks ₹10,764.00");
+
+  // 2. Comprehensive Multi-Account Simulation across ALL 8 Types
+  const fullInsts = [
+    { id: "acc-cash", name: "Main Cash Till", type: "cash", opening_balance: 8500 },
+    { id: "acc-sbi", name: "SBI Current Account", type: "bank", opening_balance: 42000 },
+    { id: "acc-upi", name: "Shop Dynamic UPI QR", type: "upi_qr", opening_balance: 5000 },
+    { id: "acc-paytm", name: "Paytm Business Wallet", type: "wallet", opening_balance: 3000 },
+    { id: "acc-aeps", name: "PayNearby AEPS Portal Float", type: "aeps", opening_balance: 8000 },
+    { id: "acc-dmt", name: "SpiceMoney DMT Float", type: "dmt", opening_balance: 5500 },
+    { id: "acc-icici-cc", name: "ICICI Rupay Credit Card", type: "credit_card", opening_balance: 13764, details: { credit_limit: 50000 } },
+    { id: "acc-sbi-debit", name: "SBI Platinum Debit Card", type: "debit_card", opening_balance: 0, details: { linked_bank_instrument_id: "acc-sbi" } },
+  ];
+
+  const fullCashEntries = [
+    { id: "ce-1", instrument_id: "acc-cash", direction: "in", amount: 1500 }, // POS Cash collection
+    { id: "ce-2", instrument_id: "acc-cash", direction: "out", amount: 200 }, // Tea/Coffee expense
+  ];
+
+  const fullSettlements = [
+    { id: "set-1", source_instrument_id: "acc-icici-cc", dest_instrument_id: "acc-paytm", amount: 3000, status: "success" }, // Provider funding
+    { id: "set-2", source_instrument_id: "acc-sbi", dest_instrument_id: "acc-icici-cc", amount: 2000, status: "success" }, // CC repayment
+  ];
+
+  const fullTransactions = [
+    // Bill payment: Customer pays CASH ₹3,010, Provider funded via ICICI CC ₹3,000
+    {
+      id: "tx-bill-1",
+      customer_instrument_id: "acc-cash",
+      funding_instrument_id: "acc-icici-cc",
+      total_amount: 3010,
+      pool_out: 3000,
+      status: "success"
+    },
+    // AEPS Cash-out: Customer takes ₹2,000 cash, portal float credited ₹2,006
+    {
+      id: "tx-aeps-1",
+      customer_instrument_id: null,
+      funding_instrument_id: "acc-aeps",
+      total_amount: 2000,
+      pool_credit: 2006,
+      status: "success"
+    },
+  ];
+
+  const fullExpenses = [
+    { id: "exp-1", payment_instrument_id: "acc-sbi", amount: 1500, status: "paid" }
+  ];
+
+  const fullPurchases = [
+    { id: "pur-1", payment_instrument_id: "acc-upi", paid_amount: 1200, status: "completed" }
+  ];
+
+  const reconTable = calculateAccountBalances({
+    instruments: fullInsts,
+    cashEntries: fullCashEntries,
+    settlements: fullSettlements,
+    transactions: fullTransactions,
+    expenses: fullExpenses,
+    purchases: fullPurchases
+  });
+
+  // Verify Cash: 8,500 + 1,500 (ce) + 3,010 (bill) - 200 (ce) = 12,810
+  const cashAcc = reconTable.find(a => a.id === "acc-cash");
+  assert(cashAcc.calculatedBalance === 12810, "1446. Multi-Account: Cash Till correctly equals ₹12,810.00");
+
+  // Verify Bank (SBI): 42,000 - 2,000 (CC repay) - 1,500 (exp) = 38,500
+  const sbiAcc = reconTable.find(a => a.id === "acc-sbi");
+  assert(sbiAcc.calculatedBalance === 38500, "1447. Multi-Account: SBI Bank balance correctly equals ₹38,500.00");
+
+  // Verify Debit Card: mirrors SBI bank balance = 38,500
+  const debitAcc = reconTable.find(a => a.id === "acc-sbi-debit");
+  assert(debitAcc.calculatedBalance === 38500, "1448. Multi-Account: SBI Debit Card strictly reflects parent bank ₹38,500.00");
+
+  // Verify UPI: 5,000 - 1,200 (purchase) = 3,800
+  const upiAcc = reconTable.find(a => a.id === "acc-upi");
+  assert(upiAcc.calculatedBalance === 3800, "1449. Multi-Account: UPI QR balance correctly equals ₹3,800.00");
+
+  // Verify Wallet (Paytm): 3,000 + 3,000 (settlement in) = 6,000
+  const walletAcc = reconTable.find(a => a.id === "acc-paytm");
+  assert(walletAcc.calculatedBalance === 6000, "1450. Multi-Account: Wallet balance correctly equals ₹6,000.00");
+
+  // Verify AEPS Float: 8,000 + 2,006 (credit) = 10,006
+  const aepsAcc = reconTable.find(a => a.id === "acc-aeps");
+  assert(aepsAcc.calculatedBalance === 10006, "1451. Multi-Account: AEPS Float correctly equals ₹10,006.00");
+
+  // Verify ICICI Credit Card: 13,764 - 3,000 (set) + 2,000 (repay) - 3,000 (bill fund) = 9,764
+  const iciciAcc = reconTable.find(a => a.id === "acc-icici-cc");
+  assert(iciciAcc.calculatedBalance === 9764, "1452. Multi-Account: ICICI CC available credit strictly equals ₹9,764.00");
+  assert(iciciAcc.totalOutflows === 6000, "1453. Multi-Account: ICICI CC total outflows strictly equal ₹6,000.00");
+  assert(iciciAcc.totalInflows === 2000, "1454. Multi-Account: ICICI CC total inflows strictly equal ₹2,000.00");
+
+  // 3. Mapping Invariant: Customer Cash ₹3,010 does NOT leak into ICICI CC
+  assert(iciciAcc.totalInflows === 2000, "1455. Zone Separation: Customer Cash payment strictly isolated from provider funding instrument");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

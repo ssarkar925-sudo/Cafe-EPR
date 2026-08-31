@@ -246,15 +246,15 @@ export default function PaymentAccountsPanel({
 
         // 2. Credit Card: reflects available credit limit & tracks outstanding liability
         if (i.type === "credit_card") {
-          const limit = Number(i.details?.credit_limit || 0);
-          const openingOutstanding = Number(i.opening_balance || 0);
+          const limit = Number(i.details?.credit_limit || (i.opening_balance ? Number(i.opening_balance) : 50000));
+          const openingOutstanding = 0;
           const delta = instDeltas[i.id] ?? 0;
-          const currentOutstanding = Math.max(0, openingOutstanding + delta);
+          const currentOutstanding = Math.max(0, openingOutstanding - delta);
           const availableCredit = Math.max(0, limit - currentOutstanding);
           return {
             ...i,
             balance: availableCredit,
-            opening_balance: openingOutstanding,
+            opening_balance: Number(i.opening_balance || 0),
           };
         }
 
@@ -321,10 +321,11 @@ export default function PaymentAccountsPanel({
         }
 
         if (inst.type === "credit_card") {
-          const limit = Number(inst.details?.credit_limit || 0);
-          const openingOutstanding = Number(inst.opening_balance || 0);
+          const limit = Number(inst.details?.credit_limit || (inst.opening_balance ? Number(inst.opening_balance) : 50000));
+          const opening = Number(inst.opening_balance || 0);
+          const openingOutstanding = 0;
           const delta = instDeltas[inst.id] ?? 0;
-          const currentOutstanding = Math.max(0, openingOutstanding + delta);
+          const currentOutstanding = Math.max(0, openingOutstanding - delta);
           const availableCredit = Math.max(0, limit - currentOutstanding);
 
           reconMap[inst.id] = {
@@ -333,9 +334,9 @@ export default function PaymentAccountsPanel({
             accountType: inst.type,
             poolKey: "credit_card",
             currentBalance: availableCredit,
-            openingBalance: openingOutstanding,
-            credits: 0,
-            debits: currentOutstanding,
+            openingBalance: opening,
+            credits: delta > 0 ? delta : 0,
+            debits: delta < 0 ? Math.abs(delta) : 0,
             fees: 0,
             settlements: 0,
             otherMovements: 0,
@@ -343,7 +344,7 @@ export default function PaymentAccountsPanel({
             canonicalBalance: availableCredit,
             variance: 0,
             isReconciled: true,
-            statusLabel: "Credit Facility",
+            statusLabel: `Available: ₹${availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
             statusVariant: "credit_limit",
             isCreditCard: true,
             creditLimit: limit,
