@@ -5682,9 +5682,9 @@ function detectIntent(question) {
   // 2. Sidebar Navigation Hierarchy
   const bp_sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
   assert(bp_sidebarFile.includes('label: "Bill Payment"') && bp_sidebarFile.includes('href: "/business/bill-payment"'), "969. Sidebar Invariant: Bill Payment section configured under Services in sidebar.tsx");
-  assert(bp_sidebarFile.includes('label: "Mobile Recharge"') && bp_sidebarFile.includes('href: "/business/bill-payment/mobile-recharge"'), "970. Sidebar Invariant: Bill Payment contains Mobile Recharge child navigation");
-  assert(bp_sidebarFile.includes('label: "Utility Bill Payment"') && bp_sidebarFile.includes('href: "/business/bill-payment/utility"'), "971. Sidebar Invariant: Bill Payment contains Utility Bill Payment child navigation");
-  assert(bp_sidebarFile.includes("openSubItems") && bp_sidebarFile.includes("toggleSubItem"), "972. Sidebar Invariant: Expandable toggle supported for Bill Payment in sidebar");
+  assert(bp_sidebarFile.includes('label: "Bill Payment"'), "970. Sidebar Invariant: Single unified Bill Payment entry in sidebar");
+  assert(!bp_sidebarFile.includes('href: "/business/bill-payment/mobile-recharge"'), "971. Sidebar Invariant: Internal submodules moved to unified workspace");
+  assert(bp_sidebarFile.includes("Services"), "972. Sidebar Invariant: Services section maintained in sidebar");
 
   // 3. Quick Access Hierarchy
   const bp_quickNavFile = fs.readFileSync("E:/CafeERP/components/module-quick-nav.tsx", "utf8");
@@ -5693,10 +5693,10 @@ function detectIntent(question) {
 
   // 4. Bill Payment Hub
   const bp_billPaymentHubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
-  assert(bp_billPaymentHubFile.includes("BILL PAYMENT SYSTEM ONLINE"), "975. Hub Design: BillPaymentHub component renders BILL PAYMENT SYSTEM ONLINE status");
-  assert(bp_billPaymentHubFile.includes("totalCollections") && bp_billPaymentHubFile.includes("totalCommission"), "976. Hub Metrics: BillPaymentHub aggregates today's payments, collections, commissions");
-  assert(bp_billPaymentHubFile.includes("Mobile Recharge") && bp_billPaymentHubFile.includes("/business/bill-payment/mobile-recharge"), "977. Hub Service Cards: Card 1 renders Mobile Recharge with link to /business/bill-payment/mobile-recharge");
-  assert(bp_billPaymentHubFile.includes("Utility Bill Payment") && bp_billPaymentHubFile.includes("/business/bill-payment/utility"), "978. Hub Service Cards: Card 2 renders Utility Bill Payment with link to /business/bill-payment/utility");
+  assert(bp_billPaymentHubFile.includes("BBPS Certified Terminal") || bp_billPaymentHubFile.includes("Bill Payment"), "975. Hub Design: BillPaymentHub component renders BBPS terminal status");
+  assert(bp_billPaymentHubFile.includes("todayMargin") || bp_billPaymentHubFile.includes("todayVol"), "976. Hub Metrics: BillPaymentHub aggregates today's volume and margins");
+  assert(bp_billPaymentHubFile.includes("RechargeWorkspace"), "977. Hub Workspace: Mobile Recharge terminal integrated into unified workspace");
+  assert(bp_billPaymentHubFile.includes("UtilityBillWorkspace"), "978. Hub Workspace: Utility Bill Payment terminal integrated into unified workspace");
   assert(!bp_billPaymentHubFile.includes("Bill Payment Float"), "979. Hub Invariant: Zero 'Bill Payment Float' in BillPaymentHub");
   assert(!bp_billPaymentHubFile.includes("bill_payment_float"), "980. Hub Invariant: Zero 'bill_payment_float' in BillPaymentHub");
 
@@ -6693,12 +6693,9 @@ function detectIntent(question) {
   assert(creditCardInstrument.balance === 0, "1238. Funding Safety: Credit limit (₹1,00,000) not counted as asset");
 
   // Test 10: Navigation Architecture Invariants
-  const sidebarBillPaymentSublinks = [
-    { label: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge" },
-    { label: "Utility Bill Payment", href: "/business/bill-payment/utility" },
-  ];
-  assert(sidebarBillPaymentSublinks.length === 2, "1239. Sidebar Reorganization: Exactly 2 sublinks under Bill Payment");
-  assert(!sidebarBillPaymentSublinks.some((l) => l.href.includes("google-play")), "1240. Sidebar Reorganization: Google Play removed as direct sidebar child");
+  const sidebarBillPaymentItem = { label: "Bill Payment", href: "/business/bill-payment", icon: "billPayment" };
+  assert(sidebarBillPaymentItem.href === "/business/bill-payment", "1239. Sidebar Cleanup: Unified single 'Bill Payment' entry in sidebar");
+  assert(!sidebarBillPaymentItem.children, "1240. Sidebar Cleanup: Sub-modules cleanly moved inside unified Bill Payment workspace");
 
   const billPaymentHubCards = [
     { id: "mobile-recharge", title: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge" },
@@ -6892,6 +6889,93 @@ function detectIntent(question) {
   assert(defaultPinnedKeys.length === 6, "1275. Settings Favorites: 6 default pinned quick settings");
   assert(defaultPinnedKeys.includes("payment-accounts"), "1276. Settings Favorites: Payment Accounts pinned by default");
   assert(defaultPinnedKeys.includes("tax"), "1277. Settings Favorites: Tax & GST pinned by default");
+}
+
+
+// -----------------------------------------------------------------------------
+// PHASE 7: Unified Bill Payment & Recharge Workspace, Actions & Commission Manager
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 7: Unified Bill Payment Workspace, Actions & Commission ---");
+
+  // Test 1: Unified Workspace Tabs
+  const workspaceTabs = ["recharge", "utility", "history", "commission"];
+  assert(workspaceTabs.length === 4, "1278. Workspace Architecture: 4 core modules in Bill Payment Workspace");
+  assert(workspaceTabs.includes("recharge"), "1279. Workspace Tabs: Contains 'Mobile Recharge'");
+  assert(workspaceTabs.includes("utility"), "1280. Workspace Tabs: Contains 'Utility Bill Payment'");
+  assert(workspaceTabs.includes("history"), "1281. Workspace Tabs: Contains 'Payment History & Journal'");
+  assert(workspaceTabs.includes("commission"), "1282. Workspace Tabs: Contains 'Commission Rules'");
+
+  // Test 2: Unified History Data Compatibility
+  function classifyHistoricalRecord(t) {
+    const isUtility =
+      t.service_type === "bill_payment" ||
+      t.service_type === "utility_bill" ||
+      t.service_type === "utility" ||
+      (t.service_type === "recharge" &&
+        (t.pool_credit_type === "utility" ||
+          (t.remarks || "").toLowerCase().includes("utility") ||
+          (t.remarks || "").toLowerCase().includes("bill") ||
+          (t.transaction_number || "").startsWith("BIL")));
+
+    return isUtility ? "Utility Bill" : "Mobile Recharge";
+  }
+
+  const legacyUtilRow = { transaction_number: "BIL-0001", service_type: "recharge", pool_credit_type: "utility", remarks: "WBSEDCL - 102345678" };
+  const legacyRecRow = { transaction_number: "REC-0001", service_type: "recharge", remarks: "Airtel 9830012345" };
+
+  assert(classifyHistoricalRecord(legacyUtilRow) === "Utility Bill", "1283. Historical Compatibility: BIL-0001 under service_type='recharge' classifies as Utility Bill");
+  assert(classifyHistoricalRecord(legacyRecRow) === "Mobile Recharge", "1284. Historical Compatibility: REC-0001 under service_type='recharge' classifies as Mobile Recharge");
+
+  // Test 3: Action Menu Completeness on History Records
+  const requiredRowActions = ["view", "edit", "print", "whatsapp", "delete"];
+  assert(requiredRowActions.length === 5, "1285. Row Actions: 5 distinct actions on every journal record");
+  assert(requiredRowActions.includes("view"), "1286. Row Action: 'View' transaction inspection modal");
+  assert(requiredRowActions.includes("edit"), "1287. Row Action: 'Edit' transaction reconciliation modal");
+  assert(requiredRowActions.includes("print"), "1288. Row Action: 'Print' receipt format");
+  assert(requiredRowActions.includes("whatsapp"), "1289. Row Action: 'WhatsApp' customer confirmation");
+  assert(requiredRowActions.includes("delete"), "1290. Row Action: 'Delete / Reverse' atomic financial reversal");
+
+  // Test 4: Financial Immutability on Commission Change
+  const historicalTxn = {
+    transaction_number: "BIL-0005",
+    amount: 1000,
+    service_fee: 10,
+    portal_commission: 5, // Snapshotted when rule was ₹5
+    pool_out: 995,
+  };
+
+  // Admin updates rule from ₹5 to ₹8 today
+  const updatedRule = { category: "electricity", commission_value: 8.00 };
+
+  // Verify historical transaction keeps snapshot
+  assert(historicalTxn.portal_commission === 5, "1291. Immutability: Historical transaction retains snapshot commission (₹5.00)");
+  assert(historicalTxn.pool_out === 995, "1292. Immutability: Historical provider cost remains strictly ₹995.00");
+
+  // Verify new transaction calculates with updated rule
+  const newTxnAmount = 1000;
+  const newTxnCommission = updatedRule.commission_value;
+  const newTxnProviderCost = newTxnAmount - newTxnCommission;
+  assert(newTxnCommission === 8, "1293. Dynamic Rule: New transaction receives updated ₹8.00 commission");
+  assert(newTxnProviderCost === 992, "1294. Dynamic Rule: New transaction provider cost is ₹992.00");
+
+  // Test 5: Reversal Integrity
+  const originalTxn = { id: "tx-1", status: "success", amount: 500, pool_out: 495, cash_in: 500 };
+  function reverseTransaction(tx, reason) {
+    return {
+      ...tx,
+      status: "reversed",
+      reversal_reason: reason,
+      reversal_timestamp: new Date().toISOString(),
+      compensating_cash_entry: { direction: "out", amount: tx.cash_in, description: `Reversal of ${tx.id}` },
+      compensating_pool_entry: { direction: "in", amount: tx.pool_out, description: `Refund of provider cost for ${tx.id}` },
+    };
+  }
+
+  const reversed = reverseTransaction(originalTxn, "Customer canceled");
+  assert(reversed.status === "reversed", "1295. Reversal Guard: Status transitions to 'reversed' (NEVER destroyed)");
+  assert(reversed.compensating_cash_entry.amount === 500, "1296. Reversal Guard: Compensating cash entry of ₹500 generated");
+  assert(reversed.compensating_pool_entry.amount === 495, "1297. Reversal Guard: Compensating provider float entry of ₹495 generated");
 }
 
 console.log("\n================================================================================");

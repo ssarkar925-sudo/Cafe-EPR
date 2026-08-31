@@ -190,15 +190,7 @@ export default function Sidebar({
       {
         title: "Services",
         items: [
-          {
-            label: "Bill Payment",
-            href: "/business/bill-payment",
-            icon: "billPayment",
-            children: [
-              { label: "Mobile Recharge", href: "/business/bill-payment/mobile-recharge", icon: "recharge" },
-              { label: "Utility Bill Payment", href: "/business/bill-payment/utility", icon: "utility" },
-            ],
-          },
+          { label: "Bill Payment", href: "/business/bill-payment", icon: "billPayment", badge: { text: "BBPS", tone: "indigo" } },
           { label: "AEPS Cash Out", href: "/business/aeps", icon: "aeps" },
           { label: "Money Transfer (DMT)", href: "/business/dmt", icon: "dmt" },
           { label: "UPI Collections", href: "/business/upi", icon: "upi" },
