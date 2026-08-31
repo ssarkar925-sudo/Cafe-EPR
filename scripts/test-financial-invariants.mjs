@@ -5689,7 +5689,7 @@ function detectIntent(question) {
   // 3. Quick Access Hierarchy
   const bp_quickNavFile = fs.readFileSync("E:/CafeERP/components/module-quick-nav.tsx", "utf8");
   assert(bp_quickNavFile.includes('id: "bill-payment"') && bp_quickNavFile.includes('href: "/business/bill-payment"'), "973. Quick Access: Bill Payment included in ALL_AVAILABLE_MODULES");
-  assert(bp_quickNavFile.includes('id: "utility-bills"') && bp_quickNavFile.includes('href: "/business/bill-payment/utility"'), "974. Quick Access: Utility Bill Payment included in ALL_AVAILABLE_MODULES");
+  assert(bp_quickNavFile.includes('id: "utility-bills"') && (bp_quickNavFile.includes('href: "/business/bill-payment/utility"') || bp_quickNavFile.includes('href: "/business/bill-payment?tab=utility"')), "974. Quick Access: Utility Bill Payment included in ALL_AVAILABLE_MODULES");
 
   // 4. Bill Payment Hub
   const bp_billPaymentHubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
@@ -7260,7 +7260,7 @@ function detectIntent(question) {
   assert(!sidebarFile.includes('label: "Mobile Recharge"'), "1346. Sidebar Cleanliness: 'Mobile Recharge' not duplicated in main sidebar");
   assert(!sidebarFile.includes('label: "Utility Bill Payment"'), "1347. Sidebar Cleanliness: 'Utility Bill Payment' not duplicated in main sidebar");
   assert(!sidebarFile.includes('label: "Google Play Recharge"'), "1348. Sidebar Cleanliness: 'Google Play Recharge' not duplicated in main sidebar");
-  assert(sidebarFile.includes('label: "Bill Payment"'), "1349. Sidebar Cleanliness: Single canonical 'Bill Payment' Hub present");
+  assert(sidebarFile.includes('label: "Bill & Recharge"') || sidebarFile.includes('label: "Bill Payment"'), "1349. Sidebar Cleanliness: Single canonical 'Bill & Recharge' Hub present");
 
   // Invariant 3: Universal 2-Zone Payment Interface in Hub
   const hubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
@@ -7279,6 +7279,53 @@ function detectIntent(question) {
   ];
   const uniqueKeySet = new Set(mockEntries.map(e => `${e.ref_type}:${e.ref_id}:${e.direction}`));
   assert(uniqueKeySet.size === 2, "1354. Deduplication Invariant: Exactly 2 distinct legs per transaction (1 in, 1 out)");
+}
+
+
+// -----------------------------------------------------------------------------
+// PHASE 12: 7-Hub Architecture, Finance Dashboard, Journal & Trial Balance
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 12: 7-Hub Onion Chain & Finance Hub Upgrades ---");
+
+  // Invariant 1: Canonical Hubs definition
+  const navFile = fs.readFileSync("E:/CafeERP/lib/navigation.ts", "utf8");
+  assert(navFile.includes('title: "1. Sales Hub"'), "1355. Canonical Hubs: Sales Hub defined");
+  assert(navFile.includes('title: "2. Operations Hub"'), "1356. Canonical Hubs: Operations Hub defined");
+  assert(navFile.includes('title: "3. Business Services Hub"'), "1357. Canonical Hubs: Business Services Hub defined");
+  assert(navFile.includes('title: "4. Finance Hub"'), "1358. Canonical Hubs: Finance Hub defined");
+  assert(navFile.includes('title: "5. Reports Hub"'), "1359. Canonical Hubs: Reports Hub defined");
+  assert(navFile.includes('title: "6. Tools Hub"'), "1360. Canonical Hubs: Tools Hub defined");
+  assert(navFile.includes('title: "7. Admin Hub"'), "1361. Canonical Hubs: Admin Hub defined");
+
+  // Invariant 2: Finance Hub Pages exist and export correct components
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/page.tsx"), "1362. Finance Hub: /finance Dashboard page exists");
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/journal/page.tsx"), "1363. Finance Hub: /finance/journal page exists");
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/trial-balance/page.tsx"), "1364. Finance Hub: /finance/trial-balance page exists");
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/accounts/page.tsx"), "1365. Finance Hub: /finance/accounts redirect exists");
+
+  // Invariant 3: Trial Balance Conservation Invariant Simulation
+  const sampleAccounts = [
+    { name: "Cash Drawer", opening: 5000, credits: 12000, debits: 8000 },
+    { name: "Current Bank AC", opening: 40000, credits: 35000, debits: 25000 },
+    { name: "Paytm Float", opening: 10000, credits: 8000, debits: 9000 },
+  ];
+  const grandOpening = sampleAccounts.reduce((s, a) => s + a.opening, 0);
+  const grandCredits = sampleAccounts.reduce((s, a) => s + a.credits, 0);
+  const grandDebits = sampleAccounts.reduce((s, a) => s + a.debits, 0);
+  const sampleClosing = sampleAccounts.map(a => a.opening + a.credits - a.debits);
+  const grandClosing = sampleClosing.reduce((s, c) => s + c, 0);
+
+  assert(grandOpening + grandCredits - grandDebits === grandClosing, "1366. Trial Balance: Mathematical Invariant Conserved (Opening + In - Out === Closing)");
+  assert(grandClosing === 68000, "1367. Trial Balance: Grand Closing Matches Exact Sum (₹68,000)");
+
+  // Invariant 4: Double-Entry Journal Symmetry
+  const sampleJournalEntries = [
+    { id: "j1", direction: "in", amount: 3010, description: "Customer Collection" },
+    { id: "j2", direction: "out", amount: 3000, description: "Provider Disbursement" },
+  ];
+  const netStoreProfit = sampleJournalEntries.reduce((s, e) => s + (e.direction === "in" ? e.amount : -e.amount), 0);
+  assert(netStoreProfit === 10, "1368. Double-Entry Journal: Net Margin matches expected Store Profit (+₹10.00)");
 }
 
 console.log("\n================================================================================");

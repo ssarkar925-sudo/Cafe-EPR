@@ -143,16 +143,23 @@ export default function Sidebar({
     () =>
       new Set([
         "Operate",
-        "Management",
-        "Services",
-        "Finance",
+        "1. Sales Hub",
+        "2. Operations Hub",
+        "3. Business Services",
+        "4. Finance Hub",
+        "5. Reports Hub",
+        "6. Tools & AI",
+        "7. Administration",
       ])
   );
 
   const [openSubItems, setOpenSubItems] = useState<Set<string>>(() => {
     const s = new Set<string>();
     if (pathname?.startsWith("/business/bill-payment") || pathname?.startsWith("/business/recharge")) {
-      s.add("Bill Payment");
+      s.add("Bill & Recharge");
+    }
+    if (pathname?.startsWith("/catalog")) {
+      s.add("Catalog Workspace");
     }
     return s;
   });
@@ -174,20 +181,39 @@ export default function Sidebar({
         title: "Operate",
         items: [
           { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
+        ],
+      },
+      {
+        title: "1. Sales Hub",
+        items: [
           { label: "POS Billing", href: "/pos", icon: "pos", badge: { text: "F2 Fast", tone: "emerald" } },
           { label: "Sales & Invoices", href: "/invoices", icon: "invoices" },
-          { label: "Customers", href: "/customers", icon: "customers" },
+          { label: "Customers & Khata", href: "/customers", icon: "customers" },
+          { label: "Returns & Credit", href: "/returns", icon: "returns" },
         ],
       },
       {
-        title: "Management",
+        title: "2. Operations Hub",
         items: [
-          { label: "Products Catalog", href: "/catalog/products", icon: "products" },
+          {
+            label: "Catalog Workspace",
+            href: "/catalog/products",
+            icon: "products",
+            children: [
+              { label: "Products", href: "/catalog/products" },
+              { label: "Services", href: "/catalog/services" },
+              { label: "Categories", href: "/catalog/categories" },
+              { label: "Brands", href: "/catalog/brands" },
+              { label: "Units", href: "/catalog/units" },
+            ],
+          },
+          { label: "Inventory & Stock", href: "/inventory", icon: "inventory" },
           { label: "Purchases Entry", href: "/purchases/entry", icon: "purchases", badge: { text: "WAC", tone: "blue" } },
+          { label: "Suppliers", href: "/suppliers", icon: "suppliers" },
         ],
       },
       {
-        title: "Services",
+        title: "3. Business Services",
         items: [
           { label: "Bill Payment", href: "/business/bill-payment", icon: "billPayment", badge: { text: "BBPS", tone: "indigo" } },
           { label: "AEPS Cash Out", href: "/business/aeps", icon: "aeps" },
@@ -196,16 +222,42 @@ export default function Sidebar({
         ],
       },
       {
-        title: "Finance",
+        title: "4. Finance Hub",
         items: [
           { label: "Finance Hub", href: "/finance", icon: "pnl", badge: { text: "Dashboard", tone: "emerald" } },
           { label: "Daily Cash Book", href: "/finance/cashbook", icon: "cashbook" },
           { label: "Double-Entry Journal", href: "/finance/journal", icon: "ledger" },
           { label: "Trial Balance", href: "/finance/trial-balance", icon: "transactions" },
           { label: "Settlements & Float", href: "/finance/settlements", icon: "settlements" },
-          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
-          { label: "P&L Report", href: "/finance/pnl", icon: "salesreport" },
-          { label: "Reports & Analytics", href: "/reports", icon: "reports" },
+          { label: "Expenses Ledger", href: "/finance/expenses", icon: "expenses" },
+          { label: "Profit & Loss (P&L)", href: "/finance/pnl", icon: "salesreport" },
+          { label: "Reconciliation", href: "/finance/reconciliation", icon: "dayclose" },
+          { label: "Opening Balances", href: "/finance/opening-balances", icon: "opening" },
+          { label: "Day Close & Rollover", href: "/finance/day-close", icon: "dayclose" },
+        ],
+      },
+      {
+        title: "5. Reports Hub",
+        items: [
+          { label: "Reports Studio", href: "/reports", icon: "reports" },
+          { label: "GST Reports", href: "/reports/gst", icon: "gst" },
+          { label: "Tax Prep / ITR", href: "/reports/tax-preparation", icon: "tax" },
+          { label: "Security Audit Log", href: "/audit", icon: "audit" },
+        ],
+      },
+      {
+        title: "6. Tools & AI",
+        items: [
+          { label: "AI Control Center", href: "/ai", icon: "ai", badge: { text: "Smart", tone: "purple" } },
+          { label: "Financial Self-Audit", href: "/ai/self-audit", icon: "audit", badge: { text: "14-pt", tone: "emerald" } },
+        ],
+      },
+      {
+        title: "7. Administration",
+        items: [
+          { label: "Staff Accounts", href: "/staff", icon: "staff" },
+          { label: "Security & 2FA", href: "/security", icon: "security" },
+          { label: "System Settings", href: "/settings", icon: "settings" },
         ],
       },
     ],
