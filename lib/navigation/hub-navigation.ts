@@ -3,7 +3,7 @@ export type MainModule={id:string;label:string;description:string;items:WorkingI
 export type Hub={id:string;label:string;description:string;icon:string;modules:MainModule[]};
 
 // Canonical ownership: every capability has one mother Hub and one canonical entry point.
-// Contextual workflows may invoke specialized pages, but Hub navigation exposes only the minimum canonical working places.
+// Contextual workflows may invoke specialized configuration pages; Hub navigation exposes only minimum canonical working places.
 export const HUBS:Hub[]=[
 {id:"sales",label:"Sales Hub",description:"Sell, bill, serve customers and manage returns",icon:"◈",modules:[
 {id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[{label:"POS",description:"Full counter billing workstation with Invoice and Quick Sale modes",href:"/pos",shortcut:"F2"},{label:"Invoices & Sales",description:"Search, review and manage invoices and completed sales",href:"/invoices"}]},
@@ -19,7 +19,6 @@ export const HUBS:Hub[]=[
 {id:"business-services",label:"Business Services Hub",description:"Digital, financial, recharge and assisted service operations",icon:"◎",modules:[
 {id:"financial-services",label:"Financial Services",description:"Assisted service transactions",items:[{label:"AEPS",description:"Aadhaar-enabled cash services",href:"/business/aeps"},{label:"DMT",description:"Domestic money transfer",href:"/business/dmt"},{label:"UPI",description:"UPI collection workflows",href:"/business/upi"}]},
 {id:"bill-recharge",label:"Bill & Recharge",description:"All recharge and bill-payment workflows in one workspace",items:[{label:"Bill Payment",description:"Utility bills, mobile recharge and recharge configuration",href:"/business/bill-payment"}]},
-{id:"service-network",label:"Service Network",description:"Connected service providers and merchant access",items:[{label:"Banks",description:"Service bank configuration",href:"/business/banks"},{label:"Service Portals",description:"Connected service providers and portals",href:"/business/portals"},{label:"Merchant QRs",description:"Merchant QR profiles",href:"/business/merchant-qrs"}]},
 {id:"communication",label:"Communication",description:"Customer communication workflows",items:[{label:"WhatsApp",description:"Operational messaging",href:"/business/whatsapp"}]}
 ]},
 {id:"finance",label:"Finance Hub",description:"One financial source of truth for accounts, cash, settlement and closing",icon:"₹",modules:[
