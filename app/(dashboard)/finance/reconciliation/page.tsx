@@ -10,6 +10,7 @@ export default async function FinancialReconciliationPage() {
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const supabase = await createClient();
+  const today = new Date().toISOString().split("T")[0];
 
   const [
     { data: balances },
@@ -20,7 +21,7 @@ export default async function FinancialReconciliationPage() {
     { data: settlements },
     { data: openingBalances },
   ] = await Promise.all([
-    supabase.rpc("get_pool_balances"),
+    supabase.rpc("get_pool_balances", { p_as_of: today }),
     supabase.from("payment_instruments").select("*").order("type").order("name"),
     supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, remarks, method, ref_type").not("instrument_id", "is", null),
     supabase.from("aeps_portals").select("id, payment_instrument_id, name"),
