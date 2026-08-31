@@ -398,6 +398,7 @@ export default function GooglePlayWorkspace({
         onClose={() => setCommissionModalOpen(false)}
         initialCategory="google_play"
         initialServiceType="google_play_recharge"
+        existingConfig={commissionResolution.config}
         onSaved={(saved) => {
           setCommissionConfigs((prev) => [saved, ...prev.filter((c) => c.id !== saved.id)]);
         }}

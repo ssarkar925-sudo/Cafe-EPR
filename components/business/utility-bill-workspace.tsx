@@ -881,6 +881,13 @@ export default function UtilityBillWorkspace({
             >
               <span>📷 Scan Bill</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setCommissionModalOpen(true)}
+              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
+            >
+              <span>⚙ Commission / Margin</span>
+            </button>
             <Link
               href="/business/bill-payment"
               className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
@@ -1130,6 +1137,30 @@ export default function UtilityBillWorkspace({
                   className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 />
               </div>
+            </div>
+
+            {/* Active Commission & Margin strip */}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 p-2.5 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-xs font-black text-white">
+                  %
+                </span>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                    Biller Margin ({commissionResolution.label})
+                  </span>
+                  <p className="text-xs font-black text-slate-900 dark:text-white">
+                    Earns {inr(commissionEarned)} margin on {selectedBiller?.name || currentCategory.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommissionModalOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-black text-indigo-700 shadow-xs transition hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-800 dark:text-indigo-300"
+              >
+                ⚙ Edit Margin
+              </button>
             </div>
           </div>
 
@@ -1688,6 +1719,7 @@ export default function UtilityBillWorkspace({
         onClose={() => setCommissionModalOpen(false)}
         initialCategory={selectedCategoryId}
         initialBillerId={selectedBillerId}
+        existingConfig={commissionResolution.config}
         onSaved={(saved) => {
           setCommissionConfigs((prev) => [saved, ...prev.filter((c) => c.id !== saved.id)]);
         }}

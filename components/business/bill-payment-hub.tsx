@@ -189,6 +189,12 @@ export default function BillPaymentHub({
             >
               <span>🧾 Pay Utility Bill →</span>
             </Link>
+            <Link
+              href="/settings?tab=business-setup&section=bill-payment"
+              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
+            >
+              <span>⚙ Commission &amp; Margins →</span>
+            </Link>
           </div>
         </div>
 
@@ -350,6 +356,13 @@ export default function BillPaymentHub({
                 <div className="text-sm font-black text-amber-600 dark:text-amber-400">{inr(metrics.googlePlayComm)}</div>
               </div>
             </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-emerald-50/50 px-3 py-2 text-xs dark:bg-emerald-950/20">
+              <span className="font-medium text-slate-600 dark:text-slate-300">Commission: <strong>Configurable (2.0%)</strong></span>
+              <Link href="/settings?tab=business-setup&section=bill-payment" className="font-bold text-emerald-700 hover:underline dark:text-emerald-300">
+                ⚙ Edit Margin
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6">
@@ -403,6 +416,13 @@ export default function BillPaymentHub({
                 <span className="text-[10px] font-bold uppercase text-slate-400">Commission</span>
                 <div className="text-sm font-black text-amber-600 dark:text-amber-400">{inr(metrics.utilityComm)}</div>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-cyan-50/50 px-3 py-2 text-xs dark:bg-cyan-950/20">
+              <span className="font-medium text-slate-600 dark:text-slate-300">Commissions: <strong>₹3.00 - ₹10.00</strong></span>
+              <Link href="/settings?tab=business-setup&section=bill-payment" className="font-bold text-cyan-700 hover:underline dark:text-cyan-300">
+                ⚙ Edit Margins
+              </Link>
             </div>
           </div>
 
