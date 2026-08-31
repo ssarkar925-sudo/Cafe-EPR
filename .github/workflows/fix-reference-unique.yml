@@ -21,10 +21,10 @@ jobs:
           p = Path('components/business/utility-bill-workspace.tsx')
           s = p.read_text(encoding='utf-8')
           old = '        reference: reference.trim() || consumerId.trim(),'
-          new = '        reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,''
+          new = '        reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,\n'
           if old in s:
-              s = s.replace(old, new, 1)
-          elif 'reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,'' in s:
+              s = s.replace(old, new.rstrip('\\n'), 1)
+          elif 'reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,' in s:
               print('Reference is already unique.')
           else:
               raise SystemExit('Bill-payment reference anchor not found')
