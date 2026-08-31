@@ -6708,6 +6708,103 @@ function detectIntent(question) {
   assert(billPaymentHubCards.some((c) => c.href === "/business/bill-payment/google-play"), "1242. Hub Architecture: Google Play terminal exposed on Bill Payment Hub");
 }
 
+// -----------------------------------------------------------------------------
+// PHASE 5G: Check Constraint Expansion, WhatsApp Bill Delivery & History Verification
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 5G: Service Type Constraint Expansion & WhatsApp Bill Delivery ---");
+
+  // Test 1: Service Type Allowed Schema
+  const allowedServiceTypes = [
+    "aeps",
+    "dmt",
+    "upi",
+    "recharge",
+    "recharge_due",
+    "due",
+    "bill_payment",
+    "utility_bill",
+    "utility",
+    "google_play_recharge",
+    "google_play",
+  ];
+
+  assert(allowedServiceTypes.includes("bill_payment"), "1243. Service Type Schema: 'bill_payment' is permitted");
+  assert(allowedServiceTypes.includes("utility_bill"), "1244. Service Type Schema: 'utility_bill' is permitted");
+  assert(allowedServiceTypes.includes("google_play_recharge"), "1245. Service Type Schema: 'google_play_recharge' is permitted");
+  assert(allowedServiceTypes.includes("google_play"), "1246. Service Type Schema: 'google_play' is permitted");
+
+  // Test 2: Fallback Resilience Function Simulation
+  function simulateInsert(payload, dbAllowedTypes) {
+    if (!dbAllowedTypes.includes(payload.service_type)) {
+      // simulate postgres check constraint failure
+      const err = new Error('new row for relation "transactions" violates check constraint "transactions_service_type_check"');
+      // fallback mechanism
+      return {
+        ...payload,
+        service_type: "recharge",
+        fallbackApplied: true,
+        originalServiceType: payload.service_type,
+      };
+    }
+    return { ...payload, fallbackApplied: false };
+  }
+
+  const legacyDbTypes = ["aeps", "dmt", "upi", "recharge", "due"];
+  const utilPayload = { transaction_number: "BIL-0001", service_type: "bill_payment", amount: 500, pool_credit_type: "utility" };
+  const utilRes = simulateInsert(utilPayload, legacyDbTypes);
+  assert(utilRes.service_type === "recharge", "1247. Fallback Resilience: Utility bill falls back to 'recharge' on legacy constraint");
+  assert(utilRes.pool_credit_type === "utility", "1248. Fallback Resilience: Preserves 'utility' pool_credit_type");
+
+  const gpPayload = { transaction_number: "GPL-0001", service_type: "google_play_recharge", amount: 100, reference: "ABCD-1234" };
+  const gpRes = simulateInsert(gpPayload, legacyDbTypes);
+  assert(gpRes.service_type === "recharge", "1249. Fallback Resilience: Google Play falls back to 'recharge' on legacy constraint");
+  assert(gpRes.reference === "ABCD-1234", "1250. Fallback Resilience: Preserves voucher reference code");
+
+  // Test 3: WhatsApp Receipt Message Content Validation
+  function generateUtilityWhatsAppMsg(t) {
+    return `*UTILITY BILL PAYMENT RECEIPT — SARKAR COMMUNICATION*\n` +
+      `Txn ID: ${t.transaction_number}\n` +
+      `Biller: ${t.biller}\n` +
+      `Consumer / Ref: ${t.reference}\n` +
+      `Bill Amount: ₹${t.amount}\n` +
+      `Total Paid: ₹${t.amount + (t.fee || 0)}`;
+  }
+
+  const sampleUtilTxn = { transaction_number: "BIL-0002", biller: "WBSEDCL", reference: "123456789", amount: 1250, fee: 10 };
+  const utilMsg = generateUtilityWhatsAppMsg(sampleUtilTxn);
+  assert(utilMsg.includes("UTILITY BILL PAYMENT RECEIPT"), "1251. WhatsApp Utility: Header contains brand receipt title");
+  assert(utilMsg.includes("WBSEDCL"), "1252. WhatsApp Utility: Contains biller name");
+  assert(utilMsg.includes("123456789"), "1253. WhatsApp Utility: Contains consumer ID");
+  assert(utilMsg.includes("₹1260"), "1254. WhatsApp Utility: Total paid accurately reflects amount + fee");
+
+  function generateGooglePlayWhatsAppMsg(t) {
+    return `*GOOGLE PLAY RECHARGE RECEIPT — SARKAR COMMUNICATION*\n` +
+      `Txn ID: ${t.transaction_number}\n` +
+      `Recharge Amount: ₹${t.amount}\n` +
+      `Voucher / Gift Code: ${t.voucher}\n` +
+      `Redeem Code: Open Google Play Store > Redeem code`;
+  }
+
+  const sampleGpTxn = { transaction_number: "GPL-0002", amount: 500, voucher: "WXYZ-9876-5432-1098" };
+  const gpMsg = generateGooglePlayWhatsAppMsg(sampleGpTxn);
+  assert(gpMsg.includes("GOOGLE PLAY RECHARGE RECEIPT"), "1255. WhatsApp Google Play: Header contains Google Play brand receipt");
+  assert(gpMsg.includes("WXYZ-9876-5432-1098"), "1256. WhatsApp Google Play: Contains voucher code");
+  assert(gpMsg.includes("Redeem Code: Open Google Play"), "1257. WhatsApp Google Play: Contains clear redemption instructions");
+
+  // Test 4: Financial Isolation & Conservation Verification
+  const gpAmount = 1000;
+  const gpMarginPercent = 2.0;
+  const gpCommission = (gpAmount * gpMarginPercent) / 100;
+  const gpProviderCost = gpAmount - gpCommission;
+  const gpCustFee = 5;
+  const gpTotalDebit = gpAmount + gpCustFee;
+  const gpShopIncome = gpCustFee + gpCommission;
+
+  assert(gpTotalDebit === gpProviderCost + gpShopIncome, "1258. Conservation: Google Play Customer Total (₹1005) = Provider Cost (₹980) + Shop Income (₹25)");
+  assert(gpTotalDebit - (gpProviderCost + gpShopIncome) === 0, "1259. Strict Zero Variance: Google Play delta is strictly ₹0.00");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

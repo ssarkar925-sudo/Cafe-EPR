@@ -16,7 +16,7 @@ export default async function UtilityBillPage() {
       supabase
         .from("transactions")
         .select("*, customers(name, phone), profiles(full_name)")
-        .in("service_type", ["bill_payment", "utility_bill"])
+        .in("service_type", ["bill_payment", "utility_bill", "utility", "recharge"])
         .order("transaction_timestamp", { ascending: false, nullsFirst: false })
         .order("transaction_date", { ascending: false })
         .limit(500),

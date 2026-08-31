@@ -571,31 +571,34 @@ export default function UtilityBillWorkspace({
       const nextNum = "BIL-" + String((count ?? 0) + 1).padStart(4, "0");
 
       // 2. Post to Canonical transactions Table
-      const { data: newTxn, error: txnErr } = await supabase
+      const insertPayload = {
+        transaction_number: nextNum,
+        service_type: "bill_payment",
+        direction: "in",
+        transaction_date: todayDate,
+        transaction_timestamp: todayIso,
+        customer_id: selectedCustomerId || null,
+        customer_mobile: customerMobile.replace(/\D/g, "") || null,
+        reference: reference.trim() || consumerId.trim(),
+        remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
+        status: "success",
+        instrument_id: fundingInstId,
+        amount: billAmount,
+        service_fee: custFee,
+        portal_commission: commissionEarned,
+        portal_charge: 0,
+        cash_in: customerPayMethod === "cash" ? totalCustomerDebit : 0,
+        bank_in: customerPayMethod === "bank" ? totalCustomerDebit : 0,
+        pool_out: netProviderCost,
+        pool_credit: 0,
+        pool_credit_type: "utility",
+        customer_pay_method: customerPayMethod,
+      };
+
+      let newTxn: any = null;
+      const { data: primaryTxn, error: txnErr } = await supabase
         .from("transactions")
-        .insert({
-          transaction_number: nextNum,
-          service_type: "bill_payment",
-          direction: "in",
-          transaction_date: todayDate,
-          transaction_timestamp: todayIso,
-          customer_id: selectedCustomerId || null,
-          customer_mobile: customerMobile.replace(/\D/g, "") || null,
-          reference: reference.trim() || consumerId.trim(),
-          remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
-          status: "success",
-          instrument_id: fundingInstId,
-          amount: billAmount,
-          service_fee: custFee,
-          portal_commission: commissionEarned,
-          portal_charge: 0,
-          cash_in: customerPayMethod === "cash" ? totalCustomerDebit : 0,
-          bank_in: customerPayMethod === "bank" ? totalCustomerDebit : 0,
-          pool_out: netProviderCost,
-          pool_credit: 0,
-          pool_credit_type: "utility",
-          customer_pay_method: customerPayMethod,
-        })
+        .insert(insertPayload)
         .select(`
           *,
           customers(name, phone),
@@ -604,9 +607,33 @@ export default function UtilityBillWorkspace({
         .single();
 
       if (txnErr) {
-        showToast("error", txnErr.message);
-        setSubmitting(false);
-        return;
+        if (txnErr.message.includes("check constraint") || txnErr.message.includes("service_type_check")) {
+          const { data: retryTxn, error: retryErr } = await supabase
+            .from("transactions")
+            .insert({
+              ...insertPayload,
+              service_type: "recharge",
+            })
+            .select(`
+              *,
+              customers(name, phone),
+              profiles(full_name)
+            `)
+            .single();
+
+          if (retryErr) {
+            showToast("error", retryErr.message);
+            setSubmitting(false);
+            return;
+          }
+          newTxn = retryTxn;
+        } else {
+          showToast("error", txnErr.message);
+          setSubmitting(false);
+          return;
+        }
+      } else {
+        newTxn = primaryTxn;
       }
 
       // 3. Customer Collection Accounting Leg

@@ -71,8 +71,9 @@ export default function BillPaymentHub({
 
     for (const t of todayTxns) {
       const isSuccess = t.status === "success";
-      const isRecharge = t.service_type === "recharge";
-      const isGooglePlay = t.service_type === "google_play_recharge" || t.service_type === "google_play";
+      const isGooglePlay = t.service_type === "google_play_recharge" || t.service_type === "google_play" || (t.service_type === "recharge" && ((t.remarks || "").toLowerCase().includes("google play") || (t.transaction_number || "").startsWith("GPL")));
+      const isUtility = t.service_type === "bill_payment" || t.service_type === "utility_bill" || t.service_type === "utility" || (t.service_type === "recharge" && ((t as any).pool_credit_type === "utility" || (t.remarks || "").toLowerCase().includes("utility") || (t.remarks || "").toLowerCase().includes("bill") || (t.transaction_number || "").startsWith("BIL")));
+      const isRecharge = !isGooglePlay && !isUtility;
       const amt = Number(t.amount) || 0;
       const comm = Number(t.portal_commission) || 0;
       const fee = Number(t.service_fee) || 0;
