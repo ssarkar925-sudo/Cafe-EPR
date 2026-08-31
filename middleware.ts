@@ -74,20 +74,17 @@ export async function middleware(request: NextRequest) {
   const financeModule = financeMatch?.[1] && FINANCE_MODULES.has(financeMatch[1]) ? financeMatch[1] : null;
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
-  if (
-    pathname === "/login" ||
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/receipt") ||
-    pathname.startsWith("/business/receipt")
-  ) {
-    if (!checkRateLimit(clientIp)) {
-      return applySecurityHeaders(
-        new NextResponse("Rate limit exceeded. Please wait 1 minute before trying again.", {
-          status: 429,
-          headers: { "Retry-After": "60" },
-        })
-      );
-    }
+  // Rate-limit login submissions only. Applying the login limiter to every API
+  // request made normal POS/realtime traffic fail after 15 requests per minute.
+  // This remains an edge-local guard; durable abuse prevention belongs at the
+  // authentication/provider layer rather than in process memory.
+  if (pathname === "/login" && request.method === "POST" && !checkRateLimit(clientIp)) {
+    return applySecurityHeaders(
+      new NextResponse("Too many sign-in attempts. Please wait 1 minute before trying again.", {
+        status: 429,
+        headers: { "Retry-After": "60" },
+      })
+    );
   }
 
   if (!SUPABASE_URL || !SUPABASE_ANON) {
