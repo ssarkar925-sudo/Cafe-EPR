@@ -120,9 +120,11 @@ function money(value: unknown): number {
 
 /**
  * Calculates balances from ONE movement source only: cash_entries.
- * This prevents the previous double-counting bug where the same business
- * transaction was counted once from cash_entries and again from transactions,
- * expenses, purchases or settlements.
+ *
+ * IMPORTANT: An account movement without `instrument_id` is intentionally
+ * ignored here. It is an accounting/reconciliation exception and must never
+ * be guessed into an account merely because there is one account of that
+ * payment method. Silent guessing can move real money to the wrong account.
  */
 export function calculateAccountBalances({
   instruments,
@@ -139,28 +141,13 @@ export function calculateAccountBalances({
     outflows[inst.id] = 0;
   }
 
-  // Every financial write must produce an account movement with instrument_id.
-  // Only legacy entries without an instrument_id are resolved when there is
-  // exactly one active account of that method/type; ambiguous entries are not
-  // assigned to an arbitrary account.
-  const activeByPool: Record<string, string[]> = {};
-  for (const inst of safeInsts) {
-    if (inst.is_active === false) continue;
-    const key = POOL_TYPE_MAP[inst.type] ?? inst.type;
-    (activeByPool[key] ??= []).push(inst.id);
-  }
-
   for (const entry of safeEntries) {
     const amount = money(entry.amount);
     if (amount <= 0) continue;
 
-    let instrumentId = entry.instrument_id ?? null;
-    if (!instrumentId && entry.method) {
-      const key = POOL_TYPE_MAP[entry.method] ?? entry.method;
-      const candidates = activeByPool[key] ?? [];
-      if (candidates.length === 1) instrumentId = candidates[0];
-    }
-
+    // Never infer an account from `method`. The movement must explicitly
+    // identify the instrument that owns the money movement.
+    const instrumentId = entry.instrument_id ?? null;
     if (!instrumentId || inflows[instrumentId] === undefined) continue;
 
     const direction = String(entry.direction ?? "").toLowerCase();
@@ -195,8 +182,6 @@ export function calculateAccountBalances({
 
     if (isCreditCard) {
       creditLimit = money(inst.details?.credit_limit);
-      // opening_balance represents opening card utilization/debt.
-      // used_limit is supported for migrated cards where it is explicitly set.
       const openingUsed = money(inst.details?.used_limit ?? inst.opening_balance);
       usedLimit = Math.max(0, money(openingUsed + totalOutflows - totalInflows));
       availableCredit = Math.max(0, money(creditLimit - usedLimit));
