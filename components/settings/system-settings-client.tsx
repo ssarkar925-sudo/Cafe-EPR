@@ -17,7 +17,7 @@ const DEFAULT: Pref = { hidden: [], order: HUBS.map(([href]) => href) };
 export default function SystemSettingsClient() {
   const [section, setSection] = useState<Section>("general");
   const [pref, setPref] = useState<Pref>(DEFAULT);
-  useEffect(() => { try { const p = JSON.parse(localStorage.getItem(KEY) || "null") as Partial<Pref> | null; if (!p) return; const known = new Set(HUBS.map(([h]) => h)); setPref({ hidden: (p.hidden || []).filter(h => known.has(h)), order: Array.from(new Set([...(p.order || []), ...DEFAULT.order])).filter(h => known.has(h)) }); } catch {} }, []);
+  useEffect(() => { try { const p = JSON.parse(localStorage.getItem(KEY) || "null") as Partial<Pref> | null; if (!p) return; const known = new Set<string>(HUBS.map(([h]) => h)); setPref({ hidden: (p.hidden || []).filter(h => known.has(h)), order: Array.from(new Set([...(p.order || []), ...DEFAULT.order])).filter(h => known.has(h)) }); } catch {} }, []);
   const save = (next: Pref) => { setPref(next); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {} };
   const toggle = (href: string) => save({ ...pref, hidden: pref.hidden.includes(href) ? pref.hidden.filter(h => h !== href) : [...pref.hidden, href] });
   const move = (href: string, d: number) => { const order = [...pref.order], i = order.indexOf(href), j = i + d; if (i < 0 || j < 0 || j >= order.length) return; [order[i], order[j]] = [order[j], order[i]]; save({ ...pref, order }); };
