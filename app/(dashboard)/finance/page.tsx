@@ -22,7 +22,7 @@ export default async function FinancePage() {
     { data: pendingSettlements },
     { data: recentTxns },
   ] = await Promise.all([
-    supabase.rpc("get_pool_balances"),
+    supabase.rpc("get_pool_balances", { p_as_of: today }),
     supabase.from("payment_instruments").select("id, name, type, is_active").order("type").order("name"),
     supabase
       .from("cash_entries")
@@ -48,12 +48,10 @@ export default async function FinancePage() {
       .limit(20),
   ]);
 
-  // Build today's P&L summary
   const entries = (todayEntries ?? []) as any[];
   const todayInflow = entries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const todayOutflow = entries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const monthExpenseTotal = ((monthExpenses ?? []) as any[]).reduce((s, e) => s + Number(e.amount ?? 0), 0);
-
   const pools = (poolBalances ?? {}) as any;
 
   return (
