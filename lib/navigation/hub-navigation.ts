@@ -2,35 +2,125 @@ export type WorkingItem={label:string;description:string;href:string;shortcut?:s
 export type MainModule={id:string;label:string;description:string;items:WorkingItem[]};
 export type Hub={id:string;label:string;description:string;icon:string;modules:MainModule[]};
 
-// Canonical ownership: each capability has one mother Hub. Other workflows may invoke it contextually; never duplicate it.
+// Canonical ownership: every capability has one mother Hub and one canonical entry point.
+// Contextual workflows may invoke these pages, but the Hub navigation never duplicates them.
 export const HUBS:Hub[]=[
 {id:"sales",label:"Sales Hub",description:"Sell, bill, serve customers and manage returns",icon:"◈",modules:[
-{id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[{label:"POS",description:"Full counter billing workstation",href:"/pos",shortcut:"F2"},{label:"Quick Sale",description:"Fast product and service billing",href:"/pos?mode=quick"},{label:"Invoices & Sales",description:"Search, review and manage invoices",href:"/invoices"}]},
-{id:"customers",label:"Customers",description:"Customer relationships, credit and collections",items:[{label:"Customer Directory",description:"Profiles and transaction history",href:"/customers"},{label:"Customer Dues",description:"Outstanding balances and collections",href:"/customers"},{label:"Credit Limits",description:"Customer credit controls",href:"/customers"}]},
-{id:"returns",label:"Returns",description:"Refunds, returns and credit reversals",items:[{label:"Returns & Credit",description:"Process returns and reversal vouchers",href:"/returns"}]}
+{id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[
+{label:"POS",description:"Full counter billing workstation",href:"/pos",shortcut:"F2"},
+{label:"Quick Sale",description:"Fast product and service billing",href:"/pos?mode=quick"},
+{label:"Invoices & Sales",description:"Search, review and manage invoices",href:"/invoices"}
+]},
+{id:"customers",label:"Customers",description:"Customer directory, balances and credit controls",items:[
+{label:"Customer Directory",description:"Profiles, balances, credit controls and transaction history",href:"/customers"}
+]},
+{id:"returns",label:"Returns",description:"Refunds, returns and credit reversals",items:[
+{label:"Returns & Credit",description:"Process returns and reversal vouchers",href:"/returns"}
+]}
 ]},
 {id:"operations",label:"Operations Hub",description:"Catalog, stock, purchasing and suppliers",icon:"▦",modules:[
-{id:"catalog",label:"Catalog",description:"Products, services and master data",items:[{label:"Products",description:"Manage product catalog",href:"/catalog/products"},{label:"Services",description:"Manage service rate cards",href:"/catalog/services"},{label:"Categories",description:"Organize catalog hierarchy",href:"/catalog/categories"},{label:"Brands",description:"Manage product brands",href:"/catalog/brands"},{label:"Units",description:"Manage units of measure",href:"/catalog/units"}]},
-{id:"inventory",label:"Inventory",description:"Stock control and movement history",items:[{label:"Inventory & Stock",description:"Stock levels, valuation and reorder control",href:"/inventory"},{label:"Stock Movements",description:"Audit every stock movement",href:"/inventory/movements"}]},
-{id:"purchases",label:"Purchases",description:"Procurement and supplier intake",items:[{label:"Purchases",description:"Review supplier purchases",href:"/purchases"},{label:"Purchase Entry",description:"Record new stock procurement",href:"/purchases/entry"}]},
-{id:"suppliers",label:"Suppliers",description:"Vendor master and procurement relationships",items:[{label:"Suppliers",description:"Supplier directory and profiles",href:"/suppliers"}]}
+{id:"catalog",label:"Catalog",description:"Products, services and master data",items:[
+{label:"Products",description:"Manage product catalog",href:"/catalog/products"},
+{label:"Services",description:"Manage service rate cards",href:"/catalog/services"},
+{label:"Categories",description:"Organize catalog hierarchy",href:"/catalog/categories"},
+{label:"Brands",description:"Manage product brands",href:"/catalog/brands"},
+{label:"Units",description:"Manage units of measure",href:"/catalog/units"}
+]},
+{id:"inventory",label:"Inventory",description:"Stock control and movement history",items:[
+{label:"Inventory & Stock",description:"Stock levels, valuation and reorder control",href:"/inventory"},
+{label:"Stock Movements",description:"Audit every stock movement",href:"/inventory/movements"}
+]},
+{id:"purchases",label:"Purchases",description:"Procurement and supplier intake",items:[
+{label:"Purchases",description:"Review supplier purchases",href:"/purchases"},
+{label:"Purchase Entry",description:"Record new stock procurement",href:"/purchases/entry"}
+]},
+{id:"suppliers",label:"Suppliers",description:"Vendor master and procurement relationships",items:[
+{label:"Suppliers",description:"Supplier directory and profiles",href:"/suppliers"}
+]}
 ]},
 {id:"business-services",label:"Business Services Hub",description:"Digital, financial, recharge and assisted service operations",icon:"◎",modules:[
-{id:"financial-services",label:"Financial Services",description:"Assisted service transactions",items:[{label:"AEPS",description:"Aadhaar-enabled cash services",href:"/business/aeps"},{label:"DMT",description:"Domestic money transfer",href:"/business/dmt"},{label:"UPI",description:"UPI collection workflows",href:"/business/upi"}]},
-{id:"bill-recharge",label:"Bill & Recharge",description:"Recharge and bill payment services",items:[{label:"Bill Payment",description:"Utility and assisted bill payments",href:"/business/bill-payment"},{label:"Mobile Recharge",description:"Prepaid, postpaid and DTH",href:"/business/bill-payment/mobile-recharge"},{label:"Recharge Plans",description:"Plan and operator management",href:"/business/bill-payment/mobile-recharge/plans"},{label:"Utility Bills",description:"Utility bill workflows",href:"/business/bill-payment/utility"},{label:"Google Play",description:"Google Play top-up services",href:"/business/bill-payment/google-play"}]},
-{id:"service-network",label:"Service Network",description:"Connected service providers and merchant access",items:[{label:"Banks",description:"Service bank configuration",href:"/business/banks"},{label:"Service Portals",description:"Connected service providers and portals",href:"/business/portals"},{label:"Merchant QRs",description:"Merchant QR profiles",href:"/business/merchant-qrs"}]},
-{id:"communication",label:"Communication",description:"Customer communication workflows",items:[{label:"WhatsApp",description:"Operational messaging",href:"/business/whatsapp"}]}
+{id:"financial-services",label:"Financial Services",description:"Assisted service transactions",items:[
+{label:"AEPS",description:"Aadhaar-enabled cash services",href:"/business/aeps"},
+{label:"DMT",description:"Domestic money transfer",href:"/business/dmt"},
+{label:"UPI",description:"UPI collection workflows",href:"/business/upi"}
+]},
+{id:"bill-recharge",label:"Bill & Recharge",description:"Recharge and bill payment services",items:[
+{label:"Bill Payment",description:"Utility and assisted bill payments",href:"/business/bill-payment"},
+{label:"Mobile Recharge",description:"Prepaid, postpaid and DTH",href:"/business/bill-payment/mobile-recharge"},
+{label:"Recharge Plans",description:"Plan and operator management",href:"/business/bill-payment/mobile-recharge/plans"},
+{label:"Utility Bills",description:"Utility bill workflows",href:"/business/bill-payment/utility"},
+{label:"Google Play",description:"Google Play top-up services",href:"/business/bill-payment/google-play"}
+]},
+{id:"service-network",label:"Service Network",description:"Connected service providers and merchant access",items:[
+{label:"Banks",description:"Service bank configuration",href:"/business/banks"},
+{label:"Service Portals",description:"Connected service providers and portals",href:"/business/portals"},
+{label:"Merchant QRs",description:"Merchant QR profiles",href:"/business/merchant-qrs"}
+]},
+{id:"communication",label:"Communication",description:"Customer communication workflows",items:[
+{label:"WhatsApp",description:"Operational messaging",href:"/business/whatsapp"}
+]}
 ]},
 {id:"finance",label:"Finance Hub",description:"One financial source of truth for accounts, cash, settlement and closing",icon:"₹",modules:[
-{id:"accounts",label:"Accounts",description:"Core accounting records",items:[{label:"Accounts",description:"Chart and financial accounts",href:"/finance"},{label:"Ledger",description:"Double-entry account ledgers",href:"/finance/ledger"},{label:"Journal",description:"Journal entries and adjustments",href:"/finance/journal"},{label:"Trial Balance",description:"Debit and credit control",href:"/finance/trial-balance"}]},
-{id:"cash-bank",label:"Cash & Bank",description:"Liquidity, instruments and settlement control",items:[{label:"Cashbook",description:"Daily cash inflow and outflow",href:"/finance/cashbook"},{label:"Payment Instruments",description:"Cash, bank and digital payment instruments",href:"/finance/accounts"},{label:"Reconciliation",description:"Match and clear financial movements",href:"/finance/reconciliation"},{label:"Settlements",description:"Bank, wallet and service settlements",href:"/finance/settlements"}]},
-{id:"profit-loss",label:"Profit & Loss",description:"Business profitability",items:[{label:"P&L",description:"Income, COGS and net profit",href:"/finance/pnl"}]},
-{id:"expenses",label:"Expenses",description:"Operating costs",items:[{label:"Expense Ledger",description:"Categorized operating expenses",href:"/finance/expenses"}]},
-{id:"closing",label:"Closing",description:"Period opening and end-of-day control",items:[{label:"Opening Balances",description:"Seed opening cash and floats",href:"/finance/opening-balances"},{label:"Day Close",description:"Reconcile and lock the daily book",href:"/finance/day-close"}]}
+{id:"accounts",label:"Accounts",description:"Core accounting records",items:[
+{label:"Accounts",description:"Chart and financial accounts",href:"/finance"},
+{label:"Ledger",description:"Double-entry account ledgers",href:"/finance/ledger"},
+{label:"Journal",description:"Journal entries and adjustments",href:"/finance/journal"},
+{label:"Trial Balance",description:"Debit and credit control",href:"/finance/trial-balance"}
 ]},
-{id:"reports",label:"Reports Hub",description:"Business intelligence, tax and audit reporting",icon:"◫",modules:[{id:"business-reports",label:"Business Reports",description:"Performance and operational analytics",items:[{label:"Reports Studio",description:"Sales, margins and activity reports",href:"/reports"}]},{id:"tax",label:"Tax",description:"GST and tax preparation",items:[{label:"GST Reports",description:"GSTR summaries",href:"/reports/gst"},{label:"Tax Preparation / ITR",description:"CA-ready financial preparation",href:"/reports/tax-preparation"}]},{id:"audit",label:"Audit",description:"Security and operational history",items:[{label:"Security Audit Log",description:"Operational event history",href:"/audit"}]}]},
-{id:"tools",label:"Tools Hub",description:"AI intelligence, document processing and notifications",icon:"✦",modules:[{id:"ai",label:"AI",description:"Business intelligence and automation",items:[{label:"AI Control Center",description:"AI business command center",href:"/ai"},{label:"AI Self-Audit",description:"Financial integrity checks",href:"/ai/self-audit"}]},{id:"documents",label:"Document Services",description:"Scan, extract, fill and produce documents",items:[{label:"Document Scan",description:"Capture documents",href:"/documents/scan"},{label:"OCR",description:"Extract text and data",href:"/documents/ocr"},{label:"Scan-Fill",description:"Turn scans into workflows",href:"/documents/scan-fill"},{label:"PDF Tools",description:"Create and process PDFs",href:"/documents/pdf"}]},{id:"notifications",label:"Notifications",description:"Operational alerts and messages",items:[{label:"Notifications",description:"View application notifications",href:"/notifications"}]}]},
-{id:"admin",label:"Admin Hub",description:"People, access, security and system configuration",icon:"⚙",modules:[{id:"staff",label:"Staff",description:"Team accounts and permissions",items:[{label:"Staff Accounts",description:"Manage staff users",href:"/staff"},{label:"Roles & Permissions",description:"Control access by role",href:"/staff"}]},{id:"security",label:"Security",description:"Account and terminal protection",items:[{label:"Security & 2FA",description:"Credentials, TOTP and terminal controls",href:"/security"}]},{id:"system",label:"System",description:"Store-wide configuration",items:[{label:"System Settings",description:"Core configuration",href:"/settings"},{label:"Store Profile",description:"Shop identity and branding",href:"/settings"},{label:"Themes",description:"Application appearance",href:"/settings"},{label:"Automation",description:"System automation",href:"/settings"}]}]}
+{id:"cash-bank",label:"Cash & Bank",description:"Liquidity and settlement control",items:[
+{label:"Cashbook",description:"Daily cash inflow and outflow",href:"/finance/cashbook"},
+{label:"Reconciliation",description:"Match and clear financial movements",href:"/finance/reconciliation"},
+{label:"Settlements",description:"Bank, wallet and service settlements",href:"/finance/settlements"}
+]},
+{id:"profit-loss",label:"Profit & Loss",description:"Business profitability",items:[
+{label:"P&L",description:"Income, COGS and net profit",href:"/finance/pnl"}
+]},
+{id:"expenses",label:"Expenses",description:"Operating costs",items:[
+{label:"Expense Ledger",description:"Categorized operating expenses",href:"/finance/expenses"}
+]},
+{id:"closing",label:"Closing",description:"Period opening and end-of-day control",items:[
+{label:"Opening Balances",description:"Seed opening cash and floats",href:"/finance/opening-balances"},
+{label:"Day Close",description:"Reconcile and lock the daily book",href:"/finance/day-close"}
+]}
+]},
+{id:"reports",label:"Reports Hub",description:"Business intelligence, tax and audit reporting",icon:"◫",modules:[
+{id:"business-reports",label:"Business Reports",description:"Performance and operational analytics",items:[
+{label:"Reports Studio",description:"Sales, margins and activity reports",href:"/reports"}
+]},
+{id:"tax",label:"Tax",description:"GST and tax preparation",items:[
+{label:"GST Reports",description:"GSTR summaries",href:"/reports/gst"},
+{label:"Tax Preparation / ITR",description:"CA-ready financial preparation",href:"/reports/tax-preparation"}
+]},
+{id:"audit",label:"Audit",description:"Security and operational history",items:[
+{label:"Security Audit Log",description:"Operational event history",href:"/audit"}
+]}
+]},
+{id:"tools",label:"Tools Hub",description:"AI intelligence, document processing and notifications",icon:"✦",modules:[
+{id:"ai",label:"AI",description:"Business intelligence and automation",items:[
+{label:"AI Control Center",description:"AI business command center",href:"/ai"},
+{label:"AI Self-Audit",description:"Financial integrity checks",href:"/ai/self-audit"}
+]},
+{id:"documents",label:"Document Services",description:"Scan, extract, fill and produce documents",items:[
+{label:"Document Scan",description:"Capture documents",href:"/documents/scan"},
+{label:"OCR",description:"Extract text and data",href:"/documents/ocr"},
+{label:"Scan-Fill",description:"Turn scans into workflows",href:"/documents/scan-fill"},
+{label:"PDF Tools",description:"Create and process PDFs",href:"/documents/pdf"}
+]},
+{id:"notifications",label:"Notifications",description:"Operational alerts and messages",items:[
+{label:"Notifications",description:"View application notifications",href:"/notifications"}
+]}
+]},
+{id:"admin",label:"Admin Hub",description:"People, access, security and system configuration",icon:"⚙",modules:[
+{id:"staff",label:"Staff",description:"Team accounts and permissions",items:[
+{label:"Staff Accounts & Roles",description:"Manage staff users, roles and permissions",href:"/staff"}
+]},
+{id:"security",label:"Security",description:"Account and terminal protection",items:[
+{label:"Security & 2FA",description:"Credentials, TOTP and terminal controls",href:"/security"}
+]},
+{id:"system",label:"System",description:"Store-wide configuration",items:[
+{label:"System Settings",description:"Core configuration, store profile, themes and automation",href:"/settings"}
+]}
+]}
 ];
 export function getHub(id:string){return HUBS.find(h=>h.id===id)}
 export function getModule(hubId:string,moduleId:string){return getHub(hubId)?.modules.find(m=>m.id===moduleId)}
