@@ -7596,6 +7596,22 @@ function detectIntent(question) {
   // 5. AI Advisor Safety Invariant (Non-mutation)
   const advisorEngineCode = fs.readFileSync("E:/CafeERP/lib/ai/advisor-engine.ts", "utf8");
   assert(advisorEngineCode.includes("Never recalculates financial figures independently or mutates financial state"), "1421. AI Safety: Strict non-mutation policy documented and enforced");
+
+  // 6. WhatsApp Canonical Navigation Invariants
+  const navTs = fs.readFileSync("E:/CafeERP/lib/navigation.ts", "utf8");
+  assert(navTs.includes('id: "whatsapp"'), "1422. Navigation: WhatsApp id present in Business Services Hub");
+  assert(navTs.includes('label: "WhatsApp"'), "1423. Navigation: WhatsApp label defined");
+  assert(navTs.includes('href: "/business/whatsapp"'), "1424. Navigation: Canonical route /business/whatsapp configured");
+  assert(navTs.includes('description: "Customer communication and WhatsApp operations"'), "1425. Navigation: WhatsApp description exact match");
+
+  const sidebarTs = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  assert(sidebarTs.includes('href: "/business/whatsapp"'), "1426. Sidebar: WhatsApp menu item configured");
+
+  const quickNavTs = fs.readFileSync("E:/CafeERP/components/module-quick-nav.tsx", "utf8");
+  assert(quickNavTs.includes('href: "/business/whatsapp"'), "1427. Quick Nav: WhatsApp entry configured");
+
+  assert(searchCode.includes('href: "/business/whatsapp"'), "1428. Global Search: WhatsApp static page entry configured");
+  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/business/whatsapp/page.tsx"), "1429. Route Integrity: /business/whatsapp page file exists");
 }
 
 console.log("\n================================================================================");

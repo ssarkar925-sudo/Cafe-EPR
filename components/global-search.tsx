@@ -26,6 +26,7 @@ const STATIC_PAGES: { title: string; subtitle: string; href: string; keywords: s
   { title: "AEPS Banking", subtitle: "Aadhaar ATM Cash Withdrawal & Balances", href: "/business/aeps", keywords: ["aeps", "aadhaar", "atm", "cash out"] },
   { title: "DMT Money Transfer", subtitle: "Domestic Money Remittance", href: "/business/dmt", keywords: ["dmt", "remittance", "transfer", "money"] },
   { title: "UPI Collections", subtitle: "Dynamic QR & Merchant Soundbox Payments", href: "/business/upi", keywords: ["upi", "qr", "soundbox", "merchant"] },
+  { title: "WhatsApp Desk", subtitle: "Customer Communication & WhatsApp Operations", href: "/business/whatsapp", keywords: ["whatsapp", "chat", "messages", "outbox", "templates", "communication"] },
   { title: "Finance Hub", subtitle: "Financial Command Centre & 7-Pool Matrix", href: "/finance", keywords: ["finance", "treasury", "pool", "capital"] },
   { title: "Daily Cash Book", subtitle: "Daily Cash Movement Ledger & Drawer Counts", href: "/finance/cashbook", keywords: ["cash", "cashbook", "drawer", "movement"] },
   { title: "Double-Entry Journal", subtitle: "Authoritative Inflow & Outflow Journal", href: "/finance/journal", keywords: ["journal", "double entry", "debit", "credit", "postings"] },

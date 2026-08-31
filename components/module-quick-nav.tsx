@@ -50,6 +50,7 @@ export const ALL_AVAILABLE_MODULES: QuickNavItem[] = [
   { id: "aeps", label: "AEPS Cash Out", href: "/business/aeps", icon: "🏧" },
   { id: "dmt", label: "Money Transfer (DMT)", href: "/business/dmt", icon: "💸" },
   { id: "upi", label: "UPI Collections", href: "/business/upi", icon: "📱" },
+  { id: "whatsapp", label: "WhatsApp Desk", href: "/business/whatsapp", icon: "💬" },
   { id: "finance-hub", label: "Finance Hub", href: "/finance", icon: "📊" },
   { id: "cashbook", label: "Daily Cash Book", href: "/finance/cashbook", icon: "📖" },
   { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "📑" },
