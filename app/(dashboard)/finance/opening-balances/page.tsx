@@ -10,6 +10,7 @@ export default async function OpeningBalancesPage() {
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const supabase = await createClient();
+  const today = new Date().toISOString().split("T")[0];
 
   const [
     { data: balances },
@@ -19,7 +20,7 @@ export default async function OpeningBalancesPage() {
     { data: suppliers },
     { data: products },
   ] = await Promise.all([
-    supabase.rpc("get_pool_balances"),
+    supabase.rpc("get_pool_balances", { p_as_of: today }),
     supabase.from("payment_instruments").select("*").order("type").order("name"),
     supabase
       .from("opening_balances")
