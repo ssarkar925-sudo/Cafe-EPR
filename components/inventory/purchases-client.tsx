@@ -174,6 +174,7 @@ export default function PurchasesClient() {
   const calcTotal = Math.round((calcSubtotal + calcTaxTotal) * 100) / 100;
 
   async function handleCreatePurchase(e: React.FormEvent) {
+    if (saving) return;
     e.preventDefault();
     if (items.length === 0) {
       alert("Please add at least one product item to the purchase bill.");
@@ -247,6 +248,7 @@ export default function PurchasesClient() {
   }
 
   async function handleProcessReturn(e: React.FormEvent) {
+    if (returning) return;
     e.preventDefault();
     if (!selectedPurchase) return;
 

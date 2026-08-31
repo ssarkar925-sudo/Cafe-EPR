@@ -229,6 +229,7 @@ export default function DayCloseClient({
   }
 
   async function closeDay() {
+    if (busy || !openClose) return;
     if (!openClose) return;
     setBusy(true);
     const supabase = createClient();
@@ -251,6 +252,7 @@ export default function DayCloseClient({
   }
 
   async function confirmReverse() {
+    if (busy || !reverseTarget) return;
     if (!reverseTarget) return;
     setBusy(true);
     const supabase = createClient();

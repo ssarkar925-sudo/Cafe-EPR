@@ -99,6 +99,7 @@ export default function ReturnModal({
   }
 
   async function submit(e: React.FormEvent) {
+    if (busy) return;
     e.preventDefault();
     setError(null);
     const payload = items

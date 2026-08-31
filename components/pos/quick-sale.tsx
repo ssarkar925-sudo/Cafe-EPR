@@ -510,6 +510,7 @@ export default function QuickSaleModule({
   }
 
   async function record(print: boolean) {
+    if (busy) return;
     setError(null);
     if (cart.length === 0) {
       setError("Add an item to the sale first.");

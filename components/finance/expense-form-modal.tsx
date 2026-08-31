@@ -37,6 +37,7 @@ export default function ExpenseFormModal({
   const [saving, setSaving] = useState(false);
 
   async function submit(e: React.FormEvent) {
+    if (saving) return;
     e.preventDefault();
     setSaving(true);
     await onSave({
