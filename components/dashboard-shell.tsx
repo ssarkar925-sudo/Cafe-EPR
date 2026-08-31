@@ -18,8 +18,8 @@ const PAGE_META: Record<string, { title: string; desc: string }> = {
   "/customers": { title: "Customer Directory", desc: "CRM, dues tracking & credit limits" },
   "/returns": { title: "Returns & Credit", desc: "Item returns, refunds & reversal vouchers" },
   "/catalog": { title: "Catalog Masters", desc: "Products, services & categorization" },
-  "/business": { title: "Business Hub", desc: "AEPS, DMT, UPI & business service operations" },
-  "/finance": { title: "Finance & Accounts", desc: "Cash book, P&L, day-close & liquid float" },
+  "/business": { title: "Business Services", desc: "AEPS, DMT, UPI & assisted service operations" },
+  "/finance": { title: "Finance", desc: "One source of truth for accounts, cash and settlement" },
   "/inventory": { title: "Inventory & Stock", desc: "Real-time stock valuation & reorder alerts" },
   "/purchases": { title: "Purchases", desc: "Vendor invoices & stock intake" },
   "/suppliers": { title: "Suppliers", desc: "Vendor directory & accounts payable" },
@@ -34,15 +34,13 @@ const PAGE_META: Record<string, { title: string; desc: string }> = {
 function metaFor(pathname: string) {
   const exact = PAGE_META[pathname];
   if (exact) return exact;
-  for (const key of Object.keys(PAGE_META)) {
-    if (pathname.startsWith(key + "/")) return PAGE_META[key];
-  }
+  for (const key of Object.keys(PAGE_META)) if (pathname.startsWith(key + "/")) return PAGE_META[key];
   return { title: "Café ERP", desc: "Enterprise Cybercafe & Retail ERP" };
 }
 
 function Avatar({ name, avatarUrl, size = "h-8 w-8" }: { name: string; avatarUrl: string | null; size?: string }) {
   if (avatarUrl) return <img src={avatarUrl} alt="" className={`${size} rounded-xl object-cover`} />;
-  return <div className={`${size} flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-black text-white shadow-sm`}>{(name || "U").slice(0, 2).toUpperCase()}</div>;
+  return <div className={`${size} flex items-center justify-center rounded-xl bg-slate-950 text-xs font-black text-white dark:bg-white dark:text-slate-950`}>{(name || "U").slice(0, 2).toUpperCase()}</div>;
 }
 
 export default function DashboardShell({ name, email, role, shopName, logoUrl, avatarUrl, userId, children }: { name: string; email: string; role: string; shopName: string; logoUrl: string | null; avatarUrl: string | null; userId: string; children: React.ReactNode }) {
@@ -73,7 +71,7 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
           <button type="button" onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">{collapsed ? "›" : "‹"}</button>
           <div><div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400"><span>Café ERP</span><span>/</span><span className="text-blue-600 dark:text-blue-400">{meta.title}</span></div><h1 className="text-base font-extrabold">{meta.title}</h1></div>
         </div>
-        <button type="button" onClick={() => setSearchOpen(true)} className="flex w-96 items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-1.5 text-xs text-slate-400 hover:border-blue-400 dark:border-white/10 dark:bg-white/[0.03]"><span>⌕</span><span className="flex-1 text-left">Search anything (invoices, items, customers)…</span><kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-black dark:border-white/10 dark:bg-slate-800">⌘K</kbd></button>
+        <button type="button" onClick={() => setSearchOpen(true)} className="flex w-96 items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-1.5 text-xs text-slate-400 hover:border-blue-400 dark:border-white/10 dark:bg-white/[0.03]"><span>⌕</span><span className="flex-1 text-left">Search anything…</span><kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-black dark:border-white/10 dark:bg-slate-800">⌘K</kbd></button>
         <div className="flex items-center gap-3"><Link href="/pos" className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700">+ New Bill <kbd className="rounded bg-blue-700 px-1 py-0.2 text-[9px]">F2</kbd></Link><CloudSyncBadge /><ThemeToggle /><NotificationBell role={role} /><Link href="/settings" className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 pr-2.5 dark:border-white/10 dark:bg-white/[0.04]"><Avatar name={name} avatarUrl={avatarUrl} size="h-6 w-6" /><span className="text-xs font-bold">{name || "Admin"}</span></Link></div>
       </header>
       <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6">{children}</div>
