@@ -594,6 +594,7 @@ export default function UtilityBillWorkspace({
       // 1. Generate a collision-resistant transaction number.
       // Count-based numbering is race-prone: two simultaneous payments can read the same count.
       const nextNum = `BIL-${todayDate.replace(/-/g, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+      const txnNumber = nextNum;
 
       // 2. Post to Canonical transactions Table
       const insertPayload = {
