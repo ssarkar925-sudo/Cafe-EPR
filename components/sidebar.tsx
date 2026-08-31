@@ -24,13 +24,13 @@ export type NavItem = {
 export type NavSection = { title: string; items: NavItem[] };
 
 const BADGE_STYLES: Record<BadgeTone, string> = {
-  emerald: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  amber: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  indigo: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
-  purple: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  rose: "bg-rose-500/20 text-rose-400 border-rose-500/30",
-  blue: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  slate: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  emerald: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30",
+  amber: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30",
+  indigo: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30",
+  purple: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30",
+  rose: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30",
+  blue: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30",
+  slate: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/30",
 };
 
 const ICONS: Record<string, string> = {
@@ -174,8 +174,8 @@ export default function Sidebar({
         title: "Operate",
         items: [
           { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
-          { label: "POS & Quick Sale", href: "/pos", icon: "pos", badge: { text: "F2 Fast", tone: "emerald" } },
-          { label: "Invoices & Sales", href: "/invoices", icon: "invoices" },
+          { label: "POS Billing", href: "/pos", icon: "pos", badge: { text: "F2 Fast", tone: "emerald" } },
+          { label: "Sales & Invoices", href: "/invoices", icon: "invoices" },
           { label: "Customers", href: "/customers", icon: "customers" },
         ],
       },
@@ -200,6 +200,8 @@ export default function Sidebar({
             ],
           },
           { label: "AEPS Cash Out", href: "/business/aeps", icon: "aeps" },
+          { label: "Money Transfer (DMT)", href: "/business/dmt", icon: "dmt" },
+          { label: "UPI Collections", href: "/business/upi", icon: "upi" },
         ],
       },
       {
@@ -270,42 +272,34 @@ export default function Sidebar({
 
       {/* Main Sidebar Element */}
       <aside
-        style={{
-          backgroundColor: "var(--sidebar-bg)",
-          borderColor: "var(--sidebar-border)",
-          color: "var(--sidebar-text)",
-        }}
-        className={`spatial-sidebar-dock fixed inset-y-0 left-0 lg:top-3 lg:bottom-3 lg:left-3 lg:h-[calc(100vh-24px)] lg:rounded-[24px] z-50 flex flex-col transition-all duration-300 ${
+        className={`fixed inset-y-0 left-0 lg:top-3 lg:bottom-3 lg:left-3 lg:h-[calc(100vh-24px)] lg:rounded-[24px] z-50 flex flex-col transition-all duration-300 shadow-xl border border-slate-200/90 bg-white/95 text-slate-800 dark:border-white/10 dark:bg-slate-900/95 dark:text-slate-100 backdrop-blur-xl ${
           collapsed ? "w-[72px]" : "w-[270px]"
         } ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         {/* 1. Brand Header */}
-        <div
-          style={{ borderColor: "var(--sidebar-border)" }}
-          className="flex h-16 shrink-0 items-center justify-between border-b px-4"
-        >
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 dark:border-white/10 px-4">
           <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-white/20">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt="Logo" className="h-6 w-6 object-contain" />
               ) : (
-                <span className="text-base font-black">☕</span>
+                <span className="text-lg font-black">☕</span>
               )}
             </div>
 
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-black tracking-tight text-white">
+                  <span className="truncate text-sm font-black tracking-tight text-slate-900 dark:text-white">
                     {shopName || "Cafe ERP"}
                   </span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 </div>
-                <span className="block truncate text-[11px] font-semibold text-slate-400">
-                  Daily Operations
+                <span className="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  Daily Counter Operations
                 </span>
               </div>
             )}
@@ -320,16 +314,16 @@ export default function Sidebar({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Quick jump..."
-                className="w-full rounded-xl border border-white/5 bg-white/[0.03] py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:bg-white/[0.06] focus:outline-none"
+                placeholder="Jump to menu..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-slate-500"
               />
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-500">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
                 <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" className="h-3.5 w-3.5" />
               </div>
               {query && (
                 <button
                   onClick={() => setQuery("")}
-                  className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-white"
+                  className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
                 >
                   ✕
                 </button>
@@ -347,7 +341,7 @@ export default function Sidebar({
                 {!collapsed && (
                   <button
                     onClick={() => toggleSection(section.title)}
-                    className="flex w-full items-center justify-between px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition"
+                    className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 transition"
                   >
                     <span>{section.title}</span>
                     <Icon
@@ -371,12 +365,12 @@ export default function Sidebar({
                               onClick={(e) => toggleSubItem(item.label, e)}
                               className={`group relative flex cursor-pointer items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition select-none ${
                                 isActive
-                                  ? "bg-blue-600/15 text-blue-400 shadow-sm ring-1 ring-blue-500/20"
-                                  : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                                  ? "bg-blue-50 text-blue-700 font-black border-l-4 border-blue-600 shadow-sm dark:bg-blue-600/15 dark:text-blue-400 dark:border-blue-500"
+                                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
                               }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${isActive ? "text-blue-400" : "text-slate-400 group-hover:text-white"}`}>
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"}`}>
                                   <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
                                 </span>
                                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -395,15 +389,12 @@ export default function Sidebar({
                               onClick={onMobileClose}
                               className={`group relative flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition ${
                                 isActive
-                                  ? "bg-blue-600/15 text-blue-400 shadow-sm ring-1 ring-blue-500/20"
-                                  : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                                  ? "bg-blue-50 text-blue-700 font-black border-l-4 border-blue-600 shadow-sm dark:bg-blue-600/15 dark:text-blue-400 dark:border-blue-500"
+                                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
                               }`}
                             >
-                              {isActive && (
-                                <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-blue-500 shadow-sm shadow-blue-500" />
-                              )}
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${isActive ? "text-blue-400" : "text-slate-400 group-hover:text-white"}`}>
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"}`}>
                                   <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
                                 </span>
                                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -419,7 +410,7 @@ export default function Sidebar({
 
                           {/* Children dropdown */}
                           {hasChildren && isSubOpen && !collapsed && (
-                            <div className="ml-5 mt-0.5 space-y-0.5 border-l border-white/10 pl-2">
+                            <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 dark:border-white/10 pl-2">
                               {item.children?.map((child) => {
                                 const isChildActive = isItemActive(child.href);
                                 return (
@@ -429,8 +420,8 @@ export default function Sidebar({
                                     onClick={onMobileClose}
                                     className={`group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                                       isChildActive
-                                        ? "bg-blue-500/10 text-blue-400 font-bold"
-                                        : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
+                                        ? "bg-blue-50 text-blue-700 font-black dark:bg-blue-500/10 dark:text-blue-400"
+                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.04] dark:hover:text-slate-200"
                                     }`}
                                   >
                                     <span className="truncate">{child.label}</span>
@@ -455,28 +446,25 @@ export default function Sidebar({
         </div>
 
         {/* 4. Bottom System Controls (Settings, AI, Profile) */}
-        <div
-          style={{ borderColor: "var(--sidebar-border)" }}
-          className="border-t px-3 py-2 space-y-1 shrink-0 bg-black/10"
-        >
+        <div className="border-t border-slate-200/80 dark:border-white/10 px-3 py-2 space-y-1 shrink-0 bg-slate-50/80 dark:bg-black/20">
           {/* AI Self-Audit */}
           <Link
             href="/ai/self-audit"
             onClick={onMobileClose}
             className={`group flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition ${
               pathname?.startsWith("/ai")
-                ? "bg-purple-600/20 text-purple-300 ring-1 ring-purple-500/30"
-                : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                ? "bg-purple-50 text-purple-700 border-l-4 border-purple-600 dark:bg-purple-600/20 dark:text-purple-300 dark:border-purple-500"
+                : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-purple-400">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-purple-600 dark:text-purple-400">
                 <Icon d={ICONS.ai} className="h-4 w-4" />
               </span>
               {!collapsed && <span className="truncate">AI Self-Audit</span>}
             </div>
             {!collapsed && (
-              <span className="rounded-md border border-purple-500/30 bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-extrabold text-purple-300">
+              <span className="rounded-md border border-purple-200 bg-purple-100 px-1.5 py-0.5 text-[9px] font-extrabold text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/20 dark:text-purple-300">
                 100%
               </span>
             )}
@@ -488,18 +476,18 @@ export default function Sidebar({
             onClick={onMobileClose}
             className={`group flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition ${
               pathname === "/settings"
-                ? "bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/30"
-                : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                ? "bg-blue-50 text-blue-700 border-l-4 border-blue-600 dark:bg-blue-600/20 dark:text-blue-300 dark:border-blue-500"
+                : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-blue-400">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-blue-600 dark:text-blue-400">
                 <Icon d={ICONS.settings} className="h-4 w-4" />
               </span>
               {!collapsed && <span className="truncate">System Settings</span>}
             </div>
             {!collapsed && (
-              <span className="rounded-md border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-extrabold text-blue-300">
+              <span className="rounded-md border border-blue-200 bg-blue-100 px-1.5 py-0.5 text-[9px] font-extrabold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-300">
                 Control Hub
               </span>
             )}
@@ -509,9 +497,9 @@ export default function Sidebar({
           <div className="pt-1 flex items-center justify-between">
             <div
               onClick={() => setProfileOpen(true)}
-              className="flex flex-1 items-center gap-2 rounded-xl p-1.5 hover:bg-white/[0.05] cursor-pointer transition min-w-0"
+              className="flex flex-1 items-center gap-2 rounded-xl p-1.5 hover:bg-slate-200/70 dark:hover:bg-white/[0.05] cursor-pointer transition min-w-0"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-black text-white shadow-sm">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-black text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10">
                 {currentAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={currentAvatar} alt="" className="h-8 w-8 rounded-xl object-cover" />
@@ -521,10 +509,10 @@ export default function Sidebar({
               </div>
               {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-white">
+                  <span className="block truncate text-xs font-bold text-slate-900 dark:text-white">
                     {name || "Admin User"}
                   </span>
-                  <span className="block truncate text-[10px] font-semibold text-slate-400 uppercase">
+                  <span className="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
                     {role || "Admin"}
                   </span>
                 </div>
@@ -536,14 +524,14 @@ export default function Sidebar({
                 <button
                   onClick={handleSignOut}
                   title="Sign Out"
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition"
                 >
                   <Icon d={ICONS.logout} className="h-4 w-4" />
                 </button>
                 <button
                   onClick={onToggle}
                   title="Collapse Sidebar"
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition"
                 >
                   <Icon d="M11 19l-7-7 7-7m8 14l-7-7 7-7" className="h-4 w-4" />
                 </button>

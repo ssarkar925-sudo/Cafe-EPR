@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import SettingsCommandShell from "@/components/settings/settings-command-shell";
+import SettingsClient from "@/components/settings/settings-client";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const supabase = await createClient();
 
   // Preload all settings datasets so every module is ready on first open.
-  // This also keeps direct module URLs consistent with the main settings workspace.
   const needsAccounts = true;
   const needsFavorites = true;
   const needsMethods = true;
@@ -122,59 +121,39 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   // 3. Tagged settlements
   for (const s of (settlementRows ?? []) as any[]) {
-    const amt = Number(s.amount) || 0;
-    if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
-      instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + amt;
-    }
     if (s.source_instrument_id && instDeltas[s.source_instrument_id] !== undefined) {
-      instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - amt;
+      instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - Number(s.amount);
+    }
+    if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
+      instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + Number(s.amount);
     }
   }
 
-  const instList = (instruments ?? []) as any[];
-  const accounts = instList.map((i: any) => {
-    const poolKey = POOL_MAP[i.type];
-    const poolEntry = poolKey ? pool[poolKey] : undefined;
-
-    // 1. Linked Debit Card: reflects its linked bank account
+  // Build full instrument balance map
+  const accounts = (instruments ?? []).map((i: any) => {
+    // 1. Debit card reflects linked bank account
     if (i.type === "debit_card") {
-      const linkedBankId = i.details?.linked_bank_instrument_id || (instList.filter((b: any) => b.type === "bank").length === 1 ? instList.find((b: any) => b.type === "bank")?.id : null);
-      const linkedBank = linkedBankId ? instList.find((b: any) => b.id === linkedBankId) : null;
-      
-      let bankBal = 0;
-      let bankOpening = 0;
+      const linkedBank = (instruments ?? []).find((b: any) => b.id === i.details?.linked_bank_instrument_id);
+      let bankLiveBalance = 0;
       if (linkedBank) {
-        const bankPoolKey = POOL_MAP[linkedBank.type];
-        const bankPoolEntry = bankPoolKey ? pool[bankPoolKey] : undefined;
-        if (bankPoolEntry && (countPerType["bank"] ?? 0) <= 1) {
-          bankBal = bankPoolEntry.current ?? bankPoolEntry.opening + bankPoolEntry.movements;
-          bankOpening = bankPoolEntry.opening;
+        if ((countPerType["bank"] ?? 0) <= 1) {
+          const bankPool = pool["bank"];
+          bankLiveBalance = bankPool ? (bankPool.current ?? bankPool.opening + bankPool.movements) : Number(linkedBank.opening_balance ?? 0);
         } else {
-          bankBal = Number(linkedBank.opening_balance ?? 0) + (instDeltas[linkedBank.id] ?? 0);
-          bankOpening = Number(linkedBank.opening_balance ?? 0);
+          bankLiveBalance = Number(linkedBank.opening_balance ?? 0) + (instDeltas[linkedBank.id] ?? 0);
         }
-      } else if (pool["bank"]) {
-        bankBal = pool["bank"].current ?? pool["bank"].opening + pool["bank"].movements;
-        bankOpening = pool["bank"].opening;
       }
-
       return {
         ...i,
-        balance: bankBal,
-        opening_balance: bankOpening,
+        opening_balance: 0,
+        balance: bankLiveBalance,
       };
     }
 
-    // 2. Credit Card: reflects available limit
-    if (i.type === "credit_card") {
-      const creditEntry = pool["credit_card"];
-      return {
-        ...i,
-        balance: creditEntry ? (creditEntry.current ?? creditEntry.opening + creditEntry.movements) : (Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0)),
-      };
-    }
+    const poolKey = POOL_MAP[i.type];
+    const poolEntry = poolKey ? pool[poolKey] : null;
 
-    // 3. Single active account for its type: authoritative pool balance
+    // 2. Single-account pool
     if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
       return {
         ...i,
@@ -183,7 +162,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       };
     }
 
-    // 4. Multi-account pool: individual opening + tagged movements
+    // 3. Multi-account pool: individual opening + tagged movements
     return {
       ...i,
       balance: Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0),
@@ -196,7 +175,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   }
 
   return (
-    <SettingsCommandShell
+    <SettingsClient
       initial={(settings ?? null) as any}
       initialInstruments={accounts as any}
       initialServices={(services ?? []) as any}
