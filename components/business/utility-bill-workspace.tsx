@@ -661,9 +661,6 @@ export default function UtilityBillWorkspace({
         newTxn = primaryTxn;
       }
 
-      // Always use the database record's actual transaction number for every downstream posting/audit.
-      const txnNumber = newTxn.transaction_number || nextNum;
-
       // 3. Customer Collection Accounting Leg
       if (customerPayMethod !== "due" && totalCustomerDebit > 0) {
         const payInst = instruments.find((i) => i.id === customerPayInstId) || selectedFundingAccount;
