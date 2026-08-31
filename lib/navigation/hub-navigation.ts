@@ -3,7 +3,8 @@ export type MainModule={id:string;label:string;description:string;items:WorkingI
 export type Hub={id:string;label:string;description:string;icon:string;modules:MainModule[]};
 
 // Canonical ownership: every capability has one mother Hub and one canonical entry point.
-// Contextual workflows may invoke these pages, but the Hub navigation never duplicates them.
+// Contextual workflows may invoke specialized pages, but Hub navigation exposes only the
+// minimum canonical working places. Child workflows belong inside their parent workspace.
 export const HUBS:Hub[]=[
 {id:"sales",label:"Sales Hub",description:"Sell, bill, serve customers and manage returns",icon:"◈",modules:[
 {id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[
@@ -31,11 +32,10 @@ export const HUBS:Hub[]=[
 {label:"Stock Movements",description:"Audit every stock movement",href:"/inventory/movements"}
 ]},
 {id:"purchases",label:"Purchases",description:"Procurement and supplier intake",items:[
-{label:"Purchases",description:"Review supplier purchases",href:"/purchases"},
-{label:"Purchase Entry",description:"Record new stock procurement",href:"/purchases/entry"}
+{label:"Purchases",description:"Review supplier purchases and start new procurement",href:"/purchases"}
 ]},
 {id:"suppliers",label:"Suppliers",description:"Vendor master and procurement relationships",items:[
-{label:"Suppliers",description:"Supplier directory and profiles",href:"/suppliers"}
+{label:"Suppliers",description:"Supplier directory, balances and payment history",href:"/suppliers"}
 ]}
 ]},
 {id:"business-services",label:"Business Services Hub",description:"Digital, financial, recharge and assisted service operations",icon:"◎",modules:[
@@ -44,12 +44,8 @@ export const HUBS:Hub[]=[
 {label:"DMT",description:"Domestic money transfer",href:"/business/dmt"},
 {label:"UPI",description:"UPI collection workflows",href:"/business/upi"}
 ]},
-{id:"bill-recharge",label:"Bill & Recharge",description:"Recharge and bill payment services",items:[
-{label:"Bill Payment",description:"Utility and assisted bill payments",href:"/business/bill-payment"},
-{label:"Mobile Recharge",description:"Prepaid, postpaid and DTH",href:"/business/bill-payment/mobile-recharge"},
-{label:"Recharge Plans",description:"Plan and operator management",href:"/business/bill-payment/mobile-recharge/plans"},
-{label:"Utility Bills",description:"Utility bill workflows",href:"/business/bill-payment/utility"},
-{label:"Google Play",description:"Google Play top-up services",href:"/business/bill-payment/google-play"}
+{id:"bill-recharge",label:"Bill & Recharge",description:"All recharge and bill-payment workflows in one workspace",items:[
+{label:"Bill Payment",description:"Utility bills, mobile recharge and recharge configuration",href:"/business/bill-payment"}
 ]},
 {id:"service-network",label:"Service Network",description:"Connected service providers and merchant access",items:[
 {label:"Banks",description:"Service bank configuration",href:"/business/banks"},
