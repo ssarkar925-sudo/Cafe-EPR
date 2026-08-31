@@ -12,10 +12,12 @@ import ReconciliationPage from "@/app/(dashboard)/finance/reconciliation/page";
 import OpeningBalancesPage from "@/app/(dashboard)/finance/opening-balances/page";
 import AccountsPage from "@/app/(dashboard)/finance/accounts/page";
 import DayClosePage from "@/app/(dashboard)/finance/day-close/page";
+import AccountingTransactionsPage from "@/app/(dashboard)/finance/transactions/page";
+import GeneralLedgerPage from "@/app/(dashboard)/finance/general-ledger/page";
 
 export const dynamic = "force-dynamic";
 
-type FinanceModule = "cashbook" | "journal" | "settlements" | "trial-balance" | "expenses" | "pnl" | "ledger" | "reconciliation" | "opening-balances" | "accounts" | "day-close";
+type FinanceModule = "cashbook" | "journal" | "settlements" | "trial-balance" | "expenses" | "pnl" | "ledger" | "general-ledger" | "transactions" | "reconciliation" | "opening-balances" | "accounts" | "day-close";
 
 const MODULES: Record<FinanceModule, React.ComponentType<any>> = {
   cashbook: CashBookPage,
@@ -25,6 +27,8 @@ const MODULES: Record<FinanceModule, React.ComponentType<any>> = {
   expenses: ExpensesPage,
   pnl: PnlPage,
   ledger: LedgerPage,
+  "general-ledger": GeneralLedgerPage,
+  transactions: AccountingTransactionsPage,
   reconciliation: ReconciliationPage,
   "opening-balances": OpeningBalancesPage,
   accounts: AccountsPage,
@@ -49,7 +53,6 @@ export default async function FinancePage({
   const requested = typeof params.module === "string" ? params.module : "";
 
   // All Finance modules render inside the same /finance workspace.
-  // No module click redirects to Settings, Dashboard, or another section.
   if (requested && requested in MODULES) {
     const ModulePage = MODULES[requested as FinanceModule];
     return (
