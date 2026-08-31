@@ -1,8 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import AppearancePanel from "@/components/settings/appearance-panel";
-import WhatsAppTrackerPanel from "@/components/settings/whatsapp-tracker-panel";
+
+const AppearancePanel = dynamic(() => import("@/components/settings/appearance-panel"), {
+  ssr: false,
+  loading: () => <SettingsPanelSkeleton />,
+});
+
+const WhatsAppTrackerPanel = dynamic(() => import("@/components/settings/whatsapp-tracker-panel"), {
+  ssr: false,
+  loading: () => <SettingsPanelSkeleton />,
+});
 
 type Section = "general" | "whatsapp" | "appearance" | "sidebar" | "security" | "staff" | "audit" | "ai";
 type Pref = { hidden: string[]; order: string[]; removed: string[] };
@@ -129,6 +138,17 @@ export default function SystemSettingsClient() {
     {section === "audit" && <SystemPlaceholder title="Audit" href="/audit" />}
     {section === "ai" && <SystemPlaceholder title="AI Control Center" href="/ai" />}
   </div>;
+}
+
+function SettingsPanelSkeleton() {
+  return (
+    <section className="mt-6 space-y-4" aria-busy="true" aria-label="Loading settings panel">
+      <div className="h-32 animate-pulse rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900" />)}
+      </div>
+    </section>
+  );
 }
 
 function SystemPlaceholder({ title, href }: { title: string; href: string }) {
