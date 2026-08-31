@@ -12,6 +12,7 @@ const HUBS = [
   ["/business/aeps", "AEPS"], ["/business/upi", "UPI"], ["/invoices", "Invoices"], ["/inventory", "Inventory"],
   ["/finance/expenses", "Expenses"], ["/customers", "Customers"], ["/finance", "Finance"], ["/reports", "Reports"],
 ] as const;
+type Hub = (typeof HUBS)[number];
 const DEFAULT: Pref = { hidden: [], order: HUBS.map(([href]) => href), removed: [] };
 
 export default function SystemSettingsClient() {
@@ -78,7 +79,7 @@ export default function SystemSettingsClient() {
 
   const removedHubs = pref.removed
     .map(href => HUBS.find(([h]) => h === href))
-    .filter((hub): hub is readonly [string, string] => Boolean(hub));
+    .filter((hub): hub is Hub => Boolean(hub));
 
   return <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 lg:px-8">
     <header className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm dark:border-white/10 dark:bg-slate-900">
