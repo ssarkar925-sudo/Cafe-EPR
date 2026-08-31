@@ -605,7 +605,8 @@ export default function UtilityBillWorkspace({
         transaction_timestamp: todayIso,
         customer_id: selectedCustomerId || null,
         customer_mobile: customerMobile.replace(/\D/g, "") || null,
-        reference: reference.trim() || consumerId.trim(),
+        reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,
+
         remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
         status: "success",
         instrument_id: fundingInstId,
