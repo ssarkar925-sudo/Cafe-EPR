@@ -104,7 +104,7 @@ export default function GlobalSearch({
 
       const ilike = `%${needle}%`;
 
-      const [cust, prods, servs, invs] = await Promise.all([
+      const [cust, prods, servs, invs, sups, txns] = await Promise.all([
         supabaseRef
           .from("customers")
           .select("id, name, code, phone, email")
@@ -126,6 +126,17 @@ export default function GlobalSearch({
           .from("invoices")
           .select("id, invoice_number, customers(name), total")
           .ilike("invoice_number", ilike)
+          .limit(5),
+        supabaseRef
+          .from("suppliers")
+          .select("id, name, code, phone")
+          .eq("is_active", true)
+          .or(`name.ilike.${ilike},code.ilike.${ilike}`)
+          .limit(5),
+        supabaseRef
+          .from("transactions")
+          .select("id, transaction_number, service_type, reference, total_amount")
+          .or(`transaction_number.ilike.${ilike},reference.ilike.${ilike}`)
           .limit(5),
       ]);
 
@@ -158,6 +169,20 @@ export default function GlobalSearch({
           title: i.invoice_number as string,
           subtitle: `${(i as any).customers?.name ?? "Walk-in"} · ${inr(Number(i.total))}`,
           href: `/invoices?q=${encodeURIComponent(i.invoice_number as string)}`,
+        });
+      for (const sp of sups.data ?? [])
+        out.push({
+          type: "Supplier",
+          title: sp.name as string,
+          subtitle: `${sp.code ?? ""}${sp.phone ? " · " + sp.phone : ""}`.trim(),
+          href: `/suppliers`,
+        });
+      for (const t of txns.data ?? [])
+        out.push({
+          type: "Transaction",
+          title: t.transaction_number as string,
+          subtitle: `${(t.service_type ?? "service").toUpperCase()}${t.reference ? " · Ref: " + t.reference : ""} · ${inr(Number(t.total_amount))}`,
+          href: `/business/bill-payment?tab=history`,
         });
 
       setResults(out);

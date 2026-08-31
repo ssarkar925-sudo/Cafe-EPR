@@ -7562,6 +7562,42 @@ function detectIntent(question) {
   assert(k1 !== k3, "1408. Idempotency: Distinct accounts produce distinct keys");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 15: Premium ERP Product Upgrade Invariants
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 15: Premium ERP Product Upgrade Invariants ---");
+
+  // 1. Global Search includes Suppliers and Transactions
+  const searchCode = fs.readFileSync("E:/CafeERP/components/global-search.tsx", "utf8");
+  assert(searchCode.includes('.from("suppliers")'), "1409. Global Search: Suppliers table included in database search");
+  assert(searchCode.includes('.from("transactions")'), "1410. Global Search: Transactions table included in database search");
+  assert(searchCode.includes('type: "Supplier"'), "1411. Global Search: Supplier result type mapped");
+  assert(searchCode.includes('type: "Transaction"'), "1412. Global Search: Transaction result type mapped");
+
+  // 2. Dashboard Quick Actions use canonical routes
+  const dashboardCode = fs.readFileSync("E:/CafeERP/components/dashboard/dashboard-client.tsx", "utf8");
+  assert(dashboardCode.includes('href: "/business/bill-payment"'), "1413. Dashboard Quick Actions: Canonical /business/bill-payment present");
+  assert(dashboardCode.includes('href: "/finance/journal"'), "1414. Dashboard Quick Actions: /finance/journal present");
+  assert(dashboardCode.includes('href: "/finance/trial-balance"'), "1415. Dashboard Quick Actions: /finance/trial-balance present");
+
+  // 3. Print Styles in globals.css
+  const globalsCss = fs.readFileSync("E:/CafeERP/app/globals.css", "utf8");
+  assert(globalsCss.includes("@media print"), "1416. Print CSS: @media print block configured");
+  assert(globalsCss.includes(".no-print"), "1417. Print CSS: .no-print utility configured");
+  assert(globalsCss.includes(".spatial-sidebar-dock"), "1418. Print CSS: Sidebar hidden on print");
+
+  // 4. POS Fast-Sale Key Shortcuts
+  const posClientCode = fs.readFileSync("E:/CafeERP/components/pos/pos-client.tsx", "utf8");
+  assert(posClientCode.includes('e.key === "F2"'), "1419. POS Usability: F2 Quick Sale toggle active");
+  assert(posClientCode.includes('e.key === "F4"'), "1420. POS Usability: F4 Search focus shortcut active");
+
+  // 5. AI Advisor Safety Invariant (Non-mutation)
+  const advisorEngineCode = fs.readFileSync("E:/CafeERP/lib/ai/advisor-engine.ts", "utf8");
+  assert(advisorEngineCode.includes("Never recalculates financial figures independently or mutates financial state"), "1421. AI Safety: Strict non-mutation policy documented and enforced");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

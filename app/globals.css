@@ -830,3 +830,47 @@ input:focus, select:focus, textarea:focus {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   Print Styles for ERP Invoices, Thermal Receipts & Statutory Reports
+   ========================================================================== */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  aside,
+  nav,
+  header,
+  .no-print,
+  .spatial-sidebar-dock,
+  button:not(.allow-print),
+  .toast,
+  [data-radix-portal] {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .page-break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .page-break-after-always {
+    break-after: page;
+    page-break-after: always;
+  }
+}
+
