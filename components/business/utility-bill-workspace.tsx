@@ -597,7 +597,7 @@ export default function UtilityBillWorkspace({
 
       // 2. Post to Canonical transactions Table
       const insertPayload = {
-        transaction_number: txnNumber,
+        transaction_number: nextNum,
         service_type: "bill_payment",
         direction: "in",
         transaction_date: todayDate,
