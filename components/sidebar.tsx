@@ -142,13 +142,10 @@ export default function Sidebar({
   const [openSections, setOpenSections] = useState<Set<string>>(
     () =>
       new Set([
-        "Counter",
+        "Operate",
+        "Management",
         "Services",
-        "Inventory",
         "Finance",
-        "Reports",
-        "Intelligence",
-        "Admin",
       ])
   );
 
@@ -174,21 +171,25 @@ export default function Sidebar({
   const sections: NavSection[] = useMemo(
     () => [
       {
-        title: "Counter",
+        title: "Operate",
         items: [
+          { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
           { label: "POS & Quick Sale", href: "/pos", icon: "pos", badge: { text: "F2 Fast", tone: "emerald" } },
           { label: "Invoices & Sales", href: "/invoices", icon: "invoices" },
-          { label: "Returns", href: "/returns", icon: "returns" },
           { label: "Customers", href: "/customers", icon: "customers" },
-          { label: "Customer Dues", href: "/finance/ledger", icon: "dues", badge: { text: "Khata", tone: "amber" } },
+        ],
+      },
+      {
+        title: "Management",
+        items: [
+          { label: "Products Catalog", href: "/catalog/products", icon: "products" },
+          { label: "Purchases Entry", href: "/purchases/entry", icon: "purchases", badge: { text: "WAC", tone: "blue" } },
+          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
         ],
       },
       {
         title: "Services",
         items: [
-          { label: "AEPS Cash Out", href: "/business/aeps", icon: "aeps" },
-          { label: "Money Transfer (DMT)", href: "/business/dmt", icon: "dmt" },
-          { label: "UPI Collections", href: "/business/upi", icon: "upi" },
           {
             label: "Bill Payment",
             href: "/business/bill-payment",
@@ -198,67 +199,15 @@ export default function Sidebar({
               { label: "Utility Bill Payment", href: "/business/bill-payment/utility", icon: "utility" },
             ],
           },
-          // Management Sub-Section
-          { label: "SERVICE MANAGEMENT", href: "#", icon: "", isSubHeader: true },
-          { label: "Bank Accounts", href: "/business/banks", icon: "banks" },
-          { label: "Merchant QRs", href: "/business/merchant-qrs", icon: "qrs" },
-          { label: "Service Portals", href: "/business/portals", icon: "portals" },
-        ],
-      },
-      {
-        title: "Inventory",
-        items: [
-          { label: "Products", href: "/catalog/products", icon: "products" },
-          { label: "Services Catalog", href: "/catalog/services", icon: "services" },
-          { label: "Categories", href: "/catalog/categories", icon: "categories" },
-          { label: "Stock Movements", href: "/inventory", icon: "inventory" },
-          { label: "Purchases Entry", href: "/purchases/entry", icon: "purchases", badge: { text: "WAC", tone: "blue" } },
-          { label: "Suppliers", href: "/suppliers", icon: "suppliers" },
-          { label: "Brands", href: "/catalog/brands", icon: "brands" },
-          { label: "Units", href: "/catalog/units", icon: "brands" },
+          { label: "AEPS Cash Out", href: "/business/aeps", icon: "aeps" },
         ],
       },
       {
         title: "Finance",
         items: [
-          { label: "Opening Position", href: "/finance/opening-balances", icon: "opening", badge: { text: "Equity", tone: "purple" } },
           { label: "Daily Cash Book", href: "/finance/cashbook", icon: "cashbook" },
-          { label: "Customer Ledger", href: "/finance/ledger", icon: "ledger" },
-          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
           { label: "Settlements & Float", href: "/finance/settlements", icon: "settlements" },
-          { label: "Financial Reconciliation", href: "/finance/reconciliation", icon: "audit", badge: { text: "Verify", tone: "emerald" } },
-          { label: "Profit & Loss (P&L)", href: "/finance/pnl", icon: "pnl" },
-          { label: "End-of-Day Close", href: "/finance/day-close", icon: "dayclose", badge: { text: "Lock", tone: "blue" } },
-        ],
-      },
-      {
-        title: "Reports",
-        items: [
-          { label: "Overview & Analytics", href: "/reports", icon: "reports" },
-          { label: "Sales Report", href: "/reports?tab=invoices", icon: "salesreport" },
-          { label: "Digital Services Report", href: "/reports?tab=business", icon: "services" },
-          { label: "Collections & Accounts", href: "/reports?tab=accounts", icon: "banks" },
-          { label: "Expenses Breakdown", href: "/reports?tab=expenses", icon: "expenses" },
-          { label: "Returns & Refunds", href: "/reports?tab=returns", icon: "returns" },
-          { label: "Quick Sales Report", href: "/reports?tab=quick", icon: "pos" },
-          { label: "GST Statutory (GSTR)", href: "/reports/gst", icon: "gst", badge: { text: "Tax", tone: "emerald" } },
-          { label: "Tax Prep (ITR-3/4)", href: "/reports/tax-preparation", icon: "tax", badge: { text: "ITR", tone: "indigo" } },
-        ],
-      },
-      {
-        title: "Intelligence",
-        items: [
-          { label: "AI Business Advisor", href: "/ai", icon: "ai", badge: { text: "AI Pro", tone: "purple" } },
-          { label: "Financial Self-Audit", href: "/ai/self-audit", icon: "audit", badge: { text: "100%", tone: "emerald" } },
-        ],
-      },
-      {
-        title: "Admin",
-        items: [
-          { label: "Staff Accounts", href: "/staff", icon: "staff" },
-          { label: "Security & 2FA", href: "/security", icon: "security" },
-          { label: "Audit Trail", href: "/audit", icon: "audit" },
-          { label: "System Settings", href: "/settings", icon: "settings" },
+          { label: "Reports & Analytics", href: "/reports", icon: "reports" },
         ],
       },
     ],
@@ -296,13 +245,11 @@ export default function Sidebar({
 
     const [itemPath, itemQuery] = itemHref.split("?");
     if (itemQuery) {
-      // Tab-specific match
       const tabParam = new URLSearchParams(itemQuery).get("tab");
       return pathname === itemPath && searchParams?.get("tab") === tabParam;
     }
 
     if (pathname === itemPath) {
-      // If the current URL has a tab param and our link doesn't, check if it's the default route
       if (!searchParams?.get("tab")) return true;
       if (itemPath === "/reports" && !searchParams?.get("tab")) return true;
       return true;
@@ -321,7 +268,7 @@ export default function Sidebar({
         />
       )}
 
-      {/* Main Sidebar Element (Floating 3D Dock) */}
+      {/* Main Sidebar Element */}
       <aside
         style={{
           backgroundColor: "var(--sidebar-bg)",
@@ -329,7 +276,7 @@ export default function Sidebar({
           color: "var(--sidebar-text)",
         }}
         className={`spatial-sidebar-dock fixed inset-y-0 left-0 lg:top-3 lg:bottom-3 lg:left-3 lg:h-[calc(100vh-24px)] lg:rounded-[24px] z-50 flex flex-col transition-all duration-300 ${
-          collapsed ? "w-[72px]" : "w-[280px]"
+          collapsed ? "w-[72px]" : "w-[270px]"
         } ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
@@ -348,331 +295,274 @@ export default function Sidebar({
                 <span className="text-base font-black">☕</span>
               )}
             </div>
+
             {!collapsed && (
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="truncate text-sm font-black" style={{ color: "var(--sidebar-text)" }}>
-                    {shopName || "Sarkar Comm"}
-                  </h1>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="truncate text-sm font-black tracking-tight text-white">
+                    {shopName || "Cafe ERP"}
+                  </span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 </div>
-                <p className="truncate text-[10px] font-bold" style={{ color: "var(--sidebar-muted)" }}>
-                  Café ERP Enterprise
-                </p>
+                <span className="block truncate text-[11px] font-semibold text-slate-400">
+                  Daily Operations
+                </span>
               </div>
             )}
           </Link>
-
-          {/* Desktop Collapse Toggle */}
-          <button
-            type="button"
-            onClick={onToggle}
-            style={{ color: "var(--sidebar-muted)" }}
-            className="hidden rounded-xl p-1.5 transition hover:bg-white/10 lg:flex"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <Icon
-              d={collapsed ? "m13 17 5-5-5-5M6 17l5-5-5-5" : "m11 17-5-5 5-5m7 10-5-5 5-5"}
-              className="h-4 w-4"
-            />
-          </button>
         </div>
 
-        {/* 2. Fast Filter Search (when expanded) */}
+        {/* 2. Fast Navigation Search (Expanded mode only) */}
         {!collapsed && (
-          <div style={{ borderColor: "var(--sidebar-border)" }} className="border-b px-3 py-2.5">
+          <div className="px-3 pt-3 pb-1">
             <div className="relative">
-              <Icon
-                d="M11 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM21 21l-4.35-4.35"
-                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-50"
-              />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search workspace (Ctrl+K)…"
-                style={{
-                  backgroundColor: "var(--sidebar-card)",
-                  borderColor: "var(--sidebar-border)",
-                  color: "var(--sidebar-text)",
-                }}
-                className="w-full rounded-xl border py-1.5 pl-8 pr-3 text-xs font-semibold shadow-xs outline-none focus:border-blue-500"
+                placeholder="Quick jump..."
+                className="w-full rounded-xl border border-white/5 bg-white/[0.03] py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:bg-white/[0.06] focus:outline-none"
               />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-500">
+                <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" className="h-3.5 w-3.5" />
+              </div>
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {/* 3. Navigation List */}
-        <div className="flex-1 overflow-y-auto px-2.5 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* Top-Level Standalone Dashboard Link */}
-          <div className="mb-2">
-            {(() => {
-              const active = pathname === "/dashboard";
-              return (
-                <Link
-                  href="/dashboard"
-                  onClick={onMobileClose}
-                  data-active={active ? "true" : "false"}
-                  style={{
-                    color: active ? "#ffffff" : "var(--sidebar-text)",
-                  }}
-                  className={`group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-xs font-bold transition-all duration-200 ${
-                    active
-                      ? "active-nav-link bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
-                      : "hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98]"
-                  }`}
-                  title={collapsed ? "Executive Dashboard" : undefined}
-                >
-                  <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 ${
-                      active
-                        ? "bg-white/20 text-white shadow-xs"
-                        : "bg-slate-100/80 text-slate-600 group-hover:scale-105 group-hover:text-blue-600 dark:bg-white/5 dark:text-slate-400 dark:group-hover:text-white"
-                    }`}
+        {/* 3. Operational Navigation Menu */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4 custom-scrollbar">
+          {filteredSections.map((section) => {
+            const isOpen = openSections.has(section.title);
+            return (
+              <div key={section.title} className="space-y-1">
+                {!collapsed && (
+                  <button
+                    onClick={() => toggleSection(section.title)}
+                    className="flex w-full items-center justify-between px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition"
                   >
-                    <Icon d={ICONS.dashboard} className="h-4 w-4" />
-                  </span>
-                  {!collapsed && <span className="truncate">Executive Dashboard</span>}
-                </Link>
-              );
-            })()}
-          </div>
+                    <span>{section.title}</span>
+                    <Icon
+                      d={ICONS.chevron}
+                      className={`h-3 w-3 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                    />
+                  </button>
+                )}
 
-          <div className="space-y-4">
-            {filteredSections.map((section) => {
-              const isOpen = openSections.has(section.title) || Boolean(query);
-              return (
-                <div key={section.title} className="space-y-1">
-                  {!collapsed && (
-                    <button
-                      type="button"
-                      onClick={() => toggleSection(section.title)}
-                      style={{ color: "var(--sidebar-muted)" }}
-                      className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-black uppercase tracking-wider transition hover:opacity-100"
-                    >
-                      <span>{section.title}</span>
-                      <Icon
-                        d="m6 9 6 6 6-6"
-                        className={`h-3 w-3 transition-transform duration-200 ${
-                          isOpen ? "rotate-0" : "-rotate-90"
-                        }`}
-                      />
-                    </button>
-                  )}
+                {(isOpen || collapsed) && (
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const hasChildren = Boolean(item.children && item.children.length > 0);
+                      const isSubOpen = openSubItems.has(item.label);
+                      const isActive = isItemActive(item.href) || (hasChildren && item.children?.some((c) => isItemActive(c.href)));
 
-                  {isOpen && (
-                    <div className="space-y-0.5">
-                      {section.items.map((item, idx) => {
-                        if (item.isSubHeader) {
-                          if (collapsed) return null;
-                          return (
+                      return (
+                        <div key={item.label}>
+                          {hasChildren ? (
                             <div
-                              key={idx}
-                              className="pt-2 pb-1 px-3 text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-white/5 mt-1"
-                            >
-                              {item.label}
-                            </div>
-                          );
-                        }
-
-                        const hasChildren = Boolean(item.children && item.children.length > 0);
-                        const isSubOpen = openSubItems.has(item.label) || pathname?.startsWith(item.href) || Boolean(query);
-                        const isParentActive = isItemActive(item.href) || Boolean(item.children?.some((c) => isItemActive(c.href)));
-
-                        if (hasChildren && !collapsed) {
-                          return (
-                            <div key={item.href + idx} className="space-y-0.5">
-                              <div
-                                data-active={isParentActive ? "true" : "false"}
-                                style={{ color: isParentActive ? "#ffffff" : "var(--sidebar-text)" }}
-                                className={`group relative flex items-center justify-between rounded-2xl px-3 py-2 text-xs font-bold transition-all duration-200 ${
-                                  isParentActive
-                                    ? "active-nav-link bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
-                                    : "hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98]"
-                                }`}
-                              >
-                                <Link
-                                  href={item.href}
-                                  onClick={onMobileClose}
-                                  className="flex flex-1 items-center gap-3 overflow-hidden min-w-0"
-                                >
-                                  <span
-                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 ${
-                                      isParentActive
-                                        ? "bg-white/20 text-white shadow-xs"
-                                        : "bg-slate-100/80 text-slate-600 group-hover:scale-105 group-hover:text-blue-600 dark:bg-white/5 dark:text-slate-400 dark:group-hover:text-white"
-                                    }`}
-                                  >
-                                    <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
-                                  </span>
-                                  <span className="truncate">{item.label}</span>
-                                </Link>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => toggleSubItem(item.label, e)}
-                                  className={`p-1 rounded-lg hover:bg-white/20 transition ${
-                                    isParentActive ? "text-white/80 hover:text-white" : "text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                                  }`}
-                                  title={isSubOpen ? "Collapse sub-services" : "Expand sub-services"}
-                                >
-                                  <Icon
-                                    d="m6 9 6 6 6-6"
-                                    className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                                      isSubOpen ? "rotate-0 text-current" : "-rotate-90 text-current"
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-
-                              {isSubOpen && (
-                                <div className="ml-5 pl-2.5 border-l border-slate-200 dark:border-white/10 space-y-0.5 pt-0.5">
-                                  {item.children?.map((child, cIdx) => {
-                                    const childActive = isItemActive(child.href);
-                                    return (
-                                      <Link
-                                        key={child.href + cIdx}
-                                        href={child.href}
-                                        onClick={onMobileClose}
-                                        data-active={childActive ? "true" : "false"}
-                                        className={`group relative flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 ${
-                                          childActive
-                                            ? "bg-blue-50 text-blue-600 font-bold dark:bg-blue-950/40 dark:text-blue-400"
-                                            : "text-slate-500 hover:bg-slate-100/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
-                                        }`}
-                                      >
-                                        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60 group-hover:opacity-100" />
-                                        <span className="truncate">{child.label}</span>
-                                      </Link>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-
-                        const active = isItemActive(item.href);
-                        return (
-                          <Link
-                            key={item.href + idx}
-                            href={item.href}
-                            onClick={onMobileClose}
-                            data-active={active ? "true" : "false"}
-                            style={{
-                              color: active ? "#ffffff" : "var(--sidebar-text)",
-                            }}
-                            className={`group relative flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-bold transition-all duration-200 ${
-                              active
-                                ? "active-nav-link bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-white/20"
-                                : "hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98]"
-                            }`}
-                            title={collapsed ? item.label : undefined}
-                          >
-                            <span
-                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 ${
-                                active
-                                  ? "bg-white/20 text-white shadow-xs"
-                                  : "bg-slate-100/80 text-slate-600 group-hover:scale-105 group-hover:text-blue-600 dark:bg-white/5 dark:text-slate-400 dark:group-hover:text-white"
+                              onClick={(e) => toggleSubItem(item.label, e)}
+                              className={`group relative flex cursor-pointer items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition select-none ${
+                                isActive
+                                  ? "bg-blue-600/15 text-blue-400 shadow-sm ring-1 ring-blue-500/20"
+                                  : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
                               }`}
                             >
-                              <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
-                            </span>
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${isActive ? "text-blue-400" : "text-slate-400 group-hover:text-white"}`}>
+                                  <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
+                                </span>
+                                {!collapsed && <span className="truncate">{item.label}</span>}
+                              </div>
 
-                            {!collapsed && (
-                              <div className="flex flex-1 items-center justify-between overflow-hidden">
-                                <span className="truncate">{item.label}</span>
-                                {item.badge && (
-                                  <span
-                                    className={`rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase leading-none shadow-xs ${
-                                      BADGE_STYLES[item.badge.tone]
+                              {!collapsed && (
+                                <Icon
+                                  d={ICONS.chevron}
+                                  className={`h-3 w-3 transition-transform duration-200 ${isSubOpen ? "rotate-90" : ""}`}
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <Link
+                              href={item.href}
+                              onClick={onMobileClose}
+                              className={`group relative flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition ${
+                                isActive
+                                  ? "bg-blue-600/15 text-blue-400 shadow-sm ring-1 ring-blue-500/20"
+                                  : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                              }`}
+                            >
+                              {isActive && (
+                                <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-blue-500 shadow-sm shadow-blue-500" />
+                              )}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${isActive ? "text-blue-400" : "text-slate-400 group-hover:text-white"}`}>
+                                  <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
+                                </span>
+                                {!collapsed && <span className="truncate">{item.label}</span>}
+                              </div>
+
+                              {!collapsed && item.badge && (
+                                <span className={`rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${BADGE_STYLES[item.badge.tone]}`}>
+                                  {item.badge.text}
+                                </span>
+                              )}
+                            </Link>
+                          )}
+
+                          {/* Children dropdown */}
+                          {hasChildren && isSubOpen && !collapsed && (
+                            <div className="ml-5 mt-0.5 space-y-0.5 border-l border-white/10 pl-2">
+                              {item.children?.map((child) => {
+                                const isChildActive = isItemActive(child.href);
+                                return (
+                                  <Link
+                                    key={child.label}
+                                    href={child.href}
+                                    onClick={onMobileClose}
+                                    className={`group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                                      isChildActive
+                                        ? "bg-blue-500/10 text-blue-400 font-bold"
+                                        : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
                                     }`}
                                   >
-                                    {item.badge.text}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                                    <span className="truncate">{child.label}</span>
+                                    {child.badge && (
+                                      <span className={`rounded px-1 py-0.2 text-[8px] font-bold ${BADGE_STYLES[child.badge.tone]}`}>
+                                        {child.badge.text}
+                                      </span>
+                                    )}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* 4. Footer User Profile & System Controls */}
+        {/* 4. Bottom System Controls (Settings, AI, Profile) */}
         <div
           style={{ borderColor: "var(--sidebar-border)" }}
-          className="shrink-0 border-t p-2.5"
+          className="border-t px-3 py-2 space-y-1 shrink-0 bg-black/10"
         >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
+          {/* AI Self-Audit */}
+          <Link
+            href="/ai/self-audit"
+            onClick={onMobileClose}
+            className={`group flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition ${
+              pathname?.startsWith("/ai")
+                ? "bg-purple-600/20 text-purple-300 ring-1 ring-purple-500/30"
+                : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-purple-400">
+                <Icon d={ICONS.ai} className="h-4 w-4" />
+              </span>
+              {!collapsed && <span className="truncate">AI Self-Audit</span>}
+            </div>
+            {!collapsed && (
+              <span className="rounded-md border border-purple-500/30 bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-extrabold text-purple-300">
+                100%
+              </span>
+            )}
+          </Link>
+
+          {/* System Settings Hub */}
+          <Link
+            href="/settings"
+            onClick={onMobileClose}
+            className={`group flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition ${
+              pathname === "/settings"
+                ? "bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/30"
+                : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-blue-400">
+                <Icon d={ICONS.settings} className="h-4 w-4" />
+              </span>
+              {!collapsed && <span className="truncate">System Settings</span>}
+            </div>
+            {!collapsed && (
+              <span className="rounded-md border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-extrabold text-blue-300">
+                Control Hub
+              </span>
+            )}
+          </Link>
+
+          {/* User Profile & Collapse Toggle */}
+          <div className="pt-1 flex items-center justify-between">
+            <div
               onClick={() => setProfileOpen(true)}
-              className={`flex items-center gap-2.5 rounded-2xl p-1.5 transition hover:bg-white/10 ${
-                collapsed ? "w-full justify-center" : "flex-1 text-left min-w-0"
-              }`}
-              title="Edit Profile"
+              className="flex flex-1 items-center gap-2 rounded-xl p-1.5 hover:bg-white/[0.05] cursor-pointer transition min-w-0"
             >
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-xs font-black text-white shadow-xs">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-black text-white shadow-sm">
                 {currentAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={currentAvatar}
-                    alt={name}
-                    className="h-full w-full rounded-xl object-cover"
-                  />
+                  <img src={currentAvatar} alt="" className="h-8 w-8 rounded-xl object-cover" />
                 ) : (
-                  name?.charAt(0)?.toUpperCase() || "A"
+                  (name || "Admin").slice(0, 2).toUpperCase()
                 )}
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-900 bg-emerald-500" />
               </div>
-
               {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-black" style={{ color: "var(--sidebar-text)" }}>
+                  <span className="block truncate text-xs font-bold text-white">
                     {name || "Admin User"}
-                  </p>
-                  <p className="truncate text-[10px] font-bold capitalize" style={{ color: "var(--sidebar-muted)" }}>
-                    {role || "Admin"} · Enterprise
-                  </p>
+                  </span>
+                  <span className="block truncate text-[10px] font-semibold text-slate-400 uppercase">
+                    {role || "Admin"}
+                  </span>
                 </div>
               )}
-            </button>
+            </div>
 
-            {/* Logout Action Button */}
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={loggingOut}
-              style={{ color: "var(--sidebar-muted)" }}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition hover:bg-rose-500/20 hover:text-rose-400 disabled:opacity-50"
-              title="Sign Out (Lock Session)"
-            >
-              {loggingOut ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
-              ) : (
-                <Icon d={ICONS.logout} className="h-4 w-4" />
-              )}
-            </button>
+            {!collapsed && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleSignOut}
+                  title="Sign Out"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition"
+                >
+                  <Icon d={ICONS.logout} className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={onToggle}
+                  title="Collapse Sidebar"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                >
+                  <Icon d="M11 19l-7-7 7-7m8 14l-7-7 7-7" className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
-      {/* Avatar Profile Modal */}
+      {/* Avatar / Profile Modal */}
       {profileOpen && (
         <AvatarModal
           open={profileOpen}
-          onClose={() => setProfileOpen(false)}
-          currentAvatar={currentAvatar}
+          userId={userId}
+          avatarUrl={currentAvatar}
           name={name}
           email={email}
-          userId={userId}
-          onAvatarUpdated={(url) => setCurrentAvatar(url)}
+          onClose={() => setProfileOpen(false)}
+          onAvatarUpdated={(url: string | null) => setCurrentAvatar(url)}
         />
       )}
     </>

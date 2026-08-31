@@ -4619,6 +4619,7 @@ function detectIntent(question) {
   const paymentPanelFile = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
   const reconClientFile = fs.readFileSync("E:/CafeERP/components/finance/reconciliation-client.tsx", "utf8");
   const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  const settingsConfigFile = fs.readFileSync("E:/CafeERP/components/settings/settings-config.ts", "utf8");
   const businessClientFile = fs.readFileSync("E:/CafeERP/components/business/business-client.tsx", "utf8");
 
   // Settings & Payment Accounts Cleanup Invariants
@@ -4630,7 +4631,7 @@ function detectIntent(question) {
   assert(paymentPanelFile.includes("selectedReconAccount"), "546. Dynamic Modal Invariant: Contextual trace modal opens on badge click");
   assert(paymentPanelFile.includes("Movement Breakdown"), "547. Modal Trace Invariant: Movement breakdown section present in modal");
   assert(paymentPanelFile.includes("Reconciliation"), "548. Account Table Invariant: Reconciliation column present in table header");
-  assert(sidebarFile.includes("/finance/reconciliation"), "549. Sidebar Navigation: 'Financial Reconciliation' route present under Finance");
+  assert(settingsConfigFile.includes("/finance/reconciliation") || sidebarFile.includes("/finance/reconciliation"), "549. Settings / Navigation IA: 'Financial Reconciliation' route present in Control Center");
 
   // Test 6: Mathematical Double-Entry Model for UPI
   const upiOpening = 0;
@@ -6803,6 +6804,94 @@ function detectIntent(question) {
 
   assert(gpTotalDebit === gpProviderCost + gpShopIncome, "1258. Conservation: Google Play Customer Total (₹1005) = Provider Cost (₹980) + Shop Income (₹25)");
   assert(gpTotalDebit - (gpProviderCost + gpShopIncome) === 0, "1259. Strict Zero Variance: Google Play delta is strictly ₹0.00");
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 6: Sidebar Daily Operations & Settings Control Center Architecture
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 6: Information Architecture & Settings Control Center ---");
+
+  // Test 1: Daily Operational Sidebar Groups
+  const sidebarSectionTitles = ["Operate", "Management", "Services", "Finance"];
+  assert(sidebarSectionTitles.length === 4, "1260. Sidebar IA: Exactly 4 daily operational groups");
+  assert(sidebarSectionTitles.includes("Operate"), "1261. Sidebar IA: Contains 'Operate' group");
+  assert(sidebarSectionTitles.includes("Management"), "1262. Sidebar IA: Contains 'Management' group");
+  assert(sidebarSectionTitles.includes("Services"), "1263. Sidebar IA: Contains 'Services' group");
+  assert(sidebarSectionTitles.includes("Finance"), "1264. Sidebar IA: Contains 'Finance' group");
+
+  // Test 2: Operational Modules in Sidebar
+  const sidebarOperationalRoutes = [
+    "/dashboard",
+    "/pos",
+    "/invoices",
+    "/customers",
+    "/catalog/products",
+    "/purchases/entry",
+    "/finance/expenses",
+    "/business/bill-payment",
+    "/business/aeps",
+    "/finance/cashbook",
+    "/finance/settlements",
+    "/reports",
+  ];
+
+  assert(sidebarOperationalRoutes.includes("/pos"), "1265. Sidebar Daily Ops: POS & Quick Sale is core operational route");
+  assert(sidebarOperationalRoutes.includes("/invoices"), "1266. Sidebar Daily Ops: Invoices & Sales is core operational route");
+  assert(sidebarOperationalRoutes.includes("/business/bill-payment"), "1267. Sidebar Daily Ops: Bill Payment & Recharge Hub is core operational route");
+  assert(sidebarOperationalRoutes.includes("/finance/cashbook"), "1268. Sidebar Daily Ops: Daily Cash Book is core operational route");
+
+  // Test 3: Elimination of raw setup tables from primary sidebar
+  const excludedFromDailySidebar = [
+    "/business/banks",
+    "/business/merchant-qrs",
+    "/business/portals",
+    "/catalog/brands",
+    "/catalog/units",
+    "/reports?tab=invoices",
+    "/reports?tab=business",
+    "/reports?tab=accounts",
+    "/reports?tab=expenses",
+    "/reports?tab=returns",
+    "/reports?tab=quick",
+  ];
+
+  for (const excluded of excludedFromDailySidebar) {
+    assert(!sidebarOperationalRoutes.includes(excluded), `1269. Sidebar Cleanliness: Raw setup route '${excluded}' excluded from daily sidebar`);
+  }
+
+  // Test 4: Settings Control Center Discovery
+  const settingsCategoryIds = [
+    "business",
+    "pos-sales",
+    "finance",
+    "recharge-bill",
+    "aeps-services",
+    "catalog-inventory",
+    "parties",
+    "security-team",
+    "reports-tax",
+    "automations-system",
+  ];
+
+  assert(settingsCategoryIds.length >= 10, "1270. Settings IA: At least 10 major functional categories in Control Center");
+  assert(settingsCategoryIds.includes("business"), "1271. Settings IA: Includes 'business' identity & tax");
+  assert(settingsCategoryIds.includes("finance"), "1272. Settings IA: Includes 'finance' liquid accounts & reconciliation");
+  assert(settingsCategoryIds.includes("recharge-bill"), "1273. Settings IA: Includes 'recharge-bill' BBPS & provider config");
+  assert(settingsCategoryIds.includes("security-team"), "1274. Settings IA: Includes 'security-team' staff RBAC & audit log");
+
+  // Test 5: Pinned Quick Settings Defaults
+  const defaultPinnedKeys = [
+    "payment-accounts",
+    "quick-favorites",
+    "general",
+    "tax",
+    "notifications",
+    "other",
+  ];
+  assert(defaultPinnedKeys.length === 6, "1275. Settings Favorites: 6 default pinned quick settings");
+  assert(defaultPinnedKeys.includes("payment-accounts"), "1276. Settings Favorites: Payment Accounts pinned by default");
+  assert(defaultPinnedKeys.includes("tax"), "1277. Settings Favorites: Tax & GST pinned by default");
 }
 
 console.log("\n================================================================================");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
@@ -28,6 +28,27 @@ export default function SettingsClient({ initial, initialInstruments, initialSer
   const router = useRouter();
   const { showToast, toastView } = useToast();
   const [tab, setTab] = useState<string>(initialTab && TABS.some((t) => t.key === initialTab) ? initialTab : "general");
+
+  useEffect(() => {
+    if (initialTab && TABS.some((t) => t.key === initialTab)) {
+      setTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialSection) {
+      if (initialSection === "recharge-slabs" || initialSection === "recharge-providers" || initialSection === "recharge") {
+        setBizSection("recharge");
+      } else if (initialSection === "bill-payment" || initialSection === "bill-commission") {
+        setBizSection("bill-payment");
+      } else if (["banks", "portals", "merchant-qrs"].includes(initialSection)) {
+        setBizSection(initialSection);
+      }
+      if ((CATALOG_SECTIONS as readonly string[]).includes(initialSection)) {
+        setCatalogSection(initialSection);
+      }
+    }
+  }, [initialSection]);
   const [searchQuery, setSearchQuery] = useState("");
   const [bizSection, setBizSection] = useState<string>(() => {
     if (!initialSection) return "banks";

@@ -3,8 +3,10 @@
 import type { ComponentProps, CSSProperties } from "react";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SettingsClient from "@/components/settings/settings-client";
-import { SETTINGS_GROUPS, tabMeta, type SettingsGroup } from "@/components/settings/settings-config";
+import { SETTINGS_GROUPS, tabMeta, type SettingsGroup, type SettingsGroupItem } from "@/components/settings/settings-config";
 
 type SettingsClientProps = ComponentProps<typeof SettingsClient>;
 type Props = SettingsClientProps;
@@ -50,10 +52,71 @@ function CloseIcon() {
   return <Icon path="M6 6l12 12M18 6L6 18" className="h-5 w-5" />;
 }
 
-function SettingsHub({ onOpen }: { onOpen: (key: string) => void }) {
+const PINNED_STORAGE_KEY = "cafe_erp_pinned_settings";
+const RECENT_STORAGE_KEY = "cafe_erp_recent_settings";
+
+const DEFAULT_PINNED = ["payment-accounts", "quick-favorites", "general", "tax", "notifications", "other"];
+
+function SettingsHub({ onOpen, onOpenWithSection }: { onOpen: (key: string) => void; onOpenWithSection: (key: string, section?: string) => void }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const [pinnedKeys, setPinnedKeys] = useState<string[]>(() => {
+    if (typeof window === "undefined") return DEFAULT_PINNED;
+    try {
+      const saved = localStorage.getItem(PINNED_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : DEFAULT_PINNED;
+    } catch {
+      return DEFAULT_PINNED;
+    }
+  });
+
+  const [recentKeys, setRecentKeys] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem(RECENT_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  function togglePin(key: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setPinnedKeys((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      try {
+        localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  function handleItemClick(item: SettingsGroupItem) {
+    // Record recent
+    setRecentKeys((prev) => {
+      const filtered = prev.filter((k) => k !== item.key);
+      const next = [item.key, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (item.directHref) {
+      router.push(item.directHref);
+      return;
+    }
+
+    if (item.section) {
+      onOpenWithSection(item.key, item.section);
+    } else {
+      onOpen(item.key);
+    }
+  }
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -91,6 +154,24 @@ function SettingsHub({ onOpen }: { onOpen: (key: string) => void }) {
     [filteredGroups]
   );
 
+  const allItemsMap = useMemo(() => {
+    const map = new Map<string, SettingsGroupItem>();
+    SETTINGS_GROUPS.forEach((g) => {
+      g.items.forEach((it) => {
+        map.set(it.key, it);
+      });
+    });
+    return map;
+  }, []);
+
+  const pinnedItems = useMemo(() => {
+    return pinnedKeys.map((k) => allItemsMap.get(k)).filter(Boolean) as SettingsGroupItem[];
+  }, [pinnedKeys, allItemsMap]);
+
+  const recentItems = useMemo(() => {
+    return recentKeys.map((k) => allItemsMap.get(k)).filter(Boolean) as SettingsGroupItem[];
+  }, [recentKeys, allItemsMap]);
+
   return (
     <div className="min-h-screen bg-slate-900/[0.02] dark:bg-slate-950">
       {/* Ambient background glow */}
@@ -100,410 +181,376 @@ function SettingsHub({ onOpen }: { onOpen: (key: string) => void }) {
         <div className="absolute bottom-[-10%] left-[30%] h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[120px]" />
       </div>
 
-      <div className="relative mx-auto max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        {/* Header Hero Section */}
-        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-blue-50/80 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[.14em] text-blue-700 shadow-sm backdrop-blur-md dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
-              </span>
-              Settings &amp; Preferences Hub
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Executive Header */}
+        <div className="mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+                <Icon
+                  path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9c.2.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09a2 2 0 0 1-1.51 1z"
+                  className="h-6 w-6"
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                    Settings & System Control
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Operational
+                  </span>
+                </div>
+                <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+                  Control your business, operations, and application configurations from one central hub.
+                </p>
+              </div>
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-              System Administration
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-              Centralized control room for your shop profiles, payment rails, catalog masters, WhatsApp automations, and security controls.
-            </p>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href="/ai/self-audit"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+              >
+                <Icon path="M12 2a2 2 0 0 1 2 2v1a1 1 0 0 0 1 1h1a2 2 0 0 1 2 2v1a1 1 0 0 0 1 1h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v1a2 2 0 0 1-2 2h-1a1 1 0 0 0-1 1v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1a1 1 0 0 0-1-1h-1a2 2 0 0 1-2-2v-1a1 1 0 0 1-1-1H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h1a1 1 0 0 0 1-1V9a2 2 0 0 1 2-2h1a1 1 0 0 0 1-1V4a2 2 0 0 1 2-2h2z" className="h-4 w-4 text-purple-500" />
+                Audit Diagnostics
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+              >
+                <Icon path="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" className="h-4 w-4 text-blue-500" />
+                Counter Dashboard
+              </Link>
+            </div>
           </div>
 
-          {/* Quick Search Bar */}
-          <div className="relative w-full lg:w-[380px]">
-            <Icon
-              path="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z"
-              className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              ref={searchInputRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search settings modules… (Press / to focus)"
-              className="h-12 w-full rounded-2xl border border-slate-200/90 bg-white/90 pl-11 pr-10 text-sm font-medium text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-white/10 dark:bg-slate-900/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-900"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-200"
-              >
-                <CloseIcon />
-              </button>
-            ) : (
-              <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold text-slate-400 sm:inline-block dark:border-white/10 dark:bg-slate-800 dark:text-slate-400">
-                /
-              </kbd>
-            )}
+          {/* Global Search Bar */}
+          <div className="mt-6">
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                <Icon path="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" className="h-5 w-5" />
+              </div>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search settings, payment instruments, commissions, BBPS, tax, staff, themes... (Press '/' or Ctrl+K)"
+                className="w-full rounded-2xl border border-slate-200/90 bg-white/90 py-3.5 pl-11 pr-24 text-sm font-medium text-slate-900 shadow-sm backdrop-blur-md transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-900/90 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-900 dark:focus:ring-blue-400/10"
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 gap-1.5">
+                {query ? (
+                  <button
+                    onClick={() => setQuery("")}
+                    className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                  >
+                    <CloseIcon />
+                  </button>
+                ) : (
+                  <kbd className="hidden sm:inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                    /
+                  </kbd>
+                )}
+                <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+                  {totalMatches} modules
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Category Quick Filter Pills */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveFilter("all")}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
-              activeFilter === "all"
-                ? "bg-slate-900 text-white shadow-md shadow-slate-900/20 dark:bg-white dark:text-slate-900"
-                : "bg-white/80 text-slate-600 ring-1 ring-slate-200/70 hover:bg-white hover:text-slate-900 dark:bg-slate-900/60 dark:text-slate-400 dark:ring-white/10 dark:hover:bg-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <span>All Modules</span>
-            <span className="rounded-full bg-black/10 px-1.5 py-0.2 text-[10px] dark:bg-white/20">
-              {totalModules}
-            </span>
-          </button>
-          {SETTINGS_GROUPS.map((g) => {
-            const isCurrent = activeFilter === g.id;
-            return (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => setActiveFilter(g.id)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
-                  isCurrent
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 dark:bg-blue-500 dark:text-white"
-                    : "bg-white/80 text-slate-600 ring-1 ring-slate-200/70 hover:bg-white hover:text-slate-900 dark:bg-slate-900/60 dark:text-slate-400 dark:ring-white/10 dark:hover:bg-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <span>{g.label}</span>
-                <span
-                  className={`rounded-full px-1.5 py-0.2 text-[10px] ${
-                    isCurrent ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400"
+          {/* Category Filter Pills */}
+          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setActiveFilter("all")}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                activeFilter === "all"
+                  ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
+                  : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white ring-1 ring-slate-200 dark:ring-white/10"
+              }`}
+            >
+              All Categories ({totalModules})
+            </button>
+            {SETTINGS_GROUPS.map((g) => {
+              const count = g.items.length;
+              const isSelected = activeFilter === g.id;
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => setActiveFilter(g.id)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    isSelected
+                      ? "bg-blue-600 text-white shadow-sm dark:bg-blue-500"
+                      : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white ring-1 ring-slate-200/80 dark:ring-white/10"
                   }`}
                 >
-                  {g.items.length}
-                </span>
-              </button>
-            );
-          })}
+                  {g.label} ({count})
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Group Cards Grid */}
-        <div className="grid gap-6 xl:grid-cols-2">
+        {/* Pinned Quick Settings Bar */}
+        {pinnedItems.length > 0 && !query && activeFilter === "all" && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  ⭐ Quick Access / Pinned Settings
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-slate-400">
+                Click star to pin/unpin
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {pinnedItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => handleItemClick(item)}
+                  className="group relative flex flex-col items-start rounded-2xl border border-slate-200/80 bg-white/80 p-3.5 text-left shadow-sm backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-400/40 dark:hover:bg-white/[0.06]"
+                >
+                  <div className="flex w-full items-center justify-between">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${item.accent || "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"}`}>
+                      <Icon path={item.icon} className="h-4 w-4" />
+                    </div>
+                    <span
+                      onClick={(e) => togglePin(item.key, e)}
+                      title="Unpin"
+                      className="rounded-lg p-1 text-amber-500 transition hover:bg-slate-100 dark:hover:bg-white/10"
+                    >
+                      ★
+                    </span>
+                  </div>
+                  <span className="mt-2.5 text-xs font-bold text-slate-800 group-hover:text-blue-600 dark:text-slate-100 dark:group-hover:text-blue-400 line-clamp-1">
+                    {item.label}
+                  </span>
+                  {item.directHref ? (
+                    <span className="mt-0.5 text-[10px] font-semibold text-blue-500 dark:text-blue-400">
+                      Open Page ↗
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                      Control Panel
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recently Visited Settings */}
+        {recentItems.length > 0 && !query && activeFilter === "all" && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-2.5 px-1">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                🕒 Recently Visited
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {recentItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => handleItemClick(item)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  <Icon path={item.icon} className="h-3.5 w-3.5 text-slate-400" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Category Cards Grid */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
           {filteredGroups.map((group) => (
-            <section
+            <div
               key={group.id}
-              className={`group/section relative overflow-hidden rounded-[26px] border ${group.borderColor} bg-white/90 p-1 shadow-[0_4px_25px_rgba(15,23,42,.04)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(15,23,42,.08)] dark:border-white/10 dark:bg-slate-900/80`}
+              className={`group relative flex flex-col rounded-3xl border ${group.borderColor} bg-white/80 p-6 shadow-sm backdrop-blur-md transition hover:shadow-xl dark:bg-slate-900/60`}
             >
               {/* Card Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
-                <div className="min-w-0 flex-1 pr-3">
+              <div className="flex items-start justify-between">
+                <div>
                   <div className="flex items-center gap-2">
                     <span className={`h-2 w-2 rounded-full bg-gradient-to-r ${group.color}`} />
-                    <h2 className="truncate text-base font-extrabold text-slate-900 dark:text-white">
+                    <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
                       {group.label}
                     </h2>
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">
+                  <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                     {group.tagline}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
-                  {group.items.length} {group.items.length === 1 ? "module" : "modules"}
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                  {group.items.length}
                 </span>
               </div>
 
-              {/* Module Buttons Grid */}
-              <div className="grid gap-2.5 p-3.5 sm:grid-cols-2">
-                {group.items.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => onOpen(item.key)}
-                    className="group relative flex min-h-[110px] items-start gap-3.5 rounded-[20px] border border-transparent bg-slate-50/50 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:bg-white hover:shadow-md hover:shadow-slate-200/50 dark:bg-white/[0.02] dark:hover:border-white/15 dark:hover:bg-slate-800/80 dark:hover:shadow-none"
-                  >
-                    {/* Icon Container */}
-                    <span
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] transition-all duration-200 group-hover:scale-105 group-hover:shadow-md ${
-                        item.accent || "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
-                      }`}
+              {/* Items List */}
+              <div className="mt-5 divide-y divide-slate-100 dark:divide-white/5">
+                {group.items.map((item) => {
+                  const isPinned = pinnedKeys.includes(item.key);
+                  return (
+                    <div
+                      key={item.key}
+                      onClick={() => handleItemClick(item)}
+                      className="group/item flex cursor-pointer items-start justify-between gap-3 py-3.5 transition hover:translate-x-1"
                     >
-                      <Icon path={item.icon} className="h-5 w-5" />
-                    </span>
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${item.accent || "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
+                          <Icon path={item.icon} className="h-4.5 w-4.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-bold text-slate-800 transition group-hover/item:text-blue-600 dark:text-slate-100 dark:group-hover/item:text-blue-400">
+                              {item.label}
+                            </span>
+                            {item.badge && (
+                              <span className={`rounded-full px-2 py-0.2 text-[10px] font-bold ${item.badgeColor || "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
+                                {item.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                            {item.desc}
+                          </p>
+                        </div>
+                      </div>
 
-                    {/* Content */}
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-extrabold text-slate-900 group-hover:text-blue-600 dark:text-slate-100 dark:group-hover:text-blue-400">
-                          {item.label}
-                        </span>
-                        {item.badge && (
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black tracking-wide ${
-                              item.badgeColor || "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                            }`}
-                          >
-                            {item.badge}
+                      <div className="flex items-center gap-1.5 shrink-0 pt-1">
+                        <button
+                          onClick={(e) => togglePin(item.key, e)}
+                          title={isPinned ? "Unpin" : "Pin to top"}
+                          className={`rounded-lg p-1 transition ${
+                            isPinned
+                              ? "text-amber-500 hover:bg-slate-100 dark:hover:bg-white/10"
+                              : "text-slate-300 opacity-0 group-hover/item:opacity-100 hover:bg-slate-100 hover:text-amber-500 dark:text-slate-600 dark:hover:bg-white/10"
+                          }`}
+                        >
+                          {isPinned ? "★" : "☆"}
+                        </button>
+                        {item.directHref ? (
+                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition group-hover/item:bg-blue-600 group-hover/item:text-white dark:bg-white/5 dark:text-slate-400 dark:group-hover/item:bg-blue-500 dark:group-hover/item:text-white">
+                            <Icon path="M7 17l10-10M17 7H7M17 7v10" className="h-3.5 w-3.5" />
+                          </span>
+                        ) : (
+                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition group-hover/item:bg-blue-600 group-hover/item:text-white dark:bg-white/5 dark:text-slate-400 dark:group-hover/item:bg-blue-500 dark:group-hover/item:text-white">
+                            <Icon path="M9 18l6-6-6-6" className="h-3.5 w-3.5" />
                           </span>
                         )}
-                      </span>
-                      <span className="mt-1 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        {item.desc}
-                      </span>
-                      <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:text-blue-400">
-                        Open settings <span aria-hidden="true">→</span>
-                      </span>
-                    </span>
-                  </button>
-                ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </section>
+            </div>
           ))}
         </div>
-
-        {/* Empty Search Result State */}
-        {!filteredGroups.length && (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-12 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/50">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/5">
-              <Icon path="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" className="h-6 w-6" />
-            </div>
-            <p className="mt-4 font-bold text-slate-800 dark:text-slate-200">
-              No matching settings modules found
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              No settings match &ldquo;{query}&rdquo;. Try another search term or reset the category filter.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setQuery("");
-                setActiveFilter("all");
-              }}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
-            >
-              Clear filters
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-function ModuleWindow({ props, tab, onClose }: { props: Props; tab: string; onClose: () => void }) {
-  const meta = tabMeta[tab] ?? { title: "Settings", desc: "", group: "System Administration" };
-  const layout = MODULE_LAYOUT[tab] ?? DEFAULT_LAYOUT;
-  const isFormTab = FORM_TABS.has(tab);
-  const shellStyle = { ["--settings-content-width" as string]: layout.contentWidth } as CSSProperties;
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previous;
-    };
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-md transition-all sm:p-4 lg:p-6 animate-fade-in"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        style={shellStyle}
-        className={`floating-mac-window settings-module-shell ${
-          isFormTab ? "settings-module-shell--form" : "settings-module-shell--action"
-        } flex w-full ${layout.modal} flex-col overflow-hidden animate-modal-panel`}
-      >
-        {/* macOS Window Top Bar */}
-        <div className="mac-window-header shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Traffic Lights */}
-            <div className="mac-traffic-lights group flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                title="Close window (Esc)"
-                className="mac-dot mac-dot-close flex h-3 w-3 items-center justify-center text-[8px] font-black text-rose-950 opacity-90 transition hover:opacity-100 focus:outline-none"
-                aria-label="Close"
-              >
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity">✕</span>
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                title="Minimize"
-                className="mac-dot mac-dot-min flex h-3 w-3 items-center justify-center text-[8px] font-black text-amber-950 opacity-90 transition hover:opacity-100 focus:outline-none"
-                aria-label="Minimize"
-              >
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity">−</span>
-              </button>
-              <button
-                type="button"
-                title="Maximize"
-                className="mac-dot mac-dot-max flex h-3 w-3 items-center justify-center text-[8px] font-black text-emerald-950 opacity-90 transition hover:opacity-100 focus:outline-none"
-                aria-label="Maximize"
-              >
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity">+</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 pl-2">
-              <span className="text-sm">⚙️</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-400 dark:text-slate-500">
-                  {meta.group}
-                </span>
-                <span className="text-[10px] text-slate-300 dark:text-slate-600">/</span>
-                <span className="text-xs font-black text-slate-900 dark:text-white">
-                  {meta.title}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <kbd className="hidden rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-400 sm:inline-block dark:border-white/10 dark:bg-slate-800 dark:text-slate-400">
-              Esc
-            </kbd>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close settings window"
-              title="Close (Esc)"
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-            >
-              <CloseIcon />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Window Content Scroll Area */}
-        <div className="settings-module-content min-h-0 flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-950">
-          <SettingsClient {...props} initialTab={tab} initialSection={props.initialSection} key={`${tab}-${props.initialSection || ""}`} />
-        </div>
-
-        {/* Global Styles for Embedding inside the Module Shell */}
-        <style jsx global>{`
-          .settings-module-content > div > div:first-child {
-            display: none !important;
-          }
-          .settings-module-content > div > div:nth-child(2) > div:first-child {
-            display: none !important;
-          }
-          .settings-module-content > div > div:nth-child(2) {
-            display: block !important;
-          }
-          .settings-module-content > div > div:nth-child(2) > div:last-child {
-            display: block !important;
-            width: 100% !important;
-            max-width: var(--settings-content-width) !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-          }
-          .settings-module-content > div > div:nth-child(2) > div:last-child > div {
-            width: 100% !important;
-            max-width: none !important;
-          }
-          .settings-module-content > div {
-            width: 100% !important;
-            max-width: none !important;
-            padding: 1rem 1.25rem 2rem !important;
-            margin: 0 !important;
-          }
-
-          /* Form save bar controls inside modal */
-          .settings-module-shell--form .settings-module-content > div > div:first-child {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: flex-end !important;
-            margin: 0 0 0.75rem !important;
-            padding: 0 0 0.75rem !important;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.2) !important;
-          }
-          .settings-module-shell--form .settings-module-content > div > div:first-child > div:first-child {
-            display: none !important;
-          }
-          .settings-module-shell--form .settings-module-content > div > div:first-child > div:last-child {
-            display: flex !important;
-            width: auto !important;
-            align-items: center !important;
-            justify-content: flex-end !important;
-            gap: 0.75rem !important;
-          }
-          .settings-module-shell--form .settings-module-content > div > div:first-child > div:last-child button {
-            min-height: 38px !important;
-            height: 38px !important;
-            padding: 0.5rem 1rem !important;
-            border-radius: 0.75rem !important;
-            font-size: 0.8rem !important;
-            font-weight: 700 !important;
-          }
-
-          .settings-module-shell--action .settings-module-content > div > div:first-child {
-            display: none !important;
-          }
-
-          @media (max-width: 900px) {
-            .settings-module-content > div {
-              padding: 0.75rem !important;
-            }
-            .settings-module-content > div > div:nth-child(2) > div:last-child {
-              max-width: calc(100vw - 48px) !important;
-            }
-          }
-          @media (max-width: 640px) {
-            .settings-module-content > div {
-              padding: 0.5rem !important;
-            }
-            .settings-module-content > div > div:nth-child(2) > div:last-child {
-              max-width: 100% !important;
-            }
-          }
-        `}</style>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 export default function SettingsCommandShell(props: Props) {
-  const [openTab, setOpenTab] = useState<string | null>(
-    props.initialTab && props.initialTab !== "general" ? props.initialTab : null
-  );
+  const [activeKey, setActiveKey] = useState<string | null>(props.initialTab || null);
+  const [activeSection, setActiveSection] = useState<string | undefined>(props.initialSection);
+  const router = useRouter();
 
   function openModule(key: string) {
-    setOpenTab(key);
+    setActiveKey(key);
+    setActiveSection(undefined);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", key);
     url.searchParams.delete("section");
-    window.history.pushState(null, "", url.toString());
+    window.history.replaceState(null, "", url.toString());
   }
+
+  function openModuleWithSection(key: string, section?: string) {
+    setActiveKey(key);
+    setActiveSection(section);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", key);
+    if (section) url.searchParams.set("section", section);
+    else url.searchParams.delete("section");
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  function closeModule() {
+    setActiveKey(null);
+    setActiveSection(undefined);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tab");
+    url.searchParams.delete("section");
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  const activeMeta = activeKey ? tabMeta[activeKey] : null;
+  const layout = activeKey ? MODULE_LAYOUT[activeKey] || DEFAULT_LAYOUT : DEFAULT_LAYOUT;
 
   return (
     <>
-      <SettingsHub onOpen={openModule} />
-      {openTab && (
-        <ModuleWindow
-          props={props}
-          tab={openTab}
-          onClose={() => {
-            setOpenTab(null);
-            const url = new URL(window.location.href);
-            url.searchParams.delete("tab");
-            url.searchParams.delete("section");
-            window.history.pushState(null, "", url.toString());
-          }}
-        />
+      <SettingsHub onOpen={openModule} onOpenWithSection={openModuleWithSection} />
+
+      {activeKey && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          {/* Backdrop */}
+          <div
+            onClick={closeModule}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+          />
+
+          {/* Modal Container */}
+          <div
+            className={`relative z-10 w-full ${layout.modal} flex flex-col rounded-3xl border border-slate-200/80 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 animate-in zoom-in-95 duration-200 overflow-hidden`}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200/80 px-6 py-4 dark:border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+                  <Icon
+                    path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 1-1.51 1H21a2 2 0 1 1 0 4h-.09a2 2 0 0 1-1.51 1z"
+                    className="h-4.5 w-4.5"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                      {activeMeta?.group || "Settings"}
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-600">/</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      {activeMeta?.title || "Module"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                    {activeMeta?.desc}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={closeModule}
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <SettingsClient
+                {...props}
+                initialTab={activeKey}
+                initialSection={activeSection}
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </>
   );
