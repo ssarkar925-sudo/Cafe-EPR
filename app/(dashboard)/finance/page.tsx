@@ -52,7 +52,6 @@ export default async function FinancePage({
   const params = searchParams ? await searchParams : {};
   const requested = typeof params.module === "string" ? params.module : "";
 
-  // All Finance modules render inside the same /finance workspace.
   if (requested && requested in MODULES) {
     const ModulePage = MODULES[requested as FinanceModule];
     return (
@@ -95,15 +94,29 @@ export default async function FinancePage({
   const monthExpenseTotal = ((monthExpenses ?? []) as any[]).reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   return (
-    <FinanceDashboardClient
-      poolBalances={(poolBalances ?? {}) as any}
-      instruments={(instruments ?? []) as any[]}
-      todayInflow={todayInflow}
-      todayOutflow={todayOutflow}
-      todayNetMargin={todayInflow - todayOutflow}
-      monthExpenseTotal={monthExpenseTotal}
-      pendingSettlements={(pendingSettlements ?? []) as any[]}
-      recentEntries={(recentTxns ?? []) as any[]}
-    />
+    <div className="space-y-4 pb-10">
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-300">Canonical Accounting</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">Transaction Register → Double-Entry Journal → General Ledger → Trial Balance</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a href="/finance/transactions" className="rounded-xl bg-white px-3 py-2 text-xs font-black text-indigo-700 shadow-sm ring-1 ring-indigo-200 hover:bg-indigo-50 dark:bg-slate-900 dark:text-indigo-300 dark:ring-white/10">Transaction Register</a>
+            <a href="/finance/general-ledger" className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-indigo-700">General Ledger</a>
+          </div>
+        </div>
+      </div>
+      <FinanceDashboardClient
+        poolBalances={(poolBalances ?? {}) as any}
+        instruments={(instruments ?? []) as any[]}
+        todayInflow={todayInflow}
+        todayOutflow={todayOutflow}
+        todayNetMargin={todayInflow - todayOutflow}
+        monthExpenseTotal={monthExpenseTotal}
+        pendingSettlements={(pendingSettlements ?? []) as any[]}
+        recentEntries={(recentTxns ?? []) as any[]}
+      />
+    </div>
   );
 }
