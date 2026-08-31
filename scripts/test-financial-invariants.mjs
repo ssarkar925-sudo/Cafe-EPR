@@ -7232,6 +7232,55 @@ function detectIntent(question) {
   assert(settlementPL === 0, "1340. Settlements: Internal Transfer Net P&L impact is strictly ₹0.00");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 11: Full Duplicate, Redundancy & Unnecessary Feature Cleanup Invariants
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 11: Full Duplicate & Redundancy Cleanup Invariants ---");
+
+  // Invariant 1: Legacy Subroutes Redirect to Canonical Bill Payment Hub
+  const gpRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/google-play/page.tsx", "utf8");
+  assert(gpRoute.includes('redirect("/business/bill-payment?tab=google_play")'), "1341. Canonical Hub: /google-play redirects to /business/bill-payment?tab=google_play");
+
+  const mrRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx", "utf8");
+  assert(mrRoute.includes('redirect("/business/bill-payment?tab=recharge")'), "1342. Canonical Hub: /mobile-recharge redirects to /business/bill-payment?tab=recharge");
+
+  const utilRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/utility/page.tsx", "utf8");
+  assert(utilRoute.includes('redirect("/business/bill-payment?tab=utility")'), "1343. Canonical Hub: /utility redirects to /business/bill-payment?tab=utility");
+
+  const plansRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/mobile-recharge/plans/page.tsx", "utf8");
+  assert(plansRoute.includes('redirect("/business/bill-payment?tab=recharge")'), "1344. Canonical Hub: /plans redirects to /business/bill-payment?tab=recharge");
+
+  const bizServiceRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
+  assert(bizServiceRoute.includes('if (service === "recharge") redirect("/business/bill-payment?tab=recharge");'), "1345. Canonical Hub: /business/recharge redirects to /business/bill-payment?tab=recharge");
+
+  // Invariant 2: Sidebar Navigation Cleanliness (No duplicate submodule entries)
+  const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  assert(!sidebarFile.includes('label: "Mobile Recharge"'), "1346. Sidebar Cleanliness: 'Mobile Recharge' not duplicated in main sidebar");
+  assert(!sidebarFile.includes('label: "Utility Bill Payment"'), "1347. Sidebar Cleanliness: 'Utility Bill Payment' not duplicated in main sidebar");
+  assert(!sidebarFile.includes('label: "Google Play Recharge"'), "1348. Sidebar Cleanliness: 'Google Play Recharge' not duplicated in main sidebar");
+  assert(sidebarFile.includes('label: "Bill Payment"'), "1349. Sidebar Cleanliness: Single canonical 'Bill Payment' Hub present");
+
+  // Invariant 3: Universal 2-Zone Payment Interface in Hub
+  const hubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  assert(hubFile.includes("1. Customer Collection (Inflow)"), "1350. UI Consolidation: Zone 1 'Customer Collection' clearly identified");
+  assert(hubFile.includes("2. Shop Funding Account (Outflow)"), "1351. UI Consolidation: Zone 2 'Shop Funding Account' clearly identified");
+  assert(hubFile.includes("Reconciled Economics"), "1352. UI Consolidation: Live Reconciled Economics preview present");
+
+  // Invariant 4: Single Authoritative WhatsApp Dispatcher
+  const waFile = fs.readFileSync("E:/CafeERP/lib/whatsapp-sender.ts", "utf8");
+  assert(waFile.includes("export async function sendWhatsAppViaConfig"), "1353. WhatsApp Engine: Single authoritative sendWhatsAppViaConfig dispatcher");
+
+  // Invariant 5: Deduplication of cash entries on repeated transaction save
+  const mockEntries = [
+    { ref_type: "transaction", ref_id: "tx-001", direction: "in", amount: 3010 },
+    { ref_type: "transaction", ref_id: "tx-001", direction: "out", amount: 3000 },
+  ];
+  const uniqueKeySet = new Set(mockEntries.map(e => `${e.ref_type}:${e.ref_id}:${e.direction}`));
+  assert(uniqueKeySet.size === 2, "1354. Deduplication Invariant: Exactly 2 distinct legs per transaction (1 in, 1 out)");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

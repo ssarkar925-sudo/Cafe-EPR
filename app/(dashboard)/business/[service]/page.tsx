@@ -29,6 +29,7 @@ export default async function BusinessServicePage({
   params: Promise<{ service: string }>;
 }) {
   const { service } = await params;
+  if (service === "recharge") redirect("/business/bill-payment?tab=recharge");
   if (!SERVICES[service]) redirect("/dashboard");
 
   const role = await getUserRole();
