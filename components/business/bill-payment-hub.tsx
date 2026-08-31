@@ -1491,40 +1491,68 @@ export default function BillPaymentHub({
               </div>
             </div>
 
-            {/* Payment Method & Payment Account Linking */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Customer Payment Method</label>
-                <select
-                  value={editPayMethod}
-                  onChange={(e) => setEditPayMethod(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold uppercase dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="cash">Cash Collection</option>
-                  <option value="upi">UPI / QR Scan</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="wallet">Wallet Balance</option>
-                  <option value="credit_card">Credit Card</option>
-                  <option value="due">Khata (Customer Due)</option>
-                </select>
+            {/* Universal 2-Zone Payment & Settlement Specification */}
+            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-slate-800/40 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 dark:border-white/10">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white flex items-center gap-1.5">
+                  <span>💳</span>
+                  <span>Payment &amp; Funding Specification</span>
+                </span>
+                <span className="text-[10px] font-semibold text-slate-500">Decoupled Counter vs Provider Legs</span>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Funding Account / Register ({activeInstruments.length} Available)
-                </label>
-                <select
-                  value={editFundingInstId}
-                  onChange={(e) => setEditFundingInstId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="">-- Select Active Funding Account --</option>
-                  {activeInstruments.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name} ({i.type.toUpperCase()}) {(i as any).current_balance != null || i.balance != null ? `· ${inr(Number((i as any).current_balance ?? i.balance ?? 0))}` : ""}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Zone 1: Customer Collection */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                      <span>📥</span>
+                      <span>1. Customer Collection (Inflow)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">At Counter</span>
+                  </div>
+                  <select
+                    value={editPayMethod}
+                    onChange={(e) => setEditPayMethod(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-semibold uppercase dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="cash">💵 Cash Collection</option>
+                    <option value="upi">📱 UPI / QR Scan</option>
+                    <option value="bank">🏦 Bank Transfer</option>
+                    <option value="wallet">👛 Wallet Balance</option>
+                    <option value="credit_card">💳 Credit Card</option>
+                    <option value="due">📒 Khata (Customer Due)</option>
+                  </select>
+                  <span className="block text-[10px] text-slate-500">
+                    Collected: <strong>{inr((Number(editAmount) || 0) + (Number(editServiceFee) || 0))}</strong>
+                  </span>
+                </div>
+
+                {/* Zone 2: Shop Funding Account */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                      <span>📤</span>
+                      <span>2. Shop Funding Account (Outflow)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">To Provider</span>
+                  </div>
+                  <select
+                    value={editFundingInstId}
+                    onChange={(e) => setEditFundingInstId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">-- Select Active Funding Account --</option>
+                    {activeInstruments.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name} ({i.type.toUpperCase()}) {(i as any).current_balance != null || i.balance != null ? `· ${inr(Number((i as any).current_balance ?? i.balance ?? 0))}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="block text-[10px] text-slate-500">
+                    Disbursed: <strong>{inr(Math.max(0, (Number(editAmount) || 0) - (Number(editCommission) || 0)))}</strong>
+                  </span>
+                </div>
               </div>
             </div>
 

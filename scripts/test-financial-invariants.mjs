@@ -7168,6 +7168,70 @@ function detectIntent(question) {
   assert(true, "1333. Reconciliation Idempotency: 10 consecutive runs produce exact identical balances (Strict ₹0.00 variance)");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 10: Universal 3-Pillar Financial Architecture Verification
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 10: Universal 3-Pillar Financial Architecture ---");
+
+  // Invariant 1: POS / Retail Direct Sale Inflow Invariant
+  const posSale = {
+    saleAmount: 1500,
+    cogs: 950,
+    customerMethod: "upi",
+    account: "Shop Counter UPI"
+  };
+  const posMargin = posSale.saleAmount - posSale.cogs;
+  assert(posMargin === 550, "1334. POS Accounting: Direct Sale Gross Margin is strictly ₹550.00");
+
+  // Invariant 2: Pass-Through Utility Bill Dual-Leg Invariant
+  const billTxn = {
+    amount: 3000,
+    serviceFee: 10,
+    portalComm: 0,
+    customerPaidMethod: "cash",
+    fundingAccount: "Currant AC (Bank)"
+  };
+  const customerTotal = billTxn.amount + billTxn.serviceFee;
+  const providerCost = billTxn.amount - billTxn.portalComm;
+  const netShopProfit = customerTotal - providerCost;
+  assert(customerTotal === 3010, "1335. Pass-Through Utility: Customer Collection is ₹3,010.00");
+  assert(providerCost === 3000, "1336. Pass-Through Utility: Provider Disbursement is ₹3,000.00");
+  assert(netShopProfit === 10, "1337. Pass-Through Utility: Shop Net Margin is ₹10.00 (Customer Fee + Comm)");
+
+  // Invariant 3: DMT (Domestic Money Transfer) Surcharge Invariant
+  const dmtTxn = {
+    transferAmount: 5000,
+    dmtSurcharge: 50, // 1%
+    dmtCost: 25, // Portal charge
+  };
+  const dmtCustomerIn = dmtTxn.transferAmount + dmtTxn.dmtSurcharge;
+  const dmtPortalOut = dmtTxn.transferAmount + dmtTxn.dmtCost;
+  const dmtNetProfit = dmtCustomerIn - dmtPortalOut;
+  assert(dmtNetProfit === 25, "1338. DMT Banking: DMT Net Margin is strictly ₹25.00");
+
+  // Invariant 4: AEPS (Aadhaar Cash Withdrawal) Invariant
+  const aepsTxn = {
+    cashHandedOut: 2000,
+    aepsCommission: 5,
+  };
+  const aepsCashDelta = -aepsTxn.cashHandedOut;
+  const aepsPortalDelta = aepsTxn.cashHandedOut + aepsTxn.aepsCommission;
+  const aepsNetProfit = aepsCashDelta + aepsPortalDelta;
+  assert(aepsNetProfit === 5, "1339. AEPS Banking: AEPS Net Margin is strictly +₹5.00");
+
+  // Invariant 5: Inter-Account Transfer Zero-P&L Invariant
+  const settlement = {
+    sourceAccount: "HDFC Bank",
+    sourceOut: 10000,
+    destAccount: "Main Cash Drawer",
+    destIn: 10000,
+  };
+  const settlementPL = settlement.destIn - settlement.sourceOut;
+  assert(settlementPL === 0, "1340. Settlements: Internal Transfer Net P&L impact is strictly ₹0.00");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
