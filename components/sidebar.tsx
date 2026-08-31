@@ -184,7 +184,6 @@ export default function Sidebar({
         items: [
           { label: "Products Catalog", href: "/catalog/products", icon: "products" },
           { label: "Purchases Entry", href: "/purchases/entry", icon: "purchases", badge: { text: "WAC", tone: "blue" } },
-          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
         ],
       },
       {
@@ -199,8 +198,13 @@ export default function Sidebar({
       {
         title: "Finance",
         items: [
+          { label: "Finance Hub", href: "/finance", icon: "pnl", badge: { text: "Dashboard", tone: "emerald" } },
           { label: "Daily Cash Book", href: "/finance/cashbook", icon: "cashbook" },
+          { label: "Double-Entry Journal", href: "/finance/journal", icon: "ledger" },
+          { label: "Trial Balance", href: "/finance/trial-balance", icon: "transactions" },
           { label: "Settlements & Float", href: "/finance/settlements", icon: "settlements" },
+          { label: "Expenses", href: "/finance/expenses", icon: "expenses" },
+          { label: "P&L Report", href: "/finance/pnl", icon: "salesreport" },
           { label: "Reports & Analytics", href: "/reports", icon: "reports" },
         ],
       },

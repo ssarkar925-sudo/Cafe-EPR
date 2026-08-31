@@ -1,19 +1,71 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import Link from "next/link";
-import FinanceOpsStrip from "@/components/finance/finance-ops-strip";
+import FinanceDashboardClient from "@/components/finance/finance-dashboard-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function FinancePage() {
   const role = await getUserRole();
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
+
   const supabase = await createClient();
-  const [{ data: entries }, { data: settlements }] = await Promise.all([
-    supabase.from("cash_entries").select("id,direction,amount,entry_date").limit(2000),
-    supabase.from("settlements").select("id,amount,settlement_date,status").limit(1000),
+
+  const today = new Date().toISOString().split("T")[0];
+  const startOfMonth = today.slice(0, 8) + "01";
+
+  const [
+    { data: poolBalances },
+    { data: instruments },
+    { data: todayEntries },
+    { data: monthExpenses },
+    { data: pendingSettlements },
+    { data: recentTxns },
+  ] = await Promise.all([
+    supabase.rpc("get_pool_balances"),
+    supabase.from("payment_instruments").select("id, name, type, is_active").order("type").order("name"),
+    supabase
+      .from("cash_entries")
+      .select("id, direction, amount, method, description, entry_date, instrument_id, payment_instruments(name, type)")
+      .eq("entry_date", today)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("expenses")
+      .select("id, amount, description, expense_date, category")
+      .gte("expense_date", startOfMonth)
+      .order("expense_date", { ascending: false })
+      .limit(200),
+    supabase
+      .from("settlements")
+      .select("id, settlement_number, settlement_type, amount, from_pool, to_pool, settlement_date, status")
+      .eq("status", "pending")
+      .order("settlement_date", { ascending: false })
+      .limit(50),
+    supabase
+      .from("cash_entries")
+      .select("id, direction, amount, method, description, entry_date, ref_type, ref_id, payment_instruments(name, type)")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
-  const e=(entries??[]) as any[], s=(settlements??[]) as any[];
-  return <div className="space-y-6"><FinanceOpsStrip entries={e} settlements={s}/><div className="grid gap-4 md:grid-cols-3"><Link href="/finance/cashbook" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-bold uppercase tracking-wider text-emerald-600">Daily ledger</div><h1 className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">Cash Book →</h1><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Review money-in, money-out and payment instrument movements.</p></Link><Link href="/finance/settlements" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-bold uppercase tracking-wider text-blue-600">Reconciliation</div><h1 className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">Settlements →</h1><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Move balances between pools and reconcile operational accounts.</p></Link><Link href="/reports/finance" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-bold uppercase tracking-wider text-violet-600">Analysis</div><h1 className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">Finance Reports →</h1><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Drill into collections, expenses and settlement performance.</p></Link></div></div>;
+
+  // Build today's P&L summary
+  const entries = (todayEntries ?? []) as any[];
+  const todayInflow = entries.filter((e) => e.direction === "in").reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const todayOutflow = entries.filter((e) => e.direction === "out").reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const monthExpenseTotal = ((monthExpenses ?? []) as any[]).reduce((s, e) => s + Number(e.amount ?? 0), 0);
+
+  const pools = (poolBalances ?? {}) as any;
+
+  return (
+    <FinanceDashboardClient
+      poolBalances={pools}
+      instruments={(instruments ?? []) as any[]}
+      todayInflow={todayInflow}
+      todayOutflow={todayOutflow}
+      todayNetMargin={todayInflow - todayOutflow}
+      monthExpenseTotal={monthExpenseTotal}
+      pendingSettlements={(pendingSettlements ?? []) as any[]}
+      recentEntries={(recentTxns ?? []) as any[]}
+    />
+  );
 }

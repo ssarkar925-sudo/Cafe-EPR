@@ -1,0 +1,28 @@
+-- ==============================================================================
+-- Phase 1A: Settlement Instrument Identity (Structural / New-Transaction Only)
+-- ==============================================================================
+-- Adds authoritative source/destination instrument identity to settlements.
+--
+-- This migration implements ONLY the structural/new-transaction portion:
+-- 1. Adds source_instrument_id and dest_instrument_id columns to settlements
+-- 2. Updates create_settlement() to persist these columns
+-- 3. Updates reverse_settlement() to preserve instrument identity on reversal
+-- 4. Adds indexes for query performance
+--
+-- EXCLUDED (per requirements):
+-- - Historical backfill query using audit_logs
+-- - Any guessed provider attribution for historical settlements
+-- - Modifications to get_pool_movements(), get_pool_balances()
+-- - Portal balance calculations
+-- - Opening balances
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 1. Add columns to settlements table (idempotent)
+-- ------------------------------------------------------------------------------
+alter table public.settlements
+  add column if not exists source_instrument_id uuid references public.payment_instruments(id) on delete set null,
+  add column if not exists dest_instrument_id   uuid references public.payment_instruments(id) on delete set null;
+
+create index if not exists settlements_source_instrument_id_idx on public.settlements (source_instrument_id);
+create index if not exists settlements_dest_instrument_id_idx on public.settlements (dest_instrument_id);
