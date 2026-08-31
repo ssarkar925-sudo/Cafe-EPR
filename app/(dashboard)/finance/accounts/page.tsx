@@ -28,7 +28,7 @@ async function createAccount(formData: FormData) {
   const creditLimit = Number(formData.get("credit_limit") ?? 0);
   const detailsText = String(formData.get("details") ?? "").trim();
 
-  if (!name || !ACCOUNT_TYPES.some(([value]) => value === type) || !Number.isFinite(openingBalance) || openingBalance < 0) {
+  if (!name || !ACCOUNT_TYPES.some(([value]) => value === type) || !Number.isFinite(openingBalance) || openingBalance < 0 || !Number.isFinite(creditLimit) || creditLimit < 0) {
     redirect("/finance/accounts?error=invalid");
   }
 
@@ -36,9 +36,9 @@ async function createAccount(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const details: Record<string, any> = {};
+  const details: Record<string, unknown> = {};
   if (detailsText) details.notes = detailsText;
-  if (type === "credit_card" && creditLimit > 0) details.credit_limit = creditLimit;
+  if (type === "credit_card") details.credit_limit = creditLimit;
 
   const { error } = await supabase.from("payment_instruments").insert({
     name,
@@ -93,7 +93,7 @@ export default async function FinanceAccountsPage({
   ] = await Promise.all([
     supabase
       .from("payment_instruments")
-      .select("id, name, type, is_active, opening_balance, balance, details, created_at")
+      .select("id, name, type, is_active, opening_balance, details, created_at")
       .order("is_active", { ascending: false })
       .order("type")
       .order("name"),
@@ -120,208 +120,85 @@ export default async function FinanceAccountsPage({
     typeof params.deactivated === "string" ? "Account deactivated." :
     typeof params.error === "string" ? `Action failed: ${params.error}` : null;
 
-  // Aggregate summary metrics
   const normalAccounts = reconciledBalances.filter((a) => !a.isCreditCard && !a.isDebitCard);
   const creditCards = reconciledBalances.filter((a) => a.isCreditCard);
-  const totalLiquidAssets = normalAccounts.reduce((sum, a) => sum + (a.calculatedBalance > 0 ? a.calculatedBalance : 0), 0);
-  const totalCreditLimit = creditCards.reduce((sum, c) => sum + c.creditLimit, 0);
-  const totalCreditUsed = creditCards.reduce((sum, c) => sum + c.usedLimit, 0);
-  const totalCreditAvailable = creditCards.reduce((sum, c) => sum + c.availableCredit, 0);
+  const totalLiquid = normalAccounts.reduce((sum, a) => sum + Math.max(0, a.calculatedBalance), 0);
+  const totalLimit = creditCards.reduce((sum, a) => sum + a.creditLimit, 0);
+  const totalUsed = creditCards.reduce((sum, a) => sum + a.usedLimit, 0);
+  const totalAvailable = creditCards.reduce((sum, a) => sum + a.availableCredit, 0);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">Finance / Payment Accounts</p>
             <h1 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">Payment Accounts &amp; Treasury</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Live calculated balances for cash, bank accounts, UPI, wallets, and independent Credit Facility limits &amp; utilization.
-            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Canonical live account positions. Credit limits are fixed; utilization changes with charges and repayments.</p>
           </div>
-          <a href="/finance" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">← Finance Hub</a>
+          <a href="/finance" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200">← Finance Hub</a>
         </div>
 
-        {/* Overview Bento Cards */}
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Liquid Cash &amp; Bank</div>
-            <div className="mt-1 text-xl font-black text-slate-900 dark:text-white">₹{totalLiquidAssets.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-            <div className="mt-0.5 text-[11px] text-emerald-600 font-semibold">{normalAccounts.length} Active Liquid Accounts</div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Liquid Position</div>
+            <div className="mt-1 text-xl font-black text-slate-900 dark:text-white">₹{totalLiquid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="text-[11px] font-semibold text-slate-500">Cash / Bank / UPI / Float</div>
           </div>
-          <div className="rounded-2xl border border-purple-100 bg-purple-50/40 p-4 dark:border-purple-900/20 dark:bg-purple-950/10">
-            <div className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Total Credit Limit</div>
-            <div className="mt-1 text-xl font-black text-purple-900 dark:text-purple-100">₹{totalCreditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-            <div className="mt-0.5 text-[11px] text-purple-600 dark:text-purple-400 font-semibold">{creditCards.length} Configured Card Facilities</div>
+          <div className="rounded-2xl border border-purple-100 bg-purple-50 p-4 dark:border-purple-900/30 dark:bg-purple-950/20">
+            <div className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Credit Limit</div>
+            <div className="mt-1 text-xl font-black text-purple-900 dark:text-purple-100">₹{totalLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">Fixed configured facility limit</div>
           </div>
-          <div className="rounded-2xl border border-rose-100 bg-rose-50/40 p-4 dark:border-rose-900/20 dark:bg-rose-950/10">
-            <div className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Used Credit / Debt</div>
-            <div className="mt-1 text-xl font-black text-rose-900 dark:text-rose-100">₹{totalCreditUsed.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-            <div className="mt-0.5 text-[11px] text-rose-600 dark:text-rose-400 font-semibold">Active Credit Utilization</div>
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 dark:border-rose-900/30 dark:bg-rose-950/20">
+            <div className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Used Credit</div>
+            <div className="mt-1 text-xl font-black text-rose-900 dark:text-rose-100">₹{totalUsed.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">Outstanding utilization</div>
           </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 dark:border-emerald-900/20 dark:bg-emerald-950/10">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/30 dark:bg-emerald-950/20">
             <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Available Credit</div>
-            <div className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100">₹{totalCreditAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-            <div className="mt-0.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">Limit − Used Utilization</div>
+            <div className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100">₹{totalAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Limit − Used</div>
           </div>
         </div>
       </header>
 
-      {status && (
-        <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${status.startsWith("Action failed") ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-          {status}
-        </div>
-      )}
+      {status && <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${status.startsWith("Action failed") ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{status}</div>}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <h2 className="text-lg font-black text-slate-900 dark:text-white">Add payment account</h2>
         <form action={createAccount} className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Account name
-            <input name="name" required placeholder="e.g. ICICI Bank / HDFC Card" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
-          </label>
-          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Type
-            <select name="type" defaultValue="bank" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950">
-              {ACCOUNT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
-          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Opening balance
-            <input name="opening_balance" type="number" min="0" step="0.01" defaultValue="0" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
-          </label>
-          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Credit Limit (if Credit Card)
-            <input name="credit_limit" type="number" min="0" step="0.01" placeholder="e.g. 50000" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
-          </label>
-          <label className="md:col-span-2 lg:col-span-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Notes &amp; Details
-            <input name="details" placeholder="Account number, IFSC, UPI ID, or notes" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
-          </label>
-          <div className="md:col-span-2 lg:col-span-4 flex justify-end">
-            <button type="submit" className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-blue-700">+ Add Account</button>
-          </div>
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Account name<input name="name" required placeholder="e.g. ICICI Bank / HDFC Card" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-slate-950" /></label>
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Type<select name="type" defaultValue="bank" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-slate-950">{ACCOUNT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Opening balance<input name="opening_balance" type="number" min="0" step="0.01" defaultValue="0" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-slate-950" /></label>
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Credit limit<input name="credit_limit" type="number" min="0" step="0.01" placeholder="For Credit Card" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-slate-950" /></label>
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 md:col-span-2 lg:col-span-4">Notes / details<input name="details" placeholder="Account number, IFSC, UPI ID, or notes" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-slate-950" /></label>
+          <div className="md:col-span-2 lg:col-span-4 flex justify-end"><button type="submit" className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white hover:bg-blue-700">+ Add Account</button></div>
         </form>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="border-b border-slate-200 px-6 py-4 dark:border-white/10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white">Configured Accounts &amp; Treasury Balances</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Liquid Accounts: Balance = Opening + Inflows − Outflows | Credit Cards: Available = Credit Limit − Used Credit
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Live Inflow/Outflow Engine Active
-          </span>
+        <div className="border-b border-slate-200 px-6 py-4 dark:border-white/10">
+          <h2 className="text-lg font-black text-slate-900 dark:text-white">Configured Accounts &amp; Treasury Balances</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Normal accounts: Opening + Inflows − Outflows. Credit cards: Credit Limit − Used Credit = Available.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-black uppercase tracking-wide text-slate-500 dark:bg-white/[0.03]">
-              <tr>
-                <th className="px-6 py-3">Account Name</th>
-                <th className="px-6 py-3">Type</th>
-                <th className="px-6 py-3 text-right">Opening / Credit Limit</th>
-                <th className="px-6 py-3 text-right">Inflow / Repayment (+)</th>
-                <th className="px-6 py-3 text-right">Outflow / Charged (-)</th>
-                <th className="px-6 py-3 text-right font-black text-slate-900 dark:text-white">Calculated Position</th>
-                <th className="px-6 py-3 text-center">Status / Breakdown</th>
-                <th className="px-6 py-3 text-center">Action</th>
-              </tr>
-            </thead>
+            <thead className="bg-slate-50 text-left text-xs font-black uppercase tracking-wide text-slate-500 dark:bg-white/[0.03]"><tr><th className="px-6 py-3">Account</th><th className="px-6 py-3">Type</th><th className="px-6 py-3 text-right">Opening / Limit</th><th className="px-6 py-3 text-right">Inflow</th><th className="px-6 py-3 text-right">Outflow</th><th className="px-6 py-3 text-right">Current / Available</th><th className="px-6 py-3 text-center">Status</th><th className="px-6 py-3 text-center">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {reconciledBalances.map((acc) => (
                 <tr key={acc.id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-900 dark:text-white">{acc.name}</div>
-                    {acc.isCreditCard && (
-                      <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
-                        💳 Fixed Limit: ₹{acc.creditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </div>
-                    )}
-                    {acc.isDebitCard && (
-                      <div className="text-[11px] text-indigo-500">
-                        {acc.parentBankName}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                      {ACCOUNT_TYPES.find(([value]) => value === acc.type)?.[1] ?? acc.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                    {acc.isCreditCard ? (
-                      <div className="font-bold text-purple-700 dark:text-purple-300">
-                        ₹{acc.creditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </div>
-                    ) : (
-                      `₹${acc.openingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                    {acc.totalInflows > 0 ? `+₹${acc.totalInflows.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono font-medium text-rose-600 dark:text-rose-400">
-                    {acc.totalOutflows > 0 ? `-₹${acc.totalOutflows.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono">
-                    {acc.isCreditCard ? (
-                      <div>
-                        <div className="text-base font-black text-emerald-600 dark:text-emerald-400">
-                          ₹{acc.availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </div>
-                        <div className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
-                          Used: ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-base font-black text-slate-900 dark:text-white">
-                        ₹{acc.calculatedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    {acc.isCreditCard ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                          Available: ₹{acc.availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                          (Debt: ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
-                        </span>
-                      </div>
-                    ) : (
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                        acc.statusVariant === "linked" ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300" :
-                        acc.isReconciled ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" :
-                        "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-                      }`}>
-                        {acc.statusLabel}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    {acc.isActive && role === "admin" ? (
-                      <form action={deactivateAccount}>
-                        <input type="hidden" name="id" value={acc.id} />
-                        <button className="rounded-lg border border-rose-200 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-950/30">
-                          Deactivate
-                        </button>
-                      </form>
-                    ) : <span className="text-xs text-slate-400">—</span>}
-                  </td>
+                  <td className="px-6 py-4"><div className="font-bold text-slate-900 dark:text-white">{acc.name}</div>{acc.isCreditCard && <div className="text-[11px] text-slate-500">Used: ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>}{acc.isDebitCard && <div className="text-[11px] text-indigo-500">{acc.parentBankName}</div>}</td>
+                  <td className="px-6 py-4"><span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:bg-white/10 dark:text-slate-300">{ACCOUNT_TYPES.find(([value]) => value === acc.type)?.[1] ?? acc.type}</span></td>
+                  <td className="px-6 py-4 text-right font-mono">{acc.isCreditCard ? `₹${acc.creditLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : `₹${acc.openingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}</td>
+                  <td className="px-6 py-4 text-right font-mono text-emerald-600">{acc.totalInflows > 0 ? `+₹${acc.totalInflows.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}</td>
+                  <td className="px-6 py-4 text-right font-mono text-rose-600">{acc.totalOutflows > 0 ? `-₹${acc.totalOutflows.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}</td>
+                  <td className="px-6 py-4 text-right font-mono font-black">{acc.isCreditCard ? <><div className="text-emerald-600">₹{acc.availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div><div className="text-[11px] font-semibold text-rose-600">Used ₹{acc.usedLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div></> : `₹${acc.calculatedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}</td>
+                  <td className="px-6 py-4 text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${acc.isCreditCard ? "bg-purple-50 text-purple-700" : acc.statusVariant === "linked" ? "bg-indigo-50 text-indigo-700" : acc.isReconciled ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{acc.isCreditCard ? `Available ₹${acc.availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : acc.statusLabel}</span></td>
+                  <td className="px-6 py-4 text-center">{acc.isActive && role === "admin" ? <form action={deactivateAccount}><input type="hidden" name="id" value={acc.id} /><button className="rounded-lg border border-rose-200 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-50">Deactivate</button></form> : <span className="text-xs text-slate-400">—</span>}</td>
                 </tr>
               ))}
-              {!reconciledBalances.length && (
-                <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-slate-500">
-                    No payment accounts configured.
-                  </td>
-                </tr>
-              )}
+              {!reconciledBalances.length && <tr><td colSpan={8} className="px-6 py-10 text-center text-slate-500">No payment accounts configured.</td></tr>}
             </tbody>
           </table>
         </div>
