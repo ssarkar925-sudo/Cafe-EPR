@@ -8,9 +8,8 @@ export type Hub={id:string;label:string;description:string;icon:string;modules:M
 export const HUBS:Hub[]=[
 {id:"sales",label:"Sales Hub",description:"Sell, bill, serve customers and manage returns",icon:"◈",modules:[
 {id:"sales",label:"Sales",description:"Counter billing and completed sales",items:[
-{label:"POS",description:"Full counter billing workstation",href:"/pos",shortcut:"F2"},
-{label:"Quick Sale",description:"Fast product and service billing",href:"/pos?mode=quick"},
-{label:"Invoices & Sales",description:"Search, review and manage invoices",href:"/invoices"}]},
+{label:"POS",description:"Full counter billing workstation with Invoice and Quick Sale modes",href:"/pos",shortcut:"F2"},
+{label:"Invoices & Sales",description:"Search, review and manage invoices and completed sales",href:"/invoices"}]},
 {id:"customers",label:"Customers",description:"Customer directory, balances and credit controls",items:[{label:"Customer Directory",description:"Profiles, balances, credit controls and transaction history",href:"/customers"}]},
 {id:"returns",label:"Returns",description:"Refunds, returns and credit reversals",items:[{label:"Returns & Credit",description:"Process returns and reversal vouchers",href:"/returns"}]}
 ]},
