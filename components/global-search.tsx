@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import { HUBS } from "@/lib/navigation/hub-navigation";
 
 type Result = {
   type: string;
@@ -12,31 +13,26 @@ type Result = {
   href: string;
 };
 
-const STATIC_PAGES: { title: string; subtitle: string; href: string; keywords: string[] }[] = [
-  { title: "Financial Self-Audit", subtitle: "13-Subsystem Invariant AI Audit Center", href: "/ai/self-audit", keywords: ["audit", "self", "integrity", "ai", "variance", "reconcile"] },
-  { title: "Tax Preparation / ITR", subtitle: "Accountant-Ready Section 44AD / 40A(3) Tax Prep", href: "/reports/tax-preparation", keywords: ["tax", "itr", "44ad", "income tax", "prep"] },
-  { title: "GST Reports", subtitle: "Statutory GSTR-1 & GSTR-3B Outward Tax Reports", href: "/reports/gst", keywords: ["gst", "gstr-1", "gstr-3b", "tax", "hsn", "sac"] },
-  { title: "Security Center", subtitle: "Immutability Locks, Audit Logs & Access Control", href: "/security", keywords: ["security", "triggers", "immutability", "lock", "roles"] },
-  { title: "Profit & Loss", subtitle: "Operating Revenue, COGS, Expenses & Net Profit", href: "/finance/pnl", keywords: ["pnl", "profit", "loss", "revenue", "cogs", "expenses"] },
-  { title: "Cash Book", subtitle: "Daily Cash Movement Ledger & Drawer Counts", href: "/finance/cashbook", keywords: ["cash", "cashbook", "drawer", "movement"] },
-  { title: "Day Close & Rollover", subtitle: "Daily Reconciliation, Profit Lock & Rollover", href: "/finance/day-close", keywords: ["day close", "rollover", "close", "reconcile"] },
-  { title: "Settlement Hub", subtitle: "Liquid Pool & Bank Settlements", href: "/finance/settlements", keywords: ["settlement", "bank", "wallet", "transfer"] },
-  { title: "Opening Balances", subtitle: "Starting Cash, Bank, Cards & Float Matrix", href: "/finance/opening-balances", keywords: ["opening", "balance", "seed", "float"] },
-  { title: "General Ledger", subtitle: "Complete Double-Entry Ledger", href: "/finance/ledger", keywords: ["ledger", "accounts", "journal", "general"] },
-  { title: "Expenses", subtitle: "Recorded Business Operating Expenses", href: "/finance/expenses", keywords: ["expense", "outgoing", "cost", "voucher"] },
-  { title: "Reports Hub", subtitle: "Sales, Products, Accounts & Customer Reports", href: "/reports", keywords: ["reports", "sales", "analytics"] },
-  { title: "Point of Sale (POS)", subtitle: "Invoice Billing & Quick Counter Sales", href: "/pos", keywords: ["pos", "sale", "billing", "counter", "checkout"] },
-  { title: "Invoices & Receipts", subtitle: "All Invoices, Statuses & Printouts", href: "/invoices", keywords: ["invoice", "receipt", "bill", "payment"] },
-  { title: "Returns & Credit Notes", subtitle: "Refunds, Stock Reversal & Credit Notes", href: "/returns", keywords: ["return", "refund", "credit note"] },
-  { title: "Customers & CRM", subtitle: "Customer Accounts, Dues & Ledgers", href: "/customers", keywords: ["customer", "due", "crm", "balance", "client"] },
-  { title: "Products & Stock", subtitle: "Catalog, Quantities & Purchase Costs", href: "/catalog/products", keywords: ["product", "stock", "catalog", "item", "inventory"] },
-  { title: "Services Catalog", subtitle: "Service Price List & Commissions", href: "/catalog/services", keywords: ["service", "price", "fee"] },
-  { title: "AEPS Banking", subtitle: "Aadhaar ATM Cash Withdrawal & Balances", href: "/business/aeps", keywords: ["aeps", "aadhaar", "atm", "cash out"] },
-  { title: "DMT Money Transfer", subtitle: "Domestic Money Remittance", href: "/business/dmt", keywords: ["dmt", "remittance", "transfer", "money"] },
-  { title: "UPI Collections", subtitle: "Dynamic QR & Merchant Soundbox Payments", href: "/business/upi", keywords: ["upi", "qr", "soundbox", "merchant"] },
-  { title: "Staff & Attendance", subtitle: "Staff Management, Roles & Shift Attendance", href: "/staff", keywords: ["staff", "employee", "team", "attendance", "users"] },
-  { title: "Shop Settings", subtitle: "Shop Profile, Tax Settings & Accounts", href: "/settings", keywords: ["settings", "shop", "profile", "config"] },
-];
+// Navigation search is derived from the canonical Hub registry. This prevents
+// a second, drifting list of application pages from becoming another source
+// of truth. HUBS owns navigation; search only indexes it.
+const STATIC_PAGES = HUBS.flatMap((hub) =>
+  hub.modules.flatMap((module) =>
+    module.items.map((item) => ({
+      title: item.label,
+      subtitle: `${hub.label} · ${module.label} · ${item.description}`,
+      href: item.href,
+      keywords: [
+        hub.id,
+        hub.label,
+        module.id,
+        module.label,
+        item.label,
+        item.description,
+      ],
+    })),
+  ),
+);
 
 export default function GlobalSearch({
   open,
@@ -77,12 +73,12 @@ export default function GlobalSearch({
     const timer = setTimeout(async () => {
       const out: Result[] = [];
 
-      // 1. Search Static Module Pages
+      // 1. Search canonical Hub pages.
       for (const page of STATIC_PAGES) {
         if (
           page.title.toLowerCase().includes(needle) ||
           page.subtitle.toLowerCase().includes(needle) ||
-          page.keywords.some((k) => k.includes(needle))
+          page.keywords.some((k) => k.toLowerCase().includes(needle))
         ) {
           out.push({
             type: "Navigation",
@@ -219,7 +215,7 @@ export default function GlobalSearch({
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search all 35+ modules, customers, invoices, products..."
+            placeholder="Search hubs, modules, customers, invoices, products..."
             className="flex-1 bg-transparent text-sm text-white placeholder-slate-400 outline-none"
           />
           {loading && (
@@ -275,7 +271,7 @@ export default function GlobalSearch({
           </ul>
         ) : q.trim() && !loading ? (
           <div className="p-8 text-center text-xs text-slate-400">
-            No matching modules, customers, or products found for &ldquo;{q}&rdquo;.
+            No matching hubs, modules, customers, or products found for &ldquo;{q}&rdquo;.
           </div>
         ) : (
           <div className="p-4 text-xs text-slate-400">
