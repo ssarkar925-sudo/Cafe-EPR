@@ -1,4 +1,4 @@
-name: Apply bill payment fix
+name: Repair bill payment build
 
 on:
   push:
@@ -8,55 +8,34 @@ permissions:
   contents: write
 
 jobs:
-  patch:
-    if: github.event.head_commit.message != 'fix(bill): collision-resistant transaction numbering'
+  repair:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Patch bill payment transaction numbering
-        shell: python
+      - name: Repair transaction number declaration order
         run: |
+          python - <<'PY'
           from pathlib import Path
+          p = Path('components/business/utility-bill-workspace.tsx')
+          s = p.read_text(encoding='utf-8')
+          old = '''      // 2. Post to Canonical transactions Table\n      const insertPayload = {\n        transaction_number: txnNumber,'''
+          new = '''      // 2. Post to Canonical transactions Table\n      const txnNumber = nextNum;\n      const insertPayload = {\n        transaction_number: nextNum,'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          old_decl = '''      // Always use the database record's actual transaction number for every downstream posting/audit.\n      const txnNumber = newTxn.transaction_number || nextNum;\n\n      // 3. Customer Collection Accounting Leg'''
+          new_decl = '''      // 3. Customer Collection Accounting Leg'''
+          if old_decl in s:
+              s = s.replace(old_decl, new_decl, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
 
-          path = Path('components/business/utility-bill-workspace.tsx')
-          text = path.read_text(encoding='utf-8')
-          original = text
-
-          old = '''      // 1. Generate Transaction Number\n      const { count } = await supabase\n        .from("transactions")\n        .select("id", { count: "exact", head: true })\n        .in("service_type", ["bill_payment", "utility_bill"]);\n      const nextNum = "BIL-" + String((count ?? 0) + 1).padStart(4, "0");'''
-          new = '''      // 1. Generate a collision-resistant transaction number.\n      // Count-based numbering is race-prone: two simultaneous payments can read the same count.\n      const nextNum = `BIL-${todayDate.replace(/-/g, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;'''
-          if old in text:
-              text = text.replace(old, new, 1)
-
-          marker = '''      } else {\n        newTxn = primaryTxn;\n      }\n\n      // 3. Customer Collection Accounting Leg'''
-          replacement = '''      } else {\n        newTxn = primaryTxn;\n      }\n\n      // Always use the database record's actual transaction number for downstream posting/audit.\n      const txnNumber = newTxn.transaction_number || nextNum;\n\n      // 3. Customer Collection Accounting Leg'''
-          if marker in text and 'const txnNumber = newTxn.transaction_number || nextNum;' not in text:
-              text = text.replace(marker, replacement, 1)
-
-          replacements = {
-              'Bill ${nextNum} collection': 'Bill ${txnNumber} collection',
-              'Utility Bill ${nextNum}': 'Utility Bill ${txnNumber}',
-              'Bill ${nextNum} settlement': 'Bill ${txnNumber} settlement',
-              'Paid Utility Bill ${nextNum}': 'Paid Utility Bill ${txnNumber}',
-              'transaction_number: nextNum,': 'transaction_number: txnNumber,',
-              '✓ Bill payment ${nextNum} processed successfully!': '✓ Bill payment ${txnNumber} processed successfully!',
-          }
-          for a, b in replacements.items():
-              text = text.replace(a, b)
-
-          if text == original:
-              print('Bill payment patch already applied; continuing to remove temporary workflow.')
-          else:
-              path.write_text(text, encoding='utf-8')
-
-      - name: Commit patch and remove temporary workflow
-        shell: bash
+      - name: Commit repair
         run: |
+          if git diff --quiet -- components/business/utility-bill-workspace.tsx; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/finalize-dmt-frontend.yml
           git add components/business/utility-bill-workspace.tsx
-          git commit -m "fix(bill): collision-resistant transaction numbering"
+          git commit -m "fix(bill): repair transaction number declaration order"
           git push
