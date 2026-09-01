@@ -21,6 +21,7 @@ type Props = {
       category_id: string | null;
       sale_price: number;
       cost_price: number;
+      /** Only included when creating a new product. Never sent on edit. */
       stock_qty: number;
       reorder_level: number;
     },
@@ -48,6 +49,7 @@ export default function ProductFormModal({
   const [costPrice, setCostPrice] = useState(
     editing ? String(editing.cost_price) : ""
   );
+  // Stock is shown for display only when editing; only editable on create.
   const [stock, setStock] = useState(editing ? String(editing.stock_qty) : "");
   const [reorder, setReorder] = useState(
     editing ? String(editing.reorder_level) : ""
@@ -82,7 +84,10 @@ export default function ProductFormModal({
         category_id: categoryId || null,
         sale_price: Number(salePrice) || 0,
         cost_price: Number(costPrice) || 0,
-        stock_qty: Number(stock) || 0,
+        // When editing, stock_qty is intentionally forwarded as the EXISTING value
+        // but the parent saveProduct() will strip it from the update payload.
+        // On create it is used as the initial seeded stock.
+        stock_qty: editing ? Number(editing.stock_qty) : Number(stock) || 0,
         reorder_level: Number(reorder) || 0,
       },
       editing ?? undefined
@@ -92,6 +97,8 @@ export default function ProductFormModal({
 
   const inputClass =
     "w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white";
+  const readonlyClass =
+    "w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400 cursor-not-allowed select-none";
   const labelClass = "mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300";
 
   return (
@@ -217,15 +224,30 @@ export default function ProductFormModal({
             />
           </div>
           <div>
-            <label className={labelClass}>Stock Quantity</label>
-            <input
-              type="number"
-              step="1"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              placeholder="0"
-              className={inputClass}
-            />
+            <label className={labelClass}>
+              Stock Quantity
+              {editing && (
+                <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+                  Read-only
+                </span>
+              )}
+            </label>
+            {editing ? (
+              /* Stock is read-only on edit — use Adjust Stock button instead */
+              <div className={readonlyClass} title="Use the Adjust Stock button to change stock quantity">
+                {editing.stock_qty} {editing.unit}
+              </div>
+            ) : (
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                placeholder="0"
+                className={inputClass}
+              />
+            )}
           </div>
           <div>
             <label className={labelClass}>Reorder Level</label>
@@ -240,6 +262,13 @@ export default function ProductFormModal({
             />
           </div>
         </div>
+
+        {editing && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+            <span className="font-black">⚠ Stock quantity is locked.</span>{" "}
+            Use the <span className="font-black">Adjust Stock</span> button in the product list to set a new quantity with a reason. This ensures every stock change is recorded in the inventory journal.
+          </div>
+        )}
 
         <div>
           <label className={labelClass}>Description / Notes (Optional)</label>
