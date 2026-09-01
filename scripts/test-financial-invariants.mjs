@@ -4574,7 +4574,7 @@ function detectIntent(question) {
 
 // 526 - 535. Opening Financial Position Workspace UI Hierarchy & Invariant Verification
 {
-  const clientFile = fs.readFileSync('E:/CafeERP/components/finance/opening-balances-client.tsx', 'utf8');
+  const clientFile = fs.readFileSync('./components/finance/opening-balances-client.tsx', 'utf8');
 
   // Test 1: Primary Section verification
   assert(clientFile.includes("Opening Position & Balance Sheet") || clientFile.includes("Opening Position &amp; Balance Sheet"), "526. UI Hierarchy Invariant: 'Opening Position & Balance Sheet' present as primary title");
@@ -4615,12 +4615,12 @@ function detectIntent(question) {
   assert(poolBalances.wallet.current === 0, "540. Wallet Core Invariant: Wallet float preserved at ₹0.00");
 
   // Test 5: Dedicated Financial Reconciliation Architecture & Account Management Separation
-  const settingsPageFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/settings/page.tsx", "utf8");
-  const paymentPanelFile = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
-  const reconClientFile = fs.readFileSync("E:/CafeERP/components/finance/reconciliation-client.tsx", "utf8");
-  const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
-  const settingsConfigFile = fs.readFileSync("E:/CafeERP/components/settings/settings-config.ts", "utf8");
-  const businessClientFile = fs.readFileSync("E:/CafeERP/components/business/business-client.tsx", "utf8");
+  const settingsPageFile = fs.readFileSync("./app/(dashboard)/settings/page.tsx", "utf8");
+  const paymentPanelFile = fs.readFileSync("./components/settings/payment-accounts-panel.tsx", "utf8");
+  const reconClientFile = fs.readFileSync("./components/finance/reconciliation-client.tsx", "utf8");
+  const sidebarFile = fs.readFileSync("./components/sidebar.tsx", "utf8");
+  const settingsConfigFile = fs.readFileSync("./components/settings/settings-config.ts", "utf8");
+  const businessClientFile = fs.readFileSync("./components/business/business-client.tsx", "utf8");
 
   // Settings & Payment Accounts Cleanup Invariants
   assert(!settingsPageFile.includes("UpiReconciliationCard"), "541. Settings Architecture: Large UPI reconciliation card removed from /settings");
@@ -4700,7 +4700,7 @@ function detectIntent(question) {
   assert(paymentPanelFile.includes("✓ 100% Reconciled"), "575. Modal Invariant: 100% Reconciled badge displayed for balanced accounts");
 
   // Test 8: Dedicated Financial Reconciliation Workspace UI & Architecture (Tests 576-590)
-  const upiWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/upi-workspace.tsx", "utf8");
+  const upiWorkspaceFile = fs.readFileSync("./components/business/upi-workspace.tsx", "utf8");
   assert(reconClientFile.includes("Financial Reconciliation"), "576. Dedicated Workspace Invariant: 'Financial Reconciliation' title present");
   assert(reconClientFile.includes("Cross-module verification of live financial positions"), "577. Dedicated Workspace Invariant: Subtitle present");
   assert(reconClientFile.includes("All Accounts Reconciled"), "578. Dedicated Workspace Invariant: Top 'All Accounts Reconciled' badge present");
@@ -4718,7 +4718,7 @@ function detectIntent(question) {
   assert(upiWorkspaceFile.includes("Record UPI Cash Out"), "590. UPI Workspace: Modal workflow for cash out recording present");
 
   // Test 9: AEPS Command Center Modernization (Tests 591-605)
-  const aepsWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/aeps-workspace.tsx", "utf8");
+  const aepsWorkspaceFile = fs.readFileSync("./components/business/aeps-workspace.tsx", "utf8");
   assert(aepsWorkspaceFile.includes("LIVE AEPS SWITCH ONLINE"), "591. AEPS Command Center: Live AEPS switch badge present in hero");
   assert(aepsWorkspaceFile.includes("AEPS Biometric Cash Out"), "592. AEPS Command Center: Hero title present");
   assert(aepsWorkspaceFile.includes("AVAILABLE PLATFORM FLOAT"), "593. AEPS Command Center: Available platform float card present in hero");
@@ -4745,9 +4745,9 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes("handleNewCashOut"), "612. Reset Invariant: Explicit New Cash Out reset handler present");
 
   // Test 11: AEPS Receipt & Invoice Customer/Internal Financial Privacy Logic (Tests 613-630)
-  const receipt80mmFile = fs.readFileSync("E:/CafeERP/app/business/receipt/[id]/page.tsx", "utf8");
-  const receiptA4File = fs.readFileSync("E:/CafeERP/app/business/receipt/[id]/a4/page.tsx", "utf8");
-  const businessPdfFile = fs.readFileSync("E:/CafeERP/components/pdf/business-pdf.tsx", "utf8");
+  const receipt80mmFile = fs.readFileSync("./app/business/receipt/[id]/page.tsx", "utf8");
+  const receiptA4File = fs.readFileSync("./app/business/receipt/[id]/a4/page.tsx", "utf8");
+  const businessPdfFile = fs.readFileSync("./components/pdf/business-pdf.tsx", "utf8");
 
   assert(receipt80mmFile.includes("const showCustomerFeeDetails = isDetailed;"), "613. 80mm Receipt: Centralized showCustomerFeeDetails display policy defined");
   assert(receiptA4File.includes("const showCustomerFeeDetails = isDetailed;"), "614. A4 Invoice: Centralized showCustomerFeeDetails display policy defined");
@@ -4775,9 +4775,9 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes("receiptMode === \"detailed\" ? \"?mode=detailed\" : \"\""), "630. Workspace Invariant: Workspace preserves receiptMode query parameter in print links");
 
   // Test 12: Real Scannable Merchant UPI QR System (Tests 631-645)
-  const upiQrComponentFile = fs.readFileSync("E:/CafeERP/components/ui/upi-qr-code.tsx", "utf8");
-  const upiWorkspaceComponent = fs.readFileSync("E:/CafeERP/components/business/upi-workspace.tsx", "utf8");
-  const masterClientFile = fs.readFileSync("E:/CafeERP/components/business/master-client.tsx", "utf8");
+  const upiQrComponentFile = fs.readFileSync("./components/ui/upi-qr-code.tsx", "utf8");
+  const upiWorkspaceComponent = fs.readFileSync("./components/business/upi-workspace.tsx", "utf8");
+  const masterClientFile = fs.readFileSync("./components/business/master-client.tsx", "utf8");
 
   assert(upiQrComponentFile.includes("buildUpiUri"), "631. QR Architecture: buildUpiUri generator exported");
   assert(upiQrComponentFile.includes("upi://pay?"), "632. UPI Standard URI: Payload starts with standard upi://pay? scheme");
@@ -4805,7 +4805,7 @@ function detectIntent(question) {
   assert(masterClientFile.includes("viewingQrRow"), "645. Merchant QRs Console: Selected merchant record dynamically passed to QR modal");
 
   // Test 13: DMT Money Transfer Command Center Hardening (Tests 646-670)
-  const dmtWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/dmt-workspace.tsx", "utf8");
+  const dmtWorkspaceFile = fs.readFileSync("./components/business/dmt-workspace.tsx", "utf8");
 
   assert(dmtWorkspaceFile.includes("● DMT SYSTEM ONLINE"), "646. DMT Command Center: Live system status banner in hero");
   assert(dmtWorkspaceFile.includes("IMPS / NEFT / UPI PAYOUT GATEWAY ACTIVE"), "647. DMT Command Center: Payout gateway badge in hero");
@@ -4901,7 +4901,7 @@ function detectIntent(question) {
   assert(dmtWorkspaceFile.includes("setLastCompletedTxn(completedRecord)"), "700. Success Invariant: UI renders confirmation card using atomic record");
 
   // Test 16: Fresh Business Start Baseline & Preservation Verification (Tests 701-720)
-  const resetSqlPath = "E:/CafeERP/supabase/fresh-business-start-reset.sql";
+  const resetSqlPath = "./supabase/fresh-business-start-reset.sql";
   assert(fs.existsSync(resetSqlPath), "701. Reset Checkpoint: fresh-business-start-reset.sql exists");
   const resetSql = fs.readFileSync(resetSqlPath, "utf8");
 
@@ -4945,9 +4945,9 @@ function detectIntent(question) {
   assert(resetSql.includes("aeps_seq RESTART WITH 1") && resetSql.includes("dmt_seq RESTART WITH 1") && resetSql.includes("upi_seq RESTART WITH 1"), "720. Sequence Invariant: Business service sequences restarted at 1");
 
   // Test 17: Dashboard 14-Day Peak Zero-Slate Analytics Fix (Tests 721-740)
-  const dashboardClientPath = "E:/CafeERP/components/dashboard/dashboard-client.tsx";
+  const dashboardClientPath = "./components/dashboard/dashboard-client.tsx";
   const dashboardClientFile = fs.readFileSync(dashboardClientPath, "utf8");
-  const dashboardPagePath = "E:/CafeERP/app/(dashboard)/dashboard/page.tsx";
+  const dashboardPagePath = "./app/(dashboard)/dashboard/page.tsx";
   const dashboardPageFile = fs.readFileSync(dashboardPagePath, "utf8");
 
   // 1. Root Cause Removal: No hardcoded Math.max(1000, ...)
@@ -5011,9 +5011,9 @@ function detectIntent(question) {
   assert(zeroTotalLiquid === 0, "740. Liquid Float Invariant: Zero-slate total liquid assets is ₹0.00");
 
   // Test 18: Opening Balances Single Source of Truth & Legacy Removal (Tests 741-765)
-  const openingClientPath = "E:/CafeERP/components/finance/opening-balances-client.tsx";
+  const openingClientPath = "./components/finance/opening-balances-client.tsx";
   const openingClientFile = fs.readFileSync(openingClientPath, "utf8");
-  const studioWorkspacePath = "E:/CafeERP/components/finance/opening-position-workspace.tsx";
+  const studioWorkspacePath = "./components/finance/opening-position-workspace.tsx";
   const studioWorkspaceFile = fs.readFileSync(studioWorkspacePath, "utf8");
 
   // 1. Single Primary Studio Entry Point
@@ -5195,7 +5195,7 @@ function detectIntent(question) {
   // ==============================================================================
   // Test 20: PAYMENT ACCOUNTS CRUD & SCHEMA INTEGRITY (Tests 806-835)
   // ==============================================================================
-  const paymentAccountsPanelPath = "E:/CafeERP/components/settings/payment-accounts-panel.tsx";
+  const paymentAccountsPanelPath = "./components/settings/payment-accounts-panel.tsx";
   const paymentAccountsPanelFile = fs.readFileSync(paymentAccountsPanelPath, "utf8");
 
   // 1. Schema Accuracy & Nonexistent Column Elimination
@@ -5399,8 +5399,8 @@ function detectIntent(question) {
   // ==============================================================================
   // Test 22: CREDIT FACILITY ZERO-SLATE & ACCOUNTING INVARIANTS (Tests 871-900)
   // ==============================================================================
-  const reloadedPaymentPanel = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
-  const reloadedStudio = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
+  const reloadedPaymentPanel = fs.readFileSync("./components/settings/payment-accounts-panel.tsx", "utf8");
+  const reloadedStudio = fs.readFileSync("./components/finance/opening-position-workspace.tsx", "utf8");
 
   // 1. Credit Limit ≠ Asset & Limit ≠ Liability
   const ccLimit1 = 47000;
@@ -5561,8 +5561,8 @@ function detectIntent(question) {
   // ==============================================================================
   // Test 24: MOBILE RECHARGE COMMAND CENTER & CANONICAL FINANCIAL INVARIANTS (Tests 921-965)
   // ==============================================================================
-  const rechargeWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/recharge-workspace.tsx", "utf8");
-  const businessRouterFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
+  const rechargeWorkspaceFile = fs.readFileSync("./components/business/recharge-workspace.tsx", "utf8");
+  const businessRouterFile = fs.readFileSync("./app/(dashboard)/business/[service]/page.tsx", "utf8");
 
   // 1. Router & Component Architecture
   assert(businessRouterFile.includes("RechargeWorkspace"), "921. Architecture: Business service router imports RechargeWorkspace");
@@ -5656,12 +5656,12 @@ function detectIntent(question) {
   assert(rechargeWorkspaceFile.includes("handleReverse"), "961. Reversal Workflow: Reversal handler with reason logging available");
 
   // 14. Provider & Slabs Settings Compatibility
-  const settingsProvidersPanel = fs.readFileSync("E:/CafeERP/components/settings/recharge-providers-panel.tsx", "utf8");
+  const settingsProvidersPanel = fs.readFileSync("./components/settings/recharge-providers-panel.tsx", "utf8");
   assert(settingsProvidersPanel.includes("recharge_providers"), "962. Settings Invariant: recharge_providers master configuration supported");
   assert(settingsProvidersPanel.includes("recharge_commission_slabs"), "963. Settings Invariant: recharge_commission_slabs slab configuration supported");
 
   // 15. Opening Balances Non-Pollution Invariant
-  const studioFile = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
+  const studioFile = fs.readFileSync("./components/finance/opening-position-workspace.tsx", "utf8");
   assert(!studioFile.includes("recharge_accounts"), "964. Studio Invariant: Zero recharge_accounts in Opening Position Studio");
   assert(!studioFile.includes("totalRecharge"), "965. Studio Invariant: Zero totalRecharge aggregate in Opening Position Studio");
 
@@ -5670,29 +5670,29 @@ function detectIntent(question) {
   // ============================================================================
 
   // 1. Architecture & Routes
-  const billPaymentPageExists = fs.existsSync("E:/CafeERP/app/(dashboard)/business/bill-payment/page.tsx");
+  const billPaymentPageExists = fs.existsSync("./app/(dashboard)/business/bill-payment/page.tsx");
   assert(billPaymentPageExists, "966. Architecture: Bill Payment parent page exists at app/(dashboard)/business/bill-payment/page.tsx");
 
-  const mobileRechargePageExists = fs.existsSync("E:/CafeERP/app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx");
+  const mobileRechargePageExists = fs.existsSync("./app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx");
   assert(mobileRechargePageExists, "967. Architecture: Mobile Recharge child page exists at app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx");
 
-  const utilityBillPageExists = fs.existsSync("E:/CafeERP/app/(dashboard)/business/bill-payment/utility/page.tsx");
+  const utilityBillPageExists = fs.existsSync("./app/(dashboard)/business/bill-payment/utility/page.tsx");
   assert(utilityBillPageExists, "968. Architecture: Utility Bill child page exists at app/(dashboard)/business/bill-payment/utility/page.tsx");
 
   // 2. Sidebar Navigation Hierarchy
-  const bp_sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  const bp_sidebarFile = fs.readFileSync("./components/sidebar.tsx", "utf8");
   assert(bp_sidebarFile.includes('label: "Bill Payment"') && bp_sidebarFile.includes('href: "/business/bill-payment"'), "969. Sidebar Invariant: Bill Payment section configured under Services in sidebar.tsx");
   assert(bp_sidebarFile.includes('label: "Bill Payment"'), "970. Sidebar Invariant: Single unified Bill Payment entry in sidebar");
   assert(!bp_sidebarFile.includes('href: "/business/bill-payment/mobile-recharge"'), "971. Sidebar Invariant: Internal submodules moved to unified workspace");
   assert(bp_sidebarFile.includes("Services"), "972. Sidebar Invariant: Services section maintained in sidebar");
 
   // 3. Quick Access Hierarchy
-  const bp_quickNavFile = fs.readFileSync("E:/CafeERP/components/module-quick-nav.tsx", "utf8");
+  const bp_quickNavFile = fs.readFileSync("./components/module-quick-nav.tsx", "utf8");
   assert(bp_quickNavFile.includes('id: "bill-payment"') && bp_quickNavFile.includes('href: "/business/bill-payment"'), "973. Quick Access: Bill Payment included in ALL_AVAILABLE_MODULES");
   assert(bp_quickNavFile.includes('id: "utility-bills"') && (bp_quickNavFile.includes('href: "/business/bill-payment/utility"') || bp_quickNavFile.includes('href: "/business/bill-payment?tab=utility"')), "974. Quick Access: Utility Bill Payment included in ALL_AVAILABLE_MODULES");
 
   // 4. Bill Payment Hub
-  const bp_billPaymentHubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  const bp_billPaymentHubFile = fs.readFileSync("./components/business/bill-payment-hub.tsx", "utf8");
   assert(bp_billPaymentHubFile.includes("BBPS Certified Terminal") || bp_billPaymentHubFile.includes("Bill Payment"), "975. Hub Design: BillPaymentHub component renders BBPS terminal status");
   assert(bp_billPaymentHubFile.includes("todayMargin") || bp_billPaymentHubFile.includes("todayVol"), "976. Hub Metrics: BillPaymentHub aggregates today's volume and margins");
   assert(bp_billPaymentHubFile.includes("RechargeWorkspace"), "977. Hub Workspace: Mobile Recharge terminal integrated into unified workspace");
@@ -5701,7 +5701,7 @@ function detectIntent(question) {
   assert(!bp_billPaymentHubFile.includes("bill_payment_float"), "980. Hub Invariant: Zero 'bill_payment_float' in BillPaymentHub");
 
   // 5. Utility Bill Workspace
-  const bp_utilityWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/utility-bill-workspace.tsx", "utf8");
+  const bp_utilityWorkspaceFile = fs.readFileSync("./components/business/utility-bill-workspace.tsx", "utf8");
   assert(bp_utilityWorkspaceFile.includes("UTILITY BILLING SYSTEM ONLINE"), "981. Utility Workspace: UtilityBillWorkspace renders UTILITY BILLING SYSTEM ONLINE");
   assert(bp_utilityWorkspaceFile.includes("BILLER_CATEGORIES") && bp_utilityWorkspaceFile.includes("electricity") && bp_utilityWorkspaceFile.includes("gas"), "982. Utility Workspace: 10 service categories supported in BILLER_CATEGORIES");
   assert(bp_utilityWorkspaceFile.includes("Consumer ID / CA Number"), "983. Utility Categories: Electricity category with Consumer ID label defined");
@@ -5760,7 +5760,7 @@ function detectIntent(question) {
   assert(!studioFile.includes("totalUtility"), "1013. Studio Invariant: Zero totalUtility aggregate in Opening Position Studio");
 
   // 13. Backward Compatibility & Entity Separation
-  const bp_businessRouterFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
+  const bp_businessRouterFile = fs.readFileSync("./app/(dashboard)/business/[service]/page.tsx", "utf8");
   assert(bp_businessRouterFile.includes('service === "recharge"') && bp_businessRouterFile.includes("RechargeWorkspace"), "1014. Backward Compatibility: /business/[service] router continues to support service === 'recharge'");
   assert(bp_businessRouterFile.includes("payment_instruments"), "1015. Entity Separation: Bill Payment is a SERVICE using payment_instruments as funding sources");
 }
@@ -5917,19 +5917,19 @@ function detectIntent(question) {
   assert(poolBalances.credit_card.opening === 0, "1042. Credit Invariant: Credit card remains liability facility, never converted to asset");
 
   // 11. Codebase Schema & Migration Audit
-  const migrationFile = fs.readFileSync("E:/CafeERP/supabase/migrations/20260830_aeps_canonical_pool_seed_hardening.sql", "utf8");
+  const migrationFile = fs.readFileSync("./supabase/migrations/20260830_aeps_canonical_pool_seed_hardening.sql", "utf8");
   assert(migrationFile.includes("p_pool = 'aeps' and pi.type in ('aeps_portal', 'aeps')"), "1043. Migration: pi.type in ('aeps_portal', 'aeps') checked in get_pool_seed");
   assert(migrationFile.includes("p_pool = 'dmt' and pi.type in ('dmt_portal', 'dmt')"), "1044. Migration: pi.type in ('dmt_portal', 'dmt') checked in get_pool_seed");
   assert(migrationFile.includes("ob.pool in ('aeps_portal', 'aeps')"), "1045. Migration: Snapshot query matches both 'aeps' and 'aeps_portal'");
   assert(migrationFile.includes("grant execute on function public.get_pool_balances(date) to authenticated, service_role"), "1046. Migration: Grants execute on get_pool_balances");
 
   // 12. Workspace Fallback Audit
-  const aepsWorkspaceFile = fs.readFileSync("E:/CafeERP/components/business/aeps-workspace.tsx", "utf8");
+  const aepsWorkspaceFile = fs.readFileSync("./components/business/aeps-workspace.tsx", "utf8");
   assert(!aepsWorkspaceFile.includes("-6515"), "1047. AEPS Workspace: No legacy -6515 hardcoded fallback");
   assert(aepsWorkspaceFile.includes("if (!livePool) return 0;"), "1048. AEPS Workspace: Defaults safely to 0 when uninitialized");
 
   // 13. Payment Accounts & Opening Studio Agreement
-  const payAccountsFile = fs.readFileSync("E:/CafeERP/components/settings/payment-accounts-panel.tsx", "utf8");
+  const payAccountsFile = fs.readFileSync("./components/settings/payment-accounts-panel.tsx", "utf8");
   assert(payAccountsFile.includes('aeps_portal: "aeps"'), "1049. Payment Accounts: aeps_portal maps to aeps pool");
   assert(payAccountsFile.includes('dmt_portal: "dmt"'), "1050. Payment Accounts: dmt_portal maps to dmt pool");
 }
@@ -5940,8 +5940,8 @@ function detectIntent(question) {
 {
   console.log("\n--- PART 18: SETTLEMENTS & TREASURY FLOAT UI INVARIANTS ---");
 
-  const settlementsClientFile = fs.readFileSync("E:/CafeERP/components/finance/settlements-client.tsx", "utf8");
-  const settlementsPageFile = fs.readFileSync("E:/CafeERP/app/(dashboard)/finance/settlements/page.tsx", "utf8");
+  const settlementsClientFile = fs.readFileSync("./components/finance/settlements-client.tsx", "utf8");
+  const settlementsPageFile = fs.readFileSync("./app/(dashboard)/finance/settlements/page.tsx", "utf8");
 
   // 1. Semantic Differentiation: Treasury Floats vs Settlement Transfers
   assert(settlementsClientFile.includes("Live Treasury &amp; Float Positions") || settlementsClientFile.includes("Live Treasury & Float Positions"), "1051. UI Semantics: Top section clearly titled 'Live Treasury & Float Positions'");
@@ -5992,7 +5992,7 @@ function detectIntent(question) {
 {
   console.log("\n--- PART 19: ACCOUNT-LEVEL SETTLEMENT MODAL BALANCES ---");
 
-  const modalFile = fs.readFileSync("E:/CafeERP/components/finance/settlement-form-modal.tsx", "utf8");
+  const modalFile = fs.readFileSync("./components/finance/settlement-form-modal.tsx", "utf8");
 
   // 1. Zero Pool-Fallback Invariant in Modal Source Balance Logic
   assert(!modalFile.includes("portalNet > 0 ? portalNet : poolCurrent"), "1072. Modal Invariant: Zero fallback to poolCurrent on AEPS portals");
@@ -6986,14 +6986,14 @@ function detectIntent(question) {
   console.log("\n--- Phase 8: Sidebar Toggle, Complete Edit, Google Play & BIL-0001 ---");
 
   // Test 1: Sidebar Expand/Collapse Invariants
-  const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  const sidebarFile = fs.readFileSync("./components/sidebar.tsx", "utf8");
   assert(sidebarFile.includes('aria-label="Expand sidebar"'), "1298. Sidebar Accessibility: Expand sidebar button present with proper aria-label");
   assert(sidebarFile.includes('aria-label="Collapse sidebar"'), "1299. Sidebar Accessibility: Collapse sidebar button present with proper aria-label");
   assert(sidebarFile.includes('title="Expand sidebar"'), "1300. Sidebar Tooltip: Expand sidebar tooltip defined");
   assert(sidebarFile.includes('title="Collapse sidebar"'), "1301. Sidebar Tooltip: Collapse sidebar tooltip defined");
 
   // Test 2: Google Play Restoration Invariant
-  const hubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  const hubFile = fs.readFileSync("./components/business/bill-payment-hub.tsx", "utf8");
   assert(hubFile.includes("GooglePlayWorkspace"), "1302. Service Restoration: GooglePlayWorkspace integrated into Bill Payment Hub");
   assert(hubFile.includes("google_play"), "1303. Service Restoration: Google Play recharge sub-tab available in Recharge module");
 
@@ -7088,7 +7088,7 @@ function detectIntent(question) {
   console.log("\n--- Phase 9: Funding Accounts, Default 0 Commission & Reconciliation Idempotency ---");
 
   // Test 1: Bill Payment Hub 5 Workspace Tabs
-  const hubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  const hubFile = fs.readFileSync("./components/business/bill-payment-hub.tsx", "utf8");
   assert(hubFile.includes('handleTabChange("recharge")'), "1313. Hub Architecture: Tab 1 'Mobile Recharge' present");
   assert(hubFile.includes('handleTabChange("google_play")'), "1314. Hub Architecture: Tab 2 'Google Play Recharge' is first-class visible tab");
   assert(hubFile.includes('handleTabChange("utility")'), "1315. Hub Architecture: Tab 3 'Utility Bill Payment' present");
@@ -7133,7 +7133,7 @@ function detectIntent(question) {
   assert(check4.valid === false, "1327. Validation Guard: Deactivated instrument rejected");
 
   // Test 4: Default Commission Engine Invariants (Google Play & Utility default to ₹0.00)
-  const commFile = fs.readFileSync("E:/CafeERP/lib/bill-payment/commission.ts", "utf8");
+  const commFile = fs.readFileSync("./lib/bill-payment/commission.ts", "utf8");
   assert(commFile.includes('electricity: { type: "flat", value: 0.0 }'), "1328. Default Commission: Electricity default commission is ₹0.00");
   assert(commFile.includes('google_play: { type: "flat", value: 0.0 }'), "1329. Default Commission: Google Play default commission is ₹0.00");
 
@@ -7240,36 +7240,36 @@ function detectIntent(question) {
   console.log("\n--- Phase 11: Full Duplicate & Redundancy Cleanup Invariants ---");
 
   // Invariant 1: Legacy Subroutes Redirect to Canonical Bill Payment Hub
-  const gpRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/google-play/page.tsx", "utf8");
+  const gpRoute = fs.readFileSync("./app/(dashboard)/business/bill-payment/google-play/page.tsx", "utf8");
   assert(gpRoute.includes('redirect("/business/bill-payment?tab=google_play")'), "1341. Canonical Hub: /google-play redirects to /business/bill-payment?tab=google_play");
 
-  const mrRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx", "utf8");
+  const mrRoute = fs.readFileSync("./app/(dashboard)/business/bill-payment/mobile-recharge/page.tsx", "utf8");
   assert(mrRoute.includes('redirect("/business/bill-payment?tab=recharge")'), "1342. Canonical Hub: /mobile-recharge redirects to /business/bill-payment?tab=recharge");
 
-  const utilRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/utility/page.tsx", "utf8");
+  const utilRoute = fs.readFileSync("./app/(dashboard)/business/bill-payment/utility/page.tsx", "utf8");
   assert(utilRoute.includes('redirect("/business/bill-payment?tab=utility")'), "1343. Canonical Hub: /utility redirects to /business/bill-payment?tab=utility");
 
-  const plansRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/bill-payment/mobile-recharge/plans/page.tsx", "utf8");
+  const plansRoute = fs.readFileSync("./app/(dashboard)/business/bill-payment/mobile-recharge/plans/page.tsx", "utf8");
   assert(plansRoute.includes('redirect("/business/bill-payment?tab=recharge")'), "1344. Canonical Hub: /plans redirects to /business/bill-payment?tab=recharge");
 
-  const bizServiceRoute = fs.readFileSync("E:/CafeERP/app/(dashboard)/business/[service]/page.tsx", "utf8");
+  const bizServiceRoute = fs.readFileSync("./app/(dashboard)/business/[service]/page.tsx", "utf8");
   assert(bizServiceRoute.includes('if (service === "recharge") redirect("/business/bill-payment?tab=recharge");'), "1345. Canonical Hub: /business/recharge redirects to /business/bill-payment?tab=recharge");
 
   // Invariant 2: Sidebar Navigation Cleanliness (No duplicate submodule entries)
-  const sidebarFile = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  const sidebarFile = fs.readFileSync("./components/sidebar.tsx", "utf8");
   assert(!sidebarFile.includes('label: "Mobile Recharge"'), "1346. Sidebar Cleanliness: 'Mobile Recharge' not duplicated in main sidebar");
   assert(!sidebarFile.includes('label: "Utility Bill Payment"'), "1347. Sidebar Cleanliness: 'Utility Bill Payment' not duplicated in main sidebar");
   assert(!sidebarFile.includes('label: "Google Play Recharge"'), "1348. Sidebar Cleanliness: 'Google Play Recharge' not duplicated in main sidebar");
   assert(sidebarFile.includes('label: "Bill & Recharge"') || sidebarFile.includes('label: "Bill Payment"'), "1349. Sidebar Cleanliness: Single canonical 'Bill & Recharge' Hub present");
 
   // Invariant 3: Universal 2-Zone Payment Interface in Hub
-  const hubFile = fs.readFileSync("E:/CafeERP/components/business/bill-payment-hub.tsx", "utf8");
+  const hubFile = fs.readFileSync("./components/business/bill-payment-hub.tsx", "utf8");
   assert(hubFile.includes("1. Customer Collection (Inflow)"), "1350. UI Consolidation: Zone 1 'Customer Collection' clearly identified");
   assert(hubFile.includes("2. Shop Funding Account (Outflow)"), "1351. UI Consolidation: Zone 2 'Shop Funding Account' clearly identified");
   assert(hubFile.includes("Reconciled Economics"), "1352. UI Consolidation: Live Reconciled Economics preview present");
 
   // Invariant 4: Single Authoritative WhatsApp Dispatcher
-  const waFile = fs.readFileSync("E:/CafeERP/lib/whatsapp-sender.ts", "utf8");
+  const waFile = fs.readFileSync("./lib/whatsapp-sender.ts", "utf8");
   assert(waFile.includes("export async function sendWhatsAppViaConfig"), "1353. WhatsApp Engine: Single authoritative sendWhatsAppViaConfig dispatcher");
 
   // Invariant 5: Deduplication of cash entries on repeated transaction save
@@ -7289,7 +7289,7 @@ function detectIntent(question) {
   console.log("\n--- Phase 12: 7-Hub Onion Chain & Finance Hub Upgrades ---");
 
   // Invariant 1: Canonical Hubs definition
-  const navFile = fs.readFileSync("E:/CafeERP/lib/navigation.ts", "utf8");
+  const navFile = fs.readFileSync("./lib/navigation.ts", "utf8");
   assert(navFile.includes('title: "1. Sales Hub"'), "1355. Canonical Hubs: Sales Hub defined");
   assert(navFile.includes('title: "2. Operations Hub"'), "1356. Canonical Hubs: Operations Hub defined");
   assert(navFile.includes('title: "3. Business Services Hub"'), "1357. Canonical Hubs: Business Services Hub defined");
@@ -7299,10 +7299,10 @@ function detectIntent(question) {
   assert(navFile.includes('title: "7. Admin Hub"'), "1361. Canonical Hubs: Admin Hub defined");
 
   // Invariant 2: Finance Hub Pages exist and export correct components
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/page.tsx"), "1362. Finance Hub: /finance Dashboard page exists");
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/journal/page.tsx"), "1363. Finance Hub: /finance/journal page exists");
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/trial-balance/page.tsx"), "1364. Finance Hub: /finance/trial-balance page exists");
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/finance/accounts/page.tsx"), "1365. Finance Hub: /finance/accounts redirect exists");
+  assert(fs.existsSync("./app/(dashboard)/finance/page.tsx"), "1362. Finance Hub: /finance Dashboard page exists");
+  assert(fs.existsSync("./app/(dashboard)/finance/journal/page.tsx"), "1363. Finance Hub: /finance/journal page exists");
+  assert(fs.existsSync("./app/(dashboard)/finance/trial-balance/page.tsx"), "1364. Finance Hub: /finance/trial-balance page exists");
+  assert(fs.existsSync("./app/(dashboard)/finance/accounts/page.tsx"), "1365. Finance Hub: /finance/accounts redirect exists");
 
   // Invariant 3: Trial Balance Conservation Invariant Simulation
   const sampleAccounts = [
@@ -7336,33 +7336,33 @@ function detectIntent(question) {
   console.log("\n--- Phase 13: Production Hardening, UX QA & Grand Accounting Reconciliation ---");
 
   // Invariant 1: Double-Submit & Busy Guard in POS Client
-  const posClient = fs.readFileSync("E:/CafeERP/components/pos/pos-client.tsx", "utf8");
+  const posClient = fs.readFileSync("./components/pos/pos-client.tsx", "utf8");
   assert(posClient.includes("if (busy) return;"), "1369. Hardening: POS Client double-submit guard active");
 
   // Invariant 2: Double-Submit & Busy Guard in Quick Sale
-  const quickSale = fs.readFileSync("E:/CafeERP/components/pos/quick-sale.tsx", "utf8");
+  const quickSale = fs.readFileSync("./components/pos/quick-sale.tsx", "utf8");
   assert(quickSale.includes("if (busy) return;"), "1370. Hardening: Quick Sale double-submit guard active");
 
   // Invariant 3: Double-Submit & Busy Guard in Return Modal
-  const returnModal = fs.readFileSync("E:/CafeERP/components/invoices/return-modal.tsx", "utf8");
+  const returnModal = fs.readFileSync("./components/invoices/return-modal.tsx", "utf8");
   assert(returnModal.includes("if (busy) return;"), "1371. Hardening: Return Modal double-submit guard active");
 
   // Invariant 4: Double-Submit & Saving Guard in Purchases Client
-  const purchasesClient = fs.readFileSync("E:/CafeERP/components/inventory/purchases-client.tsx", "utf8");
+  const purchasesClient = fs.readFileSync("./components/inventory/purchases-client.tsx", "utf8");
   assert(purchasesClient.includes("if (saving) return;"), "1372. Hardening: Purchases Client double-submit guard active");
   assert(purchasesClient.includes("if (returning) return;"), "1373. Hardening: Purchase Return double-submit guard active");
 
   // Invariant 5: Double-Submit & Saving Guard in Expense Modal
-  const expenseModal = fs.readFileSync("E:/CafeERP/components/finance/expense-form-modal.tsx", "utf8");
+  const expenseModal = fs.readFileSync("./components/finance/expense-form-modal.tsx", "utf8");
   assert(expenseModal.includes("if (saving) return;"), "1374. Hardening: Expense Modal double-submit guard active");
 
   // Invariant 6: Double-Submit & Busy Guard in Day Close
-  const dayClose = fs.readFileSync("E:/CafeERP/components/finance/day-close-client.tsx", "utf8");
+  const dayClose = fs.readFileSync("./components/finance/day-close-client.tsx", "utf8");
   assert(dayClose.includes("if (busy || !openClose) return;"), "1375. Hardening: Day Close double-submit guard active");
   assert(dayClose.includes("if (busy || !reverseTarget) return;"), "1376. Hardening: Day Close Reversal double-submit guard active");
 
   // Invariant 7: Settlement Positive Transfer & Balance Guard
-  const settlementModal = fs.readFileSync("E:/CafeERP/components/finance/settlement-form-modal.tsx", "utf8");
+  const settlementModal = fs.readFileSync("./components/finance/settlement-form-modal.tsx", "utf8");
   assert(settlementModal.includes("Transfer amount must be a positive number"), "1377. Hardening: Settlement positive transfer guard active");
   assert(settlementModal.includes("Insufficient funds in selected account"), "1378. Hardening: Settlement available balance guard active");
 
@@ -7570,48 +7570,48 @@ function detectIntent(question) {
   console.log("\n--- Phase 15: Premium ERP Product Upgrade Invariants ---");
 
   // 1. Global Search includes Suppliers and Transactions
-  const searchCode = fs.readFileSync("E:/CafeERP/components/global-search.tsx", "utf8");
+  const searchCode = fs.readFileSync("./components/global-search.tsx", "utf8");
   assert(searchCode.includes('.from("suppliers")'), "1409. Global Search: Suppliers table included in database search");
   assert(searchCode.includes('.from("transactions")'), "1410. Global Search: Transactions table included in database search");
   assert(searchCode.includes('type: "Supplier"'), "1411. Global Search: Supplier result type mapped");
   assert(searchCode.includes('type: "Transaction"'), "1412. Global Search: Transaction result type mapped");
 
   // 2. Dashboard Quick Actions use canonical routes
-  const dashboardCode = fs.readFileSync("E:/CafeERP/components/dashboard/dashboard-client.tsx", "utf8");
+  const dashboardCode = fs.readFileSync("./components/dashboard/dashboard-client.tsx", "utf8");
   assert(dashboardCode.includes('href: "/business/bill-payment"'), "1413. Dashboard Quick Actions: Canonical /business/bill-payment present");
   assert(dashboardCode.includes('href: "/finance/journal"'), "1414. Dashboard Quick Actions: /finance/journal present");
   assert(dashboardCode.includes('href: "/finance/trial-balance"'), "1415. Dashboard Quick Actions: /finance/trial-balance present");
 
   // 3. Print Styles in globals.css
-  const globalsCss = fs.readFileSync("E:/CafeERP/app/globals.css", "utf8");
+  const globalsCss = fs.readFileSync("./app/globals.css", "utf8");
   assert(globalsCss.includes("@media print"), "1416. Print CSS: @media print block configured");
   assert(globalsCss.includes(".no-print"), "1417. Print CSS: .no-print utility configured");
   assert(globalsCss.includes(".spatial-sidebar-dock"), "1418. Print CSS: Sidebar hidden on print");
 
   // 4. POS Fast-Sale Key Shortcuts
-  const posClientCode = fs.readFileSync("E:/CafeERP/components/pos/pos-client.tsx", "utf8");
+  const posClientCode = fs.readFileSync("./components/pos/pos-client.tsx", "utf8");
   assert(posClientCode.includes('e.key === "F2"'), "1419. POS Usability: F2 Quick Sale toggle active");
   assert(posClientCode.includes('e.key === "F4"'), "1420. POS Usability: F4 Search focus shortcut active");
 
   // 5. AI Advisor Safety Invariant (Non-mutation)
-  const advisorEngineCode = fs.readFileSync("E:/CafeERP/lib/ai/advisor-engine.ts", "utf8");
+  const advisorEngineCode = fs.readFileSync("./lib/ai/advisor-engine.ts", "utf8");
   assert(advisorEngineCode.includes("Never recalculates financial figures independently or mutates financial state"), "1421. AI Safety: Strict non-mutation policy documented and enforced");
 
   // 6. WhatsApp Canonical Navigation Invariants
-  const navTs = fs.readFileSync("E:/CafeERP/lib/navigation.ts", "utf8");
+  const navTs = fs.readFileSync("./lib/navigation.ts", "utf8");
   assert(navTs.includes('id: "whatsapp"'), "1422. Navigation: WhatsApp id present in Business Services Hub");
   assert(navTs.includes('label: "WhatsApp"'), "1423. Navigation: WhatsApp label defined");
   assert(navTs.includes('href: "/business/whatsapp"'), "1424. Navigation: Canonical route /business/whatsapp configured");
   assert(navTs.includes('description: "Customer communication and WhatsApp operations"'), "1425. Navigation: WhatsApp description exact match");
 
-  const sidebarTs = fs.readFileSync("E:/CafeERP/components/sidebar.tsx", "utf8");
+  const sidebarTs = fs.readFileSync("./components/sidebar.tsx", "utf8");
   assert(sidebarTs.includes('href: "/business/whatsapp"'), "1426. Sidebar: WhatsApp menu item configured");
 
-  const quickNavTs = fs.readFileSync("E:/CafeERP/components/module-quick-nav.tsx", "utf8");
+  const quickNavTs = fs.readFileSync("./components/module-quick-nav.tsx", "utf8");
   assert(quickNavTs.includes('href: "/business/whatsapp"'), "1427. Quick Nav: WhatsApp entry configured");
 
   assert(searchCode.includes('href: "/business/whatsapp"'), "1428. Global Search: WhatsApp static page entry configured");
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/business/whatsapp/page.tsx"), "1429. Route Integrity: /business/whatsapp page file exists");
+  assert(fs.existsSync("./app/(dashboard)/business/whatsapp/page.tsx"), "1429. Route Integrity: /business/whatsapp page file exists");
 }
 
 
@@ -7622,29 +7622,29 @@ function detectIntent(question) {
   console.log("\n--- Phase 16: Security & System Settings Duplicate Cleanup Invariants ---");
 
   // 1. Security Page Cleanliness (No duplicate launchers to Settings / AI)
-  const securityPage = fs.readFileSync("E:/CafeERP/app/(dashboard)/security/page.tsx", "utf8");
+  const securityPage = fs.readFileSync("./app/(dashboard)/security/page.tsx", "utf8");
   assert(!securityPage.includes("SecurityHub"), "1430. Security: Obsolete SecurityHub duplicate launcher removed");
   assert(securityPage.includes("SecurityCenterClient"), "1431. Security: Direct SecurityCenterClient rendering verified");
-  assert(!fs.existsSync("E:/CafeERP/components/security/security-hub.tsx"), "1432. Security: Obsolete security-hub.tsx file deleted");
+  assert(!fs.existsSync("./components/security/security-hub.tsx"), "1432. Security: Obsolete security-hub.tsx file deleted");
 
   // 2. System Settings Cleanliness (No duplicate operational workspaces)
-  const settingsPage = fs.readFileSync("E:/CafeERP/app/(dashboard)/settings/page.tsx", "utf8");
+  const settingsPage = fs.readFileSync("./app/(dashboard)/settings/page.tsx", "utf8");
   assert(settingsPage.includes("SystemSettingsClient"), "1433. Settings: Canonical SystemSettingsClient rendered");
-  const sysSettingsClient = fs.readFileSync("E:/CafeERP/components/settings/system-settings-client.tsx", "utf8");
+  const sysSettingsClient = fs.readFileSync("./components/settings/system-settings-client.tsx", "utf8");
   assert(!sysSettingsClient.includes("WhatsAppTrackerPanel"), "1434. Settings: Operational WhatsApp panel not duplicated in settings");
-  assert(!fs.existsSync("E:/CafeERP/components/settings/settings-command-shell.tsx"), "1435. Settings: Obsolete settings-command-shell.tsx deleted");
+  assert(!fs.existsSync("./components/settings/settings-command-shell.tsx"), "1435. Settings: Obsolete settings-command-shell.tsx deleted");
 
   // 3. AI Self-Audit Canonical Boundary
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/ai/self-audit/page.tsx"), "1436. Tools Hub: Canonical /ai/self-audit page verified");
+  assert(fs.existsSync("./app/(dashboard)/ai/self-audit/page.tsx"), "1436. Tools Hub: Canonical /ai/self-audit page verified");
 
   // 4. Security Audit Log Canonical Boundary
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/audit/page.tsx"), "1437. Reports Hub: Canonical /audit page verified");
+  assert(fs.existsSync("./app/(dashboard)/audit/page.tsx"), "1437. Reports Hub: Canonical /audit page verified");
 
   // 5. Staff Accounts Canonical Boundary
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/staff/page.tsx"), "1438. Admin Hub: Canonical /staff page verified");
+  assert(fs.existsSync("./app/(dashboard)/staff/page.tsx"), "1438. Admin Hub: Canonical /staff page verified");
 
   // 6. WhatsApp Desk Canonical Boundary
-  assert(fs.existsSync("E:/CafeERP/app/(dashboard)/business/whatsapp/page.tsx"), "1439. Business Hub: Canonical /business/whatsapp page verified");
+  assert(fs.existsSync("./app/(dashboard)/business/whatsapp/page.tsx"), "1439. Business Hub: Canonical /business/whatsapp page verified");
 }
 
 
@@ -7896,7 +7896,7 @@ function detectIntent(question) {
   assert(tata.creditLimit === 45000 && tata.usedLimit === 1500 && tata.availableCredit === 43500, "1472. Portfolio: Tata Nue Rupay evaluated correctly");
 
   // 3. UI Template Checks
-  const accountsPageContent = fs.readFileSync("E:/CafeERP/app/(dashboard)/finance/accounts/page.tsx", "utf8");
+  const accountsPageContent = fs.readFileSync("./app/(dashboard)/finance/accounts/page.tsx", "utf8");
   assert(accountsPageContent.includes("Fixed Limit") || accountsPageContent.includes("creditLimit"), "1473. UI Invariant: Credit Limit prominently rendered");
   assert(accountsPageContent.includes("usedLimit") && accountsPageContent.includes("availableCredit"), "1474. UI Invariant: Used Credit and Available Credit distinctly rendered");
   assert(accountsPageContent.includes("Total Credit Limit") && accountsPageContent.includes("Available Credit"), "1475. UI Invariant: Bento summary cards render Credit Facility aggregations");
@@ -7908,11 +7908,11 @@ function detectIntent(question) {
 {
   console.log("\n--- Phase 20: Stock Integrity Hardening Contracts ---");
 
-  const stockMigration = fs.readFileSync("E:/CafeERP/supabase/migrations/20260901_01_stock_integrity_hardening.sql", "utf8");
-  const productsClient = fs.readFileSync("E:/CafeERP/components/catalog/products-client.tsx", "utf8");
-  const openingWorkspace = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
-  const openingEngine = fs.readFileSync("E:/CafeERP/supabase/opening-position-engine.sql", "utf8");
-  const inventoryEngine = fs.readFileSync("E:/CafeERP/supabase/purchase-inventory-wac-migration.sql", "utf8");
+  const stockMigration = fs.readFileSync("./supabase/migrations/20260901_01_stock_integrity_hardening.sql", "utf8");
+  const productsClient = fs.readFileSync("./components/catalog/products-client.tsx", "utf8");
+  const openingWorkspace = fs.readFileSync("./components/finance/opening-position-workspace.tsx", "utf8");
+  const openingEngine = fs.readFileSync("./supabase/opening-position-engine.sql", "utf8");
+  const inventoryEngine = fs.readFileSync("./supabase/purchase-inventory-wac-migration.sql", "utf8");
 
   // The data model intentionally stores a non-redundant before/after pair:
   // before is exactly reconstructable from immutable after and signed change.
@@ -8030,7 +8030,7 @@ function detectIntent(question) {
   assert(totalPrincipal === 14650, "1517. Income Report: Gross Principal / Sales Volume strictly equals ₹14,650.00");
 
   // 5. UI Contract Verification
-  const clientCode = fs.readFileSync("E:/CafeERP/components/reports/income-report-client.tsx", "utf8");
+  const clientCode = fs.readFileSync("./components/reports/income-report-client.tsx", "utf8");
   assert(clientCode.includes("Total Income"), "1518. UI Invariant: Prominent 'Total Income' KPI card is rendered");
   assert(clientCode.includes("POS Revenue") || clientCode.includes("POS Sales"), "1519. UI Invariant: POS Revenue KPI is rendered");
   assert(clientCode.includes("Service Income"), "1520. UI Invariant: 'Service Income' KPI is rendered without misleading prefix");
