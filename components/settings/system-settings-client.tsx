@@ -95,10 +95,10 @@ function ServerControlCenter() {
       <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Infrastructure &amp; Integrations</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Infrastructure Health</p>
             <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">Server Control Center</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-              Central administrative surface for runtime health, database connectivity, realtime transport, background processing and external integrations. Business Hubs consume these services and must not create duplicate server-control screens.
+              Central infrastructure health console for runtime, database connectivity, realtime transport, background processing, webhooks and integration connectivity. Business Hubs own their operational configuration; this screen does not replace those configuration pages.
             </p>
           </div>
           <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
@@ -113,7 +113,7 @@ function ServerControlCenter() {
         <ServerStatusCard title="Realtime Transport" detail="Supabase realtime channels" badge="REALTIME" />
         <ServerStatusCard title="Background Processing" detail="Queue and asynchronous jobs" badge="WORKERS" />
         <ServerStatusCard title="Webhook Gateway" detail="Central inbound integration boundary" badge="WEBHOOKS" />
-        <ServerStatusCard title="External Integrations" detail="Provider connections and credentials" badge="INTEGRATIONS" />
+        <ServerStatusCard title="External Integrations" detail="Integration connectivity status only" badge="INTEGRATIONS" />
       </div>
 
       <div className="rounded-3xl border border-amber-200 bg-amber-50/70 p-6 dark:border-amber-900/40 dark:bg-amber-950/20">
@@ -122,7 +122,7 @@ function ServerControlCenter() {
           <div>
             <h3 className="text-sm font-black text-amber-900 dark:text-amber-200">Configuration boundary</h3>
             <p className="mt-1 text-xs leading-5 text-amber-800/90 dark:text-amber-300/90">
-              API tokens, provider credentials and other secrets belong on the server side. This page is the single administrative home for those controls; individual Business Hubs should expose only their operational workflows.
+              API tokens, provider credentials and other secrets belong on the server side. Configure each business integration from its canonical Hub; this infrastructure console reports system health and does not expose integration secrets or replace business-specific configuration.
             </p>
           </div>
         </div>
