@@ -321,9 +321,32 @@ export default function UtilityBillWorkspace({
   const netOperatorIncome = custFee + commissionEarned;
 
   // Selected Funding Account Details
+  // IMPORTANT: this is the provider-side settlement account, not the customer's
+  // collection account. Keep these identities separate throughout the transaction.
   const selectedFundingAccount = useMemo(() => {
     return instruments.find((i) => i.id === fundingInstId);
   }, [instruments, fundingInstId]);
+
+  // Resolve the account that actually received the customer's payment.
+  // For Cash/UPI/Bank the customer collection instrument is distinct from the
+  // provider funding instrument used to settle the biller.
+  const selectedCustomerPaymentAccount = useMemo(() => {
+    if (customerPayMethod === "due") return null;
+
+    if (customerPayInstId) {
+      const explicit = instruments.find((i) => i.id === customerPayInstId && i.is_active);
+      if (explicit) return explicit;
+    }
+
+    const acceptedTypes =
+      customerPayMethod === "cash"
+        ? ["cash"]
+        : customerPayMethod === "upi"
+        ? ["upi", "upi_qr"]
+        : ["bank"];
+
+    return instruments.find((i) => i.is_active && acceptedTypes.includes(String(i.type).toLowerCase())) || null;
+  }, [customerPayMethod, customerPayInstId, instruments]);
 
   // Today's Executive Analytics
   const todayStats = useMemo(() => {
@@ -587,6 +610,10 @@ export default function UtilityBillWorkspace({
       showToast("error", "Cash is not permitted as a funding account for online bill payment.");
       return;
     }
+    if (customerPayMethod !== "due" && !selectedCustomerPaymentAccount) {
+      showToast("error", `No active collection account is configured for ${customerPayMethod.toUpperCase()}.`);
+      return;
+    }
 
     setSubmitting(true);
 
@@ -613,7 +640,11 @@ export default function UtilityBillWorkspace({
 
         remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
         status: "success",
-        instrument_id: fundingInstId,
+        // Customer collection account (Cash/UPI/Bank). This MUST NOT be the
+        // provider funding account; the latter is stored in pay_from_instrument_id.
+        instrument_id: selectedCustomerPaymentAccount?.id || null,
+        pay_from_instrument_id: fundingInstId,
+        pay_from_method: selectedFundingAccount.type,
         amount: billAmount,
         service_fee: custFee,
         portal_commission: commissionEarned,
@@ -669,7 +700,7 @@ export default function UtilityBillWorkspace({
 
       // 3. Customer Collection Accounting Leg
       if (customerPayMethod !== "due" && totalCustomerDebit > 0) {
-        const payInst = instruments.find((i) => i.id === customerPayInstId) || selectedFundingAccount;
+        const payInst = selectedCustomerPaymentAccount;
         await supabase.from("cash_entries").insert({
           entry_date: todayDate,
           method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",
