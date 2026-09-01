@@ -17,7 +17,10 @@ export default async function WhatsAppHubPage() {
             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">WhatsApp Hub</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Connection, automation rules, message templates, queue processing, delivery logs and test messaging.</p>
           </div>
-          <a href="/business/bill-payment" className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">← Business Hub</a>
+          <div className="flex items-center gap-2">
+            <a href="/business/whatsapp/config" className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">WhatsApp Configuration</a>
+            <a href="/business/bill-payment" className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">← Business Hub</a>
+          </div>
         </div>
       </div>
       <WhatsAppTrackerPanel />
