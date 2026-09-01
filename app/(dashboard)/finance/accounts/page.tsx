@@ -146,7 +146,7 @@ export default async function FinanceAccountsPage({
             <div className="text-[11px] font-semibold text-slate-500">Cash / Bank / UPI / Float</div>
           </div>
           <div className="rounded-2xl border border-purple-100 bg-purple-50 p-4 dark:border-purple-900/30 dark:bg-purple-950/20">
-            <div className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Credit Limit</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">Total Credit Limit</div>
             <div className="mt-1 text-xl font-black text-purple-900 dark:text-purple-100">₹{totalLimit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
             <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">Fixed configured facility limit</div>
           </div>

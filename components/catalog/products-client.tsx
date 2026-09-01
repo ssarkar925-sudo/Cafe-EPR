@@ -240,7 +240,20 @@ export default function ProductsClient({ initialProducts, categories, embedded =
       // Keep the original stock_qty unchanged in local state
       setProducts((prev) => prev.map((p) => p.id === product.id ? { ...p, ...safeUpdatePayload } : p));
     } else {
-      const { data, error } = await supabase.from("products").insert({ ...input, is_active: true }).select("*, categories(name)").single();
+      // Product creation is an inventory event when initial stock is non-zero.
+      // The RPC inserts the product at zero, posts opening stock through the
+      // protected path, and writes the journal row in the same transaction.
+      const { data, error } = await supabase.rpc("create_product_with_opening_stock", {
+        p_name: input.name,
+        p_code: input.code,
+        p_description: input.description || null,
+        p_unit: input.unit,
+        p_category_id: input.category_id,
+        p_sale_price: input.sale_price,
+        p_cost_price: input.cost_price,
+        p_initial_stock: input.stock_qty,
+        p_reorder_level: input.reorder_level,
+      });
       if (error) return alert(error.message);
       setProducts((prev) => [data as Product, ...prev]);
     }

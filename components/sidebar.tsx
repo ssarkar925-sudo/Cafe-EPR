@@ -27,6 +27,13 @@ const ICONS: Record<string, string> = {
   invoices: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8",
   returns: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
   customers: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  products: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9",
+  services: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+  categories: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  inventory: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+  purchases: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm-8 2a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
+  suppliers: "M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm11 10v-6a2 2 0 0 0-2-2h-1m3 8h-4",
+  brands: "M7 7h.01M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z",
   billPayment: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z",
   aeps: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z",
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
@@ -74,7 +81,8 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
     window.location.href = "/logout";
   }
 
-  // Daily navigation only. Catalog, inventory, purchasing and supplier administration live in Settings.
+  // Core operational modules remain directly available; Settings is reserved
+  // for system configuration.
   const sections: NavSection[] = useMemo(() => [
     { title: "Operate", items: [{ label: "Dashboard", href: "/dashboard", icon: "dashboard" }] },
     { title: "1. Sales Hub", items: [
@@ -90,7 +98,22 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
       { label: "UPI Collections", href: "/business/upi", icon: "upi" },
       { label: "WhatsApp", href: "/business/whatsapp", icon: "whatsapp" },
     ] },
-    { title: "3. Finance Hub", items: [
+    { title: "3. Inventory & Catalog", items: [
+      { label: "Inventory & Stock", href: "/inventory", icon: "inventory" },
+      { label: "Stock Movements", href: "/inventory/movements", icon: "transactions" },
+      { label: "Catalog", href: "/catalog", icon: "products" },
+      { label: "Products", href: "/catalog/products", icon: "products" },
+      { label: "Services", href: "/catalog/services", icon: "services" },
+      { label: "Categories", href: "/catalog/categories", icon: "categories" },
+      { label: "Brands", href: "/catalog/brands", icon: "brands" },
+      { label: "Units", href: "/catalog/units", icon: "products" },
+    ] },
+    { title: "4. Purchasing", items: [
+      { label: "Purchases", href: "/purchases", icon: "purchases" },
+      { label: "Purchase Entry", href: "/purchases/entry", icon: "purchases", badge: { text: "WAC", tone: "blue" } },
+      { label: "Suppliers", href: "/suppliers", icon: "suppliers" },
+    ] },
+    { title: "5. Finance Hub", items: [
       { label: "Finance Hub", href: "/finance", icon: "pnl", badge: { text: "Dashboard", tone: "emerald" } },
       { label: "Daily Cash Book", href: "/finance/cashbook", icon: "cashbook" },
       { label: "Double-Entry Journal", href: "/finance/journal", icon: "ledger" },
@@ -102,17 +125,17 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
       { label: "Opening Balances", href: "/finance/opening-balances", icon: "opening" },
       { label: "Day Close & Rollover", href: "/finance/day-close", icon: "dayclose" },
     ] },
-    { title: "4. Reports Hub", items: [
+    { title: "6. Reports Hub", items: [
       { label: "Reports Studio", href: "/reports", icon: "reports" },
       { label: "GST Reports", href: "/reports/gst", icon: "gst" },
       { label: "Tax Prep / ITR", href: "/reports/tax-preparation", icon: "tax" },
       { label: "Audit Log", href: "/audit", icon: "audit" },
     ] },
-    { title: "5. Tools & AI", items: [
+    { title: "7. Tools & AI", items: [
       { label: "AI Control Center", href: "/ai", icon: "ai", badge: { text: "Smart", tone: "purple" } },
       { label: "Financial Self-Audit", href: "/ai/self-audit", icon: "audit", badge: { text: "14-pt", tone: "emerald" } },
     ] },
-    { title: "6. Administration", items: [
+    { title: "8. Administration", items: [
       { label: "Staff Accounts", href: "/staff", icon: "staff" },
       { label: "Security & 2FA", href: "/security", icon: "security" },
       { label: "System Settings", href: "/settings", icon: "settings" },

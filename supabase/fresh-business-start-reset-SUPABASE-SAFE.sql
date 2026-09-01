@@ -82,6 +82,8 @@ END $$;
 DO $$
 BEGIN
   IF to_regclass('public.products') IS NOT NULL THEN
+    -- Deliberate maintenance exception: the reset has cleared the journal.
+    PERFORM set_config('erp.internal_stock_mutation_authorized', 'on', true);
     EXECUTE 'UPDATE public.products SET stock_qty = 0';
   END IF;
 END $$;

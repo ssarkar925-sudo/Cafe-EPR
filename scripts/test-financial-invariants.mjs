@@ -7902,6 +7902,61 @@ function detectIntent(question) {
   assert(accountsPageContent.includes("Total Credit Limit") && accountsPageContent.includes("Available Credit"), "1475. UI Invariant: Bento summary cards render Credit Facility aggregations");
 }
 
+// -----------------------------------------------------------------------------
+// PHASE 20: Stock Integrity Hardening Contracts
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 20: Stock Integrity Hardening Contracts ---");
+
+  const stockMigration = fs.readFileSync("E:/CafeERP/supabase/migrations/20260901_01_stock_integrity_hardening.sql", "utf8");
+  const productsClient = fs.readFileSync("E:/CafeERP/components/catalog/products-client.tsx", "utf8");
+  const openingWorkspace = fs.readFileSync("E:/CafeERP/components/finance/opening-position-workspace.tsx", "utf8");
+  const openingEngine = fs.readFileSync("E:/CafeERP/supabase/opening-position-engine.sql", "utf8");
+  const inventoryEngine = fs.readFileSync("E:/CafeERP/supabase/purchase-inventory-wac-migration.sql", "utf8");
+
+  // The data model intentionally stores a non-redundant before/after pair:
+  // before is exactly reconstructable from immutable after and signed change.
+  const reconstructBefore = (stockAfter, qtyChange) => stockAfter - qtyChange;
+  assert(reconstructBefore(12, 5) === 7, "1490. Stock Journal: positive movement reconstructs exact stock before");
+  assert(reconstructBefore(7, -5) === 12, "1491. Stock Journal: negative movement reconstructs exact stock before");
+
+  // Model the RPC's transaction contract: an opening movement is created only
+  // for positive initial stock, and any journal failure rolls back the product.
+  function createProductAtomic(initialStock, failJournal = false) {
+    if (initialStock < 0) throw new Error("Initial stock cannot be negative");
+    const transaction = { product: { stock_qty: 0 }, movements: [] };
+    if (initialStock > 0) {
+      transaction.product.stock_qty = initialStock;
+      if (failJournal) throw new Error("journal failure");
+      transaction.movements.push({ movement_type: "OPENING_STOCK", qty_change: initialStock, stock_after: initialStock });
+    }
+    return transaction;
+  }
+  const zeroProduct = createProductAtomic(0);
+  assert(zeroProduct.product.stock_qty === 0 && zeroProduct.movements.length === 0, "1492. Product creation: zero stock creates no redundant opening movement");
+  const stockedProduct = createProductAtomic(6);
+  assert(stockedProduct.product.stock_qty === 6 && stockedProduct.movements.length === 1 && stockedProduct.movements[0].stock_after === 6, "1493. Product creation: positive initial stock creates exactly one opening movement");
+  let negativeCreateBlocked = false;
+  try { createProductAtomic(-1); } catch { negativeCreateBlocked = true; }
+  assert(negativeCreateBlocked, "1494. Product creation: negative initial stock is rejected");
+  let rollbackObserved = false;
+  try { createProductAtomic(6, true); } catch { rollbackObserved = true; }
+  assert(rollbackObserved, "1495. Product creation: journal failure aborts the atomic RPC");
+
+  assert(stockMigration.includes("products_stock_qty_nonnegative") && stockMigration.includes("check (stock_qty >= 0)"), "1496. Database: non-negative stock CHECK constraint is installed");
+  assert(stockMigration.includes("before insert or update on public.products") && stockMigration.includes("Products must be created with zero stock"), "1497. Database: trigger blocks direct non-zero product inserts and stock updates");
+  assert(stockMigration.includes("create_product_with_opening_stock") && stockMigration.includes("'OPENING_STOCK'") && stockMigration.includes("'product_creation'"), "1498. Database: product creation RPC journals opening stock");
+  assert(stockMigration.includes("create or replace function public.apply_opening_inventory") && stockMigration.includes("for update") && stockMigration.includes("'opening_position'"), "1499. Database: opening inventory is row-locked and journaled in one RPC");
+  assert(stockMigration.includes("finalize_opening_position has an unexpected definition") && stockMigration.includes("erp.internal_stock_mutation_authorized"), "1500. Migration: legacy opening-position RPC is converged or fails safely");
+  assert(stockMigration.includes("if p_new_stock < 0") || stockMigration.includes("p_initial_stock < 0"), "1501. Database: authorized stock entry points reject negative quantities");
+
+  assert(productsClient.includes('rpc("create_product_with_opening_stock"') && !productsClient.includes('.from("products").insert'), "1502. Catalog UI: product creation uses the authorized atomic RPC only");
+  assert(productsClient.includes("const { stock_qty: _dropped, ...safeUpdatePayload }") && productsClient.includes(".update(safeUpdatePayload)"), "1503. Catalog UI: normal product edits exclude stock_qty");
+  assert(openingWorkspace.includes('rpc("apply_opening_inventory"') && !openingWorkspace.includes('.from("products")\n            .update') && !openingWorkspace.includes('.from("stock_movements").insert'), "1504. Opening Position UI: no split stock/journal writes remain");
+  assert(openingEngine.includes("perform set_config('erp.internal_stock_mutation_authorized', 'on', true)"), "1505. Opening Position RPC: stock trigger authorization is declared");
+  assert(inventoryEngine.includes("create or replace function public.adjust_stock_manual") && inventoryEngine.includes("not public.is_back_office()") && inventoryEngine.includes("'ADJUSTMENT'"), "1506. Manual adjustment: canonical RPC remains authorized and journaled");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");

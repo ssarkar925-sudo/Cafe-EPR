@@ -916,27 +916,22 @@ export default function OpeningPositionWorkspace({
         }
       }
 
-      // 5. Inventory Stock
-      for (const i of inventory) {
-        if (Number(i.qty) > 0) {
-          await supabase
-            .from("products")
-            .update({
-              stock_qty: Number(i.qty),
-              cost_price: Number(i.unit_cost) > 0 ? Number(i.unit_cost) : undefined,
-            })
-            .eq("id", i.product_id);
-
-          await supabase.from("stock_movements").insert({
-            product_id: i.product_id,
-            movement_date: openingDate,
-            movement_type: "OPENING_STOCK",
-            qty_change: Number(i.qty),
-            unit_cost: Number(i.unit_cost),
-            stock_after: Number(i.qty),
-            remarks: i.remarks || "Opening Inventory Stock",
-          });
-        }
+      // 5. Inventory stock is posted as one database transaction. Never split
+      // the product update from its immutable OPENING_STOCK journal entry.
+      const openingInventory = inventory
+        .filter((i) => Number(i.qty) > 0)
+        .map((i) => ({
+          product_id: i.product_id,
+          qty: Number(i.qty),
+          unit_cost: Number(i.unit_cost),
+          remarks: i.remarks || "Opening Inventory Stock",
+        }));
+      if (openingInventory.length > 0) {
+        const { error: inventoryError } = await supabase.rpc("apply_opening_inventory", {
+          p_opening_date: openingDate,
+          p_inventory: openingInventory,
+        });
+        if (inventoryError) throw new Error(inventoryError.message);
       }
 
       // 6. Supplier Payables

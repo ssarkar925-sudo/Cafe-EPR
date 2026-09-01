@@ -63,6 +63,9 @@ TRUNCATE TABLE IF EXISTS public.suppliers CASCADE;
 -- ----------------------------------------------------------------------------
 -- STEP 2: RESET INVENTORY QUANTITIES (Preserve Products & Pricing)
 -- ----------------------------------------------------------------------------
+-- Deliberate maintenance exception: this script has already cleared the
+-- inventory ledger and now resets the matching stock snapshot.
+SELECT set_config('erp.internal_stock_mutation_authorized', 'on', true);
 UPDATE public.products SET stock_qty = 0, updated_at = now();
 
 -- ----------------------------------------------------------------------------

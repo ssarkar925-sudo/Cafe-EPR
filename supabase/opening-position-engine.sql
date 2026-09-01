@@ -154,6 +154,10 @@ begin
   end loop;
   v_total_assets := v_total_assets + v_receivable_total;
 
+  -- Authorize the inventory writes below through the stock-protection trigger.
+  -- The product update and its journal insert remain in this RPC transaction.
+  perform set_config('erp.internal_stock_mutation_authorized', 'on', true);
+
   -- 5. Opening Inventory
   for v_item in select * from jsonb_array_elements(p_inventory)
   loop
