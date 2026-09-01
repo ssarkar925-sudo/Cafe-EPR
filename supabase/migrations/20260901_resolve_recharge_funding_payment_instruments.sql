@@ -1,7 +1,6 @@
--- Resolve recharge/bill-payment funding methods to canonical payment_instruments IDs.
--- The financial validation trigger requires pay_from_instrument_id whenever
--- pay_from_method is populated. UI funding selectors may provide the method
--- before the canonical UUID, so resolve it before validation runs.
+-- Resolve customer collection and service funding to canonical payment_instruments IDs.
+-- instrument_id = customer collection instrument.
+-- pay_from_instrument_id = cost/funding instrument.
 
 create or replace function public.resolve_transaction_payment_instruments()
 returns trigger
@@ -13,6 +12,7 @@ declare
   v_collection_id uuid;
   v_funding_id uuid;
   v_funding_type text;
+  v_existing_collection_type text;
   v_customer_method text := lower(trim(coalesce(new.customer_pay_method, '')));
   v_funding_method text := lower(trim(coalesce(new.pay_from_method, '')));
 begin
@@ -21,30 +21,56 @@ begin
     return new;
   end if;
 
-  if new.instrument_id is null then
-    case v_customer_method
-      when 'cash' then
-        select id into v_collection_id from public.payment_instruments
-        where is_active = true and lower(type) = 'cash'
-        order by created_at asc limit 1;
-      when 'upi', 'qr', 'upi_qr' then
-        select id into v_collection_id from public.payment_instruments
-        where is_active = true and lower(type) in ('upi','upi_qr')
-        order by created_at asc limit 1;
-      when 'bank' then
-        select id into v_collection_id from public.payment_instruments
-        where is_active = true and lower(type) = 'bank'
-        order by created_at asc limit 1;
-      when 'card' then
-        select id into v_collection_id from public.payment_instruments
-        where is_active = true and lower(type) in ('debit_card','credit_card')
-        order by created_at asc limit 1;
-      else
-        v_collection_id := null;
-    end case;
-    if v_collection_id is not null then new.instrument_id := v_collection_id; end if;
+  -- instrument_id is the CUSTOMER COLLECTION instrument. Some service UIs
+  -- historically reused it for the selected funding account. If it conflicts
+  -- with the customer's payment method, replace it with the canonical type.
+  if v_customer_method <> '' and v_customer_method <> 'due' then
+    if new.instrument_id is not null then
+      select lower(type) into v_existing_collection_type
+      from public.payment_instruments
+      where id = new.instrument_id and is_active = true;
+    end if;
+
+    if v_customer_method = 'cash' and v_existing_collection_type <> 'cash' then
+      new.instrument_id := null;
+    elsif v_customer_method = 'bank' and v_existing_collection_type <> 'bank' then
+      new.instrument_id := null;
+    elsif v_customer_method in ('upi','qr','upi_qr')
+      and v_existing_collection_type not in ('upi','upi_qr') then
+      new.instrument_id := null;
+    elsif v_customer_method = 'card'
+      and v_existing_collection_type not in ('debit_card','credit_card') then
+      new.instrument_id := null;
+    end if;
+
+    if new.instrument_id is null then
+      case v_customer_method
+        when 'cash' then
+          select id into v_collection_id from public.payment_instruments
+          where is_active = true and lower(type) = 'cash'
+          order by created_at asc limit 1;
+        when 'upi', 'qr', 'upi_qr' then
+          select id into v_collection_id from public.payment_instruments
+          where is_active = true and lower(type) in ('upi','upi_qr')
+          order by created_at asc limit 1;
+        when 'bank' then
+          select id into v_collection_id from public.payment_instruments
+          where is_active = true and lower(type) = 'bank'
+          order by created_at asc limit 1;
+        when 'card' then
+          select id into v_collection_id from public.payment_instruments
+          where is_active = true and lower(type) in ('debit_card','credit_card')
+          order by created_at asc limit 1;
+        else
+          v_collection_id := null;
+      end case;
+      if v_collection_id is not null then new.instrument_id := v_collection_id; end if;
+    end if;
   end if;
 
+  -- pay_from_instrument_id is the COST/FUNDING instrument and is independent
+  -- from instrument_id. Resolve it from the selected funding method when the UI
+  -- supplies only the method.
   if new.pay_from_instrument_id is null then
     if v_funding_method in ('cash','cash_drawer') then
       select id into v_funding_id from public.payment_instruments
