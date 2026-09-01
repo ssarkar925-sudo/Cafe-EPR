@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import SecurityCenterClient from "@/components/security/security-center";
+import TwoFactorAuthCard from "@/components/security/two-factor-auth-card";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +22,8 @@ export default async function SecurityPage() {
   const shopName = settings?.shop_name || "Sarkar Communication";
   return (
     <div className="space-y-6">
-      <SecurityCenterClient
-        shopName={shopName}
-        customers={(customers ?? []) as any}
-        invoices={(invoices ?? []) as any}
-        products={(products ?? []) as any}
-        settlements={(settlements ?? []) as any}
-        cashEntries={(cashEntries ?? []) as any}
-        expenses={(expenses ?? []) as any}
-      />
+      <TwoFactorAuthCard />
+      <SecurityCenterClient shopName={shopName} customers={(customers ?? []) as any} invoices={(invoices ?? []) as any} products={(products ?? []) as any} settlements={(settlements ?? []) as any} cashEntries={(cashEntries ?? []) as any} expenses={(expenses ?? []) as any} />
     </div>
   );
 }
-
