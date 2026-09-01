@@ -30,6 +30,7 @@ const SERVICE_LABELS: Record<string, string> = {
   bill_payment: "Bill Payment",
   utility_bill: "Bill Payment",
   pos_sale: "POS Sales",
+  pos_invoice: "POS Sales (Invoice)",
 };
 
 const label = (service: string) => SERVICE_LABELS[service] ?? service.replaceAll("_", " ");
@@ -57,17 +58,15 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
     (markFilter === "all" || (marks[r.transaction_number] || "") === markFilter)
   ), [incomeRows, serviceFilter, markFilter, marks]);
 
-  const visibleRows = useMemo(() => {
-    return [...filteredRows].sort((a, b) => {
-      let result = 0;
-      if (sortKey === "date") result = `${a.transaction_date}${a.created_at}`.localeCompare(`${b.transaction_date}${b.created_at}`);
-      if (sortKey === "transaction") result = a.transaction_number.localeCompare(b.transaction_number);
-      if (sortKey === "service") result = label(a.service_type).localeCompare(label(b.service_type));
-      if (sortKey === "principal") result = Number(a.amount) - Number(b.amount);
-      if (sortKey === "income") result = (a.fee + a.portalCharge + a.commission) - (b.fee + b.portalCharge + b.commission);
-      return sortAsc ? result : -result;
-    });
-  }, [filteredRows, sortKey, sortAsc]);
+  const visibleRows = useMemo(() => [...filteredRows].sort((a, b) => {
+    let result = 0;
+    if (sortKey === "date") result = `${a.transaction_date}${a.created_at}`.localeCompare(`${b.transaction_date}${b.created_at}`);
+    if (sortKey === "transaction") result = a.transaction_number.localeCompare(b.transaction_number);
+    if (sortKey === "service") result = label(a.service_type).localeCompare(label(b.service_type));
+    if (sortKey === "principal") result = Number(a.amount) - Number(b.amount);
+    if (sortKey === "income") result = (a.fee + a.portalCharge + a.commission) - (b.fee + b.portalCharge + b.commission);
+    return sortAsc ? result : -result;
+  }), [filteredRows, sortKey, sortAsc]);
 
   const selectedVisibleRows = visibleRows.filter((r) => selected.includes(r.transaction_number));
   const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((r) => selected.includes(r.transaction_number));
@@ -76,7 +75,8 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
     const map = new Map<string, number>();
     for (const r of filteredRows) {
       const name = label(r.service_type);
-      map.set(name, (map.get(name) ?? 0) + r.fee + r.commission + r.portalCharge);
+      const value = r.service_type === "pos_invoice" ? 0 : r.fee + r.commission + r.portalCharge;
+      map.set(name, (map.get(name) ?? 0) + value);
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [filteredRows]);
@@ -85,13 +85,16 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
   const commissions = filteredRows.reduce((s, r) => s + r.commission, 0);
   const totalIncome = serviceFees + commissions;
   const principal = filteredRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const posSales = filteredRows.filter((r) => r.service_type === "pos_sale").reduce((s, r) => s + Number(r.amount), 0);
+  const posSales = filteredRows.filter((r) => r.service_type === "pos_sale" || r.service_type === "pos_invoice").reduce((s, r) => s + Number(r.amount), 0);
   const posCogs = filteredRows.filter((r) => r.service_type === "pos_sale").reduce((s, r) => s + Number(r.cost), 0);
-  const posGrossProfit = posSales - posCogs;
+  const posGrossProfit = filteredRows.filter((r) => r.service_type === "pos_sale").reduce((s, r) => s + Number(r.amount) - Number(r.cost), 0);
 
   const exportCsv = () => {
     const header = ["Date", "Transaction", "Service", "Source", "Principal / Sales", "COGS", "Service Fee", "Portal Charge", "Commission", "Income / Gross Profit", "Mark"];
-    const body = filteredRows.map((r) => [r.transaction_date, r.transaction_number, label(r.service_type), r.source || "Service", Number(r.amount), r.cost, r.fee, r.portalCharge, r.commission, r.fee + r.portalCharge + r.commission, marks[r.transaction_number] || ""]);
+    const body = filteredRows.map((r) => {
+      const income = r.service_type === "pos_sale" ? Number(r.amount) - Number(r.cost) : (r.service_type === "pos_invoice" ? 0 : r.fee + r.portalCharge + r.commission);
+      return [r.transaction_date, r.transaction_number, label(r.service_type), r.source || "Service", Number(r.amount), r.service_type === "pos_invoice" ? "" : r.cost, r.fee, r.portalCharge, r.commission, income, marks[r.transaction_number] || ""];
+    });
     const csv = [header, ...body].map((line) => line.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -103,10 +106,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
   };
 
   const toggleOne = (id: string) => setSelected((prev) => prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]);
-  const toggleAll = () => setSelected((prev) => {
-    if (allVisibleSelected) return prev.filter((id) => !visibleRows.some((r) => r.transaction_number === id));
-    return Array.from(new Set([...prev, ...visibleRows.map((r) => r.transaction_number)]));
-  });
+  const toggleAll = () => setSelected((prev) => allVisibleSelected ? prev.filter((id) => !visibleRows.some((r) => r.transaction_number === id)) : Array.from(new Set([...prev, ...visibleRows.map((r) => r.transaction_number)])));
   const markSelected = (mark: Mark) => {
     if (!mark || selectedVisibleRows.length === 0) return;
     setMarks((prev) => {
@@ -130,7 +130,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
         <div>
           <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Financial reporting</div>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Income Breakdown</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Service income plus POS sales and gross profit for the selected period.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Service income plus POS sales and costed POS gross profit for the selected period.</p>
         </div>
         <button onClick={exportCsv} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Export CSV</button>
       </div>
@@ -143,9 +143,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
       </form>
 
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-7">
-        {[["Transactions", String(filteredRows.length)], ["Principal / Sales", inr(principal)], ["Service / fee income", inr(serviceFees)], ["Commission income", inr(commissions)], ["Total service income", inr(totalIncome)], ["POS Sales", inr(posSales)], ["POS Gross Profit", inr(posGrossProfit)]].map(([k,v]) => (
-          <div key={k} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{k}</div><div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{v}</div></div>
-        ))}
+        {[["Transactions", String(filteredRows.length)], ["Principal / Sales", inr(principal)], ["Service / fee income", inr(serviceFees)], ["Commission income", inr(commissions)], ["Total service income", inr(totalIncome)], ["POS Sales", inr(posSales)], ["POS Gross Profit", inr(posGrossProfit)]].map(([k,v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{k}</div><div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{v}</div></div>)}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
@@ -155,7 +153,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <span className="text-sm font-semibold">Report controls</span>
-        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950"><option value="date">Date</option><option value="transaction">Transaction</option><option value="service">Service</option><option value="principal">Principal</option><option value="income">Income</option></select>
+        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950"><option value="date">Date</option><option value="transaction">Transaction</option><option value="service">Service</option><option value="principal">Principal / Sales</option><option value="income">Income</option></select>
         <button type="button" onClick={() => setSortAsc((v) => !v)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold dark:border-white/10">{sortAsc ? "↑ Ascending" : "↓ Descending"}</button>
         <select value={markFilter} onChange={(e) => setMarkFilter(e.target.value as "all" | Mark)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950"><option value="all">All marks</option><option value="reviewed">Reviewed</option><option value="verified">Verified</option><option value="follow-up">Follow-up</option><option value="reconciled">Reconciled</option><option value="attention">Needs Attention</option></select>
         <span className="ml-auto text-sm text-slate-500">{selected.length} selected</span>
@@ -167,12 +165,18 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
         <table className="min-w-full text-sm">
           <thead><tr className="border-b border-slate-200 text-left dark:border-white/10"><th className="w-10 px-4 py-3"><input aria-label="Select all visible rows" type="checkbox" checked={allVisibleSelected} onChange={toggleAll} /></th>{["Date","Transaction","Service","Source","Principal / Sales","COGS","Fee","Portal Charge","Commission","Income / Gross Profit","Mark"].map(h => <th key={h} className="px-4 py-3 font-semibold">{h}</th>)}</tr></thead>
           <tbody>
-            {visibleRows.map(r => { const mark = marks[r.transaction_number] || ""; const isPos = r.service_type === "pos_sale"; const rowIncome = isPos ? Number(r.amount) - Number(r.cost) : r.fee + r.portalCharge + r.commission; return <tr key={r.transaction_number} className="border-b border-slate-100 dark:border-white/5"><td className="px-4 py-3"><input aria-label={`Select ${r.transaction_number}`} type="checkbox" checked={selected.includes(r.transaction_number)} onChange={() => toggleOne(r.transaction_number)} /></td><td className="px-4 py-3">{r.transaction_date}</td><td className="px-4 py-3 font-medium">{r.transaction_number}</td><td className="px-4 py-3">{label(r.service_type)}</td><td className="px-4 py-3">{r.source || "Service"}</td><td className="px-4 py-3">{inr(Number(r.amount))}</td><td className="px-4 py-3">{inr(Number(r.cost))}</td><td className="px-4 py-3">{inr(r.fee)}</td><td className="px-4 py-3">{inr(r.portalCharge)}</td><td className="px-4 py-3">{inr(r.commission)}</td><td className="px-4 py-3 font-semibold">{inr(rowIncome)}</td><td className="px-4 py-3"><span className={mark ? "inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700" : "text-slate-400"}>{mark || "—"}</span></td></tr>; })}
+            {visibleRows.map(r => {
+              const mark = marks[r.transaction_number] || "";
+              const isQuickPos = r.service_type === "pos_sale";
+              const isPosInvoice = r.service_type === "pos_invoice";
+              const rowIncome = isQuickPos ? Number(r.amount) - Number(r.cost) : (isPosInvoice ? 0 : r.fee + r.portalCharge + r.commission);
+              return <tr key={r.transaction_number} className="border-b border-slate-100 dark:border-white/5"><td className="px-4 py-3"><input aria-label={`Select ${r.transaction_number}`} type="checkbox" checked={selected.includes(r.transaction_number)} onChange={() => toggleOne(r.transaction_number)} /></td><td className="px-4 py-3">{r.transaction_date}</td><td className="px-4 py-3 font-medium">{r.transaction_number}</td><td className="px-4 py-3">{label(r.service_type)}</td><td className="px-4 py-3">{r.source || "Service"}</td><td className="px-4 py-3">{inr(Number(r.amount))}</td><td className="px-4 py-3">{isPosInvoice ? "—" : inr(Number(r.cost))}</td><td className="px-4 py-3">{inr(r.fee)}</td><td className="px-4 py-3">{inr(r.portalCharge)}</td><td className="px-4 py-3">{inr(r.commission)}</td><td className="px-4 py-3 font-semibold">{inr(rowIncome)}</td><td className="px-4 py-3"><span className={mark ? "inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700" : "text-slate-400"}>{mark || "—"}</span></td></tr>;
+            })}
             {visibleRows.length === 0 && <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-500">No report rows match the selected filters.</td></tr>}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">Selection and review marks are report-only controls; they do not modify financial journal entries. POS Gross Profit is calculated from completed POS quick sales using recorded cost.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Selection and review marks are report-only controls; they do not modify financial journal entries. POS Quick Sale gross profit uses recorded cost. POS invoices are shown as sales revenue, but gross profit is not calculated where invoice-level cost is not stored.</p>
     </div>
   );
 }
