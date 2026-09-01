@@ -116,14 +116,14 @@ export default function GooglePlayWorkspace({
   // Valid Funding Instruments (Exposes Cash, Bank, UPI, Wallets, and Credit Cards)
   const validFundingInstruments = useMemo(() => {
     return instruments.filter(
-      (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
+      (i) => i.is_active && ["bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
     );
   }, [instruments]);
 
   // Default Funding Account Init
   useEffect(() => {
     if (!fundingInstId && validFundingInstruments.length > 0) {
-      const defaultInst = validFundingInstruments.find((i) => i.type === "cash") || validFundingInstruments[0];
+      const defaultInst = validFundingInstruments[0];
       setFundingInstId(defaultInst.id);
     }
   }, [validFundingInstruments, fundingInstId]);
@@ -273,6 +273,9 @@ export default function GooglePlayWorkspace({
     }
     if (!fundingInstId) {
       return showToast("error", "Please select the funding account used to fund this recharge.");
+    }
+    if (!selectedFundingAccount || selectedFundingAccount.type === "cash") {
+      return showToast("error", "Cash is not permitted as a funding account for online Google Play recharge.");
     }
 
     setSubmitting(true);

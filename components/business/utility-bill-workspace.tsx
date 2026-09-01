@@ -281,14 +281,14 @@ export default function UtilityBillWorkspace({
   // Valid Funding Instruments. Credit cards are supported as a real biller funding source.
   const validFundingInstruments = useMemo(() => {
     return instruments.filter(
-      (i) => i.is_active && ["cash", "bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
+      (i) => i.is_active && ["bank", "upi", "wallet", "dmt_portal", "aeps_portal", "credit_card"].includes(i.type)
     );
   }, [instruments]);
 
   // Default funding instrument initialization
   useEffect(() => {
     if (!fundingInstId && validFundingInstruments.length > 0) {
-      const defaultInst = validFundingInstruments.find((i) => i.type === "cash") || validFundingInstruments[0];
+      const defaultInst = validFundingInstruments[0];
       setFundingInstId(defaultInst.id);
     }
   }, [validFundingInstruments, fundingInstId]);
@@ -581,6 +581,10 @@ export default function UtilityBillWorkspace({
     }
     if (!fundingInstId) {
       showToast("error", "Please select the funding account used to settle the biller.");
+      return;
+    }
+    if (!selectedFundingAccount || selectedFundingAccount.type === "cash") {
+      showToast("error", "Cash is not permitted as a funding account for online bill payment.");
       return;
     }
 
