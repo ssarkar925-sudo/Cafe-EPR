@@ -48,7 +48,7 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
     transaction_number: s.sale_number,
     service_type: "pos_sale",
     amount: Number(s.amount) || 0,
-    service_fee: Math.max(0, (Number(s.amount) || 0) - (Number(s.cost) || 0)),
+    service_fee: 0,
     portal_charge: 0,
     portal_commission: 0,
     status: s.status,

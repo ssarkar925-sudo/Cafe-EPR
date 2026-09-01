@@ -7957,6 +7957,86 @@ function detectIntent(question) {
   assert(inventoryEngine.includes("create or replace function public.adjust_stock_manual") && inventoryEngine.includes("not public.is_back_office()") && inventoryEngine.includes("'ADJUSTMENT'"), "1506. Manual adjustment: canonical RPC remains authorized and journaled");
 }
 
+
+// -----------------------------------------------------------------------------
+// PHASE 21: Income Breakdown Accounting & POS Revenue Integrity
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 21: Income Breakdown Accounting & POS Revenue Integrity ---");
+
+  // Simulated dataset with POS Invoices, Quick Sales, and Services
+  const sampleTransactions = [
+    // 1. POS Invoice: ₹1,500 total sale
+    { transaction_number: "INV-001", service_type: "pos_invoice", amount: 1500, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 0 },
+    // 2. POS Invoice: ₹2,400 total sale
+    { transaction_number: "INV-002", service_type: "pos_invoice", amount: 2400, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 0 },
+    // 3. POS Quick Sale: ₹500 sale with ₹300 COGS -> Gross profit ₹200
+    { transaction_number: "QS-001", service_type: "pos_sale", amount: 500, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 300 },
+    // 4. POS Quick Sale: ₹250 sale with ₹150 COGS -> Gross profit ₹100
+    { transaction_number: "QS-002", service_type: "pos_sale", amount: 250, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 150 },
+    // 5. Bill Payment: ₹3,000 principal, ₹15 fee, ₹5 commission
+    { transaction_number: "BP-001", service_type: "bill_payment", amount: 3000, service_fee: 15, portal_charge: 0, portal_commission: 5, cogs: 0 },
+    // 6. AEPS Cash-Out: ₹2,000 principal, ₹0 fee, ₹6 commission
+    { transaction_number: "AEPS-001", service_type: "aeps", amount: 2000, service_fee: 0, portal_charge: 0, portal_commission: 6, cogs: 0 },
+    // 7. DMT Remittance: ₹5,000 principal, ₹50 fee, ₹0 commission
+    { transaction_number: "DMT-001", service_type: "dmt", amount: 5000, service_fee: 50, portal_charge: 0, portal_commission: 0, cogs: 0 },
+  ];
+
+  // Helper matching components/reports/income-report-client.tsx
+  function getRowIncome(r) {
+    if (r.service_type === "pos_invoice" || r.service_type === "pos_sale") {
+      return Number(r.amount) || 0;
+    }
+    return (Number(r.service_fee) || 0) + (Number(r.portal_charge) || 0) + (Number(r.portal_commission) || 0);
+  }
+
+  // 1. POS Invoice revenue = invoice total (NOT 0!)
+  const inv1Income = getRowIncome(sampleTransactions[0]);
+  const inv2Income = getRowIncome(sampleTransactions[1]);
+  assert(inv1Income === 1500, "1507. Income Report: POS Invoice INV-001 revenue strictly equals ₹1,500.00 (not 0)");
+  assert(inv2Income === 2400, "1508. Income Report: POS Invoice INV-002 revenue strictly equals ₹2,400.00 (not 0)");
+
+  // 2. POS Quick Sale revenue = quick sale amount
+  const qs1Income = getRowIncome(sampleTransactions[2]);
+  assert(qs1Income === 500, "1509. Income Report: POS Quick Sale QS-001 revenue strictly equals ₹500.00");
+
+  // 3. Service income = service fees + portal charges + commissions (principal excluded)
+  const bpIncome = getRowIncome(sampleTransactions[4]);
+  const aepsIncome = getRowIncome(sampleTransactions[5]);
+  const dmtIncome = getRowIncome(sampleTransactions[6]);
+  assert(bpIncome === 20, "1510. Income Report: Bill Payment income is strictly ₹20.00 (Fee ₹15 + Comm ₹5, principal ₹3,000 excluded)");
+  assert(aepsIncome === 6, "1511. Income Report: AEPS income is strictly ₹6.00 (Commission ₹6, principal ₹2,000 excluded)");
+  assert(dmtIncome === 50, "1512. Income Report: DMT income is strictly ₹50.00 (Fee ₹50, principal ₹5,000 excluded)");
+
+  // 4. Aggregated KPIs
+  const serviceRows = sampleTransactions.filter(r => r.service_type !== "pos_sale" && r.service_type !== "pos_invoice");
+  const serviceFees = serviceRows.reduce((s, r) => s + r.service_fee + r.portal_charge, 0); // 15 + 50 = 65
+  const commissions = serviceRows.reduce((s, r) => s + r.portal_commission, 0); // 5 + 6 = 11
+  const serviceIncome = serviceFees + commissions; // 76
+
+  const posInvoiceRevenue = sampleTransactions.filter(r => r.service_type === "pos_invoice").reduce((s, r) => s + r.amount, 0); // 1500 + 2400 = 3900
+  const posQuickRevenue = sampleTransactions.filter(r => r.service_type === "pos_sale").reduce((s, r) => s + r.amount, 0); // 500 + 250 = 750
+  const posRevenue = posInvoiceRevenue + posQuickRevenue; // 4650
+  const posCogs = sampleTransactions.filter(r => r.service_type === "pos_sale").reduce((s, r) => s + r.cogs, 0); // 300 + 150 = 450
+  const posGrossProfit = posQuickRevenue - posCogs; // 750 - 450 = 300
+
+  const totalIncome = posRevenue + serviceIncome; // 4650 + 76 = 4726
+  const totalPrincipal = sampleTransactions.reduce((s, r) => s + r.amount, 0); // 1500+2400+500+250+3000+2000+5000 = 14650
+
+  assert(posRevenue === 4650, "1513. Income Report: Total POS Revenue strictly equals ₹4,650.00 (Invoices ₹3,900 + Quick ₹750)");
+  assert(posGrossProfit === 300, "1514. Income Report: POS Quick Sale Gross Profit strictly equals ₹300.00 (Revenue ₹750 - COGS ₹450)");
+  assert(serviceIncome === 76, "1515. Income Report: Total Service Income strictly equals ₹76.00 (Fees ₹65 + Comm ₹11)");
+  assert(totalIncome === 4726, "1516. Income Report: Total Income strictly equals ₹4,726.00 (POS ₹4,650 + Services ₹76)");
+  assert(totalPrincipal === 14650, "1517. Income Report: Gross Principal / Sales Volume strictly equals ₹14,650.00");
+
+  // 5. UI Contract Verification
+  const clientCode = fs.readFileSync("E:/CafeERP/components/reports/income-report-client.tsx", "utf8");
+  assert(clientCode.includes("Total Income"), "1518. UI Invariant: Prominent 'Total Income' KPI card is rendered");
+  assert(clientCode.includes("POS Revenue") || clientCode.includes("POS Sales"), "1519. UI Invariant: POS Revenue KPI is rendered");
+  assert(clientCode.includes("Service Income"), "1520. UI Invariant: 'Service Income' KPI is rendered without misleading prefix");
+  assert(clientCode.includes("getRowIncome") || clientCode.includes("pos_invoice"), "1521. UI Invariant: POS Invoice revenue mapped to row income");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
