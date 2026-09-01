@@ -30,31 +30,21 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Business intelligence</div>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Reports Command Center</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">A management snapshot across sales, collections, dues, returns and operating expenses.</p>
-        </div>
+        <div><div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Business intelligence</div><h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Reports Command Center</h1><p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">A management snapshot across sales, income, profit, collections, dues, returns and operating expenses.</p></div>
         <Link href="/reports" className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">Open full reports →</Link>
       </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {cards.map(([label, value, sub]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</div><div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{value}</div><div className="mt-1 text-xs text-slate-400">{sub}</div></div>)}
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{cards.map(([label,value,sub]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</div><div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{value}</div><div className="mt-1 text-xs text-slate-400">{sub}</div></div>)}</div>
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {[
-          ["Income Breakdown", "Service fees, portal charges and commission income", "/reports/income"],
+          ["Income Breakdown", "Service fees, portal charges, commission and POS income", "/reports/income"],
+          ["Profit & Loss", "Revenue, returns, POS COGS, service income and expenses", "/reports/profit-loss"],
           ["Sales & GST", "Revenue, tax and invoice trends", "/reports/sales"],
           ["Finance", "Collections, dues and expenses", "/reports/finance"],
           ["Inventory", "Stock movement and valuation", "/reports/inventory"],
           ["Returns", `${returns.length} return documents · ${inr(metrics.returned)} value`, "/returns"],
-        ].map(([title, desc, href]) => <Link key={title} href={href} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:border-white/10 dark:bg-slate-900"><div className="flex items-center justify-between"><h2 className="font-semibold text-slate-950 dark:text-white">{title}</h2><span className="text-slate-400 transition group-hover:translate-x-1">→</span></div><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{desc}</p></Link>)}
+        ].map(([title,desc,href]) => <Link key={title} href={href} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:border-white/10 dark:bg-slate-900"><div className="flex items-center justify-between"><h2 className="font-semibold text-slate-950 dark:text-white">{title}</h2><span className="text-slate-400 transition group-hover:translate-x-1">→</span></div><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{desc}</p></Link>)}
       </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm dark:border-white/10">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Management workflow</div><h2 className="mt-1 text-xl font-bold">Turn numbers into action</h2><p className="mt-1 text-sm text-slate-400">Drill into the detailed reports when a KPI needs investigation.</p></div><div className="flex flex-wrap gap-2"><Link href="/reports/income" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Income</Link><Link href="/reports/gst" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">GST</Link><Link href="/reports/sales" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Sales</Link><Link href="/reports/inventory" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Inventory</Link><Link href="/reports/finance" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Finance</Link></div></div>
-      </div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm dark:border-white/10"><div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Management workflow</div><h2 className="mt-1 text-xl font-bold">Turn numbers into action</h2><p className="mt-1 text-sm text-slate-400">Use the detailed financial reports when a KPI needs investigation.</p></div><div className="flex flex-wrap gap-2"><Link href="/reports/income" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Income</Link><Link href="/reports/profit-loss" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">P&L</Link><Link href="/reports/gst" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">GST</Link><Link href="/reports/sales" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Sales</Link><Link href="/reports/inventory" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Inventory</Link><Link href="/reports/finance" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Finance</Link></div></div></div>
     </div>
   );
 }
