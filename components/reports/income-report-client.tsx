@@ -15,7 +15,7 @@ type Row = {
   created_at: string;
 };
 
-const label = (service: string) => ({
+const SERVICE_LABELS: Record<string, string> = {
   aeps: "AEPS",
   dmt: "DMT",
   upi: "UPI",
@@ -24,7 +24,9 @@ const label = (service: string) => ({
   google_play: "Google Play Recharge",
   bill_payment: "Bill Payment",
   utility_bill: "Bill Payment",
-}.service as Record<string, string>)[service] ?? service.replaceAll("_", " ");
+};
+
+const label = (service: string) => SERVICE_LABELS[service] ?? service.replaceAll("_", " ");
 
 export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; from: string; to: string }) {
   const incomeRows = useMemo(() => rows.map((r) => ({
@@ -36,7 +38,10 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
 
   const serviceTotals = useMemo(() => {
     const map = new Map<string, number>();
-    for (const r of incomeRows) map.set(label(r.service_type), (map.get(label(r.service_type)) ?? 0) + r.fee + r.commission + r.portalCharge);
+    for (const r of incomeRows) {
+      const name = label(r.service_type);
+      map.set(name, (map.get(name) ?? 0) + r.fee + r.commission + r.portalCharge);
+    }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [incomeRows]);
 
@@ -75,7 +80,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
         <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold dark:border-white/10">Apply</button>
       </form>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
         {[["Transactions", String(incomeRows.length)], ["Principal processed", inr(principal)], ["Service / fee income", inr(serviceFees)], ["Commission income", inr(commissions)], ["Total income", inr(totalIncome)]].map(([k,v]) => (
           <div key={k} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{k}</div><div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{v}</div></div>
         ))}
