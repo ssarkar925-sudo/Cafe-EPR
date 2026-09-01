@@ -42,8 +42,9 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
         {cards.map(([label, value, sub]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</div><div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{value}</div><div className="mt-1 text-xs text-slate-400">{sub}</div></div>)}
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
         {[
+          ["Income Breakdown", "Service fees, portal charges and commission income", "/reports/income"],
           ["Sales & GST", "Revenue, tax and invoice trends", "/reports/sales"],
           ["Finance", "Collections, dues and expenses", "/reports/finance"],
           ["Inventory", "Stock movement and valuation", "/reports/inventory"],
@@ -52,7 +53,7 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm dark:border-white/10">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Management workflow</div><h2 className="mt-1 text-xl font-bold">Turn numbers into action</h2><p className="mt-1 text-sm text-slate-400">Drill into the detailed reports when a KPI needs investigation.</p></div><div className="flex flex-wrap gap-2"><Link href="/reports/gst" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">GST</Link><Link href="/reports/sales" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Sales</Link><Link href="/reports/inventory" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Inventory</Link><Link href="/reports/finance" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Finance</Link></div></div>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Management workflow</div><h2 className="mt-1 text-xl font-bold">Turn numbers into action</h2><p className="mt-1 text-sm text-slate-400">Drill into the detailed reports when a KPI needs investigation.</p></div><div className="flex flex-wrap gap-2"><Link href="/reports/income" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Income</Link><Link href="/reports/gst" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">GST</Link><Link href="/reports/sales" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Sales</Link><Link href="/reports/inventory" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Inventory</Link><Link href="/reports/finance" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">Finance</Link></div></div>
       </div>
     </div>
   );
