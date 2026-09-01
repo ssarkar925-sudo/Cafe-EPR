@@ -8,7 +8,6 @@ import GlobalSearch from "./global-search";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
 import CloudSyncBadge from "./cloud-sync-badge";
-import ModuleQuickNav from "./module-quick-nav";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -267,7 +266,6 @@ export default function DashboardShell({
           </div>
         </header>
 
-        <ModuleQuickNav />
         <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6">
           {children}
         </div>
