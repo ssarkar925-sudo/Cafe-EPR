@@ -1,0 +1,68 @@
+/* Dashboard Quick Access placement
+   Keeps the existing Quick Actions editor/state intact while moving the
+   rendered shortcut surface directly below the executive header. */
+.space-y-6.pb-16 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: 1.5rem;
+  row-gap: 1.5rem;
+}
+
+.space-y-6.pb-16 > * {
+  margin-top: 0 !important;
+  grid-column: 1 / -1;
+}
+
+/* Header */
+.space-y-6.pb-16 > :nth-child(1) {
+  grid-row: 1;
+}
+
+/* KPI row */
+.space-y-6.pb-16 > :nth-child(2) {
+  grid-row: 3;
+}
+
+/* Performance */
+.space-y-6.pb-16 > :nth-child(3) {
+  grid-row: 4;
+}
+
+/* Digital services */
+.space-y-6.pb-16 > :nth-child(4) {
+  grid-row: 5;
+}
+
+/* Operations */
+.space-y-6.pb-16 > :nth-child(5) {
+  grid-row: 7;
+}
+
+/* Attention section becomes a transparent layout wrapper so its two
+   surfaces can participate in the dashboard's top-level ordering. */
+.space-y-6.pb-16 > :nth-child(6) {
+  display: contents;
+}
+
+/* Needs Attention stays below the Quick Access surface. */
+.space-y-6.pb-16 > :nth-child(6) > :nth-child(1) {
+  grid-column: 1 / -1 !important;
+  grid-row: 6;
+}
+
+/* Quick Access is now immediately below the executive header. */
+.space-y-6.pb-16 > :nth-child(6) > :nth-child(2) {
+  grid-column: 1 / -1 !important;
+  grid-row: 2;
+}
+
+/* Recent activity */
+.space-y-6.pb-16 > :nth-child(7) {
+  grid-row: 8;
+}
+
+@media (max-width: 767px) {
+  .space-y-6.pb-16 {
+    row-gap: 1rem;
+  }
+}
