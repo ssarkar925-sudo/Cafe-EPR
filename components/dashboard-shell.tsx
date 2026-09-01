@@ -193,7 +193,7 @@ export default function DashboardShell({
         } lg:pr-3 lg:pt-3 lg:pb-6`}
       >
         {/* Desktop Luxury Floating Top Bar */}
-        <header className="sticky top-3 z-20 hidden h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/90 px-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 lg:flex mb-4">
+        <header className="sticky top-3 z-20 hidden h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/80 px-6 shadow-md shadow-slate-900/5 backdrop-blur-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/80 dark:shadow-black/20 dark:ring-white/10 lg:flex mb-4 transition-all duration-300">
           {/* Breadcrumb & Title with Toggle Button */}
           <div className="flex items-center gap-3">
             <button
@@ -227,14 +227,14 @@ export default function DashboardShell({
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="flex w-96 items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-1.5 text-xs text-slate-400 shadow-xs transition hover:border-blue-400 hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-500"
+            className="group flex w-96 items-center gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-2 text-xs text-slate-400 shadow-inner transition hover:border-blue-500/50 hover:bg-white hover:shadow-md hover:shadow-blue-500/5 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-400/50 dark:hover:bg-slate-800/80"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 text-slate-400">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.5-3.5" />
             </svg>
-            <span className="flex-1 text-left">Search anything (invoices, items, customers)…</span>
-            <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-black dark:border-white/10 dark:bg-slate-800">
+            <span className="flex-1 text-left group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Search anything (invoices, items, customers)…</span>
+            <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-black text-slate-500 shadow-2xs dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
               ⌘K
             </kbd>
           </button>

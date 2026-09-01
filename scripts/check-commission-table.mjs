@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 
-const envLines = fs.readFileSync("E:/CafeERP/.env", "utf8").split("\n");
+const envLines = fs.readFileSync("./.env", "utf8").split("\n");
 const env = {};
 for (const line of envLines) {
   const match = line.match(/^\s*([\w_]+)\s*=\s*(.*)?\s*$/);
