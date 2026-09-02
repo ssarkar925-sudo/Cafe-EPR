@@ -213,8 +213,10 @@ async function learn() {
     const snapshot = await page.locator("body").innerText();
     const snapshotFile = path.join(stateDir, "transaction-history-snapshot.txt");
     await fs.writeFile(snapshotFile, snapshot.slice(0, 20000) + "\n", "utf8");
+    await context.storageState({ path: stateFile });
     console.log(`\nPortal snapshot saved to ${snapshotFile}`);
-    console.log("Authenticated browser state is stored locally and must never be committed.");
+    console.log(`Authenticated browser state saved to ${stateFile}`);
+    console.log("Both files are local-only and must never be committed.");
   } finally {
     await context.close();
   }
