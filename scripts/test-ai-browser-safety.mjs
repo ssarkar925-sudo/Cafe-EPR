@@ -3,6 +3,7 @@ import fs from "fs";
 const worker = fs.readFileSync("lib/ai/browser-worker.ts", "utf8");
 const adapter = fs.readFileSync("lib/ai/portal-adapters/csc-digipay.ts", "utf8");
 const workflow = fs.readFileSync("lib/ai/portal-workflows.ts", "utf8");
+const cli = fs.readFileSync("scripts/ai-portal-worker.mjs", "utf8");
 
 let passed = 0;
 let failed = 0;
@@ -25,7 +26,7 @@ assert(worker.includes('captcha_detected'), "Worker has a CAPTCHA stop state");
 assert(worker.includes('login_required'), "Worker has an authentication stop state");
 assert(worker.includes('initiation_control_detected'), "Worker rejects non-read-only adapters");
 assert(worker.includes('finally'), "Browser session is closed in a finally block");
-assert(!/password|otp|pin|payment authorization/i.test(worker.match(/export async function runReadOnlyPortalWorker[\\s\\S]*/)?.[0] ?? ""), "Worker execution API does not accept credential fields");
+assert(!/password|otp|pin|payment authorization/i.test(worker.match(/export async function runReadOnlyPortalWorker[\s\S]*/)?.[0] ?? ""), "Worker execution API does not accept credential fields");
 
 assert(adapter.includes('providerName: "CSC DigiPay"'), "CSC DigiPay adapter is provider-bound");
 assert(adapter.includes('sourceType: "aeps"'), "CSC DigiPay adapter emits AEPS source type");
@@ -37,6 +38,13 @@ assert(!/fetch|axios|POST|PUT|PATCH|DELETE|submit|transfer|withdraw/i.test(adapt
 assert(workflow.includes('readOnly: true'), "CSC DigiPay workflow is marked read-only");
 assert(workflow.includes('A PIN, OTP, password, or payment authorization is requested'), "Workflow documents secret stop condition");
 assert(workflow.includes('The page layout no longer matches the learned workflow'), "Workflow documents layout-change stop condition");
+
+assert(cli.includes('AI_PORTAL_SELECTORS_FILE'), "CLI accepts an owner-taught selector map");
+assert(cli.includes('transaction-history-snapshot.txt'), "Learn mode persists a transaction-history snapshot");
+assert(cli.includes('collectCscDigiPay'), "CLI executes the learned CSC DigiPay extractor");
+assert(cli.includes('AI_PORTAL_EXPORT_FILE'), "CLI supports a reviewable JSON export");
+assert(!/submit|transfer|withdraw|payment authorization/i.test(cli.match(/async function collect\([\s\S]*/)?.[0] ?? ""), "CLI collection path contains no transaction-initiation primitive");
+assert(cli.includes('readOnly: true'), "Export explicitly marks collection as read-only");
 
 console.log(`\n${passed} passed / ${failed} failed`);
 if (failed) process.exit(1);
