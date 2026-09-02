@@ -5,6 +5,18 @@ import { calculateGstInvoice } from "@/lib/gst";
 
 export const dynamic = "force-dynamic";
 
+type SaleLine = {
+  product_id: string | null;
+  service_id: string | null;
+  description: string;
+  qty: number;
+  rate: number;
+  cost_price: number;
+  hsn_sac: string | null;
+  gst_rate: number;
+  tax_treatment: string;
+};
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -36,7 +48,7 @@ export async function POST(
       ...(services ?? []).map((s: any) => ({ ...s, kind: "service" })),
     ];
 
-    const lines = itemsPayload.map((item: any) => {
+    const lines: SaleLine[] = itemsPayload.map((item: any) => {
       const current = catalog.find((x: any) => x.id === item.id && x.kind === item.kind);
       if (!current) throw new Error(`Item no longer exists: ${item.name || item.id}`);
       const currentRate = Number(current.sale_price);
@@ -62,7 +74,7 @@ export async function POST(
     });
 
     const gst = calculateGstInvoice({
-      lines: lines.map((x) => ({ qty: x.qty, rate: x.rate, gstRate: x.gst_rate, hsnSac: x.hsn_sac, taxTreatment: x.tax_treatment as any })),
+      lines: lines.map((x: SaleLine) => ({ qty: x.qty, rate: x.rate, gstRate: x.gst_rate, hsnSac: x.hsn_sac, taxTreatment: x.tax_treatment as any })),
       invoiceLumpSumDiscount: 0,
       supplierStateCode: "19",
       customerStateCode: payload.customer_state_code ?? null,
