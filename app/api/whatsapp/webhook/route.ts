@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createSecretsAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppConfig } from "@/lib/whatsapp-shared";
 
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     const mode = searchParams.get("hub.mode");
     const token = searchParams.get("hub.verify_token");
     const challenge = searchParams.get("hub.challenge");
-    const db = createAdminClient();
+    const db = createSecretsAdminClient();
 
     const { data: secretRow } = await db
       .from("whatsapp_gateway_secrets")
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     if (mode === "subscribe" && expectedToken && token === expectedToken) {
       return new Response(challenge || "", {
         status: 200,
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" },
       });
     }
 
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   try {
     const rawBody = await req.text();
     const signatureHeader = req.headers.get("x-hub-signature-256") || "";
-    const db = createAdminClient();
+    const db = createSecretsAdminClient();
 
     const { data: secretRow } = await db
       .from("whatsapp_gateway_secrets")
@@ -71,10 +71,10 @@ export async function POST(req: Request) {
     ).trim();
 
     if (!appSecret) {
-      return NextResponse.json({ error: "Webhook app secret is not configured." }, { status: 500 });
+      return NextResponse.json({ error: "Webhook app secret is not configured." }, { status: 500, headers: { "Cache-Control": "no-store" } });
     }
     if (!signatureHeader.startsWith("sha256=")) {
-      return NextResponse.json({ error: "Missing signature header" }, { status: 401 });
+      return NextResponse.json({ error: "Missing signature header" }, { status: 401, headers: { "Cache-Control": "no-store" } });
     }
 
     const expectedHex = signatureHeader.slice("sha256=".length).trim();
@@ -82,18 +82,18 @@ export async function POST(req: Request) {
     const expectedBuf = Buffer.from(expectedHex, "hex");
     const computedBuf = Buffer.from(computedHex, "hex");
     if (expectedBuf.length !== computedBuf.length || !crypto.timingSafeEqual(expectedBuf, computedBuf)) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
+      return NextResponse.json({ error: "Invalid signature" }, { status: 403, headers: { "Cache-Control": "no-store" } });
     }
 
     let payload: any;
     try {
       payload = JSON.parse(rawBody);
     } catch {
-      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400, headers: { "Cache-Control": "no-store" } });
     }
 
     if (payload?.object !== "whatsapp_business_account") {
-      return NextResponse.json({ status: "ignored" }, { status: 200 });
+      return NextResponse.json({ status: "ignored" }, { status: 200, headers: { "Cache-Control": "no-store" } });
     }
 
     for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
@@ -166,7 +166,6 @@ export async function POST(req: Request) {
               customerId = cust.id;
               customerName = cust.name || profileName;
               if (cust.whatsapp_opt_out) {
-                // Still record the inbound event, but do not auto-reply to opted-out customers.
                 await logInbound(db, fromPhone, customerName, msgId, messageBody, timestampIso);
                 continue;
               }
@@ -177,7 +176,6 @@ export async function POST(req: Request) {
 
           if (msg.type !== "text" || !messageBody.trim()) continue;
 
-          // Respect explicit STOP/unsubscribe language and permanently disable automated replies.
           if (/^(stop|unsubscribe|remove me|do not message|don't message)$/i.test(messageBody.trim())) {
             if (customerId) {
               await db.from("customers").update({ whatsapp_opt_out: true, updated_at: new Date().toISOString() }).eq("id", customerId);
@@ -198,7 +196,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, received: true }, { status: 200 });
+    return NextResponse.json({ success: true, received: true }, { status: 200, headers: { "Cache-Control": "no-store" } });
   } catch (err: any) {
     console.error("[WhatsApp Webhook] POST processing exception:", err?.message || err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -217,7 +215,7 @@ function extractMessageBody(msg: any): string {
 }
 
 async function logInbound(
-  db: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createSecretsAdminClient>,
   phone: string,
   name: string,
   msgId: string,
@@ -237,7 +235,7 @@ async function logInbound(
 }
 
 async function maybeAutoReply(
-  db: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createSecretsAdminClient>,
   secretRow: any,
   input: { fromPhone: string; customerId: string | null; customerName: string; messageBody: string; inboundMessageId: string }
 ) {
@@ -313,7 +311,7 @@ function extractOutputText(data: any): string {
 }
 
 async function sendAndLogReply(
-  db: ReturnType<typeof createAdminClient>,
+  db: ReturnType<typeof createSecretsAdminClient>,
   secretRow: any,
   phone: string,
   customerId: string | null,
