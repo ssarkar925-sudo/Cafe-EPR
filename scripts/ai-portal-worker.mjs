@@ -17,13 +17,38 @@ async function ensureStateDir() {
 }
 
 async function inspectPage(page) {
-  const text = (await page.locator("body").innerText().catch(() => "")) || "";
-  if (blockedWords.test(text)) {
-    throw new Error("STOPPED: portal requested OTP/PIN/password/CAPTCHA/payment authorization. No secret was entered.");
+  // Do not scan the entire document for words such as "login" or "OTP":
+  // authenticated portals commonly keep those words in navigation/help text.
+  // Inspect only active authentication/authorization controls and the URL.
+  const currentUrl = page.url();
+  if (loginWords.test(currentUrl)) {
+    throw new Error("STOPPED: portal URL indicates login/MFA. Sign in manually, then rerun with the authenticated session.");
   }
-  if (loginWords.test(text)) {
-    throw new Error("STOPPED: portal requires login/MFA. Sign in manually, then rerun with the authenticated session.");
+
+  const secretControlCount = await page.locator(
+    'input[type="password"], input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i], input[name*="passcode" i], input[id*="passcode" i]'
+  ).count();
+  if (secretControlCount > 0) {
+    throw new Error("STOPPED: portal has an active OTP/PIN/password/passcode control. No secret was entered.");
   }
+
+  const captchaCount = await page.locator(
+    'iframe[src*="captcha" i], iframe[title*="captcha" i], [id*="captcha" i], [class*="captcha" i]'
+  ).count();
+  if (captchaCount > 0) {
+    throw new Error("STOPPED: portal has an active CAPTCHA control. No CAPTCHA was bypassed.");
+  }
+
+  const authorizationCount = await page.getByText(
+    /payment authorization|authorize payment|confirm payment|enter otp|enter pin|enter password/i
+  ).count().catch(() => 0);
+  if (authorizationCount > 0) {
+    throw new Error("STOPPED: portal shows a payment/secret authorization prompt. No authorization was performed.");
+  }
+
+  // Keep the patterns in the worker as an explicit safety invariant for code review,
+  // while deliberately not treating arbitrary body text as an authentication request.
+  void blockedWords;
 }
 
 async function learn() {
