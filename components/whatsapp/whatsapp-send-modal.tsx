@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/modal";
 import {
-  formatWhatsAppPhone,
   getDirectWhatsAppUrl,
   getWhatsAppConfig,
   sendWhatsAppMessage,
@@ -39,12 +38,17 @@ export default function WhatsAppSendModal({
   const [errorMsg, setErrorMsg] = useState("");
   const config = getWhatsAppConfig();
 
+  // These state resets intentionally synchronize editable modal fields with the
+  // caller's selected recipient/message whenever the modal target changes.
+  // The rule is disabled only for this synchronization effect.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPhone(initialPhone);
     setMessage(initialMessage);
     setStatus("idle");
     setErrorMsg("");
   }, [open, initialPhone, initialMessage]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!open) return null;
 
@@ -94,7 +98,6 @@ export default function WhatsAppSendModal({
       size="lg"
     >
       <div className="space-y-4 p-6">
-        {/* Recipient Phone */}
         <div>
           <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Recipient Mobile Number
@@ -113,7 +116,6 @@ export default function WhatsAppSendModal({
           </div>
         </div>
 
-        {/* Message Editor */}
         <div>
           <div className="mb-1 flex items-center justify-between">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -135,7 +137,6 @@ export default function WhatsAppSendModal({
           </p>
         </div>
 
-        {/* Status Alerts */}
         {status === "success" && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
             ✓ Message sent successfully and logged to History Tracker!
@@ -149,7 +150,6 @@ export default function WhatsAppSendModal({
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-white/10">
           <button
             type="button"
