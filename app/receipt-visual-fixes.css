@@ -1,0 +1,56 @@
+/* Receipt-specific visual isolation.
+ * Receipt/invoice documents are deliberately light documents even when the ERP UI is in dark mode.
+ * Keep document rendering and print/PDF presentation independent from the application theme.
+ */
+
+.a4-print-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+.a4-print-card [class*="bg-slate-50"] {
+  background-color: #f8fafc !important;
+}
+
+.a4-print-card [class*="bg-white"] {
+  background-color: #ffffff !important;
+}
+
+.a4-print-card [class*="text-slate-900"] {
+  color: #0f172a !important;
+}
+
+.a4-print-card [class*="text-slate-800"] {
+  color: #1e293b !important;
+}
+
+.a4-print-card [class*="text-slate-700"] {
+  color: #334155 !important;
+}
+
+.a4-print-card [class*="text-slate-600"] {
+  color: #475569 !important;
+}
+
+.a4-print-card [class*="text-slate-500"] {
+  color: #64748b !important;
+}
+
+.a4-print-card [class*="text-slate-400"] {
+  color: #94a3b8 !important;
+}
+
+/* A fully settled invoice must not invite a second payment.
+ * Keep the QR available only when the invoice has a balance due.
+ */
+.a4-print-card:has([class*="bg-emerald-100"]) [class*="bg-emerald-50/70"] {
+  display: none !important;
+}
+
+@media print {
+  .a4-print-card {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+}
