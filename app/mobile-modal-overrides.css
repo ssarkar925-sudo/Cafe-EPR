@@ -1,0 +1,144 @@
+/* Cafe ERP — mobile modal usability layer */
+
+@media (max-width: 640px) {
+  [role="dialog"] {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: 94vh !important;
+    margin: 0 auto !important;
+    border-radius: 18px !important;
+  }
+
+  [role="dialog"] > .h-1 {
+    height: 3px !important;
+  }
+
+  [role="dialog"] > div:nth-child(2) {
+    padding: 12px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+  }
+
+  [role="dialog"] > div:nth-child(2) > div:first-child {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  [role="dialog"] > div:nth-child(2) > div:last-child {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-end;
+    gap: 6px !important;
+  }
+
+  [role="dialog"] > div:nth-child(2) > div:last-child > div {
+    margin-right: 0 !important;
+    width: calc(100% - 38px);
+    justify-content: flex-end;
+    gap: 6px !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  [role="dialog"] > div:nth-child(2) > div:last-child > div::-webkit-scrollbar {
+    display: none;
+  }
+
+  [role="dialog"] > div:nth-child(2) a,
+  [role="dialog"] > div:nth-child(2) button {
+    min-height: 36px;
+    white-space: nowrap;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+    border-radius: 9px !important;
+  }
+
+  [role="dialog"] > div:nth-child(2) h2 {
+    font-size: 15px !important;
+    line-height: 1.25 !important;
+  }
+
+  [role="dialog"] > div:nth-child(2) p {
+    font-size: 11px !important;
+  }
+
+  [role="dialog"] > div:nth-child(3) {
+    padding: 14px !important;
+    font-size: 14px;
+  }
+
+  [role="dialog"] > div:nth-child(3) table {
+    min-width: 100%;
+    font-size: 13px !important;
+  }
+
+  [role="dialog"] > div:nth-child(3) th {
+    font-size: 11px !important;
+  }
+
+  [role="dialog"] > div:nth-child(3) td,
+  [role="dialog"] > div:nth-child(3) th {
+    padding-top: 9px !important;
+    padding-bottom: 9px !important;
+  }
+
+  [role="dialog"] > div:nth-child(3) input,
+  [role="dialog"] > div:nth-child(3) select,
+  [role="dialog"] > div:nth-child(3) textarea,
+  [role="dialog"] > div:nth-child(3) [role="combobox"] {
+    min-height: 42px;
+    font-size: 14px !important;
+  }
+
+  [role="dialog"] > div:last-child {
+    padding: 12px 14px !important;
+  }
+
+  [role="dialog"] > div:last-child > div {
+    flex-wrap: wrap;
+  }
+
+  [role="dialog"] > div:last-child button {
+    min-height: 40px;
+    padding: 8px 12px !important;
+  }
+
+  /* Invoice detail financial summary */
+  [role="dialog"] > div:nth-child(3) > div.mt-3 {
+    margin-top: 14px !important;
+    padding: 12px !important;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.05);
+  }
+
+  [role="dialog"] > div:nth-child(3) > div.mt-3 > div {
+    min-height: 28px;
+    align-items: center;
+  }
+
+  [role="dialog"] > div:nth-child(3) > div.mt-3 > div:nth-child(3) {
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  [role="dialog"] > div:nth-child(3) img {
+    max-width: min(180px, 55vw);
+    height: auto;
+  }
+}
+
+@media (max-width: 390px) {
+  [role="dialog"] {
+    width: calc(100vw - 10px) !important;
+    max-width: calc(100vw - 10px) !important;
+  }
+
+  [role="dialog"] > div:nth-child(3) {
+    padding: 12px !important;
+  }
+}
