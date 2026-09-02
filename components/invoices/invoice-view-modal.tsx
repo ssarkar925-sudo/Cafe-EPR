@@ -112,8 +112,12 @@ export default function InvoiceViewModal({
       "";
     setUpiId(computedUpi);
 
-    if (computedUpi && inv.data) {
-      const targetAmt = Number(inv.data.due) > 0 ? Number(inv.data.due) : Number(inv.data.total);
+    const isDue = !!inv.data && Number(inv.data.due || 0) > 0 && inv.data.status !== "cancelled";
+    setShowQr(isDue);
+    setQrDataUrl("");
+
+    if (computedUpi && inv.data && isDue) {
+      const targetAmt = Number(inv.data.due || 0);
       const str = generateUpiString({
         upiId: computedUpi,
         name: sets.data?.shop_name || "Shop",
@@ -396,11 +400,11 @@ export default function InvoiceViewModal({
             </div>
           )}
 
-          {qrDataUrl && detail.status !== "cancelled" && (
+          {qrDataUrl && detail.status !== "cancelled" && showQr && (
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-800/60">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  📱 UPI Payment QR ({Number(detail.due) > 0 ? `Due: ${inr(detail.due)}` : `Total: ${inr(detail.total)}`})
+                  📱 UPI Payment QR (Due: {inr(detail.due)})
                 </span>
                 <button
                   type="button"
