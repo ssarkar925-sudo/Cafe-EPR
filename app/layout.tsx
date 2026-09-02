@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./erp-visual-overrides.css";
 import "./dashboard-quick-access.css";
+import "./receipt-responsive.css";
 import ThemeProvider from "@/components/theme-provider";
 
 export const metadata: Metadata = {
