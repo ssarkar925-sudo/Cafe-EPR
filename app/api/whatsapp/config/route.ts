@@ -13,6 +13,14 @@ function noStoreJson(body: unknown, init?: ResponseInit) {
   });
 }
 
+function envFirst(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim()) return value.trim();
+  }
+  return "";
+}
+
 export async function GET() {
   try {
     const role = await getUserRole();
@@ -26,25 +34,32 @@ export async function GET() {
     if (secretError) throw secretError;
 
     const config = row?.config || {};
+    const envToken = envFirst("META_ACCESS_TOKEN", "Meta_Access_Token", "META_WHATSAPP_ACCESS_TOKEN");
+    const envAppSecret = envFirst("META_APP_SECRET", "Meta_App_Secret");
+    const envVerifyToken = envFirst("META_WHATSAPP_VERIFY_TOKEN", "META_VERIFY_TOKEN", "Meta_WhatsApp_Verify_Token");
+    const effectiveToken = secrets?.meta_access_token || envToken;
+    const effectiveAppSecret = secrets?.meta_app_secret || envAppSecret;
+    const effectiveVerifyToken = secrets?.verify_token || envVerifyToken;
+    const effectivePhoneId = secrets?.meta_phone_number_id || config.meta_phone_number_id || "";
     const baseProvider = config.provider as WhatsAppProvider | undefined;
     const secretProvider = secrets?.provider as WhatsAppProvider | undefined;
-    const metaReady = Boolean(secrets?.meta_access_token && secrets?.meta_app_secret && secrets?.verify_token && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
+    const metaReady = Boolean(effectiveToken && effectiveAppSecret && effectiveVerifyToken && effectivePhoneId);
     const provider: WhatsAppProvider = baseProvider && baseProvider !== "off" ? baseProvider : metaReady ? "meta" : (secretProvider || baseProvider || "off");
     const configured = provider === "meta"
-      ? Boolean(secrets?.meta_access_token && (secrets?.meta_phone_number_id || config.meta_phone_number_id) && secrets?.meta_app_secret && secrets?.verify_token)
+      ? Boolean(effectiveToken && effectivePhoneId && effectiveAppSecret && effectiveVerifyToken)
       : provider === "off"
         ? false
-        : Boolean((secrets?.meta_access_token || config.meta_access_token) && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
+        : Boolean((secrets?.meta_access_token || config.meta_access_token) && effectivePhoneId);
 
     return noStoreJson({
       provider,
       gateway_url: config.gateway_url || "",
       meta_waba_id: config.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "",
       meta_display_phone_number: config.meta_display_phone_number || "",
-      meta_phone_number_id: secrets?.meta_phone_number_id || config.meta_phone_number_id || "",
-      meta_access_token_set: Boolean(secrets?.meta_access_token),
-      meta_app_secret_set: Boolean(secrets?.meta_app_secret),
-      verify_token_set: Boolean(secrets?.verify_token),
+      meta_phone_number_id: effectivePhoneId,
+      meta_access_token_set: Boolean(effectiveToken),
+      meta_app_secret_set: Boolean(effectiveAppSecret),
+      verify_token_set: Boolean(effectiveVerifyToken),
       automations: { ...DEFAULT_AUTOMATIONS, ...(config.automations || {}) },
       ai_customer_reply: { enabled: Boolean(config.ai_customer_reply?.enabled), language: config.ai_customer_reply?.language || "auto", tone: config.ai_customer_reply?.tone || "friendly_direct", instructions: config.ai_customer_reply?.instructions || "" },
       configured,
