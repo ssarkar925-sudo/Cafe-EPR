@@ -58,9 +58,10 @@ assert(!/\b(?:submit|transfer|withdraw)\s*\(/i.test(cli.match(/async function co
 assert(cli.includes('readOnly: true'), "Export explicitly marks collection as read-only");
 
 assert(learningUi.includes('importTeachingDraft'), "Learning Control Center can import live teaching drafts");
-assert(learningUi.includes('schemaVersion === 1'), "Learning Control Center validates teaching draft schema");
-assert(learningUi.includes('Imported teaching draft'), "Learning Control Center has a visible live-teaching import workflow");
-assert(learningUi.includes('Draft'), "Imported live workflows remain drafts before activation");
+assert(learningUi.includes('draft.schemaVersion === 1'), "Learning Control Center validates teaching draft schema");
+assert(learningUi.includes('Import live browser teaching'), "Learning Control Center has a visible live-teaching import workflow");
+assert(learningUi.includes('Imported live teaching'), "Learning Control Center reports live teaching imports");
+assert(learningUi.includes('status: "draft"'), "Imported live workflows are saved as drafts through the existing API");
 assert(learningUi.includes('localEvidenceOnly: true'), "Local screenshot/browser evidence is not treated as uploaded server evidence");
 
 console.log(`\n${passed} passed / ${failed} failed`);
