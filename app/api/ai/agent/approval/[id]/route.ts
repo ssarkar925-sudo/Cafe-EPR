@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { approveAction } from "@/lib/ai/approval-gate";
+import { approveAction, claimApprovedAction } from "@/lib/ai/approval-gate";
 import { calculateGstInvoice } from "@/lib/gst";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,10 @@ export async function POST(
       return NextResponse.json({ approval, mode: "approved", executed: false });
     }
 
-    const payload = approval.request_payload as any;
+    // Claim the approval before doing any financial work. This makes concurrent
+    // retries mutually exclusive instead of allowing two create_sale RPC calls.
+    const claimed = await claimApprovedAction(id);
+    const payload = claimed.request_payload as any;
     const supabase = await createClient();
     const itemsPayload = Array.isArray(payload.items) ? payload.items : [];
     if (!itemsPayload.length) throw new Error("Approved sale contains no items.");
@@ -125,13 +128,13 @@ export async function POST(
 
     const { data: executed } = await supabase
       .from("ai_action_approvals")
-      .update({ status: "executed", execution_reference: (sale as any)?.id ?? (sale as any)?.invoice_id ?? null })
+      .update({ status: "executed", execution_reference: (sale as any)?.id ?? (sale as any)?.invoice_id ?? null, executed_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("status", "approved")
-      .select("id, action, status, execution_reference, approved_at")
+      .eq("status", "executing")
+      .select("id, action, status, execution_reference, approved_at, executed_at")
       .single();
 
-    return NextResponse.json({ approval: executed ?? { ...approval, status: "executed" }, mode: "executed", executed: true, sale });
+    return NextResponse.json({ approval: executed ?? { ...claimed, status: "executed" }, mode: "executed", executed: true, sale });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to approve/execute action" },
