@@ -25,8 +25,8 @@ create table if not exists public.ai_workflow_versions (
 
 create index if not exists ai_workflow_versions_user_key_idx
   on public.ai_workflow_versions(user_id, workflow_key, version desc);
-create index if not exists ai_workflow_versions_active_idx
-  on public.ai_workflow_versions(user_id, status, updated_at desc)
+create unique index if not exists ai_workflow_versions_one_active_idx
+  on public.ai_workflow_versions(user_id, workflow_key)
   where status = 'active';
 
 alter table public.ai_workflow_versions enable row level security;
