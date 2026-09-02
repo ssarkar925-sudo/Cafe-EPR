@@ -57,6 +57,7 @@ create policy "ai approvals admin decide"
     exists (
       select 1 from public.profiles p
       where p.id = (select auth.uid()) and p.role = 'admin'
+    )
   );
 
 comment on table public.ai_action_approvals is 'Audit-only approval queue for Cafe AI. Approval does not itself execute a financial or destructive action.';
