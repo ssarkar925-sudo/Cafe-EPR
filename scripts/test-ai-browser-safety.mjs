@@ -4,6 +4,7 @@ const worker = fs.readFileSync("lib/ai/browser-worker.ts", "utf8");
 const adapter = fs.readFileSync("lib/ai/portal-adapters/csc-digipay.ts", "utf8");
 const workflow = fs.readFileSync("lib/ai/portal-workflows.ts", "utf8");
 const cli = fs.readFileSync("scripts/ai-portal-worker.mjs", "utf8");
+const learningUi = fs.readFileSync("components/ai/ai-learning-control-center.tsx", "utf8");
 
 let passed = 0;
 let failed = 0;
@@ -47,10 +48,20 @@ assert(workflow.includes('The page layout no longer matches the learned workflow
 
 assert(cli.includes('AI_PORTAL_SELECTORS_FILE'), "CLI accepts an owner-taught selector map");
 assert(cli.includes('transaction-history-snapshot.txt'), "Learn mode persists a transaction-history snapshot");
-assert(cli.includes('collectCscDigiPay'), "CLI executes the learned CSC DigiPay extractor");
-assert(cli.includes('AI_PORTAL_EXPORT_FILE'), "CLI supports a reviewable JSON export");
+assert(cli.includes('teaching-draft.json'), "Live teaching persists a local teaching draft");
+assert(cli.includes('teaching-screenshot.png'), "Live teaching captures a local screenshot as evidence");
+assert(cli.includes('pickSelector(page'), "Live teaching uses an interactive element picker");
+assert(cli.includes('structuralSelector'), "Learned selectors are structural rather than text-value based");
+assert(cli.includes('AI_PORTAL_TEACHING_DRAFT'), "Teaching draft path can be configured");
+assert(cli.includes('await fs.writeFile(teachingDraftFile'), "Teaching draft is persisted before browser shutdown");
 assert(!/\b(?:submit|transfer|withdraw)\s*\(/i.test(cli.match(/async function collect\([\s\S]*/)?.[0] ?? ""), "CLI collection path contains no transaction-initiation call");
 assert(cli.includes('readOnly: true'), "Export explicitly marks collection as read-only");
+
+assert(learningUi.includes('importTeachingDraft'), "Learning Control Center can import live teaching drafts");
+assert(learningUi.includes('schemaVersion === 1'), "Learning Control Center validates teaching draft schema");
+assert(learningUi.includes('Imported teaching draft'), "Learning Control Center has a visible live-teaching import workflow");
+assert(learningUi.includes('Draft'), "Imported live workflows remain drafts before activation");
+assert(learningUi.includes('localEvidenceOnly: true'), "Local screenshot/browser evidence is not treated as uploaded server evidence");
 
 console.log(`\n${passed} passed / ${failed} failed`);
 if (failed) process.exit(1);
