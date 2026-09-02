@@ -9,12 +9,7 @@ export const revalidate = 0;
 function noStoreJson(body: unknown, init?: ResponseInit) {
   return NextResponse.json(body, {
     ...init,
-    headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      "Pragma": "no-cache",
-      "Expires": "0",
-      ...(init?.headers || {}),
-    },
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate", "Pragma": "no-cache", "Expires": "0", ...(init?.headers || {}) },
   });
 }
 
@@ -33,25 +28,10 @@ export async function GET() {
     const config = row?.config || {};
     const baseProvider = config.provider as WhatsAppProvider | undefined;
     const secretProvider = secrets?.provider as WhatsAppProvider | undefined;
-    const metaReady = Boolean(
-      secrets?.meta_access_token &&
-      secrets?.meta_phone_number_id &&
-      secrets?.meta_app_secret &&
-      secrets?.verify_token
-    );
-
-    // Prefer an explicitly configured non-off provider. If an older save left
-    // the secrets-row provider as `off`, recover Meta automatically when the
-    // complete server-side Meta credential set exists.
-    const provider: WhatsAppProvider =
-      baseProvider && baseProvider !== "off"
-        ? baseProvider
-        : metaReady
-          ? "meta"
-          : (secretProvider || baseProvider || "off");
-
+    const metaReady = Boolean(secrets?.meta_access_token && secrets?.meta_app_secret && secrets?.verify_token && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
+    const provider: WhatsAppProvider = baseProvider && baseProvider !== "off" ? baseProvider : metaReady ? "meta" : (secretProvider || baseProvider || "off");
     const configured = provider === "meta"
-      ? metaReady
+      ? Boolean(secrets?.meta_access_token && (secrets?.meta_phone_number_id || config.meta_phone_number_id) && secrets?.meta_app_secret && secrets?.verify_token)
       : provider === "off"
         ? false
         : Boolean((secrets?.meta_access_token || config.meta_access_token) && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
@@ -59,17 +39,14 @@ export async function GET() {
     return noStoreJson({
       provider,
       gateway_url: config.gateway_url || "",
+      meta_waba_id: config.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "",
+      meta_display_phone_number: config.meta_display_phone_number || "",
       meta_phone_number_id: secrets?.meta_phone_number_id || config.meta_phone_number_id || "",
       meta_access_token_set: Boolean(secrets?.meta_access_token),
       meta_app_secret_set: Boolean(secrets?.meta_app_secret),
       verify_token_set: Boolean(secrets?.verify_token),
       automations: { ...DEFAULT_AUTOMATIONS, ...(config.automations || {}) },
-      ai_customer_reply: {
-        enabled: Boolean(config.ai_customer_reply?.enabled),
-        language: config.ai_customer_reply?.language || "auto",
-        tone: config.ai_customer_reply?.tone || "friendly_direct",
-        instructions: config.ai_customer_reply?.instructions || "",
-      },
+      ai_customer_reply: { enabled: Boolean(config.ai_customer_reply?.enabled), language: config.ai_customer_reply?.language || "auto", tone: config.ai_customer_reply?.tone || "friendly_direct", instructions: config.ai_customer_reply?.instructions || "" },
       configured,
     });
   } catch (err: any) {
@@ -86,27 +63,15 @@ export async function PUT(req: Request) {
     if (!["off", "meta", "local_gateway", "ultramsg"].includes(provider)) return noStoreJson({ error: "Invalid WhatsApp provider." }, { status: 400 });
     const db = createSecretsAdminClient();
     const { data: existing } = await db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
-    const config = {
-      ...(existing?.config || {}),
-      provider,
-      gateway_url: body.gateway_url || "",
+    const config: Record<string, any> = {
+      ...(existing?.config || {}), provider, gateway_url: body.gateway_url || "",
+      meta_waba_id: String(body.meta_waba_id || existing?.config?.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "").trim(),
+      meta_display_phone_number: String(body.meta_display_phone_number || existing?.config?.meta_display_phone_number || "").trim(),
       automations: { ...DEFAULT_AUTOMATIONS, ...(body.automations || {}) },
-      ai_customer_reply: {
-        enabled: Boolean(body.ai_customer_reply?.enabled),
-        language: body.ai_customer_reply?.language || "auto",
-        tone: body.ai_customer_reply?.tone || "friendly_direct",
-        instructions: typeof body.ai_customer_reply?.instructions === "string" ? body.ai_customer_reply.instructions.trim() : "",
-      },
+      ai_customer_reply: { enabled: Boolean(body.ai_customer_reply?.enabled), language: body.ai_customer_reply?.language || "auto", tone: body.ai_customer_reply?.tone || "friendly_direct", instructions: typeof body.ai_customer_reply?.instructions === "string" ? body.ai_customer_reply.instructions.trim() : "" },
     };
-    delete config.meta_access_token;
-    delete config.gateway_api_key;
-    delete config.ultramsg_token;
-    const { error: configError } = await db.from("whatsapp_templates").upsert({
-      id: "default",
-      templates: existing?.templates || DEFAULT_WA_TEMPLATES,
-      config,
-      updated_at: new Date().toISOString(),
-    });
+    delete config.meta_access_token; delete config.gateway_api_key; delete config.ultramsg_token;
+    const { error: configError } = await db.from("whatsapp_templates").upsert({ id: "default", templates: existing?.templates || DEFAULT_WA_TEMPLATES, config, updated_at: new Date().toISOString() });
     if (configError) throw configError;
 
     const secretPatch: Record<string, string> = { provider };
@@ -114,11 +79,8 @@ export async function PUT(req: Request) {
     if (body.meta_access_token) secretPatch.meta_access_token = String(body.meta_access_token).trim();
     if (body.meta_app_secret) secretPatch.meta_app_secret = String(body.meta_app_secret).trim();
     if (body.verify_token) secretPatch.verify_token = String(body.verify_token).trim();
-    if (Object.keys(secretPatch).length) {
-      const { error } = await db.from("whatsapp_gateway_secrets").upsert({ id: "default", ...secretPatch, updated_at: new Date().toISOString() });
-      if (error) throw error;
-    }
-
+    const { error: secretError } = await db.from("whatsapp_gateway_secrets").upsert({ id: "default", ...secretPatch, updated_at: new Date().toISOString() });
+    if (secretError) throw secretError;
     return noStoreJson({ success: true });
   } catch (err: any) {
     return noStoreJson({ error: err?.message || "Could not save WhatsApp configuration" }, { status: 500 });
