@@ -22,7 +22,7 @@ export async function sendWhatsAppViaConfig(
     const token = config.meta_access_token?.trim();
     if (!phoneId || !token) return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
 
-    const graphVersion = (process.env.META_GRAPH_API_VERSION || "v23.0").trim();
+    const graphVersion = (process.env.META_GRAPH_API_VERSION || "v25.0").trim();
     const metaUrl = `https://graph.facebook.com/${graphVersion}/${phoneId}/messages`;
     const metaRes = await fetch(metaUrl, {
       method: "POST",
