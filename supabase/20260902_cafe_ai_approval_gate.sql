@@ -5,7 +5,7 @@ create table if not exists public.ai_action_approvals (
   requested_by uuid not null references auth.users(id) on delete restrict,
   approved_by uuid references auth.users(id) on delete restrict,
   action text not null check (action in ('create_sale','create_invoice','write_transaction','delete_record','change_rule')),
-  status text not null default 'pending' check (status in ('pending','approved','rejected','expired','executed','cancelled')),
+  status text not null default 'pending' check (status in ('pending','approved','executing','rejected','expired','executed','cancelled')),
   request_payload jsonb not null default '{}'::jsonb,
   decision_note text,
   execution_reference text,
@@ -17,6 +17,7 @@ create table if not exists public.ai_action_approvals (
 
 create index if not exists ai_action_approvals_requested_by_idx on public.ai_action_approvals(requested_by, created_at desc);
 create index if not exists ai_action_approvals_pending_idx on public.ai_action_approvals(status, expires_at);
+create unique index if not exists ai_action_approvals_execution_reference_uq on public.ai_action_approvals(execution_reference) where execution_reference is not null;
 
 alter table public.ai_action_approvals enable row level security;
 
@@ -56,7 +57,6 @@ create policy "ai approvals admin decide"
     exists (
       select 1 from public.profiles p
       where p.id = (select auth.uid()) and p.role = 'admin'
-    )
   );
 
 comment on table public.ai_action_approvals is 'Audit-only approval queue for Cafe AI. Approval does not itself execute a financial or destructive action.';
