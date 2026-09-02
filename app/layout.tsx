@@ -4,6 +4,7 @@ import "./erp-visual-overrides.css";
 import "./dashboard-quick-access.css";
 import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
+import "./receipt-visual-fixes.css";
 import ThemeProvider from "@/components/theme-provider";
 
 export const metadata: Metadata = {
