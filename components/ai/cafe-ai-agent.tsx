@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const quickCommands = [
@@ -18,14 +18,65 @@ type ApprovalSummary = {
   items: { name: string; qty: number; rate: number; amount: number }[];
 };
 
+type SpeechRecognitionEventLike = Event & { results: { [index: number]: { [index: number]: { transcript: string } } }; resultIndex: number };
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechWindow = Window & typeof globalThis & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
+
+const VOICE_OPTIONS = [
+  { key: "en-IN", label: "English", speechLang: "en-IN" },
+  { key: "hi-IN", label: "हिन्दी", speechLang: "hi-IN" },
+  { key: "bn-IN", label: "বাংলা", speechLang: "bn-IN" },
+] as const;
+
 export default function CafeAIAgent() {
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [approval, setApproval] = useState<ApprovalSummary | null>(null);
+  const [voiceLang, setVoiceLang] = useState<(typeof VOICE_OPTIONS)[number]["key"]>("en-IN");
+  const [listening, setListening] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
-  async function ask(text = message) {
+  const voice = VOICE_OPTIONS.find((item) => item.key === voiceLang) ?? VOICE_OPTIONS[0];
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  function speak(text: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = voice.speechLang;
+    utterance.rate = 0.98;
+    utterance.pitch = 1;
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  async function ask(text = message, readAloud = true) {
     const value = text.trim();
     if (!value || busy) return;
     setBusy(true);
@@ -41,11 +92,15 @@ export default function CafeAIAgent() {
       const quickData = await quick.json();
       if (quick.ok && quickData?.action === "approval_required") {
         setApproval({ approval_id: quickData.approval_id, ...quickData.summary });
-        setReply(quickData.message);
+        const approvalMessage = quickData.message || "I prepared the sale. Please review and approve it.";
+        setReply(approvalMessage);
+        if (readAloud) speak(approvalMessage);
         return;
       }
       if (quick.ok && quickData?.action === "needs_input") {
-        setReply(quickData.message || "I need more information before preparing the sale.");
+        const inputMessage = quickData.message || "I need more information before preparing the sale.";
+        setReply(inputMessage);
+        if (readAloud) speak(inputMessage);
         return;
       }
 
@@ -56,12 +111,55 @@ export default function CafeAIAgent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Cafe AI is unavailable");
-      setReply(data.message || "No response");
+      const responseMessage = data.message || "No response";
+      setReply(responseMessage);
+      if (readAloud) speak(responseMessage);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cafe AI is unavailable");
+      const messageText = e instanceof Error ? e.message : "Cafe AI is unavailable";
+      setError(messageText);
+      if (readAloud) speak(messageText);
     } finally {
       setBusy(false);
     }
+  }
+
+  function startListening() {
+    if (typeof window === "undefined") return;
+    const speechWindow = window as SpeechWindow;
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setError("Voice input is not supported by this browser. Use Chrome or Edge and allow microphone access.");
+      return;
+    }
+    recognitionRef.current?.stop();
+    const recognition = new Recognition();
+    recognition.lang = voice.speechLang;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.resultIndex]?.[0]?.transcript?.trim() ?? "";
+      setMessage(transcript);
+      if (transcript) void ask(transcript, true);
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      setError("I could not hear that clearly. Check microphone permission and try again.");
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setListening(true);
+    setError("");
+    recognition.start();
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }
+
+  function toggleListening() {
+    if (listening) stopListening();
+    else startListening();
   }
 
   async function approveQuickSale() {
@@ -78,10 +176,14 @@ export default function CafeAIAgent() {
       if (!res.ok) throw new Error(data?.error || "Approval failed");
       if (!data.executed) throw new Error("Approval was recorded but the sale was not executed.");
       const invoice = data.sale?.invoice_number || data.sale?.invoice_id || "created";
-      setReply(`✓ Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`);
+      const completionMessage = `Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`;
+      setReply(`✓ ${completionMessage}`);
       setApproval(null);
+      speak(completionMessage);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Approval failed");
+      const messageText = e instanceof Error ? e.message : "Approval failed";
+      setError(messageText);
+      speak(messageText);
     } finally {
       setBusy(false);
     }
@@ -114,14 +216,32 @@ export default function CafeAIAgent() {
 
       <section className="grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-black text-slate-900 dark:text-white">Talk to Cafe AI</h2>
               <p className="text-xs text-slate-500">বাংলা · हिन्दी · English · mixed language</p>
             </div>
-            <button type="button" disabled className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-400 dark:border-white/10">
-              🎙 Voice — next layer
-            </button>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-bold text-slate-500" htmlFor="ai-voice-language">Voice</label>
+              <select
+                id="ai-voice-language"
+                value={voiceLang}
+                onChange={(e) => setVoiceLang(e.target.value as (typeof VOICE_OPTIONS)[number]["key"])}
+                className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+              >
+                {VOICE_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={busy}
+                className={`rounded-xl px-3 py-2 text-xs font-black transition ${listening ? "bg-rose-600 text-white" : "border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300"}`}
+                title={listening ? "Stop listening" : "Speak to Cafe AI"}
+              >
+                {listening ? "■ Stop" : "🎙 Speak"}
+              </button>
+              {speaking && <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Speaking…</span>}
+            </div>
           </div>
 
           <div className="min-h-48 rounded-2xl bg-slate-50 p-4 dark:bg-slate-950/60">
@@ -151,8 +271,8 @@ export default function CafeAIAgent() {
           {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</div>}
 
           <div className="mt-4 flex gap-2">
-            <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ask(); }} placeholder="e.g. Make a quick sale for 2 coffee..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-950 dark:text-white" />
-            <button onClick={() => ask()} disabled={busy || !message.trim()} className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Thinking…" : "Ask"}</button>
+            <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void ask(); }} placeholder="e.g. Make a quick sale for 2 coffee..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-950 dark:text-white" />
+            <button onClick={() => void ask()} disabled={busy || !message.trim()} className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Thinking…" : "Ask"}</button>
           </div>
         </div>
 
@@ -161,7 +281,7 @@ export default function CafeAIAgent() {
             <h2 className="text-sm font-black text-slate-900 dark:text-white">Try a command</h2>
             <div className="mt-3 space-y-2">
               {quickCommands.map((command) => (
-                <button key={command} onClick={() => { setMessage(command); ask(command); }} className="w-full rounded-2xl border border-slate-200 p-3 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5">{command}</button>
+                <button key={command} onClick={() => { setMessage(command); void ask(command, true); }} className="w-full rounded-2xl border border-slate-200 p-3 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5">{command}</button>
               ))}
             </div>
           </div>
@@ -172,6 +292,7 @@ export default function CafeAIAgent() {
               <li>✓ Current prices and stock are rechecked at execution.</li>
               <li>✓ OTP/PIN/passwords are never requested.</li>
               <li>✓ Cancel means no Cafe-EPR change.</li>
+              <li>✓ Voice input uses your browser microphone and selected language.</li>
             </ul>
           </div>
         </div>
