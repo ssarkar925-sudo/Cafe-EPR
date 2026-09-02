@@ -68,82 +68,42 @@ export default async function ReceiptA4Page({
   const isDue = Number(invoice.due || 0) > 0 && invoice.status !== "cancelled";
   const isCancelled = invoice.status === "cancelled";
   const shopInitial = (settings?.shop_name || "S").charAt(0).toUpperCase();
-  const totalNum = Number(invoice.total || 0);
 
-  // UPI QR Code calculation
   const upiId =
     (settings as any)?.upi_id ||
     defaultMerchantQr?.upi_id ||
     upiInstrument?.account_number ||
     "";
 
+  // A paid invoice is already settled; show the customer payment QR only when money remains due.
   const targetAmount = Number(invoice.due) > 0 ? Number(invoice.due) : Number(invoice.total);
-  const upiString = upiId
+  const upiString = isDue && upiId
     ? generateUpiString({
         upiId,
         name: settings?.shop_name || "Shop",
         amount: targetAmount,
-        note: "Invoice " + invoice.invoice_number,
+        note: "Inv " + invoice.invoice_number,
       })
     : "";
 
-  const qrDataUrl = upiString ? await generateQrDataUrl(upiString, { width: 180 }) : "";
+  const qrDataUrl = upiString ? await generateQrDataUrl(upiString, { width: 140 }) : "";
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-8 print:min-h-0 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-100 p-4 print:bg-white print:p-0">
       <style>{`
-        @page {
-          size: A4 portrait;
-          margin: 8mm 10mm;
-        }
+        @page { size: A4; margin: 8mm; }
         @media print {
-          html, body {
-            height: auto !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-          .a4-print-card {
-            max-width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            page-break-after: avoid !important;
-          }
+          body { background: #fff !important; color: #000 !important; }
+          .print\\:hidden { display: none !important; }
         }
       `}</style>
+      <div className="mx-auto max-w-[820px] rounded-2xl border border-slate-200 bg-white p-6 shadow-lg print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none a4-print-card">
+        <A4Actions invoiceNumber={invoice.invoice_number} />
 
-      <div className="a4-print-card mx-auto max-w-[820px] rounded-2xl border border-slate-200 bg-white p-8 md:p-10 shadow-xl print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
-        {/* Top Control Bar */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 print:hidden">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700">A4</span>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900">Tax Invoice (A4)</h1>
-              <p className="text-xs text-slate-500">#{invoice.invoice_number} · Standard Customer Invoice</p>
-            </div>
-          </div>
-          <A4Actions
-            variant="invoice"
-            data={{ invoice, items: itemsRows, payments: paymentsRows, settings, qrDataUrl, upiId }}
-            filename={invoice.invoice_number + ".pdf"}
-            receiptUrl={`/receipt/${id}`}
-          />
-        </div>
-
-        {/* Premium Brand Header */}
-        <div className="relative border-b-2 border-slate-900 pb-4 print:pb-3">
-          <div className="flex flex-wrap items-start justify-between gap-4 print:gap-2">
-            <div className="flex items-start gap-3.5 print:gap-2.5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-base font-black text-white shadow-md print:h-9 print:w-9 print:text-sm">
+        <div className="border-b border-slate-200 pb-4 print:pb-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-lg font-black text-white print:h-9 print:w-9">
                 {shopInitial}
               </div>
               <div>
@@ -191,212 +151,103 @@ export default async function ReceiptA4Page({
           </div>
         </div>
 
-        {/* Metadata Cards: Customer Bill To & Payment Info */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 print:mt-3 print:gap-2.5">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 print:mt-3 print:gap-2.5">
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 print:p-2.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Billed To (Customer)</p>
-            <p className="mt-0.5 text-sm font-bold text-slate-900">
-              {invoice.customers?.name || "Walk-in Customer"}
-            </p>
-            {invoice.customers?.phone && (
-              <p className="text-xs text-slate-600 print:text-[11px]">Phone: {invoice.customers.phone}</p>
-            )}
-            {invoice.customers?.address && (
-              <p className="text-xs text-slate-600 print:text-[11px]">Address: {invoice.customers.address}</p>
-            )}
-            {invoice.customer_gstin && (
-              <p className="text-xs font-mono font-bold text-blue-700 print:text-[11px]">GSTIN: {invoice.customer_gstin}</p>
-            )}
-            {invoice.customers?.code && (
-              <p className="text-[10px] font-mono text-slate-400">Customer ID: {invoice.customers.code}</p>
-            )}
+            <p className="mt-0.5 text-sm font-bold text-slate-900">{invoice.customers?.name || "Walk-in Customer"}</p>
+            {invoice.customers?.phone && <p className="text-xs text-slate-600 print:text-[11px]">Phone: {invoice.customers.phone}</p>}
+            {invoice.customers?.address && <p className="text-xs text-slate-600 print:text-[11px]">Address: {invoice.customers.address}</p>}
+            {invoice.customer_gstin && <p className="text-xs font-mono font-bold text-blue-700 print:text-[11px]">GSTIN: {invoice.customer_gstin}</p>}
+            {invoice.customers?.code && <p className="text-[10px] font-mono text-slate-400">Customer ID: {invoice.customers.code}</p>}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 print:p-2.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Invoice &amp; Supply Details</p>
             <div className="mt-0.5 space-y-0.5 text-xs print:text-[11px] text-slate-700">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Invoice Date:</span>
-                <span className="font-semibold text-slate-900">{invoice.invoice_date}</span>
-              </div>
-              {invoice.place_of_supply && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Place of Supply:</span>
-                  <span className="font-semibold text-slate-900">{invoice.place_of_supply}</span>
-                </div>
-              )}
-              {invoice.supply_type && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Supply Type:</span>
-                  <span className="font-semibold uppercase text-slate-900">{invoice.supply_type.replace('_', ' ')}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-slate-500">Payment Modes:</span>
-                <span className="font-semibold text-slate-900">
-                  {paymentsRows.length > 0
-                    ? paymentsRows.map((p) => String(p.method).toUpperCase()).join(", ")
-                    : "CASH"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Settlement Status:</span>
-                <span className="font-semibold uppercase text-slate-900">{invoice.status || "COMPLETED"}</span>
-              </div>
+              <div className="flex justify-between"><span className="text-slate-500">Invoice Date:</span><span className="font-semibold text-slate-900">{invoice.invoice_date}</span></div>
+              {invoice.place_of_supply && <div className="flex justify-between"><span className="text-slate-500">Place of Supply:</span><span className="font-semibold text-slate-900">{invoice.place_of_supply}</span></div>}
+              {invoice.supply_type && <div className="flex justify-between"><span className="text-slate-500">Supply Type:</span><span className="font-semibold uppercase text-slate-900">{invoice.supply_type.replace("_", " ")}</span></div>}
+              <div className="flex justify-between"><span className="text-slate-500">Payment Modes:</span><span className="font-semibold text-slate-900">{paymentsRows.length > 0 ? paymentsRows.map((p) => String(p.method).toUpperCase()).join(", ") : "CASH"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Settlement Status:</span><span className="font-semibold uppercase text-slate-900">{invoice.status || "COMPLETED"}</span></div>
             </div>
           </div>
         </div>
 
-        {/* Itemized Table */}
         <div className="mt-4 overflow-x-auto print:mt-3">
           <table className="w-full text-left text-xs print:text-[11px]">
-            <thead>
-              <tr className="border-y border-slate-900 bg-slate-900 text-white font-bold">
-                <th className="py-2 pl-3 pr-2 w-10 text-center print:py-1.5">#</th>
-                <th className="py-2 px-3 print:py-1.5">Item Description</th>
-                <th className="py-2 px-3 text-center w-16 print:py-1.5">Qty</th>
-                <th className="py-2 px-3 text-right w-24 print:py-1.5">Rate</th>
-                <th className="py-2 pl-3 pr-4 text-right w-28 print:py-1.5">Amount</th>
-              </tr>
-            </thead>
+            <thead><tr className="border-y border-slate-900 bg-slate-900 text-white font-bold">
+              <th className="w-10 py-2 pl-3 pr-2 text-center print:py-1.5">#</th>
+              <th className="px-3 py-2 print:py-1.5">Item Description</th>
+              <th className="w-16 px-3 py-2 text-center print:py-1.5">Qty</th>
+              <th className="w-24 px-3 py-2 text-right print:py-1.5">Rate</th>
+              <th className="w-28 py-2 pl-3 pr-4 text-right print:py-1.5">Amount</th>
+            </tr></thead>
             <tbody className="divide-y divide-slate-100">
               {itemsRows.map((it, idx) => {
                 const itemName = it.products?.name || it.services?.name || it.description || "Item";
                 const itemCode = it.products?.code ? "[" + it.products.code + "] " : "";
-                return (
-                  <tr key={it.id || idx} className={idx % 2 === 1 ? "bg-slate-50/50" : "bg-white"}>
-                    <td className="py-2 pl-3 pr-2 text-center text-slate-400 font-mono print:py-1.5">{idx + 1}</td>
-                    <td className="py-2 px-3 print:py-1.5">
-                      <span className="font-bold text-slate-900">{itemName}</span>
-                      {itemCode && <span className="ml-1 font-mono text-[10px] text-slate-400">{itemCode}</span>}
-                    </td>
-                    <td className="py-2 px-3 text-center font-medium text-slate-700 print:py-1.5">{Number(it.qty)}</td>
-                    <td className="py-2 px-3 text-right text-slate-600 print:py-1.5">{money(it.rate)}</td>
-                    <td className="py-2 pl-3 pr-4 text-right font-bold text-slate-900 print:py-1.5">{money(it.amount)}</td>
-                  </tr>
-                );
+                return <tr key={it.id || idx} className={idx % 2 === 1 ? "bg-slate-50/50" : "bg-white"}>
+                  <td className="py-2 pl-3 pr-2 text-center font-mono text-slate-400 print:py-1.5">{idx + 1}</td>
+                  <td className="px-3 py-2 print:py-1.5"><span className="font-bold text-slate-900">{itemName}</span>{itemCode && <span className="ml-1 font-mono text-[10px] text-slate-400">{itemCode}</span>}</td>
+                  <td className="px-3 py-2 text-center font-medium text-slate-700 print:py-1.5">{Number(it.qty)}</td>
+                  <td className="px-3 py-2 text-right text-slate-600 print:py-1.5">{money(it.rate)}</td>
+                  <td className="py-2 pl-3 pr-4 text-right font-bold text-slate-900 print:py-1.5">{money(it.amount)}</td>
+                </tr>;
               })}
-              {itemsRows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-slate-400">
-                    No line items recorded on this invoice
-                  </td>
-                </tr>
-              )}
+              {itemsRows.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-slate-400">No line items recorded on this invoice</td></tr>}
             </tbody>
           </table>
         </div>
 
-        {/* Bottom Section: Left (Words, QR, Payments) vs Right (Financial Summary) */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-start print:mt-3 print:gap-3">
+        <div className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-2 print:mt-3 print:gap-3">
           <div className="space-y-2.5 print:space-y-2">
-            {/* Amount in words */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 print:p-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Amount in Words:</p>
-              <p className="mt-0.5 text-xs font-bold text-slate-900 print:text-[11px]">{numberToWordsInr(totalNum)}</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-900 print:text-[11px]">{numberToWordsInr(Number(invoice.total))}</p>
             </div>
 
-            {/* UPI QR Payment Block */}
             {qrDataUrl && (
               <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 print:p-2">
-                <img
-                  src={qrDataUrl}
-                  alt="Scan to Pay via UPI"
-                  className="h-16 w-16 shrink-0 rounded-lg border border-emerald-300 bg-white p-1 shadow-sm print:h-14 print:w-14"
-                />
+                <img src={qrDataUrl} alt="Scan to Pay via UPI" className="h-16 w-16 shrink-0 rounded-lg border border-emerald-300 bg-white p-1 shadow-sm print:h-14 print:w-14" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-emerald-900 print:text-[11px]">Scan &amp; Pay via Any UPI App</p>
                   <p className="text-[10px] text-emerald-700">Google Pay · PhonePe · Paytm · BHIM</p>
-                  {upiId && (
-                    <p className="mt-0.5 font-mono text-[11px] font-bold text-blue-700 truncate">
-                      UPI ID: {upiId}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-emerald-800">
-                    Amount: <span className="font-bold">{money(targetAmount)}</span>
-                  </p>
+                  {upiId && <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-blue-700">UPI ID: {upiId}</p>}
+                  <p className="text-[10px] text-emerald-800">Amount: <span className="font-bold">{money(targetAmount)}</span></p>
                 </div>
               </div>
             )}
 
-            {/* Payments History */}
             {paymentsRows.length > 0 && (
               <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 print:p-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Breakdown</p>
                 <div className="mt-1 space-y-0.5 text-xs print:text-[11px]">
-                  {paymentsRows.map((p, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-slate-700">
-                      <span className="font-medium">
-                        • {String(p.method).toUpperCase()}
-                        {p.received_at ? " (" + new Date(p.received_at).toLocaleDateString("en-IN") + ")" : ""}
-                      </span>
-                      <span className="font-bold text-slate-900">{money(p.amount)}</span>
-                    </div>
-                  ))}
+                  {paymentsRows.map((p, idx) => <div key={idx} className="flex items-center justify-between text-slate-700"><span className="font-medium">• {String(p.method).toUpperCase()}{p.received_at ? " (" + new Date(p.received_at).toLocaleDateString("en-IN") + ")" : ""}</span><span className="font-bold text-slate-900">{money(p.amount)}</span></div>)}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Right Summary Card */}
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm print:p-2.5">
             <div className="space-y-1.5 text-xs print:text-[11px]">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span className="font-semibold text-slate-900">{money(invoice.subtotal)}</span>
-              </div>
-
-              {Number(invoice.discount || 0) > 0 && (
-                <div className="flex justify-between text-emerald-700 font-bold">
-                  <span>Discount Savings</span>
-                  <span>- {money(invoice.discount)}</span>
-                </div>
-              )}
-
-              <div className="flex justify-between items-center rounded-lg bg-slate-900 px-3 py-2 text-white font-bold text-xs print:py-1.5">
-                <span>Grand Total</span>
-                <span className="text-sm font-black">{money(invoice.total)}</span>
-              </div>
-
-              <div className="flex justify-between text-slate-700 pt-0.5">
-                <span>Amount Paid</span>
-                <span className="font-bold text-emerald-700">{money(invoice.paid)}</span>
-              </div>
-
-              {Number(invoice.due || 0) > 0 && (
-                <div className="flex justify-between text-amber-800 font-bold border-t border-slate-200 pt-1">
-                  <span>Balance Due</span>
-                  <span className="text-xs">{money(invoice.due)}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-semibold text-slate-900">{money(invoice.subtotal)}</span></div>
+              {Number(invoice.discount || 0) > 0 && <div className="flex justify-between font-bold text-emerald-700"><span>Discount Savings</span><span>- {money(invoice.discount)}</span></div>}
+              <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white print:py-1.5"><span>Grand Total</span><span className="text-sm font-black">{money(invoice.total)}</span></div>
+              <div className="flex justify-between pt-0.5 text-slate-700"><span>Amount Paid</span><span className="font-bold text-emerald-700">{money(invoice.paid)}</span></div>
+              {Number(invoice.due || 0) > 0 && <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-amber-800"><span>Balance Due</span><span className="text-xs">{money(invoice.due)}</span></div>}
             </div>
           </div>
         </div>
 
-        {/* Footer Receipt Note */}
-        {settings?.receipt_footer && (
-          <div className="mt-4 rounded-lg bg-slate-50 p-2 text-center text-[11px] text-slate-500 print:mt-2.5 print:p-1.5">
-            {settings.receipt_footer}
-          </div>
-        )}
+        {settings?.receipt_footer && <div className="mt-4 rounded-lg bg-slate-50 p-2 text-center text-[11px] text-slate-500 print:mt-2.5 print:p-1.5">{settings.receipt_footer}</div>}
 
-        {/* Dual Signatures */}
         <div className="mt-6 grid grid-cols-2 gap-8 border-t border-dashed border-slate-300 pt-4 print:mt-4 print:pt-3">
-          <div className="text-center">
-            <div className="mx-auto h-6 w-36 border-b border-slate-400 print:h-4" />
-            <p className="mt-1 text-[11px] font-bold text-slate-700">Customer Acknowledgment</p>
-          </div>
-          <div className="text-center">
-            <div className="mx-auto h-6 w-36 border-b border-slate-400 print:h-4" />
-            <p className="mt-1 text-[11px] font-bold text-slate-700">Authorized Signatory (Store Stamp)</p>
-          </div>
+          <div className="text-center"><div className="mx-auto h-6 w-36 border-b border-slate-400 print:h-4" /><p className="mt-1 text-[11px] font-bold text-slate-700">Customer Acknowledgment</p></div>
+          <div className="text-center"><div className="mx-auto h-6 w-36 border-b border-slate-400 print:h-4" /><p className="mt-1 text-[11px] font-bold text-slate-700">Authorized Signatory (Store Stamp)</p></div>
         </div>
 
-        {/* Bottom Timestamp & Stamp */}
-        <div className="mt-4 border-t border-slate-200 pt-2 flex items-center justify-between text-[9px] text-slate-400 print:mt-2">
-          <span>Smart Business Suite ERP · Verified Tax Document</span>
-          <span>Generated: {new Date().toLocaleString("en-IN")}</span>
-          <span>Page 1 of 1</span>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-2 text-[9px] text-slate-400 print:mt-2">
+          <span>Smart Business Suite ERP · Verified Tax Document</span><span>Generated: {new Date().toLocaleString("en-IN")}</span><span>Page 1 of 1</span>
         </div>
       </div>
     </div>
