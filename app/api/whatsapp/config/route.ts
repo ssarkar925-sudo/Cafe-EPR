@@ -3,10 +3,25 @@ import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp-shared";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function noStoreJson(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+      ...(init?.headers || {}),
+    },
+  });
+}
+
 export async function GET() {
   try {
     const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager"])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!hasRole(role, ["admin", "manager"])) return noStoreJson({ error: "Forbidden" }, { status: 403 });
     const db = createAdminClient();
     const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
       db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
@@ -15,8 +30,19 @@ export async function GET() {
     if (rowError) throw rowError;
     if (secretError) throw secretError;
     const config = row?.config || {};
-    return NextResponse.json({
-      provider: config.provider || "off",
+    const provider = config.provider || "off";
+    const metaReady = Boolean(
+      provider === "meta" &&
+      secrets?.meta_access_token &&
+      secrets?.meta_phone_number_id &&
+      secrets?.meta_app_secret &&
+      secrets?.verify_token
+    );
+    const configured = provider === "meta"
+      ? metaReady
+      : Boolean((secrets?.meta_access_token || config.meta_access_token) && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
+    return noStoreJson({
+      provider,
       gateway_url: config.gateway_url || "",
       meta_phone_number_id: secrets?.meta_phone_number_id || config.meta_phone_number_id || "",
       meta_access_token_set: Boolean(secrets?.meta_access_token),
@@ -29,20 +55,20 @@ export async function GET() {
         tone: config.ai_customer_reply?.tone || "friendly_direct",
         instructions: config.ai_customer_reply?.instructions || "",
       },
-      configured: Boolean(secrets?.meta_access_token && secrets?.meta_phone_number_id),
+      configured,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Could not load WhatsApp configuration" }, { status: 500 });
+    return noStoreJson({ error: err?.message || "Could not load WhatsApp configuration" }, { status: 500 });
   }
 }
 
 export async function PUT(req: Request) {
   try {
     const role = await getUserRole();
-    if (!hasRole(role, ["admin"])) return NextResponse.json({ error: "Only administrators can change WhatsApp configuration." }, { status: 403 });
+    if (!hasRole(role, ["admin"])) return noStoreJson({ error: "Only administrators can change WhatsApp configuration." }, { status: 403 });
     const body = await req.json();
     const provider = body.provider as WhatsAppProvider;
-    if (!["off", "meta", "local_gateway", "ultramsg"].includes(provider)) return NextResponse.json({ error: "Invalid WhatsApp provider." }, { status: 400 });
+    if (!["off", "meta", "local_gateway", "ultramsg"].includes(provider)) return noStoreJson({ error: "Invalid WhatsApp provider." }, { status: 400 });
     const db = createAdminClient();
     const { data: existing } = await db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
     const config = {
@@ -68,7 +94,7 @@ export async function PUT(req: Request) {
     });
     if (configError) throw configError;
 
-    const secretPatch: Record<string, string> = {};
+    const secretPatch: Record<string, string> = { provider };
     if (body.meta_phone_number_id !== undefined) secretPatch.meta_phone_number_id = String(body.meta_phone_number_id || "").trim();
     if (body.meta_access_token) secretPatch.meta_access_token = String(body.meta_access_token).trim();
     if (body.meta_app_secret) secretPatch.meta_app_secret = String(body.meta_app_secret).trim();
@@ -78,8 +104,8 @@ export async function PUT(req: Request) {
       if (error) throw error;
     }
 
-    return NextResponse.json({ success: true });
+    return noStoreJson({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Could not save WhatsApp configuration" }, { status: 500 });
+    return noStoreJson({ error: err?.message || "Could not save WhatsApp configuration" }, { status: 500 });
   }
 }
