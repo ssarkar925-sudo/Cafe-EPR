@@ -14,6 +14,7 @@
     "test:ai-browser": "node scripts/test-ai-browser-safety.mjs",
     "test:ai-learning": "node scripts/test-ai-learning-control.mjs",
     "gateway": "node scripts/whatsapp-gateway.js",
+    "ai:portal:teach": "node scripts/ai-portal-worker.mjs teach",
     "ai:portal:learn": "node scripts/ai-portal-worker.mjs learn",
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect"
   },
@@ -27,8 +28,6 @@
     "lucide-react": "^1.39.0",
     "next": "^15.1.6",
     "pg": "^8.23.0",
-    "pino": "^10.3.0",
-    "playwright": "^1.55.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "react": "^19.0.0",
