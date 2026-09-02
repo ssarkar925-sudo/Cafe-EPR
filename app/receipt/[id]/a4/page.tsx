@@ -98,7 +98,19 @@ export default async function ReceiptA4Page({
         }
       `}</style>
       <div className="mx-auto max-w-[820px] rounded-2xl border border-slate-200 bg-white p-6 shadow-lg print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none a4-print-card">
-        <A4Actions invoiceNumber={invoice.invoice_number} />
+        <A4Actions
+          variant="invoice"
+          data={{
+            invoice,
+            items: itemsRows,
+            payments: paymentsRows,
+            settings,
+            qrDataUrl,
+            upiId,
+          }}
+          filename={`Invoice-${invoice.invoice_number}.pdf`}
+          receiptUrl={`/receipt/${invoiceId}`}
+        />
 
         <div className="border-b border-slate-200 pb-4 print:pb-3">
           <div className="flex items-start justify-between gap-4">
@@ -232,22 +244,28 @@ export default async function ReceiptA4Page({
             <div className="space-y-1.5 text-xs print:text-[11px]">
               <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-semibold text-slate-900">{money(invoice.subtotal)}</span></div>
               {Number(invoice.discount || 0) > 0 && <div className="flex justify-between font-bold text-emerald-700"><span>Discount Savings</span><span>- {money(invoice.discount)}</span></div>}
-              <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white print:py-1.5"><span>Grand Total</span><span className="text-sm font-black">{money(invoice.total)}</span></div>
-              <div className="flex justify-between pt-0.5 text-slate-700"><span>Amount Paid</span><span className="font-bold text-emerald-700">{money(invoice.paid)}</span></div>
-              {Number(invoice.due || 0) > 0 && <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-amber-800"><span>Balance Due</span><span className="text-xs">{money(invoice.due)}</span></div>}
+              <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-black text-white print:py-2"><span>Grand Total</span><span>{money(invoice.total)}</span></div>
+              <div className="flex justify-between text-slate-600"><span>Paid</span><span className="font-semibold text-emerald-700">{money(invoice.paid)}</span></div>
+              <div className="flex justify-between font-bold text-amber-700"><span>Balance Due</span><span>{money(invoice.due)}</span></div>
+              {Number(invoice.returned || 0) > 0 && <div className="flex justify-between text-rose-600"><span>Returned</span><span>- {money(invoice.returned)}</span></div>}
+              {Number(invoice.refunded || 0) > 0 && <div className="flex justify-between text-violet-600"><span>Refunded</span><span>- {money(invoice.refunded)}</span></div>}
             </div>
           </div>
         </div>
 
-        {settings?.receipt_footer && <div className="mt-4 rounded-lg bg-slate-50 p-2 text-center text-[11px] text-slate-500 print:mt-2.5 print:p-1.5">{settings.receipt_footer}</div>}
-
-        <div className="mt-6 grid grid-cols-2 gap-8 border-t border-dashed border-slate-300 pt-4 print:mt-4 print:pt-3">
-          <div className="text-center"><div className="mx-auto h-6 w-36 border-b border-slate-400 print:h-4" /><p className="mt-1 text-[11px] font-bold text-slate-700">Customer Acknowledgment</p></div>
-          <div className="text-center"><div className="mx-auto h-6 w-36 border-b border-slate-400 print:h-4" /><p className="mt-1 text-[11px] font-bold text-slate-700">Authorized Signatory (Store Stamp)</p></div>
+        <div className="mt-5 grid grid-cols-2 gap-8 print:mt-4 print:gap-6">
+          <div className="text-center">
+            <div className="mx-auto h-8 w-40 border-b border-slate-400" />
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer Signature</p>
+          </div>
+          <div className="text-center">
+            <div className="mx-auto h-8 w-40 border-b border-slate-400" />
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Authorized Signature</p>
+          </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-2 text-[9px] text-slate-400 print:mt-2">
-          <span>Smart Business Suite ERP · Verified Tax Document</span><span>Generated: {new Date().toLocaleString("en-IN")}</span><span>Page 1 of 1</span>
+        <div className="mt-4 border-t border-slate-200 pt-2 text-center text-[10px] text-slate-400 print:mt-3">
+          Thank you for your business · Computer-generated invoice
         </div>
       </div>
     </div>
