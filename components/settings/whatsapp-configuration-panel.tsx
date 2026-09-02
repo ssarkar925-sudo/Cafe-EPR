@@ -8,7 +8,10 @@ type ConfigResponse = {
   gateway_url?: string;
   meta_phone_number_id?: string;
   meta_access_token_set?: boolean;
+  meta_app_secret_set?: boolean;
+  verify_token_set?: boolean;
   automations: WhatsAppAutomationRules;
+  ai_customer_reply?: { enabled: boolean; language: string; tone: string; instructions: string };
   configured: boolean;
 };
 
@@ -17,9 +20,12 @@ export default function WhatsAppConfigurationPanel() {
     provider: "off",
     gateway_url: DEFAULT_WA_CONFIG.gateway_url,
     automations: DEFAULT_AUTOMATIONS,
+    ai_customer_reply: { enabled: false, language: "auto", tone: "friendly_direct", instructions: "" },
     configured: false,
   });
   const [token, setToken] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [verifyToken, setVerifyToken] = useState("");
   const [phoneId, setPhoneId] = useState("");
   const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_WA_CONFIG.gateway_url || "");
   const [provider, setProvider] = useState<WhatsAppProvider>("off");
@@ -38,7 +44,7 @@ export default function WhatsAppConfigurationPanel() {
     setPhoneId(data.meta_phone_number_id || "");
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function save() {
     setSaving(true);
@@ -52,12 +58,17 @@ export default function WhatsAppConfigurationPanel() {
           gateway_url: gatewayUrl,
           meta_phone_number_id: phoneId,
           meta_access_token: token || undefined,
+          meta_app_secret: appSecret || undefined,
+          verify_token: verifyToken || undefined,
           automations: cfg.automations,
+          ai_customer_reply: cfg.ai_customer_reply,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save configuration");
       setToken("");
+      setAppSecret("");
+      setVerifyToken("");
       setMessage({ ok: true, text: "WhatsApp configuration saved securely." });
       await load();
     } catch (err: any) {
@@ -93,7 +104,7 @@ export default function WhatsAppConfigurationPanel() {
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Official Cloud API</p>
             <h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">Connect WhatsApp</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Credentials are written to the server-only WhatsApp secrets store. The browser never receives the access token.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Credentials are written to the server-only WhatsApp secrets store. The browser never receives the access token or webhook secret.</p>
           </div>
           <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${cfg.configured ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"}`}>
             {cfg.configured ? "Configured" : "Not configured"}
@@ -115,13 +126,26 @@ export default function WhatsAppConfigurationPanel() {
           <Field label="Permanent Access Token">
             <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={cfg.meta_access_token_set ? "Saved — enter only to replace" : "Paste Meta access token"} autoComplete="new-password" className={inputClass} />
           </Field>
+          <Field label="Meta App Secret">
+            <input type="password" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder={cfg.meta_app_secret_set ? "Saved — enter only to replace" : "Paste Meta app secret"} autoComplete="new-password" className={inputClass} />
+          </Field>
+          <Field label="Webhook Verify Token">
+            <input type="password" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder={cfg.verify_token_set ? "Saved — enter only to replace" : "Create a strong verification token"} autoComplete="new-password" className={inputClass} />
+          </Field>
           <Field label="Gateway URL (legacy only)">
             <input value={gatewayUrl} onChange={(e) => setGatewayUrl(e.target.value)} placeholder="https://..." className={inputClass} disabled={provider === "meta" || provider === "off"} />
           </Field>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs leading-5 text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
-          For Meta Cloud API, use a permanent system-user token, your Phone Number ID, and an approved WhatsApp Business sender. Do not paste secrets into message templates.
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs leading-5 text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+            For Meta Cloud API, use a permanent system-user token, your Phone Number ID, an approved WhatsApp Business sender, the Meta App Secret, and a webhook verify token.
+          </div>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs leading-5 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
+            <div className="font-black">Meta webhook callback URL</div>
+            <div className="mt-1 break-all font-mono text-[11px]">https://cafeerp.vercel.app/api/whatsapp/webhook</div>
+            <div className="mt-1">Subscribe your WhatsApp Business Account to the webhook after saving the secrets.</div>
+          </div>
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
           <button onClick={save} disabled={saving} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save Securely"}</button>

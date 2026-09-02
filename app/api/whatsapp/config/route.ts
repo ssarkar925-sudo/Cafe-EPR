@@ -10,7 +10,7 @@ export async function GET() {
     const db = createAdminClient();
     const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
       db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id").eq("id", "default").maybeSingle(),
+      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id, meta_app_secret, verify_token").eq("id", "default").maybeSingle(),
     ]);
     if (rowError) throw rowError;
     if (secretError) throw secretError;
@@ -20,7 +20,15 @@ export async function GET() {
       gateway_url: config.gateway_url || "",
       meta_phone_number_id: secrets?.meta_phone_number_id || config.meta_phone_number_id || "",
       meta_access_token_set: Boolean(secrets?.meta_access_token),
+      meta_app_secret_set: Boolean(secrets?.meta_app_secret),
+      verify_token_set: Boolean(secrets?.verify_token),
       automations: { ...DEFAULT_AUTOMATIONS, ...(config.automations || {}) },
+      ai_customer_reply: {
+        enabled: Boolean(config.ai_customer_reply?.enabled),
+        language: config.ai_customer_reply?.language || "auto",
+        tone: config.ai_customer_reply?.tone || "friendly_direct",
+        instructions: config.ai_customer_reply?.instructions || "",
+      },
       configured: Boolean(secrets?.meta_access_token && secrets?.meta_phone_number_id),
     });
   } catch (err: any) {
@@ -42,19 +50,34 @@ export async function PUT(req: Request) {
       provider,
       gateway_url: body.gateway_url || "",
       automations: { ...DEFAULT_AUTOMATIONS, ...(body.automations || {}) },
+      ai_customer_reply: {
+        enabled: Boolean(body.ai_customer_reply?.enabled),
+        language: body.ai_customer_reply?.language || "auto",
+        tone: body.ai_customer_reply?.tone || "friendly_direct",
+        instructions: typeof body.ai_customer_reply?.instructions === "string" ? body.ai_customer_reply.instructions.trim() : "",
+      },
     };
     delete config.meta_access_token;
     delete config.gateway_api_key;
     delete config.ultramsg_token;
-    const { error: configError } = await db.from("whatsapp_templates").upsert({ id: "default", templates: existing?.templates || DEFAULT_WA_TEMPLATES, config, updated_at: new Date().toISOString() });
+    const { error: configError } = await db.from("whatsapp_templates").upsert({
+      id: "default",
+      templates: existing?.templates || DEFAULT_WA_TEMPLATES,
+      config,
+      updated_at: new Date().toISOString(),
+    });
     if (configError) throw configError;
+
     const secretPatch: Record<string, string> = {};
     if (body.meta_phone_number_id !== undefined) secretPatch.meta_phone_number_id = String(body.meta_phone_number_id || "").trim();
     if (body.meta_access_token) secretPatch.meta_access_token = String(body.meta_access_token).trim();
+    if (body.meta_app_secret) secretPatch.meta_app_secret = String(body.meta_app_secret).trim();
+    if (body.verify_token) secretPatch.verify_token = String(body.verify_token).trim();
     if (Object.keys(secretPatch).length) {
       const { error } = await db.from("whatsapp_gateway_secrets").upsert({ id: "default", ...secretPatch, updated_at: new Date().toISOString() });
       if (error) throw error;
     }
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Could not save WhatsApp configuration" }, { status: 500 });

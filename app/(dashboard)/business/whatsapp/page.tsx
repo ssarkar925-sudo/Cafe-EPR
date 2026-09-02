@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getUserRole, hasRole } from "@/lib/authz";
 import WhatsAppTrackerPanel from "@/components/settings/whatsapp-tracker-panel";
+import WhatsAppAICustomerAssistant from "@/components/settings/whatsapp-ai-customer-assistant";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function WhatsAppHubPage() {
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Business Hub / Communication</div>
             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">WhatsApp Hub</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Connection, automation rules, message templates, queue processing, delivery logs and test messaging.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Connection, automation rules, message templates, queue processing, delivery logs and intelligent customer replies.</p>
           </div>
           <div className="flex items-center gap-2">
             <a href="/business/whatsapp/config" className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">WhatsApp Configuration</a>
@@ -23,6 +24,8 @@ export default async function WhatsAppHubPage() {
           </div>
         </div>
       </div>
+
+      <WhatsAppAICustomerAssistant />
       <WhatsAppTrackerPanel />
     </div>
   );
