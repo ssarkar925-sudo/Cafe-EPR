@@ -9,6 +9,7 @@ const startUrl = process.env.AI_PORTAL_URL;
 const stateDir = path.resolve(process.env.AI_PORTAL_STATE_DIR ?? ".ai-portal-state");
 const stateFile = path.join(stateDir, "storage-state.json");
 const selectorsFile = path.resolve(process.env.AI_PORTAL_SELECTORS_FILE ?? path.join(stateDir, "selectors.json"));
+const teachingDraftFile = path.resolve(process.env.AI_PORTAL_TEACHING_DRAFT ?? path.join(stateDir, "teaching-draft.json"));
 const exportFile = process.env.AI_PORTAL_EXPORT_FILE ? path.resolve(process.env.AI_PORTAL_EXPORT_FILE) : null;
 
 const blockedWords = /\b(otp|one[- ]time password|pin|password|passcode|captcha|recaptcha|payment authorization)\b/i;
@@ -19,9 +20,6 @@ async function ensureStateDir() {
 }
 
 async function inspectPage(page) {
-  // Do not scan the entire document for words such as "login" or "OTP":
-  // authenticated portals commonly keep those words in navigation/help text.
-  // Inspect only active authentication/authorization controls and the URL.
   const currentUrl = page.url();
   if (loginWords.test(currentUrl)) {
     throw new Error("STOPPED: portal URL indicates login/MFA. Sign in manually, then rerun with the authenticated session.");
@@ -51,6 +49,147 @@ async function inspectPage(page) {
   void blockedWords;
 }
 
+function cleanText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function safeName(value, fallback) {
+  const cleaned = cleanText(value).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleaned || fallback;
+}
+
+async function waitForEnter(message) {
+  console.log(message);
+  await new Promise((resolve) => process.stdin.once("data", resolve));
+}
+
+/**
+ * Browser-side selector generation intentionally avoids text values. The
+ * selector is structural/attribute based so transaction names, IDs, amounts,
+ * and customer data are not embedded in the learned workflow.
+ */
+async function pickSelector(page, prompt, options = {}) {
+  const relativeTo = options.relativeTo ?? null;
+  const selector = await page.evaluate(async ({ prompt: instruction, relativeTo: rootSelector }) => {
+    const cssEscape = (value) => {
+      if (globalThis.CSS?.escape) return globalThis.CSS.escape(value);
+      return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+    };
+
+    const uniqueAttributeSelector = (element) => {
+      for (const attribute of ["data-testid", "data-test", "aria-label", "name"]) {
+        const value = element.getAttribute(attribute);
+        if (!value) continue;
+        const selector = `[${attribute}="${value.replace(/"/g, '\\"')}"]`;
+        try {
+          if (document.querySelectorAll(selector).length === 1) return selector;
+        } catch {}
+      }
+      return null;
+    };
+
+    const structuralSelector = (element, stopElement = document.body) => {
+      const parts = [];
+      let current = element;
+      while (current && current.nodeType === 1 && current !== stopElement) {
+        const attr = uniqueAttributeSelector(current);
+        if (attr) {
+          parts.unshift(attr);
+          break;
+        }
+        const tag = current.tagName.toLowerCase();
+        const siblings = current.parentElement
+          ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName)
+          : [];
+        const index = Math.max(1, siblings.indexOf(current) + 1);
+        parts.unshift(`${tag}:nth-of-type(${index})`);
+        current = current.parentElement;
+      }
+      return parts.join(" > ");
+    };
+
+    const getRow = (element) => {
+      return element.closest("tr")
+        || element.closest('[role="row"]')
+        || element.closest("tbody > tr")
+        || null;
+    };
+
+    const rowSelectorTemplate = (row) => {
+      if (!row) return null;
+      const base = structuralSelector(row, document.body);
+      const finalTag = row.tagName.toLowerCase();
+      const placeholder = `:nth-of-type(${String(Array.from(row.parentElement?.children ?? []).filter((child) => child.tagName === row.tagName).indexOf(row) + 1)})`;
+      if (base.endsWith(placeholder)) return `${base.slice(0, -placeholder.length)}:nth-of-type({index})`;
+      if (base.endsWith(finalTag)) return `${base}:nth-of-type({index})`;
+      return `${base} :nth-of-type({index})`;
+    };
+
+    const relativeSelector = (root, element) => {
+      if (!root || root === element) return null;
+      const parts = [];
+      let current = element;
+      while (current && current !== root) {
+        const attr = uniqueAttributeSelector(current);
+        if (attr) {
+          parts.unshift(attr);
+          const probe = root.querySelectorAll(parts.join(" > "));
+          if (probe.length === 1) break;
+        } else {
+          const tag = current.tagName.toLowerCase();
+          const siblings = current.parentElement
+            ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName)
+            : [];
+          const index = Math.max(1, siblings.indexOf(current) + 1);
+          parts.unshift(`${tag}:nth-of-type(${index})`);
+        }
+        current = current.parentElement;
+      }
+      return parts.join(" > ");
+    };
+
+    return await new Promise((resolve) => {
+      const previousOutline = new Map();
+      const moveHandler = (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        for (const [el, outline] of previousOutline) el.style.outline = outline;
+        previousOutline.clear();
+        const element = target;
+        previousOutline.set(element, element.style.outline);
+        element.style.outline = "3px solid #f59e0b";
+      };
+      const clickHandler = (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        event.preventDefault();
+        event.stopPropagation();
+        document.removeEventListener("mousemove", moveHandler, true);
+        document.removeEventListener("click", clickHandler, true);
+        for (const [el, outline] of previousOutline) el.style.outline = outline;
+        previousOutline.clear();
+
+        const root = rootSelector ? document.querySelector(rootSelector.replace("{index}", "1")) : null;
+        const row = getRow(target);
+        const absoluteSelector = structuralSelector(target);
+        const relativeSelectorValue = root ? relativeSelector(root, target) : null;
+        resolve({
+          selector: absoluteSelector,
+          rowSelectorTemplate: rowSelectorTemplate(row),
+          relativeSelector: relativeSelectorValue,
+          tagName: target.tagName.toLowerCase(),
+        });
+      };
+      document.addEventListener("mousemove", moveHandler, true);
+      document.addEventListener("click", clickHandler, true);
+      console.log(`AI_TEACH_PICKER_READY:${instruction}`);
+    });
+  }, { prompt, relativeTo });
+
+  if (!selector?.selector) throw new Error("Could not learn a selector from the selected element.");
+  return selector;
+}
+
 async function loadSelectors() {
   try {
     const raw = await fs.readFile(selectorsFile, "utf8");
@@ -76,7 +215,7 @@ async function loadSelectors() {
   } catch (error) {
     throw new Error(
       error instanceof Error
-        ? `${error.message} Run 'npm run ai:portal:learn' first, then save the owner-taught selector map to ${selectorsFile}.`
+        ? `${error.message} Run 'npm run ai:portal:teach' first, then save the owner-taught selector map to ${selectorsFile}.`
         : String(error),
     );
   }
@@ -222,13 +361,131 @@ async function learn() {
   }
 }
 
+async function teach() {
+  if (!startUrl) throw new Error("AI_PORTAL_URL is required for teach mode.");
+  await ensureStateDir();
+  const context = await chromium.launchPersistentContext(stateDir, {
+    headless: false,
+    viewport: null,
+    acceptDownloads: false,
+  });
+  try {
+    const page = context.pages()[0] ?? (await context.newPage());
+    await page.goto(startUrl, { waitUntil: "domcontentloaded" });
+    console.log(`Opened ${provider} teaching session.`);
+    console.log("Login yourself in the browser. The worker will never type or receive OTP/PIN/password/CAPTCHA data.");
+    await waitForEnter("After authentication, press Enter here. Then we will teach the portal step-by-step.");
+    await inspectPage(page);
+
+    console.log("\nSTEP 1: In the browser, use the yellow-highlight picker prompt and click the Transaction History control.");
+    const history = await pickSelector(page, "Transaction History control");
+    const historySelector = history.selector;
+    await page.locator(historySelector).click();
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
+    await page.waitForTimeout(500);
+    await inspectPage(page);
+
+    let cashWithdrawalFilterSelector = null;
+    const filterDecision = process.env.AI_PORTAL_HAS_AEPS_FILTER;
+    if (filterDecision !== "false") {
+      console.log("\nSTEP 2: If an AEPS/cash-withdrawal filter exists, click it with the picker. If there is no such filter, type SKIP here and press Enter.");
+      await waitForEnter("Choose the AEPS/cash-withdrawal filter, then press Enter. To skip, type SKIP then Enter.");
+      // Use the browser's last click only after a deliberate picker prompt so no transaction control is executed.
+      const picker = await pickSelector(page, "AEPS/cash-withdrawal filter");
+      cashWithdrawalFilterSelector = picker.selector;
+      await page.locator(cashWithdrawalFilterSelector).click();
+      await page.waitForTimeout(300);
+      await inspectPage(page);
+    }
+
+    const firstRowProbe = await pickSelector(page, "First completed transaction row/cell");
+    const rowSelectorTemplate = firstRowProbe.rowSelectorTemplate;
+    if (!rowSelectorTemplate || !rowSelectorTemplate.includes("{index}")) {
+      throw new Error("STOPPED: could not learn a repeatable transaction row selector. Teach this workflow manually in the Learning Control Center.");
+    }
+
+    const firstRowSelector = rowSelectorTemplate.replace("{index}", "1");
+    if ((await page.locator(firstRowSelector).count()) !== 1) {
+      throw new Error("STOPPED: learned first-row selector does not resolve uniquely.");
+    }
+
+    const fieldDefinitions = [
+      ["externalTransactionId", "Click the transaction ID/reference cell in the first row."],
+      ["status", "Click the status cell in the first row. Choose the completed/success indicator."],
+      ["transactionType", "Click the transaction type/service cell in the first row."],
+      ["amount", "Click the transaction amount cell in the first row."],
+    ];
+    const fields = {};
+    for (const [key, prompt] of fieldDefinitions) {
+      const picked = await pickSelector(page, prompt, { relativeTo: firstRowSelector });
+      if (!picked.relativeSelector) {
+        throw new Error(`STOPPED: could not learn a relative selector for ${key}.`);
+      }
+      fields[key] = picked.relativeSelector;
+    }
+
+    const optionalFields = [
+      ["externalReference", "Click an external/reference cell in the first row, or skip if it is the same as transaction ID."],
+      ["fee", "Click a fee cell in the first row, or skip if unavailable."],
+      ["commission", "Click a commission cell in the first row, or skip if unavailable."],
+      ["occurredAt", "Click the date/time cell in the first row."],
+      ["customerName", "Click the customer-name cell in the first row, or skip."],
+      ["customerMobile", "Click the customer-mobile cell in the first row, or skip."],
+    ];
+    for (const [key, prompt] of optionalFields) {
+      console.log(`\nOPTIONAL FIELD: ${key}.`);
+      await waitForEnter(`Open the picker prompt in the browser for this field. Type SKIP then press Enter to omit it.`);
+      const picked = await pickSelector(page, prompt, { relativeTo: firstRowSelector });
+      if (picked.relativeSelector) fields[key] = picked.relativeSelector;
+    }
+
+    const snapshotFile = path.join(stateDir, "transaction-history-snapshot.txt");
+    const screenshotFile = path.join(stateDir, "teaching-screenshot.png");
+    const snapshot = await page.locator("body").innerText();
+    await fs.writeFile(snapshotFile, snapshot.slice(0, 20000) + "\n", "utf8");
+    await page.screenshot({ path: screenshotFile, fullPage: true });
+    await context.storageState({ path: stateFile });
+
+    const draft = {
+      schemaVersion: 1,
+      providerName: provider,
+      workflow_key: provider === "CSC DigiPay" ? "csc_digipay_aeps_import" : `${safeName(provider, "portal").toLowerCase()}_transaction_import`,
+      name: `${provider} AEPS Import`,
+      risk: "low",
+      confidence: 0.85,
+      instruction: "Read only completed AEPS transaction history. Do not initiate, authorize, or modify any transaction. Stop if the page changes or requests authentication secrets.",
+      evidence: {
+        source: "owner_live_browser_teaching",
+        taughtAt: new Date().toISOString(),
+        pageUrl: page.url(),
+        snapshotFile,
+        screenshotFile,
+      },
+      selector_map: {
+        historySelector,
+        cashWithdrawalFilterSelector,
+        rowSelectorTemplate,
+        fields,
+      },
+    };
+
+    await fs.writeFile(teachingDraftFile, JSON.stringify(draft, null, 2) + "\n", "utf8");
+    console.log("\nTEACHING COMPLETE");
+    console.log(`Draft saved to ${teachingDraftFile}`);
+    console.log(`Screenshot saved to ${screenshotFile}`);
+    console.log("Import the teaching draft from AI Learning Control Center. It will be saved as a Draft version; it will not become active automatically.");
+  } finally {
+    await context.close();
+  }
+}
+
 async function collect() {
   if (!startUrl) throw new Error("AI_PORTAL_URL is required for collect mode.");
   await ensureStateDir();
   try {
     await fs.access(stateFile);
   } catch {
-    throw new Error("No authenticated portal state found. Run 'npm run ai:portal:learn' first.");
+    throw new Error("No authenticated portal state found. Run 'npm run ai:portal:teach' or 'npm run ai:portal:learn' first.");
   }
 
   const selectors = await loadSelectors();
@@ -256,12 +513,14 @@ async function collect() {
 
 try {
   if (command === "learn") await learn();
+  else if (command === "teach") await teach();
   else if (command === "collect") await collect();
   else {
     console.log("AI portal worker");
-    console.log("  npm run ai:portal:learn   # manually authenticate and teach the read-only page");
+    console.log("  npm run ai:portal:teach   # guided owner teaching; produces a draft workflow");
+    console.log("  npm run ai:portal:learn   # manually authenticate and save the read-only page");
     console.log("  npm run ai:portal:collect # reuse the authenticated session and run learned extraction");
-    console.log("Environment: AI_PORTAL_URL, AI_PORTAL_PROVIDER, optional AI_PORTAL_STATE_DIR, optional AI_PORTAL_SELECTORS_FILE, optional AI_PORTAL_EXPORT_FILE");
+    console.log("Environment: AI_PORTAL_URL, AI_PORTAL_PROVIDER, optional AI_PORTAL_STATE_DIR, AI_PORTAL_SELECTORS_FILE, AI_PORTAL_TEACHING_DRAFT, AI_PORTAL_EXPORT_FILE");
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
