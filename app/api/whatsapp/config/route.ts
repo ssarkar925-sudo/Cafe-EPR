@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createSecretsAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp-shared";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET() {
   try {
     const role = await getUserRole();
     if (!hasRole(role, ["admin", "manager"])) return noStoreJson({ error: "Forbidden" }, { status: 403 });
-    const db = createAdminClient();
+    const db = createSecretsAdminClient();
     const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
       db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
       db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id, meta_app_secret, verify_token").eq("id", "default").maybeSingle(),
@@ -69,7 +69,7 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const provider = body.provider as WhatsAppProvider;
     if (!["off", "meta", "local_gateway", "ultramsg"].includes(provider)) return noStoreJson({ error: "Invalid WhatsApp provider." }, { status: 400 });
-    const db = createAdminClient();
+    const db = createSecretsAdminClient();
     const { data: existing } = await db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
     const config = {
       ...(existing?.config || {}),
