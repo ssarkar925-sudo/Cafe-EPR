@@ -9,6 +9,42 @@ export interface SendWhatsAppResult {
   status?: number;
 }
 
+function normalizePhone(value: string): string {
+  return String(value || "").replace(/\D/g, "");
+}
+
+async function resolveMetaPhoneNumberId(config: WhatsAppConfig, token: string): Promise<string> {
+  const configuredId = config.meta_phone_number_id?.trim();
+  const extra = config as WhatsAppConfig & { meta_waba_id?: string; meta_display_phone_number?: string };
+  const wabaId = extra.meta_waba_id?.trim();
+  const displayPhone = normalizePhone(extra.meta_display_phone_number || "");
+
+  // A WABA id or legacy profile id can be mistakenly stored here. Resolve the
+  // sender id from the authoritative WABA phone_numbers collection instead.
+  if (!wabaId) return configuredId || "";
+  if (configuredId && configuredId !== wabaId && configuredId !== "25207970364976") return configuredId;
+
+  const graphVersion = (process.env.META_GRAPH_API_VERSION || "v25.0").trim();
+  const url = `https://graph.facebook.com/${graphVersion}/${wabaId}/phone_numbers?fields=id,display_phone_number&limit=100`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `Meta phone-number lookup failed (HTTP ${res.status})`);
+  }
+
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  const match = rows.find((row: any) => {
+    const rowPhone = normalizePhone(row?.display_phone_number || "");
+    return displayPhone ? rowPhone === displayPhone : true;
+  });
+  const resolved = String(match?.id || "").trim();
+  if (!resolved) throw new Error("Meta returned no Phone Number ID for the configured WhatsApp sender.");
+  return resolved;
+}
+
 export async function sendWhatsAppViaConfig(
   phone: string,
   message: string,
@@ -20,10 +56,23 @@ export async function sendWhatsAppViaConfig(
   if (config.provider === "meta") {
     const phoneId = config.meta_phone_number_id?.trim();
     const token = config.meta_access_token?.trim();
-    if (!phoneId || !token) return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
+    if (!token) return { success: false, error: "Meta Access Token is missing from the server-side WhatsApp configuration.", status: 400 };
+    if (!phoneId) return { success: false, error: "Meta Phone Number ID is missing from the server-side WhatsApp configuration.", status: 400 };
+
+    const extra = config as WhatsAppConfig & { meta_waba_id?: string };
+    let resolvedPhoneId = phoneId;
+    try {
+      resolvedPhoneId = await resolveMetaPhoneNumberId(config, token);
+    } catch (err: any) {
+      // If the configured id already looks like a real sender id, preserve the
+      // normal send path; otherwise surface the lookup failure clearly.
+      if (extra.meta_waba_id && (phoneId === extra.meta_waba_id || phoneId === "25207970364976")) {
+        return { success: false, error: err?.message || "Could not resolve Meta Phone Number ID.", status: 400 };
+      }
+    }
 
     const graphVersion = (process.env.META_GRAPH_API_VERSION || "v25.0").trim();
-    const metaUrl = `https://graph.facebook.com/${graphVersion}/${phoneId}/messages`;
+    const metaUrl = `https://graph.facebook.com/${graphVersion}/${resolvedPhoneId}/messages`;
     const metaRes = await fetch(metaUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -36,7 +85,7 @@ export async function sendWhatsAppViaConfig(
       }),
     });
     const metaData = await metaRes.json().catch(() => ({}));
-    if (!metaRes.ok) return { success: false, error: metaData?.error?.message || "Meta WhatsApp API Error", status: 400 };
+    if (!metaRes.ok) return { success: false, error: metaData?.error?.message || "Meta WhatsApp API Error", status: metaRes.status };
     return { success: true, provider: "meta", messageId: metaData?.messages?.[0]?.id, data: metaData };
   }
 
