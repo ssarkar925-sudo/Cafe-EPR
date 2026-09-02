@@ -1,0 +1,25 @@
+{
+  "name": "CyberCafe ERP & Smart Business Suite",
+  "short_name": "Cafe ERP",
+  "description": "Full Point of Sale, Billing, AEPS/DMT & Business Management Suite",
+  "id": "/dashboard",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070a14",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

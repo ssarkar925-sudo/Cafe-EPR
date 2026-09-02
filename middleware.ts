@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/logout",
   "/receipt",
   "/business/receipt",
+  "/manifest.webmanifest",
   "/api/recharge/operator-circle",
   "/api/bill-payment/fetch",
   "/api/whatsapp/webhook",
@@ -101,6 +102,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/receipt") ||
     pathname.startsWith("/business/receipt") ||
+    pathname === "/manifest.webmanifest" ||
     pathname === "/api/recharge/operator-circle" ||
     pathname === "/api/bill-payment/fetch" ||
     pathname === "/api/whatsapp/webhook" ||
