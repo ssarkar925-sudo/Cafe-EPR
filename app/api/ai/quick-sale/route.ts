@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { requireOwnerApproval } from "@/lib/ai/approval-gate";
+import { calculateGstInvoice } from "@/lib/gst";
 
 export const dynamic = "force-dynamic";
 
@@ -141,8 +142,18 @@ export async function POST(request: Request) {
   }
 
   const paymentMethod = parsed.payment_method === "other" ? "cash" : parsed.payment_method;
-  const total = Number(resolved.reduce((sum, x) => sum + x.qty * x.rate, 0).toFixed(2));
-  const payment = [{ method: paymentMethod, amount: total, instrument_id: null }];
+  const gst = calculateGstInvoice({
+    lines: resolved.map((x) => ({ qty: x.qty, rate: x.rate, gstRate: x.gst_rate, hsnSac: x.hsn_sac, taxTreatment: x.gst_rate > 0 ? "taxable" : "non_gst" })),
+    invoiceLumpSumDiscount: 0,
+    supplierStateCode: "19",
+    customerStateCode: customer?.state_code ?? null,
+    customerGstin: customer?.gstin ?? null,
+  });
+  const total = gst.invoiceTotal;
+
+  const { data: instruments } = await supabase.from("payment_instruments").select("id,name,type").eq("is_active", true).eq("type", paymentMethod).order("name").limit(1);
+  const instrumentId = instruments?.[0]?.id ?? null;
+  const payment = [{ method: paymentMethod, amount: total, instrument_id: instrumentId }];
 
   const approval = await requireOwnerApproval("create_sale", {
     source: "cafe-ai-quick-sale",
