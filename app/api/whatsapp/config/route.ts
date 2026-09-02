@@ -25,22 +25,37 @@ export async function GET() {
     const db = createSecretsAdminClient();
     const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
       db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id, meta_app_secret, verify_token").eq("id", "default").maybeSingle(),
+      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id, meta_app_secret, verify_token, provider").eq("id", "default").maybeSingle(),
     ]);
     if (rowError) throw rowError;
     if (secretError) throw secretError;
+
     const config = row?.config || {};
-    const provider = config.provider || "off";
+    const baseProvider = config.provider as WhatsAppProvider | undefined;
+    const secretProvider = secrets?.provider as WhatsAppProvider | undefined;
     const metaReady = Boolean(
-      provider === "meta" &&
       secrets?.meta_access_token &&
       secrets?.meta_phone_number_id &&
       secrets?.meta_app_secret &&
       secrets?.verify_token
     );
+
+    // Prefer an explicitly configured non-off provider. If an older save left
+    // the secrets-row provider as `off`, recover Meta automatically when the
+    // complete server-side Meta credential set exists.
+    const provider: WhatsAppProvider =
+      baseProvider && baseProvider !== "off"
+        ? baseProvider
+        : metaReady
+          ? "meta"
+          : (secretProvider || baseProvider || "off");
+
     const configured = provider === "meta"
       ? metaReady
-      : Boolean((secrets?.meta_access_token || config.meta_access_token) && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
+      : provider === "off"
+        ? false
+        : Boolean((secrets?.meta_access_token || config.meta_access_token) && (secrets?.meta_phone_number_id || config.meta_phone_number_id));
+
     return noStoreJson({
       provider,
       gateway_url: config.gateway_url || "",
