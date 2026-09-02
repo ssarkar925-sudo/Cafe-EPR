@@ -1,5 +1,6 @@
 import {
   buildTransactionFingerprint,
+  isCompletedTransaction,
   validateImportedTransaction,
   type ImportedTransaction,
 } from "@/lib/ai/transaction-import";
@@ -10,8 +11,12 @@ export type CscDigiPaySelectors = {
   historySelector: string;
   /** Optional selector that narrows history to cash withdrawal/AEPS records. */
   cashWithdrawalFilterSelector?: string;
-  /** Selector matching one transaction row. */
-  rowSelector: string;
+  /**
+   * Selector template for one transaction row. It must contain {index}; the
+   * worker replaces it with a 1-based row index. This avoids guessing DOM
+   * structure with non-standard selector syntax.
+   */
+  rowSelectorTemplate: string;
   /** Selectors relative to each row for the required transaction fields. */
   fields: {
     externalTransactionId: string;
@@ -45,6 +50,10 @@ async function readField(page: ReadOnlyBrowserPage, selector: string) {
   return (await page.textContent(selector))?.trim() || null;
 }
 
+function stop(reason: "workflow_not_learned" | "layout_changed" | "login_required" | "secret_requested" | "ambiguous_transaction", message: string): BrowserWorkerResult {
+  return { state: "stopped", reason, message };
+}
+
 /**
  * Creates a CSC DigiPay adapter from an explicitly learned selector map.
  * No selectors are guessed here: an unknown/changed portal fails closed.
@@ -54,111 +63,83 @@ export function createCscDigiPayAdapter(selectors: CscDigiPaySelectors): CscDigi
     providerName: "CSC DigiPay",
     readOnly: true,
     async collect(page) {
-      if (!selectors.historySelector || !selectors.rowSelector) {
-        return {
-          state: "stopped",
-          reason: "workflow_not_learned",
-          message: "CSC DigiPay workflow selectors have not been taught yet.",
-        };
+      if (!selectors.historySelector || !selectors.rowSelectorTemplate.includes("{index}")) {
+        return stop("workflow_not_learned", "CSC DigiPay workflow selectors have not been taught yet.");
       }
 
       const beforeHistory = (await page.textContent("body")) ?? "";
-      const loginMarker = /\b(login|sign[ -]?in|otp|pin|password|mfa|captcha)\b/i;
-      if (loginMarker.test(beforeHistory)) {
-        return {
-          state: "stopped",
-          reason: "login_required",
-          message: "CSC DigiPay requires authentication or verification; worker stopped.",
-        };
+      if (/\b(otp|one[- ]time password|pin|password|passcode|aadhaar|captcha|payment authorization)\b/i.test(beforeHistory)) {
+        return stop("secret_requested", "CSC DigiPay requested a secret or payment authorization; worker stopped.");
+      }
+      if (/\b(login|sign[ -]?in|mfa|verification code)\b/i.test(beforeHistory)) {
+        return stop("login_required", "CSC DigiPay requires authentication or verification; worker stopped.");
       }
 
       if ((await page.locatorCount(selectors.historySelector)) !== 1) {
-        return {
-          state: "stopped",
-          reason: "layout_changed",
-          message: "CSC DigiPay history control does not match the learned workflow.",
-        };
+        return stop("layout_changed", "CSC DigiPay history control does not match the learned workflow.");
       }
-
       await page.click(selectors.historySelector);
 
       if (selectors.cashWithdrawalFilterSelector) {
         if ((await page.locatorCount(selectors.cashWithdrawalFilterSelector)) !== 1) {
-          return {
-            state: "stopped",
-            reason: "layout_changed",
-            message: "CSC DigiPay AEPS/cash-withdrawal filter no longer matches the learned workflow.",
-          };
+          return stop("layout_changed", "CSC DigiPay AEPS/cash-withdrawal filter no longer matches the learned workflow.");
         }
         await page.click(selectors.cashWithdrawalFilterSelector);
       }
 
       const body = (await page.textContent("body")) ?? "";
       if (/\b(otp|one[- ]time password|pin|password|passcode|aadhaar|captcha|payment authorization)\b/i.test(body)) {
-        return {
-          state: "stopped",
-          reason: "secret_requested",
-          message: "CSC DigiPay requested a secret or payment authorization; worker stopped.",
-        };
+        return stop("secret_requested", "CSC DigiPay requested a secret or payment authorization; worker stopped.");
       }
 
-      const rowCount = await page.locatorCount(selectors.rowSelector);
-      if (rowCount === 0) {
-        return {
-          state: "completed",
-          transactions: [],
-        };
-      }
+      const rowProbe = selectors.rowSelectorTemplate.replace("{index}", "1");
+      const firstRowExists = (await page.locatorCount(rowProbe)) > 0;
+      if (!firstRowExists) return { state: "completed", transactions: [] };
 
       const transactions: ImportedTransaction[] = [];
       const fingerprints = new Set<string>();
 
-      for (let index = 1; index <= rowCount; index += 1) {
-        const row = (suffix: string) => `${selectors.rowSelector}:nth-of-type(${index}) ${suffix}`;
-        const externalTransactionId = await readField(page, row(selectors.fields.externalTransactionId));
-        const status = (await readField(page, row(selectors.fields.status))) ?? "";
-        const amount = parseMoney(await readField(page, row(selectors.fields.amount)));
+      for (let index = 1; index <= 500; index += 1) {
+        const rowSelector = selectors.rowSelectorTemplate.replace("{index}", String(index));
+        if ((await page.locatorCount(rowSelector)) !== 1) break;
+        const field = (suffix: string) => `${rowSelector} ${suffix}`;
+
+        const status = (await readField(page, field(selectors.fields.status))) ?? "";
+        if (!isCompletedTransaction(status)) continue;
+
         const transaction: ImportedTransaction = {
           sourceType: "aeps",
           providerName: "CSC DigiPay",
-          externalTransactionId: externalTransactionId ?? "",
+          externalTransactionId: (await readField(page, field(selectors.fields.externalTransactionId))) ?? "",
           externalReference: selectors.fields.externalReference
-            ? await readField(page, row(selectors.fields.externalReference))
+            ? await readField(page, field(selectors.fields.externalReference))
             : null,
           status,
-          transactionType: (await readField(page, row(selectors.fields.transactionType))) ?? "",
-          amount: amount ?? Number.NaN,
-          fee: selectors.fields.fee ? parseMoney(await readField(page, row(selectors.fields.fee))) : null,
+          transactionType: (await readField(page, field(selectors.fields.transactionType))) ?? "",
+          amount: parseMoney(await readField(page, field(selectors.fields.amount))) ?? Number.NaN,
+          fee: selectors.fields.fee ? parseMoney(await readField(page, field(selectors.fields.fee))) : null,
           commission: selectors.fields.commission
-            ? parseMoney(await readField(page, row(selectors.fields.commission)))
+            ? parseMoney(await readField(page, field(selectors.fields.commission)))
             : null,
           occurredAt: selectors.fields.occurredAt
-            ? await readField(page, row(selectors.fields.occurredAt))
+            ? await readField(page, field(selectors.fields.occurredAt))
             : null,
           customerName: selectors.fields.customerName
-            ? await readField(page, row(selectors.fields.customerName))
+            ? await readField(page, field(selectors.fields.customerName))
             : null,
           customerMobile: selectors.fields.customerMobile
-            ? await readField(page, row(selectors.fields.customerMobile))
+            ? await readField(page, field(selectors.fields.customerMobile))
             : null,
           rawData: {},
         };
 
         const errors = validateImportedTransaction(transaction);
         if (errors.length) {
-          return {
-            state: "stopped",
-            reason: errors.includes("transaction is not completed/successful")
-              ? "non_completed_transaction"
-              : "ambiguous_transaction",
-            message: `CSC DigiPay row ${index} failed validation: ${errors.join(", ")}.`,
-          };
+          return stop("ambiguous_transaction", `CSC DigiPay row ${index} failed validation: ${errors.join(", ")}.`);
         }
 
         const fingerprint = buildTransactionFingerprint(transaction);
-        if (fingerprints.has(fingerprint)) {
-          continue;
-        }
+        if (fingerprints.has(fingerprint)) continue;
         fingerprints.add(fingerprint);
         transactions.push(transaction);
       }
