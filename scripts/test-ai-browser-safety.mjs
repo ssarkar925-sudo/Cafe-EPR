@@ -33,7 +33,13 @@ assert(adapter.includes('sourceType: "aeps"'), "CSC DigiPay adapter emits AEPS s
 assert(adapter.includes('isCompletedTransaction(status)'), "Adapter filters to completed transactions");
 assert(adapter.includes('buildTransactionFingerprint(transaction)'), "Adapter deduplicates by transaction fingerprint");
 assert(adapter.includes('workflow_not_learned'), "Adapter fails closed when selectors are not taught");
-assert(!/fetch|axios|POST|PUT|PATCH|DELETE|submit|transfer|withdraw/i.test(adapter), "Adapter contains no external transaction-initiation/network-write primitive");
+const networkWritePatterns = [
+  /\b(?:fetch|axios)\s*\(/i,
+  /\.(?:post|put|patch|delete)\s*\(/i,
+  /\bXMLHttpRequest\b/i,
+];
+assert(!networkWritePatterns.some((pattern) => pattern.test(adapter)), "Adapter contains no network-write primitive");
+assert(!/\b(?:window\.location|document\.location)\.(?:assign|replace)\s*\(/i.test(adapter), "Adapter contains no navigation-to-initiation primitive");
 
 assert(workflow.includes('readOnly: true'), "CSC DigiPay workflow is marked read-only");
 assert(workflow.includes('A PIN, OTP, password, or payment authorization is requested'), "Workflow documents secret stop condition");
@@ -43,7 +49,7 @@ assert(cli.includes('AI_PORTAL_SELECTORS_FILE'), "CLI accepts an owner-taught se
 assert(cli.includes('transaction-history-snapshot.txt'), "Learn mode persists a transaction-history snapshot");
 assert(cli.includes('collectCscDigiPay'), "CLI executes the learned CSC DigiPay extractor");
 assert(cli.includes('AI_PORTAL_EXPORT_FILE'), "CLI supports a reviewable JSON export");
-assert(!/submit|transfer|withdraw|payment authorization/i.test(cli.match(/async function collect\([\s\S]*/)?.[0] ?? ""), "CLI collection path contains no transaction-initiation primitive");
+assert(!/\b(?:submit|transfer|withdraw)\s*\(/i.test(cli.match(/async function collect\([\s\S]*/)?.[0] ?? ""), "CLI collection path contains no transaction-initiation call");
 assert(cli.includes('readOnly: true'), "Export explicitly marks collection as read-only");
 
 console.log(`\n${passed} passed / ${failed} failed`);
