@@ -26,28 +26,12 @@ async function inspectPage(page) {
   if (loginWords.test(currentUrl)) {
     throw new Error("STOPPED: portal URL indicates login/MFA. Sign in manually, then rerun with the authenticated session.");
   }
-
-  const secretControlCount = await page.locator(
-    'input[type="password"]:visible, input[name*="otp" i]:visible, input[id*="otp" i]:visible, input[name*="pin" i]:visible, input[id*="pin" i]:visible, input[name*="passcode" i]:visible, input[id*="passcode" i]:visible'
-  ).count();
-  if (secretControlCount > 0) {
-    throw new Error("STOPPED: portal has an active OTP/PIN/password/passcode control. No secret was entered.");
-  }
-
-  const captchaCount = await page.locator(
-    'iframe[src*="captcha" i]:visible, iframe[title*="captcha" i]:visible, [id*="captcha" i]:visible, [class*="captcha" i]:visible'
-  ).count();
-  if (captchaCount > 0) {
-    throw new Error("STOPPED: portal has an active CAPTCHA control. No CAPTCHA was bypassed.");
-  }
-
-  const authorizationCount = await page.getByText(
-    /payment authorization|authorize payment|confirm payment|enter otp|enter pin|enter password/i
-  ).count().catch(() => 0);
-  if (authorizationCount > 0) {
-    throw new Error("STOPPED: portal shows a payment/secret authorization prompt. No authorization was performed.");
-  }
-
+  const secretControlCount = await page.locator('input[type="password"]:visible, input[name*="otp" i]:visible, input[id*="otp" i]:visible, input[name*="pin" i]:visible, input[id*="pin" i]:visible, input[name*="passcode" i]:visible, input[id*="passcode" i]:visible').count();
+  if (secretControlCount > 0) throw new Error("STOPPED: portal has an active OTP/PIN/password/passcode control. No secret was entered.");
+  const captchaCount = await page.locator('iframe[src*="captcha" i]:visible, iframe[title*="captcha" i]:visible, [id*="captcha" i]:visible, [class*="captcha" i]:visible').count();
+  if (captchaCount > 0) throw new Error("STOPPED: portal has an active CAPTCHA control. No CAPTCHA was bypassed.");
+  const authorizationCount = await page.getByText(/payment authorization|authorize payment|confirm payment|enter otp|enter pin|enter password/i).count().catch(() => 0);
+  if (authorizationCount > 0) throw new Error("STOPPED: portal shows a payment/secret authorization prompt. No authorization was performed.");
   void blockedWords;
 }
 
@@ -62,11 +46,7 @@ function safeName(value, fallback) {
 
 async function askTerminal(question) {
   const rl = readline.createInterface({ input, output });
-  try {
-    return (await rl.question(question)).trim();
-  } finally {
-    rl.close();
-  }
+  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
 }
 
 /** Browser-side selector generation avoids embedding transaction/customer values. */
@@ -81,9 +61,7 @@ async function pickSelector(page, prompt, options = {}) {
         const value = element.getAttribute(attribute);
         if (!value) continue;
         const selector = `[${attribute}="${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
-        try {
-          if (document.querySelectorAll(selector).length === 1) return selector;
-        } catch {}
+        try { if (document.querySelectorAll(selector).length === 1) return selector; } catch {}
       }
       return null;
     };
@@ -93,14 +71,9 @@ async function pickSelector(page, prompt, options = {}) {
       let current = element;
       while (current && current.nodeType === 1 && current !== stopElement) {
         const attr = uniqueAttributeSelector(current);
-        if (attr) {
-          parts.unshift(attr);
-          break;
-        }
+        if (attr) { parts.unshift(attr); break; }
         const tag = current.tagName.toLowerCase();
-        const siblings = current.parentElement
-          ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName)
-          : [];
+        const siblings = current.parentElement ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName) : [];
         const index = Math.max(1, siblings.indexOf(current) + 1);
         parts.unshift(`${tag}:nth-of-type(${index})`);
         current = current.parentElement;
@@ -110,17 +83,16 @@ async function pickSelector(page, prompt, options = {}) {
 
     const getRow = (element) => element.closest("tr") || element.closest('[role="row"]') || null;
 
-    const rowSelectorTemplate = (row) => {
+    const repeatableRowSelector = (row) => {
       if (!row) return null;
-      const base = structuralSelector(row, document.body);
       const tag = row.tagName.toLowerCase();
-      const siblings = row.parentElement
-        ? Array.from(row.parentElement.children).filter((child) => child.tagName === row.tagName)
-        : [];
+      const parent = row.parentElement;
+      if (!parent) return null;
+      const siblings = Array.from(parent.children).filter((child) => child.tagName === row.tagName);
       const index = Math.max(1, siblings.indexOf(row) + 1);
-      const marker = `${tag}:nth-of-type(${index})`;
-      if (base.endsWith(marker)) return `${base.slice(0, -marker.length)}${tag}:nth-of-type({index})`;
-      return `${base}:nth-of-type({index})`;
+      const parentPath = structuralSelector(parent, document.body);
+      const rowPart = `${tag}:nth-of-type(${index})`;
+      return parentPath ? `${parentPath} > ${rowPart.replace(String(index), "{index}")}` : rowPart.replace(String(index), "{index}");
     };
 
     const relativeSelector = (root, element) => {
@@ -129,17 +101,13 @@ async function pickSelector(page, prompt, options = {}) {
       let current = element;
       while (current && current !== root) {
         const tag = current.tagName.toLowerCase();
-        const siblings = current.parentElement
-          ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName)
-          : [];
+        const siblings = current.parentElement ? Array.from(current.parentElement.children).filter((child) => child.tagName === current.tagName) : [];
         const index = Math.max(1, siblings.indexOf(current) + 1);
         parts.unshift(`${tag}:nth-of-type(${index})`);
         current = current.parentElement;
       }
       const candidate = parts.join(" > ");
-      try {
-        if (root.querySelectorAll(candidate).length === 1) return candidate;
-      } catch {}
+      try { if (root.querySelectorAll(candidate).length === 1) return candidate; } catch {}
       return null;
     };
 
@@ -152,11 +120,7 @@ async function pickSelector(page, prompt, options = {}) {
         document.removeEventListener("click", clickHandler, true);
         const root = rootSelector ? document.querySelector(rootSelector.replace("{index}", "1")) : null;
         const row = getRow(target);
-        resolve({
-          selector: structuralSelector(target),
-          rowSelectorTemplate: rowSelectorTemplate(row),
-          relativeSelector: root ? relativeSelector(root, target) : null,
-        });
+        resolve({ selector: structuralSelector(target), rowSelectorTemplate: repeatableRowSelector(row), relativeSelector: root ? relativeSelector(root, target) : null });
       };
       document.addEventListener("click", clickHandler, true);
     });
@@ -181,9 +145,7 @@ async function loadSelectors() {
     }
     return selectors;
   } catch (error) {
-    throw new Error(error instanceof Error
-      ? `${error.message} Run 'npm run ai:portal:teach' first, then save the owner-taught selector map to ${selectorsFile}.`
-      : String(error));
+    throw new Error(error instanceof Error ? `${error.message} Run 'npm run ai:portal:teach' first, then save the owner-taught selector map to ${selectorsFile}.` : String(error));
   }
 }
 
@@ -359,7 +321,7 @@ async function teach() {
 
     const snapshotFile = path.join(stateDir, "transaction-history-snapshot.txt");
     const screenshotFile = path.join(stateDir, "teaching-screenshot.png");
-    await fs.writeFile(snapshotFile, ((await page.locator("body").innerText()).slice(0, 20000)) + "\n", "utf8");
+    await fs.writeFile(snapshotFile, (await page.locator("body").innerText()).slice(0, 20000) + "\n", "utf8");
     await page.screenshot({ path: screenshotFile, fullPage: true });
     await context.storageState({ path: stateFile });
 
@@ -371,18 +333,13 @@ async function teach() {
       risk: "low",
       confidence: 0.85,
       instruction: "Read only completed AEPS transaction history. Do not initiate, authorize, or modify any transaction. Stop if the page changes or requests authentication secrets.",
-      evidence: {
-        source: "owner_live_browser_teaching",
-        taughtAt: new Date().toISOString(),
-        pageUrl: page.url(),
-        snapshotFile,
-        screenshotFile,
-      },
-      selector_map: { historySelector, cashWithdrawalFilterSelector, rowSelectorTemplate, fields },
+      evidence: { source: "owner_live_browser_teaching", taughtAt: new Date().toISOString(), pageUrl: page.url(), snapshotFile, screenshotFile },
+      selector_map: { historySelector: history.selector, cashWithdrawalFilterSelector, rowSelectorTemplate, fields },
     };
     await fs.writeFile(teachingDraftFile, JSON.stringify(draft, null, 2) + "\n", "utf8");
     console.log("\nTEACHING COMPLETE");
     console.log(`Draft saved to ${teachingDraftFile}`);
+    console.log(`Screenshot saved to ${screenshotFile}`);
     console.log("Import this draft in AI Learning Control Center. It will be saved as Draft and will not become active automatically.");
   } finally {
     await context.close();
