@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/ai/monitor/cron",
+      "schedule": "30 2 * * *"
+    }
+  ]
+}
