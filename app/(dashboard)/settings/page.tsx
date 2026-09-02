@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createClient } from "@/lib/supabase/server";
-import SettingsClient from "@/components/settings/settings-client";
+import SystemSettingsClient from "@/components/settings/system-settings-client";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <SettingsClient
+    <SystemSettingsClient
       initial={initial as any}
       initialInstruments={(initialInstruments ?? []) as any}
       initialServices={(initialServices ?? []) as any}
@@ -65,11 +65,11 @@ export default async function SettingsPage({
       initialBanks={{ rows: (initialBanks as any[]) ?? [], usage: {} }}
       initialPortals={{ rows: (initialPortals as any[]) ?? [], usage: {} }}
       initialMerchantQrs={{ rows: (initialMerchantQrs as any[]) ?? [], usage: {} }}
-      initialRechargeProviders={(initialRechargeProviders as any[]) ?? []}
-      initialRechargeSlabs={(initialRechargeSlabs as any[]) ?? []}
-      initialProducts={(initialProducts as any[]) ?? []}
-      initialCatalogServices={(initialCatalogServices as any[]) ?? []}
-      initialCategories={(initialCategories as any[]) ?? []}
+      initialRechargeProviders={(initialRechargeProviders ?? []) as any[]}
+      initialRechargeSlabs={(initialRechargeSlabs ?? []) as any[]}
+      initialProducts={(initialProducts ?? []) as any[]}
+      initialCatalogServices={(initialCatalogServices ?? []) as any[]}
+      initialCategories={(initialCategories ?? []) as any[]}
       initialTab={initialTab}
       initialSection={initialSection}
     />
