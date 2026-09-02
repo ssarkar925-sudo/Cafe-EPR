@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 const quickCommands = [
   "Create a quick sale for 2 coffee and 1 sandwich, UPI.",
@@ -99,9 +100,14 @@ export default function CafeAIAgent() {
               Voice/text-ready shop assistant. Quick sales are prepared from your current Cafe-EPR catalog and require your owner approval before any record is created.
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
-            <div className="font-bold text-emerald-300">OWNER CONTROL</div>
-            <div className="mt-1 text-slate-400">Writes require explicit approval</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/ai-agent/learning" className="rounded-2xl border border-indigo-400/30 bg-indigo-500/10 px-4 py-3 text-xs font-black text-indigo-200 transition hover:bg-indigo-500/20">
+              Learning Control Center
+            </Link>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
+              <div className="font-bold text-emerald-300">OWNER CONTROL</div>
+              <div className="mt-1 text-slate-400">Writes require explicit approval</div>
+            </div>
           </div>
         </div>
       </section>
