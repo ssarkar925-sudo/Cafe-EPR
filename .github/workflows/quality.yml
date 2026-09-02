@@ -36,6 +36,9 @@ jobs:
       - name: AI browser safety
         run: npm run test:ai-browser
 
+      - name: AI learning control
+        run: npm run test:ai-learning
+
       - name: TypeScript check
         run: npx tsc --noEmit
 
