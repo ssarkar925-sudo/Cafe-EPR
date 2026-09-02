@@ -3,6 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { inr } from "@/lib/format";
+import { 
+  Search, 
+  X, 
+  LayoutGrid, 
+  List, 
+  Sparkles, 
+  Plus, 
+  User, 
+  Phone, 
+  AlertCircle, 
+  CheckCircle2, 
+  Layers, 
+  ArrowUpDown,
+  Tag,
+  PackageCheck,
+  ShoppingBag
+} from "lucide-react";
 
 export type BrowserItem = {
   id: string;
@@ -187,15 +204,15 @@ export function PosItemToolbar({
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       {/* Category Tabs */}
-      <div className="flex rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
+      <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
         {tabs.map((t) => (
           <button
             type="button"
             key={t.value}
             onClick={() => onTab(t.value)}
-            className={`rounded-xl px-3.5 py-1.5 text-xs font-extrabold transition ${
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
               activeTab === t.value
-                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             }`}
           >
@@ -205,79 +222,67 @@ export function PosItemToolbar({
       </div>
 
       {/* Search Input */}
-      <div className="relative min-w-[200px] flex-1">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-3.5-3.5" />
-        </svg>
+      <div className="relative min-w-[220px] flex-1">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
           ref={searchRef}
           value={q}
           onChange={(e) => onQ(e.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-2xl border border-slate-200/90 bg-white py-2 pl-10 pr-3.5 text-xs font-semibold text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-10 pr-8 text-xs font-semibold text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
         />
         {q && (
           <button
             type="button"
             onClick={() => onQ("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
           >
-            ✕
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
 
       {/* Sort Selector */}
-      <select
-        value={sort}
-        onChange={(e) => onSort(e.target.value)}
-        className="rounded-2xl border border-slate-200/90 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
-      >
-        <option value="name">Name A–Z</option>
-        <option value="low">Price: Low → High</option>
-        <option value="high">Price: High → Low</option>
-        <option value="stock">Stock Level</option>
-      </select>
+      <div className="relative flex items-center">
+        <select
+          value={sort}
+          onChange={(e) => onSort(e.target.value)}
+          aria-label="Sort catalog items"
+          className="appearance-none rounded-xl border border-slate-200/90 bg-white pl-3 pr-8 py-2 text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+        >
+          <option value="name">Name A–Z</option>
+          <option value="low">Price: Low → High</option>
+          <option value="high">Price: High → Low</option>
+          <option value="stock">Stock Level</option>
+        </select>
+        <ArrowUpDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-slate-400" />
+      </div>
 
       {/* View Mode Toggle */}
-      <div className="flex rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
+      <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
         <button
           type="button"
           onClick={() => onView("grid")}
           title="Grid view"
-          className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${
+          className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
             view === "grid"
-              ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+              ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
               : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
           }`}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" />
-            <rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
+          <LayoutGrid className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={() => onView("list")}
           title="List view"
-          className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${
+          className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
             view === "list"
-              ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+              ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
               : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
           }`}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-          </svg>
+          <List className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -586,30 +591,44 @@ export function CustomerSelector({
         <button
           type="button"
           onClick={onAddCustomer}
-          className="text-[11px] font-extrabold text-blue-600 hover:underline dark:text-blue-400"
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
         >
-          + New Customer
+          <Plus className="h-3 w-3" />
+          <span>New Customer</span>
         </button>
       </div>
 
       {selected ? (
-        <div className="mt-1.5 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 p-2.5 dark:border-blue-900/40 dark:bg-blue-950/30">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-xs font-black text-slate-900 dark:text-white">
-                {selected.name}
-              </span>
-              {selected.phone && (
-                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                  {selected.phone}
+        <div className="mt-1.5 flex items-center justify-between rounded-xl border border-blue-200/90 bg-blue-50/70 p-2.5 dark:border-blue-900/40 dark:bg-blue-950/30">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-xs">
+              {selected.name.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-xs font-bold text-slate-900 dark:text-white">
+                  {selected.name}
+                </span>
+                {selected.phone && (
+                  <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                    {selected.phone}
+                  </span>
+                )}
+              </div>
+              {Number(selected.balance) > 0 ? (
+                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                  Khata Due: {inr(Number(selected.balance))}
+                </span>
+              ) : Number(selected.balance) < 0 ? (
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  Advance: {inr(Math.abs(Number(selected.balance)))}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-slate-400">
+                  Account Settled
                 </span>
               )}
             </div>
-            {Number(selected.balance) > 0 && (
-              <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                Outstanding Due: {inr(Number(selected.balance))}
-              </span>
-            )}
           </div>
           <button
             type="button"
@@ -617,11 +636,12 @@ export function CustomerSelector({
             className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
             title="Change customer"
           >
-            ✕
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       ) : (
         <div className="relative mt-1.5">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <input
             ref={searchRef}
             type="text"
@@ -631,13 +651,22 @@ export function CustomerSelector({
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            placeholder="Search customer name or mobile…"
-            className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-slate-900 shadow-xs outline-none transition focus:border-blue-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+            placeholder="Search customer name, phone, or code…"
+            className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-8 pr-8 text-xs font-semibold text-slate-900 shadow-xs outline-none transition focus:border-blue-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
           />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:text-slate-700"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
           {open && filtered.length > 0 && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-slate-800">
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-slate-800">
                 {filtered.slice(0, 8).map((c) => (
                   <button
                     key={c.id}
@@ -646,17 +675,21 @@ export function CustomerSelector({
                       onChange(c.id);
                       setOpen(false);
                     }}
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition hover:bg-blue-50 dark:hover:bg-white/5"
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition hover:bg-blue-50 dark:hover:bg-white/5"
                   >
                     <div>
                       <span className="block font-bold text-slate-900 dark:text-white">{c.name}</span>
                       {c.phone && <span className="block text-[10px] text-slate-400">{c.phone}</span>}
                     </div>
-                    {Number(c.balance) > 0 && (
-                      <span className="text-[10px] font-extrabold text-rose-600">
+                    {Number(c.balance) > 0 ? (
+                      <span className="text-[10px] font-bold text-rose-600">
                         Due {inr(Number(c.balance))}
                       </span>
-                    )}
+                    ) : Number(c.balance) < 0 ? (
+                      <span className="text-[10px] font-bold text-emerald-600">
+                        Adv {inr(Math.abs(Number(c.balance)))}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>

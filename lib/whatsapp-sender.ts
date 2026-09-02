@@ -1,4 +1,4 @@
-﻿import type { WhatsAppConfig } from "@/lib/whatsapp";
+import type { WhatsAppConfig } from "@/lib/whatsapp-shared";
 
 export interface SendWhatsAppResult {
   success: boolean;

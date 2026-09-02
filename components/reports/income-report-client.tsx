@@ -1,7 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { inr } from "@/lib/format";
+import {
+  ChevronRight,
+  TrendingUp,
+  Download,
+  Receipt,
+  Layers,
+  Percent,
+  CheckCircle2,
+  Filter,
+  ArrowUpDown,
+  FileSpreadsheet,
+} from "lucide-react";
 
 type Row = {
   transaction_number: string;
@@ -177,172 +190,283 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-6 pb-12" id="income-report">
+      {/* Header & Breadcrumb */}
+      <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Financial reporting</div>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">Income Breakdown</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Comprehensive revenue from POS sales, service fees, and partner commissions.</p>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <Link href="/reports" className="hover:text-blue-600 dark:hover:text-blue-400">
+              Reports &amp; Tax Hub
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <span className="font-bold text-slate-900 dark:text-white">Income Breakdown</span>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
+            Income &amp; Revenue Breakdown
+          </h1>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm dark:text-slate-400">
+            Comprehensive revenue attribution from POS retail sales, service convenience fees, and partner commissions.
+          </p>
         </div>
-        <button onClick={exportCsv} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition">
-          📥 Export CSV
-        </button>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={exportCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-blue-500"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export CSV</span>
+          </button>
+          <Link
+            href="/reports/profit-loss"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>P&amp;L Statement</span>
+          </Link>
+        </div>
       </div>
 
       {/* Date & Filter Bar */}
-      <form className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          From
-          <input name="from" type="date" defaultValue={from} className="mt-1 block rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950" />
-        </label>
-        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          To
-          <input name="to" type="date" defaultValue={to} className="mt-1 block rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950" />
-        </label>
-        <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 transition">
+      <form className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+        <div>
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">From Date</label>
+          <input
+            name="from"
+            type="date"
+            defaultValue={from}
+            className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">To Date</label>
+          <input
+            name="to"
+            type="date"
+            defaultValue={to}
+            className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+        >
           Apply Range
         </button>
-        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-auto">
-          Service Type
-          <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} className="mt-1 block min-w-56 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950 font-medium">
+
+        <div className="ml-auto">
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Service Filter</label>
+          <select
+            value={serviceFilter}
+            onChange={(e) => setServiceFilter(e.target.value)}
+            className="mt-1 block min-w-[200px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          >
             <option value="all">All Services &amp; Sales</option>
             {serviceOptions.map((service) => (
-              <option key={service} value={service}>{label(service)}</option>
+              <option key={service} value={service}>
+                {label(service)}
+              </option>
             ))}
           </select>
-        </label>
+        </div>
       </form>
 
       {/* Primary KPI Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* 1. Total Income (Hero KPI) */}
-        <div className="rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-5 shadow-sm dark:bg-slate-900">
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Total Income */}
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4.5 shadow-2xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Total Income</div>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Net Revenue</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+              Total Realized Income
+            </span>
+            <span className="rounded-md bg-emerald-100 p-1 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+              <TrendingUp className="h-4 w-4" />
+            </span>
           </div>
-          <div className="mt-2 text-3xl font-black text-emerald-950 dark:text-white">{inr(totalIncome)}</div>
-          <div className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-400/80 font-medium">POS Sales + Service Income</div>
+          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-emerald-950 dark:text-white tabular-nums">
+            {inr(totalIncome)}
+          </div>
+          <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+            POS Retail Sales + Service Fees + Commission
+          </div>
         </div>
 
-        {/* 2. POS Sales / Revenue */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        {/* POS Revenue */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">POS Revenue</div>
-            <span className="text-[11px] font-bold text-blue-600">{posInvoiceRows.length + posQuickRows.length} orders</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              POS Retail Revenue
+            </span>
+            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+              {posInvoiceRows.length + posQuickRows.length} orders
+            </span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{inr(posRevenue)}</div>
-          <div className="mt-1 text-xs text-slate-500">Invoices: {inr(posInvoiceRevenue)} · Quick: {inr(posQuickRevenue)}</div>
+          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+            {inr(posRevenue)}
+          </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Invoices: {inr(posInvoiceRevenue)} &bull; Quick: {inr(posQuickRevenue)}
+          </div>
         </div>
 
-        {/* 3. Service Income (Fees + Commissions) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        {/* Service Income */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Service Income</div>
-            <span className="text-[11px] font-bold text-indigo-600">{serviceRows.length} txns</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Service Fee &amp; Commission
+            </span>
+            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+              {serviceRows.length} txns
+            </span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{inr(serviceIncome)}</div>
-          <div className="mt-1 text-xs text-slate-500">Fees: {inr(serviceFees)} · Comm: {inr(commissions)}</div>
+          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+            {inr(serviceIncome)}
+          </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Fees: {inr(serviceFees)} &bull; Comm: {inr(commissions)}
+          </div>
         </div>
 
-        {/* 4. Quick Sale Gross Profit */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        {/* Quick Sale Profit */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Quick Sale Gross Profit</div>
-            {posCogs > 0 && <span className="text-[10px] font-bold text-amber-600">COGS: {inr(posCogs)}</span>}
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Gross Principal Volume
+            </span>
+            <span className="text-[11px] font-bold text-slate-500">
+              {filteredRows.length} rows
+            </span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{inr(posGrossProfit)}</div>
-          <div className="mt-1 text-xs text-slate-500">Quick Sales ({inr(posQuickRevenue)}) − COGS ({inr(posCogs)})</div>
-        </div>
-      </div>
-
-      {/* Secondary Metric Strip */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-900/50">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Service &amp; Convenience Fees</div>
-          <div className="mt-1 text-base font-bold text-slate-900 dark:text-white">{inr(serviceFees)}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-900/50">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Partner Commissions</div>
-          <div className="mt-1 text-base font-bold text-slate-900 dark:text-white">{inr(commissions)}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-900/50">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Gross Volume / Principal</div>
-          <div className="mt-1 text-base font-bold text-slate-900 dark:text-white">{inr(principal)}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-900/50">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Total Transactions &amp; Sales</div>
-          <div className="mt-1 text-base font-bold text-slate-900 dark:text-white">{filteredRows.length}</div>
+          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+            {inr(principal)}
+          </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Gross customer volume &amp; pass-through
+          </div>
         </div>
       </div>
 
       {/* Income by Service Breakdown */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900 overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-4 font-bold flex items-center justify-between dark:border-white/10">
-          <span>Income by Stream</span>
-          <span className="text-xs font-semibold text-slate-500">Total: {inr(totalIncome)}</span>
+      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-white/10 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
+          <h2 className="text-sm font-bold text-slate-950 dark:text-white">Income by Revenue Stream</h2>
+          <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+            Total: {inr(totalIncome)}
+          </span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-white/5">
           {serviceTotals.map(([name, data]) => (
-            <div key={name} className="flex items-center justify-between px-5 py-3 text-sm hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
+            <div
+              key={name}
+              className="flex items-center justify-between px-5 py-3 text-sm hover:bg-slate-50/50 dark:hover:bg-white/[0.02]"
+            >
               <div>
                 <span className="font-semibold text-slate-900 dark:text-white">{name}</span>
-                <span className="ml-2 text-xs text-slate-400">({data.count} txns · Vol: {inr(data.volume)})</span>
+                <span className="ml-2 font-mono text-xs text-slate-400 tabular-nums">
+                  ({data.count} txns &bull; Vol: {inr(data.volume)})
+                </span>
               </div>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{inr(data.income)}</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {inr(data.income)}
+              </span>
             </div>
           ))}
+          {serviceTotals.length === 0 && (
+            <div className="p-8 text-center text-xs text-slate-500">No income streams recorded for the selected range.</div>
+          )}
         </div>
       </div>
 
-      {/* Report Controls */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <span className="text-sm font-semibold">Report controls</span>
-        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950">
+      {/* Report Audit Controls */}
+      <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Sort &amp; Review:</span>
+        <select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+        >
           <option value="date">Date</option>
-          <option value="transaction">Transaction</option>
+          <option value="transaction">Transaction #</option>
           <option value="service">Service</option>
           <option value="principal">Principal / Sales</option>
           <option value="income">Income / Revenue</option>
         </select>
-        <button type="button" onClick={() => setSortAsc((v) => !v)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold dark:border-white/10">
+        <button
+          type="button"
+          onClick={() => setSortAsc((v) => !v)}
+          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300"
+        >
           {sortAsc ? "↑ Ascending" : "↓ Descending"}
         </button>
-        <select value={markFilter} onChange={(e) => setMarkFilter(e.target.value as "all" | Mark)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950">
-          <option value="all">All marks</option>
+        <select
+          value={markFilter}
+          onChange={(e) => setMarkFilter(e.target.value as "all" | Mark)}
+          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+        >
+          <option value="all">All Marks</option>
           <option value="reviewed">Reviewed</option>
           <option value="verified">Verified</option>
           <option value="follow-up">Follow-up</option>
           <option value="reconciled">Reconciled</option>
           <option value="attention">Needs Attention</option>
         </select>
-        <span className="ml-auto text-sm text-slate-500">{selected.length} selected</span>
-        <select defaultValue="" onChange={(e) => { markSelected(e.target.value as Mark); e.currentTarget.value = ""; }} disabled={selectedVisibleRows.length === 0} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-50 dark:border-white/10 dark:bg-slate-950">
-          <option value="">Mark selected…</option>
-          <option value="reviewed">Reviewed</option>
-          <option value="verified">Verified</option>
-          <option value="follow-up">Follow-up</option>
-          <option value="reconciled">Reconciled</option>
-          <option value="attention">Needs Attention</option>
-        </select>
-        <button type="button" onClick={clearMarks} disabled={selectedVisibleRows.length === 0} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50 dark:border-white/10">
-          Clear marks
-        </button>
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-slate-500">{selected.length} selected</span>
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              markSelected(e.target.value as Mark);
+              e.currentTarget.value = "";
+            }}
+            disabled={selectedVisibleRows.length === 0}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 shadow-2xs disabled:opacity-50 dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          >
+            <option value="">Set Audit Tag…</option>
+            <option value="reviewed">Reviewed</option>
+            <option value="verified">Verified</option>
+            <option value="follow-up">Follow-up</option>
+            <option value="reconciled">Reconciled</option>
+            <option value="attention">Needs Attention</option>
+          </select>
+          <button
+            type="button"
+            onClick={clearMarks}
+            disabled={selectedVisibleRows.length === 0}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
-      {/* Data Table */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02]">
-              <th className="w-10 px-4 py-3"><input aria-label="Select all visible rows" type="checkbox" checked={allVisibleSelected} onChange={toggleAll} /></th>
-              {["Date", "Transaction", "Service", "Source", "Principal / Sales", "COGS", "Fee", "Portal Charge", "Commission", "Income / Revenue", "Mark"].map((h) => (
-                <th key={h} className="px-4 py-3 font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300">{h}</th>
-              ))}
+      {/* Granular Entries Table */}
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-white/10 dark:bg-slate-900">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+            <tr>
+              <th className="w-10 px-4 py-3">
+                <input
+                  aria-label="Select all visible rows"
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleAll}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-0"
+                />
+              </th>
+              <th className="px-4 py-3 font-medium">Date</th>
+              <th className="px-4 py-3 font-medium">Txn / Invoice #</th>
+              <th className="px-4 py-3 font-medium">Service Type</th>
+              <th className="px-4 py-3 font-medium">Source</th>
+              <th className="px-4 py-3 text-right font-medium">Principal / Sales</th>
+              <th className="px-4 py-3 text-right font-medium">COGS</th>
+              <th className="px-4 py-3 text-right font-medium">Fee</th>
+              <th className="px-4 py-3 text-right font-medium">Commission</th>
+              <th className="px-4 py-3 text-right font-medium">Realized Income</th>
+              <th className="px-4 py-3 font-medium">Audit Tag</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {visibleRows.map((r) => {
               const mark = marks[r.transaction_number] || "";
               const isPosInvoice = r.service_type === "pos_invoice";
@@ -351,24 +475,57 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
               const rowIncome = getRowIncome(r);
 
               return (
-                <tr key={r.transaction_number} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-3"><input aria-label={`Select ${r.transaction_number}`} type="checkbox" checked={selected.includes(r.transaction_number)} onChange={() => toggleOne(r.transaction_number)} /></td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.transaction_date}</td>
-                  <td className="px-4 py-3 font-medium font-mono text-xs text-slate-900 dark:text-white">{r.transaction_number}</td>
+                <tr key={r.transaction_number} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
                   <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-lg px-2 py-0.5 text-xs font-semibold ${isPosInvoice ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300" : isQuickPos ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300"}`}>
+                    <input
+                      aria-label={`Select ${r.transaction_number}`}
+                      type="checkbox"
+                      checked={selected.includes(r.transaction_number)}
+                      onChange={() => toggleOne(r.transaction_number)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-0"
+                    />
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">{r.transaction_date}</td>
+                  <td className="px-4 py-3 font-mono text-xs font-bold text-slate-900 dark:text-white">
+                    {r.transaction_number}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${
+                        isPosInvoice
+                          ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                          : isQuickPos
+                          ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                          : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300"
+                      }`}
+                    >
                       {label(r.service_type)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{r.source || "Service"}</td>
-                  <td className="px-4 py-3 font-mono font-semibold">{inr(Number(r.amount))}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{isQuickPos ? inr(Number(r.cost)) : "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{isPos ? "—" : (r.fee > 0 ? inr(r.fee) : "—")}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{isPos ? "—" : (r.portalCharge > 0 ? inr(r.portalCharge) : "—")}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{isPos ? "—" : (r.commission > 0 ? inr(r.commission) : "—")}</td>
-                  <td className="px-4 py-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">{inr(rowIncome)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{r.source || "Service"}</td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold text-slate-950 dark:text-white tabular-nums">
+                    {inr(Number(r.amount))}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-slate-500 tabular-nums">
+                    {isQuickPos ? inr(Number(r.cost)) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-slate-600 dark:text-slate-400 tabular-nums">
+                    {isPos ? "—" : r.fee > 0 ? inr(r.fee) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {isPos ? "—" : r.commission > 0 ? inr(r.commission) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {inr(rowIncome)}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className={mark ? "inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "text-slate-400"}>
+                    <span
+                      className={
+                        mark
+                          ? "inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "text-slate-400"
+                      }
+                    >
                       {mark || "—"}
                     </span>
                   </td>
@@ -376,14 +533,15 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
               );
             })}
             {visibleRows.length === 0 && (
-              <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-500">No report rows match the selected filters.</td></tr>
+              <tr>
+                <td colSpan={11} className="px-4 py-8 text-center text-slate-500">
+                  No records match the active filter criteria.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        POS Invoice revenue reflects completed invoice totals. POS Quick Sales show gross sales with separate COGS. Service transactions calculate realized income from fees, portal charges, and partner commissions (excluding customer principal).
-      </p>
     </div>
   );
 }

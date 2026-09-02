@@ -15,46 +15,325 @@ function inr(n: number | null | undefined): string {
   return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Vector icon system for quick actions and dashboard
+function ActionVectorIcon({ icon, className = "h-4 w-4" }: { icon: string; className?: string }) {
+  // Normalize legacy emojis or keys to vector paths
+  switch (icon) {
+    case "new-sale":
+    case "pos":
+    case "🧾":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <path d="M16 10a4 4 0 0 1-8 0" />
+        </svg>
+      );
+    case "quick-sale":
+    case "zap":
+    case "⚡":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      );
+    case "customer-crm":
+    case "customers":
+    case "👤":
+    case "👥":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    case "cash-book":
+    case "cashbook":
+    case "book":
+    case "📖":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+      );
+    case "aeps":
+    case "atm":
+    case "🏧":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+          <circle cx="7" cy="15" r="1" />
+          <circle cx="12" cy="15" r="1" />
+        </svg>
+      );
+    case "dmt":
+    case "transfer":
+    case "💸":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="22" y1="2" x2="11" y2="13" />
+          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+        </svg>
+      );
+    case "expenses":
+    case "trending-down":
+    case "📉":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
+          <polyline points="17 18 23 18 23 12" />
+        </svg>
+      );
+    case "day-close":
+    case "dayclose":
+    case "lock":
+    case "🔒":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      );
+    case "invoices":
+    case "document":
+    case "📄":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      );
+    case "returns":
+    case "↶":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+        </svg>
+      );
+    case "products":
+    case "package":
+    case "📦":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
+        </svg>
+      );
+    case "services":
+    case "tag":
+    case "🏷️":
+    case "✦":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+          <line x1="7" y1="7" x2="7.01" y2="7" />
+        </svg>
+      );
+    case "purchases":
+    case "cart":
+    case "🛒":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <circle cx="9" cy="21" r="1" />
+          <circle cx="20" cy="21" r="1" />
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+        </svg>
+      );
+    case "suppliers":
+    case "truck":
+    case "🚚":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <rect x="1" y="3" width="15" height="13" />
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+          <circle cx="5.5" cy="18.5" r="2.5" />
+          <circle cx="18.5" cy="18.5" r="2.5" />
+        </svg>
+      );
+    case "upi":
+    case "mobile":
+    case "📱":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+      );
+    case "bill-payment":
+    case "recharge":
+    case "📲":
+    case "💳":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+          <line x1="1" y1="10" x2="23" y2="10" />
+        </svg>
+      );
+    case "journal":
+    case "scale":
+    case "⚖️":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polygon points="12 2 2 7 12 12 22 7 12 2" />
+          <polyline points="2 17 12 22 22 17" />
+          <polyline points="2 12 12 17 22 12" />
+        </svg>
+      );
+    case "trial-balance":
+    case "clipboard":
+    case "📋":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+          <path d="M9 14h6" />
+          <path d="M9 18h6" />
+          <path d="M9 10h6" />
+        </svg>
+      );
+    case "banks":
+    case "bank":
+    case "🏛️":
+    case "🏦":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="3" y1="21" x2="21" y2="21" />
+          <line x1="6" y1="18" x2="6" y2="11" />
+          <line x1="10" y1="18" x2="10" y2="11" />
+          <line x1="14" y1="18" x2="14" y2="11" />
+          <line x1="18" y1="18" x2="18" y2="11" />
+          <polygon points="12 2 20 7 4 7" />
+        </svg>
+      );
+    case "settlements":
+    case "refresh":
+    case "🔄":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+      );
+    case "pnl":
+    case "trending-up":
+    case "📈":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+          <polyline points="17 6 23 6 23 12" />
+        </svg>
+      );
+    case "reports":
+    case "bar-chart":
+    case "📊":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+      );
+    case "tax-prep":
+    case "tax":
+    case "📑":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+      );
+    case "self-audit":
+    case "shield":
+    case "🛡️":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      );
+    case "ai":
+    case "sparkles":
+    case "🤖":
+    case "✨":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+      );
+    case "settings":
+    case "gear":
+    case "⚙️":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      );
+  }
+}
+
 export default function DashboardClient({ data }: DashboardClientProps) {
   useRealtime(["invoices", "payments", "cash_entries", "expenses", "settlements", "transactions", "day_closes", "products", "customers", "audit_runs"]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "yesterday" | "week" | "month" | "ytd">("today");
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [currentDate, setCurrentDate] = useState<string>("");
+  const [greeting, setGreeting] = useState<string>("Good day");
   const [hoveredPoint, setHoveredPoint] = useState<{ label: string; revenue: number; expenses: number } | null>(null);
   const [quickActions, setQuickActions] = useState<Array<{ id: string; label: string; href: string; icon: string }>>([]);
   const [isQuickActionsEditorOpen, setIsQuickActionsEditorOpen] = useState(false);
 
   const defaultQuickActions = useMemo(() => [
-    { id: "new-sale", label: "New Sale", href: "/pos", icon: "🧾" },
-    { id: "quick-sale", label: "Quick Sale", href: "/pos?mode=quick", icon: "⚡" },
-    { id: "customer-crm", label: "Customer CRM", href: "/customers", icon: "👤" },
-    { id: "cash-book", label: "Cash Book", href: "/finance/cashbook", icon: "📖" },
-    { id: "aeps", label: "AEPS ATM", href: "/business/aeps", icon: "🏧" },
-    { id: "dmt", label: "Money Transfer", href: "/business/dmt", icon: "💸" },
-    { id: "expenses", label: "Expenses", href: "/finance/expenses", icon: "📉" },
-    { id: "day-close", label: "Day Close", href: "/finance/day-close", icon: "🔒" },
+    { id: "new-sale", label: "New Sale", href: "/pos", icon: "new-sale" },
+    { id: "quick-sale", label: "Quick Sale", href: "/pos?mode=quick", icon: "quick-sale" },
+    { id: "customer-crm", label: "Customer CRM", href: "/customers", icon: "customer-crm" },
+    { id: "cash-book", label: "Cash Book", href: "/finance/cashbook", icon: "cash-book" },
+    { id: "aeps", label: "AEPS ATM", href: "/business/aeps", icon: "aeps" },
+    { id: "dmt", label: "Money Transfer", href: "/business/dmt", icon: "dmt" },
+    { id: "expenses", label: "Expenses", href: "/finance/expenses", icon: "expenses" },
+    { id: "day-close", label: "Day Close", href: "/finance/day-close", icon: "day-close" },
   ], []);
 
   const quickActionCatalog = useMemo(() => [
     ...defaultQuickActions,
-    { id: "invoices", label: "Invoices", href: "/invoices", icon: "📄" },
-    { id: "returns", label: "Returns", href: "/returns", icon: "↶" },
-    { id: "products", label: "Products Catalog", href: "/catalog/products", icon: "📦" },
-    { id: "services", label: "Services Rate Card", href: "/catalog/services", icon: "🏷️" },
-    { id: "purchases", label: "Purchases Entry", href: "/purchases/entry", icon: "🛒" },
-    { id: "suppliers", label: "Suppliers", href: "/suppliers", icon: "🚚" },
-    { id: "upi", label: "UPI Collections", href: "/business/upi", icon: "📱" },
-    { id: "bill-payment", label: "Bill & Recharge", href: "/business/bill-payment", icon: "📲" },
-    { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "⚖️" },
-    { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "📋" },
-    { id: "banks", label: "Bank Accounts", href: "/business/banks", icon: "🏦" },
-    { id: "settlements", label: "Settlements", href: "/finance/settlements", icon: "🔄" },
-    { id: "pnl", label: "Profit & Loss", href: "/finance/pnl", icon: "📈" },
-    { id: "reports", label: "Reports Hub", href: "/reports", icon: "📊" },
-    { id: "tax-prep", label: "Tax Prep / ITR", href: "/reports/tax-preparation", icon: "📑" },
-    { id: "self-audit", label: "Self-Audit", href: "/ai/self-audit", icon: "🛡️" },
-    { id: "ai", label: "AI Advisor", href: "/ai", icon: "🤖" },
-    { id: "settings", label: "Settings", href: "/settings", icon: "⚙️" },
+    { id: "invoices", label: "Invoices", href: "/invoices", icon: "invoices" },
+    { id: "returns", label: "Returns", href: "/returns", icon: "returns" },
+    { id: "products", label: "Products Catalog", href: "/catalog/products", icon: "products" },
+    { id: "services", label: "Services Rate Card", href: "/catalog/services", icon: "services" },
+    { id: "purchases", label: "Purchases Entry", href: "/purchases/entry", icon: "purchases" },
+    { id: "suppliers", label: "Suppliers", href: "/suppliers", icon: "suppliers" },
+    { id: "upi", label: "UPI Collections", href: "/business/upi", icon: "upi" },
+    { id: "bill-payment", label: "Bill & Recharge", href: "/business/bill-payment", icon: "bill-payment" },
+    { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },
+    { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },
+    { id: "banks", label: "Bank Accounts", href: "/business/banks", icon: "banks" },
+    { id: "settlements", label: "Settlements", href: "/finance/settlements", icon: "settlements" },
+    { id: "pnl", label: "Profit & Loss", href: "/finance/pnl", icon: "pnl" },
+    { id: "reports", label: "Reports Hub", href: "/reports", icon: "reports" },
+    { id: "tax-prep", label: "Tax Prep / ITR", href: "/reports/tax-preparation", icon: "tax-prep" },
+    { id: "self-audit", label: "Self-Audit", href: "/ai/self-audit", icon: "self-audit" },
+    { id: "ai", label: "AI Advisor", href: "/ai", icon: "ai" },
+    { id: "settings", label: "Settings", href: "/settings", icon: "settings" },
   ], [defaultQuickActions]);
 
   useEffect(() => {
@@ -110,10 +389,22 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   };
 
   useEffect(() => {
-    setCurrentTime(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-    }, 1000);
+    const updateDateTimeAndGreeting = () => {
+      const now = new Date();
+      const h = now.getHours();
+      if (h < 12) {
+        setGreeting("Good morning");
+      } else if (h < 17) {
+        setGreeting("Good afternoon");
+      } else {
+        setGreeting("Good evening");
+      }
+      setCurrentDate(now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }));
+      setCurrentTime(now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    };
+
+    updateDateTimeAndGreeting();
+    const timer = setInterval(updateDateTimeAndGreeting, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -217,46 +508,39 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   return (
     <div className="space-y-6 pb-16">
       {/* ===============================================================================
-          1. REFINED EXECUTIVE HEADER (Spatial Hero)
+          1. REFINED EXECUTIVE HEADER (Restrained Operational Banner)
       =============================================================================== */}
-      <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-2xl shadow-indigo-950/30 ring-1 ring-white/15 sm:p-7">
-        <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-blue-600/20 blur-3xl" />
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-slate-900 sm:p-6 transition-all">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-bold ${healthBadge.bg}`}>
-                <span className={`h-2 w-2 rounded-full ${healthBadge.dot} animate-pulse`} />
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold ${healthBadge.bg}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${healthBadge.dot}`} />
                 {healthBadge.label}
               </span>
-              <span className="rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-0.5 text-xs font-semibold text-indigo-300">
+              <span className="rounded-full border border-blue-200 bg-blue-50/80 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
                 {data.shop.fyLabel}
               </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs text-slate-300">
-                {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} • {currentTime || "Live"}
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                {currentDate ? `${currentDate} • ${currentTime}` : "Today • Live"}
               </span>
-              <span className="rounded-full bg-indigo-600/40 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-200">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:bg-white/10 dark:text-slate-300">
                 {role.toUpperCase()}
               </span>
             </div>
 
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-indigo-300">
-                {(() => {
-                  const h = new Date().getHours();
-                  if (h < 12) return "Good morning";
-                  if (h < 17) return "Good afternoon";
-                  return "Good evening";
-                })()}, {data.profile.name?.split(" ")[0] || "Saikat"}
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {greeting}, {data.profile.name?.split(" ")[0] || "Saikat"}
               </p>
-              <h1 className="mt-0.5 text-2xl font-black tracking-tight sm:text-3xl text-white">
+              <h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl dark:text-white">
                 Here&apos;s your business overview.
               </h1>
             </div>
           </div>
 
           {/* Period Selector Tabs */}
-          <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50/80 p-1 dark:border-white/10 dark:bg-white/[0.04]">
             {[
               { id: "today", label: "Today" },
               { id: "yesterday", label: "Yesterday" },
@@ -267,10 +551,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               <button
                 key={tab.id}
                 onClick={() => setSelectedPeriod(tab.id as any)}
-                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                   selectedPeriod === tab.id
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    ? "bg-slate-900 text-white shadow-xs dark:bg-blue-600 dark:text-white"
+                    : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
                 }`}
               >
                 {tab.label}
@@ -289,7 +573,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Revenue</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-sm font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
-              📈
+              <ActionVectorIcon icon="pnl" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
@@ -311,7 +595,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Net Profit</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-sm font-bold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
-              💰
+              <ActionVectorIcon icon="cash-book" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
@@ -333,7 +617,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Expenses</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-sm font-bold text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
-              📉
+              <ActionVectorIcon icon="expenses" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
@@ -355,7 +639,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Liquid Float</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-sm font-bold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
-              🏛️
+              <ActionVectorIcon icon="banks" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
@@ -377,7 +661,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Customer Dues</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-sm font-bold text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
-              👥
+              <ActionVectorIcon icon="customers" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
@@ -530,7 +814,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           {/* Credit Card Facility Note */}
           <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-100/60 p-3 text-xs dark:border-white/10 dark:bg-slate-800/20">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-700 dark:text-slate-300">💳 Credit Facility Limit:</span>
+              <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <ActionVectorIcon icon="bill-payment" className="h-3.5 w-3.5 text-slate-500" />
+                Credit Facility Limit:
+              </span>
               <strong className="text-slate-900 dark:text-white">{inr(data.liquidity.creditCardFacility.limit)}</strong>
             </div>
             <div className="mt-1 flex items-center justify-between text-[11px]">
@@ -548,7 +835,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl">⚡</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                <ActionVectorIcon icon="zap" className="h-4 w-4" />
+              </span>
               <h3 className="text-base font-black text-slate-900 dark:text-white">Digital &amp; Cyber Services Performance</h3>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time throughput, transaction volume, and fee income across digital counters.</p>
@@ -564,7 +853,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           {/* AEPS Cash Out */}
           <Link href="/business/aeps" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-white">🏧 AEPS Cash Out</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                <ActionVectorIcon icon="aeps" className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span>AEPS Cash Out</span>
+              </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
             </div>
             <div className="mt-3">
@@ -580,7 +872,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           {/* DMT Remittance */}
           <Link href="/business/dmt" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-white">💸 Money Transfer (DMT)</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                <ActionVectorIcon icon="dmt" className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                <span>Money Transfer (DMT)</span>
+              </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
             </div>
             <div className="mt-3">
@@ -596,7 +891,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           {/* UPI Collections */}
           <Link href="/business/upi" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-white">📱 UPI QR Collections</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                <ActionVectorIcon icon="upi" className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                <span>UPI QR Collections</span>
+              </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
             </div>
             <div className="mt-3">
@@ -612,7 +910,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           {/* Mobile Recharge */}
           <Link href="/business/recharge" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-white">📲 Mobile &amp; DTH Recharge</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                <ActionVectorIcon icon="bill-payment" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Mobile &amp; DTH Recharge</span>
+              </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
             </div>
             <div className="mt-3">
@@ -652,7 +953,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">👥</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                  <ActionVectorIcon icon="customers" className="h-4 w-4" />
+                </span>
                 <h3 className="font-bold text-slate-900 dark:text-white">Customer Receivables</h3>
               </div>
               <Link href="/customers" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">View CRM →</Link>
@@ -688,7 +991,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">📦</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+                  <ActionVectorIcon icon="products" className="h-4 w-4" />
+                </span>
                 <h3 className="font-bold text-slate-900 dark:text-white">Inventory Health</h3>
               </div>
               <Link href="/catalog/products" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">Catalog →</Link>
@@ -724,7 +1029,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🔒</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                  <ActionVectorIcon icon="day-close" className="h-4 w-4" />
+                </span>
                 <h3 className="font-bold text-slate-900 dark:text-white">Day Close &amp; Seal</h3>
               </div>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -771,7 +1078,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🔔</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                  <ActionVectorIcon icon="self-audit" className="h-4 w-4" />
+                </span>
                 <h3 className="font-bold text-slate-900 dark:text-white">Needs Your Attention ({data.alerts.length})</h3>
               </div>
               <span className="text-xs text-slate-400">Deterministic System Alarms</span>
@@ -780,7 +1089,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             <div className="mt-4 space-y-3">
               {data.alerts.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  ✅ Zero operational anomalies! All systems, inventories and ledgers are balanced.
+                  Zero operational anomalies. All systems, inventories and ledgers are balanced.
                 </div>
               ) : (
                 data.alerts.slice(0, 3).map((alt: any) => {
@@ -821,16 +1130,19 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">⚡</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                  <ActionVectorIcon icon="quick-sale" className="h-4 w-4" />
+                </span>
                 <h3 className="font-bold text-slate-900 dark:text-white">Quick Action Shortcuts</h3>
               </div>
               {isAdmin && (
                 <button
                   type="button"
                   onClick={() => setIsQuickActionsEditorOpen(true)}
-                  className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30 transition"
                 >
-                  ⚙️ Customize Shortcuts
+                  <ActionVectorIcon icon="settings" className="h-3.5 w-3.5" />
+                  <span>Customize</span>
                 </button>
               )}
             </div>
@@ -840,16 +1152,20 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 <Link
                   key={action.id}
                   href={action.href}
-                  className="flex min-h-[76px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-center transition hover:border-blue-500 hover:bg-blue-50/40 hover:shadow-xs dark:border-white/10 dark:bg-white/5 dark:hover:bg-blue-950/20"
+                  className="group flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 text-center transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-400/60 hover:bg-white hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-500/40 dark:hover:bg-white/[0.07]"
                 >
-                  <span className="text-xl">{action.icon}</span>
-                  <span className="mt-1 text-xs font-bold text-slate-900 dark:text-white">{action.label}</span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-all group-hover:bg-blue-600 group-hover:text-white dark:bg-blue-950/40 dark:text-blue-400 dark:group-hover:bg-blue-500 dark:group-hover:text-white">
+                    <ActionVectorIcon icon={action.icon} className="h-4 w-4" />
+                  </span>
+                  <span className="mt-2 text-xs font-bold text-slate-900 truncate w-full group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
+                    {action.label}
+                  </span>
                 </Link>
               ))}
             </div>
           </div>
           <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] font-medium text-slate-400">
               Instant shortcuts to authorized ERP modules
             </span>
           </div>
@@ -862,7 +1178,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       <div className="bento-surface p-6 dark:bg-slate-900/90">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
           <div className="flex items-center gap-2">
-            <span className="text-xl">📋</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+              <ActionVectorIcon icon="trial-balance" className="h-4 w-4" />
+            </span>
             <h3 className="font-bold text-slate-900 dark:text-white">Recent Activity Stream</h3>
           </div>
           <Link href="/invoices" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">View All Transactions →</Link>
@@ -878,9 +1196,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               <div key={item.id} className="flex items-center justify-between py-2.5 text-xs">
                 <div className="flex items-center gap-3">
                   <span className={`flex h-8 w-8 items-center justify-center rounded-xl font-bold ${
-                    item.type === "sale" ? "bg-blue-500/10 text-blue-600" : item.type === "expense" ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600"
+                    item.type === "sale" ? "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400" : item.type === "expense" ? "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400" : "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
                   }`}>
-                    {item.type === "sale" ? "🧾" : item.type === "expense" ? "📉" : "⚡"}
+                    <ActionVectorIcon icon={item.type === "sale" ? "new-sale" : item.type === "expense" ? "expenses" : "zap"} className="h-4 w-4" />
                   </span>
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white">{item.title}</div>
@@ -918,8 +1236,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                       <button type="button" disabled={index === 0} onClick={() => moveQuickAction(index, -1)} className="rounded-lg px-2 py-1 text-xs font-bold disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-white/10" aria-label={`Move ${action.label} up`}>↑</button>
                       <button type="button" disabled={index === quickActions.length - 1} onClick={() => moveQuickAction(index, 1)} className="rounded-lg px-2 py-1 text-xs font-bold disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-white/10" aria-label={`Move ${action.label} down`}>↓</button>
                     </div>
-                    <div className="grid grid-cols-[52px_1fr] gap-2">
-                      <input value={action.icon} onChange={(e) => updateQuickAction(action.id, { icon: e.target.value.slice(0, 4) })} className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-2 text-center text-lg dark:border-white/10 dark:bg-slate-800" aria-label={`${action.label} icon`} />
+                    <div className="grid grid-cols-[48px_1fr] gap-2 items-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        <ActionVectorIcon icon={action.icon} className="h-5 w-5" />
+                      </div>
                       <input value={action.label} onChange={(e) => updateQuickAction(action.id, { label: e.target.value.slice(0, 32) })} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-800 dark:text-white" aria-label={`${action.label} label`} />
                     </div>
                     <button type="button" onClick={() => removeQuickAction(action.id)} disabled={quickActions.length <= 1} className="rounded-xl px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-30 dark:hover:bg-rose-950/20">Remove</button>
@@ -942,7 +1262,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   <select defaultValue="" onChange={(e) => { if (e.target.value) { addQuickAction(e.target.value); e.currentTarget.value = ""; } }} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold dark:border-white/10 dark:bg-slate-900 dark:text-white">
                     <option value="" disabled>Add action…</option>
                     {quickActionCatalog.filter((item) => !quickActions.some((a) => a.id === item.id)).map((item) => (
-                      <option key={item.id} value={item.id}>{item.icon} {item.label}</option>
+                      <option key={item.id} value={item.id}>{item.label} ({item.href})</option>
                     ))}
                   </select>
                 </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp";
+import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp-shared";
 
 export async function GET() {
   try {

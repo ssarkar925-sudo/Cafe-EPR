@@ -192,11 +192,22 @@ export default function Modal({
       />
 
       {as === "form" ? (
-        <form onSubmit={onSubmit} onClick={(e) => e.stopPropagation()} className={panelClass}>
+        <form
+          onSubmit={onSubmit}
+          onClick={(e) => e.stopPropagation()}
+          className={panelClass}
+          role="dialog"
+          aria-modal="true"
+        >
           {panel}
         </form>
       ) : (
-        <div onClick={(e) => e.stopPropagation()} className={panelClass}>
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={panelClass}
+          role="dialog"
+          aria-modal="true"
+        >
           {panel}
         </div>
       )}

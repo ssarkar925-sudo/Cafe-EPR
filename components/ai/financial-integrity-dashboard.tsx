@@ -249,15 +249,15 @@ export default function FinancialIntegrityDashboard({
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
               CANONICAL AUDIT ENGINE
             </span>
-            <span className="text-xs text-slate-500 font-medium">PostgreSQL Invariant &amp; AI Diagnostic Store</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">PostgreSQL Invariant &amp; AI Diagnostic Store</span>
           </div>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
             Financial Integrity &amp; AI Self-Audit Center
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Deterministic multi-subsystem mathematical verification across Pools, Ledgers, GST, P&amp;L, Day Closes &amp; Security.
           </p>
         </div>
@@ -265,9 +265,9 @@ export default function FinancialIntegrityDashboard({
         <div className="flex items-center gap-2">
           <button
             onClick={downloadAuditCsv}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-4 w-4 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>Download Audit CSV</span>
@@ -275,7 +275,7 @@ export default function FinancialIntegrityDashboard({
           <button
             onClick={handleRunAudit}
             disabled={isRunningAudit}
-            className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 shadow-sm transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 shadow-sm transition-all disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             <svg className={`h-4 w-4 ${isRunningAudit ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -343,15 +343,15 @@ export default function FinancialIntegrityDashboard({
       </div>
 
       {/* 11 Section Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200 dark:border-white/10 pb-2">
         {SECTIONS.map((sec) => (
           <button
             key={sec.id}
             onClick={() => setActiveSection(sec.id)}
             className={`rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
               activeSection === sec.id
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                ? "bg-slate-900 text-white shadow-sm dark:bg-blue-600 dark:text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             }`}
           >
             {sec.label}

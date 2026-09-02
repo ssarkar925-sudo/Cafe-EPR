@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
-import { formatWhatsAppPhone, type WhatsAppConfig } from "@/lib/whatsapp";
+import { formatWhatsAppPhone, type WhatsAppConfig } from "@/lib/whatsapp-shared";
 
 export async function POST(req: Request) {
   try {

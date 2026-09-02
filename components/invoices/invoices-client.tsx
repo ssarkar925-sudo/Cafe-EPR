@@ -11,6 +11,27 @@ import ReturnModal from "./return-modal";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+import {
+  FileText,
+  Search,
+  Plus,
+  Download,
+  LayoutGrid,
+  List,
+  Copy,
+  Printer,
+  MessageSquare,
+  Edit2,
+  Eye,
+  CheckCircle2,
+  Clock,
+  RotateCcw,
+  Percent,
+  Zap,
+  Check,
+  X,
+  TrendingUp,
+} from "lucide-react";
 
 export type InvoiceRow = {
   id: string;
@@ -533,41 +554,41 @@ export default function InvoicesClient({
       label: "Total Sales",
       value: inr(stats.total),
       sub: `${stats.count} invoice${stats.count === 1 ? "" : "s"}`,
-      icon: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+      icon: <FileText className="h-4.5 w-4.5 text-blue-600" />,
       grad: "from-blue-500 to-indigo-600",
-      iconBg: "bg-blue-100 text-blue-600",
+      iconBg: "bg-blue-100 dark:bg-blue-950/40",
     },
     {
       label: "Collected",
       value: inr(stats.paid),
       sub: `${rate}% collection rate`,
-      icon: "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14l-3-3",
+      icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />,
       grad: "from-emerald-500 to-teal-600",
-      iconBg: "bg-emerald-100 text-emerald-600",
+      iconBg: "bg-emerald-100 dark:bg-emerald-950/40",
     },
     {
       label: "Outstanding",
       value: inr(stats.due),
       sub: `${counts.unpaid ?? 0} unpaid · ${counts.partial ?? 0} partial`,
-      icon: "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z",
+      icon: <Clock className="h-4.5 w-4.5 text-amber-600" />,
       grad: "from-amber-500 to-orange-600",
-      iconBg: "bg-amber-100 text-amber-600",
+      iconBg: "bg-amber-100 dark:bg-amber-950/40",
     },
     {
       label: "Returned",
       value: inr(stats.returned),
       sub: `Refunded ${inr(stats.refunded)}`,
-      icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+      icon: <RotateCcw className="h-4.5 w-4.5 text-rose-600" />,
       grad: "from-rose-500 to-pink-600",
-      iconBg: "bg-rose-100 text-rose-600",
+      iconBg: "bg-rose-100 dark:bg-rose-950/40",
     },
     {
       label: "Collection Rate",
       value: `${rate}%`,
       sub: `${inr(stats.paid)} of ${inr(stats.total)}`,
-      icon: "M3 3v18h18M7 14l4-4 3 3 5-6",
+      icon: <TrendingUp className="h-4.5 w-4.5 text-violet-600" />,
       grad: "from-violet-500 to-purple-600",
-      iconBg: "bg-violet-100 text-violet-600",
+      iconBg: "bg-violet-100 dark:bg-violet-950/40",
       progress: true,
     },
   ];
@@ -577,27 +598,27 @@ export default function InvoicesClient({
       label: "Collected",
       value: inr(quickStats.collected),
       sub: `${quickStats.count} sale${quickStats.count === 1 ? "" : "s"}`,
-      icon: "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14l-3-3",
+      icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />,
       grad: "from-emerald-500 to-teal-600",
-      iconBg: "bg-emerald-100 text-emerald-600",
+      iconBg: "bg-emerald-100 dark:bg-emerald-950/40",
       progress: false,
     },
     {
       label: "Est. Profit",
       value: inr(quickStats.profit),
       sub: `On ${inr(quickStats.cost)} cost`,
-      icon: "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
+      icon: <Zap className="h-4.5 w-4.5 text-blue-600" />,
       grad: "from-blue-500 to-indigo-600",
-      iconBg: "bg-blue-100 text-blue-600",
+      iconBg: "bg-blue-100 dark:bg-blue-950/40",
       progress: false,
     },
     {
       label: "Cancelled",
       value: String(quickStats.cancelled),
       sub: `${quickStats.cancelled === 1 ? "sale" : "sales"} reversed`,
-      icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+      icon: <RotateCcw className="h-4.5 w-4.5 text-rose-600" />,
       grad: "from-rose-500 to-pink-600",
-      iconBg: "bg-rose-100 text-rose-600",
+      iconBg: "bg-rose-100 dark:bg-rose-950/40",
       progress: false,
     },
   ];
@@ -606,10 +627,10 @@ export default function InvoicesClient({
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             {tab === "invoices" ? "Invoices" : "Quick Sales"}
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {tab === "invoices"
               ? "Track sales, payments and returns — every bill, every rupee."
               : "Fast walk-in counter sales — cash-register style."}
@@ -617,33 +638,34 @@ export default function InvoicesClient({
         </div>
         <a
           href={tab === "invoices" ? "/pos" : "/pos?mode=quick"}
-          className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-xs transition hover:bg-blue-700"
         >
-          + New {tab === "invoices" ? "Sale" : "Quick Sale"}
+          <Plus className="h-4 w-4" />
+          <span>New {tab === "invoices" ? "Sale" : "Quick Sale"}</span>
         </a>
       </div>
 
       {/* Tabs */}
-      <div className="mt-5 flex rounded-xl bg-slate-100 p-1 text-sm">
+      <div className="mt-5 flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 text-sm dark:border-white/10 dark:bg-slate-800/80">
         <button
           onClick={() => setTab("invoices")}
-          className={`flex-1 rounded-lg px-4 py-2 font-medium transition ${
-            tab === "invoices" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+          className={`flex-1 rounded-lg px-4 py-2 font-bold transition ${
+            tab === "invoices" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           }`}
         >
           Invoices
-          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "invoices" ? "bg-slate-100 text-slate-500" : "bg-white/60"}`}>
+          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "invoices" ? "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300" : "bg-white/60 dark:bg-white/5"}`}>
             {invoices.length}
           </span>
         </button>
         <button
           onClick={() => setTab("quick")}
-          className={`flex-1 rounded-lg px-4 py-2 font-medium transition ${
-            tab === "quick" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+          className={`flex-1 rounded-lg px-4 py-2 font-bold transition ${
+            tab === "quick" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           }`}
         >
           Quick Sales
-          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "quick" ? "bg-slate-100 text-slate-500" : "bg-white/60"}`}>
+          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "quick" ? "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300" : "bg-white/60 dark:bg-white/5"}`}>
             {quickSales.length}
           </span>
         </button>
@@ -652,20 +674,18 @@ export default function InvoicesClient({
       {/* KPI cards */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {(tab === "invoices" ? KPI_CARDS : QUICK_KPI_CARDS).map((c) => (
-          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">{c.label}</p>
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${c.iconBg} shadow-sm`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
-                  <path d={c.icon} />
-                </svg>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{c.label}</p>
+              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${c.iconBg} shadow-xs`}>
+                {c.icon}
               </div>
             </div>
-            <p className="mt-1.5 text-xl font-bold tracking-tight text-slate-900">{c.value}</p>
+            <p className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{c.value}</p>
             <p className="mt-0.5 text-xs text-slate-400">{c.sub}</p>
             {c.progress && (
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                 <div className={`h-full rounded-full bg-gradient-to-r ${c.grad}`} style={{ width: `${Math.min(100, rate)}%` }} />
               </div>
             )}
@@ -676,67 +696,60 @@ export default function InvoicesClient({
       {/* Toolbar */}
       <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative min-w-[220px] flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={tab === "invoices" ? "Search invoice no, customer or mobile…" : "Search sale no, item, customer or mobile…"}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-9 pr-3 text-xs font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+          <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 text-xs dark:border-white/10 dark:bg-slate-800/80">
             <button
               onClick={() => setViewMode("cards")}
               title="Card view"
-              className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                view === "cards" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                view === "cards" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
               }`}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                <path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" />
-              </svg>
+              <LayoutGrid className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => setViewMode("list")}
               title="List view"
-              className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                view === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                view === "list" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
               }`}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-              </svg>
+              <List className="h-3.5 w-3.5" />
             </button>
           </div>
           {tab === "invoices" ? (
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+          <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 text-xs dark:border-white/10 dark:bg-slate-800/80">
             {STATUSES.map((s) => (
               <button
                 key={s}
                 onClick={() => setStatus(s)}
-                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  status === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                className={`rounded-lg px-3 py-1.5 font-bold capitalize transition ${
+                  status === s ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
                 }`}
               >
                 {s === "all" ? "All" : s}
-                <span className={`ml-1 rounded-full px-1.5 text-[10px] ${status === s ? "bg-slate-100 text-slate-500" : "bg-white/60"}`}>
+                <span className={`ml-1 rounded-full px-1.5 text-[10px] ${status === s ? "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300" : "bg-white/60 dark:bg-white/5"}`}>
                   {counts[s] ?? 0}
                 </span>
               </button>
             ))}
           </div>
           ) : (
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+          <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 text-xs dark:border-white/10 dark:bg-slate-800/80">
             {(["all", "active", "cancelled"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setQuickStatus(s)}
-                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  quickStatus === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                className={`rounded-lg px-3 py-1.5 font-bold capitalize transition ${
+                  quickStatus === s ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
                 }`}
               >
                 {s === "all" ? "All" : s}
@@ -747,7 +760,7 @@ export default function InvoicesClient({
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 outline-none transition focus:border-blue-500"
+            className="rounded-xl border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs outline-none transition focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.key} value={o.key}>
@@ -758,11 +771,12 @@ export default function InvoicesClient({
           <button
             onClick={exportCsv}
             disabled={exporting || (tab === "invoices" ? sorted.length === 0 : sortedQuick.length === 0)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
           >
-            {exporting ? "Exporting…" : "Export CSV"}
+            <Download className="h-3.5 w-3.5" />
+            <span>{exporting ? "Exporting…" : "Export CSV"}</span>
           </button>
-          <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+          <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
             {tab === "invoices"
               ? `${sorted.length} invoice${sorted.length === 1 ? "" : "s"}`
               : `${sortedQuick.length} quick sale${sortedQuick.length === 1 ? "" : "s"}`}
@@ -867,9 +881,7 @@ export default function InvoicesClient({
                     title="Copy invoice number"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
-                    </svg>
+                    <Copy className="h-3.5 w-3.5" />
                   </button>
                   <a
                     href={`/receipt/${inv.id}/a4`}
@@ -878,9 +890,7 @@ export default function InvoicesClient({
                     title="Print A4 Invoice / PDF"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
-                    </svg>
+                    <Printer className="h-3.5 w-3.5" />
                   </a>
                   <button
                     type="button"
@@ -891,9 +901,7 @@ export default function InvoicesClient({
                     title="Send Invoice on WhatsApp"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                    </svg>
+                    <MessageSquare className="h-3.5 w-3.5" />
                   </button>
                   {!cancelled && (
                     <a
@@ -902,9 +910,7 @@ export default function InvoicesClient({
                       title="Edit Invoice"
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                        <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                      </svg>
+                      <Edit2 className="h-3.5 w-3.5" />
                     </a>
                   )}
                   <button
@@ -912,7 +918,7 @@ export default function InvoicesClient({
                       e.stopPropagation();
                       setViewId(inv.id);
                     }}
-                    className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                    className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                   >
                     View
                   </button>
@@ -1013,9 +1019,7 @@ export default function InvoicesClient({
                               title="Copy invoice number"
                               className="text-slate-300 transition hover:text-slate-600 dark:hover:text-slate-200"
                             >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                                <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
-                              </svg>
+                              <Copy className="h-3.5 w-3.5" />
                             </button>
                             <div className="cell-sub flex flex-wrap gap-1">
                               {hasReturn && (
@@ -1057,9 +1061,7 @@ export default function InvoicesClient({
                               title="Print A4 Invoice / PDF"
                               className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                             >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
-                              </svg>
+                              <Printer className="h-3.5 w-3.5" />
                             </a>
                             <button
                               type="button"
@@ -1070,9 +1072,7 @@ export default function InvoicesClient({
                               title="Send Invoice on WhatsApp"
                               className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                             >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                              </svg>
+                              <MessageSquare className="h-3.5 w-3.5" />
                             </button>
                             {!cancelled && (
                               <a
@@ -1081,9 +1081,7 @@ export default function InvoicesClient({
                                 title="Edit Invoice"
                                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
                               >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                                </svg>
+                                <Edit2 className="h-3.5 w-3.5" />
                               </a>
                             )}
                             <button
@@ -1091,7 +1089,7 @@ export default function InvoicesClient({
                                 e.stopPropagation();
                                 setViewId(inv.id);
                               }}
-                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                             >
                               View
                             </button>
@@ -1239,9 +1237,7 @@ export default function InvoicesClient({
                           title="Copy sale number"
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                         >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                            <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
-                          </svg>
+                          <Copy className="h-3.5 w-3.5" />
                         </button>
                         <a
                           href={`/receipt/quick/${s.id}`}
@@ -1250,9 +1246,7 @@ export default function InvoicesClient({
                           title="Print 80mm receipt"
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                         >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                            <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
-                          </svg>
+                          <Printer className="h-3.5 w-3.5" />
                         </a>
                         <button
                           type="button"
@@ -1263,10 +1257,7 @@ export default function InvoicesClient({
                           title="Send receipt on WhatsApp"
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                         >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                            <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
-                            <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
-                          </svg>
+                          <MessageSquare className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={(e) => {
@@ -1320,9 +1311,7 @@ export default function InvoicesClient({
                                 title="Copy sale number"
                                 className="text-slate-300 transition hover:text-slate-600 dark:hover:text-slate-200"
                               >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                                  <path d="M8 8h12v12H8zM4 16H2V2h14v2" />
-                                </svg>
+                                <Copy className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </td>
@@ -1371,9 +1360,7 @@ export default function InvoicesClient({
                                 title="Print 80mm receipt"
                                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
                               >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                  <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
-                                </svg>
+                                <Printer className="h-3.5 w-3.5" />
                               </a>
                               <button
                                 type="button"
@@ -1384,10 +1371,7 @@ export default function InvoicesClient({
                                 title="Send receipt on WhatsApp"
                                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
                               >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                                  <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.25.56-.68.92-1.21.99-.48.06-1.1.04-1.79-.2a9.86 9.86 0 0 1-3.66-2.47 9.87 9.87 0 0 1-2.47-3.66c-.24-.69-.26-1.31-.2-1.79.07-.53.43-.96.99-1.21.57-.25 1.07-.27 1.18-.21.1.05.17.21.3.46l.7 1.63c.12.28.16.51.04.75-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.11.51.25.53.64 1.14 1.16 1.66.52.52 1.13.91 1.66 1.16.23.11.36.02.51-.11l.31-.27c.21-.18.4-.32.64-.44.24-.12.47-.08.75.04l1.63.7z" />
-                                  <path d="M12 2a10 10 0 0 0-8.66 15L2 22l5-1.34A10 10 0 1 0 12 2z" />
-                                </svg>
+                                <MessageSquare className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 onClick={(e) => {
@@ -1413,9 +1397,7 @@ export default function InvoicesClient({
 
       {tab === "quick" && sortedQuick.length === 0 && (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 py-16 text-center">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 text-slate-300">
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
+          <Zap className="mx-auto h-10 w-10 text-slate-300" />
           <p className="mt-3 text-sm font-medium text-slate-600">No quick sales found</p>
           <p className="mt-1 text-xs text-slate-400">
             {q || quickStatus !== "all"

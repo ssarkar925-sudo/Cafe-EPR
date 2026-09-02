@@ -65,11 +65,11 @@ export default function SearchableSelect({
           setOpen((v) => !v);
           setQ("");
         }}
-        className={`flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm transition focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${
-          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-slate-400"
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-left text-sm transition focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white ${
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-slate-400 dark:hover:border-white/20"
         }`}
       >
-        <span className={`truncate ${selected ? "text-slate-900" : "text-slate-400"}`}>
+        <span className={`truncate ${selected ? "text-slate-900 dark:text-white font-medium" : "text-slate-400 dark:text-slate-500"}`}>
           {selected ? selected.label : placeholder}
         </span>
         <svg
@@ -86,17 +86,17 @@ export default function SearchableSelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-40 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-          <div className="border-b border-slate-100 p-2">
+        <div className="absolute left-0 right-0 z-40 mt-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900 dark:ring-white/10 animate-fade-in">
+          <div className="border-b border-slate-100 p-2 dark:border-white/5">
             <input
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={searchPlaceholder}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:bg-white"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500"
             />
           </div>
-          <div className="max-h-56 overflow-y-auto p-1">
+          <div className="max-h-56 overflow-y-auto p-1 custom-scrollbar">
             {minSearchLength > 0 && q.trim().length < minSearchLength && (
               <div className="p-3 text-center text-xs font-medium text-slate-400">
                 🔍 {minSearchPrompt}
@@ -110,7 +110,7 @@ export default function SearchableSelect({
                   setOpen(false);
                   setQ("");
                 }}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-slate-50"
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"
               >
                 <span>Clear selection</span>
                 <span className="text-xs text-slate-400">✕</span>
@@ -128,14 +128,14 @@ export default function SearchableSelect({
                     setOpen(false);
                     setQ("");
                   }}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
                     o.value === value
-                      ? "bg-blue-50 font-semibold text-blue-700"
-                      : "text-slate-700 hover:bg-slate-50"
+                      ? "bg-blue-50 font-bold text-blue-700 dark:bg-blue-600/20 dark:text-blue-400"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5"
                   }`}
                 >
                   <span className="truncate">{o.label}</span>
-                  {o.value === value && <span className="text-xs text-blue-600">✓</span>}
+                  {o.value === value && <span className="text-xs text-blue-600 dark:text-blue-400">✓</span>}
                 </button>
               ))
             )}

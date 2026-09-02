@@ -11,52 +11,52 @@ import CloudSyncBadge from "./cloud-sync-badge";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
-const PAGE_META: Record<string, { title: string; desc: string }> = {
-  "/dashboard": { title: "Executive Dashboard", desc: "Real-time store metrics & counter telemetry" },
-  "/pos": { title: "Point of Sale", desc: "High-speed retail & services billing counter" },
-  "/invoices": { title: "Invoices & Sales", desc: "Comprehensive sales ledger & customer receipts" },
-  "/customers": { title: "Customer Directory", desc: "CRM, dues tracking & credit limits" },
-  "/returns": { title: "Returns & Credit", desc: "Item returns, refunds & reversal vouchers" },
-  "/catalog": { title: "Catalog Masters", desc: "Products, services & categorization" },
-  "/catalog/products": { title: "Products Catalog", desc: "Inventory catalog with stock tracking" },
-  "/catalog/services": { title: "Services Catalog", desc: "Cybercafe & digital service rate card" },
-  "/catalog/categories": { title: "Categories Tree", desc: "Hierarchy grouping for POS fast-keys" },
-  "/catalog/brands": { title: "Brands", desc: "Product brand masters" },
-  "/catalog/units": { title: "Units of Measure", desc: "Pcs, sheets, packets, kg" },
-  "/business": { title: "Business Hub", desc: "AEPS, DMT, UPI & remittance operations" },
-  "/business/aeps": { title: "AEPS Withdrawal", desc: "Aadhaar cash disbursements & portal float" },
-  "/business/dmt": { title: "Money Transfer (DMT)", desc: "IMPS / NEFT domestic remittances" },
-  "/business/upi": { title: "UPI Collections", desc: "Dynamic QR scans & counter cash-out" },
-  "/business/recharge": { title: "Mobile Recharge", desc: "Prepaid, postpaid & DTH top-ups" },
-  "/business/banks": { title: "Bank Accounts", desc: "Commercial banks & treasury float" },
-  "/business/portals": { title: "Service Portals", desc: "PayNearby, SpiceMoney, CSC portals" },
-  "/business/merchant-qrs": { title: "Merchant QRs", desc: "Active POS counter QR profiles" },
-  "/finance": { title: "Finance & Accounts", desc: "Cash book, P&L, day-close & liquid float" },
-  "/finance/pnl": { title: "Profit & Loss (P&L)", desc: "Operating income, COGS & net profit" },
-  "/finance/expenses": { title: "Expense Ledger", desc: "Categorized store operating costs" },
-  "/finance/cashbook": { title: "Daily Cash Book", desc: "Continuous cash inflow/outflow audit" },
-  "/finance/journal": { title: "Double-Entry Journal", desc: "Authoritative inflow/outflow journal & postings" },
-  "/finance/trial-balance": { title: "Trial Balance", desc: "Auto-computed debits, credits & account balances" },
-  "/finance/accounts": { title: "Payment Accounts", desc: "Liquid accounts & float configuration" },
-  "/business/bill-payment": { title: "Bill & Recharge Hub", desc: "BBPS utility bill payments & mobile top-ups" },
-  "/finance/settlements": { title: "Settlements & Transfers", desc: "Bank-to-wallet & float transfers" },
-  "/finance/opening-balances": { title: "Opening Balances", desc: "Seed opening liquid cash & floats" },
-  "/finance/day-close": { title: "End-of-Day Close", desc: "Cash reconciliation & daily book lock" },
-  "/finance/ledger": { title: "Account Ledgers", desc: "Double-entry party ledgers" },
-  "/inventory": { title: "Inventory & Stock", desc: "Real-time stock valuation & reorder alerts" },
-  "/inventory/movements": { title: "Stock Movements", desc: "Audit log of all stock movements" },
-  "/purchases": { title: "Purchases", desc: "Vendor invoices & stock intake" },
-  "/purchases/entry": { title: "Purchase Entry", desc: "Record supplier stock procurement" },
-  "/suppliers": { title: "Suppliers", desc: "Vendor directory & accounts payable" },
-  "/reports": { title: "Reports Studio", desc: "Sales, margins & activity reports" },
-  "/reports/gst": { title: "GST Reports", desc: "GSTR-1, GSTR-3B tax summaries" },
-  "/reports/tax-preparation": { title: "Tax Prep / ITR", desc: "CA-ready audited financial pack" },
-  "/staff": { title: "Staff Accounts", desc: "Team roles & security permissions" },
-  "/audit": { title: "Security Audit Log", desc: "Immutable operational event history" },
-  "/ai": { title: "AI Control Center", desc: "Smart diagnostic & business insights" },
-  "/ai/self-audit": { title: "Financial Self-Audit", desc: "Automated 14-point invariant checks" },
-  "/security": { title: "Security & 2FA", desc: "Credentials, TOTP 2FA & terminal auto-lock" },
-  "/settings": { title: "System Settings", desc: "Store profile, themes & automation" },
+const PAGE_META: Record<string, { title: string; desc: string; section?: string }> = {
+  "/dashboard": { title: "Executive Dashboard", desc: "Real-time store metrics & counter telemetry", section: "Operate" },
+  "/pos": { title: "Point of Sale", desc: "High-speed retail & services billing counter", section: "1. Sales Hub" },
+  "/invoices": { title: "Invoices & Sales", desc: "Comprehensive sales ledger & customer receipts", section: "1. Sales Hub" },
+  "/customers": { title: "Customer Directory", desc: "CRM, dues tracking & credit limits", section: "1. Sales Hub" },
+  "/returns": { title: "Returns & Credit", desc: "Item returns, refunds & reversal vouchers", section: "1. Sales Hub" },
+  "/catalog": { title: "Catalog Masters", desc: "Products, services & categorization", section: "3. Inventory & Catalog" },
+  "/catalog/products": { title: "Products Catalog", desc: "Inventory catalog with stock tracking", section: "3. Inventory & Catalog" },
+  "/catalog/services": { title: "Services Catalog", desc: "Cybercafe & digital service rate card", section: "3. Inventory & Catalog" },
+  "/catalog/categories": { title: "Categories Tree", desc: "Hierarchy grouping for POS fast-keys", section: "3. Inventory & Catalog" },
+  "/catalog/brands": { title: "Brands", desc: "Product brand masters", section: "3. Inventory & Catalog" },
+  "/catalog/units": { title: "Units of Measure", desc: "Pcs, sheets, packets, kg", section: "3. Inventory & Catalog" },
+  "/business": { title: "Business Hub", desc: "AEPS, DMT, UPI & remittance operations", section: "2. Business Services" },
+  "/business/aeps": { title: "AEPS Withdrawal", desc: "Aadhaar cash disbursements & portal float", section: "2. Business Services" },
+  "/business/dmt": { title: "Money Transfer (DMT)", desc: "IMPS / NEFT domestic remittances", section: "2. Business Services" },
+  "/business/upi": { title: "UPI Collections", desc: "Dynamic QR scans & counter cash-out", section: "2. Business Services" },
+  "/business/recharge": { title: "Mobile Recharge", desc: "Prepaid, postpaid & DTH top-ups", section: "2. Business Services" },
+  "/business/banks": { title: "Bank Accounts", desc: "Commercial banks & treasury float", section: "2. Business Services" },
+  "/business/portals": { title: "Service Portals", desc: "PayNearby, SpiceMoney, CSC portals", section: "2. Business Services" },
+  "/business/merchant-qrs": { title: "Merchant QRs", desc: "Active POS counter QR profiles", section: "2. Business Services" },
+  "/finance": { title: "Finance & Accounts", desc: "Cash book, P&L, day-close & liquid float", section: "5. Finance Hub" },
+  "/finance/pnl": { title: "Profit & Loss (P&L)", desc: "Operating income, COGS & net profit", section: "5. Finance Hub" },
+  "/finance/expenses": { title: "Expense Ledger", desc: "Categorized store operating costs", section: "5. Finance Hub" },
+  "/finance/cashbook": { title: "Daily Cash Book", desc: "Continuous cash inflow/outflow audit", section: "5. Finance Hub" },
+  "/finance/journal": { title: "Double-Entry Journal", desc: "Authoritative inflow/outflow journal & postings", section: "5. Finance Hub" },
+  "/finance/trial-balance": { title: "Trial Balance", desc: "Auto-computed debits, credits & account balances", section: "5. Finance Hub" },
+  "/finance/accounts": { title: "Payment Accounts", desc: "Liquid accounts & float configuration", section: "5. Finance Hub" },
+  "/business/bill-payment": { title: "Bill & Recharge Hub", desc: "BBPS utility bill payments & mobile top-ups", section: "2. Business Services" },
+  "/finance/settlements": { title: "Settlements & Transfers", desc: "Bank-to-wallet & float transfers", section: "5. Finance Hub" },
+  "/finance/opening-balances": { title: "Opening Balances", desc: "Seed opening liquid cash & floats", section: "5. Finance Hub" },
+  "/finance/day-close": { title: "End-of-Day Close", desc: "Cash reconciliation & daily book lock", section: "5. Finance Hub" },
+  "/finance/ledger": { title: "Account Ledgers", desc: "Double-entry party ledgers", section: "5. Finance Hub" },
+  "/inventory": { title: "Inventory & Stock", desc: "Real-time stock valuation & reorder alerts", section: "3. Inventory & Catalog" },
+  "/inventory/movements": { title: "Stock Movements", desc: "Audit log of all stock movements", section: "3. Inventory & Catalog" },
+  "/purchases": { title: "Purchases", desc: "Vendor invoices & stock intake", section: "4. Purchasing" },
+  "/purchases/entry": { title: "Purchase Entry", desc: "Record supplier stock procurement", section: "4. Purchasing" },
+  "/suppliers": { title: "Suppliers", desc: "Vendor directory & accounts payable", section: "4. Purchasing" },
+  "/reports": { title: "Reports Studio", desc: "Sales, margins & activity reports", section: "6. Reports Hub" },
+  "/reports/gst": { title: "GST Reports", desc: "GSTR-1, GSTR-3B tax summaries", section: "6. Reports Hub" },
+  "/reports/tax-preparation": { title: "Tax Prep / ITR", desc: "CA-ready audited financial pack", section: "6. Reports Hub" },
+  "/staff": { title: "Staff Accounts", desc: "Team roles & security permissions", section: "8. Administration" },
+  "/audit": { title: "Security Audit Log", desc: "Immutable operational event history", section: "6. Reports Hub" },
+  "/ai": { title: "AI Control Center", desc: "Smart diagnostic & business insights", section: "7. Tools & AI" },
+  "/ai/self-audit": { title: "Financial Self-Audit", desc: "Automated 14-point invariant checks", section: "7. Tools & AI" },
+  "/security": { title: "Security & 2FA", desc: "Credentials, TOTP 2FA & terminal auto-lock", section: "8. Administration" },
+  "/settings": { title: "System Settings", desc: "Store profile, themes & automation", section: "8. Administration" },
 };
 
 function metaFor(pathname: string) {
@@ -65,7 +65,7 @@ function metaFor(pathname: string) {
   for (const key of Object.keys(PAGE_META)) {
     if (pathname.startsWith(key + "/")) return PAGE_META[key];
   }
-  return { title: "Café ERP", desc: "Enterprise Cybercafe & Retail ERP" };
+  return { title: "Café ERP", desc: "Enterprise Cybercafe & Retail ERP", section: "System" };
 }
 
 function Avatar({
@@ -212,10 +212,16 @@ export default function DashboardShell({
               </svg>
             </button>
             <div>
-              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <span>Café ERP</span>
+                {meta.section && meta.section !== "System" && (
+                  <>
+                    <span>/</span>
+                    <span className="text-slate-500 dark:text-slate-400">{meta.section}</span>
+                  </>
+                )}
                 <span>/</span>
-                <span className="text-blue-600 dark:text-blue-400">{meta.title}</span>
+                <span className="text-blue-600 dark:text-blue-400 font-extrabold">{meta.title}</span>
               </div>
               <h1 className="text-base font-extrabold text-slate-900 dark:text-white">
                 {meta.title}

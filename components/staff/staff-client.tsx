@@ -21,9 +21,9 @@ export type StaffUser = {
 const ROLES = ["admin", "manager", "staff"] as const;
 
 const ROLE_STYLE: Record<string, string> = {
-  admin: "bg-rose-100 text-rose-700 ring-rose-200",
-  manager: "bg-amber-100 text-amber-700 ring-amber-200",
-  staff: "bg-blue-100 text-blue-700 ring-blue-200",
+  admin: "bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:ring-rose-800/40",
+  manager: "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-800/40",
+  staff: "bg-blue-100 text-blue-700 ring-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:ring-blue-800/40",
 };
 
 type ModalState = { mode: "create" } | { mode: "edit"; user: StaffUser } | null;
@@ -195,7 +195,7 @@ export default function StaffClient({
       onClick: () => setRoleFilter("manager"),
     },
     {
-      label: "Staff",
+      label: "Staff Operators",
       value: String(stats.staff),
       icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
       grad: "from-violet-500 to-purple-600",
@@ -204,22 +204,35 @@ export default function StaffClient({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Staff</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Manage who can sign in and their access level.</p>
+    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 space-y-6">
+      {/* Header Banner */}
+      <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-500/25">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Staff &amp; Access Governance</h1>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Manage team accounts, assign RBAC permissions, and control operational sign-in access.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setModal({ mode: "create" })}
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4"><path d="M12 5v14M5 12h14" /></svg>
+            Add Staff Member
+          </button>
         </div>
-        <button
-          onClick={() => setModal({ mode: "create" })}
-          className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4"><path d="M12 5v14M5 12h14" /></svg>
-          Add Staff
-        </button>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         {KPI_CARDS.map((c) => (
           <StatCard
             key={c.label}
@@ -232,7 +245,7 @@ export default function StaffClient({
         ))}
       </div>
 
-      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative min-w-[220px] flex-1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
             <circle cx="11" cy="11" r="7" />
@@ -241,31 +254,31 @@ export default function StaffClient({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name or email…"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
+            placeholder="Search team member by name or email…"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-white"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+          <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
             {(["all", ...ROLES] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setRoleFilter(r)}
                 className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  roleFilter === r ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  roleFilter === r ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
                 {r}
               </button>
             ))}
           </div>
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+          <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
             {(["all", "active", "disabled"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  statusFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  statusFilter === s ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
                 {s}
@@ -279,10 +292,10 @@ export default function StaffClient({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
         <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
+            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10 dark:text-slate-400">
               <th className="px-5 py-3 font-medium">Member</th>
               <th className="px-5 py-3 font-medium">Email</th>
               <th className="px-5 py-3 font-medium">Role</th>
@@ -294,33 +307,33 @@ export default function StaffClient({
             {filtered.map((u) => {
               const isSelf = u.id === currentUserId;
               return (
-                <tr key={u.id} className={`border-b border-slate-100 transition last:border-0 hover:bg-slate-50 ${!u.is_active ? "opacity-60" : ""}`}>
+                <tr key={u.id} className={`border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${!u.is_active ? "opacity-60" : ""}`}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       {u.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatar_url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-slate-100" />
+                        <img src={u.avatar_url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-slate-100 dark:ring-white/10" />
                       ) : (
                         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient(u.full_name || u.email)} text-sm font-bold text-white`}>
                           {(u.full_name || u.email || "?").slice(0, 1).toUpperCase()}
                         </div>
                       )}
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-900">
+                        <p className="font-medium text-slate-900 dark:text-white">
                           {u.full_name || "-"}
-                          {isSelf && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">You</span>}
+                          {isSelf && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-white/10 dark:text-slate-300">You</span>}
                         </p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-slate-600">{u.email}</td>
+                  <td className="px-5 py-3 text-slate-600 dark:text-slate-300">{u.email}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${ROLE_STYLE[u.role] || "bg-slate-100 text-slate-600"}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${ROLE_STYLE[u.role] || "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
                       {u.role}
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${u.is_active ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
                       {u.is_active ? "Active" : "Disabled"}
                     </span>
                   </td>
@@ -330,7 +343,7 @@ export default function StaffClient({
                         <button
                           onClick={() => toggleActive(u)}
                           disabled={toggling === u.id}
-                          className={`relative h-5 w-9 rounded-full transition ${u.is_active ? "bg-emerald-500" : "bg-slate-300"} disabled:opacity-50`}
+                          className={`relative h-5 w-9 rounded-full transition ${u.is_active ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"} disabled:opacity-50`}
                           title={u.is_active ? "Deactivate account" : "Activate account"}
                         >
                           <span
@@ -340,7 +353,7 @@ export default function StaffClient({
                       )}
                       <button
                         onClick={() => setModal({ mode: "edit", user: u })}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                       >
                         Edit
                       </button>
@@ -351,8 +364,8 @@ export default function StaffClient({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500">
-                  No team members found.
+                <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                  No team members found matching search filters.
                 </td>
               </tr>
             )}
@@ -419,8 +432,8 @@ function StaffFormModal({
       size="md"
       accent="blue"
       icon="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
-      title={editing ? "Edit Team Member" : "Add Staff"}
-      subtitle={editing ? `Update access for ${editing.email}` : "Create a login for a new member"}
+      title={editing ? "Edit Team Member" : "Add Staff Member"}
+      subtitle={editing ? `Update access permissions for ${editing.email}` : "Create a new staff login and assign operational RBAC role"}
       footer={
         <div className="flex items-center justify-between gap-2">
           {error ? (
@@ -443,7 +456,7 @@ function StaffFormModal({
               disabled={busy}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
             >
-              {busy ? "Saving…" : editing ? "Save changes" : "Add staff"}
+              {busy ? "Saving…" : editing ? "Save changes" : "Add staff member"}
             </button>
           </div>
         </div>
@@ -451,23 +464,24 @@ function StaffFormModal({
     >
       <div className="space-y-4">
         <div>
-          <label className={labelClass}>Full name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+          <label className={labelClass}>Full Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="e.g. Rahul Sharma" />
         </div>
         <div>
-          <label className={labelClass}>Email *</label>
+          <label className={labelClass}>Email Address *</label>
           <input
             type="email"
             required
             disabled={!!editing}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            placeholder="operator@cafeerp.com"
             className={`${inputClass} ${editing ? "bg-slate-50 text-slate-400 dark:bg-white/5" : ""}`}
           />
         </div>
 
         <div>
-          <label className={labelClass}>Role</label>
+          <label className={labelClass}>RBAC Role</label>
           <div className="grid grid-cols-3 gap-2">
             {ROLES.map((r) => (
               <button
@@ -503,12 +517,12 @@ function StaffFormModal({
           </div>
         ) : (
           <div>
-            <label className={labelClass}>Reset password (optional)</label>
+            <label className={labelClass}>Reset Password (Optional)</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Leave blank to keep current"
+              placeholder="Leave blank to keep current password"
               className={inputClass}
             />
           </div>
@@ -523,7 +537,7 @@ function StaffFormModal({
               onChange={(e) => setIsActive(e.target.checked)}
               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
-            Account active
+            Account Active
           </label>
         )}
       </div>

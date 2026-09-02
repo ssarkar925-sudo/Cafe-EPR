@@ -185,13 +185,61 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
         {!collapsed && <div className="px-3 pt-3 pb-1"><div className="relative"><input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Jump to menu..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-slate-500" /><div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400"><Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" className="h-3.5 w-3.5" /></div>{query && <button onClick={() => setQuery("")} className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>}</div></div>}
 
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4 custom-scrollbar">
-          {filteredSections.map((section) => { const isOpen = openSections.has(section.title); return <div key={section.title} className="space-y-1">
-            {!collapsed && <button onClick={() => toggleSection(section.title)} className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 transition"><span>{section.title}</span><Icon d={ICONS.chevron} className={`h-3 w-3 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} /></button>}
-            {(isOpen || collapsed) && <div className="space-y-0.5">{section.items.map((item) => { const isActive = isItemActive(item.href); return <Link key={item.label} href={item.href} onClick={onMobileClose} className={`group relative flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition-all duration-200 ${isActive ? "bg-gradient-to-r from-blue-50 to-indigo-50/50 text-blue-700 font-black border-l-4 border-blue-600 shadow-xs dark:from-blue-600/20 dark:to-indigo-600/10 dark:text-blue-400 dark:border-blue-500" : "text-slate-700 hover:bg-slate-100/80 hover:text-slate-900 hover:translate-x-0.5 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}>
-              <div className="flex items-center gap-2.5 min-w-0"><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-110 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"}`}><Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" /></span>{!collapsed && <span className="truncate">{item.label}</span>}</div>
-              {!collapsed && item.badge && <span className={`rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold shadow-2xs ${BADGE_STYLES[item.badge.tone]}`}>{item.badge.text}</span>}
-            </Link>; })}</div>}
-          </div>; })}
+          {filteredSections.map((section) => {
+            const isOpen = openSections.has(section.title);
+            return (
+              <div key={section.title} className="space-y-1">
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.title)}
+                    className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 transition rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
+                  >
+                    <span>{section.title}</span>
+                    <Icon d={ICONS.chevron} className={`h-3 w-3 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
+                  </button>
+                )}
+                {(isOpen || collapsed) && (
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const isActive = isItemActive(item.href);
+                      return (
+                        <Link
+                          key={item.label}
+                          href={item.href}
+                          onClick={onMobileClose}
+                          title={collapsed ? item.label : undefined}
+                          className={`group relative flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                            isActive
+                              ? "bg-blue-50 text-blue-700 font-extrabold border-l-[3px] border-blue-600 shadow-2xs dark:bg-blue-600/20 dark:text-blue-400 dark:border-blue-500"
+                              : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-0.5 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
+                                isActive
+                                  ? "text-blue-600 dark:text-blue-400"
+                                  : "text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"
+                              }`}
+                            >
+                              <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
+                            </span>
+                            {!collapsed && <span className="truncate">{item.label}</span>}
+                          </div>
+                          {!collapsed && item.badge && (
+                            <span className={`rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold shadow-2xs ${BADGE_STYLES[item.badge.tone]}`}>
+                              {item.badge.text}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="border-t border-slate-200/80 dark:border-white/10 px-3 py-2 shrink-0 bg-slate-50/80 dark:bg-black/20">

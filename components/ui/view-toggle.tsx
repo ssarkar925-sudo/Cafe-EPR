@@ -35,23 +35,24 @@ export default function ViewToggle({
 
   const btn = (key: "cards" | "list", label: string, path: string) => (
     <button
+      type="button"
       onClick={() => onChange(key)}
       title={label}
       aria-label={label}
-      className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${
+      className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
         value === key
-          ? "bg-slate-900 text-white shadow-sm"
-          : "text-slate-500 hover:bg-white hover:text-slate-900"
+          ? "bg-white text-slate-900 shadow-xs font-bold dark:bg-slate-800 dark:text-white"
+          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
       }`}
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
         <path d={path} />
       </svg>
     </button>
   );
 
   return (
-    <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+    <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5 border border-slate-200/60 dark:border-white/10">
       {btn(
         "cards",
         "Card view",

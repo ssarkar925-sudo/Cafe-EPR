@@ -346,47 +346,54 @@ export default function ReportsClient({
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8" id="reports-studio-view">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Reports</h1>
-          <p className="text-sm text-slate-500">
-            {range.from === "2000-01-01" ? "All time" : `${range.from} to ${range.to}`} · {validInvoices.length} invoices
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">
+              Master Ledger Register
+            </span>
+            <span className="text-xs text-slate-400">·</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {range.from === "2000-01-01" ? "All-time history" : `${range.from} to ${range.to}`}
+            </span>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+            Reports Studio
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Filtered operational ledger across {validInvoices.length} invoices, {validQuick.length} quick sales, {validTxns.length} service transactions &amp; {activeExpenses.length} expense entries.
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href="/finance/pnl"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            href="/reports/profit-loss"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            <span>📈 Profit &amp; Loss</span>
+            <span>P&amp;L Statement</span>
           </Link>
           <Link
             href="/reports/tax-preparation"
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
+            className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 shadow-2xs transition hover:bg-purple-100 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-300"
           >
-            <span>📑 Tax Prep &amp; ITR</span>
+            <span>CA Tax Prep / ITR</span>
           </Link>
           <Link
             href="/reports/gst"
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
+            className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 shadow-2xs transition hover:bg-indigo-100 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
           >
-            <span>🏛️ GST Reports</span>
-            <span className="rounded bg-amber-400/30 px-1 text-[9px] font-bold text-amber-200">FUTURE</span>
+            <span>GST (GSTR-1/3B)</span>
           </Link>
-          <Link
-            href="/ai/self-audit"
-            className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"
-          >
-            <span>🔍 Self-Audit</span>
-          </Link>
-          <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
+          <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-1 text-xs dark:border-white/10 dark:bg-slate-800">
             {PERIODS.map((p) => (
               <button
                 key={p.key}
                 onClick={() => setPeriod(p.key)}
-                className={`rounded-lg px-3 py-1.5 font-medium transition ${
-                  period === p.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                className={`rounded-lg px-2.5 py-1.5 font-semibold transition ${
+                  period === p.key
+                    ? "bg-white text-slate-950 shadow-xs dark:bg-slate-900 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
                 {p.label}
@@ -396,55 +403,52 @@ export default function ReportsClient({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
-        {tabBtn("overview", "Overview")}
-        {tabBtn("invoices", "Invoices")}
-        {tabBtn("expenses", "Expenses")}
-        {tabBtn("returns", "Returns")}
-        {tabBtn("business", "Business")}
-        {tabBtn("accounts", "Accounts")}
-        {tabBtn("quick", "Quick Sales")}
+      <div className="mt-6 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-slate-800/60">
+        {tabBtn("overview", "Overview Summary")}
+        {tabBtn("invoices", `Invoices (${validInvoices.length})`)}
+        {tabBtn("expenses", `Expenses (${activeExpenses.length})`)}
+        {tabBtn("returns", `Returns (${validReturns.length})`)}
+        {tabBtn("business", `Digital Services (${validTxns.length})`)}
+        {tabBtn("accounts", "Payment Accounts")}
+        {tabBtn("quick", `Quick POS (${validQuick.length})`)}
       </div>
 
       {tab === "overview" && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="mt-6 grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {KPI_CARDS.map((c) => (
               <div
                 key={c.label}
                 onClick={c.onClick}
-                className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="group relative cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-xs dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-700"
               >
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-500">{c.label}</p>
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
-                      <path d={c.icon} />
-                    </svg>
-                  </div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</p>
                 </div>
-                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{inr(c.value)}</p>
-                <p className="mt-1 text-xs text-slate-400">{c.sub}</p>
+                <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">{inr(c.value)}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{c.sub}</p>
               </div>
             ))}
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">Sales by Day</h2>
-                <span className="text-sm font-medium text-slate-600">{inr(totalSales)}</span>
+                <div>
+                  <h2 className="font-bold text-slate-950 dark:text-white">Daily Invoiced Sales Trend</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Total volume in selected period</p>
+                </div>
+                <span className="font-mono text-sm font-bold text-slate-950 dark:text-white tabular-nums">{inr(totalSales)}</span>
               </div>
-              <div className="mt-5 flex h-44 items-end gap-1 sm:gap-1.5">
+              <div className="mt-6 flex h-44 items-end gap-1 sm:gap-1.5">
                 {dayTotals.map((d) => (
                   <div key={d.date} className="group flex h-full flex-1 flex-col items-center justify-end" title={`${d.date}: ${inr(d.total)}`}>
                     <div
-                      style={{ height: `${Math.max((d.total / dayMax) * 100, d.total > 0 ? 4 : 1.5)}%` }}
-                      className={`w-full rounded-t-md transition-all ${
+                      style={{ height: `${Math.max((d.total / dayMax) * 100, d.total > 0 ? 6 : 2)}%` }}
+                      className={`w-full rounded-t-sm transition-all ${
                         d.total > 0
-                          ? "bg-gradient-to-t from-blue-600 to-indigo-400 group-hover:from-blue-500 group-hover:to-indigo-300"
-                          : "bg-slate-200"
+                          ? "bg-blue-600 group-hover:bg-blue-500 dark:bg-blue-500 dark:group-hover:bg-blue-400"
+                          : "bg-slate-100 dark:bg-slate-800"
                       }`}
                     />
                   </div>
@@ -452,39 +456,42 @@ export default function ReportsClient({
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">Top Products</h2>
+                <div>
+                  <h2 className="font-bold text-slate-950 dark:text-white">Top Invoiced Items</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">By gross revenue</p>
+                </div>
                 <button
                   onClick={() =>
                     downloadCsv("top-products.csv", ["Product", "Qty", "Revenue"], topProducts.map((p) => [p.name, p.qty, p.amount]))
                   }
-                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
-                  Download CSV
+                  Export CSV
                 </button>
               </div>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-500">
-                      <th className="py-2 pr-4 font-medium">Product</th>
-                      <th className="py-2 pr-4 font-medium">Qty</th>
-                      <th className="py-2 font-medium">Revenue</th>
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Product / Service</th>
+                      <th className="px-3 py-2 text-right font-medium">Qty</th>
+                      <th className="px-3 py-2 text-right font-medium">Revenue</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                     {topProducts.map((p) => (
-                      <tr key={p.name} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2 pr-4 text-slate-900">{p.name}</td>
-                        <td className="py-2 pr-4 text-slate-700">{p.qty}</td>
-                        <td className="py-2 text-slate-900">{inr(p.amount)}</td>
+                      <tr key={p.name}>
+                        <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{p.name}</td>
+                        <td className="px-3 py-2.5 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums">{p.qty}</td>
+                        <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(p.amount)}</td>
                       </tr>
                     ))}
                     {topProducts.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="py-6 text-center text-slate-500">
-                          No product sales yet.
+                        <td colSpan={3} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
+                          No product sales in this period.
                         </td>
                       </tr>
                     )}
@@ -493,68 +500,74 @@ export default function ReportsClient({
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">Payments by Method</h2>
+                <div>
+                  <h2 className="font-bold text-slate-950 dark:text-white">Payments by Instrument</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Total collected: {inr(totalPaid)}</p>
+                </div>
                 <button
                   onClick={() =>
                     downloadCsv("payments-method.csv", ["Method", "Amount"], methodTotals.map(([m, amt]) => [m, amt]))
                   }
-                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
-                  Download CSV
+                  Export CSV
                 </button>
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-3.5">
                 {methodTotals.map(([m, amt]) => {
                   const pct = totalPaid > 0 ? (amt / totalPaid) * 100 : 0;
                   return (
                     <div key={m}>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium uppercase text-slate-700">{m}</span>
-                        <span className="text-slate-900">{inr(amt)}</span>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold uppercase text-slate-700 dark:text-slate-300">{m}</span>
+                        <span className="font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(amt)} ({pct.toFixed(1)}%)</span>
                       </div>
-                      <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+                      <div className="mt-1.5 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
-                          className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-400"
+                          className="h-2 rounded-full bg-blue-600 dark:bg-blue-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
                     </div>
                   );
                 })}
-                {methodTotals.length === 0 && <p className="text-sm text-slate-500">No payments yet.</p>}
+                {methodTotals.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No payments in period.</p>}
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">Customer Dues</h2>
+                <div>
+                  <h2 className="font-bold text-slate-950 dark:text-white">Customer Receivables &amp; Dues</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Active credit accounts</p>
+                </div>
                 <button
                   onClick={() => downloadCsv("customer-dues.csv", ["Customer", "Balance"], dues.map((d) => [d.name, d.balance]))}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
-                  Download CSV
+                  Export CSV
                 </button>
               </div>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-500">
-                      <th className="py-2 pr-4 font-medium">Customer</th>
-                      <th className="py-2 font-medium">Balance</th>
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Customer</th>
+                      <th className="px-3 py-2 text-right font-medium">Balance Due</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                     {dues.map((c) => (
-                      <tr key={c.id} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2 pr-4 text-slate-900">{c.name}</td>
-                        <td className="py-2 text-red-600">{inr(c.balance)}</td>
+                      <tr key={c.id}>
+                        <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{c.name}</td>
+                        <td className="px-3 py-2.5 text-right font-mono font-bold text-rose-600 dark:text-rose-400 tabular-nums">{inr(c.balance)}</td>
                       </tr>
                     ))}
                     {dues.length === 0 && (
                       <tr>
-                        <td colSpan={2} className="py-6 text-center text-slate-500">
+                        <td colSpan={2} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
                           No outstanding dues.
                         </td>
                       </tr>
@@ -568,11 +581,11 @@ export default function ReportsClient({
       )}
 
       {tab === "invoices" && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
+        <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold text-slate-900">Invoice History</h2>
-              <p className="text-xs text-slate-400">Newest first</p>
+              <h2 className="font-bold text-slate-950 dark:text-white">Invoiced Sales Register</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Showing {recentInvoices.length} invoices matching date criteria</p>
             </div>
             <button
               onClick={() =>
@@ -582,35 +595,35 @@ export default function ReportsClient({
                   recentInvoices.map((i) => [i.invoice_number, i.customers?.name ?? "-", i.invoice_date, i.total, i.paid, i.due, i.status])
                 )
               }
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
             >
-              Download CSV
+              Export Register (CSV)
             </button>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Invoice</th>
-                  <th className="py-2 pr-4 font-medium">Customer</th>
-                  <th className="py-2 pr-4 font-medium">Date</th>
-                  <th className="py-2 pr-4 text-right font-medium">Total</th>
-                  <th className="py-2 pr-4 text-right font-medium">Paid</th>
-                  <th className="py-2 pr-4 text-right font-medium">Due</th>
-                  <th className="py-2 font-medium">Status</th>
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-medium">Invoice #</th>
+                  <th className="px-3.5 py-2.5 font-medium">Customer</th>
+                  <th className="px-3.5 py-2.5 font-medium">Date</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Total</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Paid</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Due</th>
+                  <th className="px-3.5 py-2.5 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {recentInvoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-slate-100 last:border-0">
-                    <td className="py-2.5 pr-4 font-mono text-xs font-medium text-blue-700">{inv.invoice_number}</td>
-                    <td className="py-2.5 pr-4 text-slate-700">{inv.customers?.name ?? "-"}</td>
-                    <td className="py-2.5 pr-4 text-slate-500">{inv.invoice_date}</td>
-                    <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(inv.total))}</td>
-                    <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(inv.paid))}</td>
-                    <td className="py-2.5 pr-4 text-right text-slate-500">{inr(Number(inv.due))}</td>
-                    <td className="py-2.5">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_PILL[inv.status] || "bg-slate-100 text-slate-600"}`}>
+                  <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                    <td className="px-3.5 py-2.5 font-mono text-xs font-bold text-blue-600 dark:text-blue-400">{inv.invoice_number}</td>
+                    <td className="px-3.5 py-2.5 font-medium text-slate-800 dark:text-slate-200">{inv.customers?.name ?? "Walk-in Customer"}</td>
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{inv.invoice_date}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(Number(inv.total))}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{inr(Number(inv.paid))}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-rose-600 dark:text-rose-400 tabular-nums">{inr(Number(inv.due))}</td>
+                    <td className="px-3.5 py-2.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${STATUS_PILL[inv.status] || "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
                         {inv.status}
                       </span>
                     </td>
@@ -618,8 +631,8 @@ export default function ReportsClient({
                 ))}
                 {recentInvoices.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
-                      No invoices yet.
+                    <td colSpan={7} className="px-3.5 py-8 text-center text-slate-500 dark:text-slate-400">
+                      No invoices found for the selected date period.
                     </td>
                   </tr>
                 )}
@@ -630,11 +643,11 @@ export default function ReportsClient({
       )}
 
       {tab === "expenses" && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
+        <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold text-slate-900">Expense History</h2>
-              <p className="text-xs text-slate-400">Newest first</p>
+              <h2 className="font-bold text-slate-950 dark:text-white">Operating Expenses Register</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total expenses: {inr(totalExpenses)}</p>
             </div>
             <button
               onClick={() =>
@@ -644,31 +657,31 @@ export default function ReportsClient({
                   recentExpenses.map((e) => [e.expense_date, e.category, e.amount, e.note ?? "-", e.status])
                 )
               }
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
             >
-              Download CSV
+              Export Expenses (CSV)
             </button>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Date</th>
-                  <th className="py-2 pr-4 font-medium">Category</th>
-                  <th className="py-2 pr-4 font-medium">Note</th>
-                  <th className="py-2 pr-4 text-right font-medium">Amount</th>
-                  <th className="py-2 font-medium">Status</th>
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-medium">Date</th>
+                  <th className="px-3.5 py-2.5 font-medium">Category</th>
+                  <th className="px-3.5 py-2.5 font-medium">Description / Note</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Amount</th>
+                  <th className="px-3.5 py-2.5 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {recentExpenses.map((e) => (
-                  <tr key={e.id} className="border-b border-slate-100 last:border-0">
-                    <td className="py-2.5 pr-4 text-slate-500">{e.expense_date}</td>
-                    <td className="py-2.5 pr-4 capitalize text-slate-900">{e.category}</td>
-                    <td className="py-2.5 pr-4 text-slate-600">{e.note || "-"}</td>
-                    <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(e.amount))}</td>
-                    <td className="py-2.5">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${e.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                  <tr key={e.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{e.expense_date}</td>
+                    <td className="px-3.5 py-2.5 font-semibold capitalize text-slate-900 dark:text-white">{e.category}</td>
+                    <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-400">{e.note || "—"}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono font-bold text-rose-600 dark:text-rose-400 tabular-nums">{inr(Number(e.amount))}</td>
+                    <td className="px-3.5 py-2.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${e.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-slate-200 text-slate-600"}`}>
                         {e.status}
                       </span>
                     </td>
@@ -676,8 +689,8 @@ export default function ReportsClient({
                 ))}
                 {recentExpenses.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
-                      No expenses in this period.
+                    <td colSpan={5} className="px-3.5 py-8 text-center text-slate-500 dark:text-slate-400">
+                      No operating expenses recorded in this period.
                     </td>
                   </tr>
                 )}
@@ -688,11 +701,11 @@ export default function ReportsClient({
       )}
 
       {tab === "returns" && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
+        <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold text-slate-900">Return History</h2>
-              <p className="text-xs text-slate-400">Newest first</p>
+              <h2 className="font-bold text-slate-950 dark:text-white">Customer Returns &amp; Credit Notes</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total returns: {inr(totalReturns)}</p>
             </div>
             <button
               onClick={() =>
@@ -702,33 +715,33 @@ export default function ReportsClient({
                   recentReturns.map((r) => [r.return_number, r.invoices?.invoice_number ?? "-", r.return_date, r.subtotal, r.refund, r.status])
                 )
               }
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
             >
-              Download CSV
+              Export Returns (CSV)
             </button>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Return #</th>
-                  <th className="py-2 pr-4 font-medium">Invoice</th>
-                  <th className="py-2 pr-4 font-medium">Date</th>
-                  <th className="py-2 pr-4 text-right font-medium">Subtotal</th>
-                  <th className="py-2 pr-4 text-right font-medium">Refund</th>
-                  <th className="py-2 font-medium">Status</th>
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-medium">Return Voucher #</th>
+                  <th className="px-3.5 py-2.5 font-medium">Original Invoice</th>
+                  <th className="px-3.5 py-2.5 font-medium">Date</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Subtotal</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Refund Amount</th>
+                  <th className="px-3.5 py-2.5 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {recentReturns.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                    <td className="py-2.5 pr-4 font-mono text-xs font-medium text-amber-700">{r.return_number}</td>
-                    <td className="py-2.5 pr-4 font-mono text-xs text-blue-700">{r.invoices?.invoice_number ?? "-"}</td>
-                    <td className="py-2.5 pr-4 text-slate-500">{r.return_date}</td>
-                    <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(r.subtotal))}</td>
-                    <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(r.refund))}</td>
-                    <td className="py-2.5">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${r.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                  <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                    <td className="px-3.5 py-2.5 font-mono text-xs font-bold text-amber-600 dark:text-amber-400">{r.return_number}</td>
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-blue-600 dark:text-blue-400">{r.invoices?.invoice_number ?? "—"}</td>
+                    <td className="px-3.5 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{r.return_date}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(Number(r.subtotal))}</td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-rose-600 dark:text-rose-400 tabular-nums">{inr(Number(r.refund))}</td>
+                    <td className="px-3.5 py-2.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${r.status === "completed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-slate-200 text-slate-600"}`}>
                         {r.status}
                       </span>
                     </td>
@@ -736,8 +749,8 @@ export default function ReportsClient({
                 ))}
                 {recentReturns.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500">
-                      No returns yet.
+                    <td colSpan={6} className="px-3.5 py-8 text-center text-slate-500 dark:text-slate-400">
+                      No customer returns recorded in this period.
                     </td>
                   </tr>
                 )}
@@ -749,37 +762,27 @@ export default function ReportsClient({
 
       {tab === "business" && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div className="mt-6 grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { label: "Transactions", value: txnSummary.count, icon: "M6 2h12a1 1 0 0 1 1 1v18l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L5 21V3a1 1 0 0 1 1-1Z", grad: "from-blue-500 to-indigo-600", sub: `${validTxns.length} successful` },
-              { label: "Principal", value: txnSummary.principal, icon: "M6 3h12M6 8h12M6 13h8a4 4 0 0 0 0-8H6v17", grad: "from-emerald-500 to-teal-600", sub: "AEPS / DMT / UPI amount" },
-              { label: "Customer Fees", value: txnSummary.fees, icon: "M8 9l4-4 8 4-8 4-4-4ZM8 9v6m0 0 4 4 8-4-4-4m-4 4V9m8 0v6", grad: "from-amber-500 to-orange-600", sub: "Service fee charged" },
-              { label: "Commission", value: txnSummary.commission, icon: "M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm11 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z", grad: "from-violet-500 to-purple-600", sub: "Portal commission" },
-              { label: "Shop Income", value: txnSummary.income, icon: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6", grad: txnSummary.income >= 0 ? "from-emerald-500 to-teal-600" : "from-rose-500 to-red-600", sub: "Fees + Commission" },
+              { label: "Transactions", value: String(txnSummary.count), sub: `${validTxns.length} successful` },
+              { label: "Principal Volume", value: inr(txnSummary.principal), sub: "AEPS / DMT / UPI volume" },
+              { label: "Customer Fees", value: inr(txnSummary.fees), sub: "Service fee charged" },
+              { label: "Portal Commission", value: inr(txnSummary.commission), sub: "Biller / Portal margin" },
+              { label: "Net Shop Income", value: inr(txnSummary.income), sub: "Fees + Commissions" },
             ].map((c) => (
-              <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-500">{c.label}</p>
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
-                      <path d={c.icon} />
-                    </svg>
-                  </div>
-                </div>
-                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                  {c.label === "Transactions" ? String(c.value) : inr(c.value)}
-                </p>
-                <p className="mt-1 text-xs text-slate-400">{c.sub}</p>
+              <div key={c.label} className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</p>
+                <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">{c.value}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{c.sub}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
+          <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="font-semibold text-slate-900">AEPS / DMT / UPI Transactions</h2>
-                <p className="text-xs text-slate-400">Successful transactions in period, newest first</p>
+                <h2 className="font-bold text-slate-950 dark:text-white">AEPS / DMT / UPI / Bill Pay Register</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">All successful business service transactions</p>
               </div>
               <button
                 onClick={() =>
@@ -789,43 +792,41 @@ export default function ReportsClient({
                     validTxns.map((t) => [t.transaction_number, t.service_type.toUpperCase(), t.transaction_date, t.customer_mobile ?? "-", t.reference ?? "-", t.amount, t.service_fee, t.portal_commission, t.status])
                   )
                 }
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
               >
-                Download CSV
+                Export Services (CSV)
               </button>
             </div>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500">
-                    <th className="py-2 pr-4 font-medium">Transaction</th>
-                    <th className="py-2 pr-4 font-medium">Service</th>
-                    <th className="py-2 pr-4 font-medium">Date</th>
-                    <th className="py-2 pr-4 font-medium">Customer</th>
-                    <th className="py-2 pr-4 font-medium">Reference</th>
-                    <th className="py-2 pr-4 text-right font-medium">Money Out</th>
-                    <th className="py-2 pr-4 text-right font-medium">Money In</th>
-                    <th className="py-2 pr-4 text-right font-medium">Fee</th>
-                    <th className="py-2 pr-4 text-right font-medium">Commission</th>
-                    <th className="py-2 font-medium">Status</th>
+                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                  <tr>
+                    <th className="px-3.5 py-2.5 font-medium">Txn Number</th>
+                    <th className="px-3.5 py-2.5 font-medium">Service</th>
+                    <th className="px-3.5 py-2.5 font-medium">Date</th>
+                    <th className="px-3.5 py-2.5 font-medium">Customer</th>
+                    <th className="px-3.5 py-2.5 font-medium">Reference</th>
+                    <th className="px-3.5 py-2.5 text-right font-medium">Principal</th>
+                    <th className="px-3.5 py-2.5 text-right font-medium">Fee</th>
+                    <th className="px-3.5 py-2.5 text-right font-medium">Commission</th>
+                    <th className="px-3.5 py-2.5 font-medium">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {validTxns.map((t) => (
-                    <tr key={t.id} className="border-b border-slate-100 last:border-0">
-                      <td className="py-2.5 pr-4 font-mono text-xs font-medium text-blue-700">{t.transaction_number}</td>
-                      <td className="py-2.5 pr-4">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold uppercase text-slate-700">{t.service_type}</span>
+                    <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                      <td className="px-3.5 py-2.5 font-mono text-xs font-bold text-blue-600 dark:text-blue-400">{t.transaction_number}</td>
+                      <td className="px-3.5 py-2.5">
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-300">{t.service_type}</span>
                       </td>
-                      <td className="py-2.5 pr-4 text-slate-500">{t.transaction_date}</td>
-                      <td className="py-2.5 pr-4 text-slate-700">{t.customer_mobile || "-"}</td>
-                      <td className="py-2.5 pr-4 text-slate-500">{t.reference || "-"}</td>
-                      <td className="py-2.5 pr-4 text-right font-medium text-rose-600">{inr(Number(t.amount))}</td>
-                      <td className="py-2.5 pr-4 text-right font-medium text-emerald-600">{inr(t.service_type === "dmt" ? Number(t.amount) + Number(t.service_fee) : Number(t.amount))}</td>
-                      <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(t.service_fee))}</td>
-                      <td className="py-2.5 pr-4 text-right text-slate-700">{inr(Number(t.portal_commission))}</td>
-                      <td className="py-2.5">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${TX_STATUS_PILL[t.status] || "bg-slate-100 text-slate-600"}`}>
+                      <td className="px-3.5 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{t.transaction_date}</td>
+                      <td className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300">{t.customer_mobile || "—"}</td>
+                      <td className="px-3.5 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{t.reference || "—"}</td>
+                      <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(Number(t.amount))}</td>
+                      <td className="px-3.5 py-2.5 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums">{inr(Number(t.service_fee))}</td>
+                      <td className="px-3.5 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{inr(Number(t.portal_commission))}</td>
+                      <td className="px-3.5 py-2.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${TX_STATUS_PILL[t.status] || "bg-slate-100 text-slate-600"}`}>
                           {t.status}
                         </span>
                       </td>
@@ -833,8 +834,8 @@ export default function ReportsClient({
                   ))}
                   {validTxns.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-500">
-                        No AEPS / DMT / UPI transactions in this period.
+                      <td colSpan={9} className="px-3.5 py-8 text-center text-slate-500 dark:text-slate-400">
+                        No service transactions in this period.
                       </td>
                     </tr>
                   )}
@@ -846,153 +847,143 @@ export default function ReportsClient({
       )}
 
       {tab === "accounts" && (
-        <>
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="font-semibold text-slate-900">Payments by Account</h2>
-                <p className="text-xs text-slate-400">
-                  Cash, bank, UPI, wallet and card collections in period — each named instrument separately
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-900">
-                  {inr(instrumentTotals.reduce((s, r) => s + r.in, 0))}
-                </span>
-                <button
-                  onClick={() =>
-                    downloadCsv(
-                      "payment-accounts.csv",
-                      ["Account", "Type", "Received"],
-                      instrumentTotals.map((r) => [r.name, INSTRUMENT_LABEL[r.type] ?? r.type, r.in])
-                    )
-                  }
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
-                >
-                  Download CSV
-                </button>
-              </div>
+        <div className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-slate-950 dark:text-white">Payment Instruments &amp; Accounts Ledger</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Inflow collections across cash drawer, bank accounts, QR terminals and digital wallets
+              </p>
             </div>
-
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500">
-                    <th className="py-2 pr-4 font-medium">Account</th>
-                    <th className="py-2 pr-4 font-medium">Type</th>
-                    <th className="py-2 pr-4 text-right font-medium">Received</th>
-                    <th className="w-8 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {instrumentTotals.map((r) => {
-                    const open = openInst === r.name;
-                    const detail = cashEntries.filter(
-                      (ce) =>
-                        (ce.payment_instruments?.name ?? "Counter Cash") === r.name &&
-                        ce.direction === "in" &&
-                        ce.entry_date >= range.from &&
-                        ce.entry_date <= range.to
-                    );
-                    return (
-                      <Fragment key={r.name}>
-                        <tr
-                          onClick={() => setOpenInst(open ? null : r.name)}
-                          className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50"
-                        >
-                          <td className="py-2.5 pr-4 font-medium text-slate-900">{r.name}</td>
-                          <td className="py-2.5 pr-4">
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600">
-                              {INSTRUMENT_LABEL[r.type] ?? r.type}
-                            </span>
-                          </td>
-                          <td className="py-2.5 pr-4 text-right font-semibold text-slate-900">{inr(r.in)}</td>
-                          <td className="py-2.5 text-right text-slate-400">{open ? "−" : "+"}</td>
-                        </tr>
-                        {open && (
-                          <tr className="border-b border-slate-100 bg-slate-50/60">
-                            <td colSpan={4} className="px-4 py-3">
-                              {detail.length === 0 ? (
-                                <p className="text-sm text-slate-400">No entries in this period.</p>
-                              ) : (
-                                <ul className="divide-y divide-slate-100">
-                                  {detail.map((ce) => (
-                                    <li key={ce.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-                                      <span className="min-w-0 flex-1 truncate text-slate-600">
-                                        <span className="font-medium text-slate-800">{ce.entry_date}</span>
-                                        {" · "}
-                                        {ce.description || ce.method}
-                                      </span>
-                                      <span className="shrink-0 font-semibold text-slate-900">{inr(Number(ce.amount))}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                  {instrumentTotals.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-slate-500">
-                        No collections in this period.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-bold text-slate-950 dark:text-white tabular-nums">
+                Total Inflows: {inr(instrumentTotals.reduce((s, r) => s + r.in, 0))}
+              </span>
+              <button
+                onClick={() =>
+                  downloadCsv(
+                    "payment-accounts.csv",
+                    ["Account", "Type", "Received"],
+                    instrumentTotals.map((r) => [r.name, INSTRUMENT_LABEL[r.type] ?? r.type, r.in])
+                  )
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+              >
+                Export Accounts (CSV)
+              </button>
             </div>
           </div>
-        </>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-medium">Instrument / Account</th>
+                  <th className="px-3.5 py-2.5 font-medium">Type</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Total Received Inflow</th>
+                  <th className="w-8 px-3.5 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {instrumentTotals.map((r) => {
+                  const open = openInst === r.name;
+                  const detail = cashEntries.filter(
+                    (ce) =>
+                      (ce.payment_instruments?.name ?? "Counter Cash") === r.name &&
+                      ce.direction === "in" &&
+                      ce.entry_date >= range.from &&
+                      ce.entry_date <= range.to
+                  );
+                  return (
+                    <Fragment key={r.name}>
+                      <tr
+                        onClick={() => setOpenInst(open ? null : r.name)}
+                        className="cursor-pointer hover:bg-slate-50/50 dark:hover:bg-white/5"
+                      >
+                        <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-white">{r.name}</td>
+                        <td className="px-3.5 py-2.5">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {INSTRUMENT_LABEL[r.type] ?? r.type}
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(r.in)}</td>
+                        <td className="px-3.5 py-2.5 text-right text-slate-400">{open ? "−" : "+"}</td>
+                      </tr>
+                      {open && (
+                        <tr className="bg-slate-50/70 dark:bg-slate-800/40">
+                          <td colSpan={4} className="px-4 py-3">
+                            {detail.length === 0 ? (
+                              <p className="text-xs text-slate-400">No entries in this period.</p>
+                            ) : (
+                              <ul className="divide-y divide-slate-200/50 dark:divide-white/5">
+                                {detail.map((ce) => (
+                                  <li key={ce.id} className="flex items-center justify-between gap-2 py-2 text-xs">
+                                    <span className="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-300">
+                                      <span className="font-mono font-semibold">{ce.entry_date}</span>
+                                      {" · "}
+                                      {ce.description || ce.method}
+                                    </span>
+                                    <span className="shrink-0 font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(Number(ce.amount))}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {instrumentTotals.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-3.5 py-8 text-center text-slate-500 dark:text-slate-400">
+                      No collections recorded in this period.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {tab === "quick" && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Quick Sales", value: quickSummary.count, icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z", grad: "from-teal-500 to-emerald-600", sub: `${validQuick.length} in period` },
-              { label: "Collected", value: quickSummary.amount, icon: "M20 6 9 17l-5-5", grad: "from-blue-500 to-indigo-600", sub: "What customers paid" },
-              { label: "Cost", value: quickSummary.cost, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5", grad: "from-amber-500 to-orange-600", sub: "Net cost you paid" },
-              { label: "Margin", value: quickSummary.amount - quickSummary.cost, icon: "M3 3v18h18M7 14l4-4 3 3 5-6", grad: "from-emerald-500 to-teal-600", sub: "Amount − Cost" },
+              { label: "Quick POS Sales", value: String(quickSummary.count), sub: `${validQuick.length} sales in period` },
+              { label: "Collected Amount", value: inr(quickSummary.amount), sub: "Gross counter turnover" },
+              { label: "Direct POS Cost", value: inr(quickSummary.cost), sub: "Item acquisition cost" },
+              { label: "Gross POS Margin", value: inr(quickSummary.amount - quickSummary.cost), sub: "Amount − Cost" },
             ].map((c) => (
-              <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-500">{c.label}</p>
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white`}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
-                      <path d={c.icon} />
-                    </svg>
-                  </div>
-                </div>
-                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                  {c.label === "Quick Sales" ? String(c.value) : inr(c.value)}
-                </p>
-                <p className="mt-1 text-xs text-slate-400">{c.sub}</p>
+              <div key={c.label} className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</p>
+                <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">{c.value}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{c.sub}</p>
               </div>
             ))}
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">Collected by Method</h2>
-                <span className="text-sm font-medium text-slate-600">{inr(quickSummary.amount)}</span>
+                <div>
+                  <h2 className="font-bold text-slate-950 dark:text-white">Quick Sales by Instrument</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Total: {inr(quickSummary.amount)}</p>
+                </div>
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-3.5">
                 {quickSummary.byMethod.map(([m, amt]) => {
                   const pct = quickSummary.amount > 0 ? (amt / quickSummary.amount) * 100 : 0;
                   return (
                     <div key={m}>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium uppercase text-slate-700">{INSTRUMENT_LABEL[m] ?? m}</span>
-                        <span className="text-slate-900">{inr(amt)}</span>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold uppercase text-slate-700 dark:text-slate-300">{INSTRUMENT_LABEL[m] ?? m}</span>
+                        <span className="font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(amt)} ({pct.toFixed(1)}%)</span>
                       </div>
-                      <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+                      <div className="mt-1.5 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
-                          className="h-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-400"
+                          className="h-2 rounded-full bg-emerald-600 dark:bg-emerald-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -1000,14 +991,17 @@ export default function ReportsClient({
                   );
                 })}
                 {quickSummary.byMethod.length === 0 && (
-                  <p className="text-sm text-slate-500">No quick sales yet.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No quick sales recorded.</p>
                 )}
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">Recent Quick Sales</h2>
+                <div>
+                  <h2 className="font-bold text-slate-950 dark:text-white">Quick POS Counter Register</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Recent over-the-counter slips</p>
+                </div>
                 <button
                   onClick={() =>
                     downloadCsv(
@@ -1025,40 +1019,40 @@ export default function ReportsClient({
                       ])
                     )
                   }
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
-                  Download CSV
+                  Export CSV
                 </button>
               </div>
               <div className="mt-4 max-h-80 overflow-x-auto overflow-y-auto">
                 <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-500">
-                      <th className="py-2 pr-4 font-medium">Sale #</th>
-                      <th className="py-2 pr-4 font-medium">Item</th>
-                      <th className="py-2 pr-4 text-right font-medium">Amount</th>
-                      <th className="py-2 pr-4 text-right font-medium">Margin</th>
-                      <th className="py-2 font-medium">Status</th>
+                  <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Slip #</th>
+                      <th className="px-3 py-2 font-medium">Item Description</th>
+                      <th className="px-3 py-2 text-right font-medium">Amount</th>
+                      <th className="px-3 py-2 text-right font-medium">Margin</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                     {validQuick.slice(0, 50).map((q) => (
-                      <tr key={q.id} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2.5 pr-4 font-mono text-xs font-medium text-teal-700">{q.sale_number}</td>
-                        <td className="py-2.5 pr-4 text-slate-700">
-                          <span className="block max-w-[180px] truncate">
+                      <tr key={q.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                        <td className="px-3 py-2 font-mono text-xs font-bold text-teal-600 dark:text-teal-400">{q.sale_number}</td>
+                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                          <span className="block max-w-[180px] truncate font-medium text-slate-900 dark:text-white">
                             {q.item_name ?? q.products?.name ?? q.services?.name ?? "Sale (general)"}
                           </span>
-                          <span className="block text-xs text-slate-400">
+                          <span className="block text-[11px] text-slate-500 dark:text-slate-400">
                             {q.sale_date} · {q.customers?.name ?? "Walk-in"}
                           </span>
                         </td>
-                        <td className="py-2.5 pr-4 text-right font-medium text-slate-900">{inr(Number(q.amount))}</td>
-                        <td className="py-2.5 pr-4 text-right font-semibold text-emerald-600">
+                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(Number(q.amount))}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                           {inr(Number(q.amount) - Number(q.cost))}
                         </td>
-                        <td className="py-2.5">
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium capitalize text-emerald-700">
+                        <td className="px-3 py-2">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold capitalize text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                             {q.status}
                           </span>
                         </td>
@@ -1066,7 +1060,7 @@ export default function ReportsClient({
                     ))}
                     {validQuick.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500">
+                        <td colSpan={5} className="px-3 py-8 text-center text-slate-500 dark:text-slate-400">
                           No quick sales in this period.
                         </td>
                       </tr>
@@ -1079,20 +1073,23 @@ export default function ReportsClient({
         </>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-        <div className="flex gap-4 text-sm text-slate-500">
-          <Link href="/finance/pnl" className="font-medium text-blue-600 hover:text-blue-700">
-            Profit &amp; Loss →
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-slate-900">
+        <div className="flex flex-wrap gap-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
+          <Link href="/reports/profit-loss" className="text-blue-600 hover:underline dark:text-blue-400">
+            Profit &amp; Loss Statement →
           </Link>
-          <Link href="/finance/cashbook" className="font-medium text-blue-600 hover:text-blue-700">
-            Cash Book →
+          <Link href="/reports/cash-bank" className="text-blue-600 hover:underline dark:text-blue-400">
+            Cash &amp; Bank Reconciliation →
+          </Link>
+          <Link href="/reports/transaction-audit" className="text-blue-600 hover:underline dark:text-blue-400">
+            Transaction GL Audit →
           </Link>
         </div>
         <button
           onClick={() => window.print()}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
         >
-          Print report
+          Print Formal Report
         </button>
       </div>
     </div>

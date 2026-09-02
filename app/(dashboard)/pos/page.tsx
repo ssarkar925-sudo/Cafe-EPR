@@ -85,7 +85,6 @@ export default async function PosPage({
 
   return (
     <div className="pos-premium-root">
-      <PosOpsStrip count={salesTodayCount} amount={salesTodayAmount} />
       <PosClient
         products={(products ?? []) as any}
         services={(services ?? []) as any}

@@ -7,21 +7,350 @@ import ServiceFormModal from "./service-form-modal";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
 import type { CategoryRef } from "./products-client";
+import {
+  Layers,
+  Search,
+  Plus,
+  ArrowRight,
+  TrendingUp,
+  DollarSign,
+  CheckCircle2,
+  XCircle,
+  Percent,
+} from "lucide-react";
 
-export type Service = { id:string; name:string; description:string|null; category_id:string|null; sale_price:number|string; cost_price:number|string; is_active:boolean; categories:{name:string}|null };
-type ModalState = {mode:"create"}|{mode:"edit";service:Service}|null;
-function gradient(name:string){const p=["from-blue-500 to-cyan-400","from-violet-500 to-fuchsia-400","from-emerald-500 to-teal-400","from-amber-500 to-orange-400","from-rose-500 to-pink-400","from-indigo-500 to-purple-400"];let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;return p[h%p.length]}
+export type Service = {
+  id: string;
+  name: string;
+  description: string | null;
+  category_id: string | null;
+  sale_price: number | string;
+  cost_price: number | string;
+  is_active: boolean;
+  categories: { name: string } | null;
+};
 
-export default function ServicesClient({initialServices,categories,embedded=false}:{initialServices:Service[];categories:CategoryRef[];embedded?:boolean}){
- useRealtime(["services","categories"]); const [services,setServices]=useState(initialServices); const [q,setQ]=useState(""); const [cat,setCat]=useState("all"); const [status,setStatus]=useState<"all"|"active"|"inactive">("all"); const [modal,setModal]=useState<ModalState>(null); const [deletingId,setDeletingId]=useState<string|null>(null); const supabase=createClient();
- const filtered=useMemo(()=>{const n=q.trim().toLowerCase();return services.filter(s=>(status==="all"||(status==="active"?s.is_active:!s.is_active))&&(cat==="all"||s.category_id===cat)&&(!n||s.name.toLowerCase().includes(n)))},[services,q,cat,status]);
- const stats=useMemo(()=>{const a=services.filter(s=>s.is_active),sale=a.reduce((x,s)=>x+Number(s.sale_price),0),cost=a.reduce((x,s)=>x+Number(s.cost_price),0);return{total:services.length,active:a.length,avg:a.length?sale/a.length:0,margin:sale-cost}},[services]);
- async function saveService(input:{name:string;description:string;category_id:string|null;sale_price:number;cost_price:number},service?:Service){if(service){const{error}=await supabase.from("services").update(input).eq("id",service.id);if(error)return alert(error.message);setServices(p=>p.map(s=>s.id===service.id?{...s,...input}:s))}else{const{data,error}=await supabase.from("services").insert({...input,is_active:true}).select("*, categories(name)").single();if(error)return alert(error.message);setServices(p=>[data as Service,...p])}setModal(null)}
- async function setServiceActive(id:string,active:boolean){setDeletingId(id);const{error}=await supabase.from("services").update({is_active:active}).eq("id",id);setDeletingId(null);if(error)return alert(error.message);setServices(p=>p.map(s=>s.id===id?{...s,is_active:active}:s))}
- const cards=[{label:"Total Services",value:String(stats.total),icon:"M13 2 3 14h7l-1 8 10-12h-7l1-8Z",grad:"from-blue-500 to-indigo-600"},{label:"Active",value:String(stats.active),icon:"M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14l-3-3",grad:"from-emerald-500 to-teal-600"},{label:"Avg Sale Price",value:inr(stats.avg),icon:"M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",grad:"from-amber-500 to-orange-600"},{label:"Gross Margin",value:inr(stats.margin),icon:"M12 20V10M18 20V4M6 20v-4",grad:stats.margin>=0?"from-violet-500 to-purple-600":"from-rose-500 to-pink-600"}];
- return <div className={`${embedded?"max-w-none":"mx-auto max-w-6xl px-4 py-8 lg:px-8"} catalog-premium`}><div className="catalog-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Catalog</p><h1 className="text-2xl font-bold text-slate-900">Services</h1><p className="text-sm text-slate-500">Charges and rates for service items.</p></div><div className="catalog-actions flex flex-wrap gap-2"><button onClick={()=>setModal({mode:"create"})} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">+ Add Service</button></div></div>
- <div className="catalog-stats mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">{cards.map(c=><div key={c.label} className="catalog-stat relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`}/><div className="flex items-center justify-between"><div><p className="text-xs font-medium text-slate-500">{c.label}</p><p className="mt-1 text-xl font-bold text-slate-900">{c.value}</p></div><div className={`catalog-stat-icon flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d={c.icon}/></svg></div></div></div>)}</div>
- <div className="catalog-toolbar mt-6 flex flex-wrap items-center gap-3"><div className="relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search services..." className="w-full max-w-xs rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"/></div><SearchableSelect value={cat} onChange={setCat} options={[{value:"all",label:"All categories"},...categories.filter(c=>c.is_active).map(c=>({value:c.id,label:c.name}))]} searchPlaceholder="Search category…" className="w-52"/><div className="catalog-status flex rounded-xl bg-slate-100 p-1 text-sm">{(["all","active","inactive"] as const).map(s=><button key={s} onClick={()=>setStatus(s)} className={`rounded-lg px-3 py-2 ${status===s?"bg-white font-medium text-slate-900 shadow-sm":"text-slate-500"}`}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div><span className="text-sm text-slate-500">{filtered.length} services</span></div>
- <div className="catalog-table-wrap mt-4 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"><table className="catalog-table w-full text-left text-sm"><thead><tr className="border-b border-slate-200 text-slate-500">{["Service","Category","Cost","Sale","Margin","Status","Actions"].map((h,i)=><th key={h} className={`px-4 py-3 font-medium ${i===6?"text-right":""}`}>{h}</th>)}</tr></thead><tbody>{filtered.map(s=>{const cost=Number(s.cost_price),sale=Number(s.sale_price),margin=sale-cost;return <tr key={s.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70"><td className="px-4 py-3"><div className="flex items-center gap-3"><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(s.name)} text-xs font-bold text-white`}>{s.name.slice(0,2).toUpperCase()}</div><div><p className="font-medium text-slate-900">{s.name}</p>{s.description&&<p className="max-w-xs truncate text-xs text-slate-400">{s.description}</p>}</div></div></td><td className="px-4 py-3">{s.categories?<span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{s.categories.name}</span>:<span className="text-slate-400">-</span>}</td><td className="px-4 py-3 text-slate-500">{inr(cost)}</td><td className="px-4 py-3 font-medium text-slate-900">{inr(sale)}</td><td className="px-4 py-3"><span className={`font-medium ${margin>=0?"text-emerald-600":"text-rose-600"}`}>{margin>=0?"+":""}{inr(margin)}</span></td><td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs ${s.is_active?"bg-emerald-100 text-emerald-700":"bg-slate-100 text-slate-500"}`}>{s.is_active?"Active":"Inactive"}</span></td><td className="px-4 py-3"><div className="flex justify-end gap-2"><button onClick={()=>setModal({mode:"edit",service:s})} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Edit</button><button onClick={()=>setServiceActive(s.id,!s.is_active)} disabled={deletingId===s.id} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50 ${s.is_active?"border-rose-200 text-rose-600 hover:bg-rose-50":"border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`}>{deletingId===s.id?"...":s.is_active?"Deactivate":"Activate"}</button></div></td></tr>})}{filtered.length===0&&<tr><td colSpan={7} className="catalog-empty px-4 py-8 text-center"><div className="mx-auto max-w-sm"><div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl">✦</div><p className="font-semibold text-slate-800">No services found</p><p className="mt-1 text-sm text-slate-500">Try changing your filters, or add your first service to make it available in POS.</p><button onClick={()=>setModal({mode:"create"})} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Add Service</button></div></td></tr>}</tbody></table></div>
- {modal&&<ServiceFormModal state={modal} categories={categories} onClose={()=>setModal(null)} onSave={saveService}/>}</div>
+type ModalState = { mode: "create" } | { mode: "edit"; service: Service } | null;
+
+function gradient(name: string) {
+  const p = [
+    "from-violet-500 to-indigo-600",
+    "from-blue-500 to-cyan-500",
+    "from-emerald-500 to-teal-600",
+    "from-amber-500 to-orange-600",
+    "from-rose-500 to-pink-600",
+    "from-purple-500 to-fuchsia-600",
+  ];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return p[h % p.length];
+}
+
+export default function ServicesClient({
+  initialServices,
+  categories,
+  embedded = false,
+}: {
+  initialServices: Service[];
+  categories: CategoryRef[];
+  embedded?: boolean;
+}) {
+  useRealtime(["services", "categories"]);
+  const [services, setServices] = useState<Service[]>(initialServices);
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState("all");
+  const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
+  const [modal, setModal] = useState<ModalState>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const supabase = createClient();
+
+  const filtered = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return services.filter(
+      (s) =>
+        (status === "all" || (status === "active" ? s.is_active : !s.is_active)) &&
+        (cat === "all" || s.category_id === cat) &&
+        (!n || s.name.toLowerCase().includes(n) || (s.description ?? "").toLowerCase().includes(n))
+    );
+  }, [services, q, cat, status]);
+
+  const stats = useMemo(() => {
+    const a = services.filter((s) => s.is_active);
+    const sale = a.reduce((x, s) => x + Number(s.sale_price), 0);
+    const cost = a.reduce((x, s) => x + Number(s.cost_price), 0);
+    return {
+      total: services.length,
+      active: a.length,
+      avg: a.length ? sale / a.length : 0,
+      margin: sale - cost,
+    };
+  }, [services]);
+
+  async function saveService(
+    input: {
+      name: string;
+      description: string;
+      category_id: string | null;
+      sale_price: number;
+      cost_price: number;
+    },
+    service?: Service
+  ) {
+    if (service) {
+      const { error } = await supabase.from("services").update(input).eq("id", service.id);
+      if (error) return alert(error.message);
+      setServices((p) => p.map((s) => (s.id === service.id ? { ...s, ...input } : s)));
+    } else {
+      const { data, error } = await supabase
+        .from("services")
+        .insert({ ...input, is_active: true })
+        .select("*, categories(name)")
+        .single();
+      if (error) return alert(error.message);
+      setServices((p) => [data as Service, ...p]);
+    }
+    setModal(null);
+  }
+
+  async function setServiceActive(id: string, active: boolean) {
+    setDeletingId(id);
+    const { error } = await supabase.from("services").update({ is_active: active }).eq("id", id);
+    setDeletingId(null);
+    if (error) return alert(error.message);
+    setServices((p) => p.map((s) => (s.id === id ? { ...s, is_active: active } : s)));
+  }
+
+  const statCards = [
+    { label: "Total Services", value: String(stats.total), icon: Layers, tone: "blue" },
+    { label: "Active Services", value: String(stats.active), icon: CheckCircle2, tone: "emerald" },
+    { label: "Avg Sale Price", value: inr(stats.avg), icon: DollarSign, tone: "amber" },
+    { label: "Gross Margin", value: inr(stats.margin), icon: TrendingUp, tone: stats.margin >= 0 ? "indigo" : "rose" },
+  ];
+
+  return (
+    <div className={`${embedded ? "max-w-none" : "mx-auto max-w-6xl px-4 py-8 lg:px-8"}`}>
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+            Catalog Master
+          </p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Services Catalog</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Billable service charges, printing, scanning, typing, internet sessions, and rates.
+          </p>
+        </div>
+        <button
+          onClick={() => setModal({ mode: "create" })}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-violet-700"
+        >
+          <Plus className="h-4 w-4" />
+          Add Service
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {statCards.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div
+              key={c.label}
+              className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{c.label}</p>
+                  <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{c.value}</p>
+                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  <Icon className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Search & Filters */}
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search services..."
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs font-semibold outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          />
+        </div>
+
+        <div className="w-52">
+          <SearchableSelect
+            value={cat}
+            onChange={setCat}
+            options={[
+              { value: "all", label: "All Categories" },
+              ...categories.filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name })),
+            ]}
+            searchPlaceholder="Search category…"
+          />
+        </div>
+
+        <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold dark:bg-white/5">
+          {(["all", "active", "inactive"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(s)}
+              className={`rounded-lg px-3 py-1.5 transition ${
+                status === s
+                  ? "bg-white font-black text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              {s[0].toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        <span className="text-xs font-bold text-slate-400">{filtered.length} services</span>
+      </div>
+
+      {/* Services Table */}
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-slate-200 bg-slate-50/75 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3 font-bold uppercase tracking-wider">Service Name</th>
+                <th className="px-4 py-3 font-bold uppercase tracking-wider">Category</th>
+                <th className="px-4 py-3 text-right font-bold uppercase tracking-wider">Cost Price</th>
+                <th className="px-4 py-3 text-right font-bold uppercase tracking-wider">Sale Price</th>
+                <th className="px-4 py-3 text-right font-bold uppercase tracking-wider">Gross Margin</th>
+                <th className="px-4 py-3 text-center font-bold uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-right font-bold uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filtered.map((s) => {
+                const cost = Number(s.cost_price);
+                const sale = Number(s.sale_price);
+                const margin = sale - cost;
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50/75 dark:hover:bg-white/5 transition">
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
+                            s.name
+                          )} text-xs font-black text-white`}
+                        >
+                          {s.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 dark:text-white">{s.name}</p>
+                          {s.description && (
+                            <p className="max-w-xs truncate text-[11px] text-slate-400">{s.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {s.categories ? (
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                          {s.categories.name}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-medium text-slate-500 dark:text-slate-400">
+                      {inr(cost)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-black text-slate-900 dark:text-white">
+                      {inr(sale)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <span
+                        className={`font-black ${
+                          margin >= 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-rose-600 dark:text-rose-400"
+                        }`}
+                      >
+                        {margin >= 0 ? "+" : ""}
+                        {inr(margin)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                          s.is_active
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                            : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400"
+                        }`}
+                      >
+                        {s.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setModal({ mode: "edit", service: s })}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setServiceActive(s.id, !s.is_active)}
+                          disabled={deletingId === s.id}
+                          className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
+                            s.is_active
+                              ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          }`}
+                        >
+                          {deletingId === s.id ? "..." : s.is_active ? "Deactivate" : "Activate"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center">
+                    <div className="mx-auto max-w-sm">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/5">
+                        <Layers className="h-6 w-6" />
+                      </div>
+                      <p className="font-bold text-slate-800 dark:text-white">No services found</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Try changing your filters or add your first billable service.
+                      </p>
+                      <button
+                        onClick={() => setModal({ mode: "create" })}
+                        className="mt-4 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-violet-700"
+                      >
+                        + Add Service
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {modal && (
+        <ServiceFormModal
+          state={modal}
+          categories={categories}
+          onClose={() => setModal(null)}
+          onSave={saveService}
+        />
+      )}
+    </div>
+  );
 }

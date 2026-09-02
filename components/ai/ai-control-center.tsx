@@ -264,18 +264,21 @@ export default function AIControlCenter({
       {toastView}
 
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl sm:p-8">
+      <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-slate-900 p-6 text-white shadow-xl dark:border-white/10 sm:p-8">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
+
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
+            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-3 py-1 text-[11px] font-bold tracking-wide text-indigo-300">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               AI Intelligence &amp; Autonomous Audit Suite
             </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
               AI Control Center &amp; Compliance Hub
             </h1>
-            <p className="max-w-2xl text-xs text-indigo-200/80 sm:text-sm">
-              Real-time software self-diagnostics, ITR-ready Section 44AD presumptive tax calculations, cash &amp; pool reconciliations, customer credit risk intelligence, and secure document vault.
+            <p className="max-w-2xl text-xs text-slate-300 sm:text-sm leading-relaxed">
+              Real-time software self-diagnostics, Section 44AD presumptive tax calculations, cash &amp; pool reconciliations, customer credit risk intelligence, and secure document vault.
             </p>
           </div>
 
@@ -283,7 +286,7 @@ export default function AIControlCenter({
             <button
               onClick={handleRunDiagnostic}
               disabled={runningScan}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 active:scale-95 disabled:opacity-50"
             >
               <svg className={`h-4 w-4 ${runningScan ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -299,35 +302,35 @@ export default function AIControlCenter({
         {/* Top KPI Cards inside Banner */}
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-200">System Health</div>
-            <div className="mt-1 flex items-baseline gap-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">System Health</div>
+            <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-2xl font-black text-emerald-400">{diagnosticData.healthScore}</span>
-              <span className="text-xs text-indigo-300">/ 100</span>
+              <span className="text-xs text-slate-400">/ 100</span>
             </div>
-            <div className="mt-1 text-[11px] text-emerald-300">
+            <div className="mt-1 text-[11px] font-semibold text-emerald-300">
               {diagnosticData.passedChecks} of {diagnosticData.totalChecks} checks verified
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-200">Compliance Readiness</div>
-            <div className="mt-1 flex items-baseline gap-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Compliance Readiness</div>
+            <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-2xl font-black text-blue-400">{complianceReport.score}</span>
-              <span className="text-xs text-indigo-300">/ 100</span>
+              <span className="text-xs text-slate-400">/ 100</span>
             </div>
-            <div className="mt-1 text-[11px] text-blue-300">GST &amp; ITR Ready</div>
+            <div className="mt-1 text-[11px] font-semibold text-blue-300">GST &amp; ITR Ready</div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-200">Recognized Turnover</div>
-            <div className="mt-1 text-xl font-bold text-white sm:text-2xl">{inr(taxReport.totalRecognizedTurnover)}</div>
-            <div className="mt-1 text-[11px] text-indigo-300">{taxReport.digitalPercent}% Digital / 44AD</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recognized Turnover</div>
+            <div className="mt-1 text-xl font-black text-white sm:text-2xl">{inr(taxReport.totalRecognizedTurnover)}</div>
+            <div className="mt-1 text-[11px] font-medium text-slate-300">{taxReport.digitalPercent}% Digital / 44AD</div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-200">Net Operating Margin</div>
-            <div className="mt-1 text-xl font-bold text-emerald-400 sm:text-2xl">{inr(taxReport.actualNetProfit)}</div>
-            <div className="mt-1 text-[11px] text-emerald-300">Est. Profit: {taxReport.actualMarginPercent}%</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Net Operating Margin</div>
+            <div className="mt-1 text-xl font-black text-emerald-400 sm:text-2xl">{inr(taxReport.actualNetProfit)}</div>
+            <div className="mt-1 text-[11px] font-semibold text-emerald-300">Est. Profit: {taxReport.actualMarginPercent}%</div>
           </div>
         </div>
       </div>

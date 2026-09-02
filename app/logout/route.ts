@@ -59,7 +59,8 @@ async function handleLogout(request: Request | NextRequest) {
         maxAge: 0,
         expires: new Date(0),
         httpOnly: true,
-        sameSite: "lax",
+        sameSite: "none",
+        secure: true,
       });
       response.cookies.delete(cookieName);
     }

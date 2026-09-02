@@ -166,11 +166,15 @@ export default function LoginPage() {
       password,
     });
 
-    supabase.rpc("log_login_attempt", {
-      p_email: email,
-      p_success: !error,
-      p_error: error?.message ?? null,
-    });
+    try {
+      supabase.rpc("log_login_attempt", {
+        p_email: email,
+        p_success: !error,
+        p_error: error?.message ?? null,
+      }).then(() => {}, () => {});
+    } catch {
+      /* ignore */
+    }
 
     if (error) {
       const next = attempts + 1;

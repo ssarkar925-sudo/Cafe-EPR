@@ -1,13 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { inr } from "@/lib/format";
+import { ChevronRight, Download, Scale, CheckCircle2, AlertTriangle, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ from?: string; to?: string; instrument?: string }>;
 
-type Instrument = { id: string; name: string; type: string; is_active: boolean; opening_balance: string | number | null; current_balance: string | number | null };
+type Instrument = {
+  id: string;
+  name: string;
+  type: string;
+  is_active: boolean;
+  opening_balance: string | number | null;
+  current_balance: string | number | null;
+};
+
 type CashEntry = {
   id: string;
   entry_date: string;
@@ -86,44 +96,295 @@ export default async function CashBankReportPage({ searchParams }: { searchParam
   const exportHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-6 pb-12" id="cash-bank-report">
+      {/* Top Breadcrumb & Header */}
+      <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Financial control</div>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Cash &amp; Bank Reconciliation</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">Instrument-ID based reconciliation: opening balance + all linked ledger movement = expected balance, compared with the recorded current balance.</p>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <Link href="/reports" className="hover:text-blue-600 dark:hover:text-blue-400">
+              Reports &amp; Tax Hub
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <span className="font-bold text-slate-900 dark:text-white">Cash &amp; Bank Reconciliation</span>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
+            Cash &amp; Bank Reconciliation
+          </h1>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm dark:text-slate-400">
+            Instrument-level audit: Opening balance + linked ledger movement = expected balance vs. recorded position.
+          </p>
         </div>
-        <a href={exportHref} download={`cash-bank-${from}-to-${to}.csv`} className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Export CSV</a>
+
+        <div className="flex items-center gap-2.5">
+          <a
+            href={exportHref}
+            download={`cash-bank-${from}-to-${to}.csv`}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-blue-500"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export CSV</span>
+          </a>
+        </div>
       </div>
 
-      <form className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4 dark:border-white/10 dark:bg-slate-900">
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">From<input name="from" type="date" defaultValue={from} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950 dark:text-white" /></label>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">To<input name="to" type="date" defaultValue={to} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950 dark:text-white" /></label>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300 md:col-span-2">Instrument<select name="instrument" defaultValue={instrument} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><option value="">All instruments</option>{instruments.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.type}{x.is_active ? "" : " · inactive"}</option>)}</select></label>
-        <div className="md:col-span-4 flex justify-end"><button className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950" type="submit">Apply filters</button></div>
+      {/* Filter Bar */}
+      <form className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs md:grid-cols-4 dark:border-white/10 dark:bg-slate-900">
+        <div>
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">From Date</label>
+          <input
+            name="from"
+            type="date"
+            defaultValue={from}
+            className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">To Date</label>
+          <input
+            name="to"
+            type="date"
+            defaultValue={to}
+            className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Payment Instrument</label>
+          <select
+            name="instrument"
+            defaultValue={instrument}
+            className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-2xs dark:border-white/10 dark:bg-slate-950 dark:text-white"
+          >
+            <option value="">All instruments &amp; bank accounts</option>
+            {instruments.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name} &bull; {x.type} {x.is_active ? "" : "(Inactive)"}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end md:col-span-4">
+          <button
+            type="submit"
+            className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+          >
+            Apply Filters
+          </button>
+        </div>
       </form>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {[["Recorded Inflows", totalIn], ["Recorded Outflows", totalOut], ["Net Movement", netMovement], ["PASS", passCount], ["EXCEPTIONS", exceptionCount]].map(([label, value]) => (
-          <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</div>
-            <div className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{["PASS", "EXCEPTIONS"].includes(String(label)) ? value : inr(Number(value))}</div>
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Inflows
+            </span>
+            <span className="rounded-md bg-emerald-50 p-1 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+              <ArrowDownLeft className="h-4 w-4" />
+            </span>
           </div>
-        ))}
+          <div className="mt-2 font-mono text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+            {inr(totalIn)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Recorded collections</div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Outflows
+            </span>
+            <span className="rounded-md bg-rose-50 p-1 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 font-mono text-xl font-bold tracking-tight text-rose-600 dark:text-rose-400 tabular-nums">
+            {inr(totalOut)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Recorded disbursements</div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Net Movement
+            </span>
+            <span className="rounded-md bg-blue-50 p-1 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+              <Scale className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 font-mono text-xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+            {inr(netMovement)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Net ledger change</div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Reconciled
+            </span>
+            <span className="rounded-md bg-emerald-50 p-1 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 font-mono text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+            {passCount}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Passing instruments</div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Exceptions
+            </span>
+            <span className="rounded-md bg-amber-50 p-1 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+          </div>
+          <div className={`mt-2 font-mono text-xl font-bold tracking-tight tabular-nums ${exceptionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-950 dark:text-white"}`}>
+            {exceptionCount}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Variance alerts</div>
+        </div>
       </div>
 
-      <div className={`rounded-2xl border p-4 text-sm ${exceptionCount ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-200" : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200"}`}>
-        <strong>Reconciliation:</strong> {exceptionCount ? `${exceptionCount} instrument(s) have a balance difference.` : balances.length ? "All instruments with a recorded current balance reconcile to their opening balance plus linked ledger movement." : "No instruments available for reconciliation."}
+      {/* Audit Banner */}
+      <div
+        className={`flex items-start gap-3 rounded-2xl border p-4 text-xs sm:text-sm ${
+          exceptionCount
+            ? "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200"
+            : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200"
+        }`}
+      >
+        {exceptionCount ? <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" /> : <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />}
+        <div>
+          <strong>Reconciliation Verdict:</strong>{" "}
+          {exceptionCount
+            ? `${exceptionCount} instrument(s) show a balance variance between expected movement and recorded current balance.`
+            : balances.length
+            ? "All active payment instruments with recorded balances reconcile 100% with opening positions and linked ledger entries."
+            : "No payment instruments registered for reconciliation."}
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="border-b border-slate-200 px-5 py-4 dark:border-white/10"><h2 className="font-semibold text-slate-950 dark:text-white">Balance reconciliation</h2></div>
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5"><tr><th className="px-5 py-3">Instrument</th><th className="px-5 py-3">Type</th><th className="px-5 py-3 text-right">Opening</th><th className="px-5 py-3 text-right">Ledger movement</th><th className="px-5 py-3 text-right">Expected</th><th className="px-5 py-3 text-right">Recorded</th><th className="px-5 py-3 text-right">Difference</th><th className="px-5 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-white/5">{balances.map((x) => <tr key={x.id}><td className="px-5 py-3 font-medium text-slate-900 dark:text-white">{x.name}</td><td className="px-5 py-3 text-slate-500 dark:text-slate-400">{x.type}</td><td className="px-5 py-3 text-right">{inr(x.opening)}</td><td className="px-5 py-3 text-right">{inr(x.ledgerMovement)}</td><td className="px-5 py-3 text-right">{inr(x.recorded)}</td><td className="px-5 py-3 text-right">{x.current == null ? "—" : inr(x.current)}</td><td className={`px-5 py-3 text-right font-semibold ${x.status === "EXCEPTION" ? "text-red-600" : "text-emerald-600"}`}>{x.difference == null ? "—" : inr(x.difference)}</td><td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${x.status === "PASS" ? "bg-emerald-100 text-emerald-700" : x.status === "EXCEPTION" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{x.status}</span></td></tr>)}{balances.length === 0 && <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-500">No instruments found.</td></tr>}</tbody></table></div>
+      {/* Instrument Balance Reconciliation Table */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-white/10 dark:bg-slate-900">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-white/10">
+          <h2 className="text-sm font-bold text-slate-950 dark:text-white">Instrument Balance Reconciliation Matrix</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Expected balance = Opening balance + Lifetime ledger movement</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3 font-medium">Instrument</th>
+                <th className="px-4 py-3 font-medium">Type</th>
+                <th className="px-4 py-3 text-right font-medium">Opening</th>
+                <th className="px-4 py-3 text-right font-medium">Ledger Movement</th>
+                <th className="px-4 py-3 text-right font-medium">Expected</th>
+                <th className="px-4 py-3 text-right font-medium">Recorded Current</th>
+                <th className="px-4 py-3 text-right font-medium">Difference</th>
+                <th className="px-4 py-3 font-medium">Audit Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {balances.map((x) => (
+                <tr key={x.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                  <td className="px-4 py-3 font-medium text-slate-950 dark:text-white">{x.name}</td>
+                  <td className="px-4 py-3 text-xs capitalize text-slate-500 dark:text-slate-400">{x.type}</td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums">{inr(x.opening)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums">{inr(x.ledgerMovement)}</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(x.recorded)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-900 dark:text-slate-100 tabular-nums">
+                    {x.current == null ? "—" : inr(x.current)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${
+                      x.status === "EXCEPTION" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
+                    {x.difference == null ? "—" : inr(x.difference)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        x.status === "PASS"
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : x.status === "EXCEPTION"
+                          ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                      }`}
+                    >
+                      {x.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {balances.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-5 py-8 text-center text-slate-500">
+                    No instruments found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="border-b border-slate-200 px-5 py-4 dark:border-white/10"><h2 className="font-semibold text-slate-950 dark:text-white">Filtered entry ledger</h2></div>
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5"><tr><th className="px-5 py-3">Date</th><th className="px-5 py-3">Instrument</th><th className="px-5 py-3">Direction</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3">Description</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-white/5">{rows.map((x) => <tr key={x.id}><td className="px-5 py-3 text-slate-600 dark:text-slate-400">{x.entry_date}</td><td className="px-5 py-3 font-medium text-slate-900 dark:text-white">{x.payment_instruments?.name || x.method || "Unmapped"}</td><td className="px-5 py-3 capitalize">{x.direction}</td><td className="px-5 py-3 text-right font-semibold">{inr(money(x.amount))}</td><td className="px-5 py-3 text-slate-500 dark:text-slate-400">{x.description || "—"}</td></tr>)}{rows.length === 0 && <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-500">No entries found for the selected period.</td></tr>}</tbody></table></div>
+      {/* Filtered Entry Ledger Table */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-white/10 dark:bg-slate-900">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-white/10">
+          <h2 className="text-sm font-bold text-slate-950 dark:text-white">Filtered Cash &amp; Bank Entries ({rows.length})</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Date range: {from} to {to}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Instrument / Method</th>
+                <th className="px-4 py-3 font-medium">Direction</th>
+                <th className="px-4 py-3 text-right font-medium">Amount</th>
+                <th className="px-4 py-3 font-medium">Description</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {rows.map((x) => (
+                <tr key={x.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
+                  <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{x.entry_date}</td>
+                  <td className="px-4 py-3 font-medium text-slate-950 dark:text-white">
+                    {x.payment_instruments?.name || x.method || "Unmapped"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold capitalize ${
+                        isIn(x.direction)
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          : "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                      }`}
+                    >
+                      {x.direction}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">
+                    {inr(money(x.amount))}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{x.description || "—"}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-slate-500">
+                    No entries found for the selected period.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import type { WhatsAppConfig } from "@/lib/whatsapp";
+import type { WhatsAppConfig } from "@/lib/whatsapp-shared";
 import { sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
 
 export async function POST(req: Request) {

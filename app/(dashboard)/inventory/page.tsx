@@ -1,46 +1,54 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { inr } from "@/lib/format";
+import InventoryClient from "@/components/inventory/inventory-client";
 
-export const metadata = { title: "Inventory | CyberCafe ERP", description: "Stock overview, alerts and inventory operations" };
+export const metadata = {
+  title: "Inventory Control | CyberCafe ERP",
+  description: "Live stock valuation, replenishment watch, physical counts and audited adjustments",
+};
 
-const KPI = [
-  ["Active Products", "blue"], ["Units on Hand", "indigo"], ["Stock Value", "emerald"], ["Replenishment", "amber"],
-] as const;
-const BAR: Record<string, string> = { blue: "bg-blue-500", indigo: "bg-indigo-500", emerald: "bg-emerald-500", amber: "bg-amber-500" };
+export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
   const supabase = await createClient();
-  const { data: products = [], error: productsError } = await supabase
-    .from("products")
-    .select("id, name, code, stock_qty, cost_price, reorder_level, is_active")
-    .eq("is_active", true)
-    .order("name")
-    .limit(1000);
 
-  if (productsError) return <div className="p-8">Inventory data could not be loaded. <Link href="/inventory">Retry</Link></div>;
+  const [{ data: products, error: productsError }, { data: categories }] =
+    await Promise.all([
+      supabase
+        .from("products")
+        .select("*, categories(id, name)")
+        .order("name")
+        .limit(1000),
+      supabase
+        .from("categories")
+        .select("id, name, is_active")
+        .order("name"),
+    ]);
 
-  const rows = (products ?? []) as Array<{ id: string; name: string; code: string | null; stock_qty: number | null; cost_price: number | null; reorder_level: number | null }>;
-  const totalUnits = rows.reduce((s, p) => s + Number(p.stock_qty ?? 0), 0);
-  const stockValue = rows.reduce((s, p) => s + Number(p.stock_qty ?? 0) * Number(p.cost_price ?? 0), 0);
-  const low = rows.filter((p) => Number(p.stock_qty ?? 0) <= Number(p.reorder_level ?? 0) && Number(p.stock_qty ?? 0) > 0);
-  const out = rows.filter((p) => Number(p.stock_qty ?? 0) <= 0);
-  const watch = [...out, ...low].slice(0, 8);
-  const recent = rows.filter((p) => Number(p.stock_qty ?? 0) > 0).sort((a, b) => Number(a.stock_qty) - Number(b.stock_qty)).slice(0, 8);
-  const values = [rows.length.toLocaleString(), totalUnits.toLocaleString(), inr(stockValue), (low.length + out.length).toLocaleString()];
-  const subs = ["items in catalog", "physical units", "at current cost", `${low.length} low · ${out.length} out`];
-  const actions = [
-    { href: "/catalog/products", title: "Product Catalog", text: "Manage products, prices and stock", icon: "▦" },
-    { href: "/inventory/movements", title: "Stock Journal", text: "Audit every stock movement", icon: "◇" },
-    { href: "/purchases", title: "Purchases", text: "Receive inventory from suppliers", icon: "↓" },
-    { href: "/returns", title: "Returns", text: "Review stock coming back", icon: "↶" },
-  ];
+  if (productsError) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-sm font-semibold text-rose-600">
+          Inventory data could not be loaded: {productsError.message}
+        </p>
+        <Link
+          href="/inventory"
+          className="mt-3 inline-block rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white"
+        >
+          Retry
+        </Link>
+      </div>
+    );
+  }
 
-  return <div className="min-h-[calc(100vh-9rem)] bg-slate-50/60 px-4 py-5 sm:px-6 lg:px-8 dark:bg-slate-950"><div className="mx-auto max-w-[1500px] space-y-6">
-    <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900 sm:p-8"><div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" /><div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400"><span className="h-1.5 w-1.5 rounded-full bg-current" /> Inventory control</div><h2 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Stock, under control.</h2><p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">A single operational view for stock value, replenishment risk and audited inventory activity.</p></div><Link href="/inventory/movements" className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-white dark:text-slate-900">Open Stock Journal <span>→</span></Link></div></section>
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{KPI.map(([label, tone], i) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className={`mb-4 h-2 w-12 rounded-full ${BAR[tone]}`} /><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 truncate text-2xl font-black text-slate-950 dark:text-white">{values[i]}</p><p className="mt-1 text-xs text-slate-500">{subs[i]}</p></div>)}</section>
-    <section className="grid gap-6 lg:grid-cols-[1.4fr_.8fr]"><div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10"><div><h3 className="font-bold text-slate-900 dark:text-white">Replenishment watch</h3><p className="text-xs text-slate-400">Products closest to running out</p></div><Link href="/catalog/products" className="text-xs font-semibold text-blue-600">View catalog →</Link></div>{recent.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">No stocked products found.</div> : <div className="divide-y divide-slate-100 dark:divide-white/5">{recent.map((p) => { const qty = Number(p.stock_qty ?? 0); const risk = qty <= Number(p.reorder_level ?? 0); return <div key={p.id} className="flex items-center gap-4 px-5 py-3.5"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">{p.name.slice(0, 1).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</p><p className="truncate text-[11px] font-mono text-slate-400">{p.code || "No code"}</p></div><div className="text-right"><p className={`text-sm font-bold ${risk ? "text-amber-600" : "text-slate-800 dark:text-slate-200"}`}>{qty}</p><p className="text-[10px] text-slate-400">on hand</p></div></div>})}</div>}</div>
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><h3 className="font-bold text-slate-900 dark:text-white">Inventory actions</h3><p className="mt-1 text-xs text-slate-400">Jump to an operational workflow</p><div className="mt-4 space-y-2">{actions.map((a) => <Link key={a.href} href={a.href} className="group flex items-center gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/60 dark:border-white/5 dark:hover:border-blue-500/30"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-sm font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">{a.icon}</span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800 dark:text-slate-200">{a.title}</span><span className="block truncate text-[11px] text-slate-400">{a.text}</span></span><span className="text-slate-300 group-hover:text-blue-500">→</span></Link>)}</div></div></section>
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900 dark:text-white">Stock health</h3><p className="text-xs text-slate-400">Immediate exceptions that need attention</p></div><div className="flex gap-2"><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{low.length} Low stock</span><span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">{out.length} Out of stock</span></div></div>{watch.length === 0 ? <div className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">✓ All active products are above their reorder thresholds.</div> : <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{watch.map((p) => <Link href="/catalog/products" key={p.id} className="rounded-xl border border-slate-100 p-3 hover:border-blue-200 dark:border-white/5"><p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{p.name}</p><p className="mt-1 text-xs text-slate-400">{Number(p.stock_qty ?? 0)} units · reorder {Number(p.reorder_level ?? 0)}</p></Link>)}</div>}</section>
-  </div></div>;
+  return (
+    <div className="min-h-[calc(100vh-9rem)] bg-slate-50/60 px-4 py-5 sm:px-6 lg:px-8 dark:bg-slate-950">
+      <div className="mx-auto max-w-[1500px]">
+        <InventoryClient
+          initialProducts={(products ?? []) as any}
+          categories={(categories ?? []) as any}
+        />
+      </div>
+    </div>
+  );
 }

@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/business/receipt",
   "/api/recharge/operator-circle",
   "/api/bill-payment/fetch",
+  "/api/whatsapp/webhook",
 ];
 
 const FINANCE_MODULES = new Set([
@@ -56,7 +57,6 @@ function checkRateLimit(ip: string): boolean {
 }
 
 function applySecurityHeaders(res: NextResponse): NextResponse {
-  res.headers.set("X-Frame-Options", "SAMEORIGIN");
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
@@ -103,6 +103,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/business/receipt") ||
     pathname === "/api/recharge/operator-circle" ||
     pathname === "/api/bill-payment/fetch" ||
+    pathname === "/api/whatsapp/webhook" ||
     pathname === "/auth/confirm-reset" ||
     pathname === "/auth/reset-password" ||
     pathname === "/logout"
@@ -129,6 +130,11 @@ export async function middleware(request: NextRequest) {
   let response = applySecurityHeaders(NextResponse.next({ request }));
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
+    cookieOptions: {
+      path: "/",
+      sameSite: "none",
+      secure: true,
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -136,7 +142,14 @@ export async function middleware(request: NextRequest) {
       setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = applySecurityHeaders(NextResponse.next({ request }));
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, {
+            ...options,
+            path: "/",
+            sameSite: "none",
+            secure: true,
+          })
+        );
       },
     },
   });

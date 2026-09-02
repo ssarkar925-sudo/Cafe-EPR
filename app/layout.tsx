@@ -4,8 +4,8 @@ import "./dashboard-quick-access.css";
 import ThemeProvider from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: { default: "CyberCafe ERP", template: "%s | CyberCafe ERP" },
-  description: "CyberCafe ERP system",
+  title: { default: "Cafe ERP", template: "%s | Cafe ERP" },
+  description: "Comprehensive Cyber Cafe & Retail ERP with POS, Inventory, Billing, Finance, AI Advisor, and Communication Hub",
 };
 
 export default function RootLayout({

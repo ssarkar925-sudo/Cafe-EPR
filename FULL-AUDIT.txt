@@ -814,7 +814,7 @@ grant execute on function public.create_business_txn(
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:105:  }));
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:106:  const [error, setError] = useState("");
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:107:  const [scanOpen, setScanOpen] = useState(false);
-  C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:108:  // Opt-in "save for future transactions" flags — unchecked by default.
+  C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:108:  // Opt-in "save for future transactions" flags ï¿½ unchecked by default.
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:109:  const [saveSender, setSaveSender] = useState(false);
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:131:    setForm((f) => ({
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:132:      ...f,
@@ -915,7 +915,7 @@ grant execute on function public.create_business_txn(
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:715:                        }}
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:716:                        options={bankAccounts.filter((b) => b.is_active !== false).map((b) => {
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:717:                          const accNum = b.details?.account_number
-  C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:718:                            ? ` (A/C: …${String(b.details.account_number).slice(-4)})`
+  C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:718:                            ? ` (A/C: ï¿½${String(b.details.account_number).slice(-4)})`
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:736:                      />
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:737:                    ) : (
   C:\Users\SAIKAT\Documents\sccomm-web\components\business\business-form-modal.tsx:738:                      <input

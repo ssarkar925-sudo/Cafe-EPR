@@ -1,10 +1,11 @@
-import PurchasesClient from "@/components/inventory/purchases-client";
+import PurchaseEntryClient from "@/components/purchases/purchase-entry-client";
 
 export const metadata = {
-  title: "Purchase Entry | CyberCafe ERP",
-  description: "Record inventory purchases, supplier bills and purchase returns",
+  title: "Stock Inward & Purchase Entry | CyberCafe ERP",
+  description: "Record inward stock, supplier bills, moving WAC calculation, and payables",
 };
 
 export default function PurchaseEntryPage() {
-  return <PurchasesClient />;
+  return <PurchaseEntryClient />;
 }
+
