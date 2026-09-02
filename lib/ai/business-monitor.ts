@@ -29,7 +29,7 @@ function inRange(value: unknown, start: Date, end: Date): boolean {
 
 export async function runBusinessMonitorScan() {
   const db = createAdminClient();
-  const today = dayStart(0);
+  const now = new Date();
   const current7 = dayStart(7);
   const previous7 = dayStart(14);
 
@@ -51,6 +51,18 @@ export async function runBusinessMonitorScan() {
     db.from("cash_entries").select("id,method,direction,amount,entry_date,created_at").limit(3000),
   ]);
 
+  for (const result of [
+    invoicesRes,
+    transactionsRes,
+    productsRes,
+    customersRes,
+    settlementsRes,
+    auditFindingsRes,
+    cashEntriesRes,
+  ]) {
+    if (result.error) throw result.error;
+  }
+
   const invoices = invoicesRes.data || [];
   const transactions = transactionsRes.data || [];
   const products = productsRes.data || [];
@@ -62,19 +74,23 @@ export async function runBusinessMonitorScan() {
   const events: MonitorEvent[] = [];
 
   const activeInvoice = (row: any) => String(row.status || "").toLowerCase() !== "cancelled";
-  const currentRevenue = invoices.filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, current7, today)).reduce((s, r) => s + n(r.total), 0);
-  const previousRevenue = invoices.filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, previous7, current7)).reduce((s, r) => s + n(r.total), 0);
-  if (previousRevenue > 0 && currentRevenue < previousRevenue * 0.65) {
-    const dropPct = Math.round((1 - currentRevenue / previousRevenue) * 100);
+  const current7Revenue = invoices
+    .filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, current7, now))
+    .reduce((s, r) => s + n(r.total), 0);
+  const previous7Revenue = invoices
+    .filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, previous7, current7))
+    .reduce((s, r) => s + n(r.total), 0);
+  if (previous7Revenue > 0 && current7Revenue < previous7Revenue * 0.65) {
+    const dropPct = Math.round((1 - current7Revenue / previous7Revenue) * 100);
     events.push({
       severity: dropPct >= 50 ? "critical" : "attention",
       source: "business",
-      title: `Revenue dropped ${dropPct}% versus the previous 7 days`,
-      details: { current7Revenue: currentRevenue, previous7Revenue: previousRevenue, dropPercent: dropPct },
+      title: "Revenue is materially below the previous 7-day baseline",
+      details: { current7Revenue, previous7Revenue, dropPercent: dropPct },
     });
   }
 
-  const recentTxns = transactions.filter((r) => inRange(r.transaction_date || r.created_at, current7, today));
+  const recentTxns = transactions.filter((r) => inRange(r.transaction_date || r.created_at, current7, now));
   const failedTxns = recentTxns.filter((r) => ["failed", "reversed"].includes(String(r.status || "").toLowerCase()));
   const failedRate = recentTxns.length ? failedTxns.length / recentTxns.length : 0;
   if (failedTxns.length >= 5 && failedRate >= 0.1) {
@@ -91,7 +107,7 @@ export async function runBusinessMonitorScan() {
     events.push({
       severity: lowStock.length >= 5 ? "attention" : "info",
       source: "inventory",
-      title: `${lowStock.length} active product(s) are at or below reorder level`,
+      title: "Products are at or below their reorder level",
       details: { count: lowStock.length, products: lowStock.slice(0, 15).map((p) => ({ name: p.name, stock: n(p.stock_qty), reorderLevel: n(p.reorder_level) })) },
     });
   }
@@ -102,8 +118,15 @@ export async function runBusinessMonitorScan() {
     events.push({
       severity: overdueTotal >= 25000 ? "attention" : "info",
       source: "customer",
-      title: `${overdueCustomers.length} customer account(s) currently carry a positive balance`,
-      details: { customerCount: overdueCustomers.length, totalOutstanding: overdueTotal, topBalances: overdueCustomers.sort((a, b) => n(b.balance) - n(a.balance)).slice(0, 10).map((c) => ({ name: c.name, balance: n(c.balance) })) },
+      title: "Customer outstanding balances need review",
+      details: {
+        customerCount: overdueCustomers.length,
+        totalOutstanding: overdueTotal,
+        topBalances: [...overdueCustomers]
+          .sort((a, b) => n(b.balance) - n(a.balance))
+          .slice(0, 10)
+          .map((c) => ({ name: c.name, balance: n(c.balance) })),
+      },
     });
   }
 
@@ -112,7 +135,7 @@ export async function runBusinessMonitorScan() {
     events.push({
       severity: "attention",
       source: "transaction",
-      title: `${failedSettlements.length} settlement(s) need review`,
+      title: "Settlements need review",
       details: { count: failedSettlements.length, recent: failedSettlements.slice(0, 10).map((s) => ({ amount: n(s.amount), status: s.status, from: s.from_pool, to: s.to_pool, reference: s.reference })) },
     });
   }
@@ -123,26 +146,26 @@ export async function runBusinessMonitorScan() {
     events.push({
       severity: "critical",
       source: "security",
-      title: `${criticalFindings.length} critical audit finding(s) remain open`,
+      title: "Critical audit findings remain open",
       details: { count: criticalFindings.length, findings: criticalFindings.slice(0, 8).map((f) => ({ description: f.description, status: f.status, resolutionStatus: f.resolution_status })) },
     });
   } else if (openHighFindings.length > 0) {
     events.push({
       severity: "attention",
       source: "security",
-      title: `${openHighFindings.length} high-severity audit finding(s) remain open`,
+      title: "High-severity audit findings remain open",
       details: { count: openHighFindings.length, findings: openHighFindings.slice(0, 8).map((f) => ({ severity: f.severity, description: f.description, status: f.status })) },
     });
   }
 
-  const recentCash = cashEntries.filter((r) => inRange(r.entry_date || r.created_at, current7, today));
+  const recentCash = cashEntries.filter((r) => inRange(r.entry_date || r.created_at, current7, now));
   const cashIn = recentCash.filter((r) => r.direction === "in").reduce((s, r) => s + n(r.amount), 0);
   const cashOut = recentCash.filter((r) => r.direction === "out").reduce((s, r) => s + n(r.amount), 0);
   if (cashOut > cashIn * 1.5 && cashOut - cashIn >= 5000) {
     events.push({
       severity: "attention",
       source: "business",
-      title: "Cash outflow materially exceeds cash inflow this week",
+      title: "Cash outflow materially exceeds cash inflow",
       details: { cashIn, cashOut, netCashMovement: cashIn - cashOut },
     });
   }
@@ -159,13 +182,14 @@ export async function runBusinessMonitorScan() {
       .maybeSingle();
 
     if (!existing) {
-      const { data } = await db.from("ai_monitor_events").insert({
+      const { data, error } = await db.from("ai_monitor_events").insert({
         severity: event.severity,
         source: event.source,
         title: event.title,
         details: event.details,
         status: "open",
       }).select("id,severity,source,title,details,status,detected_at").single();
+      if (error) throw error;
       if (data) inserted.push(data);
     }
   }
@@ -199,8 +223,10 @@ export async function runBusinessMonitorScan() {
         }),
       });
       const data = await response.json().catch(() => ({}));
-      const text = typeof data?.output_text === "string" ? data.output_text : "";
-      aiRecommendations = text.split(/\n+/).map((line: string) => line.replace(/^[-*•]\s*/, "").trim()).filter(Boolean).slice(0, 3);
+      if (response.ok) {
+        const text = typeof data?.output_text === "string" ? data.output_text : "";
+        aiRecommendations = text.split(/\n+/).map((line: string) => line.replace(/^[-*•]\s*/, "").trim()).filter(Boolean).slice(0, 3);
+      }
     } catch {
       aiRecommendations = [];
     }
@@ -217,13 +243,14 @@ export async function runBusinessMonitorScan() {
       .limit(1)
       .maybeSingle();
     if (!existingInsight) {
-      const { data } = await db.from("ai_monitor_events").insert({
+      const { data, error } = await db.from("ai_monitor_events").insert({
         severity: "info",
         source: "business",
         title: insightTitle,
         details: { recommendations: aiRecommendations },
         status: "open",
       }).select("id,severity,source,title,details,status,detected_at").single();
+      if (error) throw error;
       if (data) inserted.push(data);
     }
   }
@@ -236,7 +263,7 @@ export async function runBusinessMonitorScan() {
     .limit(100);
 
   return {
-    scannedAt: new Date().toISOString(),
+    scannedAt: now.toISOString(),
     created: inserted,
     events: openEvents || [],
     metrics: {
