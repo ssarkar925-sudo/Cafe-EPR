@@ -33,6 +33,9 @@ jobs:
       - name: Financial invariants
         run: npm test
 
+      - name: AI browser safety
+        run: npm run test:ai-browser
+
       - name: TypeScript check
         run: npx tsc --noEmit
 
