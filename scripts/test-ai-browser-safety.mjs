@@ -60,8 +60,8 @@ assert(cli.includes('readOnly: true'), "Export explicitly marks collection as re
 assert(learningUi.includes('importTeachingDraft'), "Learning Control Center can import live teaching drafts");
 assert(learningUi.includes('draft.schemaVersion === 1'), "Learning Control Center validates teaching draft schema");
 assert(learningUi.includes('Import live browser teaching'), "Learning Control Center has a visible live-teaching import workflow");
-assert(learningUi.includes('Imported live teaching'), "Learning Control Center reports live teaching imports");
-assert(learningUi.includes('status: "draft"'), "Imported live workflows are saved as drafts through the existing API");
+assert(learningUi.includes('Live teaching imported as Draft'), "Learning Control Center reports live teaching imports");
+assert(learningUi.includes('createDraft({'), "Imported live workflows use the shared draft creation path");
 assert(learningUi.includes('localEvidenceOnly: true'), "Local screenshot/browser evidence is not treated as uploaded server evidence");
 
 console.log(`\n${passed} passed / ${failed} failed`);
