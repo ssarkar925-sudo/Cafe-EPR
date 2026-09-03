@@ -24,47 +24,42 @@ function getMonthRange() {
   const nextMonthDate = new Date(`${start}T00:00:00Z`);
   nextMonthDate.setUTCMonth(nextMonthDate.getUTCMonth() + 1);
   const endExclusive = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}-01`;
-  return { start, endExclusive, label: `${year}-${month}` };
+  const endInclusiveDate = new Date(`${endExclusive}T00:00:00Z`);
+  endInclusiveDate.setUTCDate(endInclusiveDate.getUTCDate() - 1);
+  const endInclusive = `${endInclusiveDate.getUTCFullYear()}-${String(endInclusiveDate.getUTCMonth() + 1).padStart(2, "0")}-${String(endInclusiveDate.getUTCDate()).padStart(2, "0")}`;
+  return { start, endExclusive, endInclusive, label: `${year}-${month}` };
 }
 
 async function buildCurrentMonthPnl(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { start, endExclusive, label } = getMonthRange();
-  const [invoicesResult, returnsResult, expensesResult, quickSalesResult, transactionsResult] = await Promise.all([
-    supabase.from("invoices").select("invoice_date,total,status").gte("invoice_date", start).lt("invoice_date", endExclusive).neq("status", "cancelled").limit(5000),
-    supabase.from("returns").select("return_date,subtotal,status").gte("return_date", start).lt("return_date", endExclusive).eq("status", "completed").limit(5000),
-    supabase.from("expenses").select("expense_date,amount,status").gte("expense_date", start).lt("expense_date", endExclusive).eq("status", "active").limit(5000),
-    supabase.from("quick_sales").select("sale_date,amount,cost,status").gte("sale_date", start).lt("sale_date", endExclusive).eq("status", "active").limit(5000),
-    supabase.from("transactions").select("transaction_date,service_type,service_fee,portal_commission,status").gte("transaction_date", start).lt("transaction_date", endExclusive).eq("status", "success").limit(5000),
-  ]);
+  const { start, endExclusive, endInclusive, label } = getMonthRange();
 
-  const firstError = [invoicesResult, returnsResult, expensesResult, quickSalesResult, transactionsResult].find((result) => result.error)?.error;
-  if (firstError) throw new Error(firstError.message);
+  // The direct table reads are blocked by financial RLS. Use the canonical
+  // accounting function through the tightly scoped Admin/Manager wrapper.
+  const { data, error } = await supabase.rpc("get_ai_current_month_pnl", {
+    p_from: start,
+    p_to: endInclusive,
+  });
 
-  const invoices = invoicesResult.data ?? [];
-  const returns = returnsResult.data ?? [];
-  const expenses = expensesResult.data ?? [];
-  const quickSales = quickSalesResult.data ?? [];
-  const transactions = transactionsResult.data ?? [];
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== "object") throw new Error("P&L function returned no data");
 
-  const sales = invoices.reduce((sum, row) => sum + Number(row.total || 0), 0);
-  const returnsTotal = returns.reduce((sum, row) => sum + Number(row.subtotal || 0), 0);
-  const quickRevenue = quickSales.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const quickCost = quickSales.reduce((sum, row) => sum + Number(row.cost || 0), 0);
-  const serviceIncome = transactions.reduce((sum, row) => {
-    const fee = Number(row.service_fee || 0);
-    const commission = Number(row.portal_commission || 0);
-    return sum + (row.service_type === "dmt" ? fee - commission : fee + commission);
-  }, 0);
-  const expensesTotal = expenses.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const grossSales = sales + quickRevenue;
-  const grossProfit = sales - returnsTotal + quickRevenue - quickCost + serviceIncome;
-  const net = grossProfit - expensesTotal;
-  const margin = grossSales > 0 ? (net / grossSales) * 100 : 0;
+  const row = data as Record<string, any>;
+  const sales = Number(row.revenue || 0);
+  const returnsTotal = Number(row.returns || 0);
+  const quickRevenue = 0;
+  const quickCost = Number(row.quick_sale_cost || 0);
+  const serviceIncome = Number(row.commission || 0);
+  const expensesTotal = Number(row.expenses || 0);
+  const grossSales = Math.max(0, sales + quickRevenue);
+  const grossProfit = Number(row.gross_profit || 0);
+  const net = Number(row.net_profit || 0);
+  const margin = Number(row.net_margin_percent ?? 0);
 
   return {
     month: label,
     start,
     endExclusive,
+    endInclusive,
     sales,
     returnsTotal,
     quickRevenue,
@@ -76,12 +71,14 @@ async function buildCurrentMonthPnl(supabase: Awaited<ReturnType<typeof createCl
     net,
     margin,
     counts: {
-      invoices: invoices.length,
-      returns: returns.length,
-      expenses: expenses.length,
-      quickSales: quickSales.length,
-      serviceTransactions: transactions.length,
+      invoices: Number(row.invoices_count || 0),
+      returns: 0,
+      expenses: 0,
+      quickSales: 0,
+      serviceTransactions: 0,
     },
+    warning: row.warning_message || null,
+    unverifiedCostCount: Number(row.unverified_cost_count || 0),
   };
 }
 
@@ -109,21 +106,22 @@ export async function POST(request: Request) {
     try {
       const pnl = await buildCurrentMonthPnl(supabase);
       const report = [
-        `Current-month Profit & Loss (${pnl.start} to ${pnl.endExclusive}, end date exclusive)`,
+        `Current-month Profit & Loss (${pnl.start} to ${pnl.endInclusive}, inclusive)`,
         "",
-        `POS / Invoice Sales Revenue: ${formatInr(pnl.sales)}`,
-        `POS Quick Sales Revenue: ${formatInr(pnl.quickRevenue)}`,
-        `Less: Sales Returns & Refunds: -${formatInr(pnl.returnsTotal)}`,
-        `Less: POS Inventory COGS: -${formatInr(pnl.quickCost)}`,
+        `Recognized POS / Invoice Sales Revenue: ${formatInr(pnl.sales)}`,
+        `Sales Returns & Refunds: -${formatInr(pnl.returnsTotal)}`,
+        `Quick Sale Counter Cost: -${formatInr(pnl.quickCost)}`,
         `Service Fees & Commission Income: ${formatInr(pnl.serviceIncome)}`,
         `Gross Operating Profit: ${formatInr(pnl.grossProfit)}`,
-        `Less: Operating Expenses: -${formatInr(pnl.expensesTotal)}`,
+        `Operating Expenses: -${formatInr(pnl.expensesTotal)}`,
         `NET OPERATING PROFIT: ${formatInr(pnl.net)}`,
         `Net Margin: ${pnl.margin.toFixed(2)}%`,
+        pnl.warning ? `Warning: ${pnl.warning}` : "",
         "",
-        `Records included: ${pnl.counts.invoices} invoices, ${pnl.counts.quickSales} quick sales, ${pnl.counts.returns} returns, ${pnl.counts.expenses} expenses, ${pnl.counts.serviceTransactions} service transactions.`,
-        "These figures are read directly from the current Café-EPR database for the current month; no values are guessed.",
-      ].join("\n");
+        `Invoices counted: ${pnl.counts.invoices}.`,
+        pnl.unverifiedCostCount > 0 ? `Unverified direct-cost records: ${pnl.unverifiedCostCount}.` : "COGS direct-cost snapshots are verified by the accounting function.",
+        "These figures are read from the canonical Café-EPR P&L database function for the current month; no values are guessed.",
+      ].filter(Boolean).join("\n");
 
       return NextResponse.json({ message: report, mode: "live-business-report", canExecute: false, approvalRequired: false, data: pnl });
     } catch (error) {
