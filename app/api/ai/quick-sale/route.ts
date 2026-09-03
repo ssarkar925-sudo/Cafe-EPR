@@ -30,54 +30,61 @@ export async function POST(request: Request) {
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected." }, { status: 503 });
+  // Cafe AI Agent uses Gemini for quick-sale parsing. The existing Chat AI remains unchanged.
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
-      reasoning: { effort: "low" },
-      instructions: `Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices.`,
-      input: message,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "quick_sale_command",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              action: { type: "string", enum: ["quick_sale", "unsupported"] },
+      systemInstruction: {
+        parts: [{
+          text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices.",
+        }],
+      },
+      contents: [{ role: "user", parts: [{ text: message }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["quick_sale", "unsupported"] },
+            items: {
+              type: "array",
               items: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: { name: { type: "string" }, qty: { type: "number" } },
-                  required: ["name", "qty"],
-                  additionalProperties: false,
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  qty: { type: "number" },
                 },
+                required: ["name", "qty"],
+                additionalProperties: false,
               },
-              payment_method: { type: "string", enum: ["cash", "upi", "card", "credit", "other"] },
-              customer_name: { type: ["string", "null"] },
             },
-            required: ["action", "items", "payment_method", "customer_name"],
-            additionalProperties: false,
+            payment_method: { type: "string", enum: ["cash", "upi", "card", "credit", "other"] },
+            customer_name: { type: ["string", "null"] },
           },
+          required: ["action", "items", "payment_method", "customer_name"],
+          additionalProperties: false,
         },
       },
     }),
   });
 
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) return NextResponse.json({ error: data?.error?.message || "AI request failed" }, { status: 502 });
+  if (!response.ok) return NextResponse.json({ error: data?.error?.message || "Gemini request failed" }, { status: 502 });
+
+  const outputText = Array.isArray(data?.candidates?.[0]?.content?.parts)
+    ? data.candidates[0].content.parts.map((part: any) => part?.text).filter(Boolean).join("\n")
+    : "";
 
   let parsed: ParsedCommand;
   try {
-    parsed = JSON.parse(data?.output_text || "{}");
+    parsed = JSON.parse(outputText || "{}");
   } catch {
-    return NextResponse.json({ error: "AI could not structure the quick-sale request." }, { status: 422 });
+    return NextResponse.json({ error: "Gemini could not structure the quick-sale request." }, { status: 422 });
   }
 
   if (parsed.action !== "quick_sale" || !parsed.items?.length) {
