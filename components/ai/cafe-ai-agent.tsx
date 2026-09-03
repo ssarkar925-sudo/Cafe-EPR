@@ -37,11 +37,13 @@ type SpeechWindow = Window & typeof globalThis & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-const VOICE_OPTIONS = [
-  { key: "en-IN", label: "English", speechLang: "en-IN" },
-  { key: "hi-IN", label: "हिन्दी", speechLang: "hi-IN" },
-  { key: "bn-IN", label: "বাংলা", speechLang: "bn-IN" },
+const LANGUAGE_OPTIONS = [
+  { key: "en", label: "English", speechLang: "en-IN" },
+  { key: "hi", label: "हिन्दी", speechLang: "hi-IN" },
+  { key: "bn", label: "বাংলা", speechLang: "bn-IN" },
 ] as const;
+
+type LanguageKey = (typeof LANGUAGE_OPTIONS)[number]["key"];
 
 export default function CafeAIAgent() {
   const [message, setMessage] = useState("");
@@ -49,12 +51,13 @@ export default function CafeAIAgent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [approval, setApproval] = useState<ApprovalSummary | null>(null);
-  const [voiceLang, setVoiceLang] = useState<(typeof VOICE_OPTIONS)[number]["key"]>("en-IN");
+  const [language, setLanguage] = useState<LanguageKey>("en");
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
-  const voice = VOICE_OPTIONS.find((item) => item.key === voiceLang) ?? VOICE_OPTIONS[0];
+  const selectedLanguage = LANGUAGE_OPTIONS.find((item) => item.key === language) ?? LANGUAGE_OPTIONS[0];
 
   useEffect(() => {
     return () => {
@@ -63,11 +66,35 @@ export default function CafeAIAgent() {
     };
   }, []);
 
+  async function translateText(text: string, targetLanguage: LanguageKey, sourceLanguage = "auto") {
+    const value = text.trim();
+    if (!value || targetLanguage === sourceLanguage) return value;
+
+    setTranslating(true);
+    try {
+      const res = await fetch("/api/ai/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: value, targetLanguage, sourceLanguage }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Cafe AI translation is unavailable");
+      return typeof data?.translatedText === "string" && data.translatedText.trim() ? data.translatedText.trim() : value;
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  async function localizeOutput(text: string) {
+    if (language === "en") return text;
+    return translateText(text, language, "en");
+  }
+
   function speak(text: string) {
     if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = voice.speechLang;
+    utterance.lang = selectedLanguage.speechLang;
     utterance.rate = 0.98;
     utterance.pitch = 1;
     utterance.onstart = () => setSpeaking(true);
@@ -76,7 +103,13 @@ export default function CafeAIAgent() {
     window.speechSynthesis.speak(utterance);
   }
 
-  async function ask(text = message, readAloud = true) {
+  function changeLanguage(nextLanguage: LanguageKey) {
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    setSpeaking(false);
+    setLanguage(nextLanguage);
+  }
+
+  async function ask(text = message, readAloud = true, inputLanguage = "auto") {
     const value = text.trim();
     if (!value || busy) return;
     setBusy(true);
@@ -84,21 +117,27 @@ export default function CafeAIAgent() {
     setReply("");
     setApproval(null);
     try {
+      // Translate into English before the Cafe-EPR AI/tool layer so business intent
+      // stays stable even when the user speaks Bengali, Hindi, or mixed language.
+      const canonicalValue = language === "en"
+        ? value
+        : await translateText(value, "en", inputLanguage);
+
       const quick = await fetch("/api/ai/quick-sale", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: value }),
+        body: JSON.stringify({ message: canonicalValue }),
       });
       const quickData = await quick.json();
       if (quick.ok && quickData?.action === "approval_required") {
         setApproval({ approval_id: quickData.approval_id, ...quickData.summary });
-        const approvalMessage = quickData.message || "I prepared the sale. Please review and approve it.";
+        const approvalMessage = await localizeOutput(quickData.message || "I prepared the sale. Please review and approve it.");
         setReply(approvalMessage);
         if (readAloud) speak(approvalMessage);
         return;
       }
       if (quick.ok && quickData?.action === "needs_input") {
-        const inputMessage = quickData.message || "I need more information before preparing the sale.";
+        const inputMessage = await localizeOutput(quickData.message || "I need more information before preparing the sale.");
         setReply(inputMessage);
         if (readAloud) speak(inputMessage);
         return;
@@ -107,16 +146,18 @@ export default function CafeAIAgent() {
       const res = await fetch("/api/ai/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: value }),
+        body: JSON.stringify({ message: canonicalValue }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Cafe AI is unavailable");
-      const responseMessage = data.message || "No response";
+      const responseMessage = await localizeOutput(data.message || "No response");
       setReply(responseMessage);
       if (readAloud) speak(responseMessage);
     } catch (e) {
       const messageText = e instanceof Error ? e.message : "Cafe AI is unavailable";
       setError(messageText);
+      // Keep technical/runtime errors in English so the selected TTS locale never
+      // receives English text while pretending it is Bengali/Hindi content.
       if (readAloud) speak(messageText);
     } finally {
       setBusy(false);
@@ -133,13 +174,13 @@ export default function CafeAIAgent() {
     }
     recognitionRef.current?.stop();
     const recognition = new Recognition();
-    recognition.lang = voice.speechLang;
+    recognition.lang = selectedLanguage.speechLang;
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.onresult = (event) => {
       const transcript = event.results[event.resultIndex]?.[0]?.transcript?.trim() ?? "";
       setMessage(transcript);
-      if (transcript) void ask(transcript, true);
+      if (transcript) void ask(transcript, true, language);
     };
     recognition.onerror = () => {
       setListening(false);
@@ -176,7 +217,7 @@ export default function CafeAIAgent() {
       if (!res.ok) throw new Error(data?.error || "Approval failed");
       if (!data.executed) throw new Error("Approval was recorded but the sale was not executed.");
       const invoice = data.sale?.invoice_number || data.sale?.invoice_id || "created";
-      const completionMessage = `Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`;
+      const completionMessage = await localizeOutput(`Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`);
       setReply(`✓ ${completionMessage}`);
       setApproval(null);
       speak(completionMessage);
@@ -222,15 +263,20 @@ export default function CafeAIAgent() {
               <p className="text-xs text-slate-500">বাংলা · हिन्दी · English · mixed language</p>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-[11px] font-bold text-slate-500" htmlFor="ai-voice-language">Voice</label>
+              <label className="text-[11px] font-bold text-slate-500" htmlFor="ai-language">Language</label>
               <select
-                id="ai-voice-language"
-                value={voiceLang}
-                onChange={(e) => setVoiceLang(e.target.value as (typeof VOICE_OPTIONS)[number]["key"])}
+                id="ai-language"
+                value={language}
+                onChange={(e) => changeLanguage(e.target.value as LanguageKey)}
                 className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
               >
-                {VOICE_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+                {LANGUAGE_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
               </select>
+              {language !== "en" && (
+                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+                  Translation ON
+                </span>
+              )}
               <button
                 type="button"
                 onClick={toggleListening}
@@ -240,8 +286,12 @@ export default function CafeAIAgent() {
               >
                 {listening ? "■ Stop" : "🎙 Speak"}
               </button>
-              {speaking && <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Speaking…</span>}
+              {(speaking || translating) && <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">{translating ? "Translating…" : "Speaking…"}</span>}
             </div>
+          </div>
+
+          <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-[11px] leading-5 text-indigo-800 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300">
+            Selected language controls voice input and the AI response. Cafe-EPR processes business intent in English through a dedicated translation layer.
           </div>
 
           <div className="min-h-48 rounded-2xl bg-slate-50 p-4 dark:bg-slate-950/60">
@@ -281,7 +331,7 @@ export default function CafeAIAgent() {
             <h2 className="text-sm font-black text-slate-900 dark:text-white">Try a command</h2>
             <div className="mt-3 space-y-2">
               {quickCommands.map((command) => (
-                <button key={command} onClick={() => { setMessage(command); void ask(command, true); }} className="w-full rounded-2xl border border-slate-200 p-3 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5">{command}</button>
+                <button key={command} onClick={() => { setMessage(command); void ask(command, true, "auto"); }} className="w-full rounded-2xl border border-slate-200 p-3 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5">{command}</button>
               ))}
             </div>
           </div>
@@ -292,7 +342,7 @@ export default function CafeAIAgent() {
               <li>✓ Current prices and stock are rechecked at execution.</li>
               <li>✓ OTP/PIN/passwords are never requested.</li>
               <li>✓ Cancel means no Cafe-EPR change.</li>
-              <li>✓ Voice input uses your browser microphone and selected language.</li>
+              <li>✓ Language selection translates input to English before AI processing and translates the AI response back.</li>
             </ul>
           </div>
         </div>
