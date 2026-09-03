@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 export const INSTRUMENT_TYPES: { value: string; label: string }[] = [
   { value: "cash", label: "Cash" },
   { value: "bank", label: "Bank" },
@@ -63,6 +65,36 @@ export function parseInstrumentValue(
   return { method: inst?.type ?? "cash", instrument_id: value };
 }
 
+/**
+ * The POS Clear button historically cleared only the cart state. The payment
+ * amount is controlled by PosClient, so it could retain the previous tender
+ * until the next payment edit. Keep the reset local to POS payment rows by
+ * detecting the empty-cart DOM transition and sending the same input event a
+ * user would generate. This avoids touching any accounting/transaction data.
+ */
+function useResetAmountWhenPosCartClears(selectRef: React.RefObject<HTMLSelectElement | null>) {
+  useEffect(() => {
+    const select = selectRef.current;
+    if (!select || !select.classList.contains("w-36")) return;
+
+    const reset = () => {
+      if (!document.body.textContent?.includes("Cart is empty. Tap any service or product to add.")) return;
+      const row = select.parentElement;
+      const input = row?.querySelector<HTMLInputElement>('input[type="number"]');
+      if (!input || !input.value) return;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    const observer = new MutationObserver(reset);
+    observer.observe(document.body, { childList: true, subtree: true });
+    reset();
+    return () => observer.disconnect();
+  }, [selectRef]);
+}
+
 export default function InstrumentSelect({
   instruments,
   pick,
@@ -78,9 +110,12 @@ export default function InstrumentSelect({
   includeAdd?: boolean;
   enabled?: string[];
 }) {
+  const selectRef = useRef<HTMLSelectElement>(null);
+  useResetAmountWhenPosCartClears(selectRef);
   const groups = buildInstrumentOptions(instruments, enabled);
   return (
     <select
+      ref={selectRef}
       value={selectValueOf(pick)}
       onChange={(e) => onChange(parseInstrumentValue(e.target.value, instruments))}
       className={className}
