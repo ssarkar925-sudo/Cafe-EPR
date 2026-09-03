@@ -38,12 +38,6 @@ function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
-function hasAuthCookie(request: NextRequest): boolean {
-  return request.cookies
-    .getAll()
-    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
-}
-
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 15;
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
@@ -114,7 +108,6 @@ export async function middleware(request: NextRequest) {
   const clientIp =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
-  // Rate-limit login submissions only; normal application/API requests are not throttled here.
   if (
     pathname === "/login" &&
     request.method === "POST" &&
@@ -144,11 +137,9 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Explicitly public endpoints must remain reachable without an Auth session.
   if (isPublic(pathname)) {
     let response = applySecurityHeaders(NextResponse.next({ request }));
 
-    // A signed-in user visiting /login should still go to the dashboard.
     if (pathname !== "/login") return response;
 
     const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -180,33 +171,30 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Create a request-scoped SSR client. Supabase recommends a fresh server client per request.
   let response = applySecurityHeaders(NextResponse.next({ request }));
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(
-        cookiesToSet: { name: string; value: string; options: CookieOptions }[],
-        headers
-      ) {
+      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = applySecurityHeaders(NextResponse.next({ request }));
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
         });
-        Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value));
       },
     },
   });
 
-  // getClaims() verifies the JWT and is the auth check used for protecting routes.
   let claims: { sub?: string; aal?: string; [key: string]: unknown } | null = null;
   let authError: unknown = null;
   try {
     const result = await supabase.auth.getClaims();
-    claims = (result.data?.claims as typeof claims) ?? null;
+    const verifiedClaims = result.data?.claims;
+    claims = verifiedClaims
+      ? (verifiedClaims as unknown as { sub?: string; aal?: string; [key: string]: unknown })
+      : null;
     authError = result.error ?? null;
   } catch (error) {
     authError = error;
@@ -228,8 +216,6 @@ export async function middleware(request: NextRequest) {
     return finalizeResponse(NextResponse.redirect(loginUrl), response);
   }
 
-  // Preserve the existing MFA requirement: users with verified MFA factors must
-  // complete an AAL2 session before accessing protected application routes.
   let aal1SessionWithMfa = false;
   if (claims.aal === "aal1") {
     try {
@@ -254,7 +240,6 @@ export async function middleware(request: NextRequest) {
     return finalizeResponse(NextResponse.redirect(loginUrl), response);
   }
 
-  // Finance module links are rewritten into the Finance Hub after authentication.
   if (financeModule) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = "/finance";
