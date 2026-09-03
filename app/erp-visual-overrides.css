@@ -1,528 +1,84 @@
-/*
- * Cafe ERP — Global visual correction layer
- *
- * Purpose: improve typography, contrast, surface hierarchy and density across
- * the entire ERP without changing routes, workflows, data, calculations or
- * business logic. This file intentionally sits after globals.css so it can
- * normalize legacy component-level Tailwind surface choices consistently.
- */
+/* Cafe ERP — visual compatibility layer
+   Kept intentionally small while the new multi-style design system is built.
+   Business logic, routes and component markup are untouched. */
 
 :root {
-  --erp-page: #f4f7fb;
-  --erp-surface: #ffffff;
-  --erp-surface-2: #f8fafc;
-  --erp-surface-3: #eef2f7;
-  --erp-border: rgba(15, 23, 42, 0.10);
-  --erp-border-strong: rgba(15, 23, 42, 0.15);
-  --erp-ink: #111827;
-  --erp-ink-2: #475569;
-  --erp-muted: #64748b;
-  --erp-accent: #2563eb;
-  --erp-success: #059669;
-  --erp-danger: #dc2626;
-  --erp-radius: 14px;
+  --erp-page: var(--page);
+  --erp-surface: var(--surface);
+  --erp-surface-2: var(--surface-soft);
+  --erp-surface-3: color-mix(in srgb, var(--surface-soft) 78%, var(--surface));
+  --erp-border: var(--line);
+  --erp-border-strong: color-mix(in srgb, var(--line) 150%, var(--ink));
+  --erp-ink: var(--ink);
+  --erp-ink-2: var(--ink-secondary);
+  --erp-muted: var(--muted);
+  --erp-accent: var(--accent-color);
+  --erp-success: #14966b;
+  --erp-danger: #dc3545;
+  --erp-radius: var(--card-radius);
 }
 
-.dark {
-  --erp-page: #101722;
-  --erp-surface: #182231;
-  --erp-surface-2: #1d2939;
-  --erp-surface-3: #243246;
-  --erp-border: rgba(226, 232, 240, 0.12);
-  --erp-border-strong: rgba(226, 232, 240, 0.18);
-  --erp-ink: #f8fafc;
-  --erp-ink-2: #c1ccda;
-  --erp-muted: #93a4b8;
-}
-
-/* --------------------------------------------------------------------------
-   Canvas + typography
-   -------------------------------------------------------------------------- */
 html {
-  background: var(--erp-page) !important;
   font-size: 15px;
+  background: var(--page) !important;
 }
 
 body {
-  background-color: var(--erp-page) !important;
-  background-image: none !important;
-  color: var(--erp-ink);
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  letter-spacing: -0.008em;
-  text-rendering: optimizeLegibility;
-}
-
-.dark body {
-  background-color: var(--erp-page) !important;
-  color: var(--erp-ink);
+  background: var(--page) !important;
+  color: var(--ink) !important;
   background-image: none !important;
 }
 
-/* Keep the gradient preference functional, but make it an atmosphere rather
-   than a competing background. */
-html[data-gradient-enabled="true"] body,
-html[data-display-mode="light"][data-gradient-enabled="true"] body,
-html[data-display-mode="dark"][data-gradient-enabled="true"] body,
-.dark[data-gradient-enabled="true"] body {
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.055), transparent 38%),
-    radial-gradient(circle at 100% 100%, rgba(99, 102, 241, 0.045), transparent 40%) !important;
-  background-attachment: fixed;
-}
+h1,h2,h3,h4,h5,h6 { color: var(--ink); }
+button,input,select,textarea { font-family: inherit; }
 
-h1, h2, h3, h4, h5, h6 {
-  color: var(--erp-ink);
-  text-wrap: balance;
-}
-
-h1 { letter-spacing: -0.025em; }
-h2 { letter-spacing: -0.02em; }
-
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
-}
-
-input,
-select,
-textarea {
-  font-size: 0.875rem;
-}
-
-/* Improve the common tiny metadata scale without touching icon dimensions. */
-.erp-table th {
-  font-size: 0.75rem;
-  letter-spacing: 0.045em;
-}
-
-.erp-table td {
-  font-size: 0.875rem;
-}
-
-/* --------------------------------------------------------------------------
-   Shared surfaces — light mode
-   -------------------------------------------------------------------------- */
+/* Normalize legacy component surfaces to the new semantic system. */
 .bento-surface,
 .bento-surface-interactive,
 .luxury-card,
 .floating-mac-window,
 .vault-3d-card,
-.pos-touch-tile-3d {
-  background: var(--erp-surface) !important;
-  border-color: var(--erp-border) !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.055) !important;
-}
-
-.bento-surface-interactive:hover,
-.luxury-card:hover,
-.pos-touch-tile-3d:hover {
-  border-color: color-mix(in srgb, var(--accent-color) 28%, var(--erp-border)) !important;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08) !important;
+.pos-touch-tile-3d,
+.spatial-sidebar-dock {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
 }
 
 .spatial-sidebar-dock {
-  background: var(--erp-surface) !important;
-  border-color: var(--erp-border) !important;
-  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.07) !important;
+  box-shadow: var(--sidebar-shadow) !important;
 }
 
-/* --------------------------------------------------------------------------
-   Shared surfaces — dark mode
-   -------------------------------------------------------------------------- */
+.dark .spatial-sidebar-dock {
+  background: var(--sidebar-bg) !important;
+  border-color: var(--sidebar-border) !important;
+}
+
 .dark .bento-surface,
 .dark .bento-surface-interactive,
 .dark .luxury-card,
 .dark .floating-mac-window,
 .dark .vault-3d-card,
 .dark .pos-touch-tile-3d {
-  background: var(--erp-surface) !important;
-  border-color: var(--erp-border) !important;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.24) !important;
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
 }
 
-.dark .bento-surface-interactive:hover,
-.dark .luxury-card:hover,
-.dark .pos-touch-tile-3d:hover {
-  border-color: rgba(147, 197, 253, 0.24) !important;
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.30) !important;
-}
-
-.dark .spatial-sidebar-dock {
-  background: #141e2c !important;
-  border-color: var(--erp-border) !important;
-  box-shadow: 4px 0 26px rgba(0, 0, 0, 0.32) !important;
-}
-
-/* Neutralize the older gradient-specific surface treatment while retaining
-   the user's gradient setting as a subtle page atmosphere. */
-html[data-gradient-enabled="true"] .spatial-sidebar-dock,
-html[data-gradient-enabled="true"] .floating-mac-window,
-html[data-gradient-enabled="true"] .bento-surface,
-html[data-gradient-enabled="true"] .bento-surface-interactive {
-  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.07) !important;
-}
-
-.dark[data-gradient-enabled="true"] .spatial-sidebar-dock,
-.dark[data-gradient-enabled="true"] .floating-mac-window,
-.dark[data-gradient-enabled="true"] .bento-surface,
-.dark[data-gradient-enabled="true"] .bento-surface-interactive {
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Legacy Tailwind dark surfaces
-   -------------------------------------------------------------------------- */
 .dark [class*="dark:bg-slate-950"],
-.dark [class*="dark:bg-slate-900"] {
-  background-color: var(--erp-surface) !important;
-}
-
-.dark [class*="dark:bg-slate-800"] {
-  background-color: var(--erp-surface-2) !important;
-}
-
-.dark [class*="dark:bg-slate-700"] {
-  background-color: var(--erp-surface-3) !important;
-}
-
-.dark [class*="dark:bg-white/[0.03]"],
-.dark [class*="dark:bg-white/[0.04]"],
-.dark [class*="dark:bg-white/[0.05]"] {
-  background-color: rgba(255, 255, 255, 0.045) !important;
-}
-
-.dark [class*="dark:bg-white/[0.06]"],
-.dark [class*="dark:bg-white/[0.08]"] {
-  background-color: rgba(255, 255, 255, 0.065) !important;
-}
-
+.dark [class*="dark:bg-slate-900"] { background-color: var(--surface) !important; }
+.dark [class*="dark:bg-slate-800"] { background-color: var(--surface-soft) !important; }
+.dark [class*="dark:bg-slate-700"] { background-color: color-mix(in srgb,var(--surface-soft) 82%,var(--surface)) !important; }
 .dark [class*="dark:border-white/10"],
-.dark [class*="dark:border-white/[0.1]"] {
-  border-color: var(--erp-border) !important;
-}
-
+.dark [class*="dark:border-white/[0.1]"] { border-color: var(--line) !important; }
 .dark [class*="dark:border-white/20"],
-.dark [class*="dark:border-white/[0.2]"] {
-  border-color: var(--erp-border-strong) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Contrast normalization
-   -------------------------------------------------------------------------- */
+.dark [class*="dark:border-white/[0.2]"] { border-color: color-mix(in srgb,var(--line) 150%,white) !important; }
 .dark [class*="dark:text-slate-400"],
-.dark [class*="dark:text-slate-500"] {
-  color: var(--erp-ink-2) !important;
-}
+.dark [class*="dark:text-slate-500"] { color: var(--ink-secondary) !important; }
 
-.dark [class*="dark:text-slate-300"] {
-  color: #d5deea !important;
-}
+.text-slate-400 { color: #68707b; }
+.text-slate-500 { color: #59606b; }
 
-.dark [class*="dark:text-slate-200"] {
-  color: #e5ebf3 !important;
-}
+header.sticky { border-color: var(--line) !important; }
 
-.dark [class*="dark:text-white"] {
-  color: #f8fafc;
-}
-
-.dark [class*="dark:hover:bg-white/10"]:hover,
-.dark [class*="dark:hover:bg-white/[0.10]"]:hover {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-/* Common light-mode secondary text should remain readable on white surfaces. */
-.text-slate-400 { color: #64748b; }
-.text-slate-500 { color: #526174; }
-
-/* --------------------------------------------------------------------------
-   Header / workstation chrome
-   -------------------------------------------------------------------------- */
-header.sticky {
-  border-color: var(--erp-border) !important;
-}
-
-.dark header.sticky {
-  background: rgba(24, 34, 49, 0.96) !important;
-  border-color: var(--erp-border) !important;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Form controls and tables
-   -------------------------------------------------------------------------- */
-.dark input,
-.dark select,
-.dark textarea {
-  background-color: #1d2939;
-  border-color: var(--erp-border);
-  color: #f8fafc;
-}
-
-.dark input::placeholder,
-.dark textarea::placeholder {
-  color: #8798ad;
-}
-
-.dark input:focus,
-.dark select:focus,
-.dark textarea:focus {
-  border-color: color-mix(in srgb, var(--accent-color) 65%, white 10%) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 22%, transparent) !important;
-}
-
-.dark .erp-table th {
-  background: #202d3f !important;
-  color: #b8c5d5 !important;
-  border-color: var(--erp-border) !important;
-}
-
-.dark .erp-table td {
-  color: #e8eef6;
-  border-color: var(--erp-border) !important;
-}
-
-.dark .erp-table tr:hover td {
-  background: rgba(59, 130, 246, 0.055) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Buttons — reduce excessive 3D/glow treatment
-   -------------------------------------------------------------------------- */
-.btn-3d-tactile-primary,
-.erp-btn-primary {
-  background: #2563eb !important;
-  border-color: #2563eb !important;
-  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.22) !important;
-}
-
-.btn-3d-tactile-primary:hover,
-.erp-btn-primary:hover {
-  background: #1d4ed8 !important;
-  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.26) !important;
-}
-
-.dark .erp-btn-secondary,
-.dark .erp-btn-ghost {
-  color: #d5deea;
-}
-
-/* Reserve strong green/red/yellow for semantic status and money movement. */
-.btn-3d-tactile-emerald {
-  box-shadow: 0 3px 10px rgba(5, 150, 105, 0.20) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Modal hierarchy
-   -------------------------------------------------------------------------- */
-[role="dialog"] {
-  color: var(--erp-ink);
-}
-
-.dark [role="dialog"] {
-  background: var(--erp-surface) !important;
-  border-color: var(--erp-border-strong) !important;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48) !important;
-}
-
-.dark [role="dialog"] [class*="dark:bg-slate-900"] {
-  background: var(--erp-surface) !important;
-}
-
-.dark [role="dialog"] [class*="dark:bg-slate-950"] {
-  background: #141e2c !important;
-}
-
-/* --------------------------------------------------------------------------
-   POS financial emphasis
-   -------------------------------------------------------------------------- */
-.erp-num {
-  font-variant-numeric: tabular-nums lining-nums;
-}
-
-/* Give the right-side POS invoice panel a distinct accounting surface. */
-.dark [class*="sticky"][class*="bg-slate"],
-.dark [class*="bg-slate-950"] {
-  border-color: var(--erp-border) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Accessibility and interaction states
-   -------------------------------------------------------------------------- */
-:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent-color) 78%, white 10%);
-  outline-offset: 2px;
-}
-
-@media (max-width: 1023px) {
-  html { font-size: 15px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bento-surface-interactive:hover,
-  .luxury-card:hover,
-  .pos-touch-tile-3d:hover {
-    transform: none !important;
-  }
-}
-
-/* --------------------------------------------------------------------------
-   Colour + typography system refinement
-   -------------------------------------------------------------------------- */
-:root {
-  --erp-font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --erp-blue: #2563eb;
-  --erp-blue-soft: #eff6ff;
-  --erp-green: #059669;
-  --erp-amber: #d97706;
-  --erp-red: #dc2626;
-  --erp-violet: #7c3aed;
-}
-
-body,
-button,
-input,
-select,
-textarea,
-[role="button"] {
-  font-family: var(--erp-font-ui);
-}
-
-body {
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-/* A consistent readable hierarchy: page titles > section titles > labels > metadata. */
-main h1 { font-size: clamp(1.45rem, 2.1vw, 2rem); line-height: 1.2; font-weight: 700; }
-main h2 { font-size: clamp(1.15rem, 1.55vw, 1.45rem); line-height: 1.25; font-weight: 700; }
-main h3 { font-size: 1rem; line-height: 1.3; font-weight: 650; }
-
-main p,
-main li,
-main td,
-main label,
-main button,
-main input,
-main select,
-main textarea {
-  line-height: 1.45;
-}
-
-/* Prevent the mobile ERP from becoming visually microscopic. */
-@media (max-width: 640px) {
-  body { font-size: 15px; }
-  main h1 { font-size: 1.4rem; }
-  main h2 { font-size: 1.12rem; }
-  main h3 { font-size: 0.98rem; }
-  main label,
-  main button,
-  main input,
-  main select,
-  main textarea { font-size: 0.875rem; }
-  .erp-table th { font-size: 0.72rem; }
-  .erp-table td { font-size: 0.82rem; }
-}
-
-/* Dark mode: one navy surface family. Do not allow white utility classes to
-   create the stark white slabs visible in legacy pages. */
-.dark .bg-white,
-.dark .bg-gray-50,
-.dark .bg-gray-100,
-.dark .bg-slate-50,
-.dark .bg-slate-100 {
-  background-color: var(--erp-surface-2) !important;
-}
-
-.dark .bg-white\/5,
-.dark .bg-white\/10 {
-  background-color: rgba(255, 255, 255, 0.055) !important;
-}
-
-.dark .text-gray-900,
-.dark .text-slate-900,
-.dark .text-slate-800,
-.dark .text-slate-700 {
-  color: #f1f5f9 !important;
-}
-
-.dark .text-gray-600,
-.dark .text-gray-500,
-.dark .text-slate-600,
-.dark .text-slate-500,
-.dark .text-slate-400 {
-  color: #aebdce !important;
-}
-
-.dark .text-slate-300,
-.dark .text-gray-300 {
-  color: #cbd5e1 !important;
-}
-
-/* Dark table containers should read as a controlled data surface, not a white
-   document pasted onto the dashboard. */
-.dark .erp-table,
-.dark table {
-  background: var(--erp-surface) !important;
-}
-
-.dark .erp-table thead,
-.dark table thead {
-  background: #202d3f !important;
-}
-
-.dark .erp-table tbody tr,
-.dark table tbody tr {
-  background: var(--erp-surface) !important;
-}
-
-.dark .erp-table tbody tr:nth-child(even),
-.dark table tbody tr:nth-child(even) {
-  background: #1b2737 !important;
-}
-
-.dark .erp-table tbody tr:hover,
-.dark table tbody tr:hover {
-  background: #223249 !important;
-}
-
-/* Money/status colours stay semantic and restrained. */
-.dark .text-emerald-500,
-.dark .text-emerald-600,
-.dark .text-emerald-700 { color: #34d399 !important; }
-.dark .text-amber-500,
-.dark .text-amber-600,
-.dark .text-amber-700 { color: #fbbf24 !important; }
-.dark .text-rose-500,
-.dark .text-rose-600,
-.dark .text-rose-700 { color: #fb7185 !important; }
-.dark .text-blue-500,
-.dark .text-blue-600,
-.dark .text-blue-700 { color: #60a5fa !important; }
-.dark .text-violet-500,
-.dark .text-violet-600,
-.dark .text-violet-700 { color: #a78bfa !important; }
-
-/* Status pills retain a soft semantic fill instead of competing with primary UI. */
-.dark .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.14) !important; }
-.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.14) !important; }
-.dark .bg-rose-100 { background-color: rgba(244, 63, 94, 0.14) !important; }
-.dark .bg-slate-100 { background-color: rgba(148, 163, 184, 0.12) !important; }
-
-/* Table action controls: compact, legible, and visually subordinate to the row. */
-.dark table button,
-.dark .erp-table button {
-  color: #dbe7f5;
-}
-
-/* Avoid ultra-thin body copy in dense ERP screens. */
-main .font-light,
-main .font-extralight {
-  font-weight: 400 !important;
-}
-
-main .text-xs {
-  line-height: 1.4;
+@media (min-width: 1024px) {
+  .spatial-sidebar-dock { border: 1px solid var(--sidebar-border); }
 }
