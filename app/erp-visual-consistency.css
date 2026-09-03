@@ -1,0 +1,304 @@
+/* Cafe ERP — final cross-page visual consistency layer.
+   This layer keeps business markup and navigation structure intact while making
+   every module inherit the same selected visual system: page canvas, surfaces,
+   borders, typography, forms, tables, dialogs and utility colours. */
+
+html[data-design-style-v2],
+html[data-design-style] {
+  --page: var(--ui-bg);
+  --surface: var(--ui-surface);
+  --surface-soft: var(--ui-surface-2);
+  --surface-border: var(--ui-border);
+  --ink: var(--ui-text);
+  --ink-secondary: var(--ui-muted);
+  --muted: var(--ui-muted);
+  --line: var(--ui-border);
+  --background: var(--ui-bg);
+  --background-secondary: var(--ui-surface-2);
+  --surface-glass: color-mix(in srgb, var(--ui-surface) 92%, transparent);
+  --text-primary: var(--ui-text);
+  --text-secondary: var(--ui-muted);
+  --text-muted: var(--ui-muted);
+  --border: var(--ui-border);
+  --border-active: var(--ui-primary);
+  --accent: var(--ui-primary);
+  --accent-color: var(--ui-primary);
+  --design-accent: var(--ui-primary);
+  --brand-400: color-mix(in srgb, var(--ui-primary) 78%, white);
+  --brand-500: var(--ui-primary);
+  --brand-600: color-mix(in srgb, var(--ui-primary) 82%, black);
+  --accent-glow: color-mix(in srgb, var(--ui-primary) 20%, transparent);
+  --shadow: var(--ui-shadow);
+  --shadow-colored: 0 10px 28px color-mix(in srgb, var(--ui-primary) 12%, transparent);
+  --glow: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+  --depth-0: var(--ui-bg);
+  --sidebar-bg: var(--ui-sidebar);
+  --sidebar-border: var(--ui-border);
+  --sidebar-shadow: var(--ui-shadow);
+  --sidebar-text: var(--ui-sidebarText);
+  --sidebar-muted: var(--ui-sidebarMuted);
+  --sidebar-card: var(--ui-sidebarInput);
+  --sidebar-hover-bg: color-mix(in srgb, var(--ui-primary) 7%, var(--ui-sidebar));
+  --sidebar-active-bg: var(--ui-sidebarActive);
+  --sidebar-active-text: var(--ui-sidebarActiveText);
+}
+
+html,
+body {
+  background: var(--page) !important;
+  color: var(--ink) !important;
+}
+
+body {
+  transition: background-color .22s ease, color .22s ease;
+}
+
+/* Global utility reconciliation.
+   Existing component markup remains unchanged; common Tailwind neutrals now
+   resolve to the selected design system instead of a separate white/slate UI. */
+.bg-white { background-color: var(--surface) !important; }
+.bg-slate-50 { background-color: var(--surface-soft) !important; }
+.bg-slate-100 { background-color: color-mix(in srgb, var(--surface-soft) 82%, var(--ink) 4%) !important; }
+.bg-slate-200 { background-color: color-mix(in srgb, var(--surface-soft) 70%, var(--ink) 8%) !important; }
+.bg-slate-800,
+.bg-slate-900,
+.bg-slate-950 { background-color: var(--surface-soft) !important; }
+
+.border-white { border-color: color-mix(in srgb, var(--surface) 60%, var(--line)) !important; }
+.border-slate-100,
+.border-slate-200,
+.border-slate-300 { border-color: var(--line) !important; }
+
+.text-slate-900,
+.text-slate-950 { color: var(--ink) !important; }
+.text-slate-800,
+.text-slate-700,
+.text-slate-600 { color: var(--ink-secondary) !important; }
+.text-slate-500,
+.text-slate-400,
+.text-slate-300 { color: color-mix(in srgb, var(--ink-secondary) 82%, var(--surface)) !important; }
+
+/* Thematic soft colour blocks. These intentionally stay calmer than the
+   accent colours used for primary actions. */
+.bg-indigo-50 { background: color-mix(in srgb, #6366f1 9%, var(--surface)) !important; }
+.bg-violet-50,
+.bg-purple-50 { background: color-mix(in srgb, #8b5cf6 9%, var(--surface)) !important; }
+.bg-blue-50 { background: color-mix(in srgb, #3b82f6 9%, var(--surface)) !important; }
+.bg-cyan-50 { background: color-mix(in srgb, #06b6d4 9%, var(--surface)) !important; }
+.bg-emerald-50 { background: color-mix(in srgb, #10b981 9%, var(--surface)) !important; }
+.bg-teal-50 { background: color-mix(in srgb, #14b8a6 9%, var(--surface)) !important; }
+.bg-amber-50 { background: color-mix(in srgb, #f59e0b 10%, var(--surface)) !important; }
+.bg-orange-50 { background: color-mix(in srgb, #f97316 9%, var(--surface)) !important; }
+.bg-rose-50,
+.bg-pink-50 { background: color-mix(in srgb, #f43f5e 9%, var(--surface)) !important; }
+
+/* Shared page shells / cards. */
+.bento-surface,
+.bento-surface-interactive,
+.luxury-card,
+.floating-mac-window,
+.vault-3d-card,
+.pos-touch-tile-3d,
+.catalog-premium,
+.spatial-sidebar-dock,
+.glass-panel {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+.bento-surface-interactive:hover,
+.luxury-card:hover,
+.pos-touch-tile-3d:hover {
+  border-color: color-mix(in srgb, var(--ui-primary) 30%, var(--line)) !important;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--ui-primary) 10%, transparent) !important;
+}
+
+/* Common rounded bordered panels used throughout feature pages. */
+[class*="rounded-2xl"][class*="border"],
+[class*="rounded-xl"][class*="border"],
+[class*="rounded-lg"][class*="border"] {
+  border-color: var(--line);
+}
+
+/* Keep the overall hierarchy clear: first-level content panels carry the
+   surface, while the canvas remains visible around them. */
+main section > [class*="bg-white"],
+main > [class*="bg-white"] {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+}
+
+/* Tables on invoices, customers, inventory, purchasing, finance and reports. */
+table {
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+thead,
+thead tr,
+thead th {
+  background: var(--surface-soft) !important;
+  color: var(--ink-secondary) !important;
+  border-color: var(--line) !important;
+}
+
+tbody td {
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+tbody tr:hover td {
+  background: color-mix(in srgb, var(--ui-primary) 4%, transparent) !important;
+}
+
+.erp-table th { background: var(--surface-soft) !important; color: var(--ink-secondary) !important; }
+.erp-table td { color: var(--ink) !important; }
+
+/* Forms and filter controls should look identical across every module. */
+input,
+select,
+textarea {
+  color: var(--ink) !important;
+  background-color: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--ink-secondary) 78%, var(--surface)) !important;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: color-mix(in srgb, var(--ui-primary) 22%, var(--line)) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ui-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 14%, transparent) !important;
+}
+
+/* Standard secondary controls. */
+.erp-btn-secondary,
+.erp-btn-ghost {
+  color: var(--ink) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--line) !important;
+}
+
+.erp-btn-primary {
+  background: var(--ui-primary) !important;
+  border-color: var(--ui-primary) !important;
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--ui-primary) 18%, transparent) !important;
+}
+
+/* Generic dialog/popover surfaces used by notifications, filters and menus. */
+[role="dialog"],
+[role="menu"],
+[data-radix-popper-content-wrapper] > div {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+/* Header bars, sticky toolbars and top-level controls. */
+header {
+  border-color: var(--line) !important;
+}
+
+/* Sidebar follows the same visual tokens across every route. */
+aside,
+aside nav {
+  color: var(--sidebar-text);
+}
+
+aside {
+  background: var(--sidebar-bg) !important;
+  border-color: var(--sidebar-border) !important;
+  box-shadow: var(--sidebar-shadow) !important;
+}
+
+aside input,
+aside [class*="bg-white"],
+aside [class*="bg-slate-50"],
+aside [class*="bg-slate-100"] {
+  background: var(--sidebar-card) !important;
+  color: var(--sidebar-text) !important;
+  border-color: var(--sidebar-border) !important;
+}
+
+/* Preserve explicit semantic status colours while harmonising their surface. */
+.bg-emerald-100 { background: color-mix(in srgb, #10b981 13%, var(--surface)) !important; }
+.bg-blue-100 { background: color-mix(in srgb, #3b82f6 13%, var(--surface)) !important; }
+.bg-indigo-100 { background: color-mix(in srgb, #6366f1 13%, var(--surface)) !important; }
+.bg-violet-100,
+.bg-purple-100 { background: color-mix(in srgb, #8b5cf6 13%, var(--surface)) !important; }
+.bg-cyan-100 { background: color-mix(in srgb, #06b6d4 13%, var(--surface)) !important; }
+.bg-teal-100 { background: color-mix(in srgb, #14b8a6 13%, var(--surface)) !important; }
+.bg-amber-100 { background: color-mix(in srgb, #f59e0b 13%, var(--surface)) !important; }
+.bg-rose-100,
+.bg-pink-100 { background: color-mix(in srgb, #f43f5e 13%, var(--surface)) !important; }
+
+/* Make icon circles and compact KPI accents feel intentionally tied to the
+   selected palette without flattening their semantic identity. */
+[class*="rounded-full"][class*="bg-indigo-100"],
+[class*="rounded-full"][class*="bg-violet-100"],
+[class*="rounded-full"][class*="bg-purple-100"] {
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--ui-primary) 11%, transparent);
+}
+
+/* Dark mode: surface depth comes from tinted values, never from white panels. */
+html.dark .bg-white { background-color: var(--surface) !important; }
+html.dark .bg-slate-50 { background-color: var(--surface-soft) !important; }
+html.dark .bg-slate-100 { background-color: color-mix(in srgb, var(--surface-soft) 85%, var(--ink) 3%) !important; }
+html.dark .text-slate-900,
+html.dark .text-slate-950 { color: var(--ink) !important; }
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+html.dark .text-slate-600 { color: var(--ink-secondary) !important; }
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300 { border-color: var(--line) !important; }
+
+/* Avoid accidental pure-white dark controls from older modules. */
+html.dark [class~="bg-white/80"],
+html.dark [class~="bg-white/90"],
+html.dark [class~="bg-white/95"] {
+  background-color: color-mix(in srgb, var(--surface) 94%, transparent) !important;
+}
+
+/* Page density stays consistent across modules. */
+html[data-density="compact"] main { --page-gap: .75rem; }
+html[data-density="comfortable"] main { --page-gap: 1rem; }
+
+/* Larger title readability in every module. */
+html[data-font-scale="large"] h1 { font-size: clamp(1.65rem, 2.2vw, 2.35rem); }
+html[data-font-scale="large"] h2 { font-size: clamp(1.25rem, 1.7vw, 1.75rem); }
+
+/* Smooth visual switching without changing interaction semantics. */
+html[data-design-style-v2] body,
+html[data-design-style-v2] aside,
+html[data-design-style-v2] main,
+html[data-design-style-v2] header,
+html[data-design-style-v2] section,
+html[data-design-style-v2] [role="dialog"],
+html[data-design-style-v2] [role="menu"] {
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, color .2s ease;
+}
+
+@media (max-width: 1023px) {
+  main { background: var(--page) !important; }
+  aside { box-shadow: 8px 0 34px color-mix(in srgb, var(--ui-primary) 10%, transparent) !important; }
+}
+
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  .bg-white,
+  .bg-slate-50,
+  .bg-slate-100 { background: #fff !important; }
+  table, thead, tbody, tr, th, td { color: #000 !important; background: #fff !important; border-color: #bbb !important; }
+}
