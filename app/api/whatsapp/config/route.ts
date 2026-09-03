@@ -37,10 +37,14 @@ export async function GET() {
     const envToken = envFirst("META_ACCESS_TOKEN", "Meta_Access_Token", "META_WHATSAPP_ACCESS_TOKEN");
     const envAppSecret = envFirst("META_APP_SECRET", "Meta_App_Secret");
     const envVerifyToken = envFirst("META_WHATSAPP_VERIFY_TOKEN", "META_VERIFY_TOKEN", "Meta_WhatsApp_Verify_Token");
+    const envAppId = envFirst("NEXT_PUBLIC_META_APP_ID", "META_APP_ID");
+    const envConfigId = envFirst("NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID", "META_EMBEDDED_SIGNUP_CONFIG_ID", "NEXT_PUBLIC_META_CONFIG_ID", "META_CONFIG_ID");
     const effectiveToken = secrets?.meta_access_token || envToken;
     const effectiveAppSecret = secrets?.meta_app_secret || envAppSecret;
     const effectiveVerifyToken = secrets?.verify_token || envVerifyToken;
     const effectivePhoneId = secrets?.meta_phone_number_id || config.meta_phone_number_id || "";
+    const effectiveAppId = String(config.meta_app_id || envAppId || "").trim();
+    const effectiveConfigId = String(config.meta_embedded_signup_config_id || envConfigId || "").trim();
     const baseProvider = config.provider as WhatsAppProvider | undefined;
     const secretProvider = secrets?.provider as WhatsAppProvider | undefined;
     const metaReady = Boolean(effectiveToken && effectiveAppSecret && effectiveVerifyToken && effectivePhoneId);
@@ -57,6 +61,8 @@ export async function GET() {
       meta_waba_id: config.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "",
       meta_display_phone_number: config.meta_display_phone_number || "",
       meta_phone_number_id: effectivePhoneId,
+      meta_app_id: effectiveAppId,
+      meta_embedded_signup_config_id: effectiveConfigId,
       meta_access_token_set: Boolean(effectiveToken),
       meta_app_secret_set: Boolean(effectiveAppSecret),
       verify_token_set: Boolean(effectiveVerifyToken),
@@ -82,6 +88,8 @@ export async function PUT(req: Request) {
       ...(existing?.config || {}), provider, gateway_url: body.gateway_url || "",
       meta_waba_id: String(body.meta_waba_id || existing?.config?.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "").trim(),
       meta_display_phone_number: String(body.meta_display_phone_number || existing?.config?.meta_display_phone_number || "").trim(),
+      meta_app_id: String(body.meta_app_id || existing?.config?.meta_app_id || process.env.NEXT_PUBLIC_META_APP_ID || process.env.META_APP_ID || "").trim(),
+      meta_embedded_signup_config_id: String(body.meta_embedded_signup_config_id || existing?.config?.meta_embedded_signup_config_id || process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || process.env.NEXT_PUBLIC_META_CONFIG_ID || process.env.META_CONFIG_ID || "").trim(),
       automations: { ...DEFAULT_AUTOMATIONS, ...(body.automations || {}) },
       ai_customer_reply: { enabled: Boolean(body.ai_customer_reply?.enabled), language: body.ai_customer_reply?.language || "auto", tone: body.ai_customer_reply?.tone || "friendly_direct", instructions: typeof body.ai_customer_reply?.instructions === "string" ? body.ai_customer_reply.instructions.trim() : "" },
     };
