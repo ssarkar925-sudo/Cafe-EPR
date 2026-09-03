@@ -25,23 +25,27 @@ export async function POST(request: Request) {
 
   const memoryContext = (memories || []).map((m) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)} (confidence ${m.confidence})`).join("\n") || "No owner memory has been stored yet.";
   const requestedModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const models = Array.from(new Set([requestedModel, "gemini-3.7-flash", "gemini-3.6-flash"]));
+  const models = Array.from(new Set([requestedModel, "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]));
   const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner memory (treat explicit instructions as durable preferences/workflows, but never as authorization to bypass permission gates):\n${memoryContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nNo write tool is exposed by this endpoint. You can answer, reason, ask questions, and propose safe actions. Never claim that a database write occurred. If the owner teaches a new durable preference or workflow, identify it as something that can be saved through the memory API.`;
 
   let data: any = null;
   let lastError = "Gemini request failed";
   for (const model of models) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts: [{ text: message }] }],
-      }),
-    });
-    data = await response.json().catch(() => ({}));
-    if (response.ok) break;
-    lastError = data?.error?.message || lastError;
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: "user", parts: [{ text: message }] }],
+        }),
+      });
+      data = await response.json().catch(() => ({}));
+      if (response.ok) break;
+      lastError = data?.error?.message || `${response.status} ${response.statusText}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Gemini network request failed";
+    }
   }
 
   if (!data?.candidates?.[0]?.content?.parts) return NextResponse.json({ error: lastError }, { status: 502 });
