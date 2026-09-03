@@ -1,39 +1,75 @@
-/* Cafe ERP — final mobile visual layer.
-   This is presentation-only: it makes the selected ten-style system win at
-   phone/tablet widths where legacy utility classes used to flatten the palette. */
+/* Cafe ERP — mobile ten-style visual system.
+   Mobile owns its presentation layer so legacy Tailwind surfaces cannot flatten
+   the selected design style. Business markup and behaviour are untouched. */
 
 @media (max-width: 1023px) {
-  html[data-design-style-v2], html[data-design-style] {
-    --mobile-page: var(--ui-bg);
-    --mobile-surface: var(--ui-surface);
-    --mobile-soft: var(--ui-surface-2);
-    --mobile-line: var(--ui-border);
-    --mobile-ink: var(--ui-text);
+  html[data-design-style-v2],
+  html[data-design-style] {
+    --mobile-page: #f5f3ee;
+    --mobile-surface: #ffffff;
+    --mobile-soft: #eeece6;
+    --mobile-line: rgba(20,24,32,.10);
+    --mobile-ink: #17191f;
+    --mobile-muted: #69717d;
+    --mobile-primary: #4338ca;
+    --mobile-secondary: #0f766e;
+    --mobile-accent: #7c3aed;
+    --mobile-shadow: 0 8px 26px rgba(20,24,32,.07);
+    --mobile-card-1: linear-gradient(145deg,#ffffff 0%,#f4f0ff 100%);
+    --mobile-card-2: linear-gradient(145deg,#ffffff 0%,#eef8ff 100%);
+    --mobile-card-3: linear-gradient(145deg,#ffffff 0%,#edf9f5 100%);
+    --mobile-card-4: linear-gradient(145deg,#ffffff 0%,#fff5e9 100%);
+    --mobile-card-5: linear-gradient(145deg,#ffffff 0%,#fff0f5 100%);
   }
 
-  html, body, #__next {
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
+  /* 01 Ambient Swiss */
+  html[data-design-style="ambient-swiss"] { --mobile-page:#f3f1eb; --mobile-surface:#fffefa; --mobile-soft:#ebe9e1; --mobile-line:rgba(45,43,55,.12); --mobile-ink:#191820; --mobile-muted:#6d6a75; --mobile-primary:#4f46e5; --mobile-secondary:#0f766e; --mobile-accent:#635bff; --mobile-shadow:0 8px 28px rgba(48,43,72,.07); --mobile-card-1:linear-gradient(145deg,#fffefa,#f0edff); --mobile-card-2:linear-gradient(145deg,#fffefa,#edf7f7); --mobile-card-3:linear-gradient(145deg,#fffefa,#f2f5e8); --mobile-card-4:linear-gradient(145deg,#fffefa,#fff3e4); --mobile-card-5:linear-gradient(145deg,#fffefa,#f9edf4); }
 
-  body {
-    background: var(--mobile-page) !important;
-    color: var(--mobile-ink) !important;
-    overflow-x: hidden !important;
-  }
+  /* 02 Soft Fintech */
+  html[data-design-style="soft-fintech"] { --mobile-page:#f4f6f2; --mobile-surface:#fbfdfb; --mobile-soft:#e9eee9; --mobile-line:rgba(30,55,40,.12); --mobile-ink:#16231b; --mobile-muted:#637269; --mobile-primary:#166534; --mobile-secondary:#7c3aed; --mobile-accent:#2563eb; --mobile-shadow:0 7px 24px rgba(25,65,45,.07); --mobile-card-1:linear-gradient(145deg,#fbfdfb,#eaf6ee); --mobile-card-2:linear-gradient(145deg,#fbfdfb,#eef2ff); --mobile-card-3:linear-gradient(145deg,#fbfdfb,#e6f6f2); --mobile-card-4:linear-gradient(145deg,#fbfdfb,#f6f0ff); --mobile-card-5:linear-gradient(145deg,#fbfdfb,#fff4e7); }
 
-  main {
-    min-width: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    background: var(--mobile-page) !important;
-    color: var(--mobile-ink) !important;
-  }
+  /* 03 Colour-Block Luxury */
+  html[data-design-style="color-block-luxury"] { --mobile-page:#f4f1ec; --mobile-surface:#fffdf9; --mobile-soft:#ece6dd; --mobile-line:rgba(48,38,32,.13); --mobile-ink:#211b18; --mobile-muted:#746963; --mobile-primary:#4338ca; --mobile-secondary:#c2410c; --mobile-accent:#0f766e; --mobile-shadow:0 9px 30px rgba(55,42,30,.08); --mobile-card-1:linear-gradient(145deg,#fffdf9,#eeeaff); --mobile-card-2:linear-gradient(145deg,#fffdf9,#e9f6f3); --mobile-card-3:linear-gradient(145deg,#fffdf9,#fff0e4); --mobile-card-4:linear-gradient(145deg,#fffdf9,#f2e9df); --mobile-card-5:linear-gradient(145deg,#fffdf9,#f7e9ed); }
 
-  /* Make mobile cards visibly inherit the selected style. */
-  main [class*="rounded-2xl"],
-  main [class*="rounded-xl"],
-  main [class*="rounded-lg"],
+  /* 04 Bento Editorial */
+  html[data-design-style="bento-editorial"] { --mobile-page:#f6f5f2; --mobile-surface:#ffffff; --mobile-soft:#ebeaf0; --mobile-line:rgba(17,24,39,.12); --mobile-ink:#111827; --mobile-muted:#667085; --mobile-primary:#111827; --mobile-secondary:#7c3aed; --mobile-accent:#2563eb; --mobile-shadow:0 10px 30px rgba(17,24,39,.08); --mobile-card-1:linear-gradient(145deg,#ffffff,#f0efff); --mobile-card-2:linear-gradient(145deg,#ffffff,#edf5ff); --mobile-card-3:linear-gradient(145deg,#ffffff,#edf8f5); --mobile-card-4:linear-gradient(145deg,#ffffff,#fff3e7); --mobile-card-5:linear-gradient(145deg,#ffffff,#f6edf5); }
+
+  /* 05 Warm Paper */
+  html[data-design-style="warm-paper"] { --mobile-page:#f5f0e7; --mobile-surface:#fffaf0; --mobile-soft:#ece3d4; --mobile-line:rgba(91,65,38,.14); --mobile-ink:#30261d; --mobile-muted:#756656; --mobile-primary:#7c2d12; --mobile-secondary:#3f6212; --mobile-accent:#be123c; --mobile-shadow:0 8px 27px rgba(91,65,38,.09); --mobile-card-1:linear-gradient(145deg,#fffaf0,#f6e9e0); --mobile-card-2:linear-gradient(145deg,#fffaf0,#edf1df); --mobile-card-3:linear-gradient(145deg,#fffaf0,#eaf3e9); --mobile-card-4:linear-gradient(145deg,#fffaf0,#f8e8d5); --mobile-card-5:linear-gradient(145deg,#fffaf0,#f5e4e9); }
+
+  /* 06 Soft Glass */
+  html[data-design-style="soft-glass"] { --mobile-page:#eef5f6; --mobile-surface:#fafdfe; --mobile-soft:#e4eff1; --mobile-line:rgba(21,94,117,.14); --mobile-ink:#15303a; --mobile-muted:#5d7078; --mobile-primary:#155e75; --mobile-secondary:#7e22ce; --mobile-accent:#0891b2; --mobile-shadow:0 10px 30px rgba(21,94,117,.10); --mobile-card-1:linear-gradient(145deg,#fbfeff,#e8f5f7); --mobile-card-2:linear-gradient(145deg,#fbfeff,#eef0ff); --mobile-card-3:linear-gradient(145deg,#fbfeff,#e7f5f2); --mobile-card-4:linear-gradient(145deg,#fbfeff,#f4edff); --mobile-card-5:linear-gradient(145deg,#fbfeff,#e9f4fa); }
+
+  /* 07 Dark Anchor */
+  html[data-design-style="dark-anchor"] { --mobile-page:#f2f3f2; --mobile-surface:#ffffff; --mobile-soft:#e9ebeb; --mobile-line:rgba(30,27,75,.13); --mobile-ink:#171827; --mobile-muted:#68707b; --mobile-primary:#1e1b4b; --mobile-secondary:#0f766e; --mobile-accent:#4f46e5; --mobile-shadow:0 9px 28px rgba(30,27,75,.09); --mobile-card-1:linear-gradient(145deg,#ffffff,#eeecff); --mobile-card-2:linear-gradient(145deg,#ffffff,#edf7f4); --mobile-card-3:linear-gradient(145deg,#ffffff,#edf1f6); --mobile-card-4:linear-gradient(145deg,#ffffff,#f3f0e9); --mobile-card-5:linear-gradient(145deg,#ffffff,#f6edf4); }
+
+  /* 08 Muted Rainbow */
+  html[data-design-style="muted-rainbow"] { --mobile-page:#f4f1ed; --mobile-surface:#fffdfa; --mobile-soft:#ebe6df; --mobile-line:rgba(76,57,66,.13); --mobile-ink:#29212a; --mobile-muted:#716772; --mobile-primary:#6b21a8; --mobile-secondary:#3f6212; --mobile-accent:#c2410c; --mobile-shadow:0 8px 27px rgba(76,57,66,.08); --mobile-card-1:linear-gradient(145deg,#fffdfa,#f3e9fa); --mobile-card-2:linear-gradient(145deg,#fffdfa,#eaf1fb); --mobile-card-3:linear-gradient(145deg,#fffdfa,#edf3e8); --mobile-card-4:linear-gradient(145deg,#fffdfa,#faeee6); --mobile-card-5:linear-gradient(145deg,#fffdfa,#f7e9ef); }
+
+  /* 09 Quiet Luxury */
+  html[data-design-style="quiet-luxury"] { --mobile-page:#f5f5f3; --mobile-surface:#ffffff; --mobile-soft:#ececeb; --mobile-line:rgba(24,24,27,.12); --mobile-ink:#18181b; --mobile-muted:#71717a; --mobile-primary:#18181b; --mobile-secondary:#52525b; --mobile-accent:#2563eb; --mobile-shadow:0 5px 20px rgba(24,24,27,.055); --mobile-card-1:linear-gradient(145deg,#ffffff,#f5f5f5); --mobile-card-2:linear-gradient(145deg,#ffffff,#f2f4f8); --mobile-card-3:linear-gradient(145deg,#ffffff,#f1f4f2); --mobile-card-4:linear-gradient(145deg,#ffffff,#f7f4ee); --mobile-card-5:linear-gradient(145deg,#ffffff,#f6f1f4); }
+
+  /* 10 Premium Hybrid */
+  html[data-design-style="premium-hybrid"] { --mobile-page:#f2f0ec; --mobile-surface:#fffefa; --mobile-soft:#e9e7e0; --mobile-line:rgba(48,43,61,.13); --mobile-ink:#1c1923; --mobile-muted:#696572; --mobile-primary:#4338ca; --mobile-secondary:#0f766e; --mobile-accent:#7c3aed; --mobile-shadow:0 10px 30px rgba(55,45,82,.085); --mobile-card-1:linear-gradient(145deg,#fffefa,#f0ebff); --mobile-card-2:linear-gradient(145deg,#fffefa,#eaf7f6); --mobile-card-3:linear-gradient(145deg,#fffefa,#edf5e9); --mobile-card-4:linear-gradient(145deg,#fffefa,#fff0e2); --mobile-card-5:linear-gradient(145deg,#fffefa,#f7eaf1); }
+
+  /* Dark variants: every style gets its own deep tinted surface language. */
+  html.dark { --mobile-page:#14161b; --mobile-surface:#1d2027; --mobile-soft:#252a33; --mobile-line:rgba(255,255,255,.10); --mobile-ink:#f4f3ef; --mobile-muted:#a8afb9; --mobile-shadow:0 12px 34px rgba(0,0,0,.24); --mobile-card-1:linear-gradient(145deg,#24223b,#30284b); --mobile-card-2:linear-gradient(145deg,#20283a,#26364a); --mobile-card-3:linear-gradient(145deg,#202f2e,#263d38); --mobile-card-4:linear-gradient(145deg,#30261f,#3a2b22); --mobile-card-5:linear-gradient(145deg,#30232d,#3b2935); }
+  html.dark[data-design-style="ambient-swiss"] { --mobile-page:#17171d; --mobile-surface:#202027; --mobile-soft:#292932; --mobile-line:rgba(255,255,255,.10); --mobile-primary:#9b91ff; --mobile-secondary:#5eead4; --mobile-accent:#9b91ff; }
+  html.dark[data-design-style="soft-fintech"] { --mobile-page:#111b16; --mobile-surface:#19251e; --mobile-soft:#243129; --mobile-line:rgba(134,239,172,.12); --mobile-primary:#86efac; --mobile-secondary:#c4b5fd; --mobile-accent:#60a5fa; }
+  html.dark[data-design-style="color-block-luxury"] { --mobile-page:#1b1715; --mobile-surface:#28201c; --mobile-soft:#352a23; --mobile-line:rgba(251,191,141,.13); --mobile-primary:#a5b4fc; --mobile-secondary:#fb923c; --mobile-accent:#5eead4; }
+  html.dark[data-design-style="bento-editorial"] { --mobile-page:#121722; --mobile-surface:#1b2230; --mobile-soft:#273044; --mobile-line:rgba(147,197,253,.12); --mobile-primary:#e5e7eb; --mobile-secondary:#c4b5fd; --mobile-accent:#60a5fa; }
+  html.dark[data-design-style="warm-paper"] { --mobile-page:#211a15; --mobile-surface:#2c231c; --mobile-soft:#392d24; --mobile-line:rgba(253,186,116,.13); --mobile-primary:#fdba74; --mobile-secondary:#bef264; --mobile-accent:#fb7185; }
+  html.dark[data-design-style="soft-glass"] { --mobile-page:#102025; --mobile-surface:#182d33; --mobile-soft:#213a41; --mobile-line:rgba(103,232,249,.13); --mobile-primary:#67e8f9; --mobile-secondary:#d8b4fe; --mobile-accent:#22d3ee; }
+  html.dark[data-design-style="dark-anchor"] { --mobile-page:#111426; --mobile-surface:#1b1e36; --mobile-soft:#272b48; --mobile-line:rgba(165,180,252,.13); --mobile-primary:#a5b4fc; --mobile-secondary:#5eead4; --mobile-accent:#818cf8; }
+  html.dark[data-design-style="muted-rainbow"] { --mobile-page:#1d1820; --mobile-surface:#29212d; --mobile-soft:#362b39; --mobile-line:rgba(216,180,254,.12); --mobile-primary:#d8b4fe; --mobile-secondary:#bef264; --mobile-accent:#fb923c; }
+  html.dark[data-design-style="quiet-luxury"] { --mobile-page:#151515; --mobile-surface:#202020; --mobile-soft:#2a2a2a; --mobile-line:rgba(255,255,255,.09); --mobile-primary:#f4f4f5; --mobile-secondary:#a1a1aa; --mobile-accent:#60a5fa; }
+  html.dark[data-design-style="premium-hybrid"] { --mobile-page:#171522; --mobile-surface:#211e31; --mobile-soft:#2c2842; --mobile-line:rgba(196,181,253,.13); --mobile-primary:#c4b5fd; --mobile-secondary:#5eead4; --mobile-accent:#a78bfa; }
+
+  html, body, #__next { min-width:0 !important; max-width:100% !important; }
+  body { background:var(--mobile-page) !important; color:var(--mobile-ink) !important; overflow-x:hidden !important; }
+  main { min-width:0 !important; width:100% !important; max-width:100% !important; background:var(--mobile-page) !important; color:var(--mobile-ink) !important; padding-bottom:max(1rem,env(safe-area-inset-bottom)) !important; }
+
+  /* Reusable card primitives and common bordered Tailwind panels. */
   main .bento-surface,
   main .bento-surface-interactive,
   main .luxury-card,
@@ -41,9 +77,13 @@
   main .vault-3d-card,
   main .pos-touch-tile-3d,
   main .catalog-premium,
-  main .glass-panel {
-    border-color: var(--mobile-line) !important;
-    color: var(--mobile-ink) !important;
+  main .glass-panel,
+  main [class*="rounded-2xl"][class*="border"],
+  main [class*="rounded-xl"][class*="border"] {
+    background:var(--mobile-surface) !important;
+    border-color:var(--mobile-line) !important;
+    color:var(--mobile-ink) !important;
+    box-shadow:var(--mobile-shadow) !important;
   }
 
   main .bento-surface,
@@ -51,90 +91,59 @@
   main .luxury-card,
   main .floating-mac-window,
   main .vault-3d-card,
+  main .pos-touch-tile-3d,
   main .catalog-premium,
-  main .glass-panel {
-    background: var(--mobile-surface) !important;
-  }
+  main .glass-panel { border-radius:18px !important; }
 
-  /* Preserve the intentional five-colour card language on mobile. */
-  main [data-mobile-card-tint="1"],
-  main .mobile-card-tint-1 { background: var(--ui-card-1) !important; }
-  main [data-mobile-card-tint="2"],
-  main .mobile-card-tint-2 { background: var(--ui-card-2) !important; }
-  main [data-mobile-card-tint="3"],
-  main .mobile-card-tint-3 { background: var(--ui-card-3) !important; }
-  main [data-mobile-card-tint="4"],
-  main .mobile-card-tint-4 { background: var(--ui-card-4) !important; }
-  main [data-mobile-card-tint="5"],
-  main .mobile-card-tint-5 { background: var(--ui-card-5) !important; }
+  /* A restrained five-colour rotation makes the selected style visible on
+     mobile without turning every surface into a loud rainbow. */
+  main [data-mobile-card-tint="1"], main .mobile-card-tint-1 { background:var(--mobile-card-1) !important; }
+  main [data-mobile-card-tint="2"], main .mobile-card-tint-2 { background:var(--mobile-card-2) !important; }
+  main [data-mobile-card-tint="3"], main .mobile-card-tint-3 { background:var(--mobile-card-3) !important; }
+  main [data-mobile-card-tint="4"], main .mobile-card-tint-4 { background:var(--mobile-card-4) !important; }
+  main [data-mobile-card-tint="5"], main .mobile-card-tint-5 { background:var(--mobile-card-5) !important; }
 
-  /* Existing Tailwind neutral surfaces must not erase the selected palette. */
-  main .bg-white { background-color: var(--mobile-surface) !important; }
-  main .bg-slate-50 { background-color: var(--mobile-soft) !important; }
-  main .bg-slate-100 { background-color: color-mix(in srgb, var(--mobile-soft) 88%, var(--mobile-ink) 4%) !important; }
-  main .border-slate-100,
-  main .border-slate-200,
-  main .border-slate-300 { border-color: var(--mobile-line) !important; }
-  main .text-slate-900,
-  main .text-slate-950 { color: var(--mobile-ink) !important; }
+  /* Dashboard/card grids: colour existing card instances even when they do
+     not carry the optional tint class. */
+  main [class*="rounded-2xl"][class*="border"]:nth-child(5n+1) { background:var(--mobile-card-1) !important; }
+  main [class*="rounded-2xl"][class*="border"]:nth-child(5n+2) { background:var(--mobile-card-2) !important; }
+  main [class*="rounded-2xl"][class*="border"]:nth-child(5n+3) { background:var(--mobile-card-3) !important; }
+  main [class*="rounded-2xl"][class*="border"]:nth-child(5n+4) { background:var(--mobile-card-4) !important; }
+  main [class*="rounded-2xl"][class*="border"]:nth-child(5n) { background:var(--mobile-card-5) !important; }
 
-  input, select, textarea {
-    max-width: 100% !important;
-    background: var(--mobile-surface) !important;
-    color: var(--mobile-ink) !important;
-    border-color: var(--mobile-line) !important;
-  }
+  /* Legacy neutral utilities must inherit the selected mobile system. */
+  main .bg-white { background-color:var(--mobile-surface) !important; }
+  main .bg-slate-50 { background-color:var(--mobile-soft) !important; }
+  main .bg-slate-100 { background-color:color-mix(in srgb,var(--mobile-soft) 88%,var(--mobile-ink) 4%) !important; }
+  main .border-slate-100, main .border-slate-200, main .border-slate-300 { border-color:var(--mobile-line) !important; }
+  main .text-slate-900, main .text-slate-950 { color:var(--mobile-ink) !important; }
+  main .text-slate-800, main .text-slate-700, main .text-slate-600 { color:var(--mobile-muted) !important; }
 
-  /* Prevent desktop-width tables from destroying the phone layout. */
-  .overflow-x-auto {
-    max-width: 100% !important;
-    -webkit-overflow-scrolling: touch;
-  }
+  /* Semantic soft colours remain recognisable, but are mixed with the style. */
+  main .bg-indigo-50 { background:color-mix(in srgb,#6366f1 12%,var(--mobile-surface)) !important; }
+  main .bg-violet-50, main .bg-purple-50 { background:color-mix(in srgb,#8b5cf6 12%,var(--mobile-surface)) !important; }
+  main .bg-blue-50 { background:color-mix(in srgb,#3b82f6 12%,var(--mobile-surface)) !important; }
+  main .bg-cyan-50 { background:color-mix(in srgb,#06b6d4 12%,var(--mobile-surface)) !important; }
+  main .bg-emerald-50, main .bg-teal-50 { background:color-mix(in srgb,#10b981 12%,var(--mobile-surface)) !important; }
+  main .bg-amber-50, main .bg-orange-50 { background:color-mix(in srgb,#f59e0b 12%,var(--mobile-surface)) !important; }
+  main .bg-rose-50, main .bg-pink-50 { background:color-mix(in srgb,#f43f5e 12%,var(--mobile-surface)) !important; }
 
-  table { min-width: 560px; }
+  input, select, textarea { max-width:100% !important; background:var(--mobile-surface) !important; color:var(--mobile-ink) !important; border-color:var(--mobile-line) !important; }
+  input:focus, select:focus, textarea:focus { border-color:var(--mobile-accent) !important; box-shadow:0 0 0 3px color-mix(in srgb,var(--mobile-accent) 16%,transparent) !important; }
 
-  /* Dialogs/popovers stay inside the viewport. */
-  [role="dialog"],
-  [role="menu"],
-  [data-radix-popper-content-wrapper] > div {
-    max-width: calc(100vw - 24px) !important;
-  }
+  table { min-width:560px; }
+  .overflow-x-auto { max-width:100% !important; -webkit-overflow-scrolling:touch; }
 
-  /* Mobile navigation uses the same selected palette rather than legacy white. */
-  aside {
-    background: var(--sidebar-bg) !important;
-    color: var(--sidebar-text) !important;
-    border-color: var(--sidebar-border) !important;
-  }
+  [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > div { max-width:calc(100vw - 24px) !important; background:var(--mobile-surface) !important; color:var(--mobile-ink) !important; border-color:var(--mobile-line) !important; }
 
-  /* Stronger dark-mode guard: no pale mobile cards. */
-  html.dark main .bg-white,
-  html.dark main .bento-surface,
-  html.dark main .bento-surface-interactive,
-  html.dark main .luxury-card,
-  html.dark main .floating-mac-window,
-  html.dark main .vault-3d-card,
-  html.dark main .catalog-premium,
-  html.dark main .glass-panel {
-    background: var(--mobile-surface) !important;
-    color: var(--mobile-ink) !important;
-    border-color: var(--mobile-line) !important;
-  }
-
-  /* Compact phone spacing without changing component behaviour. */
-  main { padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important; }
+  aside { background:var(--sidebar-bg,var(--mobile-surface)) !important; color:var(--sidebar-text,var(--mobile-ink)) !important; border-color:var(--sidebar-border,var(--mobile-line)) !important; }
 }
 
-@media (max-width: 639px) {
-  main [class*="grid-cols-4"],
-  main [class*="grid-cols-5"],
-  main [class*="grid-cols-6"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-
-  main [class*="grid-cols-3"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-
-  main [class*="p-8"] { padding: 1rem !important; }
-  main [class*="p-7"] { padding: .875rem !important; }
-  main [class*="p-6"] { padding: 1rem !important; }
-
-  h1 { letter-spacing: -.025em; }
+@media (max-width:639px) {
+  main [class*="grid-cols-4"], main [class*="grid-cols-5"], main [class*="grid-cols-6"] { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  main [class*="grid-cols-3"] { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  main [class*="p-8"] { padding:1rem !important; }
+  main [class*="p-7"] { padding:.875rem !important; }
+  main [class*="p-6"] { padding:1rem !important; }
+  h1 { letter-spacing:-.025em; }
 }
