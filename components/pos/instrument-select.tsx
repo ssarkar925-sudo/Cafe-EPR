@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 export const INSTRUMENT_TYPES: { value: string; label: string }[] = [
   { value: "cash", label: "Cash" },
   { value: "bank", label: "Bank" },
@@ -58,6 +60,44 @@ export function parseInstrumentValue(
   return { method: inst?.type ?? "cash", instrument_id: value };
 }
 
+/**
+ * POS Clear currently resets the cart state in the parent. The payment controls
+ * must not retain the previous tender amount while that React state settles.
+ * Keep this behavior local to the payment control and reset only its paired
+ * amount input when the enclosing POS cart becomes empty.
+ */
+function useResetPairedAmountWhenCartClears() {
+  const selectRef = useRef<HTMLSelectElement | null>(null);
+
+  useEffect(() => {
+    const select = selectRef.current;
+    if (!select) return;
+    const cartPanel = select.closest(".sticky");
+    if (!cartPanel) return;
+
+    const resetIfEmpty = () => {
+      const header = cartPanel.querySelector("h2");
+      if (!header || header.textContent?.trim() !== "Current Invoice") return;
+      const itemCount = header.parentElement?.querySelector("p")?.textContent ?? "";
+      if (!/^0\s+items\b/.test(itemCount.trim())) return;
+
+      const pairedInput = select.parentElement?.querySelector<HTMLInputElement>("input");
+      if (!pairedInput || pairedInput.value === "") return;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(pairedInput, "");
+      pairedInput.dispatchEvent(new Event("input", { bubbles: true }));
+      pairedInput.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    resetIfEmpty();
+    const observer = new MutationObserver(resetIfEmpty);
+    observer.observe(cartPanel, { subtree: true, childList: true, characterData: true, attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
+  return selectRef;
+}
+
 export default function InstrumentSelect({
   instruments,
   pick,
@@ -74,8 +114,11 @@ export default function InstrumentSelect({
   enabled?: string[];
 }) {
   const groups = buildInstrumentOptions(instruments, enabled);
+  const selectRef = useResetPairedAmountWhenCartClears();
+
   return (
     <select
+      ref={selectRef}
       value={selectValueOf(pick)}
       onChange={(e) => onChange(parseInstrumentValue(e.target.value, instruments))}
       className={className}
