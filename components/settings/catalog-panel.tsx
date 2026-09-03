@@ -1,75 +1,32 @@
 "use client";
 
+import Link from "next/link";
 import SettingsSection from "@/components/settings/settings-section";
-import ProductsClient from "@/components/catalog/products-client";
-import ServicesClient from "@/components/catalog/services-client";
-import CategoriesClient from "@/components/catalog/categories-client";
 
 const SECTIONS = [
-  { key: "products", label: "Products Catalog", icon: "📦" },
-  { key: "services", label: "Services Catalog", icon: "⚡" },
-  { key: "categories", label: "Categories Tree", icon: "📁" },
+  { href: "/catalog/products", label: "Products Catalog", desc: "Products, barcodes, cost prices and stock levels.", icon: "📦" },
+  { href: "/catalog/services", label: "Services Rate Card", desc: "Cybercafe, printing, xerox and online service charges.", icon: "⚡" },
+  { href: "/catalog/categories", label: "Categories Tree", desc: "Product and service organization for fast POS grouping.", icon: "📁" },
 ] as const;
 
-export default function CatalogPanel({
-  active,
-  section,
-  onSection,
-  initialProducts,
-  initialCatalogServices,
-  initialCategories,
-  categoryCounts,
-}: {
-  active: boolean;
-  section: string;
-  onSection: (s: string) => void;
-  initialProducts?: any[];
-  initialCatalogServices?: any[];
-  initialCategories?: any[];
-  categoryCounts?: Record<string, number>;
-}) {
+export default function CatalogPanel({ active }: { active: boolean; section?: string; onSection?: (s: string) => void; initialProducts?: any[]; initialCatalogServices?: any[]; initialCategories?: any[]; categoryCounts?: Record<string, number> }) {
   return (
     <div className={active ? "mt-6 space-y-6" : "hidden"}>
       <SettingsSection
         icon="M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9"
         tone="violet"
-        title="Catalog Master Data &amp; Pricing"
-        desc="Manage products with inventory tracking, cybercafe services, and category groupings."
+        title="Catalog Master Data"
+        desc="Catalog CRUD is maintained in the dedicated Catalog modules. Settings provides a single navigation point without a second copy of the same data editor."
       >
-        {/* Navigation Tabs */}
-        <div className="mb-5 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
-            {SECTIONS.map((s) => {
-              const selected = section === s.key;
-              return (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => onSection(s.key)}
-                  className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-extrabold transition ${
-                    selected
-                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white dark:ring-white/10"
-                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                  }`}
-                >
-                  <span>{s.icon}</span>
-                  <span>{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="-mx-6 -mb-6">
-          {section === "products" && (
-            <ProductsClient embedded initialProducts={initialProducts ?? []} categories={initialCategories ?? []} />
-          )}
-          {section === "services" && (
-            <ServicesClient embedded initialServices={initialCatalogServices ?? []} categories={initialCategories ?? []} />
-          )}
-          {section === "categories" && (
-            <CategoriesClient embedded initialCategories={initialCategories ?? []} counts={categoryCounts ?? {}} />
-          )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {SECTIONS.map((item) => (
+            <Link key={item.href} href={item.href} className="group rounded-2xl border border-violet-200 bg-violet-50/60 p-4 transition hover:-translate-y-0.5 hover:shadow-md dark:border-violet-500/20 dark:bg-violet-950/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lg shadow-sm dark:bg-white/10">{item.icon}</div>
+              <div className="mt-3 text-sm font-extrabold text-slate-900 dark:text-white">{item.label}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.desc}</p>
+              <span className="mt-3 inline-flex text-xs font-bold text-violet-700 dark:text-violet-300">Open module →</span>
+            </Link>
+          ))}
         </div>
       </SettingsSection>
     </div>
