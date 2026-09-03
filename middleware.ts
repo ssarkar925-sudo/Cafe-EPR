@@ -131,6 +131,14 @@ export async function middleware(request: NextRequest) {
 
   let response = applySecurityHeaders(NextResponse.next({ request }));
 
+  function finalizeResponse(target: NextResponse, base: NextResponse): NextResponse {
+    applySecurityHeaders(target);
+    base.cookies.getAll().forEach((cookie) => {
+      target.cookies.set(cookie.name, cookie.value);
+    });
+    return target;
+  }
+
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON, {
     cookieOptions: {
       path: "/",
@@ -157,11 +165,30 @@ export async function middleware(request: NextRequest) {
   });
 
   let user: { id: string } | null = null;
+  let userError: any = null;
   try {
-    const { data: { user: u } } = await supabase.auth.getUser();
+    const { data: { user: u }, error: err } = await supabase.auth.getUser();
     user = u;
-  } catch {
+    userError = err;
+  } catch (err: any) {
+    userError = err;
     user = null;
+  }
+
+  // If Supabase returned an auth error (e.g. Invalid Refresh Token), or if user is null while auth cookies exist,
+  // expire and clear all auth cookies on the response so the browser drops them immediately.
+  if (userError || (!user && hasCookie)) {
+    request.cookies.getAll().forEach((c) => {
+      if (c.name.startsWith("sb-") || c.name.includes("auth-token") || c.name.includes("supabase")) {
+        response.cookies.set(c.name, "", {
+          path: "/",
+          maxAge: 0,
+          expires: new Date(0),
+          sameSite: "none",
+          secure: true,
+        });
+      }
+    });
   }
 
   function b64decode(input: string): string {
@@ -212,18 +239,18 @@ export async function middleware(request: NextRequest) {
 
   if ((!user || aal1SessionWithMfa) && !isPublic(pathname)) {
     if (pathname.startsWith("/api")) {
-      return applySecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
+      return finalizeResponse(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), response);
     }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
-    return applySecurityHeaders(NextResponse.redirect(loginUrl));
+    return finalizeResponse(NextResponse.redirect(loginUrl), response);
   }
 
   if (user && !aal1SessionWithMfa && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return applySecurityHeaders(NextResponse.redirect(url));
+    return finalizeResponse(NextResponse.redirect(url), response);
   }
 
   // Finance module links are rewritten into the Finance Hub after authentication.
@@ -233,9 +260,7 @@ export async function middleware(request: NextRequest) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = "/finance";
     rewriteUrl.searchParams.set("module", financeModule);
-    const rewritten = applySecurityHeaders(NextResponse.rewrite(rewriteUrl, { request }));
-    response.cookies.getAll().forEach((cookie) => rewritten.cookies.set(cookie.name, cookie.value));
-    return rewritten;
+    return finalizeResponse(NextResponse.rewrite(rewriteUrl, { request }), response);
   }
 
   return response;

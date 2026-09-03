@@ -1,101 +1,515 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  Info,
+  Check,
+} from "lucide-react";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_CONFIG, type WhatsAppAutomationRules, type WhatsAppProvider } from "@/lib/whatsapp";
 
 type ConfigResponse = {
-  provider: WhatsAppProvider; gateway_url?: string; meta_waba_id?: string; meta_display_phone_number?: string; meta_phone_number_id?: string; meta_app_id?: string; meta_embedded_signup_config_id?: string;
-  meta_access_token_set?: boolean; meta_app_secret_set?: boolean; verify_token_set?: boolean; automations: WhatsAppAutomationRules;
-  ai_customer_reply?: { enabled: boolean; language: string; tone: string; instructions: string }; configured: boolean;
+  provider: WhatsAppProvider;
+  gateway_url?: string;
+  meta_phone_number_id?: string;
+  meta_waba_id?: string;
+  meta_app_id?: string;
+  meta_display_phone_number?: string;
+  meta_access_token_set?: boolean;
+  meta_verify_token?: string;
+  meta_live?: {
+    verified_name?: string;
+    display_phone_number?: string;
+    code_verification_status?: string;
+    quality_rating?: string;
+    status?: string;
+    error?: string;
+  } | null;
+  automations: WhatsAppAutomationRules;
+  configured: boolean;
 };
-type FacebookApi = { init: (options: { appId: string; cookie?: boolean; xfbml?: boolean; version: string }) => void; login: (callback: (response: any) => void, options: Record<string, any>) => void };
-declare global { interface Window { FB?: FacebookApi; fbAsyncInit?: () => void } }
-
-const DEFAULT_WABA_ID = "448036473626878";
-const DEFAULT_DISPLAY_PHONE = "+91 70030 37208";
-const META_CLOUD_GUIDE = "https://developers.facebook.com/docs/whatsapp/cloud-api";
-const META_EMBEDDED_SIGNUP_GUIDE = "https://developers.facebook.com/docs/whatsapp/embedded-signup";
-const META_GRAPH_VERSION = "v25.0";
-const inputClass = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white";
 
 export default function WhatsAppConfigurationPanel() {
-  const [cfg, setCfg] = useState<ConfigResponse>({ provider: "off", gateway_url: DEFAULT_WA_CONFIG.gateway_url, automations: DEFAULT_AUTOMATIONS, ai_customer_reply: { enabled: false, language: "auto", tone: "friendly_direct", instructions: "" }, configured: false });
-  const [token, setToken] = useState(""); const [appSecret, setAppSecret] = useState(""); const [verifyToken, setVerifyToken] = useState("");
-  const [phoneId, setPhoneId] = useState(""); const [wabaId, setWabaId] = useState(DEFAULT_WABA_ID); const [displayPhone, setDisplayPhone] = useState(DEFAULT_DISPLAY_PHONE); const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_WA_CONFIG.gateway_url || ""); const [provider, setProvider] = useState<WhatsAppProvider>("off");
-  const [metaAppId, setMetaAppId] = useState(""); const [metaConfigId, setMetaConfigId] = useState("");
-  const [saving, setSaving] = useState(false); const [resolving, setResolving] = useState(false); const [testing, setTesting] = useState(false); const [connecting, setConnecting] = useState(false); const [fbReady, setFbReady] = useState(false);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null); const [testPhone, setTestPhone] = useState(""); const [senderPlatform, setSenderPlatform] = useState(""); const [codeVerificationStatus, setCodeVerificationStatus] = useState("");
-  const signupSession = useRef<{ wabaId?: string; phoneId?: string }>({});
-
-  async function load() { const res = await fetch("/api/whatsapp/config", { cache: "no-store" }); if (!res.ok) return; const data = (await res.json()) as ConfigResponse; setCfg(data); setProvider(data.provider || "off"); setGatewayUrl(data.gateway_url || ""); setWabaId(data.meta_waba_id || DEFAULT_WABA_ID); setDisplayPhone(data.meta_display_phone_number || DEFAULT_DISPLAY_PHONE); setPhoneId(data.meta_phone_number_id || ""); setMetaAppId(data.meta_app_id || ""); setMetaConfigId(data.meta_embedded_signup_config_id || ""); }
-  useEffect(() => { void load(); }, []);
+  const [cfg, setCfg] = useState<ConfigResponse>({
+    provider: "meta",
+    gateway_url: DEFAULT_WA_CONFIG.gateway_url,
+    automations: DEFAULT_AUTOMATIONS,
+    configured: false,
+  });
+  const [token, setToken] = useState("");
+  const [phoneId, setPhoneId] = useState("");
+  const [wabaId, setWabaId] = useState("");
+  const [appId, setAppId] = useState("");
+  const [displayPhone, setDisplayPhone] = useState("");
+  const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_WA_CONFIG.gateway_url || "");
+  const [provider, setProvider] = useState<WhatsAppProvider>("meta");
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [checkingLive, setCheckingLive] = useState(false);
+  const [useTemplate, setUseTemplate] = useState(true);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [testPhone, setTestPhone] = useState("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [webhookUrl, setWebhookUrl] = useState("");
 
   useEffect(() => {
-    if (provider !== "meta" || !metaAppId || !metaConfigId) { setFbReady(false); return; }
-    if (window.FB) { setFbReady(true); return; }
-    window.fbAsyncInit = () => { if (!window.FB) return; window.FB.init({ appId: metaAppId, cookie: true, xfbml: false, version: META_GRAPH_VERSION }); setFbReady(true); };
-    if (document.getElementById("facebook-jssdk")) return;
-    const script = document.createElement("script"); script.id = "facebook-jssdk"; script.async = true; script.defer = true; script.crossOrigin = "anonymous"; script.src = "https://connect.facebook.net/en_US/sdk.js"; document.body.appendChild(script);
-    return () => { window.fbAsyncInit = undefined; };
-  }, [provider, metaAppId, metaConfigId]);
-
-  useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
-      let data: any = event.data; if (typeof data === "string") { try { data = JSON.parse(data); } catch { return; } }
-      if (!data || data.type !== "WA_EMBEDDED_SIGNUP") return;
-      const payload = data.data || {}; if (payload.waba_id) signupSession.current.wabaId = String(payload.waba_id); if (payload.phone_number_id) signupSession.current.phoneId = String(payload.phone_number_id);
-      const eventName = String(data.event || "").toUpperCase();
-      if (eventName === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" || eventName === "FINISH") setMessage({ ok: true, text: "Meta connected the existing WhatsApp Business App. Finishing the secure server setup…" });
-      else if (eventName === "CANCEL") { setConnecting(false); setMessage({ ok: false, text: `WhatsApp onboarding was cancelled${payload.current_step ? ` at ${String(payload.current_step)}` : ""}.` }); }
-      else if (eventName === "ERROR") { setConnecting(false); setMessage({ ok: false, text: String(payload.error_message || "Meta reported an Embedded Signup error. Please retry the connection.") }); }
+    if (typeof window !== "undefined") {
+      setWebhookUrl(`${window.location.origin}/api/whatsapp/webhook`);
     }
-    window.addEventListener("message", onMessage); return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  async function load(checkLive = false) {
+    if (checkLive) setCheckingLive(true);
+    try {
+      const res = await fetch(`/api/whatsapp/config${checkLive ? "?check_live=1" : ""}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as ConfigResponse;
+      setCfg(data);
+      setProvider(data.provider || "meta");
+      setGatewayUrl(data.gateway_url || "");
+      setPhoneId(data.meta_phone_number_id || "");
+      setWabaId(data.meta_waba_id || "");
+      setAppId(data.meta_app_id || "");
+      setDisplayPhone(data.meta_display_phone_number || "");
+    } finally {
+      if (checkLive) setCheckingLive(false);
+    }
+  }
+
+  useEffect(() => {
+    load(true);
   }, []);
 
   async function save() {
-    setSaving(true); setMessage(null);
-    try { const res = await fetch("/api/whatsapp/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, gateway_url: gatewayUrl, meta_waba_id: wabaId, meta_display_phone_number: displayPhone, meta_phone_number_id: phoneId, meta_app_id: metaAppId, meta_embedded_signup_config_id: metaConfigId, meta_access_token: token || undefined, meta_app_secret: appSecret || undefined, verify_token: verifyToken || undefined, automations: cfg.automations, ai_customer_reply: cfg.ai_customer_reply }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "Could not save configuration"); setToken(""); setAppSecret(""); setVerifyToken(""); setMessage({ ok: true, text: "WhatsApp configuration saved securely." }); await load(); }
-    catch (err: any) { setMessage({ ok: false, text: err?.message || "Could not save configuration" }); } finally { setSaving(false); }
-  }
-
-  async function resolveSender() {
-    setResolving(true); setMessage(null);
-    try { const res = await fetch("/api/whatsapp/config/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ waba_id: wabaId, display_phone_number: displayPhone }) }); const data = await res.json(); if (!res.ok || !data.success) throw new Error(data.error || "Could not resolve Meta Phone Number ID"); setPhoneId(data.phone_number_id || ""); setWabaId(data.waba_id || wabaId); setDisplayPhone(data.display_phone_number || displayPhone); setSenderPlatform(data.platform_type || ""); setCodeVerificationStatus(data.code_verification_status || ""); setMessage({ ok: true, text: data.coexistence_required ? "Meta found this number as a WhatsApp Business App sender. Use Connect Existing Business App; do not register it with a PIN." : `Meta sender verified: ${data.display_phone_number || displayPhone} → ${data.phone_number_id}` }); await load(); }
-    catch (err: any) { setMessage({ ok: false, text: err?.message || "Could not resolve Meta Phone Number ID" }); } finally { setResolving(false); }
-  }
-
-  function launchEmbeddedSignup() {
+    setSaving(true);
     setMessage(null);
-    if (!metaAppId || !metaConfigId) { setMessage({ ok: false, text: "Embedded Signup is not configured yet. Enter the Meta App ID and Facebook Login for Business Configuration ID, then Save Securely." }); return; }
-    if (!window.FB) { setMessage({ ok: false, text: "Meta login is still loading. Wait a moment and try again." }); return; }
-    signupSession.current = {}; setConnecting(true);
-    window.FB.login(async (response: any) => {
-      const code = String(response?.authResponse?.code || "").trim();
-      if (!code) { setConnecting(false); setMessage({ ok: false, text: "Meta did not return an authorization code. If the popup was closed or blocked, retry the connection." }); return; }
-      try { const res = await fetch("/api/whatsapp/config/embedded-signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, waba_id: signupSession.current.wabaId || wabaId, phone_number_id: signupSession.current.phoneId || phoneId }) }); const data = await res.json().catch(() => ({})); if (!res.ok || !data.success) throw new Error(data.error || "Meta onboarding could not be completed"); setWabaId(data.waba_id || wabaId); setPhoneId(data.phone_number_id || phoneId); setDisplayPhone(data.display_phone_number || displayPhone); setSenderPlatform(data.platform_type || ""); setMessage({ ok: true, text: data.coexistence ? `WhatsApp Business App connected to Cloud API: ${data.display_phone_number || displayPhone}. Webhooks are subscribed.` : `WhatsApp Cloud API connected: ${data.display_phone_number || displayPhone}. Webhooks are subscribed.` }); await load(); }
-      catch (err: any) { setMessage({ ok: false, text: err?.message || "Could not complete WhatsApp onboarding" }); } finally { setConnecting(false); }
-    }, { config_id: metaConfigId, auth_type: "rerequest", response_type: "code", override_default_response_type: true, extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" } });
+    try {
+      const res = await fetch("/api/whatsapp/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider,
+          gateway_url: gatewayUrl,
+          meta_phone_number_id: phoneId,
+          meta_waba_id: wabaId,
+          meta_app_id: appId,
+          meta_display_phone_number: displayPhone,
+          meta_access_token: token || undefined,
+          automations: cfg.automations,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save configuration");
+      setToken("");
+      setMessage({ ok: true, text: "WhatsApp configuration saved securely." });
+      await load(true);
+    } catch (err: any) {
+      setMessage({ ok: false, text: err?.message || "Could not save configuration" });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function testConnection() {
-    setTesting(true); setMessage(null);
-    try { const senderDigits = displayPhone.replace(/\D/g, ""); const recipientDigits = testPhone.replace(/\D/g, ""); if (senderDigits && recipientDigits === senderDigits) throw new Error("Use a different WhatsApp number as the recipient. The business sender cannot be its own test recipient."); const res = await fetch("/api/whatsapp/config/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: testPhone }) }); const data = await res.json(); if (!res.ok || !data.success) throw new Error(data.error || "Test message failed"); setMessage({ ok: true, text: `Test message accepted by ${data.provider || "WhatsApp"}. Sender ID: ${data.resolvedPhoneNumberId || "verified"}` }); await load(); }
-    catch (err: any) { setMessage({ ok: false, text: err?.message || "Test message failed" }); } finally { setTesting(false); }
+    setTesting(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/whatsapp/config/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: testPhone,
+          use_template: useTemplate,
+          template_name: useTemplate ? "hello_world" : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Test message delivery failed");
+      }
+      setMessage({
+        ok: true,
+        text: `Success! Message accepted by Meta Cloud API (ID: ${data.messageId || "Queued"}).`,
+      });
+    } catch (err: any) {
+      setMessage({ ok: false, text: err?.message || "Test message failed" });
+    } finally {
+      setTesting(false);
+    }
   }
-  function toggle(key: keyof WhatsAppAutomationRules) { setCfg((old) => ({ ...old, automations: { ...old.automations, [key]: !old.automations[key] } })); }
 
-  return <div className="space-y-6">
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Official Cloud API</p><h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">Connect WhatsApp</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">For an existing WhatsApp Business App number, Cafe-EPR uses Meta Embedded Signup / Coexistence. The WhatsApp PIN never passes through Cafe-EPR.</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${cfg.configured ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"}`}>{cfg.configured ? "Configured" : "Not configured"}</span></div>
-      <div className="mt-6 grid gap-4 md:grid-cols-2"><Field label="Provider"><select value={provider} onChange={(e) => setProvider(e.target.value as WhatsAppProvider)} className={inputClass}><option value="off">Disabled</option><option value="meta">Meta WhatsApp Cloud API</option><option value="local_gateway">Local Gateway (legacy)</option><option value="ultramsg">UltraMsg (legacy)</option></select></Field>{provider === "meta" && <><Field label="WhatsApp Business Account (WABA) ID"><input value={wabaId} onChange={(e) => setWabaId(e.target.value)} className={inputClass} /></Field><Field label="Business WhatsApp Number"><input value={displayPhone} onChange={(e) => setDisplayPhone(e.target.value)} className={inputClass} /></Field><Field label="Cloud API Phone Number ID"><input value={phoneId} onChange={(e) => setPhoneId(e.target.value)} placeholder="Click Check Sender" className={inputClass} /><p className="mt-1 text-[11px] text-slate-500">Resolved from Meta; this is not the WhatsApp Manager profile ID.</p></Field><Field label="Meta App ID (non-secret)"><input value={metaAppId} onChange={(e) => setMetaAppId(e.target.value.replace(/\D/g, ""))} placeholder="Meta App ID" className={inputClass} /></Field><Field label="Facebook Login for Business Configuration ID"><input value={metaConfigId} onChange={(e) => setMetaConfigId(e.target.value.replace(/\D/g, ""))} placeholder="Embedded Signup Configuration ID" className={inputClass} /></Field></>}<Field label="Permanent Access Token"><input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={cfg.meta_access_token_set ? "Saved — enter only to replace" : "Paste Meta access token"} autoComplete="new-password" className={inputClass} /></Field><Field label="Meta App Secret"><input type="password" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder={cfg.meta_app_secret_set ? "Saved — enter only to replace" : "Paste Meta app secret"} autoComplete="new-password" className={inputClass} /></Field><Field label="Webhook Verify Token"><input type="password" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder={cfg.verify_token_set ? "Saved — enter only to replace" : "Create a strong verification token"} autoComplete="new-password" className={inputClass} /></Field><Field label="Gateway URL (legacy only)"><input value={gatewayUrl} onChange={(e) => setGatewayUrl(e.target.value)} className={inputClass} disabled={provider === "meta" || provider === "off"} /></Field></div>
-      {provider === "meta" && <div className="mt-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="text-xs font-black text-indigo-900 dark:text-indigo-200">Check the current sender</div><div className="mt-1 text-xs text-indigo-800 dark:text-indigo-300">Meta will tell Cafe-EPR whether this number is an existing WhatsApp Business App / ON_PREMISE sender.</div>{senderPlatform && <div className="mt-2 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">Platform: {senderPlatform}{codeVerificationStatus ? ` · Verification: ${codeVerificationStatus}` : ""}</div>}</div><button onClick={resolveSender} disabled={resolving || !wabaId.trim()} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{resolving ? "Checking..." : "Check Sender"}</button></div></div>}
-      {provider === "meta" && <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="text-xs font-black text-emerald-900 dark:text-emerald-200">Connect Existing Business App</div><div className="mt-1 text-xs leading-5 text-emerald-800 dark:text-emerald-300">Uses Meta Embedded Signup with <code>whatsapp_business_app_onboarding</code>. The authorization code is exchanged only on the Cafe-EPR server, the WABA is subscribed, and the Cloud API phone ID is discovered automatically.</div></div><button onClick={launchEmbeddedSignup} disabled={connecting || !metaAppId || !metaConfigId || !fbReady} className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{connecting ? "Connecting..." : !metaAppId || !metaConfigId ? "Configure Meta Signup" : !fbReady ? "Loading Meta..." : "Connect Business App"}</button></div><div className="mt-3 flex flex-wrap gap-2"><a href={META_EMBEDDED_SIGNUP_GUIDE} target="_blank" rel="noreferrer" className="rounded-xl border border-emerald-300 px-3 py-2 text-[11px] font-bold text-emerald-900 dark:border-emerald-800 dark:text-emerald-200">Meta Embedded Signup</a><a href={META_CLOUD_GUIDE} target="_blank" rel="noreferrer" className="rounded-xl border border-emerald-300 px-3 py-2 text-[11px] font-bold text-emerald-900 dark:border-emerald-800 dark:text-emerald-200">Cloud API Guide</a></div></div>}
-      {provider === "meta" && (!metaAppId || !metaConfigId) && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs leading-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200"><b>Meta prerequisite:</b> the Facebook Login for Business Embedded Signup configuration must exist for this Meta app. App ID and Configuration ID are non-secret and are saved with this WhatsApp configuration.</div>}
-      <div className="mt-5 grid gap-3 lg:grid-cols-2"><div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs leading-5 text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">Webhook callback: <span className="break-all font-mono">https://cafeerp.vercel.app/api/whatsapp/webhook</span></div><div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs leading-5 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">After onboarding, the server automatically subscribes the WABA to the app.</div></div><div className="mt-5"><button onClick={save} disabled={saving} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save Securely"}</button></div>
-    </section>
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900"><h2 className="text-lg font-black text-slate-900 dark:text-white">Connection Test</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Use a different WhatsApp number as the recipient. The business sender cannot be its own test recipient.</p><div className="mt-4 flex flex-col gap-3 sm:flex-row"><input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="10-digit recipient mobile" className={`${inputClass} sm:max-w-sm`} /><button onClick={testConnection} disabled={testing || !testPhone.trim()} className="rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50 dark:bg-indigo-600">{testing ? "Testing..." : "Send Test Message"}</button></div>{message && <div className={`mt-4 rounded-xl p-3 text-xs font-semibold ${message.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300"}`}>{message.text}</div>}</section>
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900"><h2 className="text-lg font-black text-slate-900 dark:text-white">Automatic Messages</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose which completed ERP events enqueue WhatsApp messages.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(cfg.automations).map(([key, enabled]) => <button key={key} onClick={() => toggle(key as keyof WhatsAppAutomationRules)} className="flex items-center justify-between rounded-2xl border border-slate-200 p-4 text-left dark:border-white/10"><span className="text-xs font-bold text-slate-700 dark:text-slate-200">{labelize(key)}</span><span className={`h-6 w-11 rounded-full p-1 ${enabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${enabled ? "translate-x-5" : "translate-x-0"}`} /></span></button>)}</div><button onClick={save} disabled={saving} className="mt-5 rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-700 dark:border-white/10 dark:text-slate-200">Save Automation Settings</button></section>
-  </div>;
+  function toggle(key: keyof WhatsAppAutomationRules) {
+    setCfg((old) => ({ ...old, automations: { ...old.automations, [key]: !old.automations[key] } }));
+  }
+
+  function copyToClipboard(text: string, fieldId: string) {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2500);
+  }
+
+  const isVerified = cfg.meta_live?.code_verification_status === "VERIFIED";
+  const isConnected = cfg.meta_live?.status === "CONNECTED";
+  const isPendingVerification = cfg.meta_live && (cfg.meta_live.code_verification_status === "NOT_VERIFIED" || cfg.meta_live.status === "DISCONNECTED");
+
+  return (
+    <div className="space-y-6">
+      {/* 1. Meta Cloud API Credentials */}
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Official Meta Cloud API
+              </span>
+            </div>
+            <h2 className="mt-2 text-xl font-black text-slate-900 dark:text-white">WhatsApp Business Configuration</h2>
+            <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+              Direct connection to Meta Graph API v21.0. System-user tokens are encrypted server-side in Supabase RLS secrets.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => load(true)}
+              disabled={checkingLive}
+              title="Check live status from Meta API"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${checkingLive ? "animate-spin" : ""}`} />
+              {checkingLive ? "Checking..." : "Live Status"}
+            </button>
+            <span
+              className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${
+                cfg.configured
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                  : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+              }`}
+            >
+              {cfg.configured ? "Configured" : "Not configured"}
+            </span>
+          </div>
+        </div>
+
+        {/* Live Status Card from Meta */}
+        {cfg.meta_live && !cfg.meta_live.error && (
+          <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-800/50">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-3 dark:border-white/5">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {cfg.meta_live.verified_name || "WhatsApp Business"} ({cfg.meta_live.display_phone_number || displayPhone})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                    isVerified
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                  }`}
+                >
+                  {isVerified ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                  {cfg.meta_live.code_verification_status || "NOT_VERIFIED"}
+                </span>
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                    isConnected
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                      : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  Status: {cfg.meta_live.status || "UNKNOWN"}
+                </span>
+              </div>
+            </div>
+
+            {isPendingVerification && (
+              <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <p className="font-bold">Next Step: 1-Time SMS/Voice Verification in Meta WhatsApp Manager</p>
+                  <p className="mt-0.5 text-[11px]">
+                    Your number <strong>{cfg.meta_live.display_phone_number || displayPhone}</strong> is added to WABA <strong>{wabaId}</strong>. To send live messages without error 133010, open Meta WhatsApp Manager, click <strong>Verify</strong> next to this number, and submit the 6-digit OTP code sent via SMS or voice call.
+                  </p>
+                  <a
+                    href="https://business.facebook.com/wa/manage/phone-numbers/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 font-bold text-indigo-700 underline dark:text-indigo-400"
+                  >
+                    Open Meta WhatsApp Manager <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <Field label="WhatsApp Provider">
+            <select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value as WhatsAppProvider)}
+              className={inputClass}
+            >
+              <option value="meta">Meta WhatsApp Cloud API (Recommended)</option>
+              <option value="local_gateway">Local Gateway (Baileys / Node)</option>
+              <option value="ultramsg">UltraMsg (Legacy)</option>
+              <option value="off">Disabled</option>
+            </select>
+          </Field>
+
+          <Field label="Phone Number ID">
+            <input
+              value={phoneId}
+              onChange={(e) => setPhoneId(e.target.value)}
+              placeholder="e.g. 252079703694976"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="WhatsApp Business Account ID (WABA ID)">
+            <input
+              value={wabaId}
+              onChange={(e) => setWabaId(e.target.value)}
+              placeholder="e.g. 448036473626878"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Display Phone Number">
+            <input
+              value={displayPhone}
+              onChange={(e) => setDisplayPhone(e.target.value)}
+              placeholder="e.g. +91 70030 37208"
+              className={inputClass}
+            />
+          </Field>
+
+          <div className="md:col-span-2">
+            <Field label="Permanent System User Access Token">
+              <div className="relative">
+                <input
+                  type="password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder={
+                    cfg.meta_access_token_set
+                      ? "Token Saved securely — enter new token only to replace"
+                      : "Paste Meta Permanent System User Access Token (EAA5...)"
+                  }
+                  autoComplete="new-password"
+                  className={inputClass}
+                />
+                {cfg.meta_access_token_set && !token && (
+                  <span className="absolute right-3 top-2.5 inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" /> Active & Saved
+                  </span>
+                )}
+              </div>
+            </Field>
+          </div>
+
+          {provider === "local_gateway" && (
+            <div className="md:col-span-2">
+              <Field label="Gateway URL (Local / Baileys)">
+                <input
+                  value={gatewayUrl}
+                  onChange={(e) => setGatewayUrl(e.target.value)}
+                  placeholder="http://localhost:3001"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save Configuration"}
+          </button>
+          <a
+            href="https://developers.facebook.com/apps/4054888994648563/whatsapp-business/wa-dev-console/"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Meta Developer Console <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+          <a
+            href="https://business.facebook.com/wa/manage/phone-numbers/"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            WhatsApp Manager Phone Numbers <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </section>
+
+      {/* 2. Webhook Setup for Inbound Messages & Delivery Receipts */}
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <h2 className="text-lg font-black text-slate-900 dark:text-white">Meta Webhook Configuration</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Paste these credentials in Meta App Dashboard → WhatsApp → Configuration → Webhook to receive delivery receipts and customer replies.
+        </p>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-white/10 dark:bg-slate-800/60">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Callback URL</span>
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <code className="truncate text-xs font-mono text-slate-800 dark:text-slate-200">
+                {webhookUrl || "/api/whatsapp/webhook"}
+              </code>
+              <button
+                onClick={() => copyToClipboard(webhookUrl, "webhook_url")}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-700 dark:text-slate-200"
+              >
+                {copiedField === "webhook_url" ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                {copiedField === "webhook_url" ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-white/10 dark:bg-slate-800/60">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Verify Token</span>
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <code className="truncate text-xs font-mono text-slate-800 dark:text-slate-200">
+                {cfg.meta_verify_token || "SarkarCafe_WA_Verify_9K7mX4_2026"}
+              </code>
+              <button
+                onClick={() => copyToClipboard(cfg.meta_verify_token || "SarkarCafe_WA_Verify_9K7mX4_2026", "verify_token")}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-700 dark:text-slate-200"
+              >
+                {copiedField === "verify_token" ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                {copiedField === "verify_token" ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Connection Test */}
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <h2 className="text-lg font-black text-slate-900 dark:text-white">Connection Test</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Send a server-side test message directly using the saved Meta Cloud API credentials.
+        </p>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            value={testPhone}
+            onChange={(e) => setTestPhone(e.target.value)}
+            placeholder="Recipient 10-digit mobile (e.g. 7003037208)"
+            className={`${inputClass} sm:max-w-sm`}
+          />
+
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={useTemplate}
+              onChange={(e) => setUseTemplate(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            Use pre-approved &quot;hello_world&quot; template (bypasses 24h window limit)
+          </label>
+
+          <button
+            onClick={testConnection}
+            disabled={testing || !testPhone.trim()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 dark:bg-indigo-600 dark:hover:bg-indigo-700"
+          >
+            <Send className="h-3.5 w-3.5" />
+            {testing ? "Sending..." : "Send Test"}
+          </button>
+        </div>
+
+        {message && (
+          <div
+            className={`mt-4 rounded-xl p-3.5 text-xs font-semibold leading-5 ${
+              message.ok
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                : "border border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+            }`}
+          >
+            {message.text}
+          </div>
+        )}
+      </section>
+
+      {/* 4. Automatic ERP Event Notifications */}
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <h2 className="text-lg font-black text-slate-900 dark:text-white">Automated Event Triggers</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Configure which store transactions automatically dispatch WhatsApp notifications to customers and staff.
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(cfg.automations).map(([key, enabled]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggle(key as keyof WhatsAppAutomationRules)}
+              className="flex items-center justify-between rounded-2xl border border-slate-200 p-4 text-left hover:border-slate-300 dark:border-white/10 dark:hover:border-white/20"
+            >
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{labelize(key)}</span>
+              <span
+                className={`h-6 w-11 rounded-full p-1 transition-colors ${
+                  enabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`block h-4 w-4 rounded-full bg-white transition-transform ${
+                    enabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={save}
+          disabled={saving}
+          className="mt-5 rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          Save Automation Settings
+        </button>
+      </section>
+    </div>
+  );
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300">{label}</span>{children}</label>; }
-function labelize(key: string) { return key.replace(/^auto_send_/, "").split("_").map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join(" "); }
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-900";
+
+function labelize(key: string) {
+  return key
+    .replace(/^auto_send_/, "")
+    .split("_")
+    .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+    .join(" ");
+}
+

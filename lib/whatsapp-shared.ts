@@ -36,6 +36,9 @@ export type WhatsAppConfig = {
   gateway_url?: string;
   gateway_api_key?: string;
   meta_phone_number_id?: string;
+  meta_waba_id?: string;
+  meta_app_id?: string;
+  meta_display_phone_number?: string;
   meta_access_token?: string;
   ultramsg_instance_id?: string;
   ultramsg_token?: string;
@@ -284,7 +287,9 @@ create policy "whatsapp_templates update" on public.whatsapp_templates for updat
 `;
 
 export function formatWhatsAppPhone(rawPhone: string): string {
-  const digits = String(rawPhone || "").replace(/\D/g, "");
+  let digits = String(rawPhone || "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 11) digits = digits.slice(1);
   if (digits.length === 10) return `91${digits}`;
   return digits;
 }

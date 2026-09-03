@@ -80,8 +80,21 @@ export default function SessionGuard() {
       }
     }, 1000);
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT" && !signingOut.current) {
+    // Initial check for broken/invalid session refresh token
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error || !data.session) {
+        if (error && (error.message?.includes("Refresh Token") || error.name === "AuthApiError")) {
+          if (!signingOut.current && pathname !== "/login") {
+            signingOut.current = true;
+            supabase.auth.signOut().catch(() => {});
+            window.location.href = "/logout?reason=expired";
+          }
+        }
+      }
+    }).catch(() => {});
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) && !signingOut.current) {
         signingOut.current = true;
         window.location.href = "/logout?reason=expired";
       }
