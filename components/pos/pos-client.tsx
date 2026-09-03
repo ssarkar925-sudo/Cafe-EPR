@@ -681,6 +681,22 @@ export default function PosClient({
     setCustomOpen(false);
   }
 
+  function resetSaleDraft() {
+    setCart([]);
+    setCustomerId("");
+    setDiscount("");
+    setPayments([{ instrument_id: defaultInstrument.id, method: defaultInstrument.type, amount: "" }]);
+    setCollectDue(false);
+    setDueAmount("");
+    setDuePick({ instrument_id: defaultInstrument.id, method: defaultInstrument.type });
+    setUseAdvance(false);
+    setAdvanceAmount("");
+    setDraftSaved(false);
+    setError(null);
+    setSuccess(null);
+    setWaStatus("idle");
+  }
+
   function holdCurrent(label = "Held") {
     if (cart.length === 0) return;
     const bill: HeldBill = { savedAt: new Date().toISOString(), label, cart, discount, customerId, payments, duePick, collectDue, dueAmount, useAdvance, advanceAmount };
@@ -1137,7 +1153,7 @@ export default function PosClient({
                   {cart.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setCart([])}
+                      onClick={resetSaleDraft}
                       className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:underline"
                     >
                       <Trash2 className="h-3 w-3" />
