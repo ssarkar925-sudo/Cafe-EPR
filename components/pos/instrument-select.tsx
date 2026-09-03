@@ -70,9 +70,9 @@ export function parseInstrumentValue(
  * amount is controlled by PosClient, so it could retain the previous tender
  * until the next payment edit. Keep the reset local to POS payment rows by
  * detecting the empty-cart DOM transition and sending the same input event a
- * user would generate. This avoids touching any accounting/transaction data.
+ * user would generate. This does not touch accounting or transaction data.
  */
-function useResetAmountWhenPosCartClears(selectRef: React.RefObject<HTMLSelectElement | null>) {
+function useResetAmountWhenPosCartClears(selectRef: { current: HTMLSelectElement | null }) {
   useEffect(() => {
     const select = selectRef.current;
     if (!select || !select.classList.contains("w-36")) return;
