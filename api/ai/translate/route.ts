@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   // English is the canonical language used by the Cafe AI Agent tools.
   // Keep translation in a dedicated server-side module so API keys never reach the browser.
-  if (targetLanguage === "en" && (sourceLanguage === "en" || sourceLanguage === "auto")) {
+  if (sourceLanguage === targetLanguage) {
     return NextResponse.json({ translatedText: text, sourceLanguage, targetLanguage });
   }
 
