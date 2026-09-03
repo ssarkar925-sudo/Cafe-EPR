@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
 
   const requestedModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const models = Array.from(new Set([requestedModel, "gemini-3.7-flash", "gemini-3.6-flash"]));
+  const models = Array.from(new Set([requestedModel, "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]));
   const requestBody = {
     systemInstruction: { parts: [{ text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices." }] },
     contents: [{ role: "user", parts: [{ text: message }] }],
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
           action: { type: "string", enum: ["quick_sale", "unsupported"] },
           items: { type: "array", items: { type: "object", properties: { name: { type: "string" }, qty: { type: "number" } }, required: ["name", "qty"], additionalProperties: false } },
           payment_method: { type: "string", enum: ["cash", "upi", "card", "credit", "other"] },
-          customer_name: { type: ["string", "null"] },
+          customer_name: { type: "string", nullable: true },
         },
         required: ["action", "items", "payment_method", "customer_name"],
         additionalProperties: false,
@@ -58,14 +58,18 @@ export async function POST(request: Request) {
   let data: any = null;
   let lastError = "Gemini request failed";
   for (const model of models) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(requestBody),
-    });
-    data = await response.json().catch(() => ({}));
-    if (response.ok) break;
-    lastError = data?.error?.message || lastError;
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify(requestBody),
+      });
+      data = await response.json().catch(() => ({}));
+      if (response.ok) break;
+      lastError = data?.error?.message || `${response.status} ${response.statusText}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Gemini network request failed";
+    }
   }
 
   if (!data?.candidates?.[0]?.content?.parts) return NextResponse.json({ error: lastError }, { status: 502 });
