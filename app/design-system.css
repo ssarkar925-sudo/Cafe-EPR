@@ -17,7 +17,6 @@
   --design-shadow-hover: 0 14px 34px rgba(20,24,32,.10);
 }
 
-/* 01 — Chromatic Calm: recommended default */
 html[data-design-style="chromatic-calm"] {
   --design-bg: #f5f3ee;
   --design-surface: #ffffff;
@@ -33,7 +32,6 @@ html[data-design-style="chromatic-calm"] {
   --design-shadow-hover: 0 14px 34px rgba(65,55,120,.11);
 }
 
-/* 02 — Neo Minimal: quiet luxury */
 html[data-design-style="neo-minimal"] {
   --design-bg: #f7f8fa;
   --design-surface: #ffffff;
@@ -49,7 +47,6 @@ html[data-design-style="neo-minimal"] {
   --design-shadow-hover: 0 8px 22px rgba(15,23,42,.075);
 }
 
-/* 03 — Colorful Bento: expressive but still operationally calm */
 html[data-design-style="colorful-bento"] {
   --design-bg: #f6f5fb;
   --design-surface: #ffffff;
@@ -65,7 +62,6 @@ html[data-design-style="colorful-bento"] {
   --design-shadow-hover: 0 16px 38px rgba(74,55,130,.13);
 }
 
-/* Shared application canvas */
 html[data-design-style] body { background: var(--design-bg) !important; color: var(--design-text) !important; }
 html[data-design-style] .bento-surface,
 html[data-design-style] .bento-surface-interactive,
@@ -99,24 +95,59 @@ html[data-design-style] input:focus,
 html[data-design-style] select:focus,
 html[data-design-style] textarea:focus { border-color: var(--design-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--design-accent) 14%, transparent); }
 
-/* Colorful Bento adds gentle section tinting rather than gradients everywhere. */
+/* Colorful Bento — colour is applied to the card surfaces themselves, not only icons. */
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(2) > * {
+  border: 1px solid rgba(124,58,237,.14) !important;
+  box-shadow: 0 8px 24px rgba(74,55,130,.07) !important;
+}
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+1) { background: linear-gradient(145deg,#ffffff 0%,#f4efff 100%) !important; border-color: #ddd0ff !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+2) { background: linear-gradient(145deg,#ffffff 0%,#eef8ff 100%) !important; border-color: #cfe9ff !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+3) { background: linear-gradient(145deg,#ffffff 0%,#ecfbf5 100%) !important; border-color: #ccefe1 !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+4) { background: linear-gradient(145deg,#ffffff 0%,#fff5e9 100%) !important; border-color: #ffe1bb !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n) { background: linear-gradient(145deg,#ffffff 0%,#fff0f5 100%) !important; border-color: #ffd2e1 !important; }
+
+/* Quick actions: every shortcut becomes its own calm pastel tile. */
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button,
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a {
+  border-width: 1px !important;
+  box-shadow: 0 5px 16px rgba(74,55,130,.055) !important;
+}
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n+1),
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n+1) { background:#f7f1ff !important; border-color:#e2d5ff !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n+2),
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n+2) { background:#eef8ff !important; border-color:#d3eaff !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n+3),
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n+3) { background:#ecfbf4 !important; border-color:#d0efe1 !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n),
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n) { background:#fff5e9 !important; border-color:#ffe2bd !important; }
+
+/* The remaining dashboard panels get alternating soft colour washes. */
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(3) > *,
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(4) > *,
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(5) > *,
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(7) > * {
+  border-color: rgba(76,56,130,.12) !important;
+  box-shadow: 0 7px 22px rgba(74,55,130,.055) !important;
+}
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(3) > :nth-child(odd),
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(5) > :nth-child(odd) { background:linear-gradient(145deg,#fff,#f5f1ff) !important; }
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(3) > :nth-child(even),
+html[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(5) > :nth-child(even) { background:linear-gradient(145deg,#fff,#eff9ff) !important; }
+
+/* Gentle section tinting for reusable bento surfaces. */
 html[data-design-style="colorful-bento"] .bento-surface:nth-child(3n+1) { background: linear-gradient(180deg, #fff, #faf8ff) !important; }
 html[data-design-style="colorful-bento"] .bento-surface:nth-child(3n+2) { background: linear-gradient(180deg, #fff, #f8fcff) !important; }
 html[data-design-style="colorful-bento"] .bento-surface:nth-child(3n) { background: linear-gradient(180deg, #fff, #fffaf6) !important; }
 html[data-design-style="colorful-bento"] .icon-box-3d { border-radius: 15px; }
 
-/* Chromatic Calm uses colour as hierarchy, not decoration. */
 html[data-design-style="chromatic-calm"] .erp-btn-secondary { background: #f0eee8; }
 html[data-design-style="chromatic-calm"] .glass-panel { background: rgba(255,255,255,.84); }
 
-/* Neo Minimal deliberately removes visual noise. */
 html[data-design-style="neo-minimal"] .glass-panel { background: rgba(255,255,255,.96); backdrop-filter: none; -webkit-backdrop-filter: none; }
 html[data-design-style="neo-minimal"] .bento-surface-interactive:hover,
 html[data-design-style="neo-minimal"] .luxury-card:hover,
 html[data-design-style="neo-minimal"] .pos-touch-tile-3d:hover { transform: none; }
 
-/* Calm dark variants: dark mode remains available, but follows the selected
-   style's colour identity instead of reverting to the old midnight UI. */
 html.dark[data-design-style="chromatic-calm"] { --design-bg:#17171d; --design-surface:#202027; --design-surface-alt:#292932; --design-border:rgba(255,255,255,.09); --design-text:#f5f3ee; --design-muted:#aaa6b3; --design-primary:#9b91ff; --design-accent:#9b91ff; }
 html.dark[data-design-style="neo-minimal"] { --design-bg:#14171b; --design-surface:#1c2025; --design-surface-alt:#252a31; --design-border:rgba(255,255,255,.085); --design-text:#f4f6f8; --design-muted:#9aa3af; --design-primary:#93c5fd; --design-accent:#60a5fa; }
 html.dark[data-design-style="colorful-bento"] { --design-bg:#17152a; --design-surface:#211e38; --design-surface-alt:#2b2747; --design-border:rgba(255,255,255,.09); --design-text:#f8f5ff; --design-muted:#b9b1cc; --design-primary:#b69cff; --design-accent:#a78bfa; }
@@ -124,7 +155,6 @@ html.dark[data-design-style="colorful-bento"] .bento-surface:nth-child(3n+1),
 html.dark[data-design-style="colorful-bento"] .bento-surface:nth-child(3n+2),
 html.dark[data-design-style="colorful-bento"] .bento-surface:nth-child(3n) { background: var(--design-surface) !important; }
 
-/* Style switcher */
 .design-style-trigger { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 10px; border:1px solid var(--design-border); border-radius:11px; background:var(--design-surface); color:var(--design-text); font-size:11px; font-weight:800; box-shadow:0 2px 8px rgba(20,24,32,.04); }
 .design-style-trigger:hover { border-color:color-mix(in srgb,var(--design-accent) 30%,var(--design-border)); }
 .design-style-trigger-dot { width:9px; height:9px; border-radius:999px; background:linear-gradient(135deg,var(--design-primary),var(--design-secondary)); box-shadow:0 0 0 3px color-mix(in srgb,var(--design-accent) 10%,transparent); }
