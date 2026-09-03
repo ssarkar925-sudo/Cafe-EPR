@@ -94,14 +94,7 @@ export default function InstrumentSelect({
           ))}
         </optgroup>
       ))}
-      {includeAdd && (
-        <>
-          <option value="" disabled>
-            ───
-          </option>
-          <option value="__add__">+ Add card / account…</option>
-        </>
-      )}
+      {includeAdd && <option value="__add__">+ Add card / account…</option>}
     </select>
   );
 }
