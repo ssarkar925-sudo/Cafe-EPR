@@ -70,8 +70,10 @@ export async function POST(request: Request) {
     const message = typeof body?.message === "string" ? body.message.trim() : "";
     if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected yet. Add OPENAI_API_KEY to the server environment." }, { status: 503 });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "Cafe AI is not connected yet. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
+    }
 
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
@@ -87,7 +89,10 @@ export async function POST(request: Request) {
       supabase.from("audit_runs").select("status,audit_score,total_findings,critical_count").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    const memoryContext = (memoryResult.data || []).map((m) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)} (confidence ${m.confidence})`).join("\n") || "No owner memory has been stored yet.";
+    const memoryContext = (memoryResult.data || [])
+      .map((m) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)} (confidence ${m.confidence})`)
+      .join("\n") || "No owner memory has been stored yet.";
+
     const businessSnapshot = buildBusinessSnapshot({
       invoices: invoicesResult.data || [],
       transactions: transactionsResult.data || [],
@@ -97,25 +102,48 @@ export async function POST(request: Request) {
       audit: auditResult.data,
     });
 
-    const model = process.env.OPENAI_MODEL || "gpt-5.6-luna";
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        reasoning: { effort: "low" },
-        instructions: `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner memory (treat explicit instructions as durable preferences/workflows, but never as authorization to bypass permission gates):\n${memoryContext}\n\nVerified live Cafe-EPR business snapshot (use this for current business state; do not invent figures):\n${JSON.stringify(businessSnapshot, null, 2)}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nYou are the operational Cafe-EPR AI agent. Use the live snapshot to answer business questions, identify risks and opportunities, and make practical recommendations. Clearly label estimates or hypotheses. The snapshot is a bounded sample, not necessarily the complete ledger. Never claim a write, payment, transaction, invoice, deletion, or configuration change occurred unless a dedicated execution tool actually confirms it. This endpoint exposes no write tool. Consequential actions remain approval-gated.`,
-        input: message,
-      }),
-    });
+    const instructions = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner memory (treat explicit instructions as durable preferences/workflows, but never as authorization to bypass permission gates):\n${memoryContext}\n\nVerified live Cafe-EPR business snapshot (use this for current business state; do not invent figures):\n${JSON.stringify(businessSnapshot, null, 2)}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nYou are the operational Cafe-EPR AI agent. Use the live snapshot to answer business questions, identify risks and opportunities, and make practical recommendations. Clearly label estimates or hypotheses. The snapshot is a bounded sample, not necessarily the complete ledger. Never claim a write, payment, transaction, invoice, deletion, or configuration change occurred unless a dedicated execution tool actually confirms it. This endpoint exposes no write tool. Consequential actions remain approval-gated.`;
+
+    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: instructions }],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: message }],
+            },
+          ],
+          generationConfig: {
+            thinkingConfig: {
+              thinkingLevel: "low",
+            },
+          },
+        }),
+      },
+    );
 
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) return NextResponse.json({ error: data?.error?.message || "OpenAI request failed" }, { status: 502 });
-    const outputText = typeof data?.output_text === "string"
-      ? data.output_text
-      : Array.isArray(data?.output)
-        ? data.output.flatMap((item: any) => item?.content || []).map((part: any) => part?.text).filter(Boolean).join("\n")
-        : "";
+    if (!response.ok) {
+      return NextResponse.json({ error: data?.error?.message || "Gemini request failed" }, { status: 502 });
+    }
+
+    const outputText = Array.isArray(data?.candidates)
+      ? data.candidates
+          .flatMap((candidate: any) => candidate?.content?.parts || [])
+          .map((part: any) => part?.text)
+          .filter(Boolean)
+          .join("\n")
+      : "";
 
     return NextResponse.json({
       message: outputText || "I understood the request, but I could not produce a response.",
@@ -124,6 +152,8 @@ export async function POST(request: Request) {
       approvalRequired: true,
       liveContextIncluded: true,
       contextGeneratedAt: businessSnapshot.generated_at,
+      provider: "gemini",
+      model,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Cafe AI request failed" }, { status: 500 });
