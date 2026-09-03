@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 type Accent = "blue" | "indigo" | "rose" | "emerald" | "amber" | "violet" | "teal" | "slate";
 type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
@@ -96,6 +96,7 @@ export default function Modal({
   children?: ReactNode;
 }) {
   const a = ACCENTS[accent];
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -104,6 +105,49 @@ export default function Modal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // The Custom Item dialog already collects selling price and cost price.
+  // Keep the profit preview local to the modal so the user can verify margin
+  // before adding the line to the POS cart, without changing transaction logic.
+  useEffect(() => {
+    if (title !== "Add Custom Item") return;
+    const body = bodyRef.current;
+    if (!body) return;
+
+    const inputs = Array.from(body.querySelectorAll<HTMLInputElement>('input[type="number"]'));
+    if (inputs.length < 2) return;
+    const sellingInput = inputs[0];
+    const costInput = inputs[1];
+    const anchor = costInput.closest(".grid") ?? costInput.parentElement?.parentElement;
+    if (!anchor?.parentElement) return;
+
+    const preview = document.createElement("div");
+    preview.className = "mt-3 grid grid-cols-2 gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20";
+    const profitBox = document.createElement("div");
+    const marginBox = document.createElement("div");
+    preview.append(profitBox, marginBox);
+    anchor.parentElement.insertBefore(preview, anchor.nextSibling);
+
+    const update = () => {
+      const selling = Math.max(0, Number(sellingInput.value) || 0);
+      const cost = Math.max(0, Number(costInput.value) || 0);
+      const profit = selling - cost;
+      const margin = selling > 0 ? (profit / selling) * 100 : 0;
+      const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(profit);
+      profitBox.innerHTML = `<div class="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Profit</div><div class="mt-0.5 text-sm font-black ${profit < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-300"}">${money}</div>`;
+      marginBox.innerHTML = `<div class="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Profit Margin</div><div class="mt-0.5 text-sm font-black ${margin < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-300"}">${margin.toFixed(2)}%</div>`;
+    };
+
+    sellingInput.addEventListener("input", update);
+    costInput.addEventListener("input", update);
+    update();
+
+    return () => {
+      sellingInput.removeEventListener("input", update);
+      costInput.removeEventListener("input", update);
+      preview.remove();
+    };
+  }, [title]);
 
   const panel = (
     <>
@@ -165,6 +209,7 @@ export default function Modal({
 
       {/* Body */}
       <div
+        ref={bodyRef}
         className={`min-h-0 flex-1 overflow-y-auto bg-white p-6 dark:bg-slate-900 sm:p-6 ${
           bodyClassName ?? ""
         }`}
