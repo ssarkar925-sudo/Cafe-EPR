@@ -5,6 +5,7 @@ import "./dashboard-quick-access.css";
 import "./design-system-10.css";
 import "./design-style-previews.css";
 import "./design-rescue.css";
+import "./erp-visual-consistency.css";
 import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
