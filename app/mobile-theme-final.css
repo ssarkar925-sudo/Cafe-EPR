@@ -1,0 +1,140 @@
+/* Cafe ERP — final mobile visual layer.
+   This is presentation-only: it makes the selected ten-style system win at
+   phone/tablet widths where legacy utility classes used to flatten the palette. */
+
+@media (max-width: 1023px) {
+  html[data-design-style-v2], html[data-design-style] {
+    --mobile-page: var(--ui-bg);
+    --mobile-surface: var(--ui-surface);
+    --mobile-soft: var(--ui-surface-2);
+    --mobile-line: var(--ui-border);
+    --mobile-ink: var(--ui-text);
+  }
+
+  html, body, #__next {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body {
+    background: var(--mobile-page) !important;
+    color: var(--mobile-ink) !important;
+    overflow-x: hidden !important;
+  }
+
+  main {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: var(--mobile-page) !important;
+    color: var(--mobile-ink) !important;
+  }
+
+  /* Make mobile cards visibly inherit the selected style. */
+  main [class*="rounded-2xl"],
+  main [class*="rounded-xl"],
+  main [class*="rounded-lg"],
+  main .bento-surface,
+  main .bento-surface-interactive,
+  main .luxury-card,
+  main .floating-mac-window,
+  main .vault-3d-card,
+  main .pos-touch-tile-3d,
+  main .catalog-premium,
+  main .glass-panel {
+    border-color: var(--mobile-line) !important;
+    color: var(--mobile-ink) !important;
+  }
+
+  main .bento-surface,
+  main .bento-surface-interactive,
+  main .luxury-card,
+  main .floating-mac-window,
+  main .vault-3d-card,
+  main .catalog-premium,
+  main .glass-panel {
+    background: var(--mobile-surface) !important;
+  }
+
+  /* Preserve the intentional five-colour card language on mobile. */
+  main [data-mobile-card-tint="1"],
+  main .mobile-card-tint-1 { background: var(--ui-card-1) !important; }
+  main [data-mobile-card-tint="2"],
+  main .mobile-card-tint-2 { background: var(--ui-card-2) !important; }
+  main [data-mobile-card-tint="3"],
+  main .mobile-card-tint-3 { background: var(--ui-card-3) !important; }
+  main [data-mobile-card-tint="4"],
+  main .mobile-card-tint-4 { background: var(--ui-card-4) !important; }
+  main [data-mobile-card-tint="5"],
+  main .mobile-card-tint-5 { background: var(--ui-card-5) !important; }
+
+  /* Existing Tailwind neutral surfaces must not erase the selected palette. */
+  main .bg-white { background-color: var(--mobile-surface) !important; }
+  main .bg-slate-50 { background-color: var(--mobile-soft) !important; }
+  main .bg-slate-100 { background-color: color-mix(in srgb, var(--mobile-soft) 88%, var(--mobile-ink) 4%) !important; }
+  main .border-slate-100,
+  main .border-slate-200,
+  main .border-slate-300 { border-color: var(--mobile-line) !important; }
+  main .text-slate-900,
+  main .text-slate-950 { color: var(--mobile-ink) !important; }
+
+  input, select, textarea {
+    max-width: 100% !important;
+    background: var(--mobile-surface) !important;
+    color: var(--mobile-ink) !important;
+    border-color: var(--mobile-line) !important;
+  }
+
+  /* Prevent desktop-width tables from destroying the phone layout. */
+  .overflow-x-auto {
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table { min-width: 560px; }
+
+  /* Dialogs/popovers stay inside the viewport. */
+  [role="dialog"],
+  [role="menu"],
+  [data-radix-popper-content-wrapper] > div {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  /* Mobile navigation uses the same selected palette rather than legacy white. */
+  aside {
+    background: var(--sidebar-bg) !important;
+    color: var(--sidebar-text) !important;
+    border-color: var(--sidebar-border) !important;
+  }
+
+  /* Stronger dark-mode guard: no pale mobile cards. */
+  html.dark main .bg-white,
+  html.dark main .bento-surface,
+  html.dark main .bento-surface-interactive,
+  html.dark main .luxury-card,
+  html.dark main .floating-mac-window,
+  html.dark main .vault-3d-card,
+  html.dark main .catalog-premium,
+  html.dark main .glass-panel {
+    background: var(--mobile-surface) !important;
+    color: var(--mobile-ink) !important;
+    border-color: var(--mobile-line) !important;
+  }
+
+  /* Compact phone spacing without changing component behaviour. */
+  main { padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important; }
+}
+
+@media (max-width: 639px) {
+  main [class*="grid-cols-4"],
+  main [class*="grid-cols-5"],
+  main [class*="grid-cols-6"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  main [class*="grid-cols-3"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  main [class*="p-8"] { padding: 1rem !important; }
+  main [class*="p-7"] { padding: .875rem !important; }
+  main [class*="p-6"] { padding: 1rem !important; }
+
+  h1 { letter-spacing: -.025em; }
+}
