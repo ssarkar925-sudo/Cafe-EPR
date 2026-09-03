@@ -1,37 +1,43 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getUserRole, hasRole } from "@/lib/authz";
 import TrialBalanceClient from "@/components/finance/trial-balance-client";
 
 export const dynamic = "force-dynamic";
 
+type Account = {
+  id: string;
+  code: string;
+  name: string;
+  account_type: string;
+  is_active: boolean;
+};
+
+type JournalLine = {
+  account_id: string;
+  debit: number | string | null;
+  credit: number | string | null;
+  journal_entries?: { status?: string | null } | null;
+};
+
 export default async function TrialBalancePage() {
-  const role = await getUserRole();
-  if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
-
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0];
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  const [{ data: instruments }, { data: entries }, { data: openingBalances }, { data: poolBalances }] =
-    await Promise.all([
-      supabase.from("payment_instruments").select("id, name, type, is_active, opening_balance").order("type").order("name"),
-      supabase
-        .from("cash_entries")
-        .select("instrument_id, direction, amount, entry_date")
-        .not("instrument_id", "is", null),
-      supabase
-        .from("opening_balances")
-        .select("pool, instrument_id, amount, as_of")
-        .order("as_of", { ascending: false }),
-      supabase.rpc("get_pool_balances", { p_as_of: today }),
-    ]);
+  const { data: accounts } = await supabase
+    .from("accounting_accounts")
+    .select("id, code, name, account_type, is_active")
+    .order("code");
+
+  const { data: lines } = await supabase
+    .from("journal_lines")
+    .select("account_id, debit, credit, journal_entries!inner(status)")
+    .not("journal_entries.status", "in", "(void,cancelled)");
 
   return (
     <TrialBalanceClient
-      instruments={(instruments ?? []) as any[]}
-      entries={(entries ?? []) as any[]}
-      openingBalances={(openingBalances ?? []) as any[]}
-      poolBalances={(poolBalances ?? {}) as any}
+      accounts={(accounts ?? []) as Account[]}
+      journalLines={(lines ?? []) as JournalLine[]}
     />
   );
 }
