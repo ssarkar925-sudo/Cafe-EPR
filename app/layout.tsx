@@ -3,6 +3,7 @@ import "./globals.css";
 import "./erp-visual-overrides.css";
 import "./design-system.css";
 import "./dashboard-quick-access.css";
+import "./design-dark-overrides.css";
 import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
