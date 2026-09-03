@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getUserRole, hasRole } from "@/lib/authz";
 import { requireOwnerApproval } from "@/lib/ai/approval-gate";
 import { calculateGstInvoice } from "@/lib/gst";
 
@@ -34,51 +33,55 @@ export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{
-          text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices.",
-        }],
-      },
-      contents: [{ role: "user", parts: [{ text: message }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            action: { type: "string", enum: ["quick_sale", "unsupported"] },
+  const requestedModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const models = Array.from(new Set([requestedModel, "gemini-3.7-flash", "gemini-3.6-flash"]));
+  const requestBody = (model: string) => ({
+    systemInstruction: {
+      parts: [{
+        text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices.",
+      }],
+    },
+    contents: [{ role: "user", parts: [{ text: message }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["quick_sale", "unsupported"] },
+          items: {
+            type: "array",
             items: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  qty: { type: "number" },
-                },
-                required: ["name", "qty"],
-                additionalProperties: false,
-              },
+              type: "object",
+              properties: { name: { type: "string" }, qty: { type: "number" } },
+              required: ["name", "qty"],
+              additionalProperties: false,
             },
-            payment_method: { type: "string", enum: ["cash", "upi", "card", "credit", "other"] },
-            customer_name: { type: ["string", "null"] },
           },
-          required: ["action", "items", "payment_method", "customer_name"],
-          additionalProperties: false,
+          payment_method: { type: "string", enum: ["cash", "upi", "card", "credit", "other"] },
+          customer_name: { type: ["string", "null"] },
         },
+        required: ["action", "items", "payment_method", "customer_name"],
+        additionalProperties: false,
       },
-    }),
+    },
   });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) return NextResponse.json({ error: data?.error?.message || "Gemini request failed" }, { status: 502 });
+  let data: any = null;
+  let lastError = "Gemini request failed";
+  for (const model of models) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(requestBody(model)),
+    });
+    data = await response.json().catch(() => ({}));
+    if (response.ok) break;
+    lastError = data?.error?.message || lastError;
+  }
 
-  const outputText = Array.isArray(data?.candidates?.[0]?.content?.parts)
-    ? data.candidates[0].content.parts.map((part: any) => part?.text).filter(Boolean).join("\n")
-    : "";
+  if (!data?.candidates?.[0]?.content?.parts) return NextResponse.json({ error: lastError }, { status: 502 });
+
+  const outputText = data.candidates[0].content.parts.map((part: any) => part?.text).filter(Boolean).join("\n");
 
   let parsed: ParsedCommand;
   try {
@@ -125,16 +128,7 @@ export async function POST(request: Request) {
       problems.push(`${item.name}: only ${Number(item.stock_qty)} in stock`);
       continue;
     }
-    resolved.push({
-      id: item.id,
-      kind: item.kind,
-      name: item.name,
-      qty,
-      rate: Number(item.sale_price),
-      cost_price: Number(item.cost_price ?? 0),
-      gst_rate: Number(item.gst_rate ?? 0),
-      hsn_sac: item.kind === "product" ? item.hsn_code ?? null : item.sac_code ?? null,
-    });
+    resolved.push({ id: item.id, kind: item.kind, name: item.name, qty, rate: Number(item.sale_price), cost_price: Number(item.cost_price ?? 0), gst_rate: Number(item.gst_rate ?? 0), hsn_sac: item.kind === "product" ? item.hsn_code ?? null : item.sac_code ?? null });
   }
 
   if (problems.length) return NextResponse.json({ action: "needs_input", problems, message: "I have not changed anything. Please correct these items." }, { status: 422 });
@@ -149,41 +143,14 @@ export async function POST(request: Request) {
   }
 
   const paymentMethod = parsed.payment_method === "other" ? "cash" : parsed.payment_method;
-  const gst = calculateGstInvoice({
-    lines: resolved.map((x) => ({ qty: x.qty, rate: x.rate, gstRate: x.gst_rate, hsnSac: x.hsn_sac, taxTreatment: x.gst_rate > 0 ? "taxable" : "non_gst" })),
-    invoiceLumpSumDiscount: 0,
-    supplierStateCode: "19",
-    customerStateCode: customer?.state_code ?? null,
-    customerGstin: customer?.gstin ?? null,
-  });
+  const gst = calculateGstInvoice({ lines: resolved.map((x) => ({ qty: x.qty, rate: x.rate, gstRate: x.gst_rate, hsnSac: x.hsn_sac, taxTreatment: x.gst_rate > 0 ? "taxable" : "non_gst" })), invoiceLumpSumDiscount: 0, supplierStateCode: "19", customerStateCode: customer?.state_code ?? null, customerGstin: customer?.gstin ?? null });
   const total = gst.invoiceTotal;
 
   const { data: instruments } = await supabase.from("payment_instruments").select("id,name,type").eq("is_active", true).eq("type", paymentMethod).order("name").limit(1);
   const instrumentId = instruments?.[0]?.id ?? null;
   const payment = [{ method: paymentMethod, amount: total, instrument_id: instrumentId }];
 
-  const approval = await requireOwnerApproval("create_sale", {
-    source: "cafe-ai-quick-sale",
-    original_request: message,
-    customer_id: customer?.id ?? null,
-    customer_name: customer?.name ?? null,
-    customer_state_code: customer?.state_code ?? null,
-    customer_gstin: customer?.gstin ?? null,
-    payment,
-    items: resolved,
-    expected_total: total,
-  });
+  const approval = await requireOwnerApproval("create_sale", { source: "cafe-ai-quick-sale", original_request: message, customer_id: customer?.id ?? null, customer_name: customer?.name ?? null, customer_state_code: customer?.state_code ?? null, customer_gstin: customer?.gstin ?? null, payment, items: resolved, expected_total: total });
 
-  return NextResponse.json({
-    action: "approval_required",
-    approval_id: approval.id,
-    approval,
-    summary: {
-      customer: customer?.name ?? "Walk-in customer",
-      payment_method: paymentMethod,
-      total,
-      items: resolved.map((x) => ({ name: x.name, qty: x.qty, rate: x.rate, amount: Number((x.qty * x.rate).toFixed(2)) })),
-    },
-    message: "Quick sale prepared. Owner approval is required before Cafe-EPR is changed.",
-  });
+  return NextResponse.json({ action: "approval_required", approval_id: approval.id, approval, summary: { customer: customer?.name ?? "Walk-in customer", payment_method: paymentMethod, total, items: resolved.map((x) => ({ name: x.name, qty: x.qty, rate: x.rate, amount: Number((x.qty * x.rate).toFixed(2)) })) }, message: "Quick sale prepared. Owner approval is required before Cafe-EPR is changed." });
 }
