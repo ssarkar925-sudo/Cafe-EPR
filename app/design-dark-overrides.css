@@ -1,0 +1,145 @@
+/* Dark visual layer: keep the light/dark identity colorful instead of flattening
+   every surface to neutral charcoal. These rules intentionally come last. */
+
+html.dark .text-slate-400 { color: #8e98aa !important; }
+html.dark .text-slate-500 { color: #aeb6c4 !important; }
+html.dark .text-slate-600 { color: #c6ccd6 !important; }
+
+/* Shared dark surfaces retain the selected design personality. */
+html.dark[data-design-style="chromatic-calm"] .bento-surface,
+html.dark[data-design-style="chromatic-calm"] .bento-surface-interactive,
+html.dark[data-design-style="chromatic-calm"] .luxury-card,
+html.dark[data-design-style="chromatic-calm"] .floating-mac-window,
+html.dark[data-design-style="chromatic-calm"] .vault-3d-card,
+html.dark[data-design-style="chromatic-calm"] .pos-touch-tile-3d {
+  background: #211f2d !important;
+  border-color: rgba(155,145,255,.22) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22) !important;
+}
+
+html.dark[data-design-style="neo-minimal"] .bento-surface,
+html.dark[data-design-style="neo-minimal"] .bento-surface-interactive,
+html.dark[data-design-style="neo-minimal"] .luxury-card,
+html.dark[data-design-style="neo-minimal"] .floating-mac-window,
+html.dark[data-design-style="neo-minimal"] .vault-3d-card,
+html.dark[data-design-style="neo-minimal"] .pos-touch-tile-3d {
+  background: #1d2733 !important;
+  border-color: rgba(96,165,250,.20) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.20) !important;
+}
+
+html.dark[data-design-style="colorful-bento"] .bento-surface,
+html.dark[data-design-style="colorful-bento"] .bento-surface-interactive,
+html.dark[data-design-style="colorful-bento"] .luxury-card,
+html.dark[data-design-style="colorful-bento"] .floating-mac-window,
+html.dark[data-design-style="colorful-bento"] .vault-3d-card,
+html.dark[data-design-style="colorful-bento"] .pos-touch-tile-3d {
+  background: #241f3b !important;
+  border-color: rgba(167,139,250,.22) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.24) !important;
+}
+
+/* Dashboard KPI cards: five persistent colour identities in dark mode. */
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+1) {
+  background: linear-gradient(145deg,#292141 0%,#211b36 100%) !important;
+  border-color:#6550a5 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+2) {
+  background: linear-gradient(145deg,#183a37 0%,#162d2e 100%) !important;
+  border-color:#2e8d84 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+3) {
+  background: linear-gradient(145deg,#40232f 0%,#30202a 100%) !important;
+  border-color:#a84e72 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n+4) {
+  background: linear-gradient(145deg,#1d304c 0%,#1b283b 100%) !important;
+  border-color:#4779b8 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > :nth-child(5n) {
+  background: linear-gradient(145deg,#47321d 0%,#342718 100%) !important;
+  border-color:#b47a34 !important;
+}
+
+/* Preserve readable type inside dark KPI cards. */
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > * .text-slate-900,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > * .text-slate-950,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > * .text-slate-800 {
+  color:#f7f8fb !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > * .text-slate-500,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(2) > * .text-slate-400 {
+  color:#c3cad6 !important;
+}
+
+/* Quick action container becomes a deep colour anchor. */
+html.dark[data-design-style="chromatic-calm"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) {
+  background:#24213a !important;
+  border-color:#55488a !important;
+}
+html.dark[data-design-style="neo-minimal"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) {
+  background:#202c3a !important;
+  border-color:#3d648f !important;
+}
+html.dark[data-design-style="colorful-bento"] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) {
+  background:linear-gradient(145deg,#282040,#1f2642) !important;
+  border-color:#64559a !important;
+}
+
+/* Every quick action tile gets a dark pastel identity instead of a pale tile
+   whose white labels disappear. */
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n+1),
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n+1) {
+  background:#30254a !important; border-color:#6d58a8 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n+2),
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n+2) {
+  background:#20364a !important; border-color:#4a86b7 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n+3),
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n+3) {
+  background:#203b36 !important; border-color:#459b88 !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a:nth-of-type(4n),
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button:nth-of-type(4n) {
+  background:#3b2d20 !important; border-color:#a8783e !important;
+}
+
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) a span:last-child,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) button span:last-child {
+  color:#f7f8fb !important;
+}
+
+/* Other dashboard sections use deep alternating colour washes so dark mode
+   remains visually rich without becoming a neon surface. */
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(3) > *,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(4) > *,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(5) > *,
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(7) > * {
+  border-color:rgba(255,255,255,.10) !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(3) > :nth-child(odd),
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(5) > :nth-child(odd) {
+  background:linear-gradient(145deg,#241f38,#1f2334) !important;
+}
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(3) > :nth-child(even),
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(5) > :nth-child(even) {
+  background:linear-gradient(145deg,#1f2e3e,#1c2a35) !important;
+}
+
+/* The executive header gets a subtle colour frame in dark mode. */
+html.dark[data-design-style] .space-y-6.pb-16 > :nth-child(1) {
+  background:linear-gradient(145deg,#1e222d,#211e31) !important;
+  border-color:rgba(155,145,255,.18) !important;
+}
+
+/* Keep tables/forms readable while cards carry the colour. */
+html.dark[data-design-style] .erp-table th { background:#252a34 !important; color:#b9c1cf !important; }
+html.dark[data-design-style] .erp-table td { color:#eef1f5 !important; }
+
+/* Gentle hover lift for dark colourful cards. */
+html.dark[data-design-style] .bento-surface-interactive:hover,
+html.dark[data-design-style] .luxury-card:hover,
+html.dark[data-design-style] .pos-touch-tile-3d:hover {
+  box-shadow:0 14px 34px rgba(0,0,0,.30), 0 0 0 1px rgba(255,255,255,.04) !important;
+}
