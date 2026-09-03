@@ -1,0 +1,16 @@
+.design-style-menu{max-height:min(620px,calc(100vh - 100px));overflow:auto;scrollbar-width:thin}.design-style-swatch{background:#eee!important}.design-style-swatch i:nth-child(1){background:#635bff}.design-style-swatch i:nth-child(2){background:#0f766e}.design-style-swatch i:nth-child(3){background:#f59e0b}
+.style-ambient-swiss{background:#eee9df!important}.style-ambient-swiss i:nth-child(1){background:#5b55d9}.style-ambient-swiss i:nth-child(2){background:#157a6e}.style-ambient-swiss i:nth-child(3){background:#d4a24c}
+.style-soft-fintech{background:#e9f1eb!important}.style-soft-fintech i:nth-child(1){background:#2563eb}.style-soft-fintech i:nth-child(2){background:#15803d}.style-soft-fintech i:nth-child(3){background:#a78bfa}
+.style-color-block-luxury{background:#f0e9ff!important}.style-color-block-luxury i:nth-child(1){background:#4f46e5}.style-color-block-luxury i:nth-child(2){background:#c2410c}.style-color-block-luxury i:nth-child(3){background:#0f766e}
+.style-bento-editorial{background:#ececf0!important}.style-bento-editorial i:nth-child(1){background:#111827}.style-bento-editorial i:nth-child(2){background:#7c3aed}.style-bento-editorial i:nth-child(3){background:#2563eb}
+.style-warm-paper{background:#e8dfd0!important}.style-warm-paper i:nth-child(1){background:#be123c}.style-warm-paper i:nth-child(2){background:#3f6212}.style-warm-paper i:nth-child(3){background:#b45309}
+.style-soft-glass{background:#e2f0f3!important}.style-soft-glass i:nth-child(1){background:#0891b2}.style-soft-glass i:nth-child(2){background:#7e22ce}.style-soft-glass i:nth-child(3){background:#22c1b0}
+.style-dark-anchor{background:#e9e7e1!important}.style-dark-anchor i:nth-child(1){background:#1e1b4b}.style-dark-anchor i:nth-child(2){background:#0f766e}.style-dark-anchor i:nth-child(3){background:#4f46e5}
+.style-muted-rainbow{background:#e9e0e5!important}.style-muted-rainbow i:nth-child(1){background:#6b21a8}.style-muted-rainbow i:nth-child(2){background:#3f6212}.style-muted-rainbow i:nth-child(3){background:#c2410c}
+.style-quiet-luxury{background:#ececeb!important}.style-quiet-luxury i:nth-child(1){background:#18181b}.style-quiet-luxury i:nth-child(2){background:#52525b}.style-quiet-luxury i:nth-child(3){background:#2563eb}
+.style-premium-hybrid{background:#e9e4da!important}.style-premium-hybrid i:nth-child(1){background:#6d4aff}.style-premium-hybrid i:nth-child(2){background:#0f766e}.style-premium-hybrid i:nth-child(3){background:#d97706}
+
+html[data-design-style="bento-editorial"] .space-y-6.pb-16> :nth-child(2)>*{border-radius:12px!important}html[data-design-style="quiet-luxury"] .space-y-6.pb-16> :nth-child(2){box-shadow:none!important}
+html[data-design-style="premium-hybrid"] .space-y-6.pb-16> :nth-child(2){background:linear-gradient(115deg,#fffaf2,#f3efff)!important}
+html[data-design-style="premium-hybrid"] .space-y-6.pb-16> :nth-child(6){background:linear-gradient(100deg,#eee9ff,#e8f4f1,#f4eadc)!important}
+/* preview trigger for latest canonical visual layer */

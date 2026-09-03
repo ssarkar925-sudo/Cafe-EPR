@@ -2,29 +2,16 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./erp-visual-overrides.css";
 import "./dashboard-quick-access.css";
+import "./design-system-10.css";
+import "./design-style-previews.css";
+import "./design-rescue.css";
 import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
 import ThemeProvider from "@/components/theme-provider";
 
-export const metadata: Metadata = {
-  title: { default: "Cafe ERP", template: "%s | Cafe ERP" },
-  description: "Comprehensive Cyber Cafe & Retail ERP with POS, Inventory, Billing, Finance, AI Advisor, and Communication Hub",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <body>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var m=localStorage.getItem("sccomm-display-mode")||localStorage.getItem("sccomm-theme")||"system",grad=localStorage.getItem("sccomm-gradient-enabled")!=="false",preset=localStorage.getItem("sccomm-gradient-preset")||"aurora",mot=localStorage.getItem("sccomm-motion-enabled")||"on",a=localStorage.getItem("sccomm-accent")||"blue",d=localStorage.getItem("sccomm-density")||"comfortable",f=localStorage.getItem("sccomm-font-scale")||"standard",isDark=m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(isDark)r.classList.add("dark");r.setAttribute("data-display-mode",isDark?"dark":"light");r.setAttribute("data-theme",isDark?"dark":"light");r.setAttribute("data-design-style","modern-spatial");r.setAttribute("data-gradient-enabled",String(grad));r.setAttribute("data-gradient-preset",preset);r.setAttribute("data-motion",mot);if(mot==="off")r.classList.add("motion-reduce");r.setAttribute("data-accent",a);r.setAttribute("data-density",d);r.setAttribute("data-font-scale",f);if(d==="compact")r.classList.add("density-compact");if(f==="large")r.classList.add("font-scale-large");if(localStorage.getItem("sccomm-design-style")==="classic")localStorage.removeItem("sccomm-design-style");}catch(e){}`,
-          }}
-        />
-        <ThemeProvider>{children}</ThemeProvider>
-      </body>
-    </html>
-  );
+export const metadata: Metadata = { title:{default:"Cafe ERP",template:"%s | Cafe ERP"},description:"Comprehensive Cyber Cafe & Retail ERP with POS, Inventory, Billing, Finance, AI Advisor, and Communication Hub" };
+export default function RootLayout({children}:{children:React.ReactNode}){
+ // Preview deployment marker: this branch must deploy the exact current visual system.
+ return <html lang="en" suppressHydrationWarning><body><script dangerouslySetInnerHTML={{__html:`try{var r=document.documentElement,key="cafe-erp-design-style",s=localStorage.getItem(key)||"premium-hybrid";r.setAttribute("data-design-style",s);r.setAttribute("data-design-style-v2",s);var m=localStorage.getItem("sccomm-display-mode")||"light",isDark=m==="dark";r.classList.toggle("dark",isDark);r.setAttribute("data-display-mode",isDark?"dark":"light");r.setAttribute("data-theme",isDark?"dark":"light");r.setAttribute("data-motion",localStorage.getItem("sccomm-motion-enabled")||"on");r.setAttribute("data-accent",localStorage.getItem("sccomm-accent")||"violet");r.setAttribute("data-density",localStorage.getItem("sccomm-density")||"comfortable");r.setAttribute("data-font-scale",localStorage.getItem("sccomm-font-scale")||"standard")}catch(e){}`}}/><ThemeProvider>{children}</ThemeProvider></body></html>;
 }
