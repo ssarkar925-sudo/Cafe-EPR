@@ -27,7 +27,7 @@ export default async function SettingsPage({
   const initialSection = resolvedSearchParams?.section;
   const supabase = await createClient();
 
-  const [{ data: initial }, { data: initialServices }, { data: initialPaymentMethods }] = await Promise.all([
+  const [initial, initialServices, initialPaymentMethods] = await Promise.all([
     safeQuery(async () => supabase.from("settings").select("*").limit(1).maybeSingle(), null),
     safeQuery(async () => supabase.from("service_favorites").select("*"), []),
     safeQuery(async () => supabase.from("payment_methods").select("*").order("sort_order"), []),
