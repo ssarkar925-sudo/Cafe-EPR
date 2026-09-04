@@ -1001,53 +1001,54 @@ export default function RechargeWorkspace({
 
         {/* Hero 5-Card KPI Grid */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase text-indigo-300">Today&apos;s Recharges</span>
-            <div className="mt-1 text-xl font-black">{todayStats.count} <span className="text-xs font-normal text-slate-300">txns</span></div>
-            <p className="mt-0.5 text-[11px] text-slate-400">{inr(todayStats.volume)} volume</p>
+          <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300">Today&apos;s Recharges</span>
+            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-white">{todayStats.count} <span className="text-xs font-normal text-slate-300 font-sans">txns</span></div>
+            <p className="mt-0.5 text-[11px] font-mono text-slate-400">{inr(todayStats.volume)} volume</p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase text-emerald-300">Customer Collection</span>
-            <div className="mt-1 text-xl font-black text-emerald-400">{inr(todayStats.collections)}</div>
+          <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Customer Collection</span>
+            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-emerald-400">{inr(todayStats.collections)}</div>
             <p className="mt-0.5 text-[11px] text-slate-400">Total funds collected</p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase text-amber-300">Commission Earned</span>
-            <div className="mt-1 text-xl font-black text-amber-400">{inr(todayStats.commission)}</div>
+          <div className="card-glow-amber relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">Commission Earned</span>
+            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-amber-400">{inr(todayStats.commission)}</div>
             <p className="mt-0.5 text-[11px] text-slate-400">Operator discount/margin</p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase text-cyan-300">Provider Net Cost</span>
-            <div className="mt-1 text-xl font-black text-cyan-400">{inr(todayStats.providerCost)}</div>
+          <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
+            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">Provider Net Cost</span>
+            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-cyan-400">{inr(todayStats.providerCost)}</div>
             <p className="mt-0.5 text-[11px] text-slate-400">Debited from funding account</p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
-            <span className="text-[10px] font-black uppercase text-purple-300">Success Rate</span>
-            <div className="mt-1 text-xl font-black text-purple-300">{todayStats.successRate}%</div>
-            <p className="mt-0.5 text-[11px] text-emerald-400">Net Income: {inr(todayStats.netIncome)}</p>
+          <div className="card-glow-purple relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-300">Success Rate</span>
+            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-purple-300">{todayStats.successRate}%</div>
+            <p className="mt-0.5 text-[11px] font-mono text-emerald-400 font-bold">Net: {inr(todayStats.netIncome)}</p>
           </div>
         </div>
       </div>
 
       {/* 2. RECONCILIATION & POSITION STRIP */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900 shadow-sm">
+      <div className="card-glow-indigo flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-slate-900 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
+          <span className="icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 shadow-sm">
             ⚡
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-900 dark:text-white">RECHARGE RECONCILIATION</span>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <span className="text-xs font-black tracking-wide text-slate-900 dark:text-white">RECHARGE RECONCILIATION</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-500/30 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 ✓ 100% Balanced
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Customer Collections ({inr(todayStats.collections)}) = Net Provider Cost ({inr(todayStats.providerCost)}) + Net Income ({inr(todayStats.netIncome)})
+              Customer Collections (<span className="font-mono">{inr(todayStats.collections)}</span>) = Net Provider Cost (<span className="font-mono">{inr(todayStats.providerCost)}</span>) + Net Income (<span className="font-mono">{inr(todayStats.netIncome)}</span>)
             </p>
           </div>
         </div>
@@ -1055,12 +1056,12 @@ export default function RechargeWorkspace({
         <div className="flex items-center gap-6 text-xs">
           <div className="text-right">
             <span className="text-[10px] font-bold uppercase text-slate-400">Variance</span>
-            <p className="font-black text-emerald-600 dark:text-emerald-400">{inr(todayStats.variance)}</p>
+            <p className="font-black font-mono text-emerald-600 dark:text-emerald-400">{inr(todayStats.variance)}</p>
           </div>
           <button
             type="button"
             onClick={() => setAddCustomerModal(true)}
-            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            className="btn-3d-tactile-secondary px-3 py-1.5 text-xs font-bold"
           >
             + Add Customer
           </button>
@@ -1070,18 +1071,18 @@ export default function RechargeWorkspace({
       {/* 3. RECHARGE TERMINAL & ORDER SUMMARY (TWO-COLUMN WORKSPACE) */}
       <div ref={formRef} className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* LEFT: Recharge Terminal Form */}
-        <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900 lg:col-span-7">
+        <div className="space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900 lg:col-span-7">
           {/* Step Tracker */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-            <span className={mobileNumber ? "text-indigo-600 dark:text-indigo-400" : ""}>01 IDENTIFY</span>
-            <span>→</span>
-            <span className={selectedOperatorCode ? "text-indigo-600 dark:text-indigo-400" : ""}>02 OPERATOR</span>
-            <span>→</span>
-            <span className={rechargeAmount > 0 ? "text-indigo-600 dark:text-indigo-400" : ""}>03 PLAN</span>
-            <span>→</span>
-            <span className={fundingInstId ? "text-indigo-600 dark:text-indigo-400" : ""}>04 FUNDING</span>
-            <span>→</span>
-            <span className="text-emerald-600 dark:text-emerald-400">05 SETTLE</span>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5 text-[10px] font-black uppercase tracking-wider">
+            <span className={mobileNumber ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"}>01 IDENTIFY</span>
+            <span className="text-slate-300 dark:text-slate-700">→</span>
+            <span className={selectedOperatorCode ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"}>02 OPERATOR</span>
+            <span className="text-slate-300 dark:text-slate-700">→</span>
+            <span className={rechargeAmount > 0 ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"}>03 PLAN</span>
+            <span className="text-slate-300 dark:text-slate-700">→</span>
+            <span className={fundingInstId ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"}>04 FUNDING</span>
+            <span className="text-slate-300 dark:text-slate-700">→</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-black">05 SETTLE</span>
           </div>
 
           {/* 01 Customer & Mobile Identification */}
@@ -1110,7 +1111,7 @@ export default function RechargeWorkspace({
                 onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 disabled={submitting}
                 placeholder="Enter 10-digit mobile number"
-                className="w-full rounded-2xl border border-slate-300 bg-slate-50/50 py-3.5 pl-14 pr-4 text-base font-black tracking-wider text-slate-900 outline-none transition focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-slate-800/80 dark:text-white"
+                className="w-full rounded-2xl border border-slate-300 bg-slate-50/50 py-3.5 pl-14 pr-4 text-base font-black font-mono tracking-wider text-slate-900 outline-none transition focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-500/15 dark:border-white/10 dark:bg-slate-800/80 dark:text-white"
               />
             </div>
 
@@ -1180,15 +1181,15 @@ export default function RechargeWorkspace({
                       setDetectedBadge(null);
                     }}
                     disabled={submitting}
-                    className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition duration-150 ${
+                    className={`flex items-center gap-2.5 rounded-2xl border p-3 text-left transition duration-150 active:scale-95 ${
                       isSelected
-                        ? "border-indigo-600 bg-indigo-50/70 shadow-sm ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/40"
+                        ? "border-indigo-600 bg-indigo-50/80 shadow-sm ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/50"
                         : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-800/40"
                     }`}
                   >
-                    <span className="text-xl">{op.icon}</span>
-                    <div>
-                      <div className="text-xs font-black text-slate-900 dark:text-white">{op.name}</div>
+                    <span className="text-xl shrink-0">{op.icon}</span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black truncate text-slate-900 dark:text-white">{op.name}</div>
                       <span className="text-[10px] text-slate-400">Prepaid</span>
                     </div>
                   </button>
@@ -1207,7 +1208,7 @@ export default function RechargeWorkspace({
                     setDetectedBadge(null);
                   }}
                   disabled={submitting}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 >
                   <option value="">-- Choose Operator --</option>
                   {allOperators.map((op) => (
@@ -1227,7 +1228,7 @@ export default function RechargeWorkspace({
                     setSelectedCircle(e.target.value);
                   }}
                   disabled={submitting}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 >
                   {TELECOM_CIRCLES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -1243,7 +1244,7 @@ export default function RechargeWorkspace({
               <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
                 3. Select Plan or Enter Amount *
               </label>
-              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+              <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
                 {commissionCalculation.percent}% Est. Commission
               </span>
             </div>
@@ -1255,7 +1256,7 @@ export default function RechargeWorkspace({
                   key={cat}
                   type="button"
                   onClick={() => setPlanCategory(cat)}
-                  className={`whitespace-nowrap rounded-xl px-3 py-1 text-[11px] font-bold transition ${
+                  className={`whitespace-nowrap rounded-xl px-3 py-1 text-[11px] font-bold transition duration-150 active:scale-95 ${
                     planCategory === cat
                       ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300"
@@ -1268,10 +1269,23 @@ export default function RechargeWorkspace({
 
             <div className="flex flex-wrap items-center gap-1.5">
               {[10, 20, 49, 99, 149, 199, 249, 299, 349, 399, 499, 599, 719, 799, 859, 999, 1499, 1999, 2999, 3599].map((preset) => (
-                <button key={preset} type="button" onClick={() => { setAmount(String(preset)); setSelectedPlan(null); }} disabled={submitting} className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition ${Number(amount) === preset ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"}`}>₹{preset}</button>
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => { setAmount(String(preset)); setSelectedPlan(null); }}
+                  disabled={submitting}
+                  className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black font-mono transition duration-150 active:scale-95 ${
+                    Number(amount) === preset
+                      ? "border-indigo-600 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                  }`}
+                >
+                  ₹{preset}
+                </button>
               ))}
-              <a href="/business/bill-payment/mobile-recharge/plans" className="rounded-lg border border-dashed border-indigo-300 px-2.5 py-1.5 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500/40 dark:text-indigo-300">⚙ Customize</a>
+              <a href="/business/bill-payment/mobile-recharge/plans" className="btn-3d-tactile-secondary rounded-lg border border-dashed border-indigo-300 px-2.5 py-1.5 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 dark:border-indigo-500/40 dark:text-indigo-300">⚙ Customize</a>
             </div>
+
             {/* Plan Cards Slider */}
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 max-h-48 overflow-y-auto pr-1">
               {catalogPlans.filter((p) => {
@@ -1290,14 +1304,14 @@ export default function RechargeWorkspace({
                       setAmount(String(plan.amount));
                     }}
                     disabled={submitting}
-                    className={`flex flex-col justify-between rounded-2xl border p-3 text-left transition ${
+                    className={`flex flex-col justify-between rounded-2xl border p-3 text-left transition duration-150 active:scale-95 ${
                       isSelected
-                        ? "border-indigo-600 bg-indigo-50/70 shadow-sm ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/40"
+                        ? "border-indigo-600 bg-indigo-50/80 shadow-sm ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/50"
                         : "border-slate-200 bg-slate-50/50 hover:bg-white dark:border-white/5 dark:bg-slate-800/30"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <strong className="text-base font-black text-slate-900 dark:text-white">
+                      <strong className="text-base font-black font-mono text-slate-900 dark:text-white">
                         {inr(plan.amount)}
                       </strong>
                       <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
@@ -1330,7 +1344,7 @@ export default function RechargeWorkspace({
                   }}
                   disabled={submitting}
                   placeholder="0.00"
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-black font-mono text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 />
               </div>
 
@@ -1344,7 +1358,7 @@ export default function RechargeWorkspace({
                   onChange={(e) => setServiceFee(e.target.value)}
                   disabled={submitting}
                   placeholder="0.00"
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-black font-mono text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 />
               </div>
             </div>
@@ -1369,9 +1383,9 @@ export default function RechargeWorkspace({
                     type="button"
                     onClick={() => setCustomerPayMethod(m.id)}
                     disabled={submitting}
-                    className={`rounded-2xl border p-2.5 text-left transition ${
+                    className={`rounded-2xl border p-2.5 text-left transition duration-150 active:scale-95 ${
                       isSelected
-                        ? "border-indigo-600 bg-indigo-50/70 shadow-xs ring-2 ring-indigo-600/20 dark:border-indigo-500 dark:bg-indigo-950/40"
+                        ? "border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/50"
                         : "border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800/40"
                     }`}
                   >
@@ -1396,7 +1410,7 @@ export default function RechargeWorkspace({
               value={fundingInstId}
               onChange={(e) => setFundingInstId(e.target.value)}
               disabled={submitting}
-              className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
             >
               {validFundingInstruments.map((inst) => (
                 <option key={inst.id} value={inst.id}>
@@ -1408,7 +1422,7 @@ export default function RechargeWorkspace({
         </div>
 
         {/* RIGHT: Order Summary & Settlement Panel */}
-        <div className="space-y-5 rounded-3xl border border-slate-200 bg-slate-50/60 p-6 shadow-md dark:border-white/10 dark:bg-slate-900/60 lg:col-span-5">
+        <div className="card-glow-indigo space-y-5 rounded-3xl border border-slate-200/80 bg-slate-50/80 p-6 shadow-md dark:border-white/10 dark:bg-slate-900/80 lg:col-span-5">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
             <h3 className="text-base font-black text-slate-900 dark:text-white">Recharge Settlement Breakdown</h3>
@@ -1419,11 +1433,11 @@ export default function RechargeWorkspace({
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400">Target Mobile</span>
-                <p className="text-sm font-black text-slate-900 dark:text-white">
+                <p className="text-sm font-black font-mono text-slate-900 dark:text-white">
                   {mobileNumber ? `+91 ${mobileNumber}` : "Enter Mobile Number"}
                 </p>
               </div>
-              <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+              <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 ring-1 ring-indigo-500/20">
                 {allOperators.find((o) => o.code === selectedOperatorCode)?.name || "Select Operator"}
               </span>
             </div>
@@ -1439,32 +1453,32 @@ export default function RechargeWorkspace({
             <div className="space-y-2 text-xs border-t border-slate-100 pt-2.5 dark:border-white/5">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Recharge Plan Amount:</span>
-                <strong className="text-slate-900 dark:text-white">{inr(rechargeAmount)}</strong>
+                <strong className="font-mono text-slate-900 dark:text-white">{inr(rechargeAmount)}</strong>
               </div>
 
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Customer Service Fee:</span>
-                <strong className="text-slate-900 dark:text-white">+{inr(custFee)}</strong>
+                <strong className="font-mono text-slate-900 dark:text-white">+{inr(custFee)}</strong>
               </div>
 
               <div className="flex justify-between font-black text-sm border-t border-slate-200 pt-2 dark:border-white/10">
                 <span className="text-emerald-700 dark:text-emerald-400">Total Customer Debit:</span>
-                <span className="text-emerald-700 dark:text-emerald-400">{inr(totalCustomerDebit)}</span>
+                <span className="font-mono text-emerald-700 dark:text-emerald-400">{inr(totalCustomerDebit)}</span>
               </div>
 
               <div className="flex justify-between text-[11px] text-amber-600 dark:text-amber-400 pt-1">
                 <span>Commission / Margin ({commissionCalculation.percent}%):</span>
-                <strong>-{inr(commissionEarned)}</strong>
+                <strong className="font-mono">-{inr(commissionEarned)}</strong>
               </div>
 
               <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Net Provider Cost (Debited from funding):</span>
-                <strong className="text-slate-900 dark:text-white">{inr(netProviderCost)}</strong>
+                <strong className="font-mono text-slate-900 dark:text-white">{inr(netProviderCost)}</strong>
               </div>
 
               <div className="flex justify-between text-xs font-black text-indigo-600 dark:text-indigo-400 border-t border-slate-100 pt-1.5 dark:border-white/5">
                 <span>Operator Net Income:</span>
-                <span>+{inr(netOperatorIncome)}</span>
+                <span className="font-mono">+{inr(netOperatorIncome)}</span>
               </div>
             </div>
 
@@ -1481,7 +1495,7 @@ export default function RechargeWorkspace({
               onChange={(e) => setReference(e.target.value)}
               disabled={submitting}
               placeholder="Operator RRN / Ref (Optional)"
-              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none font-mono focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
             />
             <input
               type="text"
@@ -1489,7 +1503,7 @@ export default function RechargeWorkspace({
               onChange={(e) => setRemarks(e.target.value)}
               disabled={submitting}
               placeholder="Remarks / Note (Optional)"
-              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
             />
           </div>
 
@@ -1498,7 +1512,7 @@ export default function RechargeWorkspace({
             type="button"
             onClick={handleCompleteRecharge}
             disabled={submitting || !mobileNumber || mobileNumber.length !== 10 || !selectedOperatorCode || rechargeAmount <= 0}
-            className="btn-3d-tactile-primary flex w-full items-center justify-center gap-2 py-3.5 text-sm font-black shadow-xl disabled:opacity-50"
+            className="btn-3d-tactile-primary flex w-full items-center justify-center gap-2 py-4 text-sm font-black shadow-xl disabled:opacity-50"
           >
             {submitting ? (
               <span>⚡ Processing Recharge...</span>
@@ -1510,7 +1524,7 @@ export default function RechargeWorkspace({
       </div>
 
       {/* 4. TRANSACTION HISTORY CONSOLE */}
-      <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900">
+      <div className="space-y-4 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-white/5">
           <div>
             <h3 className="text-base font-black text-slate-900 dark:text-white">
@@ -1529,7 +1543,7 @@ export default function RechargeWorkspace({
                   key={st}
                   type="button"
                   onClick={() => setFilterStatus(st)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold capitalize transition ${
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold capitalize transition duration-150 active:scale-95 ${
                     filterStatus === st
                       ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
                       : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -1558,7 +1572,7 @@ export default function RechargeWorkspace({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by mobile number, customer name, txn # or RRN..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
             />
           </div>
 
@@ -1566,7 +1580,7 @@ export default function RechargeWorkspace({
             <select
               value={filterOperator}
               onChange={(e) => setFilterOperator(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
             >
               <option value="all">All Operators</option>
               {allOperators.map((o) => (
@@ -1577,19 +1591,19 @@ export default function RechargeWorkspace({
         </div>
 
         {/* Transactions Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-white/5">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-black uppercase text-slate-400 dark:border-white/5 dark:bg-white/5">
-                <th className="px-4 py-2.5">Date &amp; Time</th>
-                <th className="px-4 py-2.5">Txn #</th>
-                <th className="px-4 py-2.5">Target Mobile</th>
-                <th className="px-4 py-2.5">Operator</th>
-                <th className="px-4 py-2.5 text-right">Plan Amount</th>
-                <th className="px-4 py-2.5 text-right">Commission</th>
-                <th className="px-4 py-2.5">Method</th>
-                <th className="px-4 py-2.5 text-center">Status</th>
-                <th className="px-4 py-2.5 text-right">Actions</th>
+              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-slate-800/80 dark:text-slate-400">
+                <th className="px-4 py-3">Date &amp; Time</th>
+                <th className="px-4 py-3">Txn #</th>
+                <th className="px-4 py-3">Target Mobile</th>
+                <th className="px-4 py-3">Operator</th>
+                <th className="px-4 py-3 text-right">Plan Amount</th>
+                <th className="px-4 py-3 text-right">Commission</th>
+                <th className="px-4 py-3">Method</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -1601,16 +1615,18 @@ export default function RechargeWorkspace({
                 </tr>
               ) : (
                 filteredTransactions.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50/60 dark:hover:bg-white/2 transition">
+                  <tr key={t.id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition">
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                       <div>{fmtDate(t.transaction_date)}</div>
-                      <div className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp || t.created_at)}</div>
+                      <div className="text-[10px] font-mono text-slate-400">{fmtTime(t.transaction_timestamp || t.created_at)}</div>
                     </td>
-                    <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">
+                    <td className="px-4 py-3 font-mono font-black text-slate-900 dark:text-white">
                       {t.transaction_number}
                     </td>
-                    <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
-                      {t.customer_mobile ? `+91 ${t.customer_mobile}` : "—"}
+                    <td className="px-4 py-3">
+                      <div className="font-mono font-bold text-slate-900 dark:text-white">
+                        {t.customer_mobile ? `+91 ${t.customer_mobile}` : "—"}
+                      </div>
                       {t.customers?.name && (
                         <div className="text-[10px] text-slate-400 font-normal">{t.customers.name}</div>
                       )}
@@ -1618,27 +1634,40 @@ export default function RechargeWorkspace({
                     <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">
                       {t.providers?.name || "Recharge"}
                     </td>
-                    <td className="px-4 py-3 text-right font-black text-slate-900 dark:text-white">
+                    <td className="px-4 py-3 text-right font-mono font-black text-slate-900 dark:text-white">
                       {inr(Number(t.amount))}
                     </td>
-                    <td className="px-4 py-3 text-right font-bold text-amber-600 dark:text-amber-400">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
                       +{inr(Number(t.portal_commission || 0))}
                     </td>
-                    <td className="px-4 py-3 capitalize font-medium text-slate-600 dark:text-slate-400">
-                      {t.customer_pay_method || "cash"}
+                    <td className="px-4 py-3">
+                      <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                        {t.customer_pay_method || "cash"}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
                           t.status === "success"
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30"
                             : t.status === "reversed"
-                            ? "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+                            ? "bg-purple-500/10 text-purple-700 dark:text-purple-300 ring-1 ring-purple-500/30"
                             : t.status === "pending"
-                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
+                            : "bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30"
                         }`}
                       >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            t.status === "success"
+                              ? "bg-emerald-500 animate-pulse"
+                              : t.status === "reversed"
+                              ? "bg-purple-500"
+                              : t.status === "pending"
+                              ? "bg-amber-500 animate-pulse"
+                              : "bg-rose-500"
+                          }`}
+                        />
                         {t.status}
                       </span>
                     </td>
@@ -1647,7 +1676,7 @@ export default function RechargeWorkspace({
                         <button
                           type="button"
                           onClick={() => setReceiptTxn(t)}
-                          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition duration-150 active:scale-90"
                           title="View Receipt"
                         >
                           🧾
@@ -1655,7 +1684,7 @@ export default function RechargeWorkspace({
                         <button
                           type="button"
                           onClick={() => handleWhatsApp(t)}
-                          className="rounded-lg p-1 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                          className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition duration-150 active:scale-90"
                           title="WhatsApp Receipt"
                         >
                           💬
@@ -1663,7 +1692,7 @@ export default function RechargeWorkspace({
                         <button
                           type="button"
                           onClick={() => setDetailTxn(t)}
-                          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition duration-150 active:scale-90"
                           title="Details"
                         >
                           🔍
@@ -1672,7 +1701,7 @@ export default function RechargeWorkspace({
                           <button
                             type="button"
                             onClick={() => setReverseTxn(t)}
-                            className="rounded-lg p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                            className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition duration-150 active:scale-90"
                             title="Reverse Transaction"
                           >
                             ↩️
