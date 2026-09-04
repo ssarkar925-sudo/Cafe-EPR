@@ -155,18 +155,36 @@ function StockAdjustmentModal({
             <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
               Actual Verified Physical Stock Count *
             </label>
-            <input
-              type="number"
-              step="any"
-              min="0"
-              required
-              value={newStock}
-              onChange={(e) => setNewStock(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-              placeholder="Enter verified physical count"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="any"
+                min="0"
+                required
+                value={newStock}
+                onChange={(e) => setNewStock(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-black outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                placeholder="Enter verified physical count"
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                {[-5, -1, 1, 5].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => {
+                      const base = isNaN(targetStock) ? currentStock : targetStock;
+                      const updated = Math.max(0, base + delta);
+                      setNewStock(String(updated));
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700 hover:bg-slate-100 active:scale-90 transition-all dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    {delta > 0 ? `+${delta}` : delta}
+                  </button>
+                ))}
+              </div>
+            </div>
             {!isNaN(targetStock) && targetStock !== currentStock && (
-              <div className={`mt-1.5 flex items-center gap-1.5 text-xs font-bold ${diff > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              <div className={`mt-2 flex items-center gap-1.5 text-xs font-bold ${diff > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                 {diff > 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
                 <span>
                   {diff > 0 ? "Inventory IN" : "Inventory OUT"}: {Math.abs(diff)} {product.unit} ({diff > 0 ? "+" : ""}{diff})
@@ -178,17 +196,39 @@ function StockAdjustmentModal({
             )}
           </div>
 
-          {/* Reason */}
+          {/* Reason & Quick Chips */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
               Mandatory Audit Reason *
             </label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {[
+                "Physical Audit Count",
+                "Damaged / Broken",
+                "Expired Goods",
+                "Supplier Return",
+                "Surplus Found",
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => setReason(chip)}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95 ${
+                    reason === chip
+                      ? "bg-amber-600 text-white shadow-xs font-black"
+                      : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                  }`}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
             <textarea
               required
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Physical inventory count discrepancy, damaged packaging removal, opening stock correction..."
+              placeholder="Select preset above or type specific audit explanation..."
               className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
             />
             <p className="mt-1 text-[11px] text-slate-400">
@@ -214,7 +254,7 @@ function StockAdjustmentModal({
             <button
               type="submit"
               disabled={saving || isNaN(targetStock) || targetStock < 0 || !reason.trim()}
-              className="rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-60"
+              className="btn-3d-tactile-primary rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-5 py-2 text-sm font-black text-white shadow-md shadow-amber-600/20 hover:brightness-110 active:scale-95 disabled:opacity-60"
             >
               {saving ? "Posting to Journal..." : "Apply Adjustment"}
             </button>
@@ -525,25 +565,29 @@ export default function InventoryClient({
       {/* Operational KPI Metric Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Total Cost Valuation */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.07] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Stock Valuation (Cost)</span>
-            <DollarSign className="h-4 w-4 text-emerald-500" />
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Stock Valuation (Cost)</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+              <DollarSign className="h-4 w-4" />
+            </div>
           </div>
           <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
             {inr(metrics.totalCostValuation)}
           </div>
           <div className="mt-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Retail value: {inr(metrics.totalRetailValuation)}</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">+{metrics.avgMarginPercent.toFixed(1)}% margin</span>
+            <span className="font-bold text-emerald-600 dark:text-emerald-400">+{metrics.avgMarginPercent.toFixed(1)}% margin</span>
           </div>
         </div>
 
         {/* Physical Units on Hand */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.07] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Physical Units</span>
-            <Package className="h-4 w-4 text-indigo-500" />
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Physical Units</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+              <Package className="h-4 w-4" />
+            </div>
           </div>
           <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
             {metrics.totalUnits.toLocaleString()}
@@ -556,15 +600,17 @@ export default function InventoryClient({
         {/* Replenishment Watch */}
         <div
           onClick={() => setStatusFilter(statusFilter === "low_stock" ? "all" : "low_stock")}
-          className={`cursor-pointer rounded-2xl border p-5 shadow-xs transition hover:border-amber-400 ${
+          className={`card-glow-amber group relative cursor-pointer overflow-hidden rounded-2xl border p-5 shadow-xs transition-all hover:shadow-md active:scale-[0.99] ${
             statusFilter === "low_stock"
-              ? "border-amber-500 bg-amber-50/50 dark:border-amber-500/40 dark:bg-amber-950/30"
-              : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
+              ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/20 dark:border-amber-500/60 dark:bg-amber-950/40"
+              : "border-amber-500/20 bg-gradient-to-br from-amber-500/[0.06] via-white to-white hover:border-amber-400 dark:border-amber-500/30 dark:from-amber-950/20 dark:via-slate-900 dark:to-slate-900"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Low Stock Alert</span>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
           </div>
           <div className="mt-2 text-2xl font-black text-amber-700 dark:text-amber-300">
             {metrics.lowStockCount} items
@@ -577,21 +623,23 @@ export default function InventoryClient({
         {/* Out of Stock */}
         <div
           onClick={() => setStatusFilter(statusFilter === "out_of_stock" ? "all" : "out_of_stock")}
-          className={`cursor-pointer rounded-2xl border p-5 shadow-xs transition hover:border-rose-400 ${
+          className={`card-glow-rose group relative cursor-pointer overflow-hidden rounded-2xl border p-5 shadow-xs transition-all hover:shadow-md active:scale-[0.99] ${
             statusFilter === "out_of_stock"
-              ? "border-rose-500 bg-rose-50/50 dark:border-rose-500/40 dark:bg-rose-950/30"
-              : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900"
+              ? "border-rose-500 bg-rose-50/70 ring-2 ring-rose-500/20 dark:border-rose-500/60 dark:bg-rose-950/40"
+              : "border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] via-white to-white hover:border-rose-400 dark:border-rose-500/30 dark:from-rose-950/20 dark:via-slate-900 dark:to-slate-900"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Out of Stock</span>
-            <AlertCircle className="h-4 w-4 text-rose-500" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+              <AlertCircle className="h-4 w-4" />
+            </div>
           </div>
           <div className="mt-2 text-2xl font-black text-rose-700 dark:text-rose-300">
             {metrics.outOfStockCount} items
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            0 units remaining · Counter sales blocked
+            0 units remaining · Sales blocked
           </div>
         </div>
       </div>
@@ -716,26 +764,26 @@ export default function InventoryClient({
                 const totalVal = qty * cost;
 
                 let statusBadge = (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/60 dark:text-emerald-300">
                     <CheckCircle2 className="h-3 w-3" /> Healthy
                   </span>
                 );
 
                 if (!p.is_active) {
                   statusBadge = (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-400">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-500 dark:border-white/10 dark:bg-white/10 dark:text-slate-400">
                       Inactive
                     </span>
                   );
                 } else if (qty <= 0) {
                   statusBadge = (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 shadow-xs dark:border-rose-500/40 dark:bg-rose-950/60 dark:text-rose-300">
                       <AlertCircle className="h-3 w-3" /> Out of Stock
                     </span>
                   );
                 } else if (qty <= reorder) {
                   statusBadge = (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 shadow-xs dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-300">
                       <AlertTriangle className="h-3 w-3" /> Low Stock
                     </span>
                   );
