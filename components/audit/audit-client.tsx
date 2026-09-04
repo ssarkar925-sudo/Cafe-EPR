@@ -21,16 +21,16 @@ export type AuditLog = {
 };
 
 const ACTION_STYLE: Record<string, string> = {
-  create: "bg-emerald-100 text-emerald-700",
-  update: "bg-blue-100 text-blue-700",
-  delete: "bg-rose-100 text-rose-700",
-  cancel: "bg-amber-100 text-amber-700",
-  reverse: "bg-violet-100 text-violet-700",
-  payment: "bg-emerald-100 text-emerald-700",
-  login: "bg-slate-100 text-slate-700",
-  logout: "bg-slate-100 text-slate-700",
-  upload: "bg-cyan-100 text-cyan-700",
-  settings: "bg-indigo-100 text-indigo-700",
+  create: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+  update: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
+  delete: "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20",
+  cancel: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
+  reverse: "bg-violet-50 text-violet-700 ring-1 ring-violet-600/20",
+  payment: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+  login: "bg-slate-100 text-slate-700 ring-1 ring-slate-400/20",
+  logout: "bg-slate-100 text-slate-700 ring-1 ring-slate-400/20",
+  upload: "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-600/20",
+  settings: "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/20",
 };
 
 export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }) {
@@ -125,9 +125,9 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
         <button
           onClick={downloadCsv}
           disabled={filtered.length === 0}
-          className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+          className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 active:translate-y-0.5 disabled:opacity-50"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
             <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
           </svg>
           Download CSV
@@ -213,21 +213,21 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
-        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-900 dark:ring-white/10">
+        <table className={`w-full text-left text-xs ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
-              <th className="px-5 py-3 font-medium">Time</th>
-              <th className="px-5 py-3 font-medium">User</th>
-              <th className="px-5 py-3 font-medium">Action</th>
-              <th className="px-5 py-3 font-medium">Entity</th>
-              <th className="px-5 py-3 font-medium">Details</th>
+            <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/5">
+              <th className="px-5 py-3">Time</th>
+              <th className="px-5 py-3">User</th>
+              <th className="px-5 py-3">Action</th>
+              <th className="px-5 py-3">Entity</th>
+              <th className="px-5 py-3">Details</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {filtered.map((l) => (
-              <tr key={l.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50">
-                <td className="whitespace-nowrap px-5 py-2.5 text-xs text-slate-500">
+              <tr key={l.id} className="transition hover:bg-slate-50/80 dark:hover:bg-white/[0.02]">
+                <td className="whitespace-nowrap px-5 py-3 text-slate-500">
                   {new Date(l.created_at).toLocaleString("en-IN", {
                     day: "2-digit",
                     month: "short",
@@ -235,24 +235,24 @@ export default function AuditClient({ initialLogs }: { initialLogs: AuditLog[] }
                     minute: "2-digit",
                   })}
                 </td>
-                <td className="px-5 py-2.5 text-slate-700">
-                  {l.user_name || "-"}
-                  <span className="cell-sub block text-[10px] text-slate-400">{l.user_id?.slice(0, 8) ?? ""}</span>
+                <td className="whitespace-nowrap px-5 py-3 text-slate-700 dark:text-slate-200">
+                  <span className="font-semibold">{l.user_name || "-"}</span>
+                  <span className="cell-sub block font-mono text-[10px] text-slate-400">{l.user_id?.slice(0, 8) ?? ""}</span>
                 </td>
-                <td className="px-5 py-2.5">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${ACTION_STYLE[l.action] || "bg-slate-100 text-slate-600"}`}>
+                <td className="whitespace-nowrap px-5 py-3">
+                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${ACTION_STYLE[l.action] || "bg-slate-100 text-slate-600 ring-1 ring-slate-400/20"}`}>
                     {l.action}
                   </span>
                 </td>
-                <td className="px-5 py-2.5">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 capitalize">
+                <td className="whitespace-nowrap px-5 py-3">
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 capitalize ring-1 ring-slate-200/60 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                     {l.entity}
                   </span>
                   {l.entity_id && (
                     <span className="cell-sub ml-1.5 font-mono text-[10px] text-slate-400">{l.entity_id.slice(0, 12)}</span>
                   )}
                 </td>
-                <td className="max-w-md px-5 py-2.5 text-slate-700">{l.description || "-"}</td>
+                <td className="max-w-md px-5 py-3 text-slate-700 dark:text-slate-300">{l.description || "-"}</td>
               </tr>
             ))}
             {filtered.length === 0 && (

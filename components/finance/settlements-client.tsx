@@ -581,14 +581,14 @@ export default function SettlementsClient({
           <div className="flex items-center gap-2">
             <button
               onClick={exportCsv}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:translate-y-0.5 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
             >
               <Icon d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" className="h-4 w-4" />
               Export CSV
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+              className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 active:translate-y-0.5"
             >
               <Icon d={ICONS.plus} className="h-4 w-4" />
               New Settlement
@@ -604,7 +604,7 @@ export default function SettlementsClient({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
               {summary.dmt < 3000 && (
-                <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/90 p-3 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
+                <div className="card-glow-amber flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50/90 p-3.5 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-amber-800 dark:text-amber-300">⚠️ Low DMT Float</p>
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">Current: {inr(summary.dmt)}</p>
@@ -615,7 +615,7 @@ export default function SettlementsClient({
                       setFormPreset({ type: "bank_to_dmt", amount: "10000" });
                       setShowForm(true);
                     }}
-                    className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-500"
+                    className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-500 active:translate-y-0.5"
                   >
                     +₹10k Bank
                   </button>
@@ -623,7 +623,7 @@ export default function SettlementsClient({
               )}
 
               {summary.aeps > 50000 && (
-                <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/90 p-3 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30">
+                <div className="card-glow-indigo flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/90 p-3.5 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-blue-800 dark:text-blue-300">💰 AEPS Pool Accumulated</p>
                     <p className="text-[11px] text-blue-600 dark:text-blue-400">Current: {inr(summary.aeps)}</p>
@@ -634,7 +634,7 @@ export default function SettlementsClient({
                       setFormPreset({ type: "aeps_to_bank", amount: Math.floor(summary.aeps) });
                       setShowForm(true);
                     }}
-                    className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500"
+                    className="btn-3d-tactile-primary shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-sm active:translate-y-0.5"
                   >
                     Settle to Bank
                   </button>
@@ -642,7 +642,7 @@ export default function SettlementsClient({
               )}
 
               {summary.upi_qr > 10000 && (
-                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 p-3 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                <div className="card-glow-emerald flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/90 p-3.5 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">📱 UPI QR Accumulated</p>
                     <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Current: {inr(summary.upi_qr)}</p>
@@ -653,7 +653,7 @@ export default function SettlementsClient({
                       setFormPreset({ type: "upi_qr_to_bank", amount: Math.floor(summary.upi_qr) });
                       setShowForm(true);
                     }}
-                    className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+                    className="btn-3d-tactile-emerald shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-sm active:translate-y-0.5"
                   >
                     Sweep to Bank
                   </button>
@@ -710,7 +710,7 @@ export default function SettlementsClient({
                     setShowForm(true);
                   }}
                   title={p.desc}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-blue-900/20"
+                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-700 active:translate-y-0.5 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-blue-900/20"
                 >
                   {p.label}
                 </button>
@@ -755,63 +755,63 @@ export default function SettlementsClient({
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         <span className="text-sm text-slate-400">to</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
-        <span className="text-sm text-slate-500">{filtered.length} transfers executed</span>
+        <span className="text-xs font-semibold text-slate-500">{filtered.length} transfers executed</span>
         <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-settlements-compact" />
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
-        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-900 dark:ring-white/10">
+        <table className={`w-full text-left text-xs ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
-              <th className="px-4 py-3 font-medium">Number</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Reference</th>
-              <th className="px-4 py-3 text-right font-medium">Amount</th>
-              <th className="px-4 py-3 text-center font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Recorded by</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+            <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/5">
+              <th className="px-4 py-3">Number</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Reference</th>
+              <th className="px-4 py-3 text-right">Amount</th>
+              <th className="px-4 py-3 text-center">Status</th>
+              <th className="px-4 py-3">Recorded by</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {filtered.map((r) => {
               const meta = TYPE_META[r.settlement_type];
               return (
-                <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-2.5 font-semibold text-slate-900">
+                <tr key={r.id} className="transition hover:bg-slate-50/80 dark:hover:bg-white/[0.02]">
+                  <td className="whitespace-nowrap px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">
                     {r.settlement_number}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-3">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${meta?.grad ?? "from-slate-400 to-slate-500"} px-2.5 py-1 text-xs font-semibold text-white`}
+                      className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${meta?.grad ?? "from-slate-400 to-slate-500"} px-2.5 py-1 text-[11px] font-bold text-white shadow-sm`}
                     >
                       <Icon d={ICONS.arrow} className="h-3 w-3" />
                       {POOL_LABEL[r.from_pool] || r.from_pool} → {POOL_LABEL[r.to_pool] || r.to_pool}
                     </span>
                     <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">{r.remarks || meta?.label}</p>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-600">{fmtDate(r.settlement_date)}</td>
-                  <td className="cell-sub px-4 py-2.5 text-slate-500">{r.reference || "-"}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-slate-900 dark:text-white">
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{fmtDate(r.settlement_date)}</td>
+                  <td className="cell-sub px-4 py-3 text-slate-500 dark:text-slate-400">{r.reference || "-"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-black text-slate-900 dark:text-white">
                     {inr(r.amount)}
                   </td>
-                  <td className="px-4 py-2.5 text-center">
+                  <td className="whitespace-nowrap px-4 py-3 text-center">
                     <span
-                      className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${
+                      className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
                         STATUS_PILL[r.status] ?? "bg-slate-100 text-slate-600"
                       }`}
                     >
                       {r.status}
                     </span>
                   </td>
-                  <td className="cell-sub px-4 py-2.5 text-slate-500">
+                  <td className="cell-sub px-4 py-3 text-slate-500 dark:text-slate-400">
                     {r.profiles?.full_name || "-"}
                   </td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
                     {r.status === "success" && (
                       <button
                         onClick={() => setReverseTarget(r)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                        className="inline-flex items-center gap-1 rounded-xl border border-rose-200/60 bg-rose-50/50 px-2.5 py-1 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100/70 active:translate-y-0.5 dark:border-rose-900/30 dark:bg-rose-950/30 dark:text-rose-300"
                       >
                         <Icon d={ICONS.reverse} className="h-3.5 w-3.5" />
                         Reverse

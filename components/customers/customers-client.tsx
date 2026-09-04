@@ -428,6 +428,7 @@ export default function CustomersClient({
       value: String(stats.total),
       icon: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87",
       grad: "from-blue-500 to-indigo-600",
+      glow: "card-glow-indigo",
       onClick: () => {
         setStatus("all");
         setBalFilter("all");
@@ -439,6 +440,7 @@ export default function CustomersClient({
       value: String(stats.active),
       icon: "M20 6 9 17l-5-5",
       grad: "from-emerald-500 to-teal-600",
+      glow: "card-glow-emerald",
       onClick: () => {
         setStatus("active");
         setBalFilter("all");
@@ -449,6 +451,7 @@ export default function CustomersClient({
       value: inr(stats.receivables),
       icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2",
       grad: "from-rose-500 to-pink-600",
+      glow: "card-glow-rose",
       onClick: () => {
         setStatus("all");
         setBalFilter("owing");
@@ -459,6 +462,7 @@ export default function CustomersClient({
       value: inr(stats.advances),
       icon: "M3 17l6-6 4 4 8-8M15 7h6v6",
       grad: "from-violet-500 to-purple-600",
+      glow: "card-glow-cyan",
       onClick: () => {
         setStatus("all");
         setBalFilter("advance");
@@ -475,9 +479,12 @@ export default function CustomersClient({
         </div>
         <button
           onClick={() => setModal({ mode: "create" })}
-          className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 active:translate-y-0.5"
         >
-          + Add Customer
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 w-4">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add Customer
         </button>
       </div>
 
@@ -486,16 +493,16 @@ export default function CustomersClient({
           <div
             key={c.label}
             onClick={c.onClick}
-            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${c.glow}`}
           >
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">{c.label}</p>
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{c.label}</p>
+              <div className={`icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
                 <Icon d={c.icon} className="h-4 w-4" />
               </div>
             </div>
-            <p className="mt-1.5 text-xl font-bold text-slate-900">{c.value}</p>
+            <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{c.value}</p>
           </div>
         ))}
       </div>

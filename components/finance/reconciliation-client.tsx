@@ -59,6 +59,7 @@ const POOL_CONFIGS = [
     label: "UPI QR Float",
     icon: "📱",
     grad: "from-rose-500 to-pink-600",
+    glow: "card-glow-rose",
     canonicalSource: "get_pool_balances → upi_qr",
   },
   {
@@ -66,6 +67,7 @@ const POOL_CONFIGS = [
     label: "Bank Balance",
     icon: "🏛️",
     grad: "from-blue-500 to-indigo-600",
+    glow: "card-glow-indigo",
     canonicalSource: "get_pool_balances → bank",
   },
   {
@@ -73,6 +75,7 @@ const POOL_CONFIGS = [
     label: "Cash in Hand",
     icon: "💵",
     grad: "from-indigo-500 to-violet-600",
+    glow: "card-glow-cyan",
     canonicalSource: "get_pool_balances → cash",
   },
   {
@@ -80,6 +83,7 @@ const POOL_CONFIGS = [
     label: "AEPS Float",
     icon: "🏧",
     grad: "from-amber-500 to-orange-600",
+    glow: "card-glow-amber",
     canonicalSource: "get_pool_balances → aeps",
   },
   {
@@ -87,6 +91,7 @@ const POOL_CONFIGS = [
     label: "DMT Float",
     icon: "💸",
     grad: "from-violet-500 to-purple-600",
+    glow: "card-glow-violet",
     canonicalSource: "get_pool_balances → dmt",
   },
   {
@@ -94,6 +99,7 @@ const POOL_CONFIGS = [
     label: "Wallet Balance",
     icon: "👛",
     grad: "from-emerald-500 to-teal-600",
+    glow: "card-glow-emerald",
     canonicalSource: "get_pool_balances → wallet",
   },
 ];
@@ -456,18 +462,21 @@ export default function ReconciliationClient({
                 key={cfg.key}
                 type="button"
                 onClick={() => setSelectedPoolKey(cfg.key)}
-                className={`relative flex flex-col justify-between rounded-2xl border p-4 text-left transition ${
+                className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${cfg.glow} ${
                   isSelected
-                    ? "border-cyan-500 bg-cyan-50/20 shadow-md ring-2 ring-cyan-400/40 dark:bg-cyan-950/20"
-                    : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20"
+                    ? "border-cyan-500 bg-cyan-50/30 shadow-lg shadow-cyan-500/10 ring-2 ring-cyan-400 dark:bg-cyan-950/30"
+                    : "border-slate-200/80 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20"
                 }`}
               >
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${cfg.grad}`} />
                 <div>
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-xl">{cfg.icon}</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/10 text-xl shadow-inner">
+                      {cfg.icon}
+                    </span>
                     {p?.isReconciled ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                        <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
                         ✓ Reconciled
                       </span>
                     ) : (
@@ -476,13 +485,13 @@ export default function ReconciliationClient({
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{cfg.label}</p>
-                  <p className="mt-0.5 text-lg font-black text-slate-900 dark:text-white">{inr(bal)}</p>
+                  <p className="mt-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{cfg.label}</p>
+                  <p className="mt-1 text-xl font-black tracking-tight text-slate-900 dark:text-white">{inr(bal)}</p>
                 </div>
 
                 <div className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-400 dark:border-white/5 flex items-center justify-between">
-                  <span>Var: <strong>{inr(p?.variance ?? 0)}</strong></span>
-                  <span className="font-semibold text-cyan-600 dark:text-cyan-400">View Trace →</span>
+                  <span>Var: <strong className={p?.isReconciled ? "text-slate-600 dark:text-slate-300" : "text-rose-600 dark:text-rose-400"}>{inr(p?.variance ?? 0)}</strong></span>
+                  <span className="font-bold text-cyan-600 dark:text-cyan-400 group-hover:translate-x-0.5 transition">Trace →</span>
                 </div>
               </button>
             );
@@ -528,27 +537,27 @@ export default function ReconciliationClient({
 
             {/* 4 Key Balances Summary */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Balance</span>
-                <div className="mt-1 text-2xl font-black text-cyan-300">{inr(selectedPool.currentBalance)}</div>
-                <span className="text-[10px] text-slate-500">Live Active Pool</span>
+              <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-white/[0.04] p-4 shadow-sm backdrop-blur-md">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Current Balance</span>
+                <div className="mt-1.5 text-2xl font-black text-cyan-300">{inr(selectedPool.currentBalance)}</div>
+                <span className="text-[10px] text-slate-400">Live Active Pool</span>
               </div>
 
-              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calculated Balance</span>
-                <div className="mt-1 text-2xl font-black text-white">{inr(selectedPool.calculatedBalance)}</div>
-                <span className="text-[10px] text-slate-500">Movement Sum</span>
+              <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-white/[0.04] p-4 shadow-sm backdrop-blur-md">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Calculated Balance</span>
+                <div className="mt-1.5 text-2xl font-black text-white">{inr(selectedPool.calculatedBalance)}</div>
+                <span className="text-[10px] text-slate-400">Movement Sum</span>
               </div>
 
-              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Canonical Pool</span>
-                <div className="mt-1 text-2xl font-black text-indigo-300">{inr(selectedPool.canonicalBalance)}</div>
-                <span className="text-[10px] text-slate-500">get_pool_balances</span>
+              <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm backdrop-blur-md">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Canonical Pool</span>
+                <div className="mt-1.5 text-2xl font-black text-indigo-300">{inr(selectedPool.canonicalBalance)}</div>
+                <span className="text-[10px] text-slate-400">get_pool_balances</span>
               </div>
 
-              <div className={`rounded-2xl border p-4 ${selectedPool.isReconciled ? "border-emerald-500/20 bg-emerald-500/5" : "border-rose-500/20 bg-rose-500/5"}`}>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Variance</span>
-                <div className={`mt-1 text-2xl font-black ${selectedPool.isReconciled ? "text-emerald-400" : "text-rose-400"}`}>
+              <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md ${selectedPool.isReconciled ? "card-glow-emerald border-emerald-500/30 bg-emerald-500/10" : "card-glow-rose border-rose-500/30 bg-rose-500/10"}`}>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Variance</span>
+                <div className={`mt-1.5 text-2xl font-black ${selectedPool.isReconciled ? "text-emerald-400" : "text-rose-400"}`}>
                   {inr(selectedPool.variance)}
                 </div>
                 <span className="text-[10px] text-slate-400">
