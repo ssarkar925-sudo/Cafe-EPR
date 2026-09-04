@@ -1103,24 +1103,24 @@ export default function DmtWorkspace({
               type="button"
               onClick={refreshBalances}
               disabled={isRefreshingBalances}
-              className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+              className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-slate-300 backdrop-blur-md hover:bg-white/15 hover:text-white transition active:scale-95 disabled:opacity-50 shadow-inner"
               title="Refresh Live Balances from Database"
             >
               <span className={`inline-block text-base ${isRefreshingBalances ? "animate-spin text-teal-400" : ""}`}>↻</span>
             </button>
-            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[160px]">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">DMT PORTAL WALLET</span>
-              <div className={`text-2xl font-black ${dmtFloat < 0 ? "text-amber-400" : "text-emerald-400"}`}>
+            <div className="card-glow-indigo flex flex-col items-end rounded-2xl border border-white/10 bg-white/10 p-3.5 backdrop-blur-md min-w-[160px] shadow-lg">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-200">DMT PORTAL WALLET</span>
+              <div className={`text-2xl font-black tracking-tight ${dmtFloat < 0 ? "text-amber-400" : "text-emerald-400"}`}>
                 {inr(dmtFloat)}
               </div>
-              <span className="text-[10px] text-slate-400">Available Balance</span>
+              <span className="text-[10px] text-indigo-300/70">Available Balance</span>
             </div>
-            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[150px]">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">CASH IN HAND</span>
-              <div className={`text-2xl font-black ${cashInHand < 0 ? "text-amber-400" : "text-emerald-400"}`}>
+            <div className="card-glow-emerald flex flex-col items-end rounded-2xl border border-white/10 bg-white/10 p-3.5 backdrop-blur-md min-w-[150px] shadow-lg">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200">CASH IN HAND</span>
+              <div className={`text-2xl font-black tracking-tight ${cashInHand < 0 ? "text-amber-400" : "text-emerald-400"}`}>
                 {inr(cashInHand)}
               </div>
-              <span className="text-[10px] text-slate-400">Available Balance</span>
+              <span className="text-[10px] text-emerald-300/70">Available Balance</span>
             </div>
           </div>
         </div>
@@ -1129,17 +1129,18 @@ export default function DmtWorkspace({
       {/* ===============================================================================
           2. DMT POSITION / COMPACT FINANCIAL SUMMARY STRIP
       =============================================================================== */}
-      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
+      <section className="card-glow-indigo rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6 dark:border-white/5 min-w-[240px]">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 font-black">
+            <div className="icon-box-3d flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-black shadow-md shadow-indigo-500/25">
               ₹
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">DMT POSITION</span>
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  ● RECONCILED
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  RECONCILED
                 </span>
               </div>
               <div className="text-lg font-black text-slate-900 dark:text-white">
@@ -1147,49 +1148,50 @@ export default function DmtWorkspace({
               </div>
               <Link
                 href="/finance/reconciliation"
-                className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                className="group inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
               >
-                View reconciliation →
+                <span>View reconciliation</span>
+                <span className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
               </Link>
             </div>
           </div>
 
           {/* Connected Metrics Grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 flex-1 text-center">
-            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+            <div className="card-glow-indigo rounded-xl border border-slate-200/60 bg-slate-50/80 p-2.5 dark:border-white/5 dark:bg-white/5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TRANSFERS</span>
-              <div className="mt-0.5 text-xs font-black text-slate-900 dark:text-white">{inr(todayVolume)}</div>
-              <span className="text-[9px] text-slate-400">{todayCount} Transfers</span>
+              <div className="mt-0.5 text-xs font-black font-mono text-slate-900 dark:text-white">{inr(todayVolume)}</div>
+              <span className="text-[9px] font-medium text-slate-400">{todayCount} Transfers</span>
             </div>
 
-            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
+            <div className="card-glow-indigo rounded-xl border border-slate-200/60 bg-slate-50/80 p-2.5 dark:border-white/5 dark:bg-white/5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">COLLECTIONS</span>
-              <div className="mt-0.5 text-xs font-black text-slate-900 dark:text-white">{inr(todayCustomerCollections)}</div>
-              <span className="text-[9px] text-slate-400">Gross Payout</span>
+              <div className="mt-0.5 text-xs font-black font-mono text-slate-900 dark:text-white">{inr(todayCustomerCollections)}</div>
+              <span className="text-[9px] font-medium text-slate-400">Gross Payout</span>
             </div>
 
-            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUSTOMER FEES</span>
-              <div className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">+{inr(todayCustomerFees)}</div>
-              <span className="text-[9px] text-emerald-600/80">Surcharges</span>
+            <div className="card-glow-emerald rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-2.5 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">CUSTOMER FEES</span>
+              <div className="mt-0.5 text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">+{inr(todayCustomerFees)}</div>
+              <span className="text-[9px] font-medium text-emerald-600/80 dark:text-emerald-400/80">Surcharges</span>
             </div>
 
-            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PROVIDER CHARGES</span>
-              <div className="mt-0.5 text-xs font-black text-rose-600 dark:text-rose-400">-{inr(todayPortalCharges)}</div>
-              <span className="text-[9px] text-rose-500/80">Pass-through</span>
+            <div className="card-glow-rose rounded-xl border border-rose-500/20 bg-rose-50/30 p-2.5 dark:border-rose-500/20 dark:bg-rose-950/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">PROVIDER CHARGES</span>
+              <div className="mt-0.5 text-xs font-black font-mono text-rose-600 dark:text-rose-400">-{inr(todayPortalCharges)}</div>
+              <span className="text-[9px] font-medium text-rose-500/80 dark:text-rose-400/80">Pass-through</span>
             </div>
 
-            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">COMMISSION</span>
-              <div className="mt-0.5 text-xs font-black text-teal-600 dark:text-teal-400">+{inr(todayPortalCommission)}</div>
-              <span className="text-[9px] text-teal-600/80">Gateway Credit</span>
+            <div className="card-glow-teal rounded-xl border border-teal-500/20 bg-teal-50/30 p-2.5 dark:border-teal-500/20 dark:bg-teal-950/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">COMMISSION</span>
+              <div className="mt-0.5 text-xs font-black font-mono text-teal-600 dark:text-teal-400">+{inr(todayPortalCommission)}</div>
+              <span className="text-[9px] font-medium text-teal-600/80 dark:text-teal-400/80">Gateway Credit</span>
             </div>
 
-            <div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">VARIANCE</span>
-              <div className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">₹0.00</div>
-              <span className="text-[9px] text-emerald-600/80">Canonical Match</span>
+            <div className="card-glow-emerald rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-2.5 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">VARIANCE</span>
+              <div className="mt-0.5 text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">₹0.00</div>
+              <span className="text-[9px] font-medium text-emerald-600/80 dark:text-emerald-400/80">Canonical Match</span>
             </div>
           </div>
         </div>
@@ -1207,7 +1209,7 @@ export default function DmtWorkspace({
             <button
               type="button"
               onClick={() => setScanModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
               title="Scan remittance receipt or SMS"
             >
               <span>📷</span>
@@ -1216,21 +1218,21 @@ export default function DmtWorkspace({
             <button
               type="button"
               onClick={() => setAddBankWindowOpen(true)}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
             >
               <span>+ Add Bank</span>
             </button>
             <button
               type="button"
               onClick={() => setAddCustomerWindowOpen(true)}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
             >
               <span>+ Add Customer</span>
             </button>
             <button
               type="button"
               onClick={() => setAddBeneficiaryWindowOpen(true)}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
             >
               <span>+ Add Beneficiary</span>
             </button>
@@ -1239,13 +1241,13 @@ export default function DmtWorkspace({
 
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Tile 1: Domestic Money Transfer */}
-          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
+          <div className="card-glow-indigo group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white shadow-md shadow-indigo-500/20">
+                <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white shadow-md shadow-indigo-500/25">
                   💸
                 </div>
-                <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800/40">
                   IMPS / NEFT / UPI
                 </span>
               </div>
@@ -1258,11 +1260,11 @@ export default function DmtWorkspace({
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400">Instant IMPS / Realtime UPI</span>
+              <span className="text-xs text-slate-400 font-medium">Instant IMPS / Realtime UPI</span>
               <button
                 type="button"
                 onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition hover:brightness-110 active:scale-[0.98]"
+                className="btn-3d-tactile-primary inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition hover:brightness-110 active:scale-[0.98]"
               >
                 <span>Start Transfer</span>
                 <span>→</span>
@@ -1271,13 +1273,13 @@ export default function DmtWorkspace({
           </div>
 
           {/* Tile 2: DMT Service Portals */}
-          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-violet-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-violet-500/40 flex flex-col justify-between">
+          <div className="card-glow-indigo group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-violet-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-violet-500/40 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-xl text-white shadow-md shadow-violet-500/20">
+                <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-xl text-white shadow-md shadow-violet-500/25">
                   🌐
                 </div>
-                <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-200/60 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800/40">
                   {portals.length} Active Gateways
                 </span>
               </div>
@@ -1290,10 +1292,10 @@ export default function DmtWorkspace({
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400 truncate max-w-[200px]">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span>
+              <span className="text-xs text-slate-400 font-medium truncate max-w-[200px]">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span>
               <Link
                 href="/business/portals"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 active:scale-95 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-sm"
               >
                 <span>Manage Portals</span>
                 <span>→</span>
@@ -1307,36 +1309,48 @@ export default function DmtWorkspace({
           4. DMT SERVICE STATUS RAIL
       =============================================================================== */}
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-6">
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-emerald-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">DMT SWITCH</span>
-          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● ONLINE</p>
+          <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            ONLINE
+          </p>
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-indigo-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">BENEFICIARY</span>
-          <p className="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">● READY</p>
+          <p className="mt-0.5 text-xs font-black text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+            READY
+          </p>
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-emerald-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PAYOUT GATEWAY</span>
-          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">● CONNECTED</p>
+          <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            CONNECTED
+          </p>
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-violet-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PORTALS</span>
-          <p className="mt-0.5 text-xs font-bold text-violet-600 dark:text-violet-400">● {portals.length} CONNECTED</p>
+          <p className="mt-0.5 text-xs font-black text-violet-600 dark:text-violet-400 flex items-center justify-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+            {portals.length} CONNECTED
+          </p>
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-emerald-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SETTLEMENT</span>
-          <p className="mt-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">✓ SYNCED</p>
+          <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">✓ SYNCED</p>
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900 shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LAST SYNC</span>
-          <p className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">{lastRefreshedAt}</p>
+          <p className="mt-0.5 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">{lastRefreshedAt}</p>
         </div>
       </section>
 
       {/* ===============================================================================
           5. 5-STAGE DMT OPERATION LIFECYCLE
       =============================================================================== */}
-      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+      <section className="card-glow-indigo rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
           <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
             DMT OPERATION LIFECYCLE
@@ -1345,27 +1359,27 @@ export default function DmtWorkspace({
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
-          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 1 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 1 ? "bg-indigo-50/80 border-indigo-200 ring-1 ring-indigo-500/20 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
             <span className={`font-mono text-[10px] font-bold ${currentStep >= 1 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>01. IDENTIFY</span>
             <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Customer &amp; Sender</p>
             <p className="text-[10px] text-slate-400">Sender CRM &amp; 10-digit mobile</p>
           </div>
-          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 2 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 2 ? "bg-indigo-50/80 border-indigo-200 ring-1 ring-indigo-500/20 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
             <span className={`font-mono text-[10px] font-bold ${currentStep >= 2 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>02. BENEFICIARY</span>
             <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Account / VPA</p>
             <p className="text-[10px] text-slate-400">Bank account or UPI handle</p>
           </div>
-          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 3 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 3 ? "bg-indigo-50/80 border-indigo-200 ring-1 ring-indigo-500/20 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
             <span className={`font-mono text-[10px] font-bold ${currentStep >= 3 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>03. VERIFY</span>
             <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Routing &amp; IFSC</p>
             <p className="text-[10px] text-slate-400">IMPS / NEFT / Gateway check</p>
           </div>
-          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 4 ? "bg-indigo-50/80 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 4 ? "bg-indigo-50/80 border-indigo-200 ring-1 ring-indigo-500/20 dark:bg-indigo-950/30 dark:border-indigo-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
             <span className={`font-mono text-[10px] font-bold ${currentStep >= 4 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>04. TRANSFER</span>
             <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Principal &amp; Fee</p>
             <p className="text-[10px] text-slate-400">Collection &amp; provider charges</p>
           </div>
-          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 5 ? "bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
+          <div className={`rounded-xl p-2.5 border transition ${currentStep >= 5 ? "bg-emerald-50/80 border-emerald-200 ring-1 ring-emerald-500/20 dark:bg-emerald-950/30 dark:border-emerald-800" : "bg-slate-50/80 border-slate-100 dark:bg-white/5 dark:border-white/5"}`}>
             <span className={`font-mono text-[10px] font-bold ${currentStep >= 5 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>05. SETTLE</span>
             <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Disburse &amp; Sync</p>
             <p className="text-[10px] text-slate-400">Float sync &amp; double-entry ledger</p>
@@ -1379,10 +1393,10 @@ export default function DmtWorkspace({
       <div ref={formRef} className="space-y-4">
         {/* Success Confirmation Card (When transaction has just completed) */}
         {lastCompletedTxn && (
-          <div className="relative overflow-hidden rounded-[24px] border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-indigo-500/5 to-slate-900/40 p-5 sm:p-6 backdrop-blur-md dark:border-emerald-500/30 shadow-lg space-y-4">
+          <div className="card-glow-emerald relative overflow-hidden rounded-[24px] border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-indigo-500/5 to-slate-900/40 p-5 sm:p-6 backdrop-blur-md dark:border-emerald-500/30 shadow-lg space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-500/20 pb-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-xl text-white shadow-md shadow-emerald-500/30">
+                <div className="icon-box-3d flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-xl text-white shadow-md shadow-emerald-500/30">
                   ✓
                 </div>
                 <div>
@@ -1398,14 +1412,14 @@ export default function DmtWorkspace({
               <button
                 type="button"
                 onClick={handleNewTransfer}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-md hover:bg-emerald-700 transition"
+                className="btn-3d-tactile-emerald inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs font-black text-white shadow-md transition"
               >
                 <span>+ New Transfer</span>
               </button>
             </div>
 
             {/* Completed Transaction Details Grid */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 rounded-2xl bg-white/70 p-4 dark:bg-white/5 border border-emerald-500/10 text-xs">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 rounded-2xl bg-white/70 p-4 dark:bg-white/5 border border-emerald-500/10 text-xs shadow-inner">
               <div>
                 <span className="text-slate-400 font-semibold text-[10px]">TXN NUMBER:</span>
                 <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">{lastCompletedTxn.transaction_number}</p>
@@ -1420,17 +1434,17 @@ export default function DmtWorkspace({
               </div>
               <div>
                 <span className="text-slate-400 font-semibold text-[10px]">TRANSFER AMOUNT:</span>
-                <p className="font-black text-slate-900 dark:text-white mt-0.5">{inr(lastCompletedTxn.amount)}</p>
+                <p className="font-black font-mono text-slate-900 dark:text-white mt-0.5">{inr(lastCompletedTxn.amount)}</p>
               </div>
               <div>
                 <span className="text-slate-400 font-semibold text-[10px]">TOTAL DEBIT:</span>
-                <p className="font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                <p className="font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
                   {inr(Number(lastCompletedTxn.amount || 0) + Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_charge || 0))}
                 </p>
               </div>
               <div>
                 <span className="text-slate-400 font-semibold text-[10px]">OPERATOR INCOME:</span>
-                <p className="font-black text-teal-600 dark:text-teal-400 mt-0.5">
+                <p className="font-black font-mono text-teal-600 dark:text-teal-400 mt-0.5">
                   +{inr(Number(lastCompletedTxn.service_fee || 0) + Number(lastCompletedTxn.portal_commission || 0) - Number(lastCompletedTxn.portal_charge || 0))}
                 </p>
               </div>
@@ -1442,21 +1456,21 @@ export default function DmtWorkspace({
                 <Link
                   href={`/business/receipt/${lastCompletedTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
                   target="_blank"
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 dark:bg-indigo-600"
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 active:scale-95 transition dark:bg-indigo-600"
                 >
                   🖨️ Thermal Receipt
                 </Link>
                 <Link
                   href={`/business/receipt/${lastCompletedTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
                   target="_blank"
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                 >
                   📄 A4 Invoice
                 </Link>
                 <button
                   type="button"
                   onClick={() => handleOpenWhatsApp(lastCompletedTxn)}
-                  className="rounded-xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  className="rounded-xl bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition dark:bg-emerald-950/40 dark:text-emerald-300"
                 >
                   💬 Send WhatsApp
                 </button>
@@ -1468,14 +1482,14 @@ export default function DmtWorkspace({
                 <button
                   type="button"
                   onClick={() => setReceiptMode("basic")}
-                  className={`rounded-lg px-2 py-1 transition ${receiptMode === "basic" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`}
+                  className={`rounded-lg px-2.5 py-1 transition ${receiptMode === "basic" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900 dark:text-slate-400"}`}
                 >
                   Basic (Customer)
                 </button>
                 <button
                   type="button"
                   onClick={() => setReceiptMode("detailed")}
-                  className={`rounded-lg px-2 py-1 transition ${receiptMode === "detailed" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`}
+                  className={`rounded-lg px-2.5 py-1 transition ${receiptMode === "detailed" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900 dark:text-slate-400"}`}
                 >
                   Detailed (With Fee)
                 </button>
@@ -2000,7 +2014,7 @@ export default function DmtWorkspace({
           </div>
 
           {/* RIGHT: Order Summary & Settlement Breakdown (4 cols) */}
-          <div className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-4 space-y-4 sticky top-6">
+          <div className="card-glow-indigo rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-4 space-y-4 sticky top-6">
             <div className="border-b border-slate-100 pb-3 dark:border-white/5">
               <h3 className="text-base font-black text-slate-900 dark:text-white">
                 DMT ORDER SUMMARY
@@ -2038,30 +2052,30 @@ export default function DmtWorkspace({
 
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Transfer Principal:</span>
-                <span className="font-bold text-slate-900 dark:text-white">{inr(numAmount)}</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white">{inr(numAmount)}</span>
               </div>
 
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Customer Service Fee:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">+{inr(numFee)}</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">+{inr(numFee)}</span>
               </div>
 
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Provider Charge:</span>
-                <span className="font-bold text-rose-600 dark:text-rose-400">+{inr(numCharge)}</span>
+                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">+{inr(numCharge)}</span>
               </div>
 
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Portal Commission:</span>
-                <span className="font-bold text-teal-600 dark:text-teal-400">+{inr(numComm)}</span>
+                <span className="font-mono font-bold text-teal-600 dark:text-teal-400">+{inr(numComm)}</span>
               </div>
 
               {/* Total Customer Debit Highlight */}
-              <div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200">
+              <div className="card-glow-indigo rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-indigo-100/50 p-3.5 text-xs text-indigo-950 dark:border-indigo-800/40 dark:bg-indigo-950/40 dark:text-indigo-200 shadow-sm">
                 <div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
                   Total Customer Debit:
                 </div>
-                <div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">
+                <div className="mt-1 text-2xl font-black font-mono text-indigo-900 dark:text-white tracking-tight">
                   {inr(totalCollected)}
                 </div>
                 <p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">
@@ -2072,12 +2086,12 @@ export default function DmtWorkspace({
               {/* Operator Net Income */}
               <div className="flex justify-between py-1 text-slate-600 dark:text-slate-400">
                 <span className="font-bold">Operator Net Income:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400">+{inr(netContribution)}</span>
+                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">+{inr(netContribution)}</span>
               </div>
 
               <div className="flex justify-between py-1 text-slate-600 dark:text-slate-400">
                 <span>Provider Wallet Impact:</span>
-                <span className="font-bold text-rose-600 dark:text-rose-400">-{inr(numAmount)}</span>
+                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">-{inr(numAmount)}</span>
               </div>
 
               {/* Float Warning if insufficient */}
@@ -2096,7 +2110,7 @@ export default function DmtWorkspace({
                 disabled={!isFormValid || isSubmitting}
                 className={`w-full rounded-2xl py-3.5 text-sm font-black transition ${
                   isFormValid && !isSubmitting
-                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 hover:brightness-110 active:scale-[0.98]"
+                    ? "btn-3d-tactile-primary text-white shadow-lg shadow-indigo-500/25 hover:brightness-110 active:scale-[0.98]"
                     : "cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200 dark:border-white/5 dark:bg-white/5 dark:text-slate-500"
                 }`}
               >
@@ -2123,7 +2137,7 @@ export default function DmtWorkspace({
           7. LIVE ACTIVITY FEED
       =============================================================================== */}
       {recentTxn && (
-        <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
+        <section className="card-glow-emerald rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
             <div className="flex items-center gap-2">
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
@@ -2134,7 +2148,7 @@ export default function DmtWorkspace({
             <span className="text-[10px] text-slate-400">Latest Completed Event</span>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3 border border-slate-200/60 dark:border-white/5">
             <div className="flex items-center gap-3">
               <span className="flex h-3 w-3 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
               <div>
@@ -2151,11 +2165,12 @@ export default function DmtWorkspace({
                     Ben: {recentTxn.beneficiary_name || recentTxn.receiver_name || "Beneficiary"}
                   </span>
                   <span className="text-xs text-slate-400">·</span>
-                  <strong className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <strong className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
                     {inr(Number(recentTxn.amount))}
                   </strong>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 capitalize">
-                    ✓ {recentTxn.status}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 capitalize">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {recentTxn.status}
                   </span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-400">
@@ -2168,14 +2183,14 @@ export default function DmtWorkspace({
               <button
                 type="button"
                 onClick={() => setSelectedDetailTxn(recentTxn)}
-                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 View
               </button>
               <Link
                 href={`/business/receipt/${recentTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
                 target="_blank"
-                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 title="Print receipt"
               >
                 🖨️ Receipt
@@ -2183,7 +2198,7 @@ export default function DmtWorkspace({
               <button
                 type="button"
                 onClick={() => handleOpenWhatsApp(recentTxn)}
-                className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition dark:bg-emerald-950/40 dark:text-emerald-300"
               >
                 💬 WhatsApp
               </button>
@@ -2195,11 +2210,11 @@ export default function DmtWorkspace({
       {/* ===============================================================================
           8. DMT TRANSACTION HISTORY / CONSOLE LEDGER
       =============================================================================== */}
-      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <section className="card-glow-indigo overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">DMT TRANSACTION HISTORY</h2>
+              <h2 className="text-base font-black text-slate-900 dark:text-white">DMT TRANSACTION HISTORY</h2>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 Authoritative transaction ledger for domestic remittances and gateway settlements.
               </p>
@@ -2218,7 +2233,7 @@ export default function DmtWorkspace({
                   key={tab.key}
                   type="button"
                   onClick={() => setStatusFilter(tab.key)}
-                  className={`rounded-lg px-3 py-1 font-semibold transition ${
+                  className={`rounded-lg px-3 py-1 font-bold transition active:scale-95 ${
                     statusFilter === tab.key
                       ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white"
                       : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -2244,7 +2259,7 @@ export default function DmtWorkspace({
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
@@ -2289,7 +2304,7 @@ export default function DmtWorkspace({
                       <div className="font-bold text-slate-900 dark:text-white">
                         {t.sender_name || t.customers?.name || "Walk-in"}
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[10px] text-slate-400 font-mono">
                         {maskMobile(t.customer_mobile || t.sender_mobile)}
                       </div>
                     </td>
@@ -2298,18 +2313,18 @@ export default function DmtWorkspace({
                       <div className="font-bold text-slate-900 dark:text-white">
                         {t.beneficiary_name || t.receiver_name || "Beneficiary"}
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[10px] text-slate-400 font-mono">
                         {t.transfer_method === "upi"
                           ? t.upi_id
                           : `${t.beneficiary_bank || "Bank"} (${maskAccount(t.beneficiary_account)})`}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-right font-black text-slate-900 dark:text-white">
+                    <td className="px-3 py-3 text-right font-mono font-black text-slate-900 dark:text-white">
                       {inr(t.amount)}
                     </td>
 
-                    <td className="px-3 py-3 text-right font-bold text-indigo-600 dark:text-indigo-400">
+                    <td className="px-3 py-3 text-right font-mono font-bold text-indigo-600 dark:text-indigo-400">
                       {inr(fullDebit)}
                     </td>
 
@@ -2321,14 +2336,15 @@ export default function DmtWorkspace({
 
                     <td className="px-3 py-3 text-center">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                           isReversed
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                            ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/40"
                             : t.status === "success"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40"
                             : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300"
                         }`}
                       >
+                        <span className={`h-1.5 w-1.5 rounded-full ${isReversed ? "bg-amber-500" : t.status === "success" ? "bg-emerald-500" : "bg-slate-400"}`} />
                         {t.status.toUpperCase()}
                       </span>
                     </td>
@@ -2338,14 +2354,14 @@ export default function DmtWorkspace({
                         <button
                           type="button"
                           onClick={() => setSelectedDetailTxn(t)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                         >
                           View
                         </button>
                         <Link
                           href={`/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`}
                           target="_blank"
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                           title="Print Receipt"
                         >
                           🖨️
@@ -2353,7 +2369,7 @@ export default function DmtWorkspace({
                         <button
                           type="button"
                           onClick={() => handleOpenWhatsApp(t)}
-                          className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition dark:bg-emerald-950/40 dark:text-emerald-300"
                           title="Send WhatsApp"
                         >
                           💬
@@ -2362,7 +2378,7 @@ export default function DmtWorkspace({
                           <button
                             type="button"
                             onClick={() => handleOpenReverse(t)}
-                            className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 active:scale-95 transition dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
                             title="Reverse transaction"
                           >
                             Reverse
