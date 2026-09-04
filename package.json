@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
-    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs",
+    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs && node scripts/patch-dashboard-performance.mjs",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -31,8 +31,6 @@
     "pino": "^9.6.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
