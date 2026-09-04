@@ -5,7 +5,6 @@ import Link from "next/link";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
-import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";

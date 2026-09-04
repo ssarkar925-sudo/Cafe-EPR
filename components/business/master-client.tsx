@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import UpiQrCode from "@/components/ui/upi-qr-code";

@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
-import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
@@ -650,28 +650,80 @@ export default function DayCloseClient({
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <StatCard
-              label="Owner Deposits (extra cash/bank put in)"
-              value={inr(Number(deposits) || 0)}
-              icon="M12 5v14M5 12h14"
-              grad="from-emerald-500 to-teal-600"
+            <Link
               href="/finance/settlements"
-            />
-            <StatCard
-              label="Owner Withdrawals (cash taken out)"
-              value={inr(Number(withdrawals) || 0)}
-              icon="M5 12h14M12 5l-7 7 7 7"
-              grad="from-rose-500 to-red-600"
+              className="bento-surface card-glow-emerald card-interactive group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+            >
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-600" />
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Owner Deposits
+                  </span>
+                  <div className="icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                  {inr(Number(deposits) || 0)}
+                </div>
+              </div>
+              <div className="mt-2 text-xs font-medium text-slate-400">
+                Extra cash/bank capital injected
+              </div>
+            </Link>
+
+            <Link
               href="/finance/settlements"
-            />
-            <StatCard
-              label="Current Opening (next day auto)"
-              value={inr(totals?.final ?? 0)}
-              icon="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-              grad="from-blue-600 to-indigo-600"
-              sub="Closing balances roll into tomorrow"
+              className="bento-surface card-glow-rose card-interactive group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+            >
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Owner Withdrawals
+                  </span>
+                  <div className="icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-xs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d="M5 12h14M12 5l-7 7 7 7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                  {inr(Number(withdrawals) || 0)}
+                </div>
+              </div>
+              <div className="mt-2 text-xs font-medium text-slate-400">
+                Cash drawer drawings taken out
+              </div>
+            </Link>
+
+            <Link
               href="/finance/opening-balances"
-            />
+              className="bento-surface card-glow-indigo card-interactive group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+            >
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 to-indigo-600" />
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Next Day Opening Position
+                  </span>
+                  <div className="icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                  {inr(totals?.final ?? 0)}
+                </div>
+              </div>
+              <div className="mt-2 text-xs font-medium text-slate-400">
+                Closing balances roll into tomorrow auto
+              </div>
+            </Link>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">

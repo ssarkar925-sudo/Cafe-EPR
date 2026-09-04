@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import BusinessFormModal from "./business-form-modal";
 import ReasonModal from "./business-reason-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
-import StatCard from "@/components/ui/stat-card";
+import Link from "next/link";
 import ViewToggle from "@/components/ui/view-toggle";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
@@ -1339,42 +1339,109 @@ export default function BusinessClient({
               setDateTo("");
             }
           };
+
+          const isSelected =
+            (c.key === "success" && statusFilter === "success") ||
+            (c.key === "pending" && statusFilter === "pending") ||
+            (c.key === "failed" && statusFilter === "failed") ||
+            (c.key === "today" && dateFrom === today && dateTo === today);
+
+          let glow = "card-glow-indigo";
+          if (c.key === "success" || c.key === "net") glow = "card-glow-emerald";
+          else if (c.key === "pending") glow = "card-glow-amber";
+          else if (c.key === "failed") glow = "card-glow-rose";
+          else if (c.key === "today") glow = "card-glow-cyan";
+          else if (c.grad?.includes("rose")) glow = "card-glow-rose";
+          else if (c.grad?.includes("amber")) glow = "card-glow-amber";
+          else if (c.grad?.includes("emerald")) glow = "card-glow-emerald";
+          else if (c.grad?.includes("violet") || c.grad?.includes("purple")) glow = "card-glow-purple";
+
           return (
-            <StatCard
+            <div
               key={c.key}
-              label={c.label}
-              value={cardValue(c.key)}
-              sub={c.sub}
-              icon={c.icon}
-              grad={c.grad}
-              valueClass={c.key === "net" ? "text-emerald-600" : undefined}
               onClick={handleClick}
-            />
+              className={`bento-surface card-interactive group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${glow} ${
+                isSelected ? "ring-2 ring-indigo-500/40 bg-indigo-50/20 dark:bg-indigo-950/20" : ""
+              }`}
+            >
+              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {c.label}
+                  </span>
+                  <div className={`icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-xs`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d={c.icon} />
+                    </svg>
+                  </div>
+                </div>
+                <div className={`mt-2 font-mono text-2xl font-black tracking-tight ${c.key === "net" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
+                  {cardValue(c.key)}
+                </div>
+              </div>
+              {c.sub && (
+                <div className="mt-2 text-xs font-medium text-slate-400">
+                  {c.sub}
+                </div>
+              )}
+            </div>
           );
         })}
         {service === "upi" ? (
-          <StatCard
-            label="UPI POSITION"
-            value={inr(float?.current ?? 9011)}
-            sub={
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                ✓ Reconciled · Var ₹0.00
-              </span>
-            }
-            icon={ICONS.coins}
-            grad="from-slate-700 to-slate-900"
+          <Link
             href="/finance/reconciliation"
-          />
+            className="bento-surface card-glow-emerald card-interactive group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+          >
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-600 to-teal-700" />
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  UPI Position
+                </span>
+                <div className="icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xs">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d={ICONS.coins} />
+                  </svg>
+                </div>
+              </div>
+              <div className="mt-2 font-mono text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                {inr(float?.current ?? 9011)}
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              ✓ Reconciled · Var ₹0.00
+            </div>
+          </Link>
         ) : float ? (
-          <StatCard
-            label={`${label} Float / Position`}
-            value={inr(float.current)}
-            sub={`Opening ${inr(float.opening)}${float.seed_date && float.seed_date !== "0001-01-01" ? ` · ${fmtDate(float.seed_date)}` : ""}`}
-            icon={ICONS.coins}
-            grad="from-slate-700 to-slate-900"
+          <Link
             href="/finance/opening-balances"
-          />
+            className="bento-surface card-glow-indigo card-interactive group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+          >
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-600 to-purple-700" />
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {label} Float / Position
+                </span>
+                <div className="icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white shadow-xs">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d={ICONS.coins} />
+                  </svg>
+                </div>
+              </div>
+              <div className="mt-2 font-mono text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                {inr(float.current)}
+              </div>
+            </div>
+            <div className="mt-2 font-mono text-xs font-medium text-slate-400">
+              Opening {inr(float.opening)}{float.seed_date && float.seed_date !== "0001-01-01" ? ` · ${fmtDate(float.seed_date)}` : ""}
+            </div>
+          </Link>
         ) : null}
       </div>
 

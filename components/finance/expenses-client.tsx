@@ -7,7 +7,6 @@ import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import ExpenseFormModal, { type ExpenseSource } from "./expense-form-modal";
-import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
