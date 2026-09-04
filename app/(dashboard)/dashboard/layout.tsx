@@ -15,9 +15,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           margin-top: 0 !important;
         }
 
-        /* Flatten the existing attention/quick-actions grid so Quick Actions
-           can become the first dashboard action surface without changing
-           the existing Quick Action component or its permissions. */
+        /* Flatten the existing attention/quick-actions grid so its two
+           surfaces can participate in the dashboard's section ordering. */
         .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(6) {
           display: contents;
         }
@@ -27,8 +26,38 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           min-width: 0;
         }
 
+        /* Dashboard order: Executive Header → KPI Dashboard → Quick Action
+           Shortcuts → Performance → Services → Operations. */
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(1) {
+          order: 1;
+        }
+
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(2) {
+          order: 2;
+        }
+
         .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(6) > :nth-child(2) {
-          order: -1;
+          order: 3;
+        }
+
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(3) {
+          order: 4;
+        }
+
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(4) {
+          order: 5;
+        }
+
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(5) {
+          order: 6;
+        }
+
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(6) > :nth-child(1) {
+          order: 7;
+        }
+
+        .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(7) {
+          order: 8;
         }
       `}</style>
     </div>
