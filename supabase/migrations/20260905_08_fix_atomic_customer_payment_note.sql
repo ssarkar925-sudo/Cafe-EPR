@@ -1,6 +1,6 @@
--- Fix atomic customer payment to match the live payments schema.
--- The payments table has no `note` column; retain the payment description in the
--- customer ledger/cash entry and use only supported payment columns here.
+-- Fix atomic customer payment to match the live payments/invoices schema.
+-- The payments table has no `note` column and invoices has no `updated_at` column.
+-- Also make same-day FIFO deterministic by invoice number after timestamp.
 
 create or replace function public.record_customer_payment_atomic(
   p_customer_id uuid,
@@ -40,7 +40,7 @@ begin
     from public.invoices
     where customer_id=p_customer_id and status <> 'cancelled'
       and greatest(0,coalesce(total,0)-coalesce(paid,0)) > 0.005
-    order by invoice_date asc, created_at asc, id asc
+    order by invoice_date asc, created_at asc, invoice_number asc, id asc
     for update
   loop
     exit when v_remaining <= 0;
@@ -55,8 +55,7 @@ begin
 
     update public.invoices
     set paid=v_new_paid, due=v_new_due,
-        status=case when v_new_due <= 0.005 then 'paid' else 'partial' end,
-        updated_at=now()
+        status=case when v_new_due <= 0.005 then 'paid' else 'partial' end
     where id=v_inv.id;
 
     v_remaining := round(v_remaining-v_applied,2);
