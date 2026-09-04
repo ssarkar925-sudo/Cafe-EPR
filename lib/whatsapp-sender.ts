@@ -187,14 +187,6 @@ export async function sendWhatsAppViaConfig(
       }
     }
 
-    if (isLocal) {
-      return {
-        success: false,
-        error: `Direct connection required: When using Local PC Gateway (http://localhost:3001), your browser communicates directly with the PC gateway. Please verify PM2 or Node.js is running on port 3001.`,
-        status: 502,
-      };
-    }
-
     const targetUrl = `${gatewayUrl}/send-message`;
 
     // Resilient fetch with automatic wake-up retry (up to 60s for Render free-tier cold starts)
