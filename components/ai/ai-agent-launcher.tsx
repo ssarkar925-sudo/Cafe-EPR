@@ -9,6 +9,8 @@ export default function AIAgentLauncher({ role }: { role: string }) {
   useEffect(() => {
     if (role !== "admin" && role !== "staff") return;
     let active = true;
+    let firstTimer: number | null = null;
+
     async function load() {
       try {
         const response = await fetch("/api/ai/monitor", { cache: "no-store" });
@@ -20,10 +22,17 @@ export default function AIAgentLauncher({ role }: { role: string }) {
         // Keep the launcher usable when the monitor endpoint is temporarily unavailable.
       }
     }
-    void load();
-    const timer = window.setInterval(load, 60000);
+
+    // The monitor is auxiliary UI. Let the page become interactive first,
+    // then fetch the alert count in the background.
+    firstTimer = window.setTimeout(() => {
+      void load();
+    }, 1500);
+
+    const timer = window.setInterval(load, 5 * 60 * 1000);
     return () => {
       active = false;
+      if (firstTimer !== null) window.clearTimeout(firstTimer);
       window.clearInterval(timer);
     };
   }, [role]);
