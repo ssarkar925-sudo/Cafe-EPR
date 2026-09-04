@@ -63,38 +63,38 @@ export const inputClass =
 export const METHOD_BTN: Record<string, { label: string; active: string; idle: string }> = {
   cash: {
     label: "Cash",
-    active: "bg-emerald-600 text-white ring-2 ring-emerald-500 shadow-sm",
-    idle: "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900/40 dark:text-emerald-300",
+    active: "bg-emerald-600 text-white ring-2 ring-emerald-500 shadow-md shadow-emerald-500/25 scale-[1.02] font-black",
+    idle: "bg-emerald-50/80 text-emerald-800 border border-emerald-200/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900/40 dark:text-emerald-300 font-bold",
   },
   upi: {
     label: "UPI QR",
-    active: "bg-cyan-600 text-white ring-2 ring-cyan-500 shadow-sm",
-    idle: "bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 dark:bg-cyan-950/40 dark:border-cyan-900/40 dark:text-cyan-300",
+    active: "bg-cyan-600 text-white ring-2 ring-cyan-500 shadow-md shadow-cyan-500/25 scale-[1.02] font-black",
+    idle: "bg-cyan-50/80 text-cyan-800 border border-cyan-200/80 hover:bg-cyan-100 dark:bg-cyan-950/40 dark:border-cyan-900/40 dark:text-cyan-300 font-bold",
   },
   card: {
     label: "Card",
-    active: "bg-blue-600 text-white ring-2 ring-blue-500 shadow-sm",
-    idle: "bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-900/40 dark:text-blue-300",
+    active: "bg-blue-600 text-white ring-2 ring-blue-500 shadow-md shadow-blue-500/25 scale-[1.02] font-black",
+    idle: "bg-blue-50/80 text-blue-800 border border-blue-200/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-900/40 dark:text-blue-300 font-bold",
   },
   bank: {
     label: "Bank",
-    active: "bg-indigo-600 text-white ring-2 ring-indigo-500 shadow-sm",
-    idle: "bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-300",
+    active: "bg-indigo-600 text-white ring-2 ring-indigo-500 shadow-md shadow-indigo-500/25 scale-[1.02] font-black",
+    idle: "bg-indigo-50/80 text-indigo-800 border border-indigo-200/80 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900/40 dark:text-indigo-300 font-bold",
   },
   wallet: {
     label: "Wallet",
-    active: "bg-amber-600 text-white ring-2 ring-amber-500 shadow-sm",
-    idle: "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-900/40 dark:text-amber-300",
+    active: "bg-amber-600 text-white ring-2 ring-amber-500 shadow-md shadow-amber-500/25 scale-[1.02] font-black",
+    idle: "bg-amber-50/80 text-amber-800 border border-amber-200/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-900/40 dark:text-amber-300 font-bold",
   },
   debit_card: {
     label: "Debit",
-    active: "bg-violet-600 text-white ring-2 ring-violet-500 shadow-sm",
-    idle: "bg-violet-50 text-violet-800 border border-violet-200 hover:bg-violet-100 dark:bg-violet-950/40 dark:border-violet-900/40 dark:text-violet-300",
+    active: "bg-violet-600 text-white ring-2 ring-violet-500 shadow-md shadow-violet-500/25 scale-[1.02] font-black",
+    idle: "bg-violet-50/80 text-violet-800 border border-violet-200/80 hover:bg-violet-100 dark:bg-violet-950/40 dark:border-violet-900/40 dark:text-violet-300 font-bold",
   },
   credit_card: {
     label: "Credit",
-    active: "bg-rose-600 text-white ring-2 ring-rose-500 shadow-sm",
-    idle: "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300",
+    active: "bg-rose-600 text-white ring-2 ring-rose-500 shadow-md shadow-rose-500/25 scale-[1.02] font-black",
+    idle: "bg-rose-50/80 text-rose-800 border border-rose-200/80 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300 font-bold",
   },
 };
 
@@ -364,16 +364,22 @@ export function PosGrid({
             key={`${isProd ? "p" : "s"}-${x.id}`}
             onClick={() => onAdd(x.id, x.name, price, isProd)}
             disabled={out}
-            className={`pos-touch-tile-3d group p-4 text-left ${
+            className={`pos-touch-tile-3d relative overflow-hidden group p-4 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-95 ${
               out ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
-            <div>
+            {/* Ambient Radial Accent Glow */}
+            <div
+              className={`absolute -right-4 -top-4 w-20 h-20 rounded-full blur-xl pointer-events-none transition-transform duration-300 group-hover:scale-150 ${
+                isProd ? "bg-purple-500/10 dark:bg-purple-500/15" : "bg-cyan-500/10 dark:bg-cyan-500/15"
+              }`}
+            />
+            <div className="relative z-10">
               <div className="flex items-start justify-between gap-2">
                 <div
-                  className={`icon-box-3d h-11 w-11 shrink-0 bg-gradient-to-br ${gradient(
+                  className={`icon-box-3d h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-br ${gradient(
                     x.name
-                  )} text-base font-black text-white shadow-sm`}
+                  )} text-base font-black text-white shadow-md shadow-indigo-500/15 transition-transform group-hover:scale-105`}
                 >
                   {x.name.slice(0, 1).toUpperCase()}
                 </div>
@@ -406,13 +412,13 @@ export function PosGrid({
                   )}
                 </div>
               </div>
-              <p className="mt-3 line-clamp-2 text-xs font-black leading-snug text-slate-900 dark:text-white">
+              <p className="mt-3 line-clamp-2 text-xs font-black leading-snug text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 {x.name}
               </p>
             </div>
 
-            <div className="mt-4 flex items-center justify-between border-t border-slate-100/80 pt-3 dark:border-white/5">
-              <p className="text-sm font-black text-blue-600 dark:text-blue-400">
+            <div className="relative z-10 mt-4 flex items-center justify-between border-t border-slate-100/80 pt-3 dark:border-white/5">
+              <p className="text-base font-extrabold text-blue-600 dark:text-blue-400">
                 {inr(price)}
               </p>
               <span
