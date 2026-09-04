@@ -98,6 +98,94 @@
   --sidebar-active-text: #c7d2fe;
 }
 
+/* --------------------------------------------------------------------------
+   Dynamic Brand Accent Themes
+   Instant, 1-click aesthetic personalization across all modern components
+   -------------------------------------------------------------------------- */
+html[data-accent="blue"], :root[data-accent="blue"] {
+  --brand-400: #60a5fa;
+  --brand-500: #3b82f6;
+  --brand-600: #2563eb;
+  --accent-color: #2563eb;
+  --accent-glow: rgba(37, 99, 235, 0.28);
+  --design-accent: #2563eb;
+  --border-active: #2563eb;
+  --shadow-colored: 0 12px 32px -4px rgba(37, 99, 235, 0.18);
+  --glow: rgba(37, 99, 235, 0.18);
+  --sidebar-active-bg: rgba(37, 99, 235, 0.14);
+  --sidebar-active-text: #2563eb;
+}
+
+html[data-accent="emerald"], :root[data-accent="emerald"] {
+  --brand-400: #34d399;
+  --brand-500: #10b981;
+  --brand-600: #059669;
+  --accent-color: #059669;
+  --accent-glow: rgba(16, 185, 129, 0.28);
+  --design-accent: #059669;
+  --border-active: #059669;
+  --shadow-colored: 0 12px 32px -4px rgba(16, 185, 129, 0.18);
+  --glow: rgba(16, 185, 129, 0.18);
+  --sidebar-active-bg: rgba(16, 185, 129, 0.14);
+  --sidebar-active-text: #059669;
+}
+
+html[data-accent="violet"], :root[data-accent="violet"] {
+  --brand-400: #a78bfa;
+  --brand-500: #8b5cf6;
+  --brand-600: #7c3aed;
+  --accent-color: #7c3aed;
+  --accent-glow: rgba(124, 58, 237, 0.28);
+  --design-accent: #7c3aed;
+  --border-active: #7c3aed;
+  --shadow-colored: 0 12px 32px -4px rgba(124, 58, 237, 0.18);
+  --glow: rgba(124, 58, 237, 0.18);
+  --sidebar-active-bg: rgba(124, 58, 237, 0.14);
+  --sidebar-active-text: #7c3aed;
+}
+
+html[data-accent="amber"], :root[data-accent="amber"] {
+  --brand-400: #fbbf24;
+  --brand-500: #f59e0b;
+  --brand-600: #d97706;
+  --accent-color: #d97706;
+  --accent-glow: rgba(245, 158, 11, 0.28);
+  --design-accent: #d97706;
+  --border-active: #d97706;
+  --shadow-colored: 0 12px 32px -4px rgba(245, 158, 11, 0.18);
+  --glow: rgba(245, 158, 11, 0.18);
+  --sidebar-active-bg: rgba(245, 158, 11, 0.14);
+  --sidebar-active-text: #d97706;
+}
+
+html[data-accent="rose"], :root[data-accent="rose"] {
+  --brand-400: #fb7185;
+  --brand-500: #f43f5e;
+  --brand-600: #e11d48;
+  --accent-color: #e11d48;
+  --accent-glow: rgba(244, 63, 94, 0.28);
+  --design-accent: #e11d48;
+  --border-active: #e11d48;
+  --shadow-colored: 0 12px 32px -4px rgba(244, 63, 94, 0.18);
+  --glow: rgba(244, 63, 94, 0.18);
+  --sidebar-active-bg: rgba(244, 63, 94, 0.14);
+  --sidebar-active-text: #e11d48;
+}
+
+html[data-accent="cyan"], :root[data-accent="cyan"] {
+  --brand-400: #22d3ee;
+  --brand-500: #06b6d4;
+  --brand-600: #0891b2;
+  --accent-color: #0891b2;
+  --accent-glow: rgba(6, 182, 212, 0.28);
+  --design-accent: #0891b2;
+  --border-active: #0891b2;
+  --shadow-colored: 0 12px 32px -4px rgba(6, 182, 212, 0.18);
+  --glow: rgba(6, 182, 212, 0.18);
+  --sidebar-active-bg: rgba(6, 182, 212, 0.14);
+  --sidebar-active-text: #0891b2;
+}
+
 html {
   scroll-behavior: smooth;
   background: var(--page);

@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useTheme, type DisplayMode } from "./theme-provider";
+import { useTheme, type DisplayMode, ACCENT_PALETTES } from "./theme-provider";
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
-  const { displayMode, resolvedDisplayMode, setDisplayMode } = useTheme();
+  const { displayMode, resolvedDisplayMode, setDisplayMode, accent, setAccent } = useTheme();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -71,8 +71,39 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
             </div>
           </div>
 
+          {/* Brand Accent Palette */}
+          <div className="mt-3 border-t border-slate-100 pt-2.5 dark:border-white/5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-extrabold text-slate-900 dark:text-white">Brand Accent</span>
+              <span className="text-[10px] font-bold text-slate-400 capitalize">{accent}</span>
+            </div>
+            <div className="grid grid-cols-6 gap-1.5">
+              {ACCENT_PALETTES.map((p) => {
+                const isCur = accent === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setAccent(p.key)}
+                    title={`${p.label} (${p.colorHex})`}
+                    className={`relative flex h-7 w-7 items-center justify-center rounded-xl transition-all active:scale-90 ${
+                      isCur
+                        ? "ring-2 ring-offset-2 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 scale-105 shadow-sm"
+                        : "hover:scale-105 opacity-80 hover:opacity-100"
+                    }`}
+                    style={{ backgroundColor: p.colorHex }}
+                  >
+                    {isCur && (
+                      <span className="text-[11px] text-white font-black leading-none drop-shadow">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-            Visual Style, colours and other appearance controls are available in Settings.
+            Instant 1-click theme &amp; accent customization.
           </p>
         </div>
       )}
