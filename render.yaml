@@ -4,8 +4,13 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install
+    buildCommand: npm install --omit=dev
     startCommand: node scripts/whatsapp-gateway.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://tvxehxnvuwojjbhysajp.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
