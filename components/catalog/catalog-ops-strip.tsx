@@ -34,22 +34,25 @@ export default function CatalogOpsStrip({
   );
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {/* Products Master Count */}
       <Link
         href="/catalog/products"
-        className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-blue-300 dark:border-white/10 dark:bg-slate-900"
+        className="card-glow-indigo group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90"
       >
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Products Master
           </span>
-          <Package className="h-4 w-4 text-blue-500" />
+          <div className="icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
+            <Package className="h-4 w-4" />
+          </div>
         </div>
-        <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+        <div className="mt-2 font-mono text-2xl font-black text-slate-900 dark:text-white">
           {activeProducts.length}
         </div>
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+        <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
           <span>Manage Master</span>
           <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
         </div>
@@ -58,18 +61,21 @@ export default function CatalogOpsStrip({
       {/* Services Master Count */}
       <Link
         href="/catalog/services"
-        className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-violet-300 dark:border-white/10 dark:bg-slate-900"
+        className="card-glow-purple group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90"
       >
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-purple-500 to-fuchsia-600" />
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
             Services Master
           </span>
-          <Layers className="h-4 w-4 text-violet-500" />
+          <div className="icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-sm">
+            <Layers className="h-4 w-4" />
+          </div>
         </div>
-        <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+        <div className="mt-2 font-mono text-2xl font-black text-purple-700 dark:text-purple-300">
           {services.filter((s) => s.is_active !== false).length}
         </div>
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-violet-600 dark:text-violet-400">
+        <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-400">
           <span>Manage Rates</span>
           <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
         </div>
@@ -78,19 +84,22 @@ export default function CatalogOpsStrip({
       {/* Replenishment Watch */}
       <Link
         href="/inventory?status=low_stock"
-        className="group rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs transition hover:border-amber-300 dark:border-amber-900/40 dark:bg-amber-950/20"
+        className="card-glow-amber group relative overflow-hidden rounded-2xl border border-amber-200/80 bg-white/95 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-amber-900/40 dark:bg-slate-900/90"
       >
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+          <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
             Replenish Alert
           </span>
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <div className="icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm">
+            <AlertTriangle className="h-4 w-4" />
+          </div>
         </div>
-        <div className="mt-2 text-2xl font-black text-amber-800 dark:text-amber-300">
-          {low.length} <span className="text-xs font-normal">items</span>
+        <div className="mt-2 font-mono text-2xl font-black text-amber-700 dark:text-amber-300">
+          {low.length} <span className="font-sans text-xs font-medium text-slate-400">items</span>
         </div>
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-          <span>View in Inventory</span>
+        <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+          <span>View Low Stock</span>
           <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
         </div>
       </Link>
@@ -98,18 +107,21 @@ export default function CatalogOpsStrip({
       {/* Stock at Cost */}
       <Link
         href="/inventory"
-        className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-emerald-300 dark:border-white/10 dark:bg-slate-900"
+        className="card-glow-emerald group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90"
       >
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-600" />
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
             Stock at Cost
           </span>
-          <Boxes className="h-4 w-4 text-emerald-500" />
+          <div className="icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+            <Boxes className="h-4 w-4" />
+          </div>
         </div>
-        <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+        <div className="mt-2 font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400">
           {inr(stockValue)}
         </div>
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+        <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
           <span>Live Valuation</span>
           <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
         </div>
@@ -118,19 +130,22 @@ export default function CatalogOpsStrip({
       {/* Quick POS Terminal */}
       <Link
         href="/pos"
-        className="group rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-xs transition hover:border-indigo-300 dark:border-indigo-900/40 dark:bg-indigo-950/20"
+        className="card-glow-cyan group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90"
       >
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-600" />
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+          <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
             POS Billing
           </span>
-          <Tag className="h-4 w-4 text-indigo-500" />
+          <div className="icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-sm">
+            <Tag className="h-4 w-4" />
+          </div>
         </div>
-        <div className="mt-2 text-2xl font-black text-indigo-900 dark:text-indigo-200">
-          Counter
+        <div className="mt-2 font-mono text-2xl font-black text-slate-900 dark:text-white">
+          Active
         </div>
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
-          <span>Open Register</span>
+        <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-cyan-600 dark:text-cyan-400">
+          <span>Open Terminal</span>
           <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
         </div>
       </Link>

@@ -58,70 +58,70 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
   }
 
   const inputClass =
-    "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
-  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+    "w-full rounded-xl border border-slate-200/90 bg-white/90 px-3.5 py-2.5 text-xs font-medium text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white";
+  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400";
 
   return (
     <Modal
       as="form"
       onSubmit={submit}
       onClose={onClose}
-      title={editing ? "Edit Customer" : "Add Customer"}
+      title={editing ? "Edit Customer Profile" : "Add New Customer"}
       subtitle={
         editing
-          ? `${editing.code ?? "Customer"} · Balance ${editing.balance}`
-          : "Create a customer profile for sales, credit and ledger tracking"
+          ? `${editing.code ?? "Customer"} · Balance ₹${Number(editing.balance).toLocaleString("en-IN")}`
+          : "Create a customer profile for POS billing, credit khata and ledger tracking"
       }
       icon="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21a8 8 0 0 1 16 0"
-      accent="blue"
+      accent="indigo"
       size="md"
       footer={
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2.5">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="min-h-11 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="btn-3d-tactile-secondary rounded-xl px-4 py-2.5 text-xs font-bold"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="min-h-11 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-3d-tactile-primary rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? "Saving…" : editing ? "Save changes" : "Add customer"}
+            {saving ? "Saving…" : editing ? "Save Changes" : "Create Customer"}
           </button>
         </div>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div>
-          <label className={labelClass}>Name *</label>
+          <label className={labelClass}>Customer Name *</label>
           <input
             required
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Customer name"
+            placeholder="e.g. Rahul Sharma"
             className={inputClass}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Phone</label>
+            <label className={labelClass}>Phone Number</label>
             <input
               inputMode="tel"
               autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="Mobile number"
+              placeholder="10-digit mobile number"
               className={inputClass}
             />
           </div>
           <div>
-            <label className={labelClass}>Email</label>
+            <label className={labelClass}>Email Address</label>
             <input
               type="email"
               autoComplete="email"
@@ -134,38 +134,38 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
         </div>
 
         <div>
-          <label className={labelClass}>Address</label>
+          <label className={labelClass}>Physical Address</label>
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="Address (optional)"
+            placeholder="Street address or locality (optional)"
             className={inputClass}
           />
         </div>
 
         <div>
-          <label className={labelClass}>Customer type</label>
+          <label className={labelClass}>Customer Category</label>
           <select
             value={customerType}
             onChange={(e) => setCustomerType(e.target.value)}
             className={inputClass}
           >
-            <option value="retail">Retail</option>
-            <option value="business">Business</option>
-            <option value="walk-in">Walk-in</option>
+            <option value="retail">Retail Consumer</option>
+            <option value="business">Commercial / B2B</option>
+            <option value="walk-in">Casual Walk-in</option>
           </select>
         </div>
 
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02]">
           <div className="mb-3">
-            <p className="text-sm font-semibold text-slate-800">Credit & opening balance</p>
-            <p className="mt-0.5 text-xs text-slate-400">Set the customer's starting financial position.</p>
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Credit Limit &amp; Starting Balance</p>
+            <p className="mt-0.5 text-[11px] text-slate-400">Configure starting balance and credit threshold for this customer.</p>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             <div>
               <label className={labelClass}>
                 Credit limit (₹)
-                <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">0 = no limit</span>
+                <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">(0 = unlimited)</span>
               </label>
               <input
                 type="number"
@@ -179,15 +179,21 @@ export default function CustomerFormModal({ state, onClose, onSave }: Props) {
               />
             </div>
             <div>
-              <label className={labelClass}>Opening balance (₹)</label>
+              <label className={labelClass}>
+                Opening balance (₹)
+                <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                  {editing ? "Display only" : "(+ owing, - advance)"}
+                </span>
+              </label>
               <input
                 type="number"
                 step="0.01"
                 inputMode="decimal"
+                disabled={Boolean(editing)}
                 value={opening}
                 onChange={(e) => setOpening(e.target.value)}
-                placeholder="0"
-                className={inputClass}
+                placeholder="0.00"
+                className={editing ? `${inputClass} opacity-60 cursor-not-allowed` : inputClass}
               />
             </div>
           </div>

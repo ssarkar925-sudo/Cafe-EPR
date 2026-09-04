@@ -71,15 +71,15 @@ export default function AdvanceModal({
   }
 
   const inputClass =
-    "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+    "w-full rounded-xl border border-slate-200/90 bg-white/90 px-3.5 py-2.5 text-xs font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white";
 
   return (
     <Modal
       onClose={onClose}
-      title={isReturn ? "Return Advance" : "Record Advance"}
+      title={isReturn ? "Return Advance" : "Record Customer Advance"}
       subtitle={
         <>
-          {customer.name} · {isReturn ? "advance available" : "cash received from customer"}
+          {customer.name} · {isReturn ? "customer advance return payout" : "cash received in advance from customer"}
         </>
       }
       icon={isReturn ? "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" : "M5 12h14M12 5l7 7-7 7"}
@@ -87,12 +87,13 @@ export default function AdvanceModal({
       size="sm"
       headerRight={
         <div
-          className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs font-bold ${
             Number(customer.balance) < 0
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-slate-100 text-slate-500"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300"
           }`}
         >
+          <span className={`h-1.5 w-1.5 rounded-full ${Number(customer.balance) < 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
           {isReturn ? `Available ${inr(advance)}` : `Balance ${inr(customer.balance)}`}
         </div>
       }
@@ -100,23 +101,27 @@ export default function AdvanceModal({
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            className="btn-3d-tactile-secondary rounded-xl px-4 py-2 text-xs font-bold"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={saving || (isReturn && !canReturn)}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`${
+              isReturn ? "btn-3d-tactile-primary" : "btn-3d-tactile-emerald"
+            } rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50`}
           >
-            {saving ? "Saving…" : isReturn ? "Return advance" : "Record advance"}
+            {saving ? "Processing…" : isReturn ? "Return Advance" : "Record Advance"}
           </button>
         </div>
       }
     >
-      <div className="space-y-3">
+      <div className="space-y-3.5">
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-500">Amount *</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Amount (₹) *
+          </label>
           <input
             autoFocus
             type="number"
@@ -126,24 +131,28 @@ export default function AdvanceModal({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className={inputClass}
+            className={`${inputClass} font-mono font-bold text-sm`}
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-500">Date *</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Entry Date *
+          </label>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-500">Note</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Remarks / Note
+          </label>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder={isReturn ? "e.g. Refund to customer" : "e.g. Advance for future orders"}
+            placeholder={isReturn ? "e.g. Refunded excess advance to customer" : "e.g. Advance paid against order"}
             className={inputClass}
           />
         </div>
         {error && (
-          <div className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-600">
+          <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3.5 py-2 text-xs font-bold text-rose-700 dark:text-rose-400">
             {error}
           </div>
         )}

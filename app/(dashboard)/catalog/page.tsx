@@ -57,38 +57,47 @@ export default async function CatalogPage() {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-white/10 dark:bg-slate-900">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
-              <Package className="h-3.5 w-3.5" />
-              PRODUCT MASTER
-            </span>
-            <span className="text-xs text-slate-400">· Definitions & Rates</span>
+      <div className="card-glow-indigo rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 transition-all">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/20">
+              <Package className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Café ERP / Inventory &amp; Catalog
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                  {p.length + s.length} Master Items
+                </span>
+              </div>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                Catalog Masters Hub
+              </h1>
+              <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400 max-w-2xl">
+                Configure what your business sells: physical products, billable services, categories, brands, and measurement units.
+              </p>
+            </div>
           </div>
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-            Catalog Management
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
-            Configure what your business sells: physical products, billable services, categories, brands, and measurement units.
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Link
-            href="/inventory"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-          >
-            <Boxes className="h-3.5 w-3.5 text-blue-500" />
-            Operational Inventory →
-          </Link>
-          <Link
-            href="/catalog/products"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Master Product
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/inventory"
+              className="btn-3d-tactile-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all"
+            >
+              <Boxes className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Operational Inventory →</span>
+            </Link>
+            <Link
+              href="/catalog/products"
+              className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Master Product</span>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -100,43 +109,51 @@ export default async function CatalogPage() {
         {/* Products Master */}
         <Link
           href="/catalog/products"
-          className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-xs transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+          className="card-glow-indigo group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90"
         >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
           <div className="flex items-start justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+            <div className="icon-box-3d flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
               <Package className="h-6 w-6" />
             </div>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
               {p.filter((x) => x.is_active !== false).length} Active Products
             </span>
           </div>
-          <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
-            Products Master →
-          </h2>
-          <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-            Saleable stock items, SKU barcodes, cost price, selling price, and reorder levels.
-          </p>
+          <div>
+            <h2 className="mt-4 text-xl font-black tracking-tight text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+              Products Master →
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Saleable physical stock items, SKU barcodes, cost price, selling price, and automatic reorder thresholds.
+            </p>
+          </div>
         </Link>
 
         {/* Services Master */}
         <Link
           href="/catalog/services"
-          className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-xs transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900"
+          className="card-glow-purple group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90"
         >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-purple-500 to-fuchsia-600" />
           <div className="flex items-start justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400">
+            <div className="icon-box-3d flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-sm">
               <Layers className="h-6 w-6" />
             </div>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/20 bg-purple-500/10 px-2.5 py-0.5 font-mono text-xs font-bold text-purple-600 dark:text-purple-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
               {s.filter((x) => x.is_active !== false).length} Active Services
             </span>
           </div>
-          <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition">
-            Services Master →
-          </h2>
-          <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-            Billable services, printing, scanning, typing, internet hours, and custom job rates.
-          </p>
+          <div>
+            <h2 className="mt-4 text-xl font-black tracking-tight text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+              Services Master →
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Billable services, printing, scanning, typing, internet counter hours, laminated copies, and custom digital job rates.
+            </p>
+          </div>
         </Link>
       </div>
 
@@ -145,69 +162,72 @@ export default async function CatalogPage() {
         {/* Categories */}
         <Link
           href="/catalog/categories"
-          className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-amber-300 dark:border-white/10 dark:bg-slate-900"
+          className="card-glow-amber group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900/90"
         >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
           <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+            <div className="icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm">
               <FolderTree className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold text-slate-400">{c.length} Groups</span>
+            <span className="font-mono text-xs font-bold text-slate-400">{c.length} Groups</span>
           </div>
-          <h3 className="mt-3 font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
+          <h3 className="mt-3 text-sm font-black text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
             Categories Master →
           </h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Structure your catalog into logical departments and POS filter groups.
+            Structure your catalog into logical departments and POS quick filter groups.
           </p>
         </Link>
 
         {/* Brands */}
         <Link
           href="/catalog/brands"
-          className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-teal-300 dark:border-white/10 dark:bg-slate-900"
+          className="card-glow-teal group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900/90"
         >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 to-emerald-600" />
           <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400">
+            <div className="icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-sm">
               <Bookmark className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold text-slate-400">{b.length} Brands</span>
+            <span className="font-mono text-xs font-bold text-slate-400">{b.length} Brands</span>
           </div>
-          <h3 className="mt-3 font-bold text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition">
+          <h3 className="mt-3 text-sm font-black text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
             Brands Master →
           </h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Organize branded accessories, electronics, and stationery by manufacturer.
+            Organize branded accessories, electronics, cables, and stationery by manufacturer.
           </p>
         </Link>
 
         {/* Units of Measure */}
         <Link
           href="/catalog/units"
-          className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-indigo-300 dark:border-white/10 dark:bg-slate-900"
+          className="card-glow-indigo group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900/90"
         >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 to-blue-600" />
           <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+            <div className="icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-sm">
               <Ruler className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold text-slate-400">{u.length} Units</span>
+            <span className="font-mono text-xs font-bold text-slate-400">{u.length} Units</span>
           </div>
-          <h3 className="mt-3 font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
+          <h3 className="mt-3 text-sm font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
             Units of Measure →
           </h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Define measurement codes (pc, pkt, kg, box, hrs, page) for invoices.
+            Define measurement units (pc, pkt, kg, box, hrs, page, sheet) for accurate billing.
           </p>
         </Link>
       </div>
 
       {/* Contextual Link to Inventory */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-slate-900/40">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+      <div className="card-glow-indigo flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-xs dark:border-white/10 dark:bg-slate-900/90">
+        <div className="flex items-center gap-3.5">
+          <div className="icon-box-3d flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-sm">
             <Boxes className="h-5 w-5" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h4 className="text-sm font-black text-slate-900 dark:text-white">
               Looking for physical stock levels and valuation?
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -217,7 +237,7 @@ export default async function CatalogPage() {
         </div>
         <Link
           href="/inventory"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700 shrink-0"
+          className="btn-3d-tactile-primary inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-xs shrink-0"
         >
           <span>Open Inventory Hub</span>
           <ArrowRight className="h-3.5 w-3.5" />

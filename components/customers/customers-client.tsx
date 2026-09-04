@@ -452,6 +452,8 @@ export default function CustomersClient({
       icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2",
       grad: "from-rose-500 to-pink-600",
       glow: "card-glow-rose",
+      textColor: "text-rose-600 dark:text-rose-400",
+      sub: "Outstanding Due",
       onClick: () => {
         setStatus("all");
         setBalFilter("owing");
@@ -462,7 +464,9 @@ export default function CustomersClient({
       value: inr(stats.advances),
       icon: "M3 17l6-6 4 4 8-8M15 7h6v6",
       grad: "from-violet-500 to-purple-600",
-      glow: "card-glow-cyan",
+      glow: "card-glow-purple",
+      textColor: "text-purple-600 dark:text-purple-400",
+      sub: "Customer Credit Pool",
       onClick: () => {
         setStatus("all");
         setBalFilter("advance");
@@ -471,82 +475,146 @@ export default function CustomersClient({
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-          <p className="text-sm text-slate-500">Manage your customer directory and balances.</p>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      {/* =========================================================================
+          TOP EXECUTIVE HEADER (Glowing Bento Surface & Tactile Triggers)
+      ========================================================================= */}
+      <div className="card-glow-indigo rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 transition-all">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/20">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Café ERP / Sales Hub / Customer Directory
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Khata Directory
+                </span>
+              </div>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                Customers &amp; Khata Master
+              </h1>
+              <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                Customer directory, individual credit ledgers, receivables, and WhatsApp reminder dispatch.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/pos"
+              className="btn-3d-tactile-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 text-indigo-500">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+              </svg>
+              <span>POS Billing</span>
+            </Link>
+            <button
+              onClick={() => setModal({ mode: "create" })}
+              className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 w-4">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>Add Customer</span>
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => setModal({ mode: "create" })}
-          className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 active:translate-y-0.5"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 w-4">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Add Customer
-        </button>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* =========================================================================
+          HERO BENTO KPI GRID (4 Multi-Tone Glowing Bento Surfaces)
+      ========================================================================= */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {KPI_CARDS.map((c) => (
           <div
             key={c.label}
             onClick={c.onClick}
-            className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${c.glow}`}
+            className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90 ${c.glow}`}
           >
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{c.label}</p>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {c.label}
+              </span>
               <div className={`icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
                 <Icon d={c.icon} className="h-4 w-4" />
               </div>
             </div>
-            <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{c.value}</p>
+            <p className={`mt-2 font-mono text-2xl font-black tracking-tight ${c.textColor || "text-slate-900 dark:text-white"}`}>
+              {c.value}
+            </p>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-white/5 pt-2">
+              <span>{c.sub || "Directory Filter"}</span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform">Filter →</span>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative min-w-[220px] flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+      {/* =========================================================================
+          FILTER & SEARCH TOOLBAR (Tactile Buttons & High-Contrast Input)
+      ========================================================================= */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative min-w-[240px] flex-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.5-3.5" />
           </svg>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, phone, code, email..."
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            placeholder="Search customer name, phone, code, email..."
+            className="w-full rounded-xl border border-slate-200/90 bg-white/90 py-2.5 pl-10 pr-3 text-xs font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900/90 dark:text-white"
           />
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+          {/* Status Segmented Pills */}
+          <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 text-xs dark:border-white/10 dark:bg-white/[0.04]">
             {(["all", "active", "inactive"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatus(s)}
-                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  status === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                className={`rounded-lg px-3 py-1 text-xs font-bold capitalize transition-all duration-150 active:scale-95 ${
+                  status === s
+                    ? "bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-400"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
                 {s}
               </button>
             ))}
           </div>
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs">
+
+          {/* Balance Filter Segmented Pills */}
+          <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 text-xs dark:border-white/10 dark:bg-white/[0.04]">
             {(["all", "owing", "advance", "settled"] as const).map((b) => (
               <button
                 key={b}
                 onClick={() => setBalFilter(b)}
-                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  balFilter === b ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                className={`rounded-lg px-3 py-1 text-xs font-bold capitalize transition-all duration-150 active:scale-95 ${
+                  balFilter === b
+                    ? "bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-400"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
                 {b}
               </button>
             ))}
           </div>
+
           <SearchableSelect
             value={sortBy}
             onChange={(v) => setSortBy(v as SortBy)}
@@ -558,126 +626,153 @@ export default function CustomersClient({
             searchPlaceholder="Search sort…"
             className="w-44"
           />
-          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-            {filtered.length} of {customers.length}
+
+          <span className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-1.5 font-mono text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
+            {filtered.length} / {customers.length}
           </span>
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
-              <th className="px-5 py-3 font-medium">Customer</th>
-              <th className="px-5 py-3 font-medium">Code</th>
-              <th className="hidden px-5 py-3 font-medium lg:table-cell">Email</th>
-              <th className="px-5 py-3 text-right font-medium">Balance</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c) => {
-              const b = Number(c.balance);
-              return (
-                <tr
-                  key={c.id}
-                  onClick={() => loadDetail(c)}
-                  className={`cursor-pointer border-b border-slate-100 transition last:border-0 hover:bg-slate-50 ${!c.is_active ? "opacity-60" : ""}`}
-                >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      {c.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={c.avatar_url}
-                          alt=""
-                          className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-                        />
-                      ) : (
-                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient(c.name)} text-sm font-bold text-white`}>
-                          {c.name.slice(0, 1).toUpperCase()}
+      {/* =========================================================================
+          CUSTOMERS DIRECTORY TABLE (Monospace Codes & Soft-Ring Badges)
+      ========================================================================= */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/90">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
+                <th className="px-5 py-3.5">Customer</th>
+                <th className="px-5 py-3.5">Code</th>
+                <th className="hidden px-5 py-3.5 lg:table-cell">Email</th>
+                <th className="px-5 py-3.5 text-right">Khata Balance</th>
+                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filtered.map((c) => {
+                const b = Number(c.balance);
+                return (
+                  <tr
+                    key={c.id}
+                    onClick={() => loadDetail(c)}
+                    className={`group cursor-pointer transition-colors hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 ${!c.is_active ? "opacity-60" : ""}`}
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        {c.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.avatar_url}
+                            alt=""
+                            className="h-10 w-10 shrink-0 rounded-xl object-cover ring-2 ring-slate-200/80 dark:ring-white/10 shadow-xs"
+                          />
+                        ) : (
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(c.name)} text-sm font-black text-white shadow-xs`}>
+                            {c.name.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            {c.name}
+                          </p>
+                          <p className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                            {c.phone ?? "No phone"}
+                          </p>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900">{c.name}</p>
-                        <p className="text-xs text-slate-400">{c.phone ?? "No phone"}</p>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 font-mono text-xs text-slate-500">{c.code ?? "-"}</td>
-                  <td className="hidden px-5 py-3 text-slate-600 lg:table-cell">{c.email ?? "-"}</td>
-                  <td className="px-5 py-3 text-right">
-                    {b > 0 ? (
-                      <span className="font-semibold text-rose-600">{inr(b)} due</span>
-                    ) : b < 0 ? (
-                      <span className="font-semibold text-emerald-600">{inr(Math.abs(b))} advance</span>
-                    ) : (
-                      <span className="text-slate-400">Settled</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
-                      {c.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      {b > 0 && c.phone && (
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-600 dark:text-slate-400">
+                      {c.code ?? "-"}
+                    </td>
+                    <td className="hidden px-5 py-3.5 text-slate-600 dark:text-slate-400 lg:table-cell">
+                      {c.email ?? "-"}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      {b > 0 ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 font-mono text-xs font-bold text-rose-700 dark:text-rose-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                          {inr(b)} due
+                        </span>
+                      ) : b < 0 ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          {inr(Math.abs(b))} advance
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                          Settled
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
+                        c.is_active
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          : "border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-400"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${c.is_active ? "bg-emerald-500" : "bg-slate-400"}`} />
+                        {c.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {b > 0 && c.phone && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sendKhataReminder(c);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 transition hover:bg-emerald-500/20 active:scale-95 dark:text-emerald-300"
+                            title={`Send WhatsApp Khata Due Reminder (${inr(b)})`}
+                          >
+                            <span>💬 Remind</span>
+                          </button>
+                        )}
+                        <Link
+                          href={`/customers/${c.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-bold text-indigo-600 transition hover:bg-indigo-50 active:scale-95 dark:border-white/10 dark:bg-slate-800 dark:text-indigo-400"
+                        >
+                          Profile
+                        </Link>
                         <button
-                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            sendKhataReminder(c);
+                            setModal({ mode: "edit", customer: c });
                           }}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-2.5 py-1 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 hover:shadow-2xs active:scale-95 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
-                          title={`Send WhatsApp Khata Due Reminder (${inr(b)})`}
+                          className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
                         >
-                          <span>💬 Reminder</span>
+                          Edit
                         </button>
-                      )}
-                      <Link
-                        href={`/customers/${c.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
-                      >
-                        Profile
-                      </Link>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModal({ mode: "edit", customer: c });
-                        }}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      {c.is_active && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeCustomer(c.id, true);
-                          }}
-                          disabled={deletingId === c.id}
-                          className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
-                        >
-                          {deletingId === c.id ? "..." : "Deactivate"}
-                        </button>
-                      )}
-                    </div>
+                        {c.is_active && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeCustomer(c.id, true);
+                            }}
+                            disabled={deletingId === c.id}
+                            className="rounded-lg border border-rose-200/80 bg-white px-2.5 py-1 text-xs font-bold text-rose-600 transition hover:bg-rose-50 active:scale-95 disabled:opacity-50 dark:border-rose-900/30 dark:bg-slate-800 dark:text-rose-400"
+                          >
+                            {deletingId === c.id ? "..." : "Deactivate"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-12 text-center text-xs text-slate-400">
+                    No customers found matching your criteria.
                   </td>
                 </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-500">
-                  No customers found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {modal && (
@@ -689,18 +784,18 @@ export default function CustomersClient({
       )}
 
       {dupWarning && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-slate-900">
-              Customer with this mobile number already exists.
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900">
+            <h3 className="text-base font-black text-slate-900 dark:text-white">
+              Customer with this mobile number already exists
             </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              A customer record for <span className="font-semibold text-slate-700">{dupWarning.dup.phone}</span> is
-              already in your directory:
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              A customer record for <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{dupWarning.dup.phone}</span> is
+              already present in your directory:
             </p>
-            <div className="mt-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
-              <p className="text-sm font-medium text-slate-900">{dupWarning.dup.name}</p>
-              <p className="text-xs text-slate-400">
+            <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-white/5 dark:bg-white/[0.03]">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{dupWarning.dup.name}</p>
+              <p className="font-mono text-xs text-slate-400">
                 {dupWarning.dup.code ?? ""} · {dupWarning.dup.phone ?? ""}
               </p>
             </div>
@@ -711,7 +806,7 @@ export default function CustomersClient({
                   setDupWarning(null);
                   setModal(null);
                 }}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                className="btn-3d-tactile-secondary rounded-xl px-3 py-2 text-xs font-bold"
               >
                 View Customer
               </button>
@@ -720,13 +815,13 @@ export default function CustomersClient({
                   setModal({ mode: "edit", customer: dupWarning.dup });
                   setDupWarning(null);
                 }}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                className="btn-3d-tactile-primary rounded-xl px-3.5 py-2 text-xs font-bold text-white shadow-sm"
               >
-                Use Existing Customer
+                Use Existing
               </button>
               <button
                 onClick={() => setDupWarning(null)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-400"
               >
                 Keep editing
               </button>
@@ -735,13 +830,17 @@ export default function CustomersClient({
         </div>
       )}
 
+      {/* =========================================================================
+          SLIDE-OVER CUSTOMER DETAIL DRAWER (Modern Bento Surface & Live Ledger)
+      ========================================================================= */}
       {viewing && (
-        <div className="fixed inset-0 z-50 bg-[#020617]/50 backdrop-blur-sm" onClick={() => setViewing(null)}>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewing(null)}>
           <div
-            className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col bg-white shadow-2xl"
+            className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col bg-white shadow-2xl dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative shrink-0 border-b border-slate-100 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#020617] px-6 py-5">
+            {/* Drawer Top Header */}
+            <div className="relative shrink-0 border-b border-slate-200/80 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-6 py-5 text-white dark:border-white/10">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-4">
                   <div className="relative shrink-0">
@@ -750,64 +849,94 @@ export default function CustomersClient({
                       <img
                         src={viewing.avatar_url}
                         alt=""
-                        className="h-16 w-16 rounded-2xl object-cover ring-2 ring-white/20"
+                        className="h-16 w-16 rounded-2xl object-cover ring-2 ring-white/20 shadow-md"
                       />
                     ) : (
-                      <div className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient(viewing.name)} text-xl font-bold text-white ring-2 ring-white/20`}>
+                      <div className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient(viewing.name)} text-2xl font-black text-white ring-2 ring-white/20 shadow-md`}>
                         {viewing.name.slice(0, 1).toUpperCase()}
                       </div>
                     )}
                     <button
                       onClick={() => setPhotoCustomer(viewing)}
-                      className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-[#0f172a] transition hover:bg-blue-600"
+                      className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-500 text-white ring-2 ring-slate-900 transition hover:bg-indigo-600 shadow-sm"
                       title="Change photo"
                     >
                       <Icon d={ICONS.camera} className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-lg font-bold text-white">{viewing.name}</p>
-                    <p className="font-mono text-xs text-[#94a3b8]">
-                      {viewing.code ?? ""} · {viewing.is_active ? "Active" : "Inactive"}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[#cbd5e1]">
+                    <p className="truncate text-lg font-black text-white">{viewing.name}</p>
+                    <div className="mt-0.5 flex items-center gap-2 font-mono text-xs text-indigo-200">
+                      <span>{viewing.code ?? "CUST-0000"}</span>
+                      <span>·</span>
+                      <span className="inline-flex items-center gap-1 font-sans">
+                        <span className={`h-1.5 w-1.5 rounded-full ${viewing.is_active ? "bg-emerald-400" : "bg-slate-400"}`} />
+                        {viewing.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
                       {viewing.phone && (
-                        <span className="inline-flex items-center gap-1">
-                          <Icon d={ICONS.phone} className="h-3 w-3" /> {viewing.phone}
+                        <span className="inline-flex items-center gap-1 font-mono">
+                          <Icon d={ICONS.phone} className="h-3 w-3 text-indigo-300" /> {viewing.phone}
                         </span>
                       )}
                       {viewing.email && (
                         <span className="inline-flex items-center gap-1">
-                          <Icon d={ICONS.mail} className="h-3 w-3" /> {viewing.email}
+                          <Icon d={ICONS.mail} className="h-3 w-3 text-indigo-300" /> {viewing.email}
                         </span>
                       )}
                       {viewing.address && (
                         <span className="inline-flex items-center gap-1">
-                          <Icon d={ICONS.pin} className="h-3 w-3" /> {viewing.address}
+                          <Icon d={ICONS.pin} className="h-3 w-3 text-indigo-300" /> {viewing.address}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
-                <button onClick={() => setViewing(null)} className="rounded-lg bg-white/10 p-1.5 text-[#cbd5e1] transition hover:bg-white/20 hover:text-white">
+                <button
+                  onClick={() => setViewing(null)}
+                  className="rounded-xl bg-white/10 p-2 text-slate-300 transition hover:bg-white/20 hover:text-white"
+                >
                   <Icon d={ICONS.close} className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="grid shrink-0 grid-cols-2 gap-3 border-b border-slate-100 px-6 py-4 sm:grid-cols-4">
-              <Stat label="Lifetime Purchases" value={detail.loading ? "…" : inr(detailStats.purchased)} tone="slate" />
-              <Stat label="Total Paid" value={detail.loading ? "…" : inr(detailStats.paid)} tone="emerald" />
-              <Stat label="Balance Due" value={detail.loading ? "…" : inr(detailStats.due)} tone={detailStats.due > 0 ? "rose" : "slate"} />
-              <Stat label="Advance" value={detail.loading ? "…" : inr(detailStats.advance)} tone={detailStats.advance > 0 ? "blue" : "slate"} />
+            {/* 4 Lifetime Summary Bento Cards */}
+            <div className="grid shrink-0 grid-cols-2 gap-3 border-b border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02] sm:grid-cols-4">
+              <div className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-white/10 dark:bg-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Purchases</span>
+                <p className="mt-1 font-mono text-sm font-black text-slate-900 dark:text-white">
+                  {detail.loading ? "…" : inr(detailStats.purchased)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 shadow-2xs dark:bg-emerald-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Paid</span>
+                <p className="mt-1 font-mono text-sm font-black text-emerald-700 dark:text-emerald-300">
+                  {detail.loading ? "…" : inr(detailStats.paid)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 shadow-2xs dark:bg-rose-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Balance Due</span>
+                <p className="mt-1 font-mono text-sm font-black text-rose-700 dark:text-rose-300">
+                  {detail.loading ? "…" : inr(detailStats.due)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-3 shadow-2xs dark:bg-purple-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Advance</span>
+                <p className="mt-1 font-mono text-sm font-black text-purple-700 dark:text-purple-300">
+                  {detail.loading ? "…" : inr(detailStats.advance)}
+                </p>
+              </div>
             </div>
 
+            {/* WhatsApp Khata Reminder Alert Tray */}
             {detailStats.due > 0 && viewing.phone && (
-              <div className="mx-6 mt-3 flex items-center justify-between rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3.5 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+              <div className="mx-6 mt-4 flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 dark:bg-emerald-950/30">
                 <div className="flex items-center gap-2.5 text-xs">
                   <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500 text-white font-black text-xs shadow-xs">💬</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200">
-                    Outstanding Khata Due: <span className="text-rose-600 dark:text-rose-400 font-black">{inr(detailStats.due)}</span>
+                    Outstanding Khata Due: <span className="font-mono font-black text-rose-600 dark:text-rose-400">{inr(detailStats.due)}</span>
                   </span>
                 </div>
                 <button
@@ -815,13 +944,14 @@ export default function CustomersClient({
                   onClick={() => sendKhataReminder(viewing)}
                   className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-emerald-600/20 hover:brightness-110 active:scale-95 transition-all"
                 >
-                  Send Due Reminder
+                  Send Reminder
                 </button>
               </div>
             )}
 
-            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3">
-              <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
+            {/* Segmented Navigation Tab Bar */}
+            <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3 border-b border-slate-100 dark:border-white/5">
+              <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 text-xs dark:border-white/10 dark:bg-white/[0.04]">
                 {(
                   [
                     { key: "invoices", label: "Invoices", icon: ICONS.receipt },
@@ -832,8 +962,10 @@ export default function CustomersClient({
                   <button
                     key={t.key}
                     onClick={() => setDetailTab(t.key)}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                      detailTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all duration-150 active:scale-95 ${
+                      detailTab === t.key
+                        ? "bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-400"
+                        : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                     }`}
                   >
                     <Icon d={t.icon} className="h-3.5 w-3.5" />
@@ -842,44 +974,45 @@ export default function CustomersClient({
                 ))}
               </div>
               {detailTab === "business" && !detail.loading && (
-                <span className="text-xs text-slate-500">
-                  {detailStats.businessCount} txns · {inr(detailStats.businessTotal)} · income {inr(detailStats.businessIncome)}
+                <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                  {detailStats.businessCount} txns · {inr(detailStats.businessTotal)}
                 </span>
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
+            {/* Tab Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               {detail.loading ? (
-                <p className="py-8 text-center text-sm text-slate-400">Loading…</p>
+                <p className="py-8 text-center text-xs text-slate-400">Loading details…</p>
               ) : detailTab === "invoices" ? (
                 detail.invoices.length > 0 ? (
                   <div className="space-y-2">
                     {detail.invoices.map((inv) => (
                       <div
                         key={inv.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/50"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-indigo-200 hover:bg-indigo-50/20 dark:border-white/10 dark:bg-slate-800/60"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-medium text-blue-700">{inv.invoice_number}</span>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{inv.invoice_date}</span>
+                            <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">{inv.invoice_number}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-white/10 dark:text-slate-400">{inv.invoice_date}</span>
                           </div>
                           <div className="mt-1 flex items-center gap-2">
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${STATUS_PILL[inv.status] ?? "bg-slate-100 text-slate-600"}`}>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${STATUS_PILL[inv.status] ?? "bg-slate-100 text-slate-600"}`}>
                               {inv.status}
                             </span>
-                            <span className="text-xs text-slate-400">
+                            <span className="font-mono text-[11px] text-slate-400">
                               paid {inr(inv.paid)} · due {inr(inv.due)}
                             </span>
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900">{inr(inv.total)}</span>
+                          <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{inr(inv.total)}</span>
                           {Number(inv.due) > 0 && viewing.phone && (
                             <button
                               type="button"
                               onClick={() => sendKhataReminder(viewing, inv)}
-                              className="rounded-md border border-emerald-200/80 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-500/20 active:scale-95 transition-all dark:text-emerald-300"
                               title="Send WhatsApp Invoice Due Reminder"
                             >
                               💬 Remind
@@ -888,16 +1021,16 @@ export default function CustomersClient({
                           <Link
                             href={`/receipt/${inv.id}/a4`}
                             target="_blank"
-                            className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50"
+                            className="btn-3d-tactile-secondary rounded-lg px-2 py-1 text-[11px] font-bold"
                           >
-                            Print A4
+                            Print
                           </Link>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="py-8 text-center text-sm text-slate-400">No invoices yet.</p>
+                  <p className="py-8 text-center text-xs text-slate-400">No invoices yet.</p>
                 )
               ) : detailTab === "business" ? (
                 detail.transactions.length > 0 ? (
@@ -905,51 +1038,51 @@ export default function CustomersClient({
                     {detail.transactions.map((t) => (
                       <div
                         key={t.id ?? t.transaction_number}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-violet-200 hover:bg-violet-50/40"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3 transition hover:border-violet-200 hover:bg-violet-50/20 dark:border-white/10 dark:bg-slate-800/60"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${TXN_PILL[t.service_type] ?? "bg-slate-100 text-slate-600"}`}>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${TXN_PILL[t.service_type] ?? "bg-slate-100 text-slate-600"}`}>
                               {t.service_type}
                             </span>
-                            <span className="font-mono text-xs font-medium text-slate-700">{t.transaction_number}</span>
+                            <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{t.transaction_number}</span>
                           </div>
-                          <div className="mt-1 text-xs text-slate-400">
-                            {t.transaction_date} · {t.direction === "in" ? "received in" : "paid out"}
+                          <div className="mt-1 font-mono text-[11px] text-slate-400">
+                            {t.transaction_date} · {t.direction === "in" ? "inward" : "outward"}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <span className={`block text-sm font-semibold ${TXN_STATUS[t.status] ?? "text-slate-700"}`}>
+                          <span className={`font-mono block text-sm font-black ${TXN_STATUS[t.status] ?? "text-slate-700"}`}>
                             {t.direction === "in" ? "+" : "−"}{inr(t.amount)}
                           </span>
-                          <span className="text-[11px] capitalize text-slate-400">{t.status}</span>
+                          <span className="text-[10px] font-bold uppercase text-slate-400">{t.status}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="py-8 text-center text-sm text-slate-400">No AEPS / DMT / UPI transactions.</p>
+                  <p className="py-8 text-center text-xs text-slate-400">No AEPS / DMT / UPI transactions.</p>
                 )
               ) : detail.ledger.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-white/10">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50">
-                      <tr className="text-slate-500">
-                        <th className="whitespace-nowrap px-3 py-2 font-medium">Date</th>
-                        <th className="px-3 py-2 font-medium">Description</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Dr</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Cr</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Balance</th>
+                    <thead className="bg-slate-50 font-mono text-[10px] uppercase text-slate-400 dark:bg-white/5">
+                      <tr>
+                        <th className="px-3 py-2.5">Date</th>
+                        <th className="px-3 py-2.5">Description</th>
+                        <th className="px-3 py-2.5 text-right">Dr</th>
+                        <th className="px-3 py-2.5 text-right">Cr</th>
+                        <th className="px-3 py-2.5 text-right">Balance</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-slate-100 font-mono dark:divide-white/5">
                       {detail.ledger.map((l, i) => (
-                        <tr key={i}>
+                        <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
                           <td className="px-3 py-2 text-slate-500">{l.entry_date}</td>
-                          <td className="px-3 py-2 text-slate-700">{l.description || l.type}</td>
+                          <td className="px-3 py-2 font-sans font-medium text-slate-700 dark:text-slate-300">{l.description || l.type}</td>
                           <td className="px-3 py-2 text-right text-rose-600">{Number(l.debit) > 0 ? inr(l.debit) : "—"}</td>
                           <td className="px-3 py-2 text-right text-emerald-600">{Number(l.credit) > 0 ? inr(l.credit) : "—"}</td>
-                          <td className="px-3 py-2 text-right font-medium text-slate-900">
+                          <td className="px-3 py-2 text-right font-black text-slate-900 dark:text-white">
                             {Number(l.balance_after) > 0 ? `${inr(l.balance_after)} dr` : Number(l.balance_after) < 0 ? `${inr(Math.abs(Number(l.balance_after)))} cr` : "—"}
                           </td>
                         </tr>
@@ -958,55 +1091,56 @@ export default function CustomersClient({
                   </table>
                 </div>
               ) : (
-                <p className="py-8 text-center text-sm text-slate-400">No ledger entries.</p>
+                <p className="py-8 text-center text-xs text-slate-400">No ledger entries recorded.</p>
               )}
             </div>
 
-            <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 p-5 sm:grid-cols-4">
+            {/* Bottom Actions Dock */}
+            <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-800/60 sm:grid-cols-4">
               <button
                 onClick={() => setAdvanceModal({ mode: "record" })}
-                className="col-span-2 rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
+                className="btn-3d-tactile-secondary col-span-2 rounded-xl py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300"
               >
-                Record advance
+                Record Advance
               </button>
               <button
                 onClick={() => setAdvanceModal({ mode: "return" })}
                 disabled={Number(viewing.balance) >= 0}
-                className="col-span-2 rounded-xl border border-amber-200 px-3 py-2.5 text-sm font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-3d-tactile-secondary col-span-2 rounded-xl py-2 text-xs font-bold text-amber-700 disabled:opacity-40 dark:text-amber-300"
               >
-                Return advance
+                Return Advance
               </button>
               <Link
                 href={`/pos?customer=${viewing.id}`}
-                className="col-span-2 rounded-xl bg-blue-600 px-3 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="btn-3d-tactile-primary col-span-2 rounded-xl py-2 text-center text-xs font-bold text-white shadow-sm shadow-indigo-500/20"
               >
-                New Sale
+                New POS Sale
               </Link>
               <button
                 onClick={() => setPhotoCustomer(viewing)}
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="btn-3d-tactile-secondary rounded-xl py-2 text-xs font-bold text-slate-700 dark:text-slate-300"
               >
                 Photo
               </button>
               <button
                 onClick={() => setModal({ mode: "edit", customer: viewing })}
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="btn-3d-tactile-secondary rounded-xl py-2 text-xs font-bold text-slate-700 dark:text-slate-300"
               >
                 Edit
               </button>
               <button
                 onClick={() => removeCustomer(viewing.id, viewing.is_active)}
-                className={`col-span-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
+                className={`col-span-2 rounded-xl border py-2 text-xs font-bold transition-all active:scale-95 ${
                   viewing.is_active
-                    ? "border-rose-200 text-rose-600 hover:bg-rose-50"
-                    : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                    ? "border-rose-200/80 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-400"
+                    : "border-emerald-200/80 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-400"
                 }`}
               >
                 {viewing.is_active ? "Deactivate" : "Activate"}
               </button>
               <button
                 onClick={() => setViewing(null)}
-                className="col-span-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                className="btn-3d-tactile-secondary col-span-2 rounded-xl py-2 text-xs font-bold text-slate-600 dark:text-slate-400"
               >
                 Close
               </button>
@@ -1052,25 +1186,3 @@ export default function CustomersClient({
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "slate" | "emerald" | "rose" | "blue";
-}) {
-  const color = {
-    slate: "text-slate-900",
-    emerald: "text-emerald-600",
-    rose: "text-rose-600",
-    blue: "text-blue-600",
-  }[tone];
-  return (
-    <div className="rounded-xl bg-slate-50 p-3">
-      <p className="truncate text-xs text-slate-400">{label}</p>
-      <p className={`mt-0.5 truncate text-sm font-bold ${color}`}>{value}</p>
-    </div>
-  );
-}
