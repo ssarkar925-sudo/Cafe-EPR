@@ -220,28 +220,28 @@ export default function GstReportClient({
 
       {/* Metric KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Taxable Turnover</p>
-          <p className="mt-1 text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white">{inr(summary.total_taxable_value)}</p>
-          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Gross taxable outward base</p>
+        <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Taxable Turnover</p>
+          <p className="mt-2 text-2xl font-black font-mono tabular-nums text-slate-950 dark:text-white">{inr(summary.total_taxable_value)}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Gross taxable outward base</p>
         </div>
 
-        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-xs dark:border-indigo-900/40 dark:bg-indigo-950/20">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Central Tax (CGST)</p>
-          <p className="mt-1 text-2xl font-bold font-mono tabular-nums text-indigo-900 dark:text-indigo-200">{inr(summary.total_cgst)}</p>
-          <p className="mt-1 text-[11px] text-indigo-700 dark:text-indigo-400">Intra-state Central component</p>
+        <div className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
+          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Central Tax (CGST)</p>
+          <p className="mt-2 text-2xl font-black font-mono tabular-nums text-indigo-900 dark:text-indigo-200">{inr(summary.total_cgst)}</p>
+          <p className="mt-1 text-xs text-indigo-700/80 dark:text-indigo-400">Intra-state Central component</p>
         </div>
 
-        <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-4 shadow-xs dark:border-purple-900/40 dark:bg-purple-950/20">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">State Tax (SGST)</p>
-          <p className="mt-1 text-2xl font-bold font-mono tabular-nums text-purple-900 dark:text-purple-200">{inr(summary.total_sgst)}</p>
-          <p className="mt-1 text-[11px] text-purple-700 dark:text-purple-400">Intra-state State component</p>
+        <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-purple-500/30 dark:from-purple-950/25 dark:via-slate-900 dark:to-slate-900">
+          <p className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">State Tax (SGST)</p>
+          <p className="mt-2 text-2xl font-black font-mono tabular-nums text-purple-900 dark:text-purple-200">{inr(summary.total_sgst)}</p>
+          <p className="mt-1 text-xs text-purple-700/80 dark:text-purple-400">Intra-state State component</p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Output Tax Liability</p>
-          <p className="mt-1 text-2xl font-bold font-mono tabular-nums text-emerald-900 dark:text-emerald-200">{inr(summary.total_output_tax)}</p>
-          <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">CGST + SGST + IGST liability</p>
+        <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900">
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Output Tax Liability</p>
+          <p className="mt-2 text-2xl font-black font-mono tabular-nums text-emerald-700 dark:text-emerald-300">{inr(summary.total_output_tax)}</p>
+          <p className="mt-1 text-xs font-semibold text-emerald-700/90 dark:text-emerald-400">CGST + SGST + IGST net liability</p>
         </div>
       </div>
 
@@ -263,14 +263,14 @@ export default function GstReportClient({
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id as any)}
-                className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 py-3 px-3 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 py-3 px-3 text-xs font-bold transition-all ${
                   isActive
                     ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-                    : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                    : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {t.label}
+                <span>{t.label}</span>
               </button>
             );
           })}

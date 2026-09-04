@@ -297,40 +297,40 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
             href="/reports/gst"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-xs transition hover:bg-indigo-100 hover:shadow-sm active:scale-95 dark:border-indigo-800/50 dark:bg-indigo-950/40 dark:text-indigo-300"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            GST Returns (GSTR-1/3B)
+            <span>GST Returns (GSTR-1/3B)</span>
           </Link>
           <Link
             href="/reports/tax-preparation"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-100 dark:border-purple-900/50 dark:bg-purple-950/30 dark:text-purple-300"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200/80 bg-purple-50/80 px-3.5 py-2 text-xs font-bold text-purple-700 shadow-xs transition hover:bg-purple-100 hover:shadow-sm active:scale-95 dark:border-purple-800/50 dark:bg-purple-950/40 dark:text-purple-300"
           >
             <FileCheck2 className="h-4 w-4" />
-            CA Tax Preparation
+            <span>CA Tax Preparation</span>
           </Link>
           <Link
             href="/reports/profit-loss"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+            className="btn-3d-tactile-primary inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white shadow-md transition hover:bg-slate-800 active:scale-95 dark:bg-white dark:text-slate-950"
           >
             <TrendingUp className="h-4 w-4" />
-            Profit &amp; Loss
+            <span>Profit &amp; Loss</span>
           </Link>
         </div>
       </div>
 
       {/* Top Executive KPI Cards */}
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
               Gross Invoiced Sales
             </span>
-            <span className="rounded-md bg-blue-50 p-1.5 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
               <TrendingUp className="h-4 w-4" />
-            </span>
+            </div>
           </div>
-          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+          <div className="mt-2 font-mono text-2xl font-black tracking-tight text-slate-950 dark:text-white tabular-nums">
             {inr(metrics.sales)}
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -338,33 +338,33 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Collected Payments
             </span>
-            <span className="rounded-md bg-emerald-50 p-1.5 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
               <CreditCard className="h-4 w-4" />
-            </span>
+            </div>
           </div>
-          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+          <div className="mt-2 font-mono text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
             {inr(metrics.collected)}
           </div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-xs font-semibold text-emerald-700/90 dark:text-emerald-300">
             {metrics.collectionRate.toFixed(1)}% realization rate
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="card-glow-amber relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.06] via-white to-white p-5 shadow-xs transition hover:shadow-md dark:border-amber-500/30 dark:from-amber-950/25 dark:via-slate-900 dark:to-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
               Outstanding Dues
             </span>
-            <span className="rounded-md bg-amber-50 p-1.5 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
               <Users className="h-4 w-4" />
-            </span>
+            </div>
           </div>
-          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400 tabular-nums">
+          <div className="mt-2 font-mono text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400 tabular-nums">
             {inr(metrics.outstanding)}
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -372,16 +372,16 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className={`${metrics.net >= 0 ? "card-glow-emerald border-emerald-500/20 from-emerald-500/[0.06] dark:border-emerald-500/30 dark:from-emerald-950/25" : "card-glow-rose border-rose-500/20 from-rose-500/[0.06] dark:border-rose-500/30 dark:from-rose-950/25"} relative overflow-hidden rounded-2xl border bg-gradient-to-br via-white to-white p-5 shadow-xs transition hover:shadow-md dark:via-slate-900 dark:to-slate-900`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className={`text-xs font-bold uppercase tracking-wider ${metrics.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
               Net Operating Result
             </span>
-            <span className="rounded-md bg-indigo-50 p-1.5 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${metrics.net >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"}`}>
               <Percent className="h-4 w-4" />
-            </span>
+            </div>
           </div>
-          <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
+          <div className={`mt-2 font-mono text-2xl font-black tracking-tight tabular-nums ${metrics.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
             {inr(metrics.net)}
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -405,10 +405,10 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
         <div className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-3 dark:border-white/10">
           <button
             onClick={() => setSelectedGroup("all")}
-            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
               selectedGroup === "all"
-                ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                ? "bg-slate-950 text-white shadow-xs dark:bg-white dark:text-slate-950"
+                : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             }`}
           >
             All Categories ({REPORT_GROUPS.reduce((acc, g) => acc + g.reports.length, 0)})
@@ -417,14 +417,14 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
             <button
               key={g.id}
               onClick={() => setSelectedGroup(g.id)}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
                 selectedGroup === g.id
-                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  ? "bg-slate-950 text-white shadow-xs dark:bg-white dark:text-slate-950"
+                  : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               }`}
             >
               <span>{g.name.split(". ")[1]}</span>
-              <span className="text-[10px] opacity-75">({g.reports.length})</span>
+              <span className="text-[10px] opacity-75 font-mono">({g.reports.length})</span>
             </button>
           ))}
         </div>
@@ -438,7 +438,7 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
             <div key={group.id} className="space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="rounded-lg bg-slate-100 p-1.5 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <div className="rounded-xl bg-slate-100 p-2 text-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-xs">
                     <GroupIcon className="h-4 w-4" />
                   </div>
                   <h3 className="text-base font-bold text-slate-950 dark:text-white">
@@ -455,26 +455,28 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
                   <Link
                     key={report.title}
                     href={report.href}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-xs dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-700"
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs transition-all duration-200 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-500/40"
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2">
-                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${report.badgeTone}`}>
+                        <span className={`inline-flex items-center rounded-lg border border-black/5 px-2.5 py-0.5 text-[10px] font-bold ${report.badgeTone}`}>
                           {report.badge}
                         </span>
-                        <ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600 dark:bg-white/5 dark:group-hover:bg-blue-950/50 dark:group-hover:text-blue-400">
+                          <ArrowUpRight className="h-4 w-4" />
+                        </div>
                       </div>
-                      <h4 className="mt-2.5 text-sm font-bold text-slate-950 dark:text-white">
+                      <h4 className="mt-3 text-sm font-bold text-slate-950 transition-colors group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
                         {report.title}
                       </h4>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                         {report.desc}
                       </p>
                     </div>
 
-                    <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                    <div className="mt-5 flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
                       <span>Open Report</span>
-                      <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                     </div>
                   </Link>
                 ))}
@@ -485,17 +487,17 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
       </div>
 
       {/* Accounting & CA Direct Assistance Box */}
-      <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+      <div className="relative overflow-hidden rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/60 p-6 text-white shadow-md">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-indigo-400">
               <ShieldCheck className="h-4 w-4" />
               Statutory Accounting Invariants
             </div>
-            <h3 className="mt-1 text-lg font-bold">
+            <h3 className="mt-1.5 text-lg font-black tracking-tight">
               Looking for CA Year-End &amp; GST Audit Workflows?
             </h3>
-            <p className="mt-1 text-xs text-slate-400 max-w-2xl">
+            <p className="mt-1 text-xs text-slate-300 max-w-2xl leading-relaxed">
               All financial reporting is generated strictly from the immutable general ledger and canonical Supabase RPCs. Service transaction principal is isolated from retail turnover.
             </p>
           </div>
@@ -503,25 +505,25 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
           <div className="flex flex-wrap gap-2">
             <Link
               href="/reports/gst"
-              className="rounded-xl bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+              className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-2 text-xs font-bold text-white shadow-xs backdrop-blur-xs transition hover:bg-white/20 active:scale-95"
             >
               GSTR-1 &bull; GSTR-3B
             </Link>
             <Link
               href="/reports/tax-preparation"
-              className="rounded-xl bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+              className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-2 text-xs font-bold text-white shadow-xs backdrop-blur-xs transition hover:bg-white/20 active:scale-95"
             >
               ITR 44AD / 40A(3)
             </Link>
             <Link
               href="/reports/profit-loss"
-              className="rounded-xl bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+              className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-2 text-xs font-bold text-white shadow-xs backdrop-blur-xs transition hover:bg-white/20 active:scale-95"
             >
               P&amp;L Margin Audit
             </Link>
             <Link
               href="/reports/cash-bank"
-              className="rounded-xl bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+              className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-2 text-xs font-bold text-white shadow-xs backdrop-blur-xs transition hover:bg-white/20 active:scale-95"
             >
               Cash &amp; Bank Reconcile
             </Link>

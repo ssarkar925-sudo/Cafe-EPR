@@ -102,15 +102,204 @@ export default async function ProfitLossPage() {
 
   return (
     <div className="space-y-6 pb-12" id="profit-loss-report">
+      {/* Header */}
       <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
-        <div><div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400"><Link href="/reports" className="hover:text-blue-600 dark:hover:text-blue-400">Reports &amp; Tax Hub</Link><ChevronRight className="h-3.5 w-3.5 text-slate-400" /><span className="font-bold text-slate-900 dark:text-white">Profit &amp; Loss Statement</span></div><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">Profit &amp; Loss Statement</h1><p className="mt-1 text-xs text-slate-600 sm:text-sm dark:text-slate-400">Posted double-entry GL is the accounting source of truth. Operational cost snapshots are shown separately for reconciliation.</p></div>
-        <div className="flex items-center gap-2.5"><a href={exportHref} download="profit-loss-statement.csv" className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-blue-500"><Download className="h-3.5 w-3.5" /><span>Export CSV</span></a><Link href="/reports/tax-preparation" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"><FileSpreadsheet className="h-3.5 w-3.5" /><span>Tax Workspace</span></Link></div>
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <Link href="/reports" className="hover:text-blue-600 dark:hover:text-blue-400">
+              Reports &amp; Tax Hub
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <span className="font-bold text-slate-900 dark:text-white">Profit &amp; Loss Statement</span>
+          </div>
+          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl dark:text-white">
+            Profit &amp; Loss Statement
+          </h1>
+          <p className="mt-1 text-xs text-slate-500 sm:text-sm dark:text-slate-400">
+            Posted double-entry GL is the authoritative source of truth. Operational snapshots are reconciled below.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <a
+            href={exportHref}
+            download="profit-loss-statement.csv"
+            className="btn-3d-tactile-primary inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-blue-500/20 hover:brightness-110 active:scale-95"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export CSV</span>
+          </a>
+          <Link
+            href="/reports/tax-preparation"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Tax Workspace</span>
+          </Link>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"><Kpi label="Total Revenue" value={inr(totalRevenue)} icon={<TrendingUp className="h-4 w-4" />} note="Posted income accounts" /><Kpi label="Gross Profit" value={inr(grossProfit)} icon={<Layers className="h-4 w-4" />} note="After returns, COGS & adjustments" /><Kpi label="Operating Expenses" value={inr(operatingExpenses)} icon={<Receipt className="h-4 w-4" />} note="Posted expense account" negative /><Kpi label="Net Profit" value={inr(net)} icon={<Percent className="h-4 w-4" />} note={`Margin: ${margin.toFixed(2)}%`} negative={net < 0} /></div>
-      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-white/10 dark:bg-slate-900"><div className="border-b border-slate-200 px-5 py-4 dark:border-white/10"><h2 className="text-sm font-bold text-slate-950 dark:text-white">Operating Profit &amp; Loss Breakdown</h2><p className="text-xs text-slate-500 dark:text-slate-400">All amounts in Indian Rupees (INR) · Posted GL journals</p></div><div className="divide-y divide-slate-100 dark:divide-white/5">{rows.map(([label, value, type]) => { const isTotal = type === "total"; const isSubtotal = type === "subtotal"; const num = Number(value); return <div key={label} className={`flex items-center justify-between px-5 py-3.5 text-sm ${isTotal ? "bg-slate-950 font-bold text-white dark:bg-white dark:text-slate-950" : isSubtotal ? "bg-slate-50/70 font-semibold text-slate-950 dark:bg-white/5 dark:text-white" : "text-slate-700 dark:text-slate-300"}`}><span>{label}</span><span className={`font-mono text-sm tabular-nums ${isTotal ? (num >= 0 ? "text-emerald-400 dark:text-emerald-600 font-bold" : "text-rose-400 dark:text-rose-600 font-bold") : isSubtotal ? "font-bold text-slate-950 dark:text-white" : num < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-950 dark:text-white"}`}>{inr(num)}</span></div>; })}</div></div>
-      <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 text-xs text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200"><strong>Accounting Standard:</strong> P&amp;L totals come from posted journal lines and therefore reconcile directly with Trial Balance / General Ledger. Quick Sale detail is <strong>{inr(quickProfit)}</strong> profit at <strong>{quickMargin.toFixed(2)}%</strong> from saved cost; invoice-item cost snapshot detail is <strong>{inr(invoiceCost)}</strong>. These operational details are reconciliation aids, not a second source of truth for the statement.</div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi
+          label="Total Revenue"
+          value={inr(totalRevenue)}
+          icon={<TrendingUp className="h-4 w-4" />}
+          note="Posted income accounts"
+          glowClass="card-glow-indigo border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900"
+          iconClass="bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400"
+        />
+        <Kpi
+          label="Gross Profit"
+          value={inr(grossProfit)}
+          icon={<Layers className="h-4 w-4" />}
+          note="After returns, COGS & adjustments"
+          glowClass="card-glow-emerald border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900"
+          iconClass="bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+        />
+        <Kpi
+          label="Operating Expenses"
+          value={inr(operatingExpenses)}
+          icon={<Receipt className="h-4 w-4" />}
+          note="Posted expense accounts"
+          glowClass="card-glow-rose border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] via-white to-white dark:border-rose-500/30 dark:from-rose-950/25 dark:via-slate-900 dark:to-slate-900"
+          iconClass="bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"
+          negative
+        />
+        <Kpi
+          label="Net Profit"
+          value={inr(net)}
+          icon={<Percent className="h-4 w-4" />}
+          note={`Operating Margin: ${margin.toFixed(2)}%`}
+          glowClass={net >= 0
+            ? "card-glow-emerald border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900"
+            : "card-glow-rose border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] via-white to-white dark:border-rose-500/30 dark:from-rose-950/25 dark:via-slate-900 dark:to-slate-900"}
+          iconClass={net >= 0
+            ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+            : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"}
+          negative={net < 0}
+        />
+      </div>
+
+      {/* P&L Line Items Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-white/10 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-black text-slate-950 dark:text-white">
+              Operating Profit &amp; Loss Statement
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Deterministic double-entry GL ledger posting verification
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+            All amounts in INR
+          </span>
+        </div>
+
+        <div className="divide-y divide-slate-100 dark:divide-white/5">
+          {rows.map(([label, value, type]) => {
+            const isTotal = type === "total";
+            const isSubtotal = type === "subtotal";
+            const num = Number(value);
+
+            if (isTotal) {
+              return (
+                <div
+                  key={label}
+                  className="flex items-center justify-between bg-gradient-to-r from-slate-950 to-slate-900 px-5 py-4 text-white shadow-inner dark:from-white dark:to-slate-100 dark:text-slate-950"
+                >
+                  <div className="flex items-center gap-2 font-black uppercase tracking-wider text-xs sm:text-sm">
+                    <Percent className="h-4 w-4 text-emerald-400 dark:text-emerald-600" />
+                    <span>{label}</span>
+                  </div>
+                  <span
+                    className={`font-mono text-base sm:text-lg font-black tabular-nums ${
+                      num >= 0
+                        ? "text-emerald-400 dark:text-emerald-600"
+                        : "text-rose-400 dark:text-rose-600"
+                    }`}
+                  >
+                    {inr(num)}
+                  </span>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={label}
+                className={`flex items-center justify-between px-5 py-3 text-xs sm:text-sm transition-colors ${
+                  isSubtotal
+                    ? "bg-slate-50/80 font-bold text-slate-950 dark:bg-white/5 dark:text-white"
+                    : "text-slate-700 hover:bg-slate-50/50 dark:text-slate-300 dark:hover:bg-white/[0.02]"
+                }`}
+              >
+                <span className={label.startsWith("Less:") ? "pl-3 text-slate-500 dark:text-slate-400" : ""}>
+                  {label}
+                </span>
+                <span
+                  className={`font-mono font-bold tabular-nums ${
+                    isSubtotal
+                      ? "text-slate-950 dark:text-white"
+                      : num < 0
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-slate-900 dark:text-slate-100"
+                  }`}
+                >
+                  {inr(num)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Accounting Footnote */}
+      <div className="rounded-2xl border border-blue-500/20 bg-blue-50/60 p-4 text-xs text-blue-950 dark:border-blue-500/30 dark:bg-blue-950/20 dark:text-blue-200">
+        <strong>Accounting Standard:</strong> P&amp;L totals come from posted journal lines and therefore reconcile directly with Trial Balance / General Ledger. Quick Sale detail is <strong>{inr(quickProfit)}</strong> profit at <strong>{quickMargin.toFixed(2)}%</strong> from saved cost; invoice-item cost snapshot detail is <strong>{inr(invoiceCost)}</strong>. These operational details are reconciliation aids, not a second source of truth for the statement.
+      </div>
     </div>
   );
 }
 
-function Kpi({ label, value, icon, note, negative = false }: { label: string; value: string; icon: React.ReactNode; note: string; negative?: boolean }) { return <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900"><div className="flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</span><span className="rounded-md bg-slate-100 p-1 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{icon}</span></div><div className={`mt-2 font-mono text-2xl font-bold tracking-tight tabular-nums ${negative ? "text-rose-600 dark:text-rose-400" : "text-slate-950 dark:text-white"}`}>{value}</div><div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{note}</div></div>; }
+function Kpi({
+  label,
+  value,
+  icon,
+  note,
+  glowClass = "",
+  iconClass = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  negative = false,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  note: string;
+  glowClass?: string;
+  iconClass?: string;
+  negative?: boolean;
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all hover:shadow-md ${glowClass}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {label}
+        </span>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconClass}`}>
+          {icon}
+        </div>
+      </div>
+      <div
+        className={`mt-2 font-mono text-2xl font-black tracking-tight tabular-nums ${
+          negative ? "text-rose-600 dark:text-rose-400" : "text-slate-950 dark:text-white"
+        }`}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+        {note}
+      </div>
+    </div>
+  );
+}
