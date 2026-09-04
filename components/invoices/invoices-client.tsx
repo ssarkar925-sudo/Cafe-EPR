@@ -554,41 +554,56 @@ export default function InvoicesClient({
       label: "Total Sales",
       value: inr(stats.total),
       sub: `${stats.count} invoice${stats.count === 1 ? "" : "s"}`,
-      icon: <FileText className="h-4.5 w-4.5 text-blue-600" />,
-      grad: "from-blue-500 to-indigo-600",
-      iconBg: "bg-blue-100 dark:bg-blue-950/40",
+      icon: <FileText className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-indigo border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400",
+      textClass: "text-slate-950 dark:text-white",
+      labelClass: "text-indigo-600 dark:text-indigo-400",
+      barGrad: "from-indigo-500 to-blue-500",
     },
     {
       label: "Collected",
       value: inr(stats.paid),
       sub: `${rate}% collection rate`,
-      icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />,
-      grad: "from-emerald-500 to-teal-600",
-      iconBg: "bg-emerald-100 dark:bg-emerald-950/40",
+      icon: <CheckCircle2 className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-emerald border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+      textClass: "text-emerald-700 dark:text-emerald-400",
+      labelClass: "text-emerald-600 dark:text-emerald-400",
+      barGrad: "from-emerald-500 to-teal-500",
     },
     {
       label: "Outstanding",
       value: inr(stats.due),
       sub: `${counts.unpaid ?? 0} unpaid · ${counts.partial ?? 0} partial`,
-      icon: <Clock className="h-4.5 w-4.5 text-amber-600" />,
-      grad: "from-amber-500 to-orange-600",
-      iconBg: "bg-amber-100 dark:bg-amber-950/40",
+      icon: <Clock className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-amber border-amber-500/20 bg-gradient-to-br from-amber-500/[0.06] via-white to-white dark:border-amber-500/30 dark:from-amber-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
+      textClass: "text-amber-700 dark:text-amber-400",
+      labelClass: "text-amber-600 dark:text-amber-400",
+      barGrad: "from-amber-500 to-orange-500",
     },
     {
       label: "Returned",
       value: inr(stats.returned),
       sub: `Refunded ${inr(stats.refunded)}`,
-      icon: <RotateCcw className="h-4.5 w-4.5 text-rose-600" />,
-      grad: "from-rose-500 to-pink-600",
-      iconBg: "bg-rose-100 dark:bg-rose-950/40",
+      icon: <RotateCcw className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-rose border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] via-white to-white dark:border-rose-500/30 dark:from-rose-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400",
+      textClass: "text-rose-700 dark:text-rose-400",
+      labelClass: "text-rose-600 dark:text-rose-400",
+      barGrad: "from-rose-500 to-pink-500",
     },
     {
       label: "Collection Rate",
       value: `${rate}%`,
       sub: `${inr(stats.paid)} of ${inr(stats.total)}`,
-      icon: <TrendingUp className="h-4.5 w-4.5 text-violet-600" />,
-      grad: "from-violet-500 to-purple-600",
-      iconBg: "bg-violet-100 dark:bg-violet-950/40",
+      icon: <TrendingUp className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-cyan border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-white to-white dark:border-cyan-500/30 dark:from-cyan-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400",
+      textClass: "text-cyan-700 dark:text-cyan-400",
+      labelClass: "text-cyan-600 dark:text-cyan-400",
+      barGrad: "from-cyan-500 to-blue-500",
       progress: true,
     },
   ];
@@ -598,27 +613,36 @@ export default function InvoicesClient({
       label: "Collected",
       value: inr(quickStats.collected),
       sub: `${quickStats.count} sale${quickStats.count === 1 ? "" : "s"}`,
-      icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />,
-      grad: "from-emerald-500 to-teal-600",
-      iconBg: "bg-emerald-100 dark:bg-emerald-950/40",
+      icon: <CheckCircle2 className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-emerald border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+      textClass: "text-emerald-700 dark:text-emerald-400",
+      labelClass: "text-emerald-600 dark:text-emerald-400",
+      barGrad: "from-emerald-500 to-teal-500",
       progress: false,
     },
     {
       label: "Est. Profit",
       value: inr(quickStats.profit),
       sub: `On ${inr(quickStats.cost)} cost`,
-      icon: <Zap className="h-4.5 w-4.5 text-blue-600" />,
-      grad: "from-blue-500 to-indigo-600",
-      iconBg: "bg-blue-100 dark:bg-blue-950/40",
+      icon: <Zap className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-indigo border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400",
+      textClass: "text-indigo-700 dark:text-indigo-400",
+      labelClass: "text-indigo-600 dark:text-indigo-400",
+      barGrad: "from-indigo-500 to-blue-500",
       progress: false,
     },
     {
       label: "Cancelled",
       value: String(quickStats.cancelled),
       sub: `${quickStats.cancelled === 1 ? "sale" : "sales"} reversed`,
-      icon: <RotateCcw className="h-4.5 w-4.5 text-rose-600" />,
-      grad: "from-rose-500 to-pink-600",
-      iconBg: "bg-rose-100 dark:bg-rose-950/40",
+      icon: <RotateCcw className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-rose border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] via-white to-white dark:border-rose-500/30 dark:from-rose-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400",
+      textClass: "text-rose-700 dark:text-rose-400",
+      labelClass: "text-rose-600 dark:text-rose-400",
+      barGrad: "from-rose-500 to-pink-500",
       progress: false,
     },
   ];
@@ -674,19 +698,21 @@ export default function InvoicesClient({
       {/* KPI cards */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {(tab === "invoices" ? KPI_CARDS : QUICK_KPI_CARDS).map((c) => (
-          <div key={c.label} className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90">
-            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
+          <div
+            key={c.label}
+            className={`group relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${c.glowClass}`}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{c.label}</p>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${c.iconBg} shadow-xs group-hover:scale-110 transition-transform`}>
+              <p className={`text-xs font-bold uppercase tracking-wider ${c.labelClass}`}>{c.label}</p>
+              <div className={`flex h-8 w-8 items-center justify-center rounded-xl shadow-xs transition-transform group-hover:scale-110 ${c.iconBoxClass}`}>
                 {c.icon}
               </div>
             </div>
-            <p className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{c.value}</p>
-            <p className="mt-0.5 text-xs text-slate-400">{c.sub}</p>
+            <p className={`mt-2 font-mono text-2xl font-black tracking-tight tabular-nums ${c.textClass}`}>{c.value}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">{c.sub}</p>
             {c.progress && (
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                <div className={`h-full rounded-full bg-gradient-to-r ${c.grad}`} style={{ width: `${Math.min(100, rate)}%` }} />
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                <div className={`h-full rounded-full bg-gradient-to-r ${c.barGrad}`} style={{ width: `${Math.min(100, rate)}%` }} />
               </div>
             )}
           </div>

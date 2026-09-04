@@ -569,18 +569,18 @@ export default function PurchaseEntryClient() {
             </div>
 
             {/* Financial Totals Breakdown Bar */}
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 rounded-2xl bg-indigo-50/60 p-4 border border-indigo-100 dark:border-indigo-900/30 dark:bg-indigo-950/20">
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Taxable Subtotal</span>
-                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{inr(calcSubtotal)}</p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="card-glow-indigo rounded-2xl bg-indigo-500/[0.06] p-4 border border-indigo-500/20 dark:bg-indigo-950/20 dark:border-indigo-500/30">
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Taxable Subtotal</span>
+                <p className="mt-1 font-mono text-xl font-black tabular-nums text-slate-900 dark:text-white">{inr(calcSubtotal)}</p>
               </div>
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">GST / Tax Amount</span>
-                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{inr(calcTaxTotal)}</p>
+              <div className="card-glow-amber rounded-2xl bg-amber-500/[0.06] p-4 border border-amber-500/20 dark:bg-amber-950/20 dark:border-amber-500/30">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">GST / Tax Amount</span>
+                <p className="mt-1 font-mono text-xl font-black tabular-nums text-amber-700 dark:text-amber-300">{inr(calcTaxTotal)}</p>
               </div>
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Grand Total Inward</span>
-                <p className="mt-1 text-2xl font-black text-indigo-700 dark:text-indigo-300">{inr(calcTotal)}</p>
+              <div className="card-glow-emerald rounded-2xl bg-emerald-500/[0.08] p-4 border border-emerald-500/30 dark:bg-emerald-950/30 dark:border-emerald-500/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Grand Total Inward</span>
+                <p className="mt-1 font-mono text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">{inr(calcTotal)}</p>
               </div>
             </div>
           </div>
@@ -669,8 +669,8 @@ export default function PurchaseEntryClient() {
           {/* Action Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-white/10 dark:bg-slate-900">
             <div>
-              <span className="text-xs text-slate-400">Grand Bill Total:</span>
-              <p className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Grand Bill Total:</span>
+              <p className="mt-0.5 font-mono text-2xl sm:text-3xl font-black text-indigo-700 dark:text-indigo-300 tabular-nums">
                 {inr(calcTotal)}
               </p>
             </div>
@@ -678,14 +678,14 @@ export default function PurchaseEntryClient() {
             <div className="flex items-center gap-3">
               <Link
                 href="/purchases"
-                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 transition"
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 transition active:scale-95"
               >
                 Cancel
               </Link>
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-xl bg-indigo-600 px-6 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-60"
+                className="btn-3d-tactile-primary rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-indigo-600/20 hover:brightness-110 active:scale-95 disabled:opacity-60"
               >
                 {saving ? "Posting Inward Purchase..." : "Confirm & Post Purchase Bill"}
               </button>
