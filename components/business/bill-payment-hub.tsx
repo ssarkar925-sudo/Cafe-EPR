@@ -687,10 +687,10 @@ export default function BillPaymentHub({
         <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
           <button
             onClick={() => handleTabChange("recharge")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition select-none ${
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all active:scale-95 select-none ${
               activeTab === "recharge"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600"
-                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+                ? "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-500"
+                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
             }`}
           >
             <span>📱</span>
@@ -699,10 +699,10 @@ export default function BillPaymentHub({
 
           <button
             onClick={() => handleTabChange("google_play")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition select-none ${
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all active:scale-95 select-none ${
               activeTab === "google_play"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600"
-                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+                ? "bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500"
+                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
             }`}
           >
             <span>🎮</span>
@@ -711,10 +711,10 @@ export default function BillPaymentHub({
 
           <button
             onClick={() => handleTabChange("utility")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition select-none ${
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all active:scale-95 select-none ${
               activeTab === "utility"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600"
-                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+                ? "bg-gradient-to-r from-cyan-600 via-blue-600 to-cyan-700 text-white shadow-md shadow-cyan-500/25 ring-2 ring-cyan-500"
+                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
             }`}
           >
             <span>🏢</span>
@@ -723,25 +723,27 @@ export default function BillPaymentHub({
 
           <button
             onClick={() => handleTabChange("history")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition select-none ${
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all active:scale-95 select-none ${
               activeTab === "history"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600"
-                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+                ? "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-500"
+                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
             }`}
           >
             <span>📜</span>
             <span>Payment History &amp; Journal</span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600 dark:bg-white/10 dark:text-slate-300">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+              activeTab === "history" ? "bg-white/20 text-white font-bold" : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
+            }`}>
               {transactions.length}
             </span>
           </button>
 
           <button
             onClick={() => handleTabChange("commission")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition select-none ${
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black transition-all active:scale-95 select-none ${
               activeTab === "commission"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600"
-                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
+                ? "bg-gradient-to-r from-violet-600 via-purple-600 to-violet-700 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-500"
+                : "border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
             }`}
           >
             <span>⚙️</span>

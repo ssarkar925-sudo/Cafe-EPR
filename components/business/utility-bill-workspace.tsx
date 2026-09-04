@@ -1064,12 +1064,12 @@ export default function UtilityBillWorkspace({
             <span className="text-emerald-600 dark:text-emerald-400">05 SETTLE</span>
           </div>
 
-          {/* 01 Service Category Selector */}
-          <div className="space-y-2.5">
+          {/* 01 Utility Category Grid */}
+          <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
               1. Select Utility Category *
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
               {BILLER_CATEGORIES.map((cat) => {
                 const isSelected = selectedCategoryId === cat.id;
                 return (
@@ -1078,14 +1078,22 @@ export default function UtilityBillWorkspace({
                     type="button"
                     onClick={() => setSelectedCategoryId(cat.id)}
                     disabled={submitting}
-                    className={`flex flex-col items-center justify-center rounded-2xl border p-2.5 text-center transition ${
+                    className={`group relative overflow-hidden flex flex-col items-center justify-center rounded-2xl border p-3 text-center transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
                       isSelected
-                        ? "border-cyan-600 bg-cyan-50/70 shadow-xs ring-2 ring-cyan-600/30 dark:border-cyan-500 dark:bg-cyan-950/40"
-                        : "border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800/40"
+                        ? "border-cyan-500 bg-gradient-to-b from-cyan-500/15 to-blue-500/10 shadow-md shadow-cyan-500/15 ring-2 ring-cyan-500 dark:border-cyan-400 dark:from-cyan-950/60 dark:to-blue-950/40"
+                        : "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs dark:border-white/10 dark:bg-slate-800/60 dark:hover:border-white/20"
                     }`}
                   >
-                    <span className="text-xl">{cat.icon}</span>
-                    <span className="mt-1 text-[11px] font-black text-slate-900 dark:text-white">{cat.name}</span>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl text-xl transition-transform group-hover:scale-110 ${
+                      isSelected ? "bg-cyan-500/20 text-cyan-700 dark:text-cyan-300" : "bg-slate-100 dark:bg-white/5"
+                    }`}>
+                      {cat.icon}
+                    </div>
+                    <span className={`mt-2 text-[11px] font-black tracking-tight ${
+                      isSelected ? "text-cyan-900 dark:text-white" : "text-slate-700 dark:text-slate-300"
+                    }`}>
+                      {cat.name}
+                    </span>
                   </button>
                 );
               })}
@@ -1094,9 +1102,40 @@ export default function UtilityBillWorkspace({
 
           {/* 02 Biller Selection */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
-            <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
-              2. Select {currentCategory.name} Provider / Biller *
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
+                2. Select {currentCategory.name} Provider / Biller *
+              </label>
+              <span className="text-[10px] font-bold text-slate-400">
+                {billersForCategory.length} Billers available
+              </span>
+            </div>
+
+            {/* Quick-Pick Operator Badges */}
+            {billersForCategory.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pb-1">
+                {billersForCategory.slice(0, 6).map((b) => {
+                  const isCur = selectedBillerId === b.id;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setSelectedBillerId(b.id)}
+                      disabled={submitting}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                        isCur
+                          ? "bg-cyan-600 text-white shadow-sm shadow-cyan-600/25 ring-2 ring-cyan-500 font-black"
+                          : "border border-slate-200/80 bg-slate-50/80 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                      }`}
+                    >
+                      <span>⚡</span>
+                      <span>{b.shortName || b.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <select
               value={selectedBillerId}
               onChange={(e) => setSelectedBillerId(e.target.value)}
@@ -1152,6 +1191,17 @@ export default function UtilityBillWorkspace({
                     }`}>
                       {fetchBadge.text}
                     </span>
+                  </div>
+                )}
+                {fetchingBill && (
+                  <div className="mt-2.5 animate-pulse rounded-2xl border border-cyan-300/80 bg-cyan-50/70 p-3 dark:border-cyan-800/60 dark:bg-cyan-950/40">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-4 w-4 rounded-full border-2 border-cyan-600 border-t-transparent animate-spin" />
+                      <div>
+                        <p className="text-xs font-black text-cyan-900 dark:text-cyan-200">Querying BBPS / Biller Gateway…</p>
+                        <p className="text-[10px] text-cyan-700 dark:text-cyan-400">Verifying consumer credentials and retrieving live dues</p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1378,9 +1428,12 @@ export default function UtilityBillWorkspace({
                 <strong className="text-slate-900 dark:text-white">{inr(netProviderCost)}</strong>
               </div>
 
-              <div className="flex justify-between text-xs font-black text-cyan-600 dark:text-cyan-400 border-t border-slate-100 pt-1.5 dark:border-white/5">
-                <span>Operator Net Income:</span>
-                <span>+{inr(netOperatorIncome)}</span>
+              <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-emerald-500/10 border border-emerald-500/25 p-3 text-xs font-black text-slate-900 dark:text-white shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white text-[11px] font-black shadow-xs">₹</span>
+                  <span>Operator Net Profit:</span>
+                </div>
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">+{inr(netOperatorIncome)}</span>
               </div>
             </div>
 
