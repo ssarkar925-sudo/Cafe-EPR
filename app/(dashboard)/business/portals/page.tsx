@@ -11,7 +11,11 @@ export default async function PortalsPage() {
 
   const supabase = await createClient();
   const [{ data }, { data: txnRows }] = await Promise.all([
-    supabase.from("aeps_portals").select("*").order("name"),
+    supabase
+      .from("aeps_portals")
+      .select("*")
+      .eq("service_type", "aeps")
+      .order("name"),
     supabase.from("transactions").select("portal_id").eq("service_type", "aeps"),
   ]);
 
