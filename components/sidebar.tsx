@@ -12,13 +12,13 @@ export type NavItem = { label: string; href: string; icon: string; badge?: { tex
 export type NavSection = { title: string; items: NavItem[] };
 
 const BADGE_STYLES: Record<BadgeTone, string> = {
-  emerald: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30",
-  amber: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30",
-  indigo: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30",
-  purple: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30",
-  rose: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30",
-  blue: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30",
-  slate: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/30",
+  emerald: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 shadow-2xs",
+  amber: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30 shadow-2xs",
+  indigo: "bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30 shadow-2xs",
+  purple: "bg-purple-500/10 text-purple-700 border-purple-500/30 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30 shadow-2xs",
+  rose: "bg-rose-500/10 text-rose-700 border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30 shadow-2xs",
+  blue: "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30 shadow-2xs",
+  slate: "bg-slate-500/10 text-slate-700 border-slate-500/30 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/30 shadow-2xs",
 };
 
 const ICONS: Record<string, string> = {
@@ -165,26 +165,48 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
   return (
     <>
       {mobileOpen && <div onClick={onMobileClose} className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm transition-opacity lg:hidden" />}
-      <aside className={`fixed inset-y-0 left-0 lg:top-3 lg:bottom-3 lg:left-3 lg:h-[calc(100vh-24px)] lg:rounded-[24px] z-50 flex flex-col transition-all duration-300 shadow-2xl shadow-slate-900/10 border border-slate-200/90 bg-white/90 text-slate-800 ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/90 dark:text-slate-100 dark:shadow-black/40 dark:ring-white/10 backdrop-blur-2xl ${collapsed ? "w-[72px]" : "w-[270px]"} ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <aside className={`fixed inset-y-0 left-0 lg:top-3 lg:bottom-3 lg:left-3 lg:h-[calc(100vh-24px)] lg:rounded-[26px] z-50 flex flex-col transition-all duration-300 shadow-2xl shadow-indigo-950/10 border border-slate-200/90 bg-white/95 text-slate-800 ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/95 dark:text-slate-100 dark:shadow-black/60 dark:ring-white/10 backdrop-blur-2xl ${collapsed ? "w-[76px]" : "w-[276px]"} ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         {collapsed ? (
           <div className="flex h-16 shrink-0 items-center justify-center border-b border-slate-200/80 dark:border-white/10 px-2 py-2">
-            <button type="button" onClick={onToggle} aria-label="Expand sidebar" title="Expand sidebar" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 border border-blue-200/90 dark:bg-blue-950/60 dark:text-blue-400 dark:border-blue-500/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 hover:scale-105 shadow-md shadow-blue-500/10 transition">
+            <button type="button" onClick={onToggle} aria-label="Expand sidebar" title="Expand sidebar" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-200/90 dark:bg-indigo-950/60 dark:text-indigo-400 dark:border-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 hover:scale-105 shadow-md shadow-indigo-500/10 transition-all">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-5 w-5"><path d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
             </button>
           </div>
         ) : (
           <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 dark:border-white/10 px-4">
-            <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden min-w-0">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-white/20">
+            <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden min-w-0 group">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-md shadow-indigo-500/30 ring-2 ring-white/20 group-hover:scale-105 transition-transform">
                 {logoUrl ? <img src={logoUrl} alt="Logo" className="h-6 w-6 object-contain" /> : <span className="text-lg font-black">☕</span>}
               </div>
-              <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="truncate text-sm font-black tracking-tight text-slate-900 dark:text-white">{shopName || "Cafe ERP"}</span><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /></div><span className="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">Daily Counter Operations</span></div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-black tracking-tight text-slate-900 dark:text-white">{shopName || "Cafe ERP"}</span>
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50" />
+                </div>
+                <span className="block truncate text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Enterprise Counter</span>
+              </div>
             </Link>
-            <button type="button" onClick={onToggle} aria-label="Collapse sidebar" title="Collapse sidebar" className="hidden lg:flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg></button>
+            <button type="button" onClick={onToggle} aria-label="Collapse sidebar" title="Collapse sidebar" className="hidden lg:flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition-all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg></button>
           </div>
         )}
 
-        {!collapsed && <div className="px-3 pt-3 pb-1"><div className="relative"><input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Jump to menu..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-slate-500" /><div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400"><Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" className="h-3.5 w-3.5" /></div>{query && <button onClick={() => setQuery("")} className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>}</div></div>}
+        {!collapsed && (
+          <div className="px-3 pt-3 pb-1">
+            <div className="relative">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Jump to menu..."
+                className="w-full rounded-xl border border-slate-200/90 bg-slate-50/90 py-2 pl-8 pr-3 text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-slate-500 transition-all"
+              />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+                <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" className="h-3.5 w-3.5" />
+              </div>
+              {query && <button onClick={() => setQuery("")} className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>}
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4 custom-scrollbar">
           {filteredSections.map((section) => {
@@ -195,10 +217,13 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
                   <button
                     type="button"
                     onClick={() => toggleSection(section.title)}
-                    className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 transition rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
+                    className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors rounded-xl focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 group"
                   >
-                    <span>{section.title}</span>
-                    <Icon d={ICONS.chevron} className={`h-3 w-3 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1 w-1 rounded-full bg-indigo-500/60"></span>
+                      {section.title}
+                    </span>
+                    <Icon d={ICONS.chevron} className={`h-3 w-3 text-slate-400 group-hover:text-indigo-600 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
                   </button>
                 )}
                 {(isOpen || collapsed) && (
@@ -211,26 +236,26 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
                           href={item.href}
                           onClick={onMobileClose}
                           title={collapsed ? item.label : undefined}
-                          className={`group relative flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                          className={`group relative flex items-center justify-between rounded-2xl px-3 py-2 text-xs font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                             isActive
-                              ? "bg-blue-50 text-blue-700 font-extrabold border-l-[3px] border-blue-600 shadow-2xs dark:bg-blue-600/20 dark:text-blue-400 dark:border-blue-500"
-                              : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-0.5 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                              ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 text-white font-black shadow-lg shadow-indigo-500/25 scale-[1.01]"
+                              : "text-slate-700 hover:bg-slate-100/90 hover:text-slate-950 hover:translate-x-1 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-xl transition-all duration-200 ${
                                 isActive
-                                  ? "text-blue-600 dark:text-blue-400"
-                                  : "text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white"
+                                  ? "bg-white/20 text-white backdrop-blur-md shadow-inner"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-500/15 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:scale-110"
                               }`}
                             >
-                              <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
+                              <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-3.5 w-3.5" />
                             </span>
-                            {!collapsed && <span className="truncate">{item.label}</span>}
+                            {!collapsed && <span className="truncate tracking-tight">{item.label}</span>}
                           </div>
                           {!collapsed && item.badge && (
-                            <span className={`rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold shadow-2xs ${BADGE_STYLES[item.badge.tone]}`}>
+                            <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-2xs ${isActive ? "bg-white/20 text-white border-white/30" : BADGE_STYLES[item.badge.tone]}`}>
                               {item.badge.text}
                             </span>
                           )}
@@ -244,13 +269,29 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
           })}
         </div>
 
-        <div className="border-t border-slate-200/80 dark:border-white/10 px-3 py-2 shrink-0 bg-slate-50/80 dark:bg-black/20">
+        <div className="border-t border-slate-200/80 dark:border-white/10 px-3 py-2 shrink-0 bg-slate-50/90 dark:bg-black/30 backdrop-blur-md">
           <div className="pt-1 flex items-center justify-between">
-            <div onClick={() => setProfileOpen(true)} className="flex flex-1 items-center gap-2 rounded-xl p-1.5 hover:bg-slate-200/70 dark:hover:bg-white/[0.05] cursor-pointer transition min-w-0">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-xs font-black text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10">{currentAvatar ? <img src={currentAvatar} alt="" className="h-8 w-8 rounded-xl object-cover" /> : (name || "Admin").slice(0, 2).toUpperCase()}</div>
-              {!collapsed && <div className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-slate-900 dark:text-white">{name || "Admin User"}</span><span className="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{role || "Admin"}</span></div>}
+            <div onClick={() => setProfileOpen(true)} className="flex flex-1 items-center gap-2.5 rounded-2xl p-1.5 hover:bg-slate-200/60 dark:hover:bg-white/[0.06] cursor-pointer transition-all min-w-0 group">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-xs font-black text-white shadow-md shadow-indigo-500/20 ring-2 ring-indigo-400/20 group-hover:scale-105 transition-transform">
+                {currentAvatar ? <img src={currentAvatar} alt="" className="h-8 w-8 rounded-xl object-cover" /> : (name || "Admin").slice(0, 2).toUpperCase()}
+              </div>
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-black text-slate-900 dark:text-white">{name || "Admin User"}</span>
+                  <span className="block truncate text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{role || "Admin"}</span>
+                </div>
+              )}
             </div>
-            {!collapsed && <div className="flex items-center gap-1"><button onClick={handleSignOut} title="Sign Out" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition"><Icon d={ICONS.logout} className="h-4 w-4" /></button><button onClick={onToggle} title="Collapse Sidebar" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition"><Icon d="M11 19l-7-7 7-7m8 14l-7-7 7-7" className="h-4 w-4" /></button></div>}
+            {!collapsed && (
+              <div className="flex items-center gap-1">
+                <button onClick={handleSignOut} title="Sign Out" className="rounded-xl p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/20 dark:hover:text-rose-400 transition-all">
+                  <Icon d={ICONS.logout} className="h-4 w-4" />
+                </button>
+                <button onClick={onToggle} title="Collapse Sidebar" className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-700 dark:hover:text-white transition-all">
+                  <Icon d="M11 19l-7-7 7-7m8 14l-7-7 7-7" className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </aside>

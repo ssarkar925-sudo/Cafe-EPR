@@ -508,9 +508,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   return (
     <div className="space-y-6 pb-16">
       {/* ===============================================================================
-          1. REFINED EXECUTIVE HEADER (Restrained Operational Banner)
+          1. REFINED EXECUTIVE HEADER (Modern Floating Frosted Glass Canvas)
       =============================================================================== */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-slate-900 sm:p-6 transition-all">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/85 sm:p-6 transition-all">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
@@ -540,7 +540,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
 
           {/* Period Selector Tabs */}
-          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50/80 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 dark:border-white/10 dark:bg-white/[0.04] backdrop-blur-md">
             {[
               { id: "today", label: "Today" },
               { id: "yesterday", label: "Yesterday" },
@@ -551,10 +551,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               <button
                 key={tab.id}
                 onClick={() => setSelectedPeriod(tab.id as any)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
                   selectedPeriod === tab.id
-                    ? "bg-slate-900 text-white shadow-xs dark:bg-blue-600 dark:text-white"
-                    : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                    ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-500/25 scale-[1.02]"
+                    : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-xs dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
                 }`}
               >
                 {tab.label}
@@ -565,116 +565,141 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       </div>
 
       {/* ===============================================================================
-          2. PRIMARY KPI ROW (5 Spatial Bento Cards)
+          2. PRIMARY KPI ROW (5 Multi-Tone Glowing Bento Cards)
       =============================================================================== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {/* KPI 1: Gross Sales & Revenue */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        {/* KPI 1: Gross Sales & Revenue (Emerald Multi-Tone Glow) */}
+        <div className="bento-surface-interactive card-glow-emerald group flex flex-col justify-between p-5 rounded-2xl border border-emerald-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Revenue</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-sm font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{activeMetrics.label} Revenue</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600 shadow-xs dark:text-emerald-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="pnl" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
-            <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white">
+            <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
               {inr(activeMetrics.revenue)}
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {activeMetrics.txCount > 0 ? `${activeMetrics.txCount} total transactions` : "Authoritative operating inflow"}
-            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                Operating Inflow
+              </span>
+              <p className="text-[11px] font-medium text-slate-500 truncate dark:text-slate-400">
+                {activeMetrics.txCount > 0 ? `${activeMetrics.txCount} txns` : "Verified"}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="flex items-center justify-between border-t border-emerald-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Canonical P&amp;L</span>
-            <Link href="/invoices" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Sales →</Link>
+            <Link href="/invoices" className="font-bold text-emerald-600 hover:underline dark:text-emerald-400">Sales →</Link>
           </div>
         </div>
 
-        {/* KPI 2: Business Net Profit */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        {/* KPI 2: Business Net Profit (Indigo Multi-Tone Glow) */}
+        <div className="bento-surface-interactive card-glow-indigo group flex flex-col justify-between p-5 rounded-2xl border border-indigo-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Net Profit</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-sm font-bold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">{activeMetrics.label} Net Profit</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/10 text-indigo-600 shadow-xs dark:text-indigo-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="cash-book" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
-            <div className={`text-2xl font-black sm:text-3xl ${activeMetrics.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+            <div className={`text-2xl font-black sm:text-3xl tracking-tight ${activeMetrics.profit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"}`}>
               {inr(activeMetrics.profit)}
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Net Profit Margin: <strong>{activeMetrics.margin}%</strong>
-            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                Margin: {activeMetrics.margin}%
+              </span>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                Pre-Tax
+              </p>
+            </div>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="flex items-center justify-between border-t border-indigo-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Pre-Tax Business Profit</span>
-            <Link href="/finance/pnl" className="font-bold text-blue-600 hover:underline dark:text-blue-400">P&amp;L View →</Link>
+            <Link href="/finance/pnl" className="font-bold text-indigo-600 hover:underline dark:text-indigo-400">P&amp;L View →</Link>
           </div>
         </div>
 
-        {/* KPI 3: Operating Expenses */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        {/* KPI 3: Operating Expenses (Rose Multi-Tone Glow) */}
+        <div className="bento-surface-interactive card-glow-rose group flex flex-col justify-between p-5 rounded-2xl border border-rose-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-500/10">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{activeMetrics.label} Expenses</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-sm font-bold text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">{activeMetrics.label} Expenses</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/20 to-pink-500/10 text-rose-600 shadow-xs dark:text-rose-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="expenses" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
-            <div className="text-2xl font-black text-rose-600 sm:text-3xl dark:text-rose-400">
+            <div className="text-2xl font-black text-rose-600 sm:text-3xl dark:text-rose-400 tracking-tight">
               {inr(activeMetrics.expenses)}
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Active Operational Outlays
-            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                Outlays
+              </span>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                Operational Overheads
+              </p>
+            </div>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="flex items-center justify-between border-t border-rose-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Overheads Ledger</span>
-            <Link href="/finance/expenses" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Expenses →</Link>
+            <Link href="/finance/expenses" className="font-bold text-rose-600 hover:underline dark:text-rose-400">Expenses →</Link>
           </div>
         </div>
 
-        {/* KPI 4: Liquid Float Vaults */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        {/* KPI 4: Liquid Float Vaults (Amber Multi-Tone Glow) */}
+        <div className="bento-surface-interactive card-glow-amber group flex flex-col justify-between p-5 rounded-2xl border border-amber-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/10">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Liquid Float</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-sm font-bold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Liquid Float</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-yellow-500/10 text-amber-600 shadow-xs dark:text-amber-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="banks" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
-            <div className="text-2xl font-black text-indigo-950 sm:text-3xl dark:text-white">
+            <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
               {inr(data.liquidity.totalLiquidAssets)}
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Across 6 Cash &amp; Bank Safes
-            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                6 Safes
+              </span>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                Cash &amp; Bank Vaults
+              </p>
+            </div>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="flex items-center justify-between border-t border-amber-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Asset Conservation: Active</span>
-            <Link href="/finance/settlements" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Settlements →</Link>
+            <Link href="/finance/settlements" className="font-bold text-amber-600 hover:underline dark:text-amber-400">Settlements →</Link>
           </div>
         </div>
 
-        {/* KPI 5: Customer Receivables */}
-        <div className="bento-surface-interactive flex flex-col justify-between p-5 dark:bg-slate-900/90">
+        {/* KPI 5: Customer Receivables (Cyan Multi-Tone Glow) */}
+        <div className="bento-surface-interactive card-glow-cyan group flex flex-col justify-between p-5 rounded-2xl border border-cyan-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Customer Dues</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-sm font-bold text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">Customer Dues</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 text-cyan-600 shadow-xs dark:text-cyan-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="customers" className="h-4 w-4" />
             </div>
           </div>
           <div className="my-2">
-            <div className="text-2xl font-black text-amber-600 sm:text-3xl dark:text-amber-400">
+            <div className="text-2xl font-black text-cyan-700 sm:text-3xl dark:text-cyan-400 tracking-tight">
               {inr(data.customerData.totalReceivables)}
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {data.customerData.customerCountWithDue} Accounts with Dues
-            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300">
+                Khata
+              </span>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                {data.customerData.customerCountWithDue} Accounts with Dues
+              </p>
+            </div>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="flex items-center justify-between border-t border-cyan-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Khata Due Ledger</span>
-            <Link href="/customers" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Customers →</Link>
+            <Link href="/customers" className="font-bold text-cyan-600 hover:underline dark:text-cyan-400">Customers →</Link>
           </div>
         </div>
       </div>
@@ -851,10 +876,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
         {/* 4 Service Cards */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* AEPS Cash Out */}
-          <Link href="/business/aeps" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+          <Link href="/business/aeps" className="group rounded-2xl border border-blue-500/20 bg-white/90 p-4.5 transition-all duration-200 hover:-translate-y-1 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10 dark:border-white/10 dark:bg-slate-900/90">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-                <ActionVectorIcon icon="aeps" className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 group-hover:scale-110 transition-transform">
+                  <ActionVectorIcon icon="aeps" className="h-4 w-4" />
+                </div>
                 <span>AEPS Cash Out</span>
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
@@ -870,10 +897,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </Link>
 
           {/* DMT Remittance */}
-          <Link href="/business/dmt" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+          <Link href="/business/dmt" className="group rounded-2xl border border-violet-500/20 bg-white/90 p-4.5 transition-all duration-200 hover:-translate-y-1 hover:border-violet-500 hover:shadow-lg hover:shadow-violet-500/10 dark:border-white/10 dark:bg-slate-900/90">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-                <ActionVectorIcon icon="dmt" className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400 group-hover:scale-110 transition-transform">
+                  <ActionVectorIcon icon="dmt" className="h-4 w-4" />
+                </div>
                 <span>Money Transfer (DMT)</span>
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
@@ -889,10 +918,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </Link>
 
           {/* UPI Collections */}
-          <Link href="/business/upi" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+          <Link href="/business/upi" className="group rounded-2xl border border-rose-500/20 bg-white/90 p-4.5 transition-all duration-200 hover:-translate-y-1 hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/10 dark:border-white/10 dark:bg-slate-900/90">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-                <ActionVectorIcon icon="upi" className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 group-hover:scale-110 transition-transform">
+                  <ActionVectorIcon icon="upi" className="h-4 w-4" />
+                </div>
                 <span>UPI QR Collections</span>
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
@@ -908,10 +939,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </Link>
 
           {/* Mobile Recharge */}
-          <Link href="/business/recharge" className="group rounded-2xl border border-slate-200 bg-white p-4.5 transition hover:border-blue-500 hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+          <Link href="/business/recharge" className="group rounded-2xl border border-emerald-500/20 bg-white/90 p-4.5 transition-all duration-200 hover:-translate-y-1 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/10 dark:border-white/10 dark:bg-slate-900/90">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-                <ActionVectorIcon icon="bill-payment" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+                  <ActionVectorIcon icon="bill-payment" className="h-4 w-4" />
+                </div>
                 <span>Mobile &amp; DTH Recharge</span>
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
@@ -1148,20 +1181,34 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {quickActions.map((action) => (
-                <Link
-                  key={action.id}
-                  href={action.href}
-                  className="group flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 text-center transition-all duration-150 hover:-translate-y-0.5 hover:border-blue-400/60 hover:bg-white hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-blue-500/40 dark:hover:bg-white/[0.07]"
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-all group-hover:bg-blue-600 group-hover:text-white dark:bg-blue-950/40 dark:text-blue-400 dark:group-hover:bg-blue-500 dark:group-hover:text-white">
-                    <ActionVectorIcon icon={action.icon} className="h-4 w-4" />
-                  </span>
-                  <span className="mt-2 text-xs font-bold text-slate-900 truncate w-full group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
-                    {action.label}
-                  </span>
-                </Link>
-              ))}
+              {quickActions.map((action, idx) => {
+                const colorThemes = [
+                  { bg: "bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white dark:bg-emerald-500/20 dark:text-emerald-400", border: "hover:border-emerald-500/40 hover:shadow-emerald-500/10", text: "group-hover:text-emerald-600 dark:group-hover:text-emerald-400" },
+                  { bg: "bg-amber-500/10 text-amber-600 group-hover:bg-amber-600 group-hover:text-white dark:bg-amber-500/20 dark:text-amber-400", border: "hover:border-amber-500/40 hover:shadow-amber-500/10", text: "group-hover:text-amber-600 dark:group-hover:text-amber-400" },
+                  { bg: "bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-500/20 dark:text-indigo-400", border: "hover:border-indigo-500/40 hover:shadow-indigo-500/10", text: "group-hover:text-indigo-600 dark:group-hover:text-indigo-400" },
+                  { bg: "bg-teal-500/10 text-teal-600 group-hover:bg-teal-600 group-hover:text-white dark:bg-teal-500/20 dark:text-teal-400", border: "hover:border-teal-500/40 hover:shadow-teal-500/10", text: "group-hover:text-teal-600 dark:group-hover:text-teal-400" },
+                  { bg: "bg-violet-500/10 text-violet-600 group-hover:bg-violet-600 group-hover:text-white dark:bg-violet-500/20 dark:text-violet-400", border: "hover:border-violet-500/40 hover:shadow-violet-500/10", text: "group-hover:text-violet-600 dark:group-hover:text-violet-400" },
+                  { bg: "bg-blue-500/10 text-blue-600 group-hover:bg-blue-600 group-hover:text-white dark:bg-blue-500/20 dark:text-blue-400", border: "hover:border-blue-500/40 hover:shadow-blue-500/10", text: "group-hover:text-blue-600 dark:group-hover:text-blue-400" },
+                  { bg: "bg-rose-500/10 text-rose-600 group-hover:bg-rose-600 group-hover:text-white dark:bg-rose-500/20 dark:text-rose-400", border: "hover:border-rose-500/40 hover:shadow-rose-500/10", text: "group-hover:text-rose-600 dark:group-hover:text-rose-400" },
+                  { bg: "bg-purple-500/10 text-purple-600 group-hover:bg-purple-600 group-hover:text-white dark:bg-purple-500/20 dark:text-purple-400", border: "hover:border-purple-500/40 hover:shadow-purple-500/10", text: "group-hover:text-purple-600 dark:group-hover:text-purple-400" },
+                ];
+                const theme = colorThemes[idx % colorThemes.length];
+
+                return (
+                  <Link
+                    key={action.id}
+                    href={action.href}
+                    className={`group flex min-h-[92px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white/80 p-3 text-center transition-all duration-200 hover:-translate-y-1 hover:bg-white hover:shadow-lg active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.07] ${theme.border}`}
+                  >
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-xs transition-all duration-200 group-hover:scale-110 ${theme.bg}`}>
+                      <ActionVectorIcon icon={action.icon} className="h-4 w-4" />
+                    </span>
+                    <span className={`mt-2 text-xs font-bold text-slate-900 truncate w-full transition-colors dark:text-white ${theme.text}`}>
+                      {action.label}
+                    </span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
           <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">

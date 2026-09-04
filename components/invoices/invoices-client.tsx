@@ -638,7 +638,7 @@ export default function InvoicesClient({
         </div>
         <a
           href={tab === "invoices" ? "/pos" : "/pos?mode=quick"}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-xs transition hover:bg-blue-700"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
         >
           <Plus className="h-4 w-4" />
           <span>New {tab === "invoices" ? "Sale" : "Quick Sale"}</span>
@@ -646,11 +646,11 @@ export default function InvoicesClient({
       </div>
 
       {/* Tabs */}
-      <div className="mt-5 flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 text-sm dark:border-white/10 dark:bg-slate-800/80">
+      <div className="mt-5 flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 text-sm dark:border-white/10 dark:bg-slate-800/80">
         <button
           onClick={() => setTab("invoices")}
-          className={`flex-1 rounded-lg px-4 py-2 font-bold transition ${
-            tab === "invoices" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+          className={`flex-1 rounded-lg px-4 py-2 font-bold transition-all duration-200 ${
+            tab === "invoices" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           }`}
         >
           Invoices
@@ -660,8 +660,8 @@ export default function InvoicesClient({
         </button>
         <button
           onClick={() => setTab("quick")}
-          className={`flex-1 rounded-lg px-4 py-2 font-bold transition ${
-            tab === "quick" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+          className={`flex-1 rounded-lg px-4 py-2 font-bold transition-all duration-200 ${
+            tab === "quick" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           }`}
         >
           Quick Sales
@@ -674,11 +674,11 @@ export default function InvoicesClient({
       {/* KPI cards */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {(tab === "invoices" ? KPI_CARDS : QUICK_KPI_CARDS).map((c) => (
-          <div key={c.label} className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
+          <div key={c.label} className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/90">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{c.label}</p>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${c.iconBg} shadow-xs`}>
+              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${c.iconBg} shadow-xs group-hover:scale-110 transition-transform`}>
                 {c.icon}
               </div>
             </div>
