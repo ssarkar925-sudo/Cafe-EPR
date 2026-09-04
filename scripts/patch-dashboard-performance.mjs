@@ -17,15 +17,15 @@ const replacements = [
   ],
   [
     '    { data: { user } },\n    role,\n    settingsRes,\n    poolBalancesRes,',
-    '    { data: { user } },\n    settingsRes,\n    profileRes,\n    poolBalancesRes,',
+    '    { data: { user } },\n    settingsRes,\n    poolBalancesRes,',
   ],
   [
     '    supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null })),\n    getUserRole(),\n    supabase.from("settings").select("shop_name, gstin, currency_symbol").single(),\n    supabase.rpc("get_pool_balances"),',
-    '    supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null })),\n    supabase.from("settings").select("shop_name, gstin, currency_symbol").single(),\n    supabase.from("profiles").select("full_name, avatar_url, role").eq("id", user?.id || "").single(),\n    supabase.rpc("get_pool_balances"),',
+    '    supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null })),\n    supabase.from("settings").select("shop_name, gstin, currency_symbol").single(),\n    supabase.rpc("get_pool_balances"),',
   ],
   [
-    '  const profile = user\n    ? (await supabase.from("profiles").select("full_name, avatar_url, role").eq("id", user.id).single()).data\n    : null;\n\n  const userRole = (role || profile?.role || "admin") as "admin" | "manager" | "staff";',
-    '  const profile = profileRes.data || null;\n  const userRole = (profile?.role || "admin") as "admin" | "manager" | "staff";',
+    '  const userRole = (role || profile?.role || "admin") as "admin" | "manager" | "staff";',
+    '  const userRole = (profile?.role || "admin") as "admin" | "manager" | "staff";',
   ],
 ];
 
