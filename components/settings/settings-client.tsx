@@ -326,14 +326,14 @@ export default function SettingsClient({
           <div className="flex flex-wrap items-center gap-2.5">
             <Link
               href="/ai/self-audit"
-              className="inline-flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-bold text-purple-700 shadow-sm transition hover:bg-purple-100 dark:border-purple-500/30 dark:bg-purple-950/40 dark:text-purple-300"
+              className="inline-flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-bold text-purple-700 shadow-sm transition hover:bg-purple-100 dark:border-purple-500/30 dark:bg-purple-950/40 dark:text-purple-300 active:scale-[0.98]"
             >
               <span>🔮</span>
               <span>Financial Self-Audit</span>
             </Link>
             <Link
               href="/pos"
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300"
+              className="btn-3d-tactile-emerald inline-flex items-center gap-2 px-4 py-2 text-xs font-black shadow-sm"
             >
               <span>⚡</span>
               <span>POS Billing</span>

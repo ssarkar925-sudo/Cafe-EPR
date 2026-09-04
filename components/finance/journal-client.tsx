@@ -127,7 +127,7 @@ export default function JournalClient({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={exportCsv}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5 active:scale-[0.98]"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                 <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
@@ -136,7 +136,7 @@ export default function JournalClient({
             </button>
             <Link
               href="/finance/trial-balance"
-              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700"
+              className="btn-3d-tactile-primary flex items-center gap-2 px-5 py-2.5 text-xs font-black shadow-sm"
             >
               Verify Trial Balance →
             </Link>
@@ -152,7 +152,7 @@ export default function JournalClient({
           >
             💵 Counter Cashbook →
           </Link>
-          <span className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-black text-white">
+          <span className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-black text-white shadow-xs">
             📖 Double-Entry Journal
           </span>
           <Link
@@ -172,53 +172,77 @@ export default function JournalClient({
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 dark:border-emerald-500/30 dark:bg-emerald-950/30">
+        <div className="bento-surface relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 card-glow-emerald dark:bg-slate-900">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-600" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Total Credits (+ Inflow)
             </span>
-            <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200">
-              {filtered.filter((e) => e.direction === "in").length} Lines
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                {filtered.filter((e) => e.direction === "in").length} Lines
+              </span>
+              <div className="icon-box-3d flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                </svg>
+              </div>
+            </div>
           </div>
           <div className="mt-2 font-mono text-2xl font-black text-emerald-700 dark:text-emerald-300">
             +{inr(totalIn)}
           </div>
-          <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Funds deposited into accounts &amp; revenue posted
           </p>
         </div>
 
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-5 dark:border-rose-500/30 dark:bg-rose-950/30">
+        <div className="bento-surface relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 card-glow-rose dark:bg-slate-900">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500 to-pink-600" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-rose-800 dark:text-rose-300">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Total Debits (− Outflow)
             </span>
-            <span className="rounded-full bg-rose-200 px-2 py-0.5 text-[10px] font-black text-rose-900 dark:bg-rose-900 dark:text-rose-200">
-              {filtered.filter((e) => e.direction === "out").length} Lines
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                {filtered.filter((e) => e.direction === "out").length} Lines
+              </span>
+              <div className="icon-box-3d flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-sm">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+            </div>
           </div>
           <div className="mt-2 font-mono text-2xl font-black text-rose-700 dark:text-rose-300">
             -{inr(totalOut)}
           </div>
-          <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Disbursements, supplier payments &amp; operating costs
           </p>
         </div>
 
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 dark:border-blue-500/30 dark:bg-blue-950/30">
+        <div className="bento-surface relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 card-glow-cyan dark:bg-slate-900">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-600" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Net Journal Balance
             </span>
-            <span className="rounded-full bg-blue-200 px-2 py-0.5 text-[10px] font-black text-blue-900 dark:bg-blue-900 dark:text-blue-200">
-              {filtered.length} Total
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                {filtered.length} Total
+              </span>
+              <div className="icon-box-3d flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-sm">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              </div>
+            </div>
           </div>
-          <div className={`mt-2 font-mono text-2xl font-black ${net >= 0 ? "text-blue-800 dark:text-blue-300" : "text-rose-700 dark:text-rose-300"}`}>
+          <div className={`mt-2 font-mono text-2xl font-black ${net >= 0 ? "text-cyan-700 dark:text-cyan-300" : "text-rose-700 dark:text-rose-300"}`}>
             {inr(net)}
           </div>
-          <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Net monetary movement across selected filter period
           </p>
         </div>
