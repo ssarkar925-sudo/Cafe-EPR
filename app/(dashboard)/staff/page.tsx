@@ -10,9 +10,13 @@ export default async function StaffPage() {
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (!error && data?.user) user = data.user;
+  } catch {
+    user = null;
+  }
 
   const { data: users } = await supabase
     .from("profiles")

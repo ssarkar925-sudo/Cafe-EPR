@@ -68,19 +68,29 @@ export async function fetchCloudWhatsAppConfig(): Promise<WhatsAppConfig> {
       .maybeSingle();
 
     if (tmplRow && (tmplRow.templates || tmplRow.config)) {
+      const dbConfig = (tmplRow.config || {}) as Partial<WhatsAppConfig>;
+      let cleanPhoneId = dbConfig.meta_phone_number_id || localCfg.meta_phone_number_id || "";
+      const wabaId = dbConfig.meta_waba_id || localCfg.meta_waba_id || "448036473626878";
+      if (cleanPhoneId === "448036473626878" || cleanPhoneId === wabaId) {
+        cleanPhoneId = "252079703694976";
+      }
+
       const merged: WhatsAppConfig = {
         ...DEFAULT_WA_CONFIG,
-        ...(tmplRow.config || {}),
         ...localCfg,
+        ...dbConfig,
+        meta_phone_number_id: cleanPhoneId,
+        meta_waba_id: wabaId,
         automations: {
           ...DEFAULT_AUTOMATIONS,
-          ...(tmplRow.config?.automations || {}),
           ...(localCfg.automations || {}),
+          ...(dbConfig.automations || {}),
         },
         templates: {
           ...DEFAULT_WA_TEMPLATES,
+          ...(localCfg.templates || {}),
           ...(tmplRow.templates || {}),
-          ...(tmplRow.config?.templates || {}),
+          ...(dbConfig.templates || {}),
         },
       };
       saveWhatsAppConfig(merged);

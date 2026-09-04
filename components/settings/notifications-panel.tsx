@@ -120,6 +120,22 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
     setCloudSyncStatus("saving");
 
     const res = await saveCloudWhatsAppConfig(updated);
+    try {
+      await fetch("/api/whatsapp/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: updated.provider,
+          gateway_url: updated.gateway_url,
+          meta_phone_number_id: updated.meta_phone_number_id,
+          meta_waba_id: updated.meta_waba_id,
+          meta_display_phone_number: updated.meta_display_phone_number,
+          meta_access_token: updated.meta_access_token,
+          automations: updated.automations,
+        }),
+      });
+    } catch {}
+
     if (res.success) {
       setCloudSyncStatus("synced");
       setHasCloudTable(true);

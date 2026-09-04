@@ -1,4 +1,5 @@
-import { formatWhatsAppPhone, type WhatsAppConfig } from "@/lib/whatsapp-shared";
+import { formatWhatsAppPhone, type WhatsAppConfig, DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp-shared";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface SendWhatsAppResult {
   success: boolean;
@@ -6,12 +7,49 @@ export interface SendWhatsAppResult {
   messageId?: string;
   data?: any;
   error?: string;
+  errorCode?: number;
+  verifyUrl?: string;
   status?: number;
 }
 
 export interface SendWhatsAppOptions {
   templateName?: string;
   templateLang?: string;
+}
+
+/**
+ * Resolves the authoritative server-side WhatsApp configuration, merging database templates
+ * and secure secrets from whatsapp_gateway_secrets (protected from exposure to client browsers).
+ */
+export async function getServerWhatsAppConfig(): Promise<WhatsAppConfig> {
+  const db = createAdminClient();
+  const [{ data: row }, { data: secrets }] = await Promise.all([
+    db.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle(),
+    db.from("whatsapp_gateway_secrets").select("provider, meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
+  ]);
+
+  const base = (row?.config as WhatsAppConfig) || {};
+  const activeProvider = (secrets?.provider || base.provider || "meta") as WhatsAppConfig["provider"];
+  let phoneId = secrets?.meta_phone_number_id || base.meta_phone_number_id || process.env.META_PHONE_NUMBER_ID || "";
+  const wabaId = secrets?.waba_id || base.meta_waba_id || (row as any)?.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "448036473626878";
+  const token = secrets?.meta_access_token || process.env.META_ACCESS_TOKEN || "";
+
+  // Auto-correct: Never let the WABA ID (448036473626878) be treated as the Phone Number ID
+  if (phoneId === "448036473626878" || phoneId === wabaId) {
+    phoneId = "252079703694976";
+  }
+
+  return {
+    ...base,
+    provider: activeProvider,
+    gateway_url: base.gateway_url || "http://localhost:3001",
+    meta_phone_number_id: phoneId,
+    meta_waba_id: wabaId,
+    meta_access_token: token,
+    meta_display_phone_number: base.meta_display_phone_number || (row as any)?.meta_display_phone_number || "+91 70030 37208",
+    automations: { ...DEFAULT_AUTOMATIONS, ...(base.automations || {}) },
+    templates: { ...DEFAULT_WA_TEMPLATES, ...((row as any)?.templates || {}), ...(base.templates || {}) },
+  };
 }
 
 export async function sendWhatsAppViaConfig(
@@ -30,8 +68,23 @@ export async function sendWhatsAppViaConfig(
 
   // 1. Meta Official WhatsApp Cloud API
   if (config.provider === "meta") {
-    const phoneId = config.meta_phone_number_id?.trim();
-    const token = config.meta_access_token?.trim();
+    let phoneId = config.meta_phone_number_id?.trim();
+    let token = config.meta_access_token?.trim();
+    const wabaId = config.meta_waba_id?.trim() || "448036473626878";
+
+    // Auto-correct if WABA ID was passed as Phone ID
+    if (!phoneId || phoneId === "448036473626878" || phoneId === wabaId) {
+      phoneId = "252079703694976";
+    }
+
+    // Hydrate token from server if omitted
+    if (!token) {
+      try {
+        const srv = await getServerWhatsAppConfig();
+        token = srv.meta_access_token?.trim();
+        if (!phoneId) phoneId = srv.meta_phone_number_id?.trim() || "252079703694976";
+      } catch {}
+    }
 
     if (!phoneId || !token) {
       return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
@@ -75,9 +128,11 @@ export async function sendWhatsAppViaConfig(
     if (!metaRes.ok) {
       const code = metaData?.error?.code;
       const rawMsg = metaData?.error?.message || "Meta WhatsApp API Error";
+      const wabaId = config.meta_waba_id?.trim() || "448036473626878";
+      const verifyUrl = `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&waba_id=${wabaId}`;
       let friendlyError = rawMsg;
       if (code === 133010) {
-        friendlyError = `Meta Error 133010: Phone number is not registered/verified in WhatsApp Manager. Please complete the one-time SMS/Voice verification in Meta Business Manager.`;
+        friendlyError = `Meta Error 133010 (Account not registered): Phone number is added in Meta WABA, but pending 1-time SMS/Voice verification in WhatsApp Manager. Once verified with the 6-digit OTP, live messages will send immediately.`;
       } else if (code === 131047) {
         friendlyError = `Meta Error 131047: 24-hour service window expired. Free-form text can only be sent within 24 hours of customer reply. Send an approved template message to initiate conversations.`;
       } else if (code === 190) {
@@ -85,7 +140,7 @@ export async function sendWhatsAppViaConfig(
       } else if (code === 100) {
         friendlyError = `Meta Error 100: Invalid parameter or phone number format (${rawMsg}).`;
       }
-      return { success: false, error: friendlyError, status: 400, data: metaData };
+      return { success: false, error: friendlyError, errorCode: code, verifyUrl, status: 400, data: metaData };
     }
 
     return {

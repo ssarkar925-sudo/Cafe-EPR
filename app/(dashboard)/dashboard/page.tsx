@@ -43,7 +43,7 @@ export default async function DashboardPage() {
     cashEntriesRes,
     settlementsRes,
   ] = await Promise.all([
-    supabase.auth.getUser(),
+    supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null })),
     getUserRole(),
     supabase.from("settings").select("shop_name, gstin, currency_symbol").single(),
     supabase.rpc("get_pool_balances"),

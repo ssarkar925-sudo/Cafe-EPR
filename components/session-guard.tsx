@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, clearClientAuthCookies } from "@/lib/supabase/client";
 import { fetchCloudWhatsAppConfig } from "@/lib/whatsapp";
 import ScreenLockModal from "@/components/security/screen-lock-modal";
 
@@ -82,21 +82,33 @@ export default function SessionGuard() {
 
     // Initial check for broken/invalid session refresh token
     supabase.auth.getSession().then(({ data, error }) => {
-      if (error || !data.session) {
-        if (error && (error.message?.includes("Refresh Token") || error.name === "AuthApiError")) {
+      if (error || !data?.session) {
+        if (error && (error.message?.includes("Refresh Token") || (error as any)?.__isAuthError || error.name === "AuthApiError")) {
+          clearClientAuthCookies();
           if (!signingOut.current && pathname !== "/login") {
             signingOut.current = true;
-            supabase.auth.signOut().catch(() => {});
+            supabase.auth.signOut({ scope: "local" }).catch(() => {});
             window.location.href = "/logout?reason=expired";
           }
         }
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      if (err?.message?.includes("Refresh Token") || err?.__isAuthError || err?.name === "AuthApiError") {
+        clearClientAuthCookies();
+        if (!signingOut.current && pathname !== "/login") {
+          signingOut.current = true;
+          window.location.href = "/logout?reason=expired";
+        }
+      }
+    });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) && !signingOut.current) {
-        signingOut.current = true;
-        window.location.href = "/logout?reason=expired";
+        clearClientAuthCookies();
+        if (pathname !== "/login") {
+          signingOut.current = true;
+          window.location.href = "/logout?reason=expired";
+        }
       }
     });
 

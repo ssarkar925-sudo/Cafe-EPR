@@ -103,14 +103,14 @@ export default function BackupPanel({ active }: { active: boolean }) {
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
+      if (!data?.user) return;
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", data.user.id)
         .maybeSingle();
       setIsAdmin(profile?.role === "admin");
-    });
+    }).catch(() => {});
 
     async function loadStats() {
       try {

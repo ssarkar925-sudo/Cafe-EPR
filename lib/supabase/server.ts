@@ -40,3 +40,15 @@ export async function createClient() {
     },
   });
 }
+
+export async function getSafeUser(supabaseClient?: Awaited<ReturnType<typeof createClient>>) {
+  try {
+    const supabase = supabaseClient ?? (await createClient());
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) return null;
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+

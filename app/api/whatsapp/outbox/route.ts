@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import { sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
+import { getServerWhatsAppConfig, sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
 
 export async function GET() {
   try {
@@ -67,14 +67,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, processed: 0, sent: 0, failed: 0 });
     }
 
-    // Get active WhatsApp config from settings
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("whatsapp_config")
-      .eq("id", 1)
-      .maybeSingle();
-
-    const config = settings?.whatsapp_config || { provider: "off" };
+    // Get authoritative active WhatsApp config and secrets
+    const config = await getServerWhatsAppConfig();
 
     let sent = 0;
     let failed = 0;

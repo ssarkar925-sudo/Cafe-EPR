@@ -10,9 +10,15 @@ export default async function DashboardLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (!error && data?.user) {
+      user = data.user;
+    }
+  } catch {
+    user = null;
+  }
   if (!user) redirect("/login");
 
   const [{ data: profile }, { data: settings }] = await Promise.all([

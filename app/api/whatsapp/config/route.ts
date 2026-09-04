@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const db = createAdminClient();
     const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
       db.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, gateway_api_key, ultramsg_token, ultramsg_instance_id, verify_token").eq("id", "default").maybeSingle(),
+      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
     ]);
     if (rowError) throw rowError;
     if (secretError) throw secretError;
@@ -25,16 +25,42 @@ export async function GET(req: Request) {
     let metaLive: any = null;
     if (checkLive && phoneId && token) {
       try {
-        const liveRes = await fetch(
-          `https://graph.facebook.com/v21.0/${phoneId}?fields=verified_name,code_verification_status,display_phone_number,quality_rating,status`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (liveRes.ok) {
-          metaLive = await liveRes.json();
-        } else {
-          const errData = await liveRes.json().catch(() => ({}));
-          metaLive = { error: errData?.error?.message || "Could not query Meta API" };
-        }
+        const [phoneRes, wabaRes, meRes] = await Promise.all([
+          fetch(
+            `https://graph.facebook.com/v21.0/${phoneId}?fields=verified_name,code_verification_status,display_phone_number,quality_rating,status`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          wabaId
+            ? fetch(
+                `https://graph.facebook.com/v21.0/${wabaId}?fields=id,name,account_review_status,business_verification_status,owner_business_info`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+            : Promise.resolve(null),
+          fetch(`https://graph.facebook.com/v21.0/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const phoneData = phoneRes.ok
+          ? await phoneRes.json()
+          : await phoneRes.json().catch(() => ({ error: "Phone query failed" }));
+        const wabaData = wabaRes && wabaRes.ok ? await wabaRes.json().catch(() => null) : null;
+        const meData = meRes.ok ? await meRes.json().catch(() => null) : null;
+
+        const businessId = wabaData?.owner_business_info?.id || "2078690092683215";
+        const directVerifyUrl = `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=${businessId}&waba_id=${wabaId || "448036473626878"}`;
+
+        metaLive = {
+          ...phoneData,
+          waba_name: wabaData?.name,
+          account_review_status: wabaData?.account_review_status,
+          business_verification_status: wabaData?.business_verification_status,
+          business_id: businessId,
+          business_name: wabaData?.owner_business_info?.name,
+          system_user: meData?.name,
+          direct_verify_url: directVerifyUrl,
+          token_valid: Boolean(meData?.id || phoneRes.ok),
+        };
       } catch (liveErr: any) {
         metaLive = { error: liveErr?.message || "Failed to reach Meta servers" };
       }

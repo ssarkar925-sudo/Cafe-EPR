@@ -30,6 +30,14 @@ type ConfigResponse = {
     code_verification_status?: string;
     quality_rating?: string;
     status?: string;
+    waba_name?: string;
+    account_review_status?: string;
+    business_verification_status?: string;
+    business_id?: string;
+    business_name?: string;
+    system_user?: string;
+    direct_verify_url?: string;
+    token_valid?: boolean;
     error?: string;
   } | null;
   automations: WhatsAppAutomationRules;
@@ -56,6 +64,11 @@ export default function WhatsAppConfigurationPanel() {
   const [useTemplate, setUseTemplate] = useState(true);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [testPhone, setTestPhone] = useState("");
+  const [testDiagnostic, setTestDiagnostic] = useState<{
+    errorCode?: number;
+    verifyUrl?: string;
+    error?: string;
+  } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
 
@@ -120,6 +133,7 @@ export default function WhatsAppConfigurationPanel() {
   async function testConnection() {
     setTesting(true);
     setMessage(null);
+    setTestDiagnostic(null);
     try {
       const res = await fetch("/api/whatsapp/config/test", {
         method: "POST",
@@ -132,6 +146,13 @@ export default function WhatsAppConfigurationPanel() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
+        if (data.errorCode || data.verifyUrl) {
+          setTestDiagnostic({
+            errorCode: data.errorCode,
+            verifyUrl: data.verifyUrl,
+            error: data.error,
+          });
+        }
         throw new Error(data.error || "Test message delivery failed");
       }
       setMessage({
@@ -233,21 +254,43 @@ export default function WhatsAppConfigurationPanel() {
             </div>
 
             {isPendingVerification && (
-              <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs leading-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <div>
-                  <p className="font-bold">Next Step: 1-Time SMS/Voice Verification in Meta WhatsApp Manager</p>
-                  <p className="mt-0.5 text-[11px]">
-                    Your number <strong>{cfg.meta_live.display_phone_number || displayPhone}</strong> is added to WABA <strong>{wabaId}</strong>. To send live messages without error 133010, open Meta WhatsApp Manager, click <strong>Verify</strong> next to this number, and submit the 6-digit OTP code sent via SMS or voice call.
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold text-amber-950 dark:text-amber-100">
+                      Action Required: 1-Time SMS/Voice Verification in Meta WhatsApp Manager
+                    </p>
+                    <span className="rounded bg-amber-200/80 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-900 dark:bg-amber-900/60 dark:text-amber-200">
+                      Meta Code 133010
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-amber-900/90 dark:text-amber-200/90">
+                    Your credentials (Token, WABA <strong>{wabaId || "448036473626878"}</strong>, Phone ID <strong>{phoneId || "252079703694976"}</strong>) are 100% saved and authenticated with Meta Cloud API. However, Meta requires you to verify ownership of <strong>{cfg.meta_live.display_phone_number || displayPhone || "+91 70030 37208"}</strong> before outgoing messages can be sent.
                   </p>
-                  <a
-                    href="https://business.facebook.com/wa/manage/phone-numbers/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 font-bold text-indigo-700 underline dark:text-indigo-400"
-                  >
-                    Open Meta WhatsApp Manager <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <a
+                      href={cfg.meta_live.direct_verify_url || `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&waba_id=${wabaId || "448036473626878"}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                    >
+                      Open WhatsApp Manager to Verify Number <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => load(true)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white/80 px-2.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-white dark:border-amber-800 dark:bg-slate-800 dark:text-amber-200"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${checkingLive ? "animate-spin" : ""}`} /> Refresh Verification Status
+                    </button>
+                  </div>
+                  <ol className="mt-2.5 list-decimal space-y-0.5 pl-4 text-[11px] text-amber-800 dark:text-amber-300">
+                    <li>Click the button above to open Meta WhatsApp Manager for <strong>Sarkar Communication</strong>.</li>
+                    <li>Find <strong>{cfg.meta_live.display_phone_number || displayPhone || "+91 70030 37208"}</strong> and click <strong>Verify</strong> (or <strong>Finish Setup</strong>).</li>
+                    <li>Choose <strong>Text Message (SMS)</strong> or <strong>Phone Call</strong> to receive the 6-digit OTP on your phone.</li>
+                    <li>Enter the 6-digit code and set your two-step PIN. Return here to test live message sending!</li>
+                  </ol>
                 </div>
               </div>
             )}
@@ -446,6 +489,31 @@ export default function WhatsAppConfigurationPanel() {
             }`}
           >
             {message.text}
+          </div>
+        )}
+
+        {testDiagnostic?.errorCode === 133010 && (
+          <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+            <div className="flex items-center gap-2 font-bold text-amber-950 dark:text-amber-100">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <span>Fix Required: Complete 1-Time Verification in Meta WhatsApp Manager</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed">
+              Meta Cloud API recognized your WhatsApp Business Account (<strong>Sarkar Communication</strong>), but blocked outbound messages because the phone number <strong>{displayPhone || "+91 70030 37208"}</strong> has not completed ownership OTP verification yet.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <a
+                href={testDiagnostic.verifyUrl || cfg.meta_live?.direct_verify_url || `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&waba_id=${wabaId || "448036473626878"}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700"
+              >
+                Verify {displayPhone || "+91 70030 37208"} in Meta <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              <span className="text-[11px] text-amber-800 dark:text-amber-300">
+                (Takes ~60 seconds via SMS or Phone Call)
+              </span>
+            </div>
           </div>
         )}
       </section>

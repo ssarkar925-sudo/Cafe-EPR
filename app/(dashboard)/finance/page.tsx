@@ -41,11 +41,15 @@ export default async function FinancePage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const role = await (async () => {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    return (data?.role as string | null) ?? null;
+    try {
+      const supabase = await createClient();
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) return null;
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
+      return (profile?.role as string | null) ?? null;
+    } catch {
+      return null;
+    }
   })();
   if (!role || !["admin", "manager"].includes(role)) redirect("/dashboard");
 

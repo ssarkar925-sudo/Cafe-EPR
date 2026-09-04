@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const db = createAdminClient();
     const [{ data: row }, { data: secrets }] = await Promise.all([
       db.from("whatsapp_templates").select("config").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id").eq("id", "default").maybeSingle(),
+      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
     ]);
     const base = row?.config || {};
     const config: WhatsAppConfig = {
@@ -22,10 +22,11 @@ export async function POST(req: Request) {
       provider: base.provider || "off",
       automations: base.automations,
       meta_phone_number_id: secrets?.meta_phone_number_id || base.meta_phone_number_id,
+      meta_waba_id: secrets?.waba_id || base.meta_waba_id,
       meta_access_token: secrets?.meta_access_token,
-      gateway_api_key: secrets?.gateway_api_key,
-      ultramsg_token: secrets?.ultramsg_token,
-      ultramsg_instance_id: secrets?.ultramsg_instance_id,
+      gateway_api_key: base.gateway_api_key,
+      ultramsg_token: base.ultramsg_token,
+      ultramsg_instance_id: base.ultramsg_instance_id,
     };
 
     const options = use_template || template_name

@@ -35,9 +35,9 @@ async function handleLogout(request: Request | NextRequest) {
   }
 
   try {
-    await supabase.auth.signOut();
-  } catch (err) {
-    console.error("Supabase signOut error:", err);
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    /* ignore session cleanup error during logout */
   }
 
   const loginUrl = new URL("/login", request.url);

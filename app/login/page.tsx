@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, clearClientAuthCookies } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 
 const MAX_ATTEMPTS = 5;
@@ -59,6 +59,18 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("reason") === "expired") {
+        clearClientAuthCookies();
+        setError("Your session has expired or is invalid. Please sign in again.");
+      }
+    } catch {
+      /* ignore query parsing errors */
+    }
+  }, []);
 
   async function beginMfa(): Promise<boolean> {
     const supabase = clientOrNull();

@@ -123,7 +123,7 @@ export default function AvatarModal({
             onClick={async () => {
               try {
                 const sp = createClient();
-                await sp.auth.signOut();
+                await sp.auth.signOut({ scope: "local" });
               } catch {}
               window.location.href = "/logout";
             }}

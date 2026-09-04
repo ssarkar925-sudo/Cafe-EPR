@@ -77,7 +77,7 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
     e?.preventDefault();
     if (loggingOut) return;
     setLoggingOut(true);
-    try { await createClient().auth.signOut(); } catch (err) { console.error("Sign out error:", err); }
+    try { await createClient().auth.signOut({ scope: "local" }); } catch { /* ignore */ }
     window.location.href = "/logout";
   }
 
