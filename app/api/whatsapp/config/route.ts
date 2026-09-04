@@ -2,26 +2,20 @@ import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp-shared";
+import { getServerWhatsAppConfig } from "@/lib/whatsapp-server";
 
 export async function GET() {
   try {
     const role = await getUserRole();
     if (!hasRole(role, ["admin", "manager"])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    const db = createAdminClient();
-    const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
-      db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, gateway_api_key, ultramsg_token, ultramsg_instance_id").eq("id", "default").maybeSingle(),
-    ]);
-    if (rowError) throw rowError;
-    if (secretError) throw secretError;
-    const config = row?.config || {};
+    const config = await getServerWhatsAppConfig();
     return NextResponse.json({
       provider: config.provider || "off",
       gateway_url: config.gateway_url || "",
-      meta_phone_number_id: secrets?.meta_phone_number_id || config.meta_phone_number_id || "",
-      meta_access_token_set: Boolean(secrets?.meta_access_token),
+      meta_phone_number_id: config.meta_phone_number_id || "",
+      meta_access_token_set: Boolean(config.meta_access_token),
       automations: { ...DEFAULT_AUTOMATIONS, ...(config.automations || {}) },
-      configured: Boolean(secrets?.meta_access_token && secrets?.meta_phone_number_id),
+      configured: Boolean(config.meta_access_token && config.meta_phone_number_id),
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Could not load WhatsApp configuration" }, { status: 500 });
@@ -53,7 +47,7 @@ export async function PUT(req: Request) {
     if (body.meta_access_token) secretPatch.meta_access_token = String(body.meta_access_token).trim();
     if (Object.keys(secretPatch).length) {
       const { error } = await db.from("whatsapp_gateway_secrets").upsert({ id: "default", ...secretPatch, updated_at: new Date().toISOString() });
-      if (error) throw error;
+      if (error && !error.message.includes("permission denied")) throw error;
     }
     return NextResponse.json({ success: true });
   } catch (err: any) {

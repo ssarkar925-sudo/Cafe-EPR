@@ -1,4 +1,10 @@
-import type { WhatsAppConfig } from "@/lib/whatsapp-shared";
+import { formatWhatsAppPhone, type WhatsAppConfig } from "@/lib/whatsapp-shared";
+
+export interface SendWhatsAppOptions {
+  templateName?: string;
+  templateLanguage?: string;
+  templateComponents?: any[];
+}
 
 export interface SendWhatsAppResult {
   success: boolean;
@@ -12,7 +18,8 @@ export interface SendWhatsAppResult {
 export async function sendWhatsAppViaConfig(
   phone: string,
   message: string,
-  config: WhatsAppConfig
+  config: WhatsAppConfig,
+  options?: SendWhatsAppOptions
 ): Promise<SendWhatsAppResult> {
   if (!phone || !message) {
     return { success: false, error: "Phone number and message text are required.", status: 400 };
@@ -20,6 +27,11 @@ export async function sendWhatsAppViaConfig(
 
   if (!config || config.provider === "off") {
     return { success: false, error: "WhatsApp integration is not enabled in Settings.", status: 400 };
+  }
+
+  const formattedPhone = formatWhatsAppPhone(phone);
+  if (!formattedPhone) {
+    return { success: false, error: "Invalid phone number.", status: 400 };
   }
 
   // 1. Meta Official WhatsApp Cloud API
@@ -31,32 +43,65 @@ export async function sendWhatsAppViaConfig(
       return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
     }
 
-    const metaUrl = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+    const metaUrl = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+
+    let metaPayload: any;
+    if (options?.templateName || message === "__META_HELLO_WORLD__") {
+      metaPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "template",
+        template: {
+          name: options?.templateName || "hello_world",
+          language: { code: options?.templateLanguage || "en_US" },
+          ...(options?.templateComponents ? { components: options.templateComponents } : {}),
+        },
+      };
+    } else {
+      metaPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "text",
+        text: { preview_url: true, body: message },
+      };
+    }
+
     const metaRes = await fetch(metaUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: phone,
-        type: "text",
-        text: { preview_url: true, body: message },
-      }),
+      body: JSON.stringify(metaPayload),
     });
 
     const metaData = await metaRes.json().catch(() => ({}));
     if (!metaRes.ok) {
+      const errCode = metaData?.error?.code;
       const errorMsg = metaData?.error?.message || "Meta WhatsApp API Error";
-      return { success: false, error: errorMsg, status: 400 };
+      if (errCode === 131047 || String(errorMsg).includes("24 hours")) {
+        return {
+          success: false,
+          error: "Meta 24-hour policy: Proactive messages outside the 24-hour customer window require an approved Meta template (Code 131047). Please ensure your customer has replied to your business number, or use an approved template.",
+          status: 400,
+          data: metaData,
+        };
+      }
+      return {
+        success: false,
+        error: `${errorMsg}${errCode ? ` (Meta Error ${errCode})` : ""}`,
+        status: 400,
+        data: metaData,
+      };
     }
 
     return {
       success: true,
       provider: "meta",
       messageId: metaData?.messages?.[0]?.id,
+      data: metaData,
     };
   }
 
@@ -120,8 +165,8 @@ export async function sendWhatsAppViaConfig(
             ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
           },
           body: JSON.stringify({
-            phone,
-            number: phone,
+            phone: formattedPhone,
+            number: formattedPhone,
             message,
             text: message,
           }),
@@ -187,7 +232,7 @@ export async function sendWhatsAppViaConfig(
     const ultraUrl = `https://api.ultramsg.com/${instanceId}/messages/chat`;
     const params = new URLSearchParams({
       token,
-      to: phone,
+      to: formattedPhone,
       body: message,
     });
 

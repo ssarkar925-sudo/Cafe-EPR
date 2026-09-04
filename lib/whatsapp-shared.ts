@@ -284,7 +284,10 @@ create policy "whatsapp_templates update" on public.whatsapp_templates for updat
 `;
 
 export function formatWhatsAppPhone(rawPhone: string): string {
-  const digits = String(rawPhone || "").replace(/\D/g, "");
+  let digits = String(rawPhone || "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
   if (digits.length === 10) return `91${digits}`;
   return digits;
 }

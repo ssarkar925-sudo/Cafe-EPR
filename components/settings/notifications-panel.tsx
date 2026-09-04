@@ -119,6 +119,24 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
     setConfig(updated);
     setCloudSyncStatus("saving");
 
+    if (updates.meta_phone_number_id !== undefined || updates.meta_access_token !== undefined || updates.provider !== undefined) {
+      try {
+        await fetch("/api/whatsapp/config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: updated.provider,
+            gateway_url: updated.gateway_url,
+            meta_phone_number_id: updated.meta_phone_number_id,
+            meta_access_token: updates.meta_access_token || undefined,
+            automations: updated.automations,
+          }),
+        });
+      } catch (err) {
+        console.warn("Secure config sync error:", err);
+      }
+    }
+
     const res = await saveCloudWhatsAppConfig(updated);
     if (res.success) {
       setCloudSyncStatus("synced");
@@ -291,7 +309,7 @@ export default function NotificationsPanel({ active }: { active: boolean }) {
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">Meta WhatsApp Cloud API Credentials</h4>
                 </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Obtained from your Meta Developer Portal (developers.facebook.com → WhatsApp → API Setup).
+                  Obtained from your Meta Developer Portal (developers.facebook.com → WhatsApp → API Setup). You can also configure, test, and manage credentials from the <a href="/business/whatsapp/config" className="font-bold text-emerald-600 underline dark:text-emerald-400">Dedicated WhatsApp Configuration Page</a>.
                 </p>
 
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">

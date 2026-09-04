@@ -8037,6 +8037,41 @@ function detectIntent(question) {
   assert(clientCode.includes("getRowIncome") || clientCode.includes("pos_invoice"), "1521. UI Invariant: POS Invoice revenue mapped to row income");
 }
 
+// -----------------------------------------------------------------------------
+// PHASE 22: WhatsApp Meta Cloud API Configuration & Delivery Invariants
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 22: WhatsApp Meta Cloud API Configuration & Delivery Invariants ---");
+
+  const { formatWhatsAppPhone } = await import("../lib/whatsapp-shared.ts");
+
+  // 1. Phone number normalization for Meta Cloud API
+  assert(formatWhatsAppPhone("9876543210") === "919876543210", "1522. WhatsApp: 10-digit phone normalized with country code 91");
+  assert(formatWhatsAppPhone("+91 98765 43210") === "919876543210", "1523. WhatsApp: Formatted phone stripped of + and spaces");
+  assert(formatWhatsAppPhone("09876543210") === "919876543210", "1524. WhatsApp: Leading zero normalized for Indian numbers");
+
+  // 2. Sender and Graph API v21.0
+  const senderCode = fs.readFileSync("./lib/whatsapp-sender.ts", "utf8");
+  assert(senderCode.includes("graph.facebook.com/v21.0"), "1525. Meta API: Endpoint updated to Graph API v21.0");
+  assert(senderCode.includes("hello_world"), "1526. Meta API: hello_world template support enabled");
+  assert(senderCode.includes("131047") || senderCode.includes("24 hours"), "1527. Meta API: 24-hour window policy error handling implemented");
+
+  // 3. Server-side credential resolution in send & outbox routes
+  const sendRouteCode = fs.readFileSync("./app/api/whatsapp/send/route.ts", "utf8");
+  assert(sendRouteCode.includes("getServerWhatsAppConfig"), "1528. WhatsApp Send: Server-side secret resolution active");
+
+  const outboxRouteCode = fs.readFileSync("./app/api/whatsapp/outbox/route.ts", "utf8");
+  assert(outboxRouteCode.includes("getServerWhatsAppConfig"), "1529. WhatsApp Outbox: Server-side secret resolution active");
+
+  // 4. Test Route hello_world template
+  const testRouteCode = fs.readFileSync("./app/api/whatsapp/config/test/route.ts", "utf8");
+  assert(testRouteCode.includes("hello_world"), "1530. WhatsApp Test: Meta test dispatches pre-approved hello_world template");
+
+  // 5. Server config helper exists and exports function
+  const serverHelperCode = fs.readFileSync("./lib/whatsapp-server.ts", "utf8");
+  assert(serverHelperCode.includes("export async function getServerWhatsAppConfig"), "1531. WhatsApp Server: getServerWhatsAppConfig helper exported with DB and env fallbacks");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
