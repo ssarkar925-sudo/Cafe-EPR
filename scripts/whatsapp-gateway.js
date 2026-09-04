@@ -247,7 +247,23 @@ async function initWhatsApp() {
       Browsers,
     } = await import("@whiskeysockets/baileys");
     const qrcodeTerminal = (await import("qrcode-terminal")).default;
-    const pino = (await import("pino")).default;
+    let loggerInstance;
+    try {
+      const pinoMod = await import("pino");
+      const pino = pinoMod.default || pinoMod;
+      loggerInstance = pino({ level: "silent" });
+    } catch {
+      loggerInstance = {
+        level: "silent",
+        trace: () => {},
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        fatal: () => {},
+        child: () => loggerInstance,
+      };
+    }
     const QRCode = require("qrcode");
 
     if (!fs.existsSync(AUTH_DIR)) {
@@ -273,7 +289,7 @@ async function initWhatsApp() {
       version,
       auth: state,
       printQRInTerminal: false,
-      logger: pino({ level: "silent" }),
+      logger: loggerInstance,
       browser: Browsers ? Browsers.windows("Desktop") : ["Smart Business Suite", "Chrome", "1.0.0"],
       syncFullHistory: false,
       markOnlineOnConnect: true,
