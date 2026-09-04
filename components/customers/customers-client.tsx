@@ -11,6 +11,8 @@ import CustomerPhotoModal from "./customer-photo-modal";
 import AdvanceModal from "./advance-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
 import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
+import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 export type Customer = {
   id: string;
@@ -134,6 +136,45 @@ export default function CustomersClient({
     transactions: any[];
     loading: boolean;
   }>({ invoices: [], ledger: [], transactions: [], loading: false });
+
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    msg: string;
+    invNum?: string;
+    refId?: string;
+  } | null>(null);
+
+  function sendKhataReminder(c: Customer, inv?: any) {
+    if (!c.phone) return;
+    const cfg = getWhatsAppConfig();
+    const template = cfg.templates?.due_reminder || DEFAULT_WA_TEMPLATES.due_reminder;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const dueAmt = inv ? Number(inv.due) : Number(c.balance);
+    const invoiceNum = inv?.invoice_number || (c.code ? `Khata (${c.code})` : "Khata Balance");
+    const invoiceDt = inv?.invoice_date || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const receiptUrl = inv ? `${origin}/receipt/${inv.id}/a4` : `${origin}/customers/${c.id}`;
+
+    const msg = renderWhatsAppTemplate(template, {
+      shop_name: "Sarkar Communication",
+      customer_name: c.name || "Customer",
+      customer_name_line: c.name ? `👤 Customer: ${c.name}\n` : "",
+      due_amount: inr(dueAmt),
+      invoice_number: invoiceNum,
+      invoice_date: invoiceDt,
+      receipt_url: receiptUrl,
+    });
+
+    setWaModal({
+      open: true,
+      phone: c.phone,
+      name: c.name || "Customer",
+      msg,
+      invNum: invoiceNum,
+      refId: inv?.id || c.id,
+    });
+  }
 
   const supabase = createClient();
   const router = useRouter();
@@ -575,6 +616,19 @@ export default function CustomersClient({
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      {b > 0 && c.phone && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sendKhataReminder(c);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-2.5 py-1 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 hover:shadow-2xs active:scale-95 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          title={`Send WhatsApp Khata Due Reminder (${inr(b)})`}
+                        >
+                          <span>💬 Reminder</span>
+                        </button>
+                      )}
                       <Link
                         href={`/customers/${c.id}`}
                         onClick={(e) => e.stopPropagation()}
@@ -741,6 +795,24 @@ export default function CustomersClient({
               <Stat label="Advance" value={detail.loading ? "…" : inr(detailStats.advance)} tone={detailStats.advance > 0 ? "blue" : "slate"} />
             </div>
 
+            {detailStats.due > 0 && viewing.phone && (
+              <div className="mx-6 mt-3 flex items-center justify-between rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3.5 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                <div className="flex items-center gap-2.5 text-xs">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500 text-white font-black text-xs shadow-xs">💬</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    Outstanding Khata Due: <span className="text-rose-600 dark:text-rose-400 font-black">{inr(detailStats.due)}</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => sendKhataReminder(viewing)}
+                  className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-emerald-600/20 hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Send Due Reminder
+                </button>
+              </div>
+            )}
+
             <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-3">
               <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
                 {(
@@ -796,6 +868,16 @@ export default function CustomersClient({
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900">{inr(inv.total)}</span>
+                          {Number(inv.due) > 0 && viewing.phone && (
+                            <button
+                              type="button"
+                              onClick={() => sendKhataReminder(viewing, inv)}
+                              className="rounded-md border border-emerald-200/80 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              title="Send WhatsApp Invoice Due Reminder"
+                            >
+                              💬 Remind
+                            </button>
+                          )}
                           <Link
                             href={`/receipt/${inv.id}/a4`}
                             target="_blank"
@@ -944,6 +1026,19 @@ export default function CustomersClient({
           customer={viewing}
           onClose={() => setAdvanceModal(null)}
           onDone={onAdvanceDone}
+        />
+      )}
+
+      {waModal && (
+        <WhatsAppSendModal
+          open
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage={waModal.msg}
+          messageType="due_reminder"
+          refId={waModal.refId}
+          refNumber={waModal.invNum}
         />
       )}
     </div>

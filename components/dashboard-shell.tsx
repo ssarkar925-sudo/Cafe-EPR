@@ -8,6 +8,7 @@ import GlobalSearch from "./global-search";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
 import CloudSyncBadge from "./cloud-sync-badge";
+import WhatsAppStatusBadge from "./whatsapp/whatsapp-status-badge";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -257,6 +258,7 @@ export default function DashboardShell({
             </Link>
 
             <CloudSyncBadge />
+            <WhatsAppStatusBadge />
             <ThemeToggle />
             <NotificationBell role={role} />
 
