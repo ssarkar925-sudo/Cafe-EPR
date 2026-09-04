@@ -32,7 +32,7 @@ export default async function TrialBalancePage() {
   const { data: lines } = await supabase
     .from("journal_lines")
     .select("account_id, debit, credit, journal_entries!inner(status)")
-    .not("journal_entries.status", "in", "(void,cancelled)");
+    .eq("journal_entries.status", "posted");
 
   return (
     <TrialBalanceClient
