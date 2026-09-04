@@ -167,7 +167,7 @@ export default function CashbookClient({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={exportCsv}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-extrabold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5 active:scale-[0.98]"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                 <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
@@ -176,7 +176,7 @@ export default function CashbookClient({
             </button>
             <Link
               href="/finance/day-close"
-              className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-rose-700"
+              className="btn-3d-tactile-primary flex items-center gap-2 px-5 py-2.5 text-xs font-black shadow-sm"
             >
               Day Close &amp; Handover →
             </Link>
@@ -186,7 +186,7 @@ export default function CashbookClient({
         {/* Cross-Link Navigation Pills */}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 dark:border-white/5">
           <span className="text-xs font-bold text-slate-400">Jump to:</span>
-          <span className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-black text-white">
+          <span className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-xs">
             💵 Counter Cashbook
           </span>
           <Link
@@ -212,55 +212,89 @@ export default function CashbookClient({
 
       {/* Primary KPI Strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Total Inflow"
-          value={inr(totals.totalIn)}
-          sub={`${filtered.filter((e) => e.direction === "in").length} receipts`}
-          icon="M12 15V3m0 12 4-4m-4 4-4-4"
-          grad="from-emerald-500 to-teal-600"
-          onClick={() => setDirection(direction === "in" ? "all" : "in")}
-        />
-        <StatCard
-          label="Total Outflow"
-          value={inr(totals.totalOut)}
-          sub={`${filtered.filter((e) => e.direction === "out").length} payouts`}
-          icon="M12 3v12m0 0 4-4m-4 4-4-4"
-          grad="from-rose-500 to-pink-600"
-          onClick={() => setDirection(direction === "out" ? "all" : "out")}
-        />
-        <StatCard
-          label="Net Flow Position"
-          value={inr(totals.net)}
-          sub={totals.net < 0 ? "Net drawer outflow" : "Net drawer surplus"}
-          icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
-          grad={totals.net < 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"}
-          onClick={() => setDirection("all")}
-        />
-        <StatCard
-          label="Active Filter Scope"
-          value={`${filtered.length} Entries`}
-          sub={`${inr(totals.totalIn)} in · ${inr(totals.totalOut)} out`}
-          icon="M8 2v4M16 2v4M3 10h18"
-          grad="from-violet-500 to-purple-600"
-          onClick={clearFilters}
-        />
+        {[
+          {
+            label: "Total Inflow",
+            value: inr(totals.totalIn),
+            sub: `${filtered.filter((e) => e.direction === "in").length} receipts`,
+            icon: "M12 15V3m0 12 4-4m-4 4-4-4",
+            glow: "card-glow-emerald",
+            grad: "from-emerald-500 to-teal-600",
+            valColor: "text-emerald-700 dark:text-emerald-300",
+            active: direction === "in",
+            onClick: () => setDirection(direction === "in" ? "all" : "in"),
+          },
+          {
+            label: "Total Outflow",
+            value: inr(totals.totalOut),
+            sub: `${filtered.filter((e) => e.direction === "out").length} payouts`,
+            icon: "M12 3v12m0 0 4-4m-4 4-4-4",
+            glow: "card-glow-rose",
+            grad: "from-rose-500 to-pink-600",
+            valColor: "text-rose-700 dark:text-rose-300",
+            active: direction === "out",
+            onClick: () => setDirection(direction === "out" ? "all" : "out"),
+          },
+          {
+            label: "Net Flow Position",
+            value: inr(totals.net),
+            sub: totals.net < 0 ? "Net drawer outflow" : "Net drawer surplus",
+            icon: "M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7",
+            glow: totals.net < 0 ? "card-glow-amber" : "card-glow-cyan",
+            grad: totals.net < 0 ? "from-amber-500 to-orange-600" : "from-cyan-500 to-blue-600",
+            valColor: totals.net < 0 ? "text-amber-700 dark:text-amber-300" : "text-cyan-700 dark:text-cyan-300",
+            active: false,
+            onClick: () => setDirection("all"),
+          },
+          {
+            label: "Active Filter Scope",
+            value: `${filtered.length} Entries`,
+            sub: `${inr(totals.totalIn)} in · ${inr(totals.totalOut)} out`,
+            icon: "M8 2v4M16 2v4M3 10h18",
+            glow: "card-glow-indigo",
+            grad: "from-indigo-500 to-purple-600",
+            valColor: "text-indigo-700 dark:text-indigo-300",
+            active: false,
+            onClick: clearFilters,
+          },
+        ].map((card) => (
+          <div
+            key={card.label}
+            onClick={card.onClick}
+            className={`bento-surface relative cursor-pointer overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 ${card.glow} ${
+              card.active ? "ring-2 ring-blue-500" : ""
+            }`}
+          >
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.grad}`} />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{card.label}</span>
+              <div className={`icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${card.grad} text-white shadow-sm`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d={card.icon} />
+                </svg>
+              </div>
+            </div>
+            <div className={`mt-2 font-mono text-2xl font-black ${card.valColor}`}>{card.value}</div>
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{card.sub}</div>
+          </div>
+        ))}
       </div>
 
       {/* Scope Channel Breakdown */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {([
-          ["cash", "💵", "Physical Cash Drawer", channelStats.cash, "Physical Till & Drawer Cash"],
-          ["bank", "🏦", "Bank Channels", channelStats.bank, "Net Banking, IMPS & Debit"],
-          ["digital", "📱", "Digital & UPI Channels", channelStats.digital, "UPI QR, AEPS & Portals"],
-        ] as const).map(([key, icon, label, stat, subtitle]) => (
+          ["cash", "💵", "Physical Cash Drawer", channelStats.cash, "Physical Till & Drawer Cash", "card-glow-emerald"],
+          ["bank", "🏦", "Bank Channels", channelStats.bank, "Net Banking, IMPS & Debit", "card-glow-cyan"],
+          ["digital", "📱", "Digital & UPI Channels", channelStats.digital, "UPI QR, AEPS & Portals", "card-glow-indigo"],
+        ] as const).map(([key, icon, label, stat, subtitle, glow]) => (
           <button
             key={key}
             type="button"
             onClick={() => setScope(key)}
-            className={`rounded-2xl border p-4 text-left transition ${
+            className={`bento-surface relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
               scope === key
-                ? "border-blue-500 bg-blue-50/70 shadow-sm dark:border-blue-500/50 dark:bg-blue-950/30"
-                : "border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
+                ? `${glow} border-blue-500 ring-2 ring-blue-500/40 bg-blue-50/50 dark:bg-blue-950/20`
+                : "border-slate-200/80 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900"
             }`}
           >
             <div className="flex items-center justify-between">
@@ -269,8 +303,8 @@ export default function CashbookClient({
             </div>
             <p className="mt-0.5 text-[11px] text-slate-400">{subtitle}</p>
             <div className="mt-3 flex justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-white/5">
-              <span>In: <strong className="font-mono text-emerald-600">+{inr(stat.inAmt)}</strong></span>
-              <span>Out: <strong className="font-mono text-rose-600">-{inr(stat.outAmt)}</strong></span>
+              <span>In: <strong className="font-mono text-emerald-600 dark:text-emerald-400">+{inr(stat.inAmt)}</strong></span>
+              <span>Out: <strong className="font-mono text-rose-600 dark:text-rose-400">-{inr(stat.outAmt)}</strong></span>
               <span className="font-bold">{stat.count} txns</span>
             </div>
           </button>

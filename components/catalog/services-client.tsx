@@ -121,10 +121,10 @@ export default function ServicesClient({
   }
 
   const statCards = [
-    { label: "Total Services", value: String(stats.total), icon: Layers, tone: "blue" },
-    { label: "Active Services", value: String(stats.active), icon: CheckCircle2, tone: "emerald" },
-    { label: "Avg Sale Price", value: inr(stats.avg), icon: DollarSign, tone: "amber" },
-    { label: "Gross Margin", value: inr(stats.margin), icon: TrendingUp, tone: stats.margin >= 0 ? "indigo" : "rose" },
+    { label: "Total Services", value: String(stats.total), icon: Layers, grad: "from-violet-500 to-indigo-600", glow: "card-glow-indigo", valColor: "text-indigo-700 dark:text-indigo-300" },
+    { label: "Active Services", value: String(stats.active), icon: CheckCircle2, grad: "from-emerald-500 to-teal-600", glow: "card-glow-emerald", valColor: "text-emerald-700 dark:text-emerald-300" },
+    { label: "Avg Sale Price", value: inr(stats.avg), icon: DollarSign, grad: "from-amber-500 to-orange-600", glow: "card-glow-amber", valColor: "text-amber-700 dark:text-amber-300" },
+    { label: "Gross Margin", value: inr(stats.margin), icon: TrendingUp, grad: stats.margin >= 0 ? "from-cyan-500 to-blue-600" : "from-rose-500 to-pink-600", glow: stats.margin >= 0 ? "card-glow-cyan" : "card-glow-rose", valColor: stats.margin >= 0 ? "text-cyan-700 dark:text-cyan-300" : "text-rose-700 dark:text-rose-300" },
   ];
 
   return (
@@ -132,7 +132,7 @@ export default function ServicesClient({
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+          <p className="mb-1 text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
             Catalog Master
           </p>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white">Services Catalog</h1>
@@ -142,7 +142,7 @@ export default function ServicesClient({
         </div>
         <button
           onClick={() => setModal({ mode: "create" })}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-violet-700"
+          className="btn-3d-tactile-primary flex items-center gap-1.5 px-4 py-2.5 text-xs font-black shadow-sm"
         >
           <Plus className="h-4 w-4" />
           Add Service
@@ -156,14 +156,15 @@ export default function ServicesClient({
           return (
             <div
               key={c.label}
-              className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900"
+              className={`bento-surface relative overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 ${c.glow}`}
             >
+              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{c.label}</p>
-                  <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{c.value}</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</p>
+                  <p className={`mt-1.5 font-mono text-2xl font-black ${c.valColor}`}>{c.value}</p>
                 </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                <div className={`icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
                   <Icon className="h-5 w-5" />
                 </div>
               </div>

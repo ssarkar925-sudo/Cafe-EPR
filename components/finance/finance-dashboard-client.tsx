@@ -114,7 +114,7 @@ export default function FinanceDashboardClient({
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/finance/day-close"
-              className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-700"
+              className="btn-3d-tactile-primary flex items-center gap-2 px-5 py-2.5 text-xs font-black shadow-sm"
             >
               <Icon d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M12 12v5M9.5 14.5 12 12l2.5 2.5" className="h-4 w-4" />
               Day Close Register
@@ -126,17 +126,50 @@ export default function FinanceDashboardClient({
       {/* Today's P&L Strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: "Today's Inflow", value: todayInflow, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50/80 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-500/30", icon: "M7 11l5-5 5 5M12 18V6" },
-          { label: "Today's Outflow", value: todayOutflow, color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-50/80 dark:bg-rose-950/40", border: "border-rose-200 dark:border-rose-500/30", icon: "M17 13l-5 5-5-5M12 6v12" },
-          { label: "Today's Net Margin", value: todayNetMargin, color: todayNetMargin >= 0 ? "text-blue-700 dark:text-blue-300" : "text-amber-700 dark:text-amber-300", bg: "bg-blue-50/80 dark:bg-blue-950/40", border: "border-blue-200 dark:border-blue-500/30", icon: "M3 3v18h18M7 14l4-4 3 3 5-6" },
-          { label: "This Month Expenses", value: monthExpenseTotal, color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50/80 dark:bg-amber-950/40", border: "border-amber-200 dark:border-amber-500/30", icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5M18 12a2 2 0 0 0 0 4h4v-4z" },
+          {
+            label: "Today's Inflow",
+            value: todayInflow,
+            color: "text-emerald-700 dark:text-emerald-300",
+            glow: "card-glow-emerald",
+            iconBg: "from-emerald-500 to-teal-600",
+            icon: "M7 11l5-5 5 5M12 18V6"
+          },
+          {
+            label: "Today's Outflow",
+            value: todayOutflow,
+            color: "text-rose-700 dark:text-rose-300",
+            glow: "card-glow-rose",
+            iconBg: "from-rose-500 to-pink-600",
+            icon: "M17 13l-5 5-5-5M12 6v12"
+          },
+          {
+            label: "Today's Net Margin",
+            value: todayNetMargin,
+            color: todayNetMargin >= 0 ? "text-cyan-700 dark:text-cyan-300" : "text-amber-700 dark:text-amber-300",
+            glow: todayNetMargin >= 0 ? "card-glow-cyan" : "card-glow-amber",
+            iconBg: todayNetMargin >= 0 ? "from-cyan-500 to-blue-600" : "from-amber-500 to-orange-600",
+            icon: "M3 3v18h18M7 14l4-4 3 3 5-6"
+          },
+          {
+            label: "This Month Expenses",
+            value: monthExpenseTotal,
+            color: "text-amber-700 dark:text-amber-300",
+            glow: "card-glow-amber",
+            iconBg: "from-amber-500 to-orange-600",
+            icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16v-5M18 12a2 2 0 0 0 0 4h4v-4z"
+          },
         ].map((stat) => (
-          <div key={stat.label} className={`rounded-2xl border ${stat.border} ${stat.bg} p-5 shadow-xs`}>
-            <div className="mb-2 flex items-center gap-2">
-              <Icon d={stat.icon} className={`h-4 w-4 ${stat.color}`} />
-              <span className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{stat.label}</span>
+          <div
+            key={stat.label}
+            className={`bento-surface relative overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 ${stat.glow}`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</span>
+              <div className={`icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${stat.iconBg} text-white shadow-sm`}>
+                <Icon d={stat.icon} className="h-4 w-4" />
+              </div>
             </div>
-            <div className={`font-mono text-2xl font-black ${stat.color}`}>{inr(stat.value)}</div>
+            <div className={`mt-2 font-mono text-2xl font-black ${stat.color}`}>{inr(stat.value)}</div>
           </div>
         ))}
       </div>
@@ -157,13 +190,18 @@ export default function FinanceDashboardClient({
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {pools.map((pool) => (
-            <div key={pool.key} className={`flex flex-col gap-1 rounded-2xl border ${pool.border} ${pool.bg} p-4 shadow-xs`}>
-              <Icon d={pool.icon} className={`mb-1 h-5 w-5 ${pool.color}`} />
-              <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{pool.label}</div>
-              <div className={`font-mono text-base font-black ${pool.color}`}>{inr(pool.current)}</div>
-              <div className={`font-mono text-[11px] font-bold ${pool.movement >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
-                {pool.movement >= 0 ? "▲" : "▼"} {inr(Math.abs(pool.movement))}
+            <div
+              key={pool.key}
+              className={`flex flex-col gap-1 rounded-2xl border ${pool.border} ${pool.bg} p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+            >
+              <div className="flex items-center justify-between">
+                <Icon d={pool.icon} className={`h-5 w-5 ${pool.color}`} />
+                <span className={`font-mono text-[10px] font-extrabold ${pool.movement >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
+                  {pool.movement >= 0 ? "▲" : "▼"} {inr(Math.abs(pool.movement))}
+                </span>
               </div>
+              <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{pool.label}</div>
+              <div className={`font-mono text-base font-black ${pool.color}`}>{inr(pool.current)}</div>
             </div>
           ))}
         </div>
@@ -203,14 +241,14 @@ export default function FinanceDashboardClient({
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="group flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-4.5 transition hover:border-blue-200 hover:bg-blue-50/30 hover:shadow-sm dark:border-white/5 dark:bg-white/[0.02] dark:hover:border-blue-500/30 dark:hover:bg-blue-950/20"
+                  className="group flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-4.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/60 hover:bg-blue-50/30 hover:shadow-md dark:border-white/5 dark:bg-white/[0.02] dark:hover:border-blue-500/40 dark:hover:bg-blue-950/20"
                 >
                   <div>
                     <div className="flex items-center justify-between">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${link.color}`}>
+                      <div className={`icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl shadow-xs ${link.color}`}>
                         <Icon d={link.icon} className="h-5 w-5" />
                       </div>
-                      <span className="text-xs font-bold text-slate-400 opacity-0 transition group-hover:opacity-100">
+                      <span className="text-xs font-bold text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         Open →
                       </span>
                     </div>

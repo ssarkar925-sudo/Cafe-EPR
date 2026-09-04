@@ -897,10 +897,10 @@ export default function AepsWorkspace({
 
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Tile 1: Biometric Cash Out */}
-          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-teal-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-teal-500/40 flex flex-col justify-between">
+          <div className="bento-surface group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900 card-glow-emerald flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-xl text-white shadow-md shadow-teal-500/20">
+                <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-xl text-white shadow-md shadow-teal-500/20">
                   👆
                 </div>
                 <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">
@@ -916,11 +916,11 @@ export default function AepsWorkspace({
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400">Instant Till Cashout</span>
+              <span className="text-xs text-slate-400 font-medium">Instant Till Cashout</span>
               <button
                 type="button"
                 onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-teal-500/20 transition hover:brightness-110 active:scale-[0.98]"
+                className="btn-3d-tactile-emerald inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-sm"
               >
                 <span>Start Cash Out</span>
                 <span>→</span>
@@ -929,10 +929,10 @@ export default function AepsWorkspace({
           </div>
 
           {/* Tile 2: AEPS Service Portals */}
-          <div className="group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-400 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-indigo-500/40 flex flex-col justify-between">
+          <div className="bento-surface group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900 card-glow-indigo flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-xl text-white shadow-md shadow-indigo-500/20">
+                <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-xl text-white shadow-md shadow-indigo-500/20">
                   🌐
                 </div>
                 <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
@@ -948,10 +948,10 @@ export default function AepsWorkspace({
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span>
+              <span className="text-xs text-slate-400 font-medium">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span>
               <Link
                 href="/business/portals"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                className="btn-3d-tactile-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-sm"
               >
                 <span>Manage Portals</span>
                 <span>→</span>
@@ -1093,7 +1093,7 @@ export default function AepsWorkspace({
               <button
                 type="button"
                 onClick={() => setScanModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-indigo-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md shadow-teal-500/25 transition hover:brightness-110 active:scale-95"
+                className="btn-3d-tactile-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black shadow-sm"
               >
                 <span>📷 Scan &amp; Fill Receipt / SMS</span>
               </button>

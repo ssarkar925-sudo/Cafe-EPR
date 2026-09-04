@@ -283,38 +283,66 @@ export default function ExpensesClient({
 
       {/* KPI Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="This Month Spend"
-          value={inr(summary.monthTotal)}
-          sub="Active expenses only"
-          icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
-          grad="from-blue-500 to-indigo-600"
-          onClick={() => setStatus("active")}
-        />
-        <StatCard
-          label="Active Spend"
-          value={inr(summary.activeTotal)}
-          sub={`${summary.activeCount} active expense lines`}
-          icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
-          grad="from-rose-500 to-pink-600"
-          onClick={() => setStatus("active")}
-        />
-        <StatCard
-          label="Cancelled &amp; Reversed"
-          value={inr(summary.cancelledTotal)}
-          sub="Recredited to cash drawer"
-          icon="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"
-          grad="from-slate-500 to-slate-600"
-          onClick={() => setStatus("cancelled")}
-        />
-        <StatCard
-          label="Average Expense Ticket"
-          value={summary.activeCount ? inr(Math.round(summary.activeTotal / summary.activeCount)) : "₹0"}
-          sub="Per recorded voucher"
-          icon="M3 7v6h6M3.5 13a9 9 0 1 0 0-6"
-          grad="from-violet-500 to-purple-600"
-          onClick={() => setStatus("all")}
-        />
+        {[
+          {
+            label: "This Month Spend",
+            value: inr(summary.monthTotal),
+            sub: "Active expenses only",
+            icon: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z",
+            glow: "card-glow-indigo",
+            grad: "from-blue-500 to-indigo-600",
+            valColor: "text-indigo-700 dark:text-indigo-300",
+            onClick: () => setStatus("active"),
+          },
+          {
+            label: "Active Spend",
+            value: inr(summary.activeTotal),
+            sub: `${summary.activeCount} active expense lines`,
+            icon: "M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7",
+            glow: "card-glow-rose",
+            grad: "from-rose-500 to-pink-600",
+            valColor: "text-rose-700 dark:text-rose-300",
+            onClick: () => setStatus("active"),
+          },
+          {
+            label: "Cancelled & Reversed",
+            value: inr(summary.cancelledTotal),
+            sub: "Recredited to cash drawer",
+            icon: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+            glow: "card-glow-amber",
+            grad: "from-amber-500 to-orange-600",
+            valColor: "text-amber-700 dark:text-amber-300",
+            onClick: () => setStatus("cancelled"),
+          },
+          {
+            label: "Average Expense Ticket",
+            value: summary.activeCount ? inr(Math.round(summary.activeTotal / summary.activeCount)) : "₹0",
+            sub: "Per recorded voucher",
+            icon: "M3 7v6h6M3.5 13a9 9 0 1 0 0-6",
+            glow: "card-glow-cyan",
+            grad: "from-cyan-500 to-blue-600",
+            valColor: "text-cyan-700 dark:text-cyan-300",
+            onClick: () => setStatus("all"),
+          },
+        ].map((card) => (
+          <div
+            key={card.label}
+            onClick={card.onClick}
+            className={`bento-surface relative cursor-pointer overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 ${card.glow}`}
+          >
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.grad}`} />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{card.label}</span>
+              <div className={`icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${card.grad} text-white shadow-sm`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d={card.icon} />
+                </svg>
+              </div>
+            </div>
+            <div className={`mt-2 font-mono text-2xl font-black ${card.valColor}`}>{card.value}</div>
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{card.sub}</div>
+          </div>
+        ))}
       </div>
 
       {/* Top Category Distribution */}
