@@ -392,23 +392,20 @@ export default function DayCloseClient({
                   });
                 }}
                 title="Share Shift Summary on WhatsApp"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/25 hover:brightness-110 active:scale-95 transition-all"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                </svg>
-                Share on WhatsApp
+                <span>💬 WhatsApp Summary</span>
               </button>
               <button
                 onClick={() => setCancelOpen(true)}
                 disabled={busy}
                 title="Cancel this open day close"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-100 active:scale-95 transition-all disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
-                Cancel close
+                <span>Cancel Close</span>
               </button>
             </div>
           </div>
@@ -511,35 +508,67 @@ export default function DayCloseClient({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
               {[
-                { key: "n500", label: "₹500", mult: 500 },
-                { key: "n200", label: "₹200", mult: 200 },
-                { key: "n100", label: "₹100", mult: 100 },
-                { key: "n50", label: "₹50", mult: 50 },
-                { key: "n20", label: "₹20", mult: 20 },
-                { key: "n10", label: "₹10", mult: 10 },
-                { key: "n5", label: "₹5", mult: 5 },
-                { key: "coins", label: "Coins", mult: 1 },
+                { key: "n500", label: "₹500", mult: 500, color: "border-stone-300 dark:border-stone-800 bg-stone-50/70 dark:bg-stone-900/40 text-stone-800 dark:text-stone-200" },
+                { key: "n200", label: "₹200", mult: 200, color: "border-amber-300 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300" },
+                { key: "n100", label: "₹100", mult: 100, color: "border-indigo-300 dark:border-indigo-900/40 bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-300" },
+                { key: "n50", label: "₹50", mult: 50, color: "border-cyan-300 dark:border-cyan-900/40 bg-cyan-50/70 dark:bg-cyan-950/30 text-cyan-900 dark:text-cyan-300" },
+                { key: "n20", label: "₹20", mult: 20, color: "border-emerald-300 dark:border-emerald-900/40 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-300" },
+                { key: "n10", label: "₹10", mult: 10, color: "border-orange-300 dark:border-orange-900/40 bg-orange-50/70 dark:bg-orange-950/30 text-orange-900 dark:text-orange-300" },
+                { key: "n5", label: "₹5", mult: 5, color: "border-yellow-300 dark:border-yellow-900/40 bg-yellow-50/70 dark:bg-yellow-950/30 text-yellow-900 dark:text-yellow-300" },
+                { key: "coins", label: "Coins", mult: 1, color: "border-slate-300 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 text-slate-900 dark:text-slate-200" },
               ].map((d) => {
                 const count = Number(denominations[d.key]) || 0;
                 const subtotal = count * d.mult;
                 return (
-                  <div key={d.key} className="rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 dark:border-white/5 dark:bg-white/5">
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <div
+                    key={d.key}
+                    className={`group relative rounded-2xl border p-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${d.color}`}
+                  >
+                    <div className="flex items-center justify-between text-xs font-black">
                       <span>{d.label}</span>
-                      <span className="text-[11px] text-slate-400">×{count}</span>
+                      <span className="rounded-md bg-white/80 dark:bg-black/40 px-1.5 py-0.2 text-[10px] font-black text-slate-700 dark:text-slate-200 shadow-2xs">
+                        ×{count}
+                      </span>
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      placeholder="0"
-                      value={denominations[d.key] ?? ""}
-                      onChange={(e) => setDenominations((prev) => ({ ...prev, [d.key]: e.target.value }))}
-                      className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
-                    />
-                    <div className="mt-1 text-right text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+
+                    {/* Stepper with - / Input / + */}
+                    <div className="mt-2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = Math.max(0, count - 1);
+                          setDenominations((prev) => ({ ...prev, [d.key]: next === 0 ? "" : String(next) }));
+                        }}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700 hover:bg-slate-100 active:scale-90 transition-all dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        −
+                      </button>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        value={denominations[d.key] ?? ""}
+                        onChange={(e) => setDenominations((prev) => ({ ...prev, [d.key]: e.target.value }))}
+                        className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-center text-xs font-black text-slate-900 outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = count + 1;
+                          setDenominations((prev) => ({ ...prev, [d.key]: String(next) }));
+                        }}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700 hover:bg-slate-100 active:scale-90 transition-all dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="mt-1.5 text-right text-[11px] font-black text-emerald-600 dark:text-emerald-400">
                       {inr(subtotal)}
                     </div>
                   </div>
@@ -547,46 +576,75 @@ export default function DayCloseClient({
               })}
             </div>
 
-            {/* Reconciliation Comparison Bar */}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3.5 dark:bg-white/5">
-              <div className="flex flex-wrap items-center gap-6 text-sm">
-                <div>
-                  <span className="text-xs text-slate-400">Physical Cash Count:</span>
-                  <p className="font-bold text-slate-900 dark:text-white">{inr(physicalCashTotal)}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-400">System Computed Cash:</span>
-                  <p className="font-bold text-slate-900 dark:text-white">{inr(Number(cashRow?.computed ?? 0))}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-400">Physical vs System Variance:</span>
-                  <p
-                    className={`font-bold ${
-                      Math.abs(cashVariance) < 0.01
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : cashVariance > 0
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-rose-600 dark:text-rose-400"
-                    }`}
-                  >
-                    {Math.abs(cashVariance) < 0.01
-                      ? "✓ Exact Match"
-                      : cashVariance > 0
-                        ? `+${inr(cashVariance)} (Surplus)`
-                        : `${inr(cashVariance)} (Shortage)`}
+            {/* High-Contrast Live Reconciliation HUD */}
+            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/80">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {/* 1. Physical Count */}
+                <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/25">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                    Physical Cash Counted
+                  </span>
+                  <p className="mt-1 text-xl font-black text-emerald-950 dark:text-emerald-100 tracking-tight">
+                    {inr(physicalCashTotal)}
                   </p>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">From Denomination Breakdown</span>
+                </div>
+
+                {/* 2. System Expected */}
+                <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/50 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/25">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                    System Computed Cash
+                  </span>
+                  <p className="mt-1 text-xl font-black text-indigo-950 dark:text-indigo-100 tracking-tight">
+                    {inr(Number(cashRow?.computed ?? 0))}
+                  </p>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">Recorded Inflows - Outflows</span>
+                </div>
+
+                {/* 3. Variance Status */}
+                <div
+                  className={`rounded-xl border p-3 ${
+                    Math.abs(cashVariance) < 0.01
+                      ? "border-emerald-300 bg-emerald-50/80 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                      : cashVariance > 0
+                      ? "border-blue-300 bg-blue-50/80 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+                      : "border-rose-300 bg-rose-50/80 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+                  }`}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-80">
+                    Cash Till Variance
+                  </span>
+                  <p className="mt-1 text-xl font-black tracking-tight">
+                    {Math.abs(cashVariance) < 0.01
+                      ? "✓ 100% Balanced"
+                      : cashVariance > 0
+                      ? `+${inr(cashVariance)} (Surplus)`
+                      : `${inr(cashVariance)} (Shortage)`}
+                  </p>
+                  <span className="text-[10px] opacity-80">
+                    {Math.abs(cashVariance) < 0.01
+                      ? "Drawer perfectly balanced"
+                      : cashVariance > 0
+                      ? "Excess physical cash in till"
+                      : "Deficit in drawer cash"}
+                  </span>
                 </div>
               </div>
 
               {physicalCashTotal > 0 && Math.abs(cashVariance) >= 0.01 && (
-                <button
-                  type="button"
-                  onClick={applyCashDenominationVariance}
-                  disabled={busy}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  Apply Physical Count to Drawer (Set Adj to {cashVariance > 0 ? `+${inr(cashVariance)}` : inr(cashVariance)})
-                </button>
+                <div className="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/5">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Click to balance drawer with physical count:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={applyCashDenominationVariance}
+                    disabled={busy}
+                    className="btn-3d-tactile-emerald px-4 py-2 text-xs font-black text-white active:scale-95 disabled:opacity-50"
+                  >
+                    Apply Physical Count as Adjustment ({cashVariance > 0 ? `+${inr(cashVariance)}` : inr(cashVariance)})
+                  </button>
+                </div>
               )}
             </div>
           </div>
