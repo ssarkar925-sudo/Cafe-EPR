@@ -47,19 +47,10 @@ export default function SessionGuard() {
 
   useEffect(() => {
     // Keep WhatsApp template synchronization off the critical startup path.
-    // It runs when the browser is idle (or shortly after navigation) so route
-    // transitions become interactive before the extra Supabase request begins.
-    let idleCallbackId: number | null = null;
-    let syncTimer: number | null = null;
-    const syncWhatsAppConfig = () => {
+    // Run it shortly after navigation so the page becomes interactive first.
+    const syncTimer = window.setTimeout(() => {
       fetchCloudWhatsAppConfig().catch(() => {});
-    };
-
-    if ("requestIdleCallback" in window) {
-      idleCallbackId = window.requestIdleCallback(syncWhatsAppConfig, { timeout: 3000 });
-    } else {
-      syncTimer = window.setTimeout(syncWhatsAppConfig, 1200);
-    }
+    }, 1200);
 
     if (signingOut.current) return;
 
@@ -125,10 +116,7 @@ export default function SessionGuard() {
     });
 
     return () => {
-      if (idleCallbackId !== null && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleCallbackId);
-      }
-      if (syncTimer !== null) window.clearTimeout(syncTimer);
+      window.clearTimeout(syncTimer);
       ACTIVITY_EVENTS.forEach((ev) => window.removeEventListener(ev, bump));
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(tick);
