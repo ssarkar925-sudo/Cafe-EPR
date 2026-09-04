@@ -286,7 +286,7 @@ export default function AIControlCenter({
             <button
               onClick={handleRunDiagnostic}
               disabled={runningScan}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 active:scale-95 disabled:opacity-50"
+              className="btn-3d-tactile-primary inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-600/25 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
             >
               <svg className={`h-4 w-4 ${runningScan ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -301,36 +301,36 @@ export default function AIControlCenter({
 
         {/* Top KPI Cards inside Banner */}
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">System Health</div>
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 backdrop-blur-md transition hover:bg-emerald-500/15">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">System Health</div>
             <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-2xl font-black text-emerald-400">{diagnosticData.healthScore}</span>
-              <span className="text-xs text-slate-400">/ 100</span>
+              <span className="text-xs text-emerald-300/70">/ 100</span>
             </div>
             <div className="mt-1 text-[11px] font-semibold text-emerald-300">
               {diagnosticData.passedChecks} of {diagnosticData.totalChecks} checks verified
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Compliance Readiness</div>
+          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 backdrop-blur-md transition hover:bg-blue-500/15">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-300">Compliance Readiness</div>
             <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-2xl font-black text-blue-400">{complianceReport.score}</span>
-              <span className="text-xs text-slate-400">/ 100</span>
+              <span className="text-xs text-blue-300/70">/ 100</span>
             </div>
             <div className="mt-1 text-[11px] font-semibold text-blue-300">GST &amp; ITR Ready</div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recognized Turnover</div>
+          <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4 backdrop-blur-md transition hover:bg-indigo-500/15">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Recognized Turnover</div>
             <div className="mt-1 text-xl font-black text-white sm:text-2xl">{inr(taxReport.totalRecognizedTurnover)}</div>
-            <div className="mt-1 text-[11px] font-medium text-slate-300">{taxReport.digitalPercent}% Digital / 44AD</div>
+            <div className="mt-1 text-[11px] font-medium text-indigo-300">{taxReport.digitalPercent}% Digital / 44AD</div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Net Operating Margin</div>
-            <div className="mt-1 text-xl font-black text-emerald-400 sm:text-2xl">{inr(taxReport.actualNetProfit)}</div>
-            <div className="mt-1 text-[11px] font-semibold text-emerald-300">Est. Profit: {taxReport.actualMarginPercent}%</div>
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 backdrop-blur-md transition hover:bg-cyan-500/15">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Net Operating Margin</div>
+            <div className="mt-1 text-xl font-black text-cyan-400 sm:text-2xl">{inr(taxReport.actualNetProfit)}</div>
+            <div className="mt-1 text-[11px] font-semibold text-cyan-300">Est. Profit: {taxReport.actualMarginPercent}%</div>
           </div>
         </div>
       </div>
@@ -368,9 +368,9 @@ export default function AIControlCenter({
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as TabKey)}
-              className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition ${
+              className={`shrink-0 rounded-xl px-4 py-2 text-xs font-black transition-all active:scale-95 ${
                 active
-                  ? "bg-white text-indigo-900 shadow-sm dark:bg-indigo-600 dark:text-white"
+                  ? "bg-white text-indigo-950 shadow-xs ring-1 ring-slate-200 dark:bg-indigo-600 dark:text-white dark:ring-0"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
             >

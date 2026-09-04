@@ -244,12 +244,12 @@ export default function CafeAIAgent() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/ai-agent/learning" className="rounded-2xl border border-indigo-400/30 bg-indigo-500/10 px-4 py-3 text-xs font-black text-indigo-200 transition hover:bg-indigo-500/20">
+            <Link href="/ai-agent/learning" className="rounded-2xl border border-indigo-400/30 bg-indigo-500/15 px-4 py-3 text-xs font-black text-indigo-200 shadow-xs backdrop-blur-xs transition hover:bg-indigo-500/25 active:scale-95">
               Learning Control Center
             </Link>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
-              <div className="font-bold text-emerald-300">OWNER CONTROL</div>
-              <div className="mt-1 text-slate-400">Writes require explicit approval</div>
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs backdrop-blur-xs">
+              <div className="font-black text-emerald-300">OWNER CONTROL ACTIVE</div>
+              <div className="mt-0.5 text-slate-300 text-[11px]">Writes require explicit approval</div>
             </div>
           </div>
         </div>
@@ -281,7 +281,7 @@ export default function CafeAIAgent() {
                 type="button"
                 onClick={toggleListening}
                 disabled={busy}
-                className={`rounded-xl px-3 py-2 text-xs font-black transition ${listening ? "bg-rose-600 text-white" : "border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300"}`}
+                className={`rounded-xl px-3 py-2 text-xs font-black transition-all active:scale-95 ${listening ? "bg-rose-600 text-white animate-pulse" : "border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300"}`}
                 title={listening ? "Stop listening" : "Speak to Cafe AI"}
               >
                 {listening ? "■ Stop" : "🎙 Speak"}
@@ -311,8 +311,8 @@ export default function CafeAIAgent() {
                   <div className="pt-1 font-bold">Payment: {approval.payment_method} · Customer: {approval.customer}</div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <button type="button" onClick={approveQuickSale} disabled={busy} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">{busy ? "Processing…" : "Approve & Create Sale"}</button>
-                  <button type="button" onClick={() => setApproval(null)} disabled={busy} className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:text-slate-300">Cancel</button>
+                  <button type="button" onClick={approveQuickSale} disabled={busy} className="btn-3d-tactile-primary rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2 text-xs font-black text-white shadow-md shadow-emerald-600/20 transition hover:brightness-110 active:scale-95 disabled:opacity-50">{busy ? "Processing…" : "Approve & Create Sale"}</button>
+                  <button type="button" onClick={() => setApproval(null)} disabled={busy} className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition active:scale-95 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5">Cancel</button>
                 </div>
               </div>
             )}
@@ -321,8 +321,8 @@ export default function CafeAIAgent() {
           {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</div>}
 
           <div className="mt-4 flex gap-2">
-            <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void ask(); }} placeholder="e.g. Make a quick sale for 2 coffee..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-950 dark:text-white" />
-            <button onClick={() => void ask()} disabled={busy || !message.trim()} className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Thinking…" : "Ask"}</button>
+            <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void ask(); }} placeholder="e.g. Make a quick sale for 2 coffee..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-950 dark:text-white" />
+            <button onClick={() => void ask()} disabled={busy || !message.trim()} className="btn-3d-tactile-primary rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-3 text-sm font-black text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 active:scale-95 disabled:opacity-50">{busy ? "Thinking…" : "Ask"}</button>
           </div>
         </div>
 
