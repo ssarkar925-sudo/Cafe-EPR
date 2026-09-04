@@ -42,8 +42,10 @@ export default async function ProfitLossPage() {
   const balance = (code: string) => {
     const a = byCode.get(code);
     if (!a) return 0;
-    // Income / contra-income accounts normally carry credit balances; expense accounts debit.
-    return a.account_type === "income" || a.account_type === "contra_income"
+    // Income accounts carry credit balances; expense accounts carry debit balances.
+    // Contra-income is handled explicitly below because sales returns are debits while
+    // purchase returns are credits and belong on the cost side of the P&L.
+    return a.account_type === "income"
       ? Number(a.credit) - Number(a.debit)
       : Number(a.debit) - Number(a.credit);
   };
@@ -52,15 +54,14 @@ export default async function ProfitLossPage() {
   const serviceRevenue = balance("4010");
   const serviceFees = balance("4020");
   const commissionIncome = balance("4030");
-  const salesReturns = balance("5100");
-  const purchaseReturns = balance("4100");
+  const salesReturns = (() => { const a = byCode.get("5100"); return a ? Number(a.debit) - Number(a.credit) : 0; })();
+  const purchaseReturns = (() => { const a = byCode.get("4100"); return a ? Number(a.credit) - Number(a.debit) : 0; })();
   const cogs = balance("5000");
   const inventoryAdjustment = balance("5200");
   const operatingExpenses = balance("6000");
 
   const totalRevenue = productSales + serviceRevenue + serviceFees + commissionIncome;
-  const totalContraRevenue = salesReturns + purchaseReturns;
-  const grossProfit = totalRevenue - totalContraRevenue - cogs - inventoryAdjustment;
+  const grossProfit = totalRevenue - salesReturns - cogs + purchaseReturns - inventoryAdjustment;
   const net = grossProfit - operatingExpenses;
   const margin = totalRevenue > 0 ? (net / totalRevenue) * 100 : 0;
 
@@ -78,8 +79,9 @@ export default async function ProfitLossPage() {
     ["Service Revenue", serviceRevenue, "positive"],
     ["Service Fees", serviceFees, "positive"],
     ["Commission Income", commissionIncome, "positive"],
-    ["Less: Sales & Purchase Returns", -totalContraRevenue, "negative"],
+    ["Less: Sales Returns", -salesReturns, "negative"],
     ["Less: Cost of Goods Sold", -cogs, "negative"],
+    ["Add: Purchase Returns", purchaseReturns, "positive"],
     ["Less: Inventory Adjustments", -inventoryAdjustment, "negative"],
     ["Gross Operating Profit", grossProfit, "subtotal"],
     ["Less: Operating Expenses", -operatingExpenses, "negative"],
