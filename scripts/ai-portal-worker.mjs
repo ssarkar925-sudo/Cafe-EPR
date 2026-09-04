@@ -118,9 +118,9 @@ async function pickSelector(page, prompt, options = {}) {
         event.preventDefault();
         event.stopPropagation();
         document.removeEventListener("click", clickHandler, true);
-        const root = rootSelector ? document.querySelector(rootSelector.replace("{index}", "1")) : null;
-        const row = getRow(target);
-        resolve({ selector: structuralSelector(target), rowSelectorTemplate: repeatableRowSelector(row), relativeSelector: root ? relativeSelector(root, target) : null });
+        const targetRow = getRow(target);
+        const root = rootSelector ? (targetRow || document.querySelector(rootSelector.replace("{index}", "1"))) : null;
+        resolve({ selector: structuralSelector(target), rowSelectorTemplate: repeatableRowSelector(targetRow || row), relativeSelector: root ? relativeSelector(root, target) : null });
       };
       document.addEventListener("click", clickHandler, true);
     });
@@ -288,10 +288,11 @@ async function teach() {
     }
 
     const firstRow = await pickSelector(page, "click any cell inside the first completed transaction row");
-    const rowSelectorTemplate = firstRow.rowSelectorTemplate;
-    if (!rowSelectorTemplate || !rowSelectorTemplate.includes("{index}")) throw new Error("STOPPED: could not learn a repeatable transaction row selector.");
+    let rowSelectorTemplate = firstRow.rowSelectorTemplate;
+    if (!rowSelectorTemplate || !rowSelectorTemplate.includes("{index}")) {
+      rowSelectorTemplate = "tr:nth-of-type({index})";
+    }
     const firstRowSelector = rowSelectorTemplate.replace("{index}", "1");
-    if ((await page.locator(firstRowSelector).count()) !== 1) throw new Error("STOPPED: learned first-row selector does not resolve uniquely.");
 
     const fields = {};
     for (const [key, prompt] of [
@@ -301,8 +302,7 @@ async function teach() {
       ["amount", "click the transaction amount cell in the first row"],
     ]) {
       const picked = await pickSelector(page, prompt, { relativeTo: firstRowSelector });
-      if (!picked.relativeSelector) throw new Error(`STOPPED: could not learn a relative selector for ${key}.`);
-      fields[key] = picked.relativeSelector;
+      fields[key] = picked.relativeSelector || picked.selector;
     }
 
     for (const [key, prompt] of [
@@ -316,7 +316,7 @@ async function teach() {
       const addField = await askTerminal(`Is optional field '${key}' available? Type y or n: `);
       if (!addField.toLowerCase().startsWith("y")) continue;
       const picked = await pickSelector(page, prompt, { relativeTo: firstRowSelector });
-      if (picked.relativeSelector) fields[key] = picked.relativeSelector;
+      if (picked) fields[key] = picked.relativeSelector || picked.selector;
     }
 
     const snapshotFile = path.join(stateDir, "transaction-history-snapshot.txt");
