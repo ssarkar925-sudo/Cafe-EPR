@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
 import { formatWhatsAppPhone, type WhatsAppConfig } from "@/lib/whatsapp-shared";
 
@@ -12,10 +13,27 @@ export async function POST(req: Request) {
     const recipient = formatWhatsAppPhone(phone || "");
     if (recipient.length < 10) return NextResponse.json({ error: "Enter a valid 10-digit mobile number." }, { status: 400 });
     const db = createAdminClient();
-    const [{ data: row }, { data: secrets }] = await Promise.all([
-      db.from("whatsapp_templates").select("config").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
-    ]);
+    let row: any = null;
+    let secrets: any = null;
+
+    try {
+      const [{ data: r, error: rErr }, { data: s }] = await Promise.all([
+        db.from("whatsapp_templates").select("config").eq("id", "default").maybeSingle(),
+        db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
+      ]);
+      if (rErr && rErr.code === "42501") {
+        const userClient = await createClient();
+        const { data: uRow } = await userClient.from("whatsapp_templates").select("config").eq("id", "default").maybeSingle();
+        row = uRow;
+      } else {
+        row = r;
+      }
+      secrets = s;
+    } catch {
+      const userClient = await createClient();
+      const { data: uRow } = await userClient.from("whatsapp_templates").select("config").eq("id", "default").maybeSingle();
+      row = uRow;
+    }
     const base = row?.config || {};
     const config: WhatsAppConfig = {
       ...base,

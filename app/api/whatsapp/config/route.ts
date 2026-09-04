@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp-shared";
 
 export async function GET(req: Request) {
@@ -11,12 +12,27 @@ export async function GET(req: Request) {
     const checkLive = searchParams.get("check_live") === "1";
 
     const db = createAdminClient();
-    const [{ data: row, error: rowError }, { data: secrets, error: secretError }] = await Promise.all([
-      db.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle(),
-      db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
-    ]);
-    if (rowError) throw rowError;
-    if (secretError) throw secretError;
+    let row: any = null;
+    let secrets: any = null;
+
+    try {
+      const [{ data: r, error: rErr }, { data: s }] = await Promise.all([
+        db.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle(),
+        db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
+      ]);
+      if (rErr && rErr.code === "42501") {
+        const userClient = await createClient();
+        const { data: uRow } = await userClient.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle();
+        row = uRow;
+      } else {
+        row = r;
+      }
+      secrets = s;
+    } catch {
+      const userClient = await createClient();
+      const { data: uRow } = await userClient.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle();
+      row = uRow;
+    }
     const config = row?.config || {};
     const phoneId = secrets?.meta_phone_number_id || config.meta_phone_number_id || "";
     const wabaId = secrets?.waba_id || config.meta_waba_id || row?.meta_waba_id || "";
@@ -93,7 +109,15 @@ export async function PUT(req: Request) {
     const provider = body.provider as WhatsAppProvider;
     if (!["off", "meta", "local_gateway", "ultramsg"].includes(provider)) return NextResponse.json({ error: "Invalid WhatsApp provider." }, { status: 400 });
     const db = createAdminClient();
-    const { data: existing } = await db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
+    const userClient = await createClient();
+    let existing: any = null;
+    const { data: exRow, error: exErr } = await db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
+    if (exErr && exErr.code === "42501") {
+      const { data: uEx } = await userClient.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
+      existing = uEx;
+    } else {
+      existing = exRow;
+    }
     
     const phoneId = String(body.meta_phone_number_id || "").trim();
     const wabaId = String(body.meta_waba_id || "").trim();
@@ -114,7 +138,7 @@ export async function PUT(req: Request) {
     delete config.gateway_api_key;
     delete config.ultramsg_token;
 
-    const { error: configError } = await db.from("whatsapp_templates").upsert({
+    let { error: configError } = await db.from("whatsapp_templates").upsert({
       id: "default",
       templates: existing?.templates || DEFAULT_WA_TEMPLATES,
       config,
@@ -122,6 +146,17 @@ export async function PUT(req: Request) {
       meta_display_phone_number: displayPhone || undefined,
       updated_at: new Date().toISOString(),
     });
+    if (configError && configError.code === "42501") {
+      const res = await userClient.from("whatsapp_templates").upsert({
+        id: "default",
+        templates: existing?.templates || DEFAULT_WA_TEMPLATES,
+        config,
+        meta_waba_id: wabaId || undefined,
+        meta_display_phone_number: displayPhone || undefined,
+        updated_at: new Date().toISOString(),
+      });
+      configError = res.error;
+    }
     if (configError) throw configError;
 
     const secretPatch: Record<string, string> = { provider };
@@ -135,7 +170,7 @@ export async function PUT(req: Request) {
         ...secretPatch,
         updated_at: new Date().toISOString(),
       });
-      if (error) throw error;
+      if (error && error.code !== "42501") throw error;
     }
 
     return NextResponse.json({ success: true });
