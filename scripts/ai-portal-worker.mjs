@@ -113,14 +113,22 @@ async function pickSelector(page, prompt, options = {}) {
 
     return await new Promise((resolve) => {
       const clickHandler = (event) => {
-        const target = event.target instanceof Element ? event.target : null;
-        if (!target) return;
-        event.preventDefault();
-        event.stopPropagation();
-        document.removeEventListener("click", clickHandler, true);
-        const targetRow = getRow(target);
-        const root = rootSelector ? (targetRow || document.querySelector(rootSelector.replace("{index}", "1"))) : null;
-        resolve({ selector: structuralSelector(target), rowSelectorTemplate: repeatableRowSelector(targetRow || row), relativeSelector: root ? relativeSelector(root, target) : null });
+        try {
+          const target = event.target instanceof Element ? event.target : null;
+          if (!target) return;
+          event.preventDefault();
+          event.stopPropagation();
+          document.removeEventListener("click", clickHandler, true);
+          const targetRow = getRow(target);
+          const root = rootSelector ? (targetRow || document.querySelector(rootSelector.replace("{index}", "1"))) : null;
+          const s = structuralSelector(target);
+          const rTemplate = repeatableRowSelector(targetRow);
+          const relSel = root ? relativeSelector(root, target) : null;
+          resolve({ selector: s, rowSelectorTemplate: rTemplate, relativeSelector: relSel });
+        } catch (err) {
+          console.error("Selection error:", err);
+          resolve({ selector: "body", rowSelectorTemplate: null, relativeSelector: null });
+        }
       };
       document.addEventListener("click", clickHandler, true);
     });
