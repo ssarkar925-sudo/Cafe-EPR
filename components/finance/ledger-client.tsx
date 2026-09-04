@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
-import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -386,106 +385,124 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Customer Ledger &amp; Due Manager</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Running statement for each customer — collect dues, apply adjustments, and track credit history.
-          </p>
+    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-6">
+      {/* Elevated Header */}
+      <header className="bento-surface card-glow-rose relative overflow-hidden rounded-3xl border p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 via-pink-600 to-indigo-700 text-white shadow-lg shadow-rose-500/25">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+                  </span>
+                  Customer Khata Ledger
+                </span>
+                <span className="text-xs text-slate-400">· Real-time due tracking &amp; settlement</span>
+              </div>
+              <h1 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">Customer Due &amp; Credit Ledger</h1>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {selected && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPayAmount(Number(selected.balance) > 0 ? String(selected.balance) : "");
+                    setPayModal(true);
+                  }}
+                  className="btn-3d-tactile-emerald flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-sm"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Collect Payment
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAdjustModal(true)}
+                  className="btn-3d-tactile-secondary flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold shadow-xs"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                  Adjust / Correct
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!selected) return;
+                    const phone = (selected.phone || "").replace(/[^0-9]/g, "");
+                    let agingTxt = "";
+                    if (agingSummary.d30_plus > 0 || agingSummary.d16_30 > 0) {
+                      agingTxt = `\n• Overdue (>15 days): ${inr(agingSummary.d16_30 + agingSummary.d30_plus)}`;
+                    }
+                    const msg = `Dear ${selected.name},\n\nHere is your current Account Statement with Cafe:\n• Total Debited/Invoiced: ${inr(summary.debit)}\n• Total Paid: ${inr(summary.credit)}\n• Current Outstanding Due: ${inr(Number(selected.balance))}${agingTxt}\n\nPlease clear your balance at your earliest convenience.\nThank you!`;
+
+                    showToast("info", "Sending statement via WhatsApp...");
+                    const res = await sendWhatsAppMessage({ phone, message: msg });
+                    if (res.ok) {
+                      showToast("success", `✓ Statement sent to ${selected.name} via WhatsApp!`);
+                    } else {
+                      window.open(res.fallbackUrl, "_blank", "noopener");
+                    }
+                  }}
+                  className="btn-3d-tactile-secondary flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-xs dark:text-emerald-400"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                  </svg>
+                  WhatsApp Statement
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="btn-3d-tactile-secondary flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold shadow-xs"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <path d="M6 14h12v8H6z" />
+                  </svg>
+                  Print
+                </button>
+                <Link
+                  href={`/customers/${selected.id}`}
+                  className="btn-3d-tactile-secondary flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold shadow-xs"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  Customer Profile
+                </Link>
+              </>
+            )}
+
+            <button
+              onClick={exportCsv}
+              className="btn-3d-tactile-secondary flex items-center gap-2 px-4 py-2 text-xs font-bold shadow-xs"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+              </svg>
+              Export CSV
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {selected && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setPayAmount(Number(selected.balance) > 0 ? String(selected.balance) : "");
-                  setPayModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Collect Payment
-              </button>
+      </header>
 
-              <button
-                type="button"
-                onClick={() => setAdjustModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                Adjust / Correct
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!selected) return;
-                  const phone = (selected.phone || "").replace(/[^0-9]/g, "");
-                  let agingTxt = "";
-                  if (agingSummary.d30_plus > 0 || agingSummary.d16_30 > 0) {
-                    agingTxt = `\n• Overdue (>15 days): ${inr(agingSummary.d16_30 + agingSummary.d30_plus)}`;
-                  }
-                  const msg = `Dear ${selected.name},\n\nHere is your current Account Statement with Cafe:\n• Total Debited/Invoiced: ${inr(summary.debit)}\n• Total Paid: ${inr(summary.credit)}\n• Current Outstanding Due: ${inr(Number(selected.balance))}${agingTxt}\n\nPlease clear your balance at your earliest convenience.\nThank you!`;
-
-                  showToast("info", "Sending statement via WhatsApp...");
-                  const res = await sendWhatsAppMessage({ phone, message: msg });
-                  if (res.ok) {
-                    showToast("success", `✓ Statement sent to ${selected.name} via WhatsApp!`);
-                  } else {
-                    window.open(res.fallbackUrl, "_blank", "noopener");
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                </svg>
-                WhatsApp Statement
-              </button>
-
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <path d="M6 14h12v8H6z" />
-                </svg>
-                Print
-              </button>
-              <Link
-                href={`/customers/${selected.id}`}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-                Customer Profile
-              </Link>
-            </>
-          )}
-
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-              <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-            </svg>
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      {/* Customer Selection & Due Filter Toolbar */}
+      <div className="bento-surface card-glow-indigo rounded-3xl border p-5 shadow-sm">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
@@ -506,7 +523,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
               <button
                 type="button"
                 onClick={handleToggleDueFilter}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition shadow-sm ${
+                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 active:scale-95 shadow-sm ${
                   onlyDue
                     ? "bg-rose-600 text-white shadow-rose-600/20 ring-2 ring-rose-500/40"
                     : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
@@ -524,12 +541,12 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 dark:bg-white/5">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Live Balance</span>
-                <span className={`text-base font-bold ${Number(selected?.balance ?? 0) > 0 ? "text-rose-600" : Number(selected?.balance ?? 0) < 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200"}`}>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 px-4 py-2 dark:border-white/10 dark:bg-white/5">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Live Balance:</span>
+                <span className={`font-mono text-base font-black ${Number(selected?.balance ?? 0) > 0 ? "text-rose-600 dark:text-rose-400" : Number(selected?.balance ?? 0) < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-200"}`}>
                   {inr(selected?.balance ?? 0)}
                 </span>
-                <span className="text-[11px] font-semibold text-slate-400">
+                <span className="text-[11px] font-bold text-slate-400">
                   {Number(selected?.balance ?? 0) > 0 ? "(Payable Due)" : Number(selected?.balance ?? 0) < 0 ? "(Advance Credit)" : "(Settled)"}
                 </span>
               </div>
@@ -551,14 +568,14 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
                     onClick={() => {
                       setCustomerId(c.id);
                     }}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-150 active:scale-95 ${
                       c.id === customerId
-                        ? "bg-rose-600 text-white shadow-sm"
-                        : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                        ? "bg-rose-600 text-white shadow-sm ring-2 ring-rose-500/30"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
                     }`}
                   >
                     <span>{c.name}</span>
-                    <span className={`font-bold ${c.id === customerId ? "text-white" : "text-rose-600 dark:text-rose-400"}`}>
+                    <span className={`font-mono font-black ${c.id === customerId ? "text-white" : "text-rose-600 dark:text-rose-400"}`}>
                       {inr(Number(c.balance))}
                     </span>
                   </button>
@@ -569,61 +586,105 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Total Debited"
-          value={inr(summary.debit)}
-          sub="Sales & advances billed"
-          icon="M12 15V3m0 12 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
-          grad="from-rose-500 to-pink-600"
+      {/* 4 Hero Bento KPI Cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div
           onClick={() => setQ(q === "invoice" ? "" : "invoice")}
-        />
-        <StatCard
-          label="Total Credited"
-          value={inr(summary.credit)}
-          sub="Payments received"
-          icon="M12 3v12m0 0 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"
-          grad="from-emerald-500 to-teal-600"
+          className="bento-surface card-glow-rose relative cursor-pointer overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500 to-pink-600" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Debited</span>
+            <div className="icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M12 15V3m0 12 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-2 font-mono text-2xl font-black tracking-tight text-rose-700 dark:text-rose-400">
+            {inr(summary.debit)}
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sales &amp; advances billed</p>
+        </div>
+
+        <div
           onClick={() => setQ(q === "payment" ? "" : "payment")}
-        />
-        <StatCard
-          label="Closing Balance"
-          value={inr(summary.closing)}
-          sub="Current net due position"
-          icon="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7"
-          grad={Number(summary.closing) > 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"}
+          className="bento-surface card-glow-emerald relative cursor-pointer overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-600" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Credited</span>
+            <div className="icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-2 font-mono text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-400">
+            {inr(summary.credit)}
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Payments received</p>
+        </div>
+
+        <div
           onClick={() => setQ("")}
-        />
-        <StatCard
-          label="Entries"
-          value={String(filtered.length)}
-          sub={`${filtered.length} of ${rows.length} rows`}
-          icon="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
-          grad="from-violet-500 to-purple-600"
+          className={`bento-surface ${Number(summary.closing) > 0 ? "card-glow-rose" : "card-glow-indigo"} relative cursor-pointer overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+        >
+          <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${Number(summary.closing) > 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"}`} />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Closing Balance</span>
+            <div className={`icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${Number(summary.closing) > 0 ? "from-rose-500 to-orange-600" : "from-blue-500 to-indigo-600"} text-white shadow-sm`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M12 3v18M8 7h7a2 2 0 0 1 0 4H9a2 2 0 0 0 0 4h7" />
+              </svg>
+            </div>
+          </div>
+          <div className={`mt-2 font-mono text-2xl font-black tracking-tight ${Number(summary.closing) > 0 ? "text-rose-700 dark:text-rose-400" : "text-indigo-700 dark:text-indigo-300"}`}>
+            {inr(summary.closing)}
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Current net due position</p>
+        </div>
+
+        <div
           onClick={() => setQ("")}
-        />
+          className="bento-surface card-glow-purple relative cursor-pointer overflow-hidden rounded-2xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-500 to-purple-600" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Entries</span>
+            <div className="icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-2 font-mono text-2xl font-black tracking-tight text-purple-700 dark:text-purple-300">
+            {filtered.length}
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{filtered.length} of {rows.length} rows</p>
+        </div>
       </div>
 
       {/* Due Aging Analysis Widget */}
       {Number(selected?.balance ?? 0) > 0 && agingSummary.total > 0 && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+        <div className="bento-surface card-glow-rose rounded-3xl border p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Due Aging Breakdown ({agingSummary.count} unpaid bills)</h3>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">Due Aging Breakdown ({agingSummary.count} unpaid bills)</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Chronological aging of customer's unpaid balances</p>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold">
-              <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                0–7 Days: {inr(agingSummary.current)}
+            <div className="flex flex-wrap gap-2 text-xs font-bold">
+              <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300 font-mono">
+                0–7d: {inr(agingSummary.current)}
               </span>
-              <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                8–15 Days: {inr(agingSummary.d8_15)}
+              <span className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/40 dark:text-amber-300 font-mono">
+                8–15d: {inr(agingSummary.d8_15)}
               </span>
-              <span className="rounded-lg bg-orange-50 px-2.5 py-1 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
-                16–30 Days: {inr(agingSummary.d16_30)}
+              <span className="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1 text-orange-700 dark:border-orange-800/40 dark:bg-orange-950/40 dark:text-orange-300 font-mono">
+                16–30d: {inr(agingSummary.d16_30)}
               </span>
-              <span className="rounded-lg bg-rose-50 px-2.5 py-1 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                30+ Days (Critical): {inr(agingSummary.d30_plus)}
+              <span className="rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-700 dark:border-rose-800/40 dark:bg-rose-950/40 dark:text-rose-300 font-mono">
+                30+d: {inr(agingSummary.d30_plus)}
               </span>
             </div>
           </div>
@@ -645,7 +706,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
         </div>
       )}
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <div className="bento-surface card-glow-indigo rounded-3xl border p-4 shadow-sm">
         <div className="relative">
           <svg
             viewBox="0 0 24 24"
@@ -661,56 +722,58 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search description or type…"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
           />
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
-        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
-              <th className="px-5 py-3 font-medium">Date</th>
-              <th className="px-5 py-3 font-medium">Type</th>
-              <th className="px-5 py-3 font-medium">Description</th>
-              <th className="px-5 py-3 text-right font-medium">Debit (+Due)</th>
-              <th className="px-5 py-3 text-right font-medium">Credit (-Paid)</th>
-              <th className="px-5 py-3 text-right font-medium">Balance After</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-slate-500">
-                  Loading statement…
-                </td>
+      <div className="bento-surface card-glow-indigo mt-4 overflow-hidden rounded-3xl border shadow-sm">
+        <div className="overflow-x-auto">
+          <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
+            <thead>
+              <tr className="border-b border-slate-200/80 bg-slate-50/70 text-xs font-black uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+                <th className="px-5 py-3.5">Date</th>
+                <th className="px-5 py-3.5">Type</th>
+                <th className="px-5 py-3.5">Description</th>
+                <th className="px-5 py-3.5 text-right">Debit (+Due)</th>
+                <th className="px-5 py-3.5 text-right">Credit (-Paid)</th>
+                <th className="px-5 py-3.5 text-right">Balance After</th>
               </tr>
-            )}
-            {!loading && filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-slate-500">
-                  {rows.length === 0 ? "No ledger entries yet for this customer." : "No entries match your search."}
-                </td>
-              </tr>
-            )}
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5">
-                <td className="px-5 py-3 text-slate-500">{r.entry_date}</td>
-                <td className="px-5 py-3">
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${TYPE_COLOR[r.type] || "bg-slate-100 text-slate-600"}`}>
-                    {r.type}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-slate-900 dark:text-white">{r.description || "-"}</td>
-                <td className="px-5 py-3 text-right font-medium text-rose-600">{Number(r.debit) > 0 ? `+${inr(r.debit)}` : ""}</td>
-                <td className="px-5 py-3 text-right font-medium text-emerald-600">{Number(r.credit) > 0 ? `-${inr(r.credit)}` : ""}</td>
-                <td className={`px-5 py-3 text-right font-semibold ${Number(r.balance_after) > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                  {inr(r.balance_after)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-xs font-bold text-indigo-500 animate-pulse">
+                    Loading statement…
+                  </td>
+                </tr>
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-xs text-slate-500">
+                    {rows.length === 0 ? "No ledger entries yet for this customer." : "No entries match your search."}
+                  </td>
+                </tr>
+              )}
+              {filtered.map((r) => (
+                <tr key={r.id} className="transition hover:bg-slate-50/60 dark:hover:bg-white/[0.02]">
+                  <td className="px-5 py-3 font-mono text-xs text-slate-500">{r.entry_date}</td>
+                  <td className="px-5 py-3">
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ${TYPE_COLOR[r.type] || "bg-slate-100 text-slate-600"}`}>
+                      {r.type}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-xs font-medium text-slate-900 dark:text-white">{r.description || "-"}</td>
+                  <td className="px-5 py-3 text-right font-mono text-xs font-bold text-rose-600 dark:text-rose-400">{Number(r.debit) > 0 ? `+${inr(r.debit)}` : ""}</td>
+                  <td className="px-5 py-3 text-right font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">{Number(r.credit) > 0 ? `-${inr(r.credit)}` : ""}</td>
+                  <td className={`px-5 py-3 text-right font-mono text-xs font-black ${Number(r.balance_after) > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                    {inr(r.balance_after)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Payment Collection Modal */}

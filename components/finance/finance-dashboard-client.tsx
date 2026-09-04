@@ -4,14 +4,14 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { inr } from "@/lib/format";
 
-const POOL_META: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
-  cash: { label: "Cash Drawer", icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50/80 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-800/40" },
-  bank: { label: "Bank Accounts", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-50/80 dark:bg-blue-950/40", border: "border-blue-200 dark:border-blue-800/40" },
-  upi_qr: { label: "UPI / QR Float", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-50/80 dark:bg-cyan-950/40", border: "border-cyan-200 dark:border-cyan-800/40" },
-  wallet: { label: "Wallets", icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50/80 dark:bg-amber-950/40", border: "border-amber-200 dark:border-amber-800/40" },
-  credit_card: { label: "Credit Cards", icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-50/80 dark:bg-rose-950/40", border: "border-rose-200 dark:border-rose-800/40" },
-  dmt: { label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", color: "text-fuchsia-700 dark:text-fuchsia-300", bg: "bg-fuchsia-50/80 dark:bg-fuchsia-950/40", border: "border-fuchsia-200 dark:border-fuchsia-800/40" },
-  aeps: { label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z", color: "text-orange-700 dark:text-orange-300", bg: "bg-orange-50/80 dark:bg-orange-950/40", border: "border-orange-200 dark:border-orange-800/40" },
+const POOL_META: Record<string, { label: string; icon: string; color: string; bg: string; border: string; grad: string; glow: string }> = {
+  cash: { label: "Cash Drawer", icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50/80 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-800/40", grad: "from-emerald-500 to-teal-600", glow: "card-glow-emerald" },
+  bank: { label: "Bank Accounts", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-50/80 dark:bg-blue-950/40", border: "border-blue-200 dark:border-blue-800/40", grad: "from-blue-500 to-indigo-600", glow: "card-glow-indigo" },
+  upi_qr: { label: "UPI / QR Float", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1M14 20h1M20 20h1", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-50/80 dark:bg-cyan-950/40", border: "border-cyan-200 dark:border-cyan-800/40", grad: "from-cyan-500 to-teal-600", glow: "card-glow-cyan" },
+  wallet: { label: "Wallets", icon: "M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2M3 10h18M16 15h2", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50/80 dark:bg-amber-950/40", border: "border-amber-200 dark:border-amber-800/40", grad: "from-amber-500 to-orange-600", glow: "card-glow-amber" },
+  credit_card: { label: "Credit Cards", icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-50/80 dark:bg-rose-950/40", border: "border-rose-200 dark:border-rose-800/40", grad: "from-rose-500 to-pink-600", glow: "card-glow-rose" },
+  dmt: { label: "DMT Float", icon: "M22 2 11 13M22 2 15 22l-4-9-9-4z", color: "text-fuchsia-700 dark:text-fuchsia-300", bg: "bg-fuchsia-50/80 dark:bg-fuchsia-950/40", border: "border-fuchsia-200 dark:border-fuchsia-800/40", grad: "from-fuchsia-500 to-purple-600", glow: "card-glow-purple" },
+  aeps: { label: "AEPS Float", icon: "M4 10h16M4 14h16M6 18V7m4 11V7m4 11V7M2 7l10-5 10 5z", color: "text-orange-700 dark:text-orange-300", bg: "bg-orange-50/80 dark:bg-orange-950/40", border: "border-orange-200 dark:border-orange-800/40", grad: "from-orange-500 to-amber-600", glow: "card-glow-amber" },
 };
 
 const MODULE_GROUPS = [
@@ -95,21 +95,30 @@ export default function FinanceDashboardClient({
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <header className="bento-surface card-glow-indigo relative overflow-hidden rounded-3xl border p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                Financial Operations &amp; Ledger
-              </span>
-              <span className="text-xs text-slate-400">· Canonical Treasury Hub</span>
+          <div className="flex items-start gap-4">
+            <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-blue-600 to-indigo-700 text-white shadow-lg shadow-indigo-500/25">
+              <Icon d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01" className="h-6 w-6" />
             </div>
-            <h1 className="mt-1.5 text-2xl font-black text-slate-900 dark:text-white">
-              Finance &amp; Treasury Command Hub
-            </h1>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-              Authoritative command center for daily cash drawers, double-entry journals, operating expense disbursements, and customer dues.
-            </p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
+                  </span>
+                  Financial Operations &amp; Ledger
+                </span>
+                <span className="text-xs text-slate-400">· Canonical Treasury Hub</span>
+              </div>
+              <h1 className="mt-1.5 text-2xl font-black text-slate-900 dark:text-white">
+                Finance &amp; Treasury Command Hub
+              </h1>
+              <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
+                Authoritative command center for daily cash drawers, double-entry journals, operating expense disbursements, and customer dues.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -175,33 +184,37 @@ export default function FinanceDashboardClient({
       </div>
 
       {/* 7-Pool Capital Matrix */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="bento-surface card-glow-indigo relative overflow-hidden rounded-3xl border p-6">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-black text-slate-900 dark:text-white">7-Pool Capital &amp; Treasury Matrix</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Live liquidity positions across all physical cash drawers and digital payment pools.
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 dark:border-white/10 dark:bg-white/5">
-            <span className="text-xs text-slate-500">Total Liquid Capital: </span>
-            <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{inr(totalCapital)}</span>
+          <div className="flex items-center gap-2 rounded-xl border border-indigo-200/80 bg-indigo-50/50 px-3.5 py-1.5 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">Total Liquid Capital:</span>
+            <span className="font-mono text-sm font-black text-indigo-950 dark:text-white">{inr(totalCapital)}</span>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {pools.map((pool) => (
             <div
               key={pool.key}
-              className={`flex flex-col gap-1 rounded-2xl border ${pool.border} ${pool.bg} p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+              className={`bento-surface ${pool.glow} relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
             >
               <div className="flex items-center justify-between">
-                <Icon d={pool.icon} className={`h-5 w-5 ${pool.color}`} />
-                <span className={`font-mono text-[10px] font-extrabold ${pool.movement >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
+                <div className={`icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${pool.grad} text-white shadow-sm`}>
+                  <Icon d={pool.icon} className="h-4 w-4" />
+                </div>
+                <span className={`font-mono text-[10px] font-extrabold ${pool.movement >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
                   {pool.movement >= 0 ? "▲" : "▼"} {inr(Math.abs(pool.movement))}
                 </span>
               </div>
-              <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{pool.label}</div>
-              <div className={`font-mono text-base font-black ${pool.color}`}>{inr(pool.current)}</div>
+              <div className="mt-3">
+                <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{pool.label}</div>
+                <div className={`mt-0.5 font-mono text-base font-black tracking-tight ${pool.color}`}>{inr(pool.current)}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -209,9 +222,11 @@ export default function FinanceDashboardClient({
 
       {/* Pending Settlements Alert */}
       {pendingSettlements.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-xs dark:border-amber-500/30 dark:bg-amber-950/30">
+        <div className="bento-surface card-glow-amber relative overflow-hidden rounded-2xl border p-4">
           <div className="mb-2 flex items-center gap-2">
-            <Icon d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" className="h-4 w-4 text-amber-600" />
+            <div className="icon-box-3d flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-xs">
+              <Icon d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" className="h-3.5 w-3.5" />
+            </div>
             <span className="text-sm font-black text-amber-800 dark:text-amber-200">
               {pendingSettlements.length} Pending Settlement Voucher{pendingSettlements.length > 1 ? "s" : ""}
             </span>
@@ -219,10 +234,10 @@ export default function FinanceDashboardClient({
               Process Settlements →
             </Link>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 pl-9">
             {pendingSettlements.slice(0, 3).map((s) => (
               <div key={s.id} className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                <span className="font-bold">{s.settlement_number}</span> · {s.settlement_type} · <span className="font-mono font-bold">{inr(Number(s.amount))}</span> from {s.from_pool} → {s.to_pool}
+                <span className="font-mono font-bold">{s.settlement_number}</span> · {s.settlement_type} · <span className="font-mono font-bold">{inr(Number(s.amount))}</span> from {s.from_pool} → {s.to_pool}
               </div>
             ))}
           </div>
@@ -232,8 +247,8 @@ export default function FinanceDashboardClient({
       {/* Quick Navigation Groups */}
       <div className="space-y-6">
         {MODULE_GROUPS.map((group) => (
-          <div key={group.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <div key={group.title} className="bento-surface card-glow-indigo relative overflow-hidden rounded-3xl border p-6">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
               {group.title}
             </h2>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -241,18 +256,18 @@ export default function FinanceDashboardClient({
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="group flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-4.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/60 hover:bg-blue-50/30 hover:shadow-md dark:border-white/5 dark:bg-white/[0.02] dark:hover:border-blue-500/40 dark:hover:bg-blue-950/20"
+                  className="group flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-4.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300/60 hover:bg-indigo-50/20 hover:shadow-md active:scale-98 dark:border-white/5 dark:bg-white/[0.02] dark:hover:border-indigo-500/40 dark:hover:bg-indigo-950/20"
                 >
                   <div>
                     <div className="flex items-center justify-between">
                       <div className={`icon-box-3d flex h-9 w-9 items-center justify-center rounded-xl shadow-xs ${link.color}`}>
                         <Icon d={link.icon} className="h-5 w-5" />
                       </div>
-                      <span className="text-xs font-bold text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                      <span className="text-xs font-bold text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                         Open →
                       </span>
                     </div>
-                    <div className="mt-3 font-black text-slate-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
+                    <div className="mt-3 font-black text-slate-900 group-hover:text-indigo-600 dark:text-white dark:group-hover:text-indigo-400">
                       {link.label}
                     </div>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -267,13 +282,13 @@ export default function FinanceDashboardClient({
       </div>
 
       {/* Recent Activity Table */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-white/10">
+      <div className="bento-surface card-glow-indigo overflow-hidden rounded-3xl border shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200/80 px-6 py-4 dark:border-white/10">
           <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white">Recent Journal Postings</h2>
+            <h2 className="text-base font-black text-slate-900 dark:text-white">Recent Journal Postings</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Latest synchronized ledger postings across all accounts</p>
           </div>
-          <Link href="/finance/journal" className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400">
+          <Link href="/finance/journal" className="text-xs font-bold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400">
             View Full Journal →
           </Link>
         </div>

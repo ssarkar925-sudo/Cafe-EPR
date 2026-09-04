@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
-import StatCard from "@/components/ui/stat-card";
 import Modal from "@/components/ui/modal";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
@@ -164,7 +163,9 @@ export default function StaffClient({
       label: "Team Members",
       value: String(stats.total),
       icon: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+      glow: "card-glow-indigo",
       grad: "from-blue-500 to-indigo-600",
+      color: "text-indigo-700 dark:text-indigo-300",
       onClick: () => {
         setRoleFilter("all");
         setQ("");
@@ -174,7 +175,9 @@ export default function StaffClient({
       label: "Active",
       value: String(stats.active),
       icon: "M20 6 9 17l-5-5",
+      glow: "card-glow-emerald",
       grad: "from-emerald-500 to-teal-600",
+      color: "text-emerald-700 dark:text-emerald-400",
       onClick: () => {
         setRoleFilter("all");
         setQ("");
@@ -184,21 +187,27 @@ export default function StaffClient({
       label: "Admins",
       value: String(stats.admin),
       icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7 6a9 9 0 0 0-14 0",
+      glow: "card-glow-rose",
       grad: "from-rose-500 to-pink-600",
+      color: "text-rose-700 dark:text-rose-400",
       onClick: () => setRoleFilter("admin"),
     },
     {
       label: "Managers",
       value: String(stats.manager),
       icon: "M3 21V9l9-6 9 6v12M9 21v-6h6v6",
+      glow: "card-glow-amber",
       grad: "from-amber-500 to-orange-600",
+      color: "text-amber-700 dark:text-amber-300",
       onClick: () => setRoleFilter("manager"),
     },
     {
       label: "Staff Operators",
       value: String(stats.staff),
       icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+      glow: "card-glow-purple",
       grad: "from-violet-500 to-purple-600",
+      color: "text-purple-700 dark:text-purple-300",
       onClick: () => setRoleFilter("staff"),
     },
   ];
@@ -206,10 +215,10 @@ export default function StaffClient({
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 space-y-6">
       {/* Header Banner */}
-      <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
+      <header className="bento-surface card-glow-indigo relative overflow-hidden rounded-3xl border p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-500/25">
+            <div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-blue-600 to-indigo-700 text-white shadow-lg shadow-indigo-500/25">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
@@ -218,8 +227,18 @@ export default function StaffClient({
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Staff &amp; Access Governance</h1>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Manage team accounts, assign RBAC permissions, and control operational sign-in access.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
+                  </span>
+                  RBAC Security &amp; Access Governance
+                </span>
+                <span className="text-xs text-slate-400">· {stats.total} total accounts ({stats.active} active)</span>
+              </div>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white">Staff &amp; Access Governance</h1>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Manage team accounts, assign RBAC permissions, and control operational sign-in access.</p>
             </div>
           </div>
           <button
@@ -227,150 +246,170 @@ export default function StaffClient({
             className="btn-3d-tactile-primary flex items-center gap-2 px-5 py-2.5 text-xs font-black shadow-sm"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-4 w-4"><path d="M12 5v14M5 12h14" /></svg>
-            Add Staff Member
+            + Add Staff Member
           </button>
         </div>
-      </div>
+      </header>
 
+      {/* 5 Hero Bento KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         {KPI_CARDS.map((c) => (
-          <StatCard
+          <div
             key={c.label}
-            label={c.label}
-            value={c.value}
-            icon={c.icon}
-            grad={c.grad}
             onClick={c.onClick}
-          />
+            className={`bento-surface ${c.glow} relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md cursor-pointer`}
+          >
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</span>
+              <div className={`icon-box-3d flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-sm`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d={c.icon} />
+                </svg>
+              </div>
+            </div>
+            <div className={`mt-2 font-mono text-2xl font-black tracking-tight ${c.color}`}>{c.value}</div>
+          </div>
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative min-w-[220px] flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search team member by name or email…"
-            className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
-            {(["all", ...ROLES] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRoleFilter(r)}
-                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  roleFilter === r ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
+      {/* Search and Filters Toolbar */}
+      <div className="bento-surface card-glow-indigo rounded-3xl border p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-[220px] flex-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search team member by name or email…"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+            />
           </div>
-          <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">
-            {(["all", "active", "disabled"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`rounded-lg px-3 py-1.5 font-medium capitalize transition ${
-                  statusFilter === s ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5 border border-slate-200/80 dark:border-white/10">
+              {(["all", ...ROLES] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRoleFilter(r)}
+                  className={`rounded-lg px-3 py-1.5 font-bold capitalize transition-all duration-150 active:scale-95 ${
+                    roleFilter === r ? "bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5 border border-slate-200/80 dark:border-white/10">
+              {(["all", "active", "disabled"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`rounded-lg px-3 py-1.5 font-bold capitalize transition-all duration-150 active:scale-95 ${
+                    statusFilter === s ? "bg-white text-indigo-600 shadow-sm dark:bg-slate-800 dark:text-indigo-400" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <span className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 font-mono">
+              {filtered.length} shown
+            </span>
+            <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-staff-compact" />
           </div>
-          <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300">
-            {filtered.length} shown
-          </span>
-          <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-staff-compact" />
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
-        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10 dark:text-slate-400">
-              <th className="px-5 py-3 font-medium">Member</th>
-              <th className="px-5 py-3 font-medium">Email</th>
-              <th className="px-5 py-3 font-medium">Role</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u) => {
-              const isSelf = u.id === currentUserId;
-              return (
-                <tr key={u.id} className={`border-b border-slate-100 transition last:border-0 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${!u.is_active ? "opacity-60" : ""}`}>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      {u.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatar_url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-slate-100 dark:ring-white/10" />
-                      ) : (
-                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient(u.full_name || u.email)} text-sm font-bold text-white`}>
-                          {(u.full_name || u.email || "?").slice(0, 1).toUpperCase()}
+      {/* Modernized Directory Table */}
+      <div className="bento-surface card-glow-indigo overflow-hidden rounded-3xl border shadow-sm">
+        <div className="overflow-x-auto">
+          <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
+            <thead>
+              <tr className="border-b border-slate-200/80 bg-slate-50/70 text-xs font-black uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+                <th className="px-5 py-3.5 font-black">Member</th>
+                <th className="px-5 py-3.5 font-black">Email</th>
+                <th className="px-5 py-3.5 font-black">Role</th>
+                <th className="px-5 py-3.5 font-black">Status</th>
+                <th className="px-5 py-3.5 text-right font-black">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filtered.map((u) => {
+                const isSelf = u.id === currentUserId;
+                return (
+                  <tr key={u.id} className={`transition hover:bg-slate-50/60 dark:hover:bg-white/[0.02] ${!u.is_active ? "opacity-60" : ""}`}>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        {u.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={u.avatar_url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-indigo-200 dark:ring-indigo-500/30" />
+                        ) : (
+                          <div className={`icon-box-3d flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient(u.full_name || u.email)} text-xs font-black text-white shadow-xs`}>
+                            {(u.full_name || u.email || "?").slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-white">
+                            {u.full_name || "-"}
+                            {isSelf && <span className="ml-2 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">You</span>}
+                          </p>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900 dark:text-white">
-                          {u.full_name || "-"}
-                          {isSelf && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-white/10 dark:text-slate-300">You</span>}
-                        </p>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-slate-600 dark:text-slate-300">{u.email}</td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ${ROLE_STYLE[u.role] || "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${u.is_active ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
-                      {u.is_active ? "Active" : "Disabled"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-3">
-                      {!isSelf && (
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-slate-600 dark:text-slate-300">{u.email}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ring-1 ${ROLE_STYLE[u.role] || "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        u.is_active
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                          : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${u.is_active ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                        {u.is_active ? "Active" : "Disabled"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-3">
+                        {!isSelf && (
+                          <button
+                            onClick={() => toggleActive(u)}
+                            disabled={toggling === u.id}
+                            className={`relative h-5 w-9 rounded-full transition ${u.is_active ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"} disabled:opacity-50`}
+                            title={u.is_active ? "Deactivate account" : "Activate account"}
+                          >
+                            <span
+                              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${u.is_active ? "left-4.5" : "left-0.5"}`}
+                            />
+                          </button>
+                        )}
                         <button
-                          onClick={() => toggleActive(u)}
-                          disabled={toggling === u.id}
-                          className={`relative h-5 w-9 rounded-full transition ${u.is_active ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"} disabled:opacity-50`}
-                          title={u.is_active ? "Deactivate account" : "Activate account"}
+                          onClick={() => setModal({ mode: "edit", user: u })}
+                          className="btn-3d-tactile-secondary px-3 py-1 text-xs font-bold shadow-xs"
                         >
-                          <span
-                            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${u.is_active ? "left-4.5" : "left-0.5"}`}
-                          />
+                          Edit
                         </button>
-                      )}
-                      <button
-                        onClick={() => setModal({ mode: "edit", user: u })}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                      >
-                        Edit
-                      </button>
-                    </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                    No team members found matching search filters.
                   </td>
                 </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
-                  No team members found matching search filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {modal && (
