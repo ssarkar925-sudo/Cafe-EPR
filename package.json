@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
-    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs && node scripts/patch-dashboard-performance.mjs && node scripts/patch-finance-account-types.mjs",
+    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs && node scripts/patch-dashboard-performance.mjs && node scripts/patch-finance-account-types.mjs && node scripts/patch-production-safety.mjs",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -29,7 +29,7 @@
     "next": "^15.1.6",
     "pg": "^8.23.0",
     "pino": "^9.6.0",
-    "qrcode": "^1.5.4",
+    "qrcode": "^1.5.0",
     "qrcode-terminal": "^0.12.0",
     "tesseract.js": "^7.0.0"
   },
