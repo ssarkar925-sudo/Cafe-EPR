@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
-    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs && node scripts/patch-dashboard-performance.mjs",
+    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs && node scripts/patch-dashboard-performance.mjs && node scripts/patch-finance-account-types.mjs",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -24,7 +24,7 @@
     "@supabase/supabase-js": "^2.46.1",
     "@types/qrcode": "^1.5.6",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
-    "localtunnel": "^2.0.2",
+    "localtunnel": "^2.0.0",
     "lucide-react": "^1.39.0",
     "next": "^15.1.6",
     "pg": "^8.23.0",
