@@ -34,8 +34,8 @@ export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
 
-  const requestedModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const models = Array.from(new Set([requestedModel, "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]));
+  const requestedModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const models = Array.from(new Set([requestedModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
   const requestBody = {
     systemInstruction: { parts: [{ text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices." }] },
     contents: [{ role: "user", parts: [{ text: message }] }],

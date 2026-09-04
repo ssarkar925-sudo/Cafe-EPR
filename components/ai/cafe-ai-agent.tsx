@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const quickCommands = [
+  "Check low stock items and reorder alerts",
+  "Show customer Khata dues summary",
+  "Calculate profit and loss for this month",
+  "Is WhatsApp gateway connected?",
   "Create a quick sale for 2 coffee and 1 sandwich, UPI.",
   "Prepare an invoice for Amit: 2 coffee and 1 sandwich.",
-  "Explain how you would record a completed AEPS transaction.",
-  "Show me what you need before recording a DMT transaction.",
 ];
 
 type ApprovalSummary = {

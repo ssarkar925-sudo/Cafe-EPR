@@ -48,8 +48,8 @@ export async function POST(request: Request) {
 
   const targetName = LANGUAGE_NAMES[targetLanguage];
   const sourceName = sourceLanguage === "auto" ? "the detected source language" : (LANGUAGE_NAMES[sourceLanguage] || sourceLanguage);
-  const requestedModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const models = Array.from(new Set([requestedModel, "gemini-3.7-flash", "gemini-3.6-flash"]));
+  const requestedModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const models = Array.from(new Set([requestedModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
 
   const systemInstruction = [
     "You are the translation layer for Cafe-EPR's AI Agent.",
