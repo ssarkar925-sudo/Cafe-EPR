@@ -58,7 +58,11 @@ export default async function BusinessServicePage({
         .order("name")
         .limit(300),
       supabase.from("aeps_banks").select("*").order("name"),
-      supabase.from("aeps_portals").select("*").order("name"),
+      supabase
+        .from("aeps_portals")
+        .select("*")
+        .eq("service_type", service === "dmt" ? "dmt" : "aeps")
+        .order("name"),
       supabase.from("upi_merchant_qrs").select("*").order("display_name"),
       supabase.rpc("get_pool_balances"),
       service === "recharge"
