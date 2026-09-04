@@ -72,11 +72,41 @@ export default function WhatsAppConfigurationPanel() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
 
+  const [pin, setPin] = useState("");
+  const [registering, setRegistering] = useState(false);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setWebhookUrl(`${window.location.origin}/api/whatsapp/webhook`);
     }
   }, []);
+
+  async function registerPin() {
+    if (!/^\d{6}$/.test(pin)) {
+      setMessage({ ok: false, text: "Enter a valid 6-digit numeric PIN for WhatsApp Two-Step Verification." });
+      return;
+    }
+    setRegistering(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/whatsapp/config/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "PIN registration failed");
+      }
+      setMessage({ ok: true, text: "Phone number PIN registered successfully with Meta Cloud API!" });
+      setPin("");
+      await load(true);
+    } catch (err: any) {
+      setMessage({ ok: false, text: err?.message || "PIN registration failed" });
+    } finally {
+      setRegistering(false);
+    }
+  }
 
   async function load(checkLive = false) {
     if (checkLive) setCheckingLive(true);
@@ -270,12 +300,20 @@ export default function WhatsAppConfigurationPanel() {
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <a
-                      href={cfg.meta_live.direct_verify_url || `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&waba_id=${wabaId || "448036473626878"}`}
+                      href={cfg.meta_live.direct_verify_url || `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&asset_id=${wabaId || "448036473626878"}&waba_id=${wabaId || "448036473626878"}`}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
                     >
-                      Open WhatsApp Manager to Verify Number <ExternalLink className="h-3 w-3" />
+                      Open WhatsApp Manager (Sarkar Communication) <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <a
+                      href="https://developers.facebook.com/apps/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3.5 py-1.5 text-xs font-bold text-indigo-700 shadow-sm hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-800 dark:text-indigo-300"
+                    >
+                      Open Meta Developer Console (API Setup) <ExternalLink className="h-3 w-3" />
                     </a>
                     <button
                       type="button"
@@ -285,12 +323,54 @@ export default function WhatsAppConfigurationPanel() {
                       <RefreshCw className={`h-3 w-3 ${checkingLive ? "animate-spin" : ""}`} /> Refresh Verification Status
                     </button>
                   </div>
-                  <ol className="mt-2.5 list-decimal space-y-0.5 pl-4 text-[11px] text-amber-800 dark:text-amber-300">
-                    <li>Click the button above to open Meta WhatsApp Manager for <strong>Sarkar Communication</strong>.</li>
-                    <li>Find <strong>{cfg.meta_live.display_phone_number || displayPhone || "+91 70030 37208"}</strong> and click <strong>Verify</strong> (or <strong>Finish Setup</strong>).</li>
-                    <li>Choose <strong>Text Message (SMS)</strong> or <strong>Phone Call</strong> to receive the 6-digit OTP on your phone.</li>
-                    <li>Enter the 6-digit code and set your two-step PIN. Return here to test live message sending!</li>
-                  </ol>
+
+                  {/* Inline 6-Digit PIN Registration Tool */}
+                  <div className="mt-3.5 rounded-xl border border-amber-300/80 bg-white/80 p-3.5 shadow-sm dark:border-amber-800/60 dark:bg-slate-900/80">
+                    <p className="text-xs font-bold text-amber-950 dark:text-amber-100">
+                      Direct WhatsApp 2-Step PIN Registration:
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-amber-800/90 dark:text-amber-300/90">
+                      If the phone number was already added to Meta, enter your 6-digit WhatsApp PIN to register it directly with Meta Cloud API.
+                    </p>
+                    <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="6-digit PIN"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold tracking-widest text-slate-900 outline-none focus:border-indigo-500 sm:max-w-[180px] dark:border-white/20 dark:bg-slate-800 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={registerPin}
+                        disabled={registering || pin.length !== 6}
+                        className="rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        {registering ? "Registering PIN..." : "Register 6-Digit PIN with Meta"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-1.5 text-[11px] text-amber-900/90 dark:text-amber-200/90">
+                    <p className="font-bold text-amber-950 dark:text-amber-100">
+                      Why the WhatsApp Manager table shows Status: &quot;Offline&quot; with no verify button:
+                    </p>
+                    <p>
+                      In Meta WhatsApp Manager, the table is only a status summary — Meta never places a &quot;Verify&quot; button directly on the table. Status &quot;Offline&quot; means Meta is waiting for 1-time SMS OTP verification or Two-Step PIN setup.
+                    </p>
+                    <ol className="list-decimal space-y-1 pl-4 font-medium">
+                      <li>
+                        <strong>Recommended (Meta Developer Console):</strong> Click <strong>Open Meta Developer Console</strong> above → click your App → <strong>WhatsApp → API Setup</strong> → In the <strong>&quot;From&quot;</strong> dropdown, select <strong>+91 70030 37208</strong> → Click <strong>Register / Verify</strong> → enter the SMS OTP code and set your 6-digit PIN.
+                      </li>
+                      <li>
+                        <strong>In WhatsApp Manager:</strong> Click <strong>Open WhatsApp Manager</strong> above → on the row for <strong>+91 70030 37208</strong>, click the <strong>⚙️ (Gear icon)</strong> on the far right → click <strong>Two-Step Verification</strong> → enter your 6-digit PIN.
+                      </li>
+                      <li>
+                        Once completed, click <strong>Refresh Verification Status</strong>. The status will immediately turn green <strong>CONNECTED</strong>!
+                      </li>
+                    </ol>
+                  </div>
                 </div>
               </div>
             )}
@@ -503,15 +583,23 @@ export default function WhatsAppConfigurationPanel() {
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <a
-                href={testDiagnostic.verifyUrl || cfg.meta_live?.direct_verify_url || `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&waba_id=${wabaId || "448036473626878"}`}
+                href={testDiagnostic.verifyUrl || cfg.meta_live?.direct_verify_url || `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=2078690092683215&asset_id=${wabaId || "448036473626878"}&waba_id=${wabaId || "448036473626878"}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700"
               >
-                Verify {displayPhone || "+91 70030 37208"} in Meta <ExternalLink className="h-3.5 w-3.5" />
+                Verify in WhatsApp Manager <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              <a
+                href="https://developers.facebook.com/apps/"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+              >
+                Meta Developer Console <ExternalLink className="h-3.5 w-3.5" />
               </a>
               <span className="text-[11px] text-amber-800 dark:text-amber-300">
-                (Takes ~60 seconds via SMS or Phone Call)
+                (Click ⚙️ icon for PIN, or use Developer Console for SMS OTP)
               </span>
             </div>
           </div>

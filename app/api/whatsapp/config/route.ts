@@ -48,7 +48,8 @@ export async function GET(req: Request) {
         const meData = meRes.ok ? await meRes.json().catch(() => null) : null;
 
         const businessId = wabaData?.owner_business_info?.id || "2078690092683215";
-        const directVerifyUrl = `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=${businessId}&waba_id=${wabaId || "448036473626878"}`;
+        const targetWabaId = wabaId || "448036473626878";
+        const directVerifyUrl = `https://business.facebook.com/latest/whatsapp_manager/phone_numbers?business_id=${businessId}&asset_id=${targetWabaId}&waba_id=${targetWabaId}`;
 
         metaLive = {
           ...phoneData,
