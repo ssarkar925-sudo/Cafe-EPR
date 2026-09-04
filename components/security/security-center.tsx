@@ -126,7 +126,7 @@ export default function SecurityCenterClient({
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleDownloadBackup}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-110 active:scale-95"
+              className="btn-3d-tactile-emerald inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 active:translate-y-0.5"
             >
               <span>💾</span>
               <span>1-Click Disaster Recovery Backup</span>
@@ -136,28 +136,28 @@ export default function SecurityCenterClient({
 
         {/* Security Posture Summary Cards */}
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
+          <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-white/5 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Security Posture</div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-2xl font-black text-emerald-400">{auditReport.score}</span>
               <span className="text-xs text-slate-300">/ 100 ({auditReport.grade})</span>
             </div>
-            <div className="mt-1 text-[11px] text-emerald-300">Status: {auditReport.status.toUpperCase()}</div>
+            <div className="mt-1 text-[11px] font-medium text-emerald-300">Status: {auditReport.status.toUpperCase()}</div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
+          <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/25 bg-white/5 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Ledger Tamper Check</div>
             <div className="mt-1 text-xl font-bold text-white sm:text-2xl">{tamperReport.status === "secure" ? "100% Intact" : "Drift"}</div>
-            <div className="mt-1 text-[11px] text-indigo-300">{tamperReport.cryptographicChecksum}</div>
+            <div className="mt-1 text-[11px] font-mono text-indigo-300">{tamperReport.cryptographicChecksum}</div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
+          <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-cyan-500/25 bg-white/5 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Auth Token Guard</div>
-            <div className="mt-1 text-xl font-bold text-emerald-400 sm:text-2xl">HttpOnly</div>
-            <div className="mt-1 text-[11px] text-emerald-300">Zero LocalStorage Leak</div>
+            <div className="mt-1 text-xl font-bold text-cyan-300 sm:text-2xl">HttpOnly</div>
+            <div className="mt-1 text-[11px] text-cyan-200">Zero LocalStorage Leak</div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
+          <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-blue-500/25 bg-white/5 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">Database RLS</div>
             <div className="mt-1 text-xl font-bold text-blue-400 sm:text-2xl">100% Active</div>
             <div className="mt-1 text-[11px] text-blue-300">Row Level Security Enforced</div>
@@ -223,7 +223,7 @@ export default function SecurityCenterClient({
                 </div>
                 <button
                   onClick={() => setPinEditMode(!pinEditMode)}
-                  className="rounded-lg bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:translate-y-0.5 dark:border-white/10 dark:bg-white/10 dark:text-slate-300"
                 >
                   {pinEditMode ? "Cancel" : "Change PIN"}
                 </button>
@@ -237,11 +237,11 @@ export default function SecurityCenterClient({
                     value={newPin}
                     onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
                     placeholder="New 4-Digit PIN"
-                    className="w-full rounded-lg border border-slate-300 p-2 text-center text-sm font-bold tracking-widest outline-none dark:border-white/10 dark:bg-slate-800"
+                    className="w-full rounded-xl border border-slate-300 p-2 text-center text-sm font-bold tracking-widest outline-none dark:border-white/10 dark:bg-slate-800"
                   />
                   <button
                     onClick={handleSavePin}
-                    className="w-full rounded-lg bg-indigo-600 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
+                    className="btn-3d-tactile-primary w-full rounded-xl py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 active:translate-y-0.5"
                   >
                     Save New PIN
                   </button>
