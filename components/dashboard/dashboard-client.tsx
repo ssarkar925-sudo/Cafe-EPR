@@ -569,14 +569,15 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       =============================================================================== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {/* KPI 1: Gross Sales & Revenue (Emerald Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-emerald group flex flex-col justify-between p-5 rounded-2xl border border-emerald-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10">
-          <div className="flex items-center justify-between">
+        <div className="bento-surface-interactive card-glow-emerald relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-emerald-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{activeMetrics.label} Revenue</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600 shadow-xs dark:text-emerald-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="pnl" className="h-4 w-4" />
             </div>
           </div>
-          <div className="my-2">
+          <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
               {inr(activeMetrics.revenue)}
             </div>
@@ -589,21 +590,22 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between border-t border-emerald-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="relative z-10 flex items-center justify-between border-t border-emerald-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Canonical P&amp;L</span>
             <Link href="/invoices" className="font-bold text-emerald-600 hover:underline dark:text-emerald-400">Sales →</Link>
           </div>
         </div>
 
         {/* KPI 2: Business Net Profit (Indigo Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-indigo group flex flex-col justify-between p-5 rounded-2xl border border-indigo-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10">
-          <div className="flex items-center justify-between">
+        <div className="bento-surface-interactive card-glow-indigo relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-indigo-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">{activeMetrics.label} Net Profit</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/10 text-indigo-600 shadow-xs dark:text-indigo-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="cash-book" className="h-4 w-4" />
             </div>
           </div>
-          <div className="my-2">
+          <div className="relative z-10 my-2">
             <div className={`text-2xl font-black sm:text-3xl tracking-tight ${activeMetrics.profit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"}`}>
               {inr(activeMetrics.profit)}
             </div>
@@ -616,21 +618,22 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between border-t border-indigo-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="relative z-10 flex items-center justify-between border-t border-indigo-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Pre-Tax Business Profit</span>
             <Link href="/finance/pnl" className="font-bold text-indigo-600 hover:underline dark:text-indigo-400">P&amp;L View →</Link>
           </div>
         </div>
 
         {/* KPI 3: Operating Expenses (Rose Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-rose group flex flex-col justify-between p-5 rounded-2xl border border-rose-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-500/10">
-          <div className="flex items-center justify-between">
+        <div className="bento-surface-interactive card-glow-rose relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-rose-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-rose-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">{activeMetrics.label} Expenses</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/20 to-pink-500/10 text-rose-600 shadow-xs dark:text-rose-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="expenses" className="h-4 w-4" />
             </div>
           </div>
-          <div className="my-2">
+          <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-rose-600 sm:text-3xl dark:text-rose-400 tracking-tight">
               {inr(activeMetrics.expenses)}
             </div>
@@ -643,21 +646,22 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between border-t border-rose-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="relative z-10 flex items-center justify-between border-t border-rose-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Overheads Ledger</span>
             <Link href="/finance/expenses" className="font-bold text-rose-600 hover:underline dark:text-rose-400">Expenses →</Link>
           </div>
         </div>
 
         {/* KPI 4: Liquid Float Vaults (Amber Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-amber group flex flex-col justify-between p-5 rounded-2xl border border-amber-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/10">
-          <div className="flex items-center justify-between">
+        <div className="bento-surface-interactive card-glow-amber relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-amber-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Liquid Float</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-yellow-500/10 text-amber-600 shadow-xs dark:text-amber-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="banks" className="h-4 w-4" />
             </div>
           </div>
-          <div className="my-2">
+          <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
               {inr(data.liquidity.totalLiquidAssets)}
             </div>
@@ -670,21 +674,22 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between border-t border-amber-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="relative z-10 flex items-center justify-between border-t border-amber-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Asset Conservation: Active</span>
             <Link href="/finance/settlements" className="font-bold text-amber-600 hover:underline dark:text-amber-400">Settlements →</Link>
           </div>
         </div>
 
         {/* KPI 5: Customer Receivables (Cyan Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-cyan group flex flex-col justify-between p-5 rounded-2xl border border-cyan-500/25 bg-white/90 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10">
-          <div className="flex items-center justify-between">
+        <div className="bento-surface-interactive card-glow-cyan relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-cyan-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-cyan-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">Customer Dues</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 text-cyan-600 shadow-xs dark:text-cyan-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="customers" className="h-4 w-4" />
             </div>
           </div>
-          <div className="my-2">
+          <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-cyan-700 sm:text-3xl dark:text-cyan-400 tracking-tight">
               {inr(data.customerData.totalReceivables)}
             </div>
@@ -697,7 +702,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between border-t border-cyan-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+          <div className="relative z-10 flex items-center justify-between border-t border-cyan-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
             <span>Khata Due Ledger</span>
             <Link href="/customers" className="font-bold text-cyan-600 hover:underline dark:text-cyan-400">Customers →</Link>
           </div>
