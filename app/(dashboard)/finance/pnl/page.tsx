@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
+import { getIstDateString } from "@/lib/date";
 import PnlClient from "@/components/finance/pnl-client";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,9 @@ export default async function PnlPage() {
 
   const supabase = await createClient();
 
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const to = now.toISOString().slice(0, 10);
+  const to = getIstDateString();
+  const [year, month] = to.split("-").map(Number);
+  const from = `${year}-${String(month).padStart(2, "0")}-01`;
 
   const { data: pnl } = await supabase.rpc("get_pnl", { p_from: from, p_to: to });
 
