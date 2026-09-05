@@ -16,6 +16,7 @@
     "ai:portal:teach": "node scripts/ai-portal-worker.mjs teach",
     "ai:portal:receipt-teach": "node scripts/ai-portal-receipt-teach.mjs",
     "ai:erp:aeps:teach": "node scripts/ai-erp-aeps-teach.mjs",
+    "ai:aeps:run": "node scripts/ai-aeps-one-command.mjs",
     "ai:portal:learn": "node scripts/ai-portal-worker.mjs learn",
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect"
   },
