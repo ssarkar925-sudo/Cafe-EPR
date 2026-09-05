@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
+import { getIstDateString } from "@/lib/date";
 import IncomeReportClient from "@/components/reports/income-report-client";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
 
   const params = await searchParams;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getIstDateString();
   const from = params.from && /^\d{4}-\d{2}-\d{2}$/.test(params.from) ? params.from : today;
   const to = params.to && /^\d{4}-\d{2}-\d{2}$/.test(params.to) ? params.to : today;
   const supabase = await createClient();
@@ -29,7 +30,7 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
     supabase
       .from("quick_sales")
       .select("id, sale_number, sale_date, item_name, amount, cost, status, created_at")
-      .eq("status", "completed")
+      .eq("status", "active")
       .gte("sale_date", from)
       .lte("sale_date", to)
       .order("sale_date", { ascending: true })
