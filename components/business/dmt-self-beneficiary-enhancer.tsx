@@ -27,18 +27,8 @@ function findVisibleInput(placeholders: string[]) {
 
 function findCustomerValue(kind: "name" | "mobile") {
   const selectors = kind === "name"
-    ? [
-        '[data-dmt-customer-name]',
-        '[data-customer-name]',
-        'input[name="customer_name"]',
-        'input[name="sender_name"]',
-      ]
-    : [
-        '[data-dmt-customer-mobile]',
-        '[data-customer-mobile]',
-        'input[name="customer_mobile"]',
-        'input[name="sender_mobile"]',
-      ];
+    ? ['[data-dmt-customer-name]', '[data-customer-name]', 'input[name="customer_name"]', 'input[name="sender_name"]']
+    : ['[data-dmt-customer-mobile]', '[data-customer-mobile]', 'input[name="customer_mobile"]', 'input[name="sender_mobile"]'];
 
   for (const selector of selectors) {
     const el = document.querySelector(selector) as HTMLInputElement | HTMLElement | null;
@@ -84,16 +74,14 @@ function addSelfButton(onClick: () => void) {
   field.insertBefore(header, field.firstChild);
 }
 
-function restoreRequiredMarkers() {
-  const targets = [
-    { label: "Account Number", placeholder: "Enter account number" },
-    { label: "Bank IFSC Code", placeholder: "e.g. SBIN0001234" },
-    { label: "Beneficiary UPI ID (VPA)", placeholder: "e.g. username@oksbi or 9876543210@paytm" },
-  ];
-
-  for (const target of targets) {
-    const input = findVisibleInput([target.placeholder]);
-    if (input) input.setAttribute("required", "");
+function clearAddedRequired() {
+  const targets = ["Enter account number", "e.g. SBIN0001234", "e.g. username@oksbi or 9876543210@paytm"];
+  for (const placeholder of targets) {
+    const input = findVisibleInput([placeholder]);
+    if (input?.dataset.dmtSelfOptional === "true") {
+      input.removeAttribute("required");
+      delete input.dataset.dmtSelfOptional;
+    }
   }
 }
 
@@ -107,36 +95,29 @@ async function fillSelfBeneficiary() {
   const mobile = findVisibleInput(["10-digit mobile"]);
   if (mobile && customerMobile) setNativeValue(mobile, customerMobile.replace(/\D/g, "").slice(-10));
 
+  // Self changes only the beneficiary identity. It must never add validation requirements.
+  // Never read payment_instruments or shop merchant QR details here.
   const upiInput = findVisibleInput(["e.g. username@oksbi or 9876543210@paytm"]);
   if (upiInput) {
-    // Self for UPI means the customer's own UPI. Never use the shop's UPI/payment instrument.
     const customerUpi = (upiInput.dataset.customerUpi || "").trim().toLowerCase();
     if (customerUpi) setNativeValue(upiInput, customerUpi);
-    else {
-      upiInput.focus();
-      window.alert("Self selected: enter the customer's own UPI ID (VPA). The shop UPI is never used as the beneficiary.");
-    }
-    restoreRequiredMarkers();
+    clearAddedRequired();
+    if (!customerUpi) upiInput.focus();
     return;
   }
 
   const accountInput = findVisibleInput(["Enter account number"]);
   if (accountInput) {
-    // Self for bank transfer means the customer's own bank account. Do not read payment_instruments:
-    // those records are shop funding accounts and must never become the beneficiary.
     const customerAccount = (accountInput.dataset.customerAccount || "").replace(/\s+/g, "");
-    const customerIfsc = (findVisibleInput(["e.g. SBIN0001234"])?.dataset.customerIfsc || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
+    const ifscInput = findVisibleInput(["e.g. SBIN0001234"]);
+    const customerIfsc = (ifscInput?.dataset.customerIfsc || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
 
     if (customerAccount) setNativeValue(accountInput, customerAccount);
-    else accountInput.focus();
-
-    const ifscInput = findVisibleInput(["e.g. SBIN0001234"]);
     if (ifscInput && customerIfsc) setNativeValue(ifscInput, customerIfsc);
 
-    restoreRequiredMarkers();
-    if (!customerAccount || !customerIfsc) {
-      window.alert("Self selected: enter the customer's own bank account and IFSC. The shop bank account is never used as the beneficiary.");
-    }
+    clearAddedRequired();
+    if (!customerAccount) accountInput.focus();
+    else if (ifscInput && !customerIfsc) ifscInput.focus();
   }
 }
 
@@ -146,7 +127,7 @@ export default function DmtSelfBeneficiaryEnhancer() {
 
     const applyUiRepair = () => {
       if (disposed) return;
-      restoreRequiredMarkers();
+      clearAddedRequired();
       addSelfButton(fillSelfBeneficiary);
     };
 
