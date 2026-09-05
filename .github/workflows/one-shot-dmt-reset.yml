@@ -2,14 +2,14 @@ name: One-shot DMT form reset fix
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.event.head_commit.message != 'fix(dmt): reset form after successful transfer'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,8 +19,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Apply DMT reset patch
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
           p = Path('components/business/dmt-workspace.tsx')
           s = p.read_text(encoding='utf-8')
@@ -103,15 +104,15 @@ jobs:
               raise SystemExit('Expected successful-transfer block not found; refusing to patch.')
           s = s.replace(old_success, new_success, 1)
 
-          # Remove this workflow itself after applying the one-shot source patch.
           p.write_text(s, encoding='utf-8')
+          PY
 
       - name: Commit source fix and remove one-shot workflow
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add components/business/dmt-workspace.tsx .github/workflows/one-shot-dmt-reset.yml
+          git add components/business/dmt-workspace.tsx
           git rm .github/workflows/one-shot-dmt-reset.yml
           git diff --cached --quiet && { echo "No patch produced"; exit 1; }
           git commit -m "fix(dmt): reset form after successful transfer"
