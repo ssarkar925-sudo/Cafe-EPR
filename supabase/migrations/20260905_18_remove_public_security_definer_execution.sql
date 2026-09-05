@@ -1,0 +1,11 @@
+begin;
+revoke execute on function public.enforce_cash_entry_immutability() from public,anon,authenticated;
+revoke execute on function public.get_gst_pnl_journal_reconciliation(date,date) from public,anon,authenticated;
+revoke execute on function public.get_gst_purchase_return_reconciliation(date,date) from public,anon,authenticated;
+revoke execute on function public.get_pnl_gl_reconciliation(date,date) from public,anon,authenticated;
+revoke execute on function public.get_sales_return_gst_gl_reconciliation(date,date) from public,anon,authenticated;
+grant execute on function public.get_gst_pnl_journal_reconciliation(date,date) to authenticated;
+grant execute on function public.get_gst_purchase_return_reconciliation(date,date) to authenticated;
+grant execute on function public.get_pnl_gl_reconciliation(date,date) to authenticated;
+grant execute on function public.get_sales_return_gst_gl_reconciliation(date,date) to authenticated;
+commit;
