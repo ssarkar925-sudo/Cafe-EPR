@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import { getIstDateString } from "@/lib/date-utils";
+import { getIstDateString } from "@/lib/date";
 import ReconciliationClient from "@/components/finance/reconciliation-client";
 
 export const dynamic = "force-dynamic";
