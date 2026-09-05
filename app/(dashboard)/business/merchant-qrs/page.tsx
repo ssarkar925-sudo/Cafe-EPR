@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import MasterClient from "@/components/business/master-client";
+import MerchantQrsShell from "@/components/business/merchant-qrs-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -20,17 +20,5 @@ export default async function MerchantQrsPage() {
     if (t.merchant_qr_id) usage[t.merchant_qr_id] = (usage[t.merchant_qr_id] ?? 0) + 1;
   }
 
-  return (
-    <MasterClient
-      title="UPI Merchant QRs"
-      desc="Shop UPI QR codes used for UPI cash-out transfers."
-      table="upi_merchant_qrs"
-      fields={[
-        { key: "display_name", label: "Display Name", required: true, placeholder: "Shop Main QR" },
-        { key: "upi_id", label: "UPI ID", required: true, placeholder: "shop@sbi" },
-      ]}
-      rows={(data ?? []) as any}
-      usage={usage}
-    />
-  );
+  return <MerchantQrsShell rows={(data ?? []) as any[]} usage={usage} />;
 }
