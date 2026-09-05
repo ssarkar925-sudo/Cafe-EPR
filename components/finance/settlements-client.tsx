@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +9,7 @@ import { logAudit } from "@/lib/audit";
 import SettlementFormModal, { SETTLEMENT_TYPES, POOL_LABEL } from "./settlement-form-modal";
 import ReasonModal from "@/components/business/business-reason-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import StatCard from "@/components/ui/stat-card";
 import CompactToggle from "@/components/ui/compact-toggle";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -47,8 +47,8 @@ const TYPE_META = Object.fromEntries(
 );
 
 const STATUS_PILL: Record<string, string> = {
-  success: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300",
-  reversed: "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20 dark:bg-rose-950/40 dark:text-rose-300",
+  success: "bg-emerald-100 text-emerald-700",
+  reversed: "bg-slate-200 text-slate-600",
 };
 
 const ICONS = {
@@ -84,12 +84,12 @@ export type PoolBalances = {
 };
 
 const POOL_CARDS = [
-  { key: "cash", label: "Physical Cash Drawer", poolName: "cash", icon: ICONS.cash, grad: "from-indigo-500 to-violet-600", glow: "card-glow-indigo", href: "/finance/cashbook" },
-  { key: "bank", label: "Bank Available Balance", poolName: "bank", icon: ICONS.bank, grad: "from-blue-500 to-indigo-600", glow: "card-glow-cyan", href: "/finance/cashbook" },
-  { key: "wallet", label: "Digital Wallet Float", poolName: "wallet", icon: ICONS.wallet, grad: "from-emerald-500 to-teal-600", glow: "card-glow-emerald", href: "/finance/settlements" },
-  { key: "aeps", label: "AEPS Current Float", poolName: "aeps", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", glow: "card-glow-amber", href: "/business/aeps" },
-  { key: "dmt", label: "DMT Transfer Float", poolName: "dmt", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", glow: "card-glow-purple", href: "/business/dmt" },
-  { key: "upi_qr", label: "UPI QR Float", poolName: "upi_qr", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", glow: "card-glow-rose", href: "/business/upi" },
+  { key: "cash", label: "Physical Cash Drawer", poolName: "cash", icon: ICONS.cash, grad: "from-indigo-500 to-violet-600", href: "/finance/cashbook" },
+  { key: "bank", label: "Bank Available Balance", poolName: "bank", icon: ICONS.bank, grad: "from-blue-500 to-indigo-600", href: "/finance/cashbook" },
+  { key: "wallet", label: "Digital Wallet Float", poolName: "wallet", icon: ICONS.wallet, grad: "from-emerald-500 to-teal-600", href: "/finance/settlements" },
+  { key: "aeps", label: "AEPS Current Float", poolName: "aeps", icon: ICONS.aeps, grad: "from-amber-500 to-orange-600", href: "/business/aeps" },
+  { key: "dmt", label: "DMT Transfer Float", poolName: "dmt", icon: ICONS.dmt, grad: "from-violet-500 to-purple-600", href: "/business/dmt" },
+  { key: "upi_qr", label: "UPI QR Float", poolName: "upi_qr", icon: ICONS.qr, grad: "from-rose-500 to-pink-600", href: "/business/upi" },
 ];
 
 function Icon({ d, className }: { d: string; className?: string }) {
@@ -109,7 +109,7 @@ function Icon({ d, className }: { d: string; className?: string }) {
 }
 
 const inputClass =
-  "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200";
+  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200";
 
 function fmtDate(d: string) {
   if (!d) return "-";
@@ -381,26 +381,24 @@ export default function SettlementsClient({
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8 space-y-8">
       {/* SECTION 1: LIVE TREASURY POSITIONS & CHANNEL FLOATS */}
       <div className="space-y-4">
-        <div className="bento-surface card-glow-emerald flex flex-wrap items-center justify-between gap-4 rounded-3xl border p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Canonical Positions
+              <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300">
+                LIVE CANONICAL POSITIONS
               </span>
-              <span className="text-xs text-slate-400">· Real-Time Float Telemetry</span>
             </div>
-            <h1 className="mt-1.5 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               Live Treasury &amp; Float Positions
             </h1>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Current available balances across physical cash drawer, bank accounts, and channel floats (Derived from opening positions and ledger movements — NOT settlement transactions).
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Current available balances across cash drawer, bank accounts, and channel floats (Derived from opening positions and ledger movements — NOT settlement transactions).
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowBreakdown(!showBreakdown)}
-            className="btn-3d-tactile-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold shadow-xs active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
               <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
@@ -409,7 +407,7 @@ export default function SettlementsClient({
           </button>
         </div>
 
-        {/* 6 Core Liquid Pool Bento Cards */}
+        {/* 6 Core Liquid Pool Cards */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {POOL_CARDS.map((c) => {
             const entry = poolBalances ? (poolBalances as any)[c.key] : null;
@@ -417,46 +415,28 @@ export default function SettlementsClient({
             const openingVal = entry?.opening ?? 0;
             const movVal = entry?.movements ?? 0;
 
-            const cardContent = (
-              <div className={`bento-surface card-interactive group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${c.glow}`}>
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.grad}`} />
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      {c.label}
-                    </span>
-                    <div className={`icon-box-3d flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${c.grad} text-white shadow-xs`}>
-                      <Icon d={c.icon} className="h-3.5 w-3.5" />
+            return (
+              <StatCard
+                key={c.key}
+                label={c.label}
+                value={inr(currentVal)}
+                sub={
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                      <span>Op: {inr(openingVal)}</span>
+                      <span>·</span>
+                      <span>Mov: {inr(movVal)}</span>
                     </div>
-                  </div>
-                  <div className="mt-2 font-mono text-xl font-black tracking-tight text-slate-900 dark:text-white">
-                    {inr(currentVal)}
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 dark:border-white/5">
-                  <div className="flex items-center justify-between text-[10px] font-medium text-slate-400">
-                    <span>Op: {inr(openingVal)}</span>
-                    <span>Mov: {inr(movVal)}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      ✓ Reconciled
                     </span>
-                    Reconciled
                   </div>
-                </div>
-              </div>
-            );
-
-            return c.href ? (
-              <Link key={c.key} href={c.href} className="block h-full">
-                {cardContent}
-              </Link>
-            ) : (
-              <div key={c.key} className="h-full">
-                {cardContent}
-              </div>
+                }
+                icon={c.icon}
+                grad={c.grad}
+                href={c.href}
+              />
             );
           })}
         </div>
@@ -583,37 +563,35 @@ export default function SettlementsClient({
       </div>
 
       {/* SECTION 2: SETTLEMENT JOURNAL & FUND TRANSFERS */}
-      <div className="space-y-4 pt-4 border-t border-slate-200/70 dark:border-white/10">
-        <div className="bento-surface card-glow-indigo flex flex-wrap items-center justify-between gap-4 rounded-3xl border p-5 sm:p-6">
+      <div className="space-y-4 pt-2 border-t border-slate-200/70 dark:border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-indigo-700 ring-1 ring-inset ring-indigo-600/20 dark:bg-indigo-950/40 dark:text-indigo-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                Inter-Pool Movements
+              <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-700/10 dark:bg-blue-950/40 dark:text-blue-300">
+                INTER-POOL MOVEMENTS
               </span>
-              <span className="text-xs text-slate-400">· Canonical Treasury Journal</span>
             </div>
-            <h2 className="mt-1.5 text-xl font-black tracking-tight text-slate-900 dark:text-white">
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
               Settlement Journal &amp; Fund Transfers
             </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Recorded fund transfers between physical cash drawer, bank accounts, digital wallets, and channel floats · <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{rows.length}</span> transfers executed
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Recorded fund transfers between cash drawer, bank accounts, wallets, and channel floats · {rows.length} transfers executed
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               onClick={exportCsv}
-              className="btn-3d-tactile-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold shadow-xs active:scale-95"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
             >
               <Icon d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" className="h-4 w-4" />
               Export CSV
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="btn-3d-tactile-primary inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black shadow-sm active:scale-95"
+              className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
             >
               <Icon d={ICONS.plus} className="h-4 w-4" />
-              + New Settlement
+              New Settlement
             </button>
           </div>
         </div>
@@ -626,7 +604,7 @@ export default function SettlementsClient({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
               {summary.dmt < 3000 && (
-                <div className="card-glow-amber flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50/90 p-3.5 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
+                <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/90 p-3 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-amber-800 dark:text-amber-300">⚠️ Low DMT Float</p>
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">Current: {inr(summary.dmt)}</p>
@@ -637,7 +615,7 @@ export default function SettlementsClient({
                       setFormPreset({ type: "bank_to_dmt", amount: "10000" });
                       setShowForm(true);
                     }}
-                    className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-500 active:translate-y-0.5"
+                    className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-500"
                   >
                     +₹10k Bank
                   </button>
@@ -645,7 +623,7 @@ export default function SettlementsClient({
               )}
 
               {summary.aeps > 50000 && (
-                <div className="card-glow-indigo flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/90 p-3.5 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30">
+                <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/90 p-3 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-blue-800 dark:text-blue-300">💰 AEPS Pool Accumulated</p>
                     <p className="text-[11px] text-blue-600 dark:text-blue-400">Current: {inr(summary.aeps)}</p>
@@ -656,7 +634,7 @@ export default function SettlementsClient({
                       setFormPreset({ type: "aeps_to_bank", amount: Math.floor(summary.aeps) });
                       setShowForm(true);
                     }}
-                    className="btn-3d-tactile-primary shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-sm active:translate-y-0.5"
+                    className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500"
                   >
                     Settle to Bank
                   </button>
@@ -664,7 +642,7 @@ export default function SettlementsClient({
               )}
 
               {summary.upi_qr > 10000 && (
-                <div className="card-glow-emerald flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/90 p-3.5 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 p-3 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">📱 UPI QR Accumulated</p>
                     <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Current: {inr(summary.upi_qr)}</p>
@@ -675,7 +653,7 @@ export default function SettlementsClient({
                       setFormPreset({ type: "upi_qr_to_bank", amount: Math.floor(summary.upi_qr) });
                       setShowForm(true);
                     }}
-                    className="btn-3d-tactile-emerald shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-sm active:translate-y-0.5"
+                    className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500"
                   >
                     Sweep to Bank
                   </button>
@@ -732,7 +710,7 @@ export default function SettlementsClient({
                     setShowForm(true);
                   }}
                   title={p.desc}
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-700 active:translate-y-0.5 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-blue-900/20"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-blue-900/20"
                 >
                   {p.label}
                 </button>
@@ -777,64 +755,63 @@ export default function SettlementsClient({
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         <span className="text-sm text-slate-400">to</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
-        <span className="text-xs font-semibold text-slate-500">{filtered.length} transfers executed</span>
+        <span className="text-sm text-slate-500">{filtered.length} transfers executed</span>
         <CompactToggle value={compact} onChange={setCompact} storageKey="sccomm-settlements-compact" />
       </div>
 
-      <div className="bento-surface card-glow-indigo mt-4 overflow-x-auto rounded-3xl border shadow-sm">
-        <table className={`w-full text-left text-xs ${compact ? "rows-compact" : ""}`}>
+      <div className="mt-4 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+        <table className={`w-full text-left text-sm ${compact ? "rows-compact" : ""}`}>
           <thead>
-            <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/5">
-              <th className="px-4 py-3">Number</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Reference</th>
-              <th className="px-4 py-3 text-right">Amount</th>
-              <th className="px-4 py-3 text-center">Status</th>
-              <th className="px-4 py-3">Recorded by</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+            <tr className="border-b border-slate-200 text-slate-500 dark:border-white/10">
+              <th className="px-4 py-3 font-medium">Number</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium">Date</th>
+              <th className="px-4 py-3 font-medium">Reference</th>
+              <th className="px-4 py-3 text-right font-medium">Amount</th>
+              <th className="px-4 py-3 text-center font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Recorded by</th>
+              <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+          <tbody>
             {filtered.map((r) => {
               const meta = TYPE_META[r.settlement_type];
               return (
-                <tr key={r.id} className="transition hover:bg-slate-50/80 dark:hover:bg-white/[0.02]">
-                  <td className="whitespace-nowrap px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">
+                <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-2.5 font-semibold text-slate-900">
                     {r.settlement_number}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${meta?.grad ?? "from-slate-400 to-slate-500"} px-2.5 py-1 text-[11px] font-bold text-white shadow-sm`}
+                      className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r ${meta?.grad ?? "from-slate-400 to-slate-500"} px-2.5 py-1 text-xs font-semibold text-white`}
                     >
                       <Icon d={ICONS.arrow} className="h-3 w-3" />
                       {POOL_LABEL[r.from_pool] || r.from_pool} → {POOL_LABEL[r.to_pool] || r.to_pool}
                     </span>
                     <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">{r.remarks || meta?.label}</p>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{fmtDate(r.settlement_date)}</td>
-                  <td className="cell-sub px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-[11px]">{r.reference || "-"}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-black text-slate-900 dark:text-white">
+                  <td className="px-4 py-2.5 text-slate-600">{fmtDate(r.settlement_date)}</td>
+                  <td className="cell-sub px-4 py-2.5 text-slate-500">{r.reference || "-"}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-slate-900 dark:text-white">
                     {inr(r.amount)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                  <td className="px-4 py-2.5 text-center">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+                      className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${
                         STATUS_PILL[r.status] ?? "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      <span className={`h-1.5 w-1.5 rounded-full ${r.status === "success" ? "bg-emerald-500" : "bg-rose-500"}`} />
                       {r.status}
                     </span>
                   </td>
-                  <td className="cell-sub px-4 py-3 text-slate-500 dark:text-slate-400">
+                  <td className="cell-sub px-4 py-2.5 text-slate-500">
                     {r.profiles?.full_name || "-"}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                  <td className="px-4 py-2.5 text-right">
                     {r.status === "success" && (
                       <button
                         onClick={() => setReverseTarget(r)}
-                        className="btn-3d-tactile-secondary inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold text-rose-700 dark:text-rose-300 shadow-sm active:scale-95"
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
                       >
                         <Icon d={ICONS.reverse} className="h-3.5 w-3.5" />
                         Reverse
