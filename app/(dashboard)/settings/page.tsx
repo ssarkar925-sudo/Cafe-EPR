@@ -7,5 +7,13 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const role = await getUserRole();
   if (!hasRole(role, ["admin"])) redirect("/dashboard");
-  return <SystemSettingsClient />;
+  return (
+    <SystemSettingsClient
+      initial={null}
+      initialServices={[]}
+      initialPaymentMethods={[]}
+      initialTab="general"
+      initialSection={undefined}
+    />
+  );
 }
