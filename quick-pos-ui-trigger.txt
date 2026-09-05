@@ -1,0 +1,1 @@
+Trigger the Quick POS header layout fix.
