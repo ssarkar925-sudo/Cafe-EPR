@@ -4,6 +4,7 @@ import { getUserRole, hasRole } from "@/lib/authz";
 import BusinessClient from "@/components/business/business-client";
 import AepsWorkspace from "@/components/business/aeps-workspace";
 import DmtWorkspace from "@/components/business/dmt-workspace";
+import DmtSelfBeneficiaryEnhancer from "@/components/business/dmt-self-beneficiary-enhancer";
 import UpiWorkspace from "@/components/business/upi-workspace";
 import RechargeWorkspaceLive from "@/components/business/recharge-workspace-live";
 
@@ -94,14 +95,17 @@ export default async function BusinessServicePage({
 
   if (service === "dmt") {
     return (
-      <DmtWorkspace
-        initialTransactions={(transactions ?? []) as any}
-        initialCustomers={(customers ?? []) as any}
-        initialBanks={(banks ?? []) as any}
-        initialPortals={(portals ?? []) as any}
-        paymentInstruments={(paymentInstruments ?? []) as any}
-        float={poolBal ?? null}
-      />
+      <>
+        <DmtWorkspace
+          initialTransactions={(transactions ?? []) as any}
+          initialCustomers={(customers ?? []) as any}
+          initialBanks={(banks ?? []) as any}
+          initialPortals={(portals ?? []) as any}
+          paymentInstruments={(paymentInstruments ?? []) as any}
+          float={poolBal ?? null}
+        />
+        <DmtSelfBeneficiaryEnhancer />
+      </>
     );
   }
 
