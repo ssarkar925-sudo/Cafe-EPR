@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import SystemSettingsClient from "@/components/settings/system-settings-client";
+import SettingsShell from "@/components/settings/settings-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <SystemSettingsClient
+    <SettingsShell
       initial={initial as any}
       initialServices={(initialServices ?? []) as any}
       initialPaymentMethods={(initialPaymentMethods ?? []) as any}
