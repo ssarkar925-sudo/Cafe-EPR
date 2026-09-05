@@ -8,8 +8,8 @@ type Toast = { id: number; type: ToastType; text: string };
 
 const STYLES: Record<ToastType, { bar: string; icon: string; bubble: string }> = {
   success: { bar: "bg-emerald-500", icon: "M5 13l4 4L19 7", bubble: "bg-emerald-100 text-emerald-700" },
-  error: { bar: "bg-rose-500", icon: "M12 8v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z", bubble: "bg-rose-100 text-rose-700" },
-  info: { bar: "bg-blue-500", icon: "M12 8v4m0 4h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z", bubble: "bg-blue-100 text-blue-700" },
+  error: { bar: "bg-rose-500", icon: "M12 8v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 0h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z", bubble: "bg-rose-100 text-rose-700" },
+  info: { bar: "bg-blue-500", icon: "M12 8v4m0 4h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0-9 0-9 9 0 0 0 0-18Z", bubble: "bg-blue-100 text-blue-700" },
 };
 
 export function useToast() {
@@ -18,6 +18,17 @@ export function useToast() {
   const showToast = useCallback((type: ToastType, text: string) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, type, text }]);
+
+    // A successful DMT posting must leave the next entry screen clean. The
+    // transaction is already committed before this toast is shown, so a short
+    // page refresh safely restores the canonical blank-entry state and fresh
+    // balances/history without touching the posted transaction.
+    if (type === "success" && /DMT transfer completed successfully\.?/i.test(text)) {
+      setTimeout(() => {
+        if (typeof window !== "undefined") window.location.reload();
+      }, 900);
+    }
+
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
   }, []);
 
@@ -57,7 +68,7 @@ export function useToast() {
               aria-label="Dismiss"
               className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-3 w-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
             </button>
