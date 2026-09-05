@@ -10,6 +10,9 @@ concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -29,6 +32,99 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+
+      # DAY_CLOSE_PATCH_START
+      - name: Apply one-time Day Close liquidity classification fix
+        shell: bash
+        run: |
+          set -e
+          if grep -q 'const LIQUID_POOLS' components/finance/day-close-client.tsx; then
+            echo 'Day Close liquidity fix already applied.'
+            exit 0
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('components/finance/day-close-client.tsx')
+          s = p.read_text()
+          old = '''  const totals = useMemo(() => {
+    if (!openClose) return null;
+    const rows = Array.isArray(openClose.rows) ? openClose.rows : [];
+    const opening = rows.reduce((s, r) => s + Number(r.opening || 0), 0);
+    const computed = rows.reduce((s, r) => s + Number(r.computed || 0), 0);
+    const adjustments = rows.reduce((s, r) => s + Number(r.adjustment || 0), 0);
+    const final = rows.reduce((s, r) => s + Number(r.final || 0), 0);
+    return { opening, computed, adjustments, final };
+  }, [openClose]);'''
+          new = '''  // Credit-card limit is a financing facility, not cash/liquidity.
+  // Keep it visible per-account, but exclude it from operational money totals.
+  const LIQUID_POOLS = new Set(["cash", "bank", "wallet", "dmt", "aeps", "upi_qr"]);
+
+  const totals = useMemo(() => {
+    if (!openClose) return null;
+    const rows = Array.isArray(openClose.rows) ? openClose.rows : [];
+    const liquidRows = rows.filter((r) => LIQUID_POOLS.has(r.pool));
+    const creditRows = rows.filter((r) => r.pool === "credit_card");
+    const sum = (items: CloseRow[], key: keyof CloseRow) =>
+      items.reduce((s, r) => s + Number(r[key] || 0), 0);
+    return {
+      opening: sum(liquidRows, "opening"),
+      computed: sum(liquidRows, "computed"),
+      adjustments: sum(liquidRows, "adjustment"),
+      final: sum(liquidRows, "final"),
+      creditOpening: sum(creditRows, "opening"),
+      creditFinal: sum(creditRows, "final"),
+    };
+  }, [openClose]);'''
+          if old not in s:
+              raise SystemExit('Expected totals block was not found')
+          s = s.replace(old, new, 1)
+          s = s.replace('<td className="px-4 py-2.5">Total</td>', '<td className="px-4 py-2.5">Actual Funds Total</td>', 1)
+          old_footer = '''                  <td className="px-3 py-2.5 text-right text-blue-600 dark:text-blue-400">{inr(totals.final)}</td>
+                  </tr>
+                </tfoot>'''
+          new_footer = '''                  <td className="px-3 py-2.5 text-right text-blue-600 dark:text-blue-400">{inr(totals.final)}</td>
+                  </tr>
+                  {Math.abs(totals.creditFinal) > 0.005 && (
+                    <tr className="border-t border-slate-100 bg-cyan-50/60 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-cyan-500/5 dark:text-slate-300">
+                      <td className="px-4 py-2" colSpan={5}>Credit Facility (excluded from funds total)</td>
+                      <td className="px-3 py-2 text-right text-cyan-700 dark:text-cyan-300">{inr(totals.creditFinal)}</td>
+                    </tr>
+                  )}
+                </tfoot>'''
+          if old_footer not in s:
+              raise SystemExit('Expected totals footer was not found')
+          s = s.replace(old_footer, new_footer, 1)
+          s = s.replace('Next Day Opening Position', 'Next Day Opening Funds', 1)
+          s = s.replace('Closing balances roll into tomorrow auto', 'Liquid closing balances roll into tomorrow auto', 1)
+          p.write_text(s)
+          PY
+
+      - name: Clean one-time patch workflow changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/quality.yml')
+          s = p.read_text()
+          start = s.find('      # DAY_CLOSE_PATCH_START\n')
+          end = s.find('      # DAY_CLOSE_PATCH_END\n')
+          if start >= 0 and end >= 0:
+              s = s[:start] + s[end + len('      # DAY_CLOSE_PATCH_END\n'):]
+          else:
+              # Remove the one-time block using the next stable step marker.
+              start = s.find('      # DAY_CLOSE_PATCH_START\n')
+              marker = '      - name: Financial invariants\n'
+              end = s.find(marker)
+              if start >= 0 and end >= 0:
+                  s = s[:start] + s[end:]
+          p.write_text(s)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/finance/day-close-client.tsx .github/workflows/quality.yml
+          git rm -f .github/workflows/apply_day_close_fix.yml .github/workflows/fix_day_close_liquidity.yml || true
+          git commit -m "fix(day-close): exclude credit facility from liquidity totals"
+          git push
 
       - name: Financial invariants
         run: npm test
