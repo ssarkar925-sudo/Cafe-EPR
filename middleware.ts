@@ -69,6 +69,11 @@ function applySecurityHeaders(res: NextResponse): NextResponse {
   return res;
 }
 
+function b64decode(input: string): string {
+  const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  return atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const financeMatch = pathname.match(/^\/finance\/([^/]+)\/?$/);
@@ -77,8 +82,6 @@ export async function middleware(request: NextRequest) {
 
   // Rate-limit login submissions only. Applying the login limiter to every API
   // request made normal POS/realtime traffic fail after 15 requests per minute.
-  // This remains an edge-local guard; durable abuse prevention belongs at the
-  // authentication/provider layer rather than in process memory.
   if (pathname === "/login" && request.method === "POST" && !checkRateLimit(clientIp)) {
     return applySecurityHeaders(
       new NextResponse("Too many sign-in attempts. Please wait 1 minute before trying again.", {
@@ -164,19 +167,43 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  let user: { id: string } | null = null;
+  // Verify the JWT locally/cached via Supabase's claims verification instead of
+  // making a network request to Auth for every page/API request. This is the
+  // recommended SSR protection path and removes the middleware latency source.
+  let claims: { sub?: string; aal?: string } | null = null;
   let userError: any = null;
   try {
-    const { data, error: err } = await supabase.auth.getUser();
-    user = data?.user ?? null;
+    const { data, error: err } = await supabase.auth.getClaims();
+    claims = (data?.claims as { sub?: string; aal?: string } | null) ?? null;
     userError = err;
   } catch (err: any) {
     userError = err;
-    user = null;
+    claims = null;
   }
 
-  // If Supabase returned an auth error (e.g. Invalid Refresh Token), or if user is null while auth cookies exist,
-  // expire and clear all auth cookies on both request and response so the browser drops them immediately.
+  let user: { id: string; factors?: { status: string }[] } | null =
+    claims?.sub ? { id: claims.sub } : null;
+
+  // MFA is the only path that still needs the current Auth user record: the
+  // verified JWT claims tell us the AAL level, while the factor list tells us
+  // whether an aal1 session must be challenged. Ordinary sessions stay on the
+  // fast getClaims path.
+  if (!userError && user && claims?.aal === "aal1") {
+    try {
+      const { data, error: err } = await supabase.auth.getUser();
+      if (err) {
+        userError = err;
+      } else if (data?.user) {
+        user = data.user as typeof user;
+      }
+    } catch (err: any) {
+      userError = err;
+    }
+  }
+
+  // If Supabase returned an auth error (e.g. Invalid Refresh Token), or if the
+  // claims are missing while auth cookies exist, expire and clear all auth
+  // cookies on both request and response so the browser drops them immediately.
   if (userError || (!user && hasCookie)) {
     request.cookies.getAll().forEach((c) => {
       if (
@@ -234,51 +261,9 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  function b64decode(input: string): string {
-    const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
-    return atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
-  }
-
-  function extractAccessToken(): string | null {
-    const chunks: string[] = [];
-    for (let i = 0; i < 6; i++) {
-      const name = `${cookiePrefix}${i === 0 ? "" : "." + i}`;
-      const value = request.cookies.get(name)?.value;
-      if (value) chunks.push(value);
-    }
-    const raw = chunks.join("");
-    if (!raw) return null;
-    try {
-      const encoded = raw.startsWith("base64-") ? raw.slice("base64-".length) : raw;
-      const session = JSON.parse(b64decode(encoded)) as { access_token?: string };
-      return typeof session.access_token === "string" ? session.access_token : null;
-    } catch {
-      return null;
-    }
-  }
-
-  let cookiePrefix = "sb-auth-token";
-  try {
-    const host = SUPABASE_URL.split("//")[1] || "";
-    const projectRef = host.split(".")[0] || "";
-    if (projectRef) cookiePrefix = `sb-${projectRef}-auth-token`;
-  } catch {
-    cookiePrefix = "sb-auth-token";
-  }
-
-  const accessToken = extractAccessToken();
-  let aal1SessionWithMfa = false;
-  if (user && accessToken) {
-    try {
-      const payload = JSON.parse(b64decode(accessToken.split(".")[1])) as { aal?: string };
-      const factors = (user as { factors?: { status: string }[] }).factors;
-      if (payload.aal === "aal1" && factors?.some((f) => f.status === "verified")) {
-        aal1SessionWithMfa = true;
-      }
-    } catch {
-      /* never block on a decoding hiccup */
-    }
-  }
+  const aal1SessionWithMfa = Boolean(
+    user && claims?.aal === "aal1" && user.factors?.some((f) => f.status === "verified")
+  );
 
   if ((!user || aal1SessionWithMfa) && !isPublic(pathname)) {
     if (pathname.startsWith("/api")) {
@@ -296,9 +281,6 @@ export async function middleware(request: NextRequest) {
     return finalizeResponse(NextResponse.redirect(url), response);
   }
 
-  // Finance module links are rewritten into the Finance Hub after authentication.
-  // This is deliberately a rewrite, never a redirect, so the module stays inside
-  // the same application workspace and the existing links continue to work.
   if (user && !aal1SessionWithMfa && financeModule) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = "/finance";
