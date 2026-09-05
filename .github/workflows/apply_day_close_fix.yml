@@ -1,5 +1,6 @@
 name: Apply Day Close Liquidity Fix
 
+# Triggered on the next push to main so the repository patch is applied.
 on:
   push:
     branches:
