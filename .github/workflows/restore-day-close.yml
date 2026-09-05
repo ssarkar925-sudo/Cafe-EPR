@@ -15,11 +15,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore day-close source from previous commit
+      - name: Restore day-close source from known-good commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout HEAD^ -- components/finance/day-close-client.tsx
+          git checkout 94ff689a097874fe262d5a4b6d0edfc0ddbe747a -- components/finance/day-close-client.tsx
           git add components/finance/day-close-client.tsx
           git commit -m "Restore Day Close source after accidental truncation"
           git push origin HEAD:main
