@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -21,7 +22,7 @@ export default function RechargeCommissionManager() {
   useRealtime(["recharge_providers", "recharge_commission_slabs"]);
 
   const tab = searchParams.get("tab") || "recharge";
-  const showManager = pathname === "/business/bill-payment" && (tab === "recharge" || tab === "commission");
+  const isCommission = pathname === "/business/bill-payment" && tab === "commission";
   const [open, setOpen] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [slabs, setSlabs] = useState<Slab[]>([]);
@@ -30,6 +31,7 @@ export default function RechargeCommissionManager() {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editHost, setEditHost] = useState<HTMLElement | null>(null);
 
   const providerName = (id: string) => providers.find((p) => p.id === id)?.name || "Unknown provider";
 
@@ -49,8 +51,53 @@ export default function RechargeCommissionManager() {
   };
 
   useEffect(() => {
-    if (showManager && open) void load();
-  }, [showManager, open]);
+    if (isCommission) return;
+    setEditHost(null);
+  }, [isCommission]);
+
+  useEffect(() => {
+    if (!isCommission) return;
+
+    let cancelled = false;
+    let observer: MutationObserver | null = null;
+    let host: HTMLSpanElement | null = null;
+
+    const attach = () => {
+      if (cancelled) return true;
+      const heading = Array.from(document.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6,div,span,p"))
+        .find((el) => el.textContent?.trim() === "Prepaid Operator Slabs");
+      if (!heading || !heading.parentElement) return false;
+
+      const parent = heading.parentElement;
+      host = parent.querySelector<HTMLSpanElement>("[data-recharge-commission-edit-host]");
+      if (!host) {
+        host = document.createElement("span");
+        host.setAttribute("data-recharge-commission-edit-host", "true");
+        host.className = "ml-auto inline-flex items-center";
+        parent.appendChild(host);
+      }
+      setEditHost(host);
+      return true;
+    };
+
+    if (!attach()) {
+      observer = new MutationObserver(() => {
+        if (attach() && observer) observer.disconnect();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    return () => {
+      cancelled = true;
+      if (observer) observer.disconnect();
+      setEditHost(null);
+      if (host?.parentElement) host.remove();
+    };
+  }, [isCommission]);
+
+  useEffect(() => {
+    if (isCommission && open) void load();
+  }, [isCommission, open]);
 
   useEffect(() => {
     if (!providerId && providers[0]) setProviderId(providers[0].id);
@@ -118,7 +165,10 @@ export default function RechargeCommissionManager() {
       showToast("error", result.error.message);
       return;
     }
-    setSlabs((prev) => editing ? prev.map((s) => s.id === editing.id ? result.data as Slab : s) : [...prev, result.data as Slab].sort((a, b) => a.provider_id.localeCompare(b.provider_id) || Number(a.min_amount) - Number(b.min_amount)));
+    setSlabs((prev) => editing
+      ? prev.map((s) => s.id === editing.id ? result.data as Slab : s)
+      : [...prev, result.data as Slab].sort((a, b) => a.provider_id.localeCompare(b.provider_id) || Number(a.min_amount) - Number(b.min_amount))
+    );
     setEditing(null);
     setForm(EMPTY);
     showToast("success", editing ? "Recharge commission slab updated." : "Recharge commission slab added.");
@@ -135,19 +185,23 @@ export default function RechargeCommissionManager() {
     showToast("success", "Recharge commission slab deleted.");
   }
 
-  if (!showManager) return null;
+  if (!isCommission) return null;
+
+  const editButton = (
+    <button
+      type="button"
+      onClick={() => { setOpen(true); void load(); }}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-black text-amber-700 shadow-sm transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-300"
+      title="Edit prepaid operator commission slabs"
+    >
+      <span aria-hidden="true">✎</span>
+      <span>Edit</span>
+    </button>
+  );
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => { setOpen(true); void load(); }}
-        className="fixed bottom-20 right-5 z-[60] inline-flex items-center gap-2 rounded-2xl border border-amber-400/30 bg-slate-950 px-4 py-3 text-xs font-black text-white shadow-xl shadow-amber-500/15 ring-1 ring-white/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 sm:bottom-6 sm:right-40"
-        title="Manage recharge provider commission slabs"
-      >
-        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">✎</span>
-        <span>{tab === "commission" ? "Edit Provider Slabs" : "Commission Slabs"}</span>
-      </button>
+      {editHost ? createPortal(editButton, editHost) : null}
 
       {open && (
         <Modal
