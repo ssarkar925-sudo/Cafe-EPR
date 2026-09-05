@@ -18,7 +18,7 @@ export type InstrumentPick = {
 
 export const METHOD_ACCOUNT_TYPES: Record<string, string[]> = {
   cash: ["cash"],
-  upi: ["upi"],
+  upi: ["upi", "upi_qr"],
   card: ["debit_card", "credit_card"],
   bank: ["bank"],
   wallet: ["wallet"],
@@ -34,7 +34,8 @@ export function instrumentLabel(method: string) {
 
 export function buildInstrumentOptions(instruments: PosInstrument[], enabled?: string[]) {
   return INSTRUMENT_TYPES.filter((t) => !enabled || enabled.includes(t.value)).map((t) => {
-    const named = instruments.filter((i) => i.type === t.value);
+    const acceptedTypes = t.value === "upi" ? ["upi", "upi_qr"] : [t.value];
+    const named = instruments.filter((i) => acceptedTypes.includes(i.type));
     const options = named.map((i) => ({ value: i.id, label: i.name }));
     if (named.length === 0) {
       options.push({ value: "__gen__:" + t.value, label: t.label });
@@ -57,7 +58,8 @@ export function parseInstrumentValue(
     return { method: value.slice(8), instrument_id: "" };
   }
   const inst = instruments.find((i) => i.id === value);
-  return { method: inst?.type ?? "cash", instrument_id: value };
+  const method = inst?.type === "upi_qr" ? "upi" : inst?.type ?? "cash";
+  return { method, instrument_id: value };
 }
 
 /**
