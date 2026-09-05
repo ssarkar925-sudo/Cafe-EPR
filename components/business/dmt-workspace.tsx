@@ -1150,7 +1150,7 @@ export default function DmtWorkspace({
                 href="/finance/reconciliation"
                 className="group inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
               >
-                <span>View reconciliation</span>
+                <span>View reconciliation →</span>
                 <span className="transition-transform duration-150 group-hover:translate-x-0.5">→</span>
               </Link>
             </div>
