@@ -1220,22 +1220,8 @@ export default function QuickSaleModule({
                 >
                   Hold Sale
                 </button>
-                <button
-                  onClick={() => setRecentOpen(true)}
-                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
-                  Recent Sales (F1)
-                </button>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setShowMoneyOut((v) => !v)}
-                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                    showMoneyOut ? "bg-rose-600 text-white" : "border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                  }`}
-                >
-                  Money Out
-                </button>
                 <button
                   onClick={() => record(false)}
                   disabled={payDisabled}
