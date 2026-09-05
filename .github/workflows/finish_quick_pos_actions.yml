@@ -1,0 +1,76 @@
+name: Finish Quick POS Actions
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compact quick-sale actions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          p = Path("components/pos/quick-sale.tsx")
+          s = p.read_text(encoding="utf-8")
+
+          old = '''              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={holdCart}
+                  disabled={payDisabled}
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hold Sale
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => record(false)}
+                  disabled={payDisabled}
+                  className="rounded-xl bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ₹ Pay
+                </button>
+              </div>
+'''
+          new = '''              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={holdCart}
+                  disabled={payDisabled}
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hold Sale
+                </button>
+                <button
+                  onClick={() => record(false)}
+                  disabled={payDisabled}
+                  className="rounded-xl bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ₹ Pay
+                </button>
+              </div>
+'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          p.write_text(s, encoding="utf-8")
+
+          Path(".github/workflows/finish_quick_pos_actions.yml").unlink(missing_ok=True)
+
+          if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
+              print("No changes needed")
+              raise SystemExit(0)
+          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "add", "components/pos/quick-sale.tsx", ".github/workflows/finish_quick_pos_actions.yml"], check=True)
+          subprocess.run(["git", "commit", "-m", "style: compact quick sale action row"], check=True)
+          subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
+          PY
