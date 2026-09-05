@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/patch-production-safety.mjs && next dev -p 3000 -H 0.0.0.0",
-    "prebuild": "node scripts/patch-billing-workspaces-safe.mjs && node scripts/patch-dashboard-performance.mjs && node scripts/patch-finance-account-types.mjs && node scripts/patch-production-safety.mjs",
+    "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
