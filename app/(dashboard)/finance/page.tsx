@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getIstDateString } from "@/lib/date";
 import FinanceDashboardClient from "@/components/finance/finance-dashboard-client";
 import CashBookPage from "@/app/(dashboard)/finance/cashbook/page";
 import JournalPage from "@/app/(dashboard)/finance/journal/page";
@@ -73,7 +74,7 @@ export default async function FinancePage({
   }
 
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = getIstDateString();
   const startOfMonth = today.slice(0, 8) + "01";
 
   const [
