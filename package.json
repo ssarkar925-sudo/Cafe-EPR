@@ -14,6 +14,7 @@
     "test:ai-learning": "node scripts/test-ai-learning-control.mjs",
     "gateway": "node scripts/whatsapp-gateway.js",
     "ai:portal:teach": "node scripts/ai-portal-worker.mjs teach",
+    "ai:portal:receipt-teach": "node scripts/ai-portal-receipt-teach.mjs",
     "ai:portal:learn": "node scripts/ai-portal-worker.mjs learn",
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect"
   },
