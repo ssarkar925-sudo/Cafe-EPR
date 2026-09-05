@@ -17,8 +17,9 @@ jobs:
           fetch-depth: 0
 
       - name: Update DMT beneficiary flow
-        shell: python3
+        shell: bash
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           import re
           import subprocess
@@ -43,25 +44,30 @@ jobs:
           )
 
           text = re.sub(
-              r'(value=\{beneficiaryAccount\}\n\s*onChange=\{\(e\) => setBeneficiaryAccount)',
-              lambda m: m.group(1),
+              r'(\n\s*)required(\n\s*value=\{beneficiaryAccount\})',
+              r'\1\2',
               text,
               count=1,
           )
           text = re.sub(
-              r'(value=\{beneficiaryIfsc\}\n\s*onChange=\{\(e\) => setBeneficiaryIfsc)',
-              lambda m: m.group(1),
+              r'(\n\s*)required(\n\s*maxLength=\{11\}\n\s*value=\{beneficiaryIfsc\})',
+              r'\1maxLength={11}\n\2value={beneficiaryIfsc}',
+              text,
+              count=0,
+          )
+          text = re.sub(
+              r'(\n\s*)required(\n\s*maxLength=11\n\s*value=\{beneficiaryIfsc\})',
+              r'\1\2',
               text,
               count=1,
           )
           text = re.sub(
-              r'(value=\{upiId\}\n\s*onChange=\{\(e\) => setUpiId)',
-              lambda m: m.group(1),
+              r'(\n\s*)required(\n\s*value=\{upiId\})',
+              r'\1\2',
               text,
               count=1,
           )
 
-          # The frontend should now treat those three routing fields as optional.
           old_validation = '''    if (transferMethod === "bank_account") {
       if (!beneficiaryAccount.trim() || beneficiaryAccount.trim().length < 4) return false;
       if (!beneficiaryIfsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase()))
@@ -72,8 +78,7 @@ jobs:
     }
 '''
           new_validation = '''    if (transferMethod === "bank_account") {
-      // Bank remains the selected routing master; account number and IFSC are
-      // optional so operators can proceed when the payout channel supplies them.
+      // Bank remains the selected routing master; account number and IFSC are optional.
       if (!beneficiaryBank.trim()) return false;
     }
 '''
@@ -96,26 +101,22 @@ jobs:
               raise SystemExit('Expected DMT lifecycle block was not found')
           text = text.replace(old_step, new_step, 1)
 
-          # Add a single Self Beneficiary shortcut shared by both transfer modes.
-          state_anchor = '  const [beneficiarySuggestions, setBeneficiarySuggestions] = useState'
-          if state_anchor in text:
-              raise SystemExit('Unexpected old beneficiarySuggestions state anchor found')
-
-          state_insert_anchor = '  const [receiverName, setReceiverName] = useState<string>("");\n'
-          if state_insert_anchor not in text:
-              raise SystemExit('Could not find beneficiary state anchor')
-          text = text.replace(
-              state_insert_anchor,
-              state_insert_anchor + '  const [selfBeneficiaryLoading, setSelfBeneficiaryLoading] = useState(false);\n',
-              1,
-          )
+          state_anchor = '  const [receiverName, setReceiverName] = useState<string>("");\n'
+          if 'const [selfBeneficiaryLoading, setSelfBeneficiaryLoading]' not in text:
+              if state_anchor not in text:
+                  raise SystemExit('Could not find beneficiary state anchor')
+              text = text.replace(
+                  state_anchor,
+                  state_anchor + '  const [selfBeneficiaryLoading, setSelfBeneficiaryLoading] = useState(false);\n',
+                  1,
+              )
 
           helper_anchor = '  // Strict Form Validation Guard\n'
-          if helper_anchor not in text:
-              raise SystemExit('Could not find validation insertion point')
-
-          helper = r'''  // One-tap self beneficiary: use the configured shop bank account for
-  // IMPS/NEFT, or the shop UPI VPA / merchant QR for UPI.
+          if 'async function useSelfBeneficiary()' not in text:
+              if helper_anchor not in text:
+                  raise SystemExit('Could not find validation insertion point')
+              helper = '''  // One-tap self beneficiary: use the configured shop bank account for IMPS/NEFT,
+  // or the shop UPI VPA / merchant QR for UPI.
   async function useSelfBeneficiary() {
     if (selfBeneficiaryLoading) return;
     setSelfBeneficiaryLoading(true);
@@ -206,15 +207,13 @@ jobs:
   }
 
 '''
-          text = text.replace(helper_anchor, helper + helper_anchor, 1)
+              text = text.replace(helper_anchor, helper + helper_anchor, 1)
 
-          # Put the shortcut directly above the mode-specific beneficiary fields,
-          # so it is visibly available for both Bank Account and UPI modes.
           mode_anchor = '              {/* 2. Beneficiary Section */}\n'
-          if mode_anchor not in text:
-              raise SystemExit('Could not find beneficiary section anchor')
-
-          shortcut = '''              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+          if 'title="Fill configured shop account or UPI as Self Beneficiary"' not in text:
+              if mode_anchor not in text:
+                  raise SystemExit('Could not find beneficiary section anchor')
+              shortcut = '''              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2 dark:border-indigo-900/40 dark:bg-indigo-950/20">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">BENEFICIARY</div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">Fill your configured shop account / UPI as the beneficiary.</p>
@@ -231,27 +230,19 @@ jobs:
               </div>
 
 '''
-          text = text.replace(mode_anchor, shortcut + mode_anchor, 1)
+              text = text.replace(mode_anchor, shortcut + mode_anchor, 1)
 
           if text == original:
               raise SystemExit('No DMT source changes were produced')
 
           path.write_text(text, encoding='utf-8')
 
-          # Remove this one-shot workflow after applying its changes.
           workflow = Path('.github/workflows/apply_dmt_self_beneficiary.yml')
-
           subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
           subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-          subprocess.run([
-              'git', 'add',
-              'components/business/dmt-workspace.tsx',
-              '.github/workflows/apply_dmt_self_beneficiary.yml'
-          ], check=True)
-          if subprocess.run(['git', 'diff', '--cached', '--quiet']).returncode == 0:
-              print('No DMT UI changes needed')
-              raise SystemExit(0)
+          subprocess.run(['git', 'add', 'components/business/dmt-workspace.tsx', '.github/workflows/apply_dmt_self_beneficiary.yml'], check=True)
           subprocess.run(['git', 'rm', '-f', str(workflow)], check=True)
           subprocess.run(['git', 'add', 'components/business/dmt-workspace.tsx'], check=True)
           subprocess.run(['git', 'commit', '-m', 'fix: make DMT routing fields optional and add self beneficiary'], check=True)
           subprocess.run(['git', 'push', 'origin', 'HEAD:main'], check=True)
+          PY
