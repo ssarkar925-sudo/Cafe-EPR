@@ -4,6 +4,7 @@ import { getUserRole } from "@/lib/authz";
 import DashboardShell from "@/components/dashboard-shell";
 import SessionGuard from "@/components/session-guard";
 import AIAgentLauncher from "@/components/ai/ai-agent-launcher";
+import RechargeCommissionManager from "@/components/business/recharge-commission-manager";
 
 export default async function DashboardLayout({
   children,
@@ -57,6 +58,7 @@ export default async function DashboardLayout({
         <main className="min-w-0">{children}</main>
       </DashboardShell>
       <AIAgentLauncher role={role} />
+      <RechargeCommissionManager />
     </>
   );
 }
