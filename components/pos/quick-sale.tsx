@@ -1220,8 +1220,6 @@ export default function QuickSaleModule({
                 >
                   Hold Sale
                 </button>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
                   onClick={() => record(false)}
                   disabled={payDisabled}
