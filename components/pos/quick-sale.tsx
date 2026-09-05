@@ -944,6 +944,14 @@ export default function QuickSaleModule({
               </div>
               <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
+                  onClick={() => setRecentOpen(true)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-violet-600 transition hover:bg-violet-50"
+                  title="Open recent quick sales"
+                >
+                  ↻ Recent Sales
+                </button>
+                <button
                   onClick={() => setRecallOpen(true)}
                   className="rounded-lg px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                   title="Recall held sale"

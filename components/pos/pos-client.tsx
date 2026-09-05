@@ -1018,18 +1018,6 @@ export default function PosClient({
             ))}
           </div>
 
-          {mode === "quick" && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "F1", bubbles: true }))}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-              title="Open Recent Quick Sales (F1)"
-            >
-              <span className="text-sm leading-none">↻</span>
-              <span>Recent Sales</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => {
