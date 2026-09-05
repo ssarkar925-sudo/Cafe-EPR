@@ -22,7 +22,8 @@ const newTotals = `  // Credit-card limit is a financing facility, not operation
     const rows = Array.isArray(openClose.rows) ? openClose.rows : [];
     const liquidRows = rows.filter((r) => LIQUID_POOLS.has(r.pool));
     const creditRows = rows.filter((r) => r.pool === "credit_card");
-    const sum = (items, key) => items.reduce((total, r) => total + Number(r[key] || 0), 0);
+    const sum = (items: CloseRow[], key: keyof CloseRow) =>
+      items.reduce((total, r) => total + Number(r[key] || 0), 0);
     return {
       opening: sum(liquidRows, "opening"),
       computed: sum(liquidRows, "computed"),
