@@ -1,0 +1,126 @@
+name: Move Quick POS Recent Sales
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update Quick POS layout
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+
+          pos = Path("components/pos/pos-client.tsx")
+          quick = Path("components/pos/quick-sale.tsx")
+
+          pos_text = pos.read_text(encoding="utf-8")
+          quick_text = quick.read_text(encoding="utf-8")
+
+          recent_top = '''          {mode === "quick" && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "F1", bubbles: true }))}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              title="Open Recent Quick Sales (F1)"
+            >
+              <span className="text-sm leading-none">↻</span>
+              <span>Recent Sales</span>
+            </button>
+          )}
+
+'''
+          if recent_top in pos_text:
+              pos_text = pos_text.replace(recent_top, "", 1)
+
+          recent_header = '''                <button
+                  type="button"
+                  onClick={() => setRecentOpen(true)}
+                  className="rounded-lg px-2 py-1 text-xs font-medium text-violet-600 transition hover:bg-violet-50"
+                  title="Open recent quick sales"
+                >
+                  Recent Sales
+                </button>
+'''
+          if 'title="Open recent quick sales"' not in quick_text:
+              anchor = '''              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setRecallOpen(true)}'''
+              if anchor not in quick_text:
+                  raise SystemExit("Could not find Quick Sale header action group")
+              quick_text = quick_text.replace(
+                  anchor,
+                  '''              <div className="flex items-center gap-1.5">
+''' + recent_header + '''                <button
+                  onClick={() => setRecallOpen(true)''',
+                  1,
+              )
+
+          # Keep checkout actions compact: Hold + Pay on one row, Pay & Print full width below.
+          split_layout = '''              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={holdCart}
+                  disabled={payDisabled}
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hold Sale
+                </button>
+                <button
+                  onClick={() => record(false)}
+                  disabled={payDisabled}
+                  className="rounded-xl bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ₹ Pay
+                </button>
+              </div>
+'''
+          if split_layout not in quick_text:
+              old_hold = '''              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={holdCart}
+                  disabled={payDisabled}
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hold Sale
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => record(false)}
+                  disabled={payDisabled}
+                  className="rounded-xl bg-[#0f172a] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ₹ Pay
+                </button>
+              </div>
+'''
+              if old_hold in quick_text:
+                  quick_text = quick_text.replace(old_hold, split_layout, 1)
+
+          pos.write_text(pos_text, encoding="utf-8")
+          quick.write_text(quick_text, encoding="utf-8")
+
+          # Remove this one-shot workflow after the source files are changed.
+          Path(".github/workflows/move_quick_recent_sales.yml").unlink(missing_ok=True)
+
+          if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
+              print("No changes needed")
+              raise SystemExit(0)
+
+          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "add", "components/pos/pos-client.tsx", "components/pos/quick-sale.tsx", ".github/workflows/move_quick_recent_sales.yml"], check=True)
+          subprocess.run(["git", "commit", "-m", "refactor: improve quick POS header actions"], check=True)
+          subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
