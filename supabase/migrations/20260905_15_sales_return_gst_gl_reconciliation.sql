@@ -68,7 +68,8 @@ begin
   if exists(select 1 from public.journal_entries where source_type='sales_return_tax' and source_id=r.id and status='posted') then return; end if;
   v_lines := v_lines || jsonb_build_object('account_code','2100','debit',v_tax,'credit',0);
   v_lines := v_lines || jsonb_build_object('account_code','5100','debit',0,'credit',v_tax);
-  perform public.post_journal_entry(current_date,'sales_return_tax',r.id,'GST reversal '||r.return_number,v_lines,null);
+  -- Recognize the GST reversal in the return's accounting period, not the server's current date.
+  perform public.post_journal_entry(r.return_date,'sales_return_tax',r.id,'GST reversal '||r.return_number,v_lines,null);
 end;
 $$;
 
