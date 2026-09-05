@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getServerWhatsAppConfig, sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
+
+function clientIp(req: Request): string {
+  return String(req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown").trim();
+}
 
 export async function POST(req: Request) {
   try {
     const role = await getUserRole();
     if (!hasRole(role, ["admin", "manager", "staff"])) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const limited = await createAdminClient().rpc("consume_api_rate_limit", {
+      p_key: `whatsapp-send:${clientIp(req)}`,
+      p_limit: 20,
+      p_window_seconds: 60,
+    });
+    if (limited.error || limited.data !== true) {
+      return NextResponse.json({ success: false, error: "Too many WhatsApp send requests. Please retry shortly." }, { status: 429 });
     }
 
     const body = await req.json();
