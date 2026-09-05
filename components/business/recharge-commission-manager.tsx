@@ -20,7 +20,8 @@ export default function RechargeCommissionManager() {
   const { showToast, toastView } = useToast();
   useRealtime(["recharge_providers", "recharge_commission_slabs"]);
 
-  const isRecharge = pathname === "/business/bill-payment" && (searchParams.get("tab") || "recharge") === "recharge";
+  const tab = searchParams.get("tab") || "recharge";
+  const showManager = pathname === "/business/bill-payment" && (tab === "recharge" || tab === "commission");
   const [open, setOpen] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [slabs, setSlabs] = useState<Slab[]>([]);
@@ -48,8 +49,8 @@ export default function RechargeCommissionManager() {
   };
 
   useEffect(() => {
-    if (isRecharge && open) void load();
-  }, [isRecharge, open]);
+    if (showManager && open) void load();
+  }, [showManager, open]);
 
   useEffect(() => {
     if (!providerId && providers[0]) setProviderId(providers[0].id);
@@ -134,7 +135,7 @@ export default function RechargeCommissionManager() {
     showToast("success", "Recharge commission slab deleted.");
   }
 
-  if (!isRecharge) return null;
+  if (!showManager) return null;
 
   return (
     <>
@@ -144,8 +145,8 @@ export default function RechargeCommissionManager() {
         className="fixed bottom-20 right-5 z-[60] inline-flex items-center gap-2 rounded-2xl border border-amber-400/30 bg-slate-950 px-4 py-3 text-xs font-black text-white shadow-xl shadow-amber-500/15 ring-1 ring-white/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 sm:bottom-6 sm:right-40"
         title="Manage recharge provider commission slabs"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">%</span>
-        <span>Commission Slabs</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">✎</span>
+        <span>{tab === "commission" ? "Edit Provider Slabs" : "Commission Slabs"}</span>
       </button>
 
       {open && (
