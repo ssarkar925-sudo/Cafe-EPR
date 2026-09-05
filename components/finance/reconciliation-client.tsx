@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
-import { useToast } from "@/components/ui/use-toast";
 
 export type PoolBalances = {
   cash: { opening: number; movements: number; current: number; seed_date: string | null };
@@ -16,630 +15,320 @@ export type PoolBalances = {
   total: number;
 };
 
-export type InstrumentRow = {
+type InstrumentRow = {
   id: string;
   name: string;
   type: string;
-  balance: number;
-  opening_balance: number;
-  details: any;
+  balance: number | string;
+  opening_balance: number | string;
+  details: unknown;
   is_active: boolean;
 };
 
-export type PoolReconDetail = {
-  key: string;
-  label: string;
-  icon: string;
-  grad: string;
-  currentBalance: number;
-  openingBalance: number;
-  credits: number;
-  debits: number;
-  fees: number;
-  settlements: number;
-  otherMovements: number;
-  calculatedBalance: number;
-  canonicalBalance: number;
-  variance: number;
-  isReconciled: boolean;
-  canonicalSource: string;
-  contributingTxns: {
-    id: string;
-    number: string;
-    type: string;
-    amount: number;
-    date: string;
-    desc: string;
-  }[];
+type CashEntry = {
+  id: string;
+  instrument_id: string;
+  direction: string;
+  amount: number | string;
+  created_at: string;
+  entry_date?: string;
+  remarks?: string | null;
+  description?: string | null;
+  method?: string | null;
+  ref_type?: string | null;
+  ref_id?: string | null;
 };
 
-const POOL_CONFIGS = [
-  {
-    key: "upi_qr",
-    label: "UPI QR Float",
-    icon: "📱",
-    grad: "from-rose-500 to-pink-600",
-    glow: "card-glow-rose",
-    canonicalSource: "get_pool_balances → upi_qr",
-  },
-  {
-    key: "bank",
-    label: "Bank Balance",
-    icon: "🏛️",
-    grad: "from-blue-500 to-indigo-600",
-    glow: "card-glow-indigo",
-    canonicalSource: "get_pool_balances → bank",
-  },
-  {
-    key: "cash",
-    label: "Cash in Hand",
-    icon: "💵",
-    grad: "from-indigo-500 to-violet-600",
-    glow: "card-glow-cyan",
-    canonicalSource: "get_pool_balances → cash",
-  },
-  {
-    key: "aeps",
-    label: "AEPS Float",
-    icon: "🏧",
-    grad: "from-amber-500 to-orange-600",
-    glow: "card-glow-amber",
-    canonicalSource: "get_pool_balances → aeps",
-  },
-  {
-    key: "dmt",
-    label: "DMT Float",
-    icon: "💸",
-    grad: "from-violet-500 to-purple-600",
-    glow: "card-glow-violet",
-    canonicalSource: "get_pool_balances → dmt",
-  },
-  {
-    key: "wallet",
-    label: "Wallet Balance",
-    icon: "👛",
-    grad: "from-emerald-500 to-teal-600",
-    glow: "card-glow-emerald",
-    canonicalSource: "get_pool_balances → wallet",
-  },
+type Transaction = {
+  id: string;
+  transaction_number?: string | null;
+  service_type?: string | null;
+  amount?: number | string | null;
+  created_at?: string;
+};
+
+type Settlement = {
+  id: string;
+  settlement_number?: string | null;
+  amount?: number | string | null;
+  created_at?: string;
+};
+
+type PoolConfig = {
+  key: keyof Pick<PoolBalances, "cash" | "bank" | "wallet" | "dmt" | "aeps" | "upi_qr">;
+  label: string;
+  icon: string;
+  instrumentTypes: string[];
+};
+
+const POOLS: PoolConfig[] = [
+  { key: "cash", label: "Cash in Hand", icon: "💵", instrumentTypes: ["cash"] },
+  { key: "bank", label: "Bank Balance", icon: "🏦", instrumentTypes: ["bank", "bank_account"] },
+  { key: "aeps", label: "AEPS Float", icon: "🏧", instrumentTypes: ["aeps", "aeps_portal"] },
+  { key: "dmt", label: "DMT Float", icon: "💸", instrumentTypes: ["dmt", "dmt_portal"] },
+  { key: "wallet", label: "Wallet Balance", icon: "👛", instrumentTypes: ["wallet"] },
+  { key: "upi_qr", label: "UPI QR Float", icon: "📱", instrumentTypes: ["upi", "upi_qr"] },
 ];
+
+function n(value: unknown): number {
+  const valueNumber = Number(value);
+  return Number.isFinite(valueNumber) ? valueNumber : 0;
+}
+
+function money(value: number): string {
+  return inr(Math.round(value * 100) / 100);
+}
 
 export default function ReconciliationClient({
   initialBalances,
   initialInstruments,
   initialCashEntries,
-  initialPortals,
+  initialPortals: _initialPortals,
   initialTransactions,
   initialSettlements,
-  initialOpeningBalances,
+  initialOpeningBalances: _initialOpeningBalances,
 }: {
   initialBalances: PoolBalances | null;
   initialInstruments: InstrumentRow[];
-  initialCashEntries: any[];
-  initialPortals: any[];
-  initialTransactions: any[];
-  initialSettlements: any[];
-  initialOpeningBalances: any[];
+  initialCashEntries: CashEntry[];
+  initialPortals: unknown[];
+  initialTransactions: Transaction[];
+  initialSettlements: Settlement[];
+  initialOpeningBalances: unknown[];
 }) {
   const supabase = createClient();
-  const { showToast, toastView } = useToast();
-
   const [balances, setBalances] = useState<PoolBalances | null>(initialBalances);
   const [instruments, setInstruments] = useState<InstrumentRow[]>(initialInstruments);
-  const [selectedPoolKey, setSelectedPoolKey] = useState<string>("upi_qr");
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(() =>
-    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-  );
+  const [cashEntries, setCashEntries] = useState<CashEntry[]>(initialCashEntries);
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [settlements, setSettlements] = useState<Settlement[]>(initialSettlements);
+  const [selectedPool, setSelectedPool] = useState<PoolConfig>(POOLS[0]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date().toLocaleTimeString());
 
-  const [cashEntries, setCashEntries] = useState<any[]>(initialCashEntries);
-  const [portals, setPortals] = useState<any[]>(initialPortals);
-  const [transactions, setTransactions] = useState<any[]>(initialTransactions);
-  const [settlements, setSettlements] = useState<any[]>(initialSettlements);
-  const [openingBalances, setOpeningBalances] = useState<any[]>(initialOpeningBalances);
-
-  const refreshLiveBalances = useCallback(async () => {
-    setIsRefreshing(true);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      const [
-        { data: poolResult },
-        { data: insts },
-        { data: ces },
-        { data: pts },
-        { data: txs },
-        { data: sets },
-        { data: seeds },
-      ] = await Promise.all([
+      const [poolRes, instRes, entryRes, txRes, setRes] = await Promise.all([
         supabase.rpc("get_pool_balances"),
-        supabase.from("payment_instruments").select("*").order("type").order("name"),
-        supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, remarks, method, ref_type").not("instrument_id", "is", null),
-        supabase.from("aeps_portals").select("id, payment_instrument_id, name"),
-        supabase.from("transactions").select("id, transaction_number, service_type, pool_credit, pool_out, pool_credit_type, service_fee, upi_fee, amount, status, created_at, customer_pay_method, fee_source, portal_id, instrument_id").eq("status", "success").order("created_at", { ascending: false }).limit(200),
-        supabase.from("settlements").select("id, source_instrument_id, dest_instrument_id, from_pool, to_pool, amount, status, created_at, settlement_number").eq("status", "success").order("created_at", { ascending: false }).limit(100),
-        supabase.from("opening_balances").select("*").order("as_of", { ascending: false }),
+        supabase.from("payment_instruments").select("id,name,type,balance,opening_balance,details,is_active,created_at").order("type").order("name"),
+        supabase.from("cash_entries").select("id,instrument_id,direction,amount,created_at,entry_date,remarks,description,method,ref_type,ref_id").not("instrument_id", "is", null).order("created_at", { ascending: true }),
+        supabase.from("transactions").select("id,transaction_number,service_type,amount,created_at").eq("status", "success").order("created_at", { ascending: false }).limit(5000),
+        supabase.from("settlements").select("id,settlement_number,amount,created_at").eq("status", "success").order("created_at", { ascending: false }).limit(2000),
       ]);
-
-      if (poolResult) setBalances(poolResult as any);
-      if (insts) setInstruments(insts as any);
-      if (ces) setCashEntries(ces);
-      if (pts) setPortals(pts);
-      if (txs) setTransactions(txs);
-      if (sets) setSettlements(sets);
-      if (seeds) setOpeningBalances(seeds);
-
-      setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-    } catch (err) {
-      console.error("Reconciliation fetch error:", err);
+      if (poolRes.data) setBalances(poolRes.data as PoolBalances);
+      if (instRes.data) setInstruments(instRes.data as InstrumentRow[]);
+      if (entryRes.data) setCashEntries(entryRes.data as CashEntry[]);
+      if (txRes.data) setTransactions(txRes.data as Transaction[]);
+      if (setRes.data) setSettlements(setRes.data as Settlement[]);
+      setLastRefresh(new Date().toLocaleTimeString());
     } finally {
-      setIsRefreshing(false);
+      setRefreshing(false);
     }
   }, [supabase]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("finance-recon-live-" + Math.random().toString(36).slice(2))
-      .on("postgres_changes", { event: "*", schema: "public", table: "cash_entries" }, refreshLiveBalances)
-      .on("postgres_changes", { event: "*", schema: "public", table: "payment_instruments" }, refreshLiveBalances)
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refreshLiveBalances)
-      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, refreshLiveBalances)
-      .on("postgres_changes", { event: "*", schema: "public", table: "settlements" }, refreshLiveBalances)
+      .channel(`finance-reconciliation-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "cash_entries" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "payment_instruments" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "settlements" }, refresh)
       .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [supabase, refreshLiveBalances]);
+  }, [supabase, refresh]);
 
-  // Compute detailed reconciliation for every pool
-  const poolReconMap = useMemo(() => {
-    const map: Record<string, PoolReconDetail> = {};
-    if (!balances) return map;
+  const transactionMap = useMemo(() => new Map(transactions.map((t) => [t.id, t])), [transactions]);
+  const settlementMap = useMemo(() => new Map(settlements.map((s) => [s.id, s])), [settlements]);
 
-    for (const cfg of POOL_CONFIGS) {
-      const poolEntry = (balances as any)[cfg.key] || { opening: 0, movements: 0, current: 0 };
-      const canonicalBal = Number(poolEntry.current ?? (poolEntry.opening + poolEntry.movements));
-      const openingBal = Number(poolEntry.opening ?? 0);
+  const recon = useMemo(() => {
+    const result: Record<string, {
+      opening: number;
+      credits: number;
+      debits: number;
+      movement: number;
+      calculated: number;
+      canonical: number;
+      variance: number;
+      entries: CashEntry[];
+      instrumentIds: Set<string>;
+    }> = {};
 
+    for (const pool of POOLS) {
+      const typeSet = new Set(pool.instrumentTypes.map((type) => type.toLowerCase()));
+      const poolInstruments = instruments.filter((i) => i.is_active && typeSet.has(String(i.type).toLowerCase()));
+      const ids = new Set(poolInstruments.map((i) => i.id));
+      const opening = poolInstruments.reduce((sum, i) => sum + n(i.opening_balance), 0);
+      const entries = cashEntries.filter((e) => ids.has(e.instrument_id));
       let credits = 0;
       let debits = 0;
-      let fees = 0;
-      let setsIn = 0;
-      let setsOut = 0;
-      let otherMovements = 0;
-      const txList: any[] = [];
-
-      if (cfg.key === "upi_qr") {
-        for (const t of transactions) {
-          const pCredit = Number(t.pool_credit) || 0;
-          const pOut = Number(t.pool_out) || 0;
-          const uFee = Number(t.upi_fee) || 0;
-
-          if (pCredit > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-            credits += pCredit;
-            txList.push({
-              id: t.id,
-              number: t.transaction_number || "TXN",
-              type: "QR Credit",
-              amount: pCredit,
-              date: t.created_at,
-              desc: `Customer QR payment (${inr(t.amount || pCredit)})`,
-            });
-          }
-
-          if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-            debits += pOut;
-            txList.push({
-              id: t.id,
-              number: t.transaction_number || "TXN",
-              type: "Outflow",
-              amount: -pOut,
-              date: t.created_at,
-              desc: "UPI payout / settlement",
-            });
-          }
-
-          if (uFee > 0 || (t.fee_source === "upi" && Number(t.service_fee) > 0)) {
-            const feeAmt = uFee > 0 ? uFee : Number(t.service_fee);
-            fees += feeAmt;
-            txList.push({
-              id: `${t.id}-fee`,
-              number: t.transaction_number || "TXN",
-              type: "Fee Collection",
-              amount: feeAmt,
-              date: t.created_at,
-              desc: `Service fee collected via UPI (${t.service_type?.toUpperCase()})`,
-            });
-          }
-        }
-
-        for (const s of settlements) {
-          const amt = Number(s.amount) || 0;
-          if (s.to_pool === "upi_qr") {
-            setsIn += amt;
-            txList.push({
-              id: s.id,
-              number: s.settlement_number || "SETTLEMENT",
-              type: "Settlement In",
-              amount: amt,
-              date: s.created_at,
-              desc: "Settlement received into UPI",
-            });
-          }
-          if (s.from_pool === "upi_qr") {
-            setsOut += amt;
-            txList.push({
-              id: s.id,
-              number: s.settlement_number || "SETTLEMENT",
-              type: "Settlement Out",
-              amount: -amt,
-              date: s.created_at,
-              desc: "UPI sweep / transfer to bank",
-            });
-          }
-        }
-
-        for (const e of cashEntries) {
-          if (e.method === "upi" || e.method === "upi_qr" || e.method === "qr") {
-            const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-            otherMovements += amt;
-            txList.push({
-              id: e.id,
-              number: "ENTRY",
-              type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
-              amount: amt,
-              date: e.created_at,
-              desc: e.remarks || "Direct cashbook adjustment",
-            });
-          }
-        }
-      } else {
-        // Generic pool movements
-        const delta = Number(poolEntry.movements ?? 0);
-        if (delta > 0) credits = delta;
-        else debits = -delta;
-        otherMovements = delta;
-
-        for (const e of cashEntries) {
-          if (e.method === cfg.key) {
-            const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-            txList.push({
-              id: e.id,
-              number: "CASH-ENTRY",
-              type: e.direction === "out" ? "Outflow" : "Inflow",
-              amount: amt,
-              date: e.created_at,
-              desc: e.remarks || "Direct cashbook posting",
-            });
-          }
-        }
+      for (const entry of entries) {
+        if (String(entry.direction).toLowerCase() === "in") credits += n(entry.amount);
+        else if (String(entry.direction).toLowerCase() === "out") debits += n(entry.amount);
       }
-
-      const calculatedBal =
-        cfg.key === "upi_qr"
-          ? openingBal + credits - debits + fees + otherMovements + setsIn - setsOut
-          : openingBal + poolEntry.movements;
-      const variance = calculatedBal - canonicalBal;
-      const isReconciled = Math.abs(variance) < 0.01;
-
-      map[cfg.key] = {
-        key: cfg.key,
-        label: cfg.label,
-        icon: cfg.icon,
-        grad: cfg.grad,
-        currentBalance: canonicalBal,
-        openingBalance: openingBal,
+      const movement = credits - debits;
+      const calculated = opening + movement;
+      const canonical = n((balances as any)?.[pool.key]?.current);
+      result[pool.key] = {
+        opening,
         credits,
         debits,
-        fees,
-        settlements: setsIn - setsOut,
-        otherMovements,
-        calculatedBalance: calculatedBal,
-        canonicalBalance: canonicalBal,
-        variance,
-        isReconciled,
-        canonicalSource: cfg.canonicalSource,
-        contributingTxns: txList,
+        movement,
+        calculated,
+        canonical,
+        variance: calculated - canonical,
+        entries,
+        instrumentIds: ids,
       };
     }
+    return result;
+  }, [balances, cashEntries, instruments]);
 
-    return map;
-  }, [balances, transactions, settlements, cashEntries]);
+  const selectedRecon = recon[selectedPool.key];
+  const allReconciled = POOLS.every((pool) => Math.abs(recon[pool.key]?.variance ?? 0) < 0.01);
 
-  const allReconciled = useMemo(() => {
-    return Object.values(poolReconMap).every((p) => p.isReconciled);
-  }, [poolReconMap]);
+  const entryLabel = (entry: CashEntry) => {
+    if (entry.ref_type === "transaction" && entry.ref_id) {
+      const txn = transactionMap.get(entry.ref_id);
+      if (txn?.transaction_number) return txn.transaction_number;
+    }
+    if (entry.ref_type === "settlement" && entry.ref_id) {
+      const settlement = settlementMap.get(entry.ref_id);
+      if (settlement?.settlement_number) return settlement.settlement_number;
+    }
+    return entry.ref_type ? String(entry.ref_type).toUpperCase() : "ADJUSTMENT";
+  };
 
-  const selectedPool = poolReconMap[selectedPoolKey] || poolReconMap["upi_qr"];
-  const totalPosition = balances?.total ?? 6151;
+  const entryDescription = (entry: CashEntry) => {
+    if (entry.remarks || entry.description) return entry.remarks || entry.description;
+    if (entry.ref_type === "transaction" && entry.ref_id) return transactionMap.get(entry.ref_id)?.service_type || "Service transaction";
+    if (entry.ref_type === "settlement" && entry.ref_id) return "Settlement transfer";
+    return `${entry.method || "Financial"} movement`;
+  };
 
   return (
-    <div className="space-y-8 pt-6 sm:pt-8 md:pt-10">
-      {/* ========================================================================= */}
-      {/* 1. MASTER WORKSPACE HERO: FINANCIAL RECONCILIATION */}
-      {/* ========================================================================= */}
-      <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 p-6 sm:p-7 text-white shadow-xl ring-1 ring-white/10 mt-1">
-        {/* Spatial background glow */}
-        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
-
-        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-2xl shadow-lg shadow-cyan-500/30">
-                ⚖️
-              </span>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">
-                    Financial Reconciliation
-                  </h1>
-                  {allReconciled ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-0.5 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/40">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      ✓ All Accounts Reconciled
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/20 px-3 py-0.5 text-xs font-bold text-rose-300 ring-1 ring-rose-400/40">
-                      <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-ping" />
-                      ⚠ Variance Detected
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-sm text-slate-300">
-                  Cross-module verification of live financial positions
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-3 text-xs leading-relaxed text-slate-400">
-              Verifies opening anchor seeds, transaction credits, outflows, provider float settlements, and cashbook movements against the canonical double-entry accounting engine.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2.5">
-              <span className="text-xs text-slate-400">Synced {lastRefreshedAt}</span>
-              <button
-                type="button"
-                onClick={refreshLiveBalances}
-                disabled={isRefreshing}
-                className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white shadow-sm backdrop-blur-md transition hover:bg-white/20 disabled:opacity-50"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`h-4 w-4 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`}
-                >
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                  <path d="M16 21h5v-5" />
-                </svg>
-                <span>{isRefreshing ? "Verifying…" : "Refresh"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Master Asset Aggregation Explanation */}
-        <div className="relative z-10 mt-6 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-md">
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-300">
-            <div>
-              <strong className="text-white">Included in Asset Aggregation:</strong> Cash (−₹5,845) + Bank (+₹9,500) + UPI (+₹9,011) + AEPS (−₹6,515) + DMT (+₹0) = <strong className="text-emerald-400 text-sm">{inr(totalPosition)}</strong> Total Position.
-            </div>
-            <div className="flex items-center gap-3 text-[11px] text-slate-400">
-              <span>Debit Card: <strong>Linked Mirror (Excluded)</strong></span>
-              <span>·</span>
-              <span>Credit Card: <strong>Credit Facility ({inr(15000)})</strong></span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 2. POOL SUMMARY CARDS (6 CORE POOLS) */}
-      {/* ========================================================================= */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
+    <div className="space-y-6 pt-6 sm:pt-8">
+      <section className="rounded-3xl border bg-card p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">Pool Reconciliation Summary</h2>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Live double-entry comparisons for all treasury and float pools.
+            <h1 className="text-2xl font-bold tracking-tight">Financial Reconciliation</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Canonical calculation: opening balance + every instrument money entry = closing balance.
             </p>
           </div>
+          <div className="flex items-center gap-3">
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${allReconciled ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+              {allReconciled ? "✓ All pools reconciled" : "⚠ Variance detected"}
+            </span>
+            <button type="button" onClick={refresh} disabled={refreshing} className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-6">
-          {POOL_CONFIGS.map((cfg) => {
-            const p = poolReconMap[cfg.key];
-            const isSelected = selectedPoolKey === cfg.key;
-            const bal = p?.currentBalance ?? 0;
-
-            return (
-              <button
-                key={cfg.key}
-                type="button"
-                onClick={() => setSelectedPoolKey(cfg.key)}
-                className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${cfg.glow} ${
-                  isSelected
-                    ? "border-cyan-500 bg-cyan-50/30 shadow-lg shadow-cyan-500/10 ring-2 ring-cyan-400 dark:bg-cyan-950/30"
-                    : "border-slate-200/80 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/20"
-                }`}
-              >
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${cfg.grad}`} />
-                <div>
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/10 text-xl shadow-inner">
-                      {cfg.icon}
-                    </span>
-                    {p?.isReconciled ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
-                        ✓ Reconciled
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300">
-                        ⚠ Var {inr(p?.variance ?? 0)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{cfg.label}</p>
-                  <p className="mt-1 text-xl font-black tracking-tight text-slate-900 dark:text-white">{inr(bal)}</p>
-                </div>
-
-                <div className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-400 dark:border-white/5 flex items-center justify-between">
-                  <span>Var: <strong className={p?.isReconciled ? "text-slate-600 dark:text-slate-300" : "text-rose-600 dark:text-rose-400"}>{inr(p?.variance ?? 0)}</strong></span>
-                  <span className="font-bold text-cyan-600 dark:text-cyan-400 group-hover:translate-x-0.5 transition">Trace →</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <div className="mt-2 text-xs text-muted-foreground">Last refreshed {lastRefresh}</div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* 3. IN-DEPTH RECONCILIATION COMMAND CENTER (SELECTED POOL) */}
-      {/* ========================================================================= */}
-      {selectedPool && (
-        <section className="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-6 sm:p-7 text-white shadow-xl ring-1 ring-white/10">
-          <div className="relative z-10 space-y-6">
-            {/* Header Strip */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-white/10 pb-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/20 text-2xl text-cyan-300 ring-1 ring-cyan-400/40 shadow-inner">
-                  {selectedPool.icon}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-lg font-black text-white sm:text-xl">
-                      {selectedPool.label} Detailed Reconciliation
-                    </h3>
-                    {selectedPool.isReconciled ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-0.5 text-xs font-bold text-emerald-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        ✓ Reconciled
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 px-3 py-0.5 text-xs font-bold text-rose-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-ping" />
-                        ⚠ Variance Detected ({inr(selectedPool.variance)})
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    Source: <strong className="text-slate-200">{selectedPool.canonicalSource}</strong> · Movement count: <strong className="text-slate-200">{selectedPool.contributingTxns.length}</strong>
-                  </p>
-                </div>
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {POOLS.map((pool) => {
+          const r = recon[pool.key];
+          const ok = Math.abs(r.variance) < 0.01;
+          return (
+            <button
+              key={pool.key}
+              type="button"
+              onClick={() => setSelectedPool(pool)}
+              className={`rounded-2xl border p-4 text-left transition ${selectedPool.key === pool.key ? "border-primary ring-2 ring-primary/20" : "hover:bg-muted/50"}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold">{pool.icon} {pool.label}</span>
+                <span className={`text-xs font-semibold ${ok ? "text-emerald-600" : "text-red-600"}`}>{ok ? "RECONCILED" : "VARIANCE"}</span>
               </div>
-            </div>
-
-            {/* 4 Key Balances Summary */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-white/[0.04] p-4 shadow-sm backdrop-blur-md">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Current Balance</span>
-                <div className="mt-1.5 text-2xl font-black text-cyan-300">{inr(selectedPool.currentBalance)}</div>
-                <span className="text-[10px] text-slate-400">Live Active Pool</span>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div><div className="text-muted-foreground">Opening</div><div className="font-semibold">{money(r.opening)}</div></div>
+                <div><div className="text-muted-foreground">Closing</div><div className="font-semibold">{money(r.canonical)}</div></div>
+                <div><div className="text-muted-foreground">Credits</div><div className="font-semibold text-emerald-600">+{money(r.credits)}</div></div>
+                <div><div className="text-muted-foreground">Debits</div><div className="font-semibold text-red-600">-{money(r.debits)}</div></div>
               </div>
-
-              <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-white/[0.04] p-4 shadow-sm backdrop-blur-md">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Calculated Balance</span>
-                <div className="mt-1.5 text-2xl font-black text-white">{inr(selectedPool.calculatedBalance)}</div>
-                <span className="text-[10px] text-slate-400">Movement Sum</span>
+              <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+                Calculated {money(r.calculated)} · Variance {money(r.variance)}
               </div>
+            </button>
+          );
+        })}
+      </section>
 
-              <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm backdrop-blur-md">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Canonical Pool</span>
-                <div className="mt-1.5 text-2xl font-black text-indigo-300">{inr(selectedPool.canonicalBalance)}</div>
-                <span className="text-[10px] text-slate-400">get_pool_balances</span>
-              </div>
-
-              <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md ${selectedPool.isReconciled ? "card-glow-emerald border-emerald-500/30 bg-emerald-500/10" : "card-glow-rose border-rose-500/30 bg-rose-500/10"}`}>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Variance</span>
-                <div className={`mt-1.5 text-2xl font-black ${selectedPool.isReconciled ? "text-emerald-400" : "text-rose-400"}`}>
-                  {inr(selectedPool.variance)}
-                </div>
-                <span className="text-[10px] text-slate-400">
-                  {selectedPool.isReconciled ? "Exact match (0.00)" : "Discrepancy"}
-                </span>
-              </div>
-            </div>
-
-            {/* Movement Breakdown Ledger */}
-            <div className="rounded-2xl border border-white/5 bg-black/25 p-4.5">
-              <h4 className="text-xs font-black uppercase tracking-wider text-cyan-300">
-                Movement Breakdown
-              </h4>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3 md:grid-cols-6">
-                <div>
-                  <span className="text-slate-400">Opening Balance:</span>
-                  <p className="font-bold text-white">{inr(selectedPool.openingBalance)}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Credits / Inflows:</span>
-                  <p className="font-bold text-emerald-400">+{inr(selectedPool.credits)}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Outflows / Debits:</span>
-                  <p className="font-bold text-slate-300">-{inr(selectedPool.debits)}</p>
-                </div>
-                {selectedPool.fees > 0 && (
-                  <div>
-                    <span className="text-slate-400">Fees Collected:</span>
-                    <p className="font-bold text-cyan-400">+{inr(selectedPool.fees)}</p>
-                  </div>
-                )}
-                <div>
-                  <span className="text-slate-400">Other Movements:</span>
-                  <p className="font-bold text-slate-300">{inr(selectedPool.otherMovements)}</p>
-                </div>
-                {selectedPool.settlements !== 0 && (
-                  <div>
-                    <span className="text-slate-400">Settlements:</span>
-                    <p className="font-bold text-slate-300">{inr(selectedPool.settlements)}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Contributing Transactions Audit List */}
-            {selectedPool.contributingTxns.length > 0 && (
+      {selectedRecon && (
+        <section className="rounded-3xl border bg-card shadow-sm">
+          <div className="border-b p-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                  Contributing Activity ({selectedPool.contributingTxns.length})
-                </h4>
-                <div className="mt-2 max-h-56 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 text-xs">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-white/10 bg-white/5 text-[10px] uppercase font-bold text-slate-400">
-                        <th className="p-3">Identifier</th>
-                        <th className="p-3">Type</th>
-                        <th className="p-3">Description</th>
-                        <th className="p-3 text-right">Contribution</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {selectedPool.contributingTxns.map((tx) => (
-                        <tr key={tx.id}>
-                          <td className="p-3 font-mono font-bold text-white">{tx.number}</td>
-                          <td className="p-3 text-slate-400">{tx.type}</td>
-                          <td className="p-3 text-slate-300">{tx.desc}</td>
-                          <td className={`p-3 text-right font-bold ${tx.amount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                            {tx.amount >= 0 ? `+${inr(tx.amount)}` : inr(tx.amount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <h2 className="text-xl font-bold">{selectedPool.icon} {selectedPool.label} — Full Money Trail</h2>
+                <p className="text-sm text-muted-foreground">Every posted cash-entry movement for the underlying payment instrument(s), including transaction and settlement legs.</p>
               </div>
-            )}
+              <div className="text-right text-sm">
+                <div>Opening <strong>{money(selectedRecon.opening)}</strong></div>
+                <div>Closing <strong>{money(selectedRecon.canonical)}</strong></div>
+                <div className={Math.abs(selectedRecon.variance) < 0.01 ? "text-emerald-600" : "text-red-600"}>Variance <strong>{money(selectedRecon.variance)}</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Reference</th>
+                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Instrument</th>
+                  <th className="px-4 py-3 text-right">In</th>
+                  <th className="px-4 py-3 text-right">Out</th>
+                  <th className="px-4 py-3 text-right">Running Balance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {(() => {
+                  let running = selectedRecon.opening;
+                  return selectedRecon.entries.map((entry) => {
+                    const amount = n(entry.amount);
+                    const isIn = String(entry.direction).toLowerCase() === "in";
+                    running += isIn ? amount : -amount;
+                    const instrument = instruments.find((i) => i.id === entry.instrument_id);
+                    return (
+                      <tr key={entry.id}>
+                        <td className="whitespace-nowrap px-4 py-3">{entry.entry_date || new Date(entry.created_at).toLocaleDateString("en-IN")}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-medium">{entryLabel(entry)}</td>
+                        <td className="min-w-[260px] px-4 py-3">{entryDescription(entry)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{instrument?.name || entry.method || "—"}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{isIn ? `+${money(amount)}` : "—"}</td>
+                        <td className="px-4 py-3 text-right font-medium text-red-600">{!isIn ? `-${money(amount)}` : "—"}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{money(running)}</td>
+                      </tr>
+                    );
+                  });
+                })()}
+                {selectedRecon.entries.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No money movements posted for this pool.</td></tr>
+                )}
+              </tbody>
+              <tfoot className="border-t bg-muted/30 font-semibold">
+                <tr>
+                  <td colSpan={4} className="px-4 py-3">Opening + all posted movements</td>
+                  <td className="px-4 py-3 text-right text-emerald-600">+{money(selectedRecon.credits)}</td>
+                  <td className="px-4 py-3 text-right text-red-600">-{money(selectedRecon.debits)}</td>
+                  <td className="px-4 py-3 text-right">{money(selectedRecon.calculated)}</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </section>
       )}
 
-      {toastView}
+      <section className="rounded-2xl border bg-muted/20 p-4 text-xs text-muted-foreground">
+        <strong>Control rule:</strong> reconciliation does not reconstruct balances from transaction fields, pool labels, fees, or status totals. It uses the actual payment-instrument opening balances and the immutable money-entry ledger, then compares that result with the canonical pool balance. This prevents double-counting service transactions and settlements.
+      </section>
     </div>
   );
 }
