@@ -1,0 +1,105 @@
+name: Apply Quick POS UI Cleanup
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply UI changes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+
+          quick = Path("components/pos/quick-sale.tsx")
+          pos = Path("components/pos/pos-client.tsx")
+
+          quick_text = quick.read_text(encoding="utf-8")
+          pos_text = pos.read_text(encoding="utf-8")
+
+          recent_button = '''                <button
+                  onClick={() => setRecentOpen(true)}
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Recent Sales (F1)
+                </button>
+'''
+          if recent_button not in quick_text:
+              print("Recent Sales lower button already removed.")
+          else:
+              quick_text = quick_text.replace(recent_button, "", 1)
+
+          money_out_pattern = re.compile(
+              r'''                <button\n                  onClick=\{\(\) => setShowMoneyOut\(\(v\) => !v\)\}\n                  className=\{`rounded-xl px-3 py-2\.5 text-sm font-semibold transition \$\{\n                    showMoneyOut \? "bg-rose-600 text-white" : "border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"\n                  \}`\}\n                >\n                  Money Out\n                </button>\n'''
+          )
+          quick_text, removed_count = money_out_pattern.subn("", quick_text, count=1)
+          if removed_count == 0:
+              print("Money Out lower button already removed.")
+
+          quick.write_text(quick_text, encoding="utf-8")
+
+          anchor = '''          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setRecallOpen(true);
+              setHeldBills(loadHeld());
+            }}
+'''
+          recent_top = '''          </div>
+
+          {mode === "quick" && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "F1", bubbles: true }))}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              title="Open Recent Quick Sales (F1)"
+            >
+              <span className="text-sm leading-none">↻</span>
+              <span>Recent Sales</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setRecallOpen(true);
+              setHeldBills(loadHeld());
+            }}
+'''
+          if "<span>Recent Sales</span>" not in pos_text:
+              if anchor not in pos_text:
+                  raise SystemExit("Could not find POS mode-switcher insertion point")
+              pos_text = pos_text.replace(anchor, recent_top, 1)
+              pos.write_text(pos_text, encoding="utf-8")
+          else:
+              print("Top Recent Sales button already present.")
+
+          if quick.read_text(encoding="utf-8") != quick_text:
+              raise SystemExit("Unexpected quick-sale write state")
+
+          # This is a one-shot migration; remove the helper workflow after applying the changes.
+          Path(".github/workflows/apply_quick_pos_ui_cleanup.yml").unlink(missing_ok=True)
+
+          if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
+              print("No changes needed; nothing to commit.")
+              raise SystemExit(0)
+
+          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "add", "components/pos/quick-sale.tsx", "components/pos/pos-client.tsx", ".github/workflows/apply_quick_pos_ui_cleanup.yml"], check=True)
+          subprocess.run(["git", "commit", "-m", "refactor: streamline quick sale actions"], check=True)
+          subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
