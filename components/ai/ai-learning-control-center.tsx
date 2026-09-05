@@ -22,7 +22,8 @@ type Workflow = {
 
 type TeachingDraft = {
   schemaVersion: number;
-  providerName: string;
+  draftType?: "portal_transaction" | "erp_form";
+  providerName?: string;
   workflow_key: string;
   name: string;
   risk: Risk;
@@ -47,13 +48,16 @@ const statusStyles: Record<Status, string> = {
 function isDraft(value: unknown): value is TeachingDraft {
   if (!value || typeof value !== "object") return false;
   const draft = value as Partial<TeachingDraft>;
-  return draft.schemaVersion === 1
-    && typeof draft.providerName === "string"
+  const isBaseValid = draft.schemaVersion === 1
     && typeof draft.workflow_key === "string"
     && typeof draft.name === "string"
     && typeof draft.instruction === "string"
     && typeof draft.selector_map === "object"
     && draft.selector_map !== null;
+
+  if (!isBaseValid) return false;
+  if (draft.draftType === "erp_form") return true;
+  return typeof draft.providerName === "string";
 }
 
 export default function AILearningControlCenter() {
@@ -146,17 +150,43 @@ export default function AILearningControlCenter() {
       if (!file.name.toLowerCase().endsWith(".json")) throw new Error("Teaching draft must be a JSON file.");
       const parsed: unknown = JSON.parse(await file.text());
       if (!isDraft(parsed)) throw new Error("This is not a valid AI teaching draft.");
-      const fields = parsed.selector_map.fields ?? {};
-      for (const required of ["externalTransactionId", "status", "transactionType", "amount"]) {
-        if (typeof fields[required] !== "string" || !fields[required].trim()) {
-          throw new Error(`Teaching draft is missing required selector: ${required}.`);
+
+      if (parsed.draftType === "erp_form") {
+        const fields = parsed.selector_map.fields ?? {};
+        const required = [
+          "customer",
+          "customerMobile",
+          "customerBank",
+          "aadhaarLast4",
+          "aepsServicePortal",
+          "withdrawalAmount",
+          "customerServiceFee",
+          "portalCommission",
+          "feeTreatmentModel",
+          "feeCollectionInstrument",
+          "bankRrn",
+        ];
+        for (const fieldName of required) {
+          if (typeof fields[fieldName] !== "string" || !fields[fieldName].trim()) {
+            throw new Error(`ERP teaching draft is missing required selector: ${fieldName}.`);
+          }
         }
-      }
-      if (typeof parsed.selector_map.historySelector !== "string" || !parsed.selector_map.historySelector.trim()) {
-        throw new Error("Teaching draft is missing the transaction-history selector.");
-      }
-      if (typeof parsed.selector_map.rowSelectorTemplate !== "string" || !parsed.selector_map.rowSelectorTemplate.includes("{index}")) {
-        throw new Error("Teaching draft is missing a repeatable row selector.");
+        if (typeof parsed.selector_map.reviewSelector !== "string" || !parsed.selector_map.reviewSelector.trim()) {
+          throw new Error("ERP teaching draft is missing the review selector.");
+        }
+      } else {
+        const fields = parsed.selector_map.fields ?? {};
+        for (const required of ["externalTransactionId", "status", "transactionType", "amount"]) {
+          if (typeof fields[required] !== "string" || !fields[required].trim()) {
+            throw new Error(`Teaching draft is missing required selector: ${required}.`);
+          }
+        }
+        if (typeof parsed.selector_map.historySelector !== "string" || !parsed.selector_map.historySelector.trim()) {
+          throw new Error("Teaching draft is missing the transaction-history selector.");
+        }
+        if (typeof parsed.selector_map.rowSelectorTemplate !== "string" || !parsed.selector_map.rowSelectorTemplate.includes("{index}")) {
+          throw new Error("Teaching draft is missing a repeatable row selector.");
+        }
       }
 
       const workflow = await createDraft({
@@ -167,7 +197,8 @@ export default function AILearningControlCenter() {
         instruction: parsed.instruction,
         evidence: {
           source: "owner_live_browser_teaching",
-          providerName: parsed.providerName,
+          ...(parsed.providerName ? { providerName: parsed.providerName } : {}),
+          draftType: parsed.draftType ?? "portal_transaction",
           importedFileName: file.name,
           ...(parsed.evidence ?? {}),
           localEvidenceOnly: true,
@@ -262,7 +293,7 @@ export default function AILearningControlCenter() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-cyan-950 dark:text-cyan-100">Import live browser teaching</h2>
-                <p className="mt-1 text-xs leading-5 text-cyan-800 dark:text-cyan-300">Run <code className="rounded bg-white/70 px-1 py-0.5">npm run ai:portal:teach</code> on your PC. The browser records structural selectors and a local screenshot, then creates a JSON teaching draft. Upload that JSON here.</p>
+                <p className="mt-1 text-xs leading-5 text-cyan-800 dark:text-cyan-300">Run <code className="rounded bg-white/70 px-1 py-0.5">npm run ai:portal:teach</code> or the ERP-specific teaching command on your PC. The browser records structural selectors and local evidence, then creates a JSON teaching draft. Upload that JSON here.</p>
               </div>
               <span className="rounded-full bg-cyan-100 px-3 py-1 text-[10px] font-black text-cyan-800 dark:bg-cyan-500/20 dark:text-cyan-200">LIVE → DRAFT</span>
             </div>
@@ -270,7 +301,7 @@ export default function AILearningControlCenter() {
               <input type="file" accept="application/json,.json" onChange={importTeachingDraft} disabled={busy} className="hidden" />
               {busy ? "Importing…" : "Choose teaching-draft.json"}
             </label>
-            <p className="mt-3 text-[11px] leading-5 text-cyan-800/80 dark:text-cyan-300/80">The screenshot and authenticated browser state stay on your PC. The web app receives only the workflow metadata and selector map. The imported workflow remains Draft.</p>
+            <p className="mt-3 text-[11px] leading-5 text-cyan-800/80 dark:text-cyan-300/80">Screenshots and authenticated browser state stay on your PC. The web app receives only workflow metadata and selector maps. Imported workflows remain Draft.</p>
           </section>
         </div>
 
