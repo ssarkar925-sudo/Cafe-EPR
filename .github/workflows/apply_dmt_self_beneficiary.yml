@@ -1,0 +1,257 @@
+name: Apply DMT Self Beneficiary UI Fix
+
+'on':
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update DMT beneficiary flow
+        shell: python3
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+
+          path = Path('components/business/dmt-workspace.tsx')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          # Remove mandatory UI markers + HTML required attributes for the three
+          # beneficiary routing fields requested by the operator.
+          text = text.replace(
+              'Account Number <span className="text-rose-500">*</span>',
+              'Account Number'
+          )
+          text = text.replace(
+              'Bank IFSC Code <span className="text-rose-500">*</span>',
+              'Bank IFSC Code'
+          )
+          text = text.replace(
+              'Beneficiary UPI ID (VPA) <span className="text-rose-500">*</span>',
+              'Beneficiary UPI ID (VPA)'
+          )
+
+          text = re.sub(
+              r'(value=\{beneficiaryAccount\}\n\s*onChange=\{\(e\) => setBeneficiaryAccount)',
+              lambda m: m.group(1),
+              text,
+              count=1,
+          )
+          text = re.sub(
+              r'(value=\{beneficiaryIfsc\}\n\s*onChange=\{\(e\) => setBeneficiaryIfsc)',
+              lambda m: m.group(1),
+              text,
+              count=1,
+          )
+          text = re.sub(
+              r'(value=\{upiId\}\n\s*onChange=\{\(e\) => setUpiId)',
+              lambda m: m.group(1),
+              text,
+              count=1,
+          )
+
+          # The frontend should now treat those three routing fields as optional.
+          old_validation = '''    if (transferMethod === "bank_account") {
+      if (!beneficiaryAccount.trim() || beneficiaryAccount.trim().length < 4) return false;
+      if (!beneficiaryIfsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase()))
+        return false;
+      if (!beneficiaryBank.trim()) return false;
+    } else {
+      if (!upiId.trim() || !upiId.includes("@")) return false;
+    }
+'''
+          new_validation = '''    if (transferMethod === "bank_account") {
+      // Bank remains the selected routing master; account number and IFSC are
+      // optional so operators can proceed when the payout channel supplies them.
+      if (!beneficiaryBank.trim()) return false;
+    }
+'''
+          if old_validation not in text:
+              raise SystemExit('Expected DMT validation block was not found')
+          text = text.replace(old_validation, new_validation, 1)
+
+          old_step = '''    if (transferMethod === "bank_account") {
+      if (!beneficiaryAccount.trim() || !beneficiaryBank.trim()) return 2;
+      if (!beneficiaryIfsc.trim()) return 3;
+    } else {
+      if (!upiId.trim()) return 2;
+    }
+'''
+          new_step = '''    if (transferMethod === "bank_account") {
+      if (!beneficiaryBank.trim()) return 2;
+    }
+'''
+          if old_step not in text:
+              raise SystemExit('Expected DMT lifecycle block was not found')
+          text = text.replace(old_step, new_step, 1)
+
+          # Add a single Self Beneficiary shortcut shared by both transfer modes.
+          state_anchor = '  const [beneficiarySuggestions, setBeneficiarySuggestions] = useState'
+          if state_anchor in text:
+              raise SystemExit('Unexpected old beneficiarySuggestions state anchor found')
+
+          state_insert_anchor = '  const [receiverName, setReceiverName] = useState<string>("");\n'
+          if state_insert_anchor not in text:
+              raise SystemExit('Could not find beneficiary state anchor')
+          text = text.replace(
+              state_insert_anchor,
+              state_insert_anchor + '  const [selfBeneficiaryLoading, setSelfBeneficiaryLoading] = useState(false);\n',
+              1,
+          )
+
+          helper_anchor = '  // Strict Form Validation Guard\n'
+          if helper_anchor not in text:
+              raise SystemExit('Could not find validation insertion point')
+
+          helper = r'''  // One-tap self beneficiary: use the configured shop bank account for
+  // IMPS/NEFT, or the shop UPI VPA / merchant QR for UPI.
+  async function useSelfBeneficiary() {
+    if (selfBeneficiaryLoading) return;
+    setSelfBeneficiaryLoading(true);
+    try {
+      if (transferMethod === "bank_account") {
+        const bankInstrument =
+          (selectedBankInstrument?.type === "bank" ? selectedBankInstrument : null) ||
+          liveInstruments.find((i: any) => i.type === "bank" && (i.account_number || i.account_no || i.accountNumber)) ||
+          liveInstruments.find((i: any) => i.type === "bank");
+
+        if (!bankInstrument) {
+          showToast("error", "No shop bank account is configured for Self Beneficiary.");
+          return;
+        }
+
+        const account = String(
+          bankInstrument.account_number ?? bankInstrument.account_no ?? bankInstrument.accountNumber ?? ""
+        ).replace(/\s+/g, "");
+        const ifsc = String(
+          bankInstrument.ifsc ?? bankInstrument.ifsc_code ?? bankInstrument.bank_ifsc ?? ""
+        ).toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const bankName = String(
+          bankInstrument.bank_name ?? bankInstrument.bank ?? bankInstrument.institution_name ?? bankInstrument.name ?? ""
+        );
+        const ownName = String(
+          bankInstrument.account_name ?? bankInstrument.holder_name ?? bankInstrument.owner_name ?? senderName.trim() ?? "Self"
+        ) || "Self";
+        const ownMobile = String(
+          bankInstrument.mobile ?? bankInstrument.phone ?? senderMobile ?? ""
+        );
+
+        setBeneficiaryName(ownName);
+        setBeneficiaryMobile(ownMobile.replace(/\D/g, "").slice(0, 10));
+        setBeneficiaryBank(bankName);
+        setBeneficiaryAccount(account);
+        setBeneficiaryIfsc(ifsc.slice(0, 11));
+
+        if (!account && !ifsc) {
+          showToast("info", "Self selected. Add the bank account and IFSC to the shop bank instrument when available.");
+        } else {
+          showToast("success", "Self Beneficiary filled from the configured shop bank account.");
+        }
+      } else {
+        let ownUpi = "";
+        let ownName = String(senderName.trim() || "Self") || "Self";
+
+        const upiInstrument = liveInstruments.find((i: any) =>
+          ["upi", "upi_qr"].includes(i.type) && (i.upi_id || i.vpa || i.handle)
+        );
+
+        if (upiInstrument) {
+          ownUpi = String(upiInstrument.upi_id ?? upiInstrument.vpa ?? upiInstrument.handle ?? "").trim().toLowerCase();
+          ownName = String(
+            upiInstrument.account_name ?? upiInstrument.holder_name ?? upiInstrument.owner_name ??
+            upiInstrument.display_name ?? upiInstrument.name ?? ownName
+          ) || ownName;
+        }
+
+        if (!ownUpi) {
+          const { data } = await supabase
+            .from("upi_merchant_qrs")
+            .select("display_name, upi_id")
+            .order("display_name")
+            .limit(20);
+          const qr = (data || []).find((row: any) => row?.upi_id);
+          if (qr?.upi_id) {
+            ownUpi = String(qr.upi_id).trim().toLowerCase();
+            ownName = String(qr.display_name || ownName);
+          }
+        }
+
+        if (!ownUpi) {
+          showToast("error", "No shop UPI VPA is configured for Self Beneficiary.");
+          return;
+        }
+
+        setUpiId(ownUpi);
+        setReceiverName(ownName);
+        setBeneficiaryName(ownName);
+        showToast("success", "Self Beneficiary filled with the configured shop UPI VPA.");
+      }
+    } catch (err: any) {
+      console.error("Self beneficiary fill failed:", err);
+      showToast("error", err?.message || "Could not fill Self Beneficiary.");
+    } finally {
+      setSelfBeneficiaryLoading(false);
+    }
+  }
+
+'''
+          text = text.replace(helper_anchor, helper + helper_anchor, 1)
+
+          # Put the shortcut directly above the mode-specific beneficiary fields,
+          # so it is visibly available for both Bank Account and UPI modes.
+          mode_anchor = '              {/* 2. Beneficiary Section */}\n'
+          if mode_anchor not in text:
+              raise SystemExit('Could not find beneficiary section anchor')
+
+          shortcut = '''              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">BENEFICIARY</div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Fill your configured shop account / UPI as the beneficiary.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={useSelfBeneficiary}
+                  disabled={selfBeneficiaryLoading}
+                  className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Fill configured shop account or UPI as Self Beneficiary"
+                >
+                  {selfBeneficiaryLoading ? "Loading…" : "↪ Use Self"}
+                </button>
+              </div>
+
+'''
+          text = text.replace(mode_anchor, shortcut + mode_anchor, 1)
+
+          if text == original:
+              raise SystemExit('No DMT source changes were produced')
+
+          path.write_text(text, encoding='utf-8')
+
+          # Remove this one-shot workflow after applying its changes.
+          workflow = Path('.github/workflows/apply_dmt_self_beneficiary.yml')
+
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run([
+              'git', 'add',
+              'components/business/dmt-workspace.tsx',
+              '.github/workflows/apply_dmt_self_beneficiary.yml'
+          ], check=True)
+          if subprocess.run(['git', 'diff', '--cached', '--quiet']).returncode == 0:
+              print('No DMT UI changes needed')
+              raise SystemExit(0)
+          subprocess.run(['git', 'rm', '-f', str(workflow)], check=True)
+          subprocess.run(['git', 'add', 'components/business/dmt-workspace.tsx'], check=True)
+          subprocess.run(['git', 'commit', '-m', 'fix: make DMT routing fields optional and add self beneficiary'], check=True)
+          subprocess.run(['git', 'push', 'origin', 'HEAD:main'], check=True)
