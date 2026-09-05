@@ -1,0 +1,25 @@
+name: Restore Day Close Source
+
+on:
+  push:
+    paths:
+      - .github/workflows/restore-day-close.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore day-close source from previous commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout HEAD^ -- components/finance/day-close-client.tsx
+          git add components/finance/day-close-client.tsx
+          git commit -m "Restore Day Close source after accidental truncation"
+          git push origin HEAD:main
