@@ -4895,7 +4895,7 @@ function detectIntent(question) {
   assert(dmtWorkspaceFile.includes("portal_charge: numCharge"), "694. State Invariant: Completed transaction object preserves portal_charge");
   assert(dmtWorkspaceFile.includes("reverse_business_txn"), "695. Reversal Invariant: reverse_business_txn preserved for atomic reversals");
   assert(dmtWorkspaceFile.includes("get_pool_balances"), "696. Canonical Invariant: Authoritative pool balance RPC consumed");
-  assert(
+assert(
   dmtWorkspaceFile.includes("p_customer_pay_method:") &&
   dmtWorkspaceFile.includes("customerPayMethod") &&
   dmtWorkspaceFile.includes('"due"'),
