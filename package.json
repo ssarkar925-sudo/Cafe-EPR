@@ -1,6 +1,8 @@
 {
   "name": "sccomm-web",
   "version": "0.1.0",
+  "description": "CafeERP Enterprise Cyber Cafe & Retail ERP",
+  "author": "Sarkar Communication",
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
