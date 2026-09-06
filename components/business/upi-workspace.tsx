@@ -270,33 +270,41 @@ export default function UpiWorkspace({
       const d = res.data as any;
       const cashHanded = formFeeSource === "customer_paid_extra" ? amt : Math.max(0, amt - fee);
 
-      // Synchronize Cashbook Entries
-      const defaultCash = liveInstruments.find((i) => i.type === "cash" && i.is_active) || liveInstruments.find((i) => i.type === "cash");
-      const defaultUpi = liveInstruments.find((i) => i.type === "upi" && i.is_active) || liveInstruments.find((i) => i.type === "upi");
+      // Synchronize Cashbook Entries (Guard against duplicate inserts if DB RPC already recorded legs)
+      const { data: existingLegs } = await supabase
+        .from("cash_entries")
+        .select("id")
+        .eq("ref_type", "transaction")
+        .eq("ref_id", d.id);
 
-      // Inflow into UPI
-      await supabase.from("cash_entries").insert({
-        entry_date: today,
-        method: "upi",
-        direction: "in",
-        amount: amt,
-        description: `UPI ${d.transaction_number} received via QR`,
-        ref_type: "transaction",
-        ref_id: d.id,
-        instrument_id: defaultUpi?.id || null,
-      });
+      if (!existingLegs || existingLegs.length === 0) {
+        const defaultCash = liveInstruments.find((i) => i.type === "cash" && i.is_active) || liveInstruments.find((i) => i.type === "cash");
+        const defaultUpi = liveInstruments.find((i) => i.type === "upi" && i.is_active) || liveInstruments.find((i) => i.type === "upi");
 
-      // Outflow from Cash Till
-      await supabase.from("cash_entries").insert({
-        entry_date: today,
-        method: "cash",
-        direction: "out",
-        amount: cashHanded,
-        description: `UPI ${d.transaction_number} cash payout`,
-        ref_type: "transaction",
-        ref_id: d.id,
-        instrument_id: defaultCash?.id || null,
-      });
+        // Inflow into UPI
+        await supabase.from("cash_entries").insert({
+          entry_date: today,
+          method: "upi",
+          direction: "in",
+          amount: amt,
+          description: `UPI ${d.transaction_number} received via QR`,
+          ref_type: "transaction",
+          ref_id: d.id,
+          instrument_id: defaultUpi?.id || null,
+        });
+
+        // Outflow from Cash Till
+        await supabase.from("cash_entries").insert({
+          entry_date: today,
+          method: "cash",
+          direction: "out",
+          amount: cashHanded,
+          description: `UPI ${d.transaction_number} cash payout`,
+          ref_type: "transaction",
+          ref_id: d.id,
+          instrument_id: defaultCash?.id || null,
+        });
+      }
 
       logAudit({
         action: "create",

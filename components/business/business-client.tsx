@@ -503,6 +503,7 @@ export default function BusinessClient({
         error = null;
 
         if (payload.p_status === "success" && inserted?.id) {
+          const custInst = initialPaymentInstruments.find((i) => i.type === (payMethod === "cash" ? "cash" : payMethod === "bank" ? "bank" : "upi") && i.is_active);
           if (payMethod === "cash") {
             await supabase.from("cash_entries").insert({
               entry_date: inserted.transaction_date,
@@ -512,6 +513,7 @@ export default function BusinessClient({
               description: `Recharge ${nextNum} received in cash`,
               ref_type: "transaction",
               ref_id: inserted.id,
+              instrument_id: custInst?.id || null,
             });
           } else if (payMethod === "bank") {
             await supabase.from("cash_entries").insert({
@@ -522,6 +524,7 @@ export default function BusinessClient({
               description: `Recharge ${nextNum} received in Bank account`,
               ref_type: "transaction",
               ref_id: inserted.id,
+              instrument_id: custInst?.id || null,
             });
           } else if (payMethod === "upi" || payMethod === "upi_qr") {
             await supabase.from("cash_entries").insert({
@@ -532,6 +535,7 @@ export default function BusinessClient({
               description: `Recharge ${nextNum} received via Shop UPI QR`,
               ref_type: "transaction",
               ref_id: inserted.id,
+              instrument_id: custInst?.id || null,
             });
           } else if (payMethod === "due" && payload.p_customer_id) {
             const { data: cust } = await supabase.from("customers").select("balance").eq("id", payload.p_customer_id).single();
@@ -547,6 +551,21 @@ export default function BusinessClient({
               balance_after: newBal,
               ref_type: "transaction",
               ref_id: inserted.id,
+            });
+          }
+
+          // Provider Outflow Leg: Debited from Selected Account/Card/Wallet
+          if (cost > 0) {
+            const payFromInst = initialPaymentInstruments.find((i) => i.id === payload.p_pay_from_instrument_id) || initialPaymentInstruments.find((i) => i.type === "wallet" || i.type === "bank");
+            await supabase.from("cash_entries").insert({
+              entry_date: inserted.transaction_date,
+              method: (payload.p_pay_from_method as string) || payFromInst?.type || "bank",
+              direction: "out",
+              amount: cost,
+              description: `Recharge ${nextNum} paid from ${payFromInst?.name || "Funding Account"}`,
+              ref_type: "transaction",
+              ref_id: inserted.id,
+              instrument_id: payFromInst?.id || null,
             });
           }
         }
@@ -581,6 +600,8 @@ export default function BusinessClient({
         p_fee_source: payload.p_fee_source || null,
         p_paid_from: payload.p_paid_from || null,
         p_customer_pay_method: payload.p_customer_pay_method || null,
+        p_pay_from_instrument_id: (payload.p_pay_from_instrument_id as string) || (payload.payment_account_id as string) || (payload.p_bank_id as string) || null,
+        p_pay_from_method: (payload.p_pay_from_method as string) || ((payload.p_paid_from as string) === "portal" ? "dmt" : "bank"),
       };
       const res = await supabase.rpc("create_business_txn", rpcPayload);
       data = res.data;
