@@ -9,6 +9,7 @@ import InvoiceViewModal from "./invoice-view-modal";
 import QuickSaleViewModal from "./quick-sale-view-modal";
 import ReturnModal from "./return-modal";
 import CompactToggle from "@/components/ui/compact-toggle";
+import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import {
@@ -156,6 +157,7 @@ export default function InvoicesClient({
   const [collectId, setCollectId] = useState<string | null>(null);
   const [collectMethod, setCollectMethod] = useState<string>("cash");
   const [collectAmount, setCollectAmount] = useState("");
+  const [collectAllocations, setCollectAllocations] = useState<PaymentAllocation[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -427,35 +429,18 @@ export default function InvoicesClient({
   }
 
   async function collectDue(inv: InvoiceRow) {
-    const amt = Number(collectAmount || inv.due);
+    const allocations = collectAllocations.filter((row) => Number(row.amount) > 0);
+    const amt = allocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0);
     if (!(amt > 0)) return;
     setBusyId(inv.id);
-    const { data, error } = await supabase.rpc("record_invoice_payment", {
-      p_invoice_id: inv.id,
-      p_method: collectMethod,
-      p_amount: amt,
-    });
-    setBusyId(null);
-    setCollectId(null);
-    setCollectAmount("");
-    if (error) {
-      flash("error", error.message);
-      return;
-    }
-    const r = data as { paid: number; due: number; status: string };
-    setInvoices((prev) =>
-      prev.map((x) =>
-        x.id === inv.id ? { ...x, paid: r.paid, due: r.due, status: r.status } : x
-      )
-    );
-    flash("success", `${inv.invoice_number} — ${inr(amt)} collected (${collectMethod.toUpperCase()})`);
-    logAudit({
-      action: "payment",
-      entity: "invoice",
-      entity_id: inv.id,
-      description: `Payment of ${inr(amt)} received (${collectMethod})`,
-      details: { invoice_number: inv.invoice_number, method: collectMethod, amount: amt },
-    });
+    const { data, error } = await supabase.rpc("record_invoice_multi_payment", { p_invoice_id: inv.id, p_allocations: allocations });
+    setBusyId(null); setCollectId(null); setCollectAmount(""); setCollectAllocations([]);
+    if (error) { flash("error", error.message); return; }
+    const r = data as { paid:number; due:number; status:string };
+    setInvoices((prev) => prev.map((x) => x.id === inv.id ? { ...x, paid:r.paid, due:r.due, status:r.status } : x));
+    const tenderText = allocations.map((row) => `${row.method.toUpperCase()} ${inr(Number(row.amount))}`).join(" + ");
+    flash("success", `${inv.invoice_number} — ${tenderText} collected`);
+    logAudit({ action:"payment", entity:"invoice", entity_id:inv.id, description:`Payment of ${inr(amt)} received (${tenderText})`, details:{ invoice_number:inv.invoice_number, allocations, amount:amt } });
   }
 
   async function copyNumber(n: string) {
@@ -1127,8 +1112,9 @@ export default function InvoicesClient({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setCollectMethod("cash");
-                                  setCollectId(inv.id);setCollectAmount(String(Number(inv.due).toFixed(2)));
-                                  setCollectId(inv.id);setCollectId(inv.id);
+                                  setCollectAmount(String(Number(inv.due).toFixed(2)));
+                                  setCollectAllocations([{ method:"cash", amount:String(Number(inv.due).toFixed(2)) }]);
+                                  setCollectId(inv.id);
                                 }}
                                 className="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600"
                               >
@@ -1142,20 +1128,7 @@ export default function InvoicesClient({
                         <tr className="bg-emerald-50/60">
                           <td colSpan={8} className="px-5 py-2.5">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-[11px] font-semibold text-emerald-700">
-                                Collect {inr(due)} from {customer}?
-                              </p>
-                              <select
-                                value={collectMethod}
-                                onChange={(e) => setCollectMethod(e.target.value)}
-                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none"
-                              >
-                                {METHODS.map((m) => (
-                                  <option key={m} value={m}>
-                                    {m.toUpperCase()}
-                                  </option>
-                                ))}
-                              </select>
+                              <MultiPaymentCollection totalDue={due} mode="invoice" onChange={setCollectAllocations} />
                               <button
                                 onClick={() => collectDue(inv)}
                                 disabled={busyId === inv.id}
