@@ -14,6 +14,15 @@ type ParsedCommand = {
   customer_name: string | null;
 };
 
+const DEPRECATED_GEMINI_MODELS = new Set(["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-pro"]);
+const DEFAULT_GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+
+function getGeminiModels() {
+  const configured = (process.env.GEMINI_MODEL || "").trim();
+  const requested = configured && !DEPRECATED_GEMINI_MODELS.has(configured) ? configured : "gemini-3.6-flash";
+  return Array.from(new Set([requested, ...DEFAULT_GEMINI_MODELS])).filter((model) => !DEPRECATED_GEMINI_MODELS.has(model));
+}
+
 function clean(value: string) {
   return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
@@ -30,12 +39,9 @@ export async function POST(request: Request) {
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 
-  // Cafe AI Agent uses Gemini for quick-sale parsing. The existing Chat AI remains unchanged.
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
 
-  const requestedModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-  const models = Array.from(new Set([requestedModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]));
   const requestBody = {
     systemInstruction: { parts: [{ text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices." }] },
     contents: [{ role: "user", parts: [{ text: message }] }],
@@ -57,7 +63,7 @@ export async function POST(request: Request) {
 
   let data: any = null;
   let lastError = "Gemini request failed";
-  for (const model of models) {
+  for (const model of getGeminiModels()) {
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: "POST",
@@ -66,9 +72,9 @@ export async function POST(request: Request) {
       });
       data = await response.json().catch(() => ({}));
       if (response.ok) break;
-      lastError = data?.error?.message || `${response.status} ${response.statusText}`;
+      lastError = data?.error?.message || `${model}: ${response.status} ${response.statusText}`;
     } catch (error) {
-      lastError = error instanceof Error ? error.message : "Gemini network request failed";
+      lastError = error instanceof Error ? error.message : lastError;
     }
   }
 
