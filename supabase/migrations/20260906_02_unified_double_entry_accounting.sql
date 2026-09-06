@@ -58,25 +58,25 @@ begin
 
   if new.direction = 'in' then
     v_dr := v_asset;
-    v_cr := case new.ref_type
-      when 'customer_payment', 'due_collection' then '1300' -- Customer Due Collection -> Cr Accounts Receivable
-      when 'return' then '5100'                            -- Sales Return reversal
-      when 'purchase_return' then '2000'                   -- Supplier refund -> Cr Accounts Payable
-      when 'day_close' then '3000'                         -- Owner deposit at day close -> Cr Owner Equity
-      when 'capital', 'owner_equity' then '3000'           -- Owner capital injection
-      when 'cash_variance', 'cash_overage' then '5210'     -- Day close cash overage -> Cr Variance
+    v_cr := case
+      when new.ref_type in ('customer_payment', 'due_collection') then '1300' -- Customer Due Collection -> Cr Accounts Receivable
+      when new.ref_type = 'return' then '5100'                            -- Sales Return reversal
+      when new.ref_type = 'purchase_return' then '2000'                   -- Supplier refund -> Cr Accounts Payable
+      when new.ref_type = 'day_close' then '3000'                         -- Owner deposit at day close -> Cr Owner Equity
+      when new.ref_type in ('capital', 'owner_equity') then '3000'           -- Owner capital injection
+      when new.ref_type in ('cash_variance', 'cash_overage') then '5210'     -- Day close cash overage -> Cr Variance
       else '1400'                                          -- Unallocated suspense / clearing
     end;
   else
     v_cr := v_asset;
-    v_dr := case new.ref_type
-      when 'supplier_payment', 'purchase_payment' then '2000' -- Supplier Due Payment -> Dr Accounts Payable
-      when 'customer_payment', 'due_collection' then '1300'   -- Customer refund -> Dr Accounts Receivable
-      when 'return' then '5100'                               -- Customer return refund
-      when 'purchase_return' then '2000'                      -- Purchase return
-      when 'day_close' then '3000'                            -- Owner withdrawal at day close -> Dr Owner Equity
-      when 'capital', 'owner_equity' then '3000'              -- Owner drawings
-      when 'cash_variance', 'cash_shortage' then '5210'       -- Day close cash shortage -> Dr Variance
+    v_dr := case
+      when new.ref_type in ('supplier_payment', 'purchase_payment') then '2000' -- Supplier Due Payment -> Dr Accounts Payable
+      when new.ref_type in ('customer_payment', 'due_collection') then '1300'   -- Customer refund -> Dr Accounts Receivable
+      when new.ref_type = 'return' then '5100'                               -- Customer return refund
+      when new.ref_type = 'purchase_return' then '2000'                      -- Purchase return
+      when new.ref_type = 'day_close' then '3000'                            -- Owner withdrawal at day close -> Dr Owner Equity
+      when new.ref_type in ('capital', 'owner_equity') then '3000'              -- Owner drawings
+      when new.ref_type in ('cash_variance', 'cash_shortage') then '5210'       -- Day close cash shortage -> Dr Variance
       else '1400'                                             -- Unallocated suspense / clearing
     end;
   end if;

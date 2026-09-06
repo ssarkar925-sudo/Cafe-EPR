@@ -476,10 +476,10 @@ console.log("\n--- Module 4: SQL Migration Codebase Integrity Audit ---");
   assert(sql.includes("new.ref_type in ('invoice', 'purchase', 'quick_sale', 'expense', 'transaction', 'settlement')"), "29. Cash Entry Journal: Operational parent entities excluded from double-posting");
 
   // 3. Customer payment to 1300 AR
-  assert(sql.includes("when 'customer_payment', 'due_collection' then '1300'"), "30. Cash Entry Journal: Customer due collection mapped to Account 1300 (AR)");
+  assert(sql.includes("when new.ref_type in ('customer_payment', 'due_collection') then '1300'"), "30. Cash Entry Journal: Customer due collection mapped to Account 1300 (AR)");
 
   // 4. Supplier payment to 2000 AP
-  assert(sql.includes("when 'supplier_payment', 'purchase_payment' then '2000'"), "31. Cash Entry Journal: Supplier payment mapped to Account 2000 (AP)");
+  assert(sql.includes("when new.ref_type in ('supplier_payment', 'purchase_payment') then '2000'"), "31. Cash Entry Journal: Supplier payment mapped to Account 2000 (AP)");
 
   // 5. Day close variance to 5210
   assert(sql.includes("5210") && sql.includes("cash_variance"), "32. Cash Entry Journal: Cash variance mapped to Account 5210");
