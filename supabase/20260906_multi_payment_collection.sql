@@ -90,4 +90,57 @@ BEGIN
   RETURN jsonb_build_object('success',true,'id',v_txn,'transaction_number',v_result->>'transaction_number','total_collected',v_paid,'customer_due',v_due,'payment_count',jsonb_array_length(p_customer_collection_allocations));
 END; $$;
 
--- Keep the migration source synchronized with the live Supabase functions.
+CREATE OR REPLACE FUNCTION public.record_customer_multi_payment(p_customer_id uuid, p_entry_date date, p_allocations jsonb, p_description text DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_item jsonb; v_method text; v_inst uuid; v_inst_type text; v_amount numeric; v_total numeric := 0;
+  v_balance numeric; v_new_balance numeric; v_name text; v_ledger uuid; v_remaining numeric; v_applied numeric; v_inv record;
+BEGIN
+  IF auth.uid() IS NULL AND auth.role() <> 'service_role' AND current_user <> 'postgres' THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  IF current_user <> 'postgres' AND auth.role() <> 'service_role' AND NOT public.is_back_office() THEN RAISE EXCEPTION 'Forbidden'; END IF;
+  IF p_customer_id IS NULL THEN RAISE EXCEPTION 'Customer is required'; END IF;
+  IF p_allocations IS NULL OR jsonb_typeof(p_allocations) <> 'array' OR jsonb_array_length(p_allocations) = 0 THEN RAISE EXCEPTION 'At least one payment allocation is required'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('erp:customer:'||p_customer_id::text,0));
+  SELECT coalesce(balance,0), name INTO v_balance, v_name FROM public.customers WHERE id=p_customer_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Customer not found'; END IF;
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_allocations) LOOP
+    v_amount := round(coalesce((v_item->>'amount')::numeric,0),2);
+    IF v_amount <= 0 THEN RAISE EXCEPTION 'Each payment allocation must be positive'; END IF;
+    v_total := v_total + v_amount;
+  END LOOP;
+  IF v_total > v_balance + 0.005 THEN RAISE EXCEPTION 'Payment allocations exceed customer outstanding due'; END IF;
+  v_new_balance := round(v_balance - v_total,2);
+  UPDATE public.customers SET balance=v_new_balance, updated_at=now() WHERE id=p_customer_id;
+  INSERT INTO public.customer_ledger(customer_id,entry_date,type,description,debit,credit,balance_after)
+  VALUES(p_customer_id,coalesce(p_entry_date,current_date),'payment',coalesce(p_description,'Customer payment ('||jsonb_array_length(p_allocations)||' tenders)'),0,v_total,v_new_balance)
+  RETURNING id INTO v_ledger;
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_allocations) LOOP
+    v_amount := round((v_item->>'amount')::numeric,2);
+    v_method := lower(coalesce(nullif(btrim(v_item->>'method'),''),'cash'));
+    v_inst := nullif(v_item->>'instrument_id','')::uuid;
+    IF v_inst IS NOT NULL THEN
+      SELECT lower(type) INTO v_inst_type FROM public.payment_instruments WHERE id=v_inst AND is_active=true;
+      IF v_inst_type IS NULL THEN RAISE EXCEPTION 'Payment instrument not found or inactive'; END IF;
+      v_method := CASE v_inst_type WHEN 'upi_qr' THEN 'upi' ELSE v_inst_type END;
+    ELSE
+      IF v_method='card' THEN SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type) IN ('debit_card','credit_card') ORDER BY created_at ASC LIMIT 1;
+      ELSIF v_method='upi' THEN SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type) IN ('upi','upi_qr') ORDER BY created_at ASC LIMIT 1;
+      ELSE SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type)=v_method ORDER BY created_at ASC LIMIT 1;
+      END IF;
+    END IF;
+    IF v_inst IS NULL THEN RAISE EXCEPTION 'No active payment instrument configured for %',v_method; END IF;
+    INSERT INTO public.cash_entries(entry_date,method,direction,amount,description,ref_type,ref_id,instrument_id)
+    VALUES(coalesce(p_entry_date,current_date),v_method,'in',v_amount,'Customer payment - '||v_name||' ('||upper(v_method)||')','customer_payment',v_ledger,v_inst);
+  END LOOP;
+  v_remaining := v_total;
+  FOR v_inv IN SELECT id, invoice_number, total, paid, due FROM public.invoices WHERE customer_id=p_customer_id AND status IN ('unpaid','partial') AND coalesce(due,total-paid)>0 ORDER BY invoice_date ASC, created_at ASC FOR UPDATE LOOP
+    EXIT WHEN v_remaining <= 0.005;
+    v_applied := least(v_remaining,greatest(0,coalesce(v_inv.due,v_inv.total-v_inv.paid)));
+    IF v_applied > 0 THEN
+      UPDATE public.invoices SET paid=coalesce(paid,0)+v_applied,due=greatest(0,coalesce(due,total-paid)-v_applied),status=CASE WHEN greatest(0,coalesce(due,total-paid)-v_applied)<=0.005 THEN 'paid' ELSE 'partial' END,updated_at=now() WHERE id=v_inv.id;
+      INSERT INTO public.payments(invoice_id,amount,method,received_at,note) VALUES(v_inv.id,v_applied,lower(coalesce(p_allocations->0->>'method','cash')),coalesce(p_entry_date,current_date)+time '00:00',coalesce(p_description,'Customer Ledger FIFO payment'));
+      v_remaining := v_remaining-v_applied;
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('ok',true,'customer_id',p_customer_id,'total_collected',v_total,'balance',v_new_balance,'ledger_id',v_ledger,'payment_count',jsonb_array_length(p_allocations));
+END; $$;
