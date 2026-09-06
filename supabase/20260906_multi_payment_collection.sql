@@ -49,41 +49,23 @@ END; $$;
 
 CREATE OR REPLACE FUNCTION public.apply_transaction_customer_payment_split(p_txn_id uuid, p_allocations jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_txn record; v_item jsonb; v_method text; v_inst uuid; v_inst_type text; v_amount numeric; v_total numeric := 0; v_due numeric; v_prev numeric; v_new numeric;
+DECLARE v_txn record; v_item jsonb; v_method text; v_inst uuid; v_inst_type text; v_amount numeric; v_total numeric:=0; v_due numeric; v_prev numeric; v_new numeric;
 BEGIN
-  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
-  IF p_allocations IS NULL OR jsonb_typeof(p_allocations) <> 'array' THEN RAISE EXCEPTION 'Payment allocations must be an array'; END IF;
-  PERFORM pg_advisory_xact_lock(hashtextextended('erp:transaction:'||p_txn_id::text,0));
-  SELECT * INTO v_txn FROM public.transactions WHERE id=p_txn_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Transaction not found'; END IF;
-  FOR v_item IN SELECT value FROM jsonb_array_elements(p_allocations) LOOP
-    v_amount := round(coalesce((v_item->>'amount')::numeric,0),2); IF v_amount<=0 THEN RAISE EXCEPTION 'Each payment allocation must be positive'; END IF; v_total:=v_total+v_amount;
-  END LOOP;
-  IF v_total > coalesce(v_txn.total_amount,v_txn.amount+coalesce(v_txn.service_fee,0)+coalesce(v_txn.portal_charge,0))+0.005 THEN RAISE EXCEPTION 'Payment allocations exceed transaction total'; END IF;
-  IF v_txn.customer_id IS NULL AND v_total < coalesce(v_txn.total_amount,v_txn.amount+coalesce(v_txn.service_fee,0)+coalesce(v_txn.portal_charge,0))-0.005 THEN RAISE EXCEPTION 'Customer is required when a transaction remains due'; END IF;
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF; IF p_allocations IS NULL OR jsonb_typeof(p_allocations)<>'array' THEN RAISE EXCEPTION 'Payment allocations must be an array'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('erp:transaction:'||p_txn_id::text,0)); SELECT * INTO v_txn FROM public.transactions WHERE id=p_txn_id FOR UPDATE; IF NOT FOUND THEN RAISE EXCEPTION 'Transaction not found'; END IF;
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_allocations) LOOP v_amount:=round(coalesce((v_item->>'amount')::numeric,0),2); IF v_amount<=0 THEN RAISE EXCEPTION 'Each payment allocation must be positive'; END IF; v_total:=v_total+v_amount; END LOOP;
+  IF v_total>coalesce(v_txn.total_amount,v_txn.amount+coalesce(v_txn.service_fee,0)+coalesce(v_txn.portal_charge,0))+0.005 THEN RAISE EXCEPTION 'Payment allocations exceed transaction total'; END IF;
+  IF v_txn.customer_id IS NULL AND v_total<coalesce(v_txn.total_amount,v_txn.amount+coalesce(v_txn.service_fee,0)+coalesce(v_txn.portal_charge,0))-0.005 THEN RAISE EXCEPTION 'Customer is required when a transaction remains due'; END IF;
   DELETE FROM public.cash_entries WHERE ref_type='transaction' AND ref_id=p_txn_id AND direction='in';
   FOR v_item IN SELECT value FROM jsonb_array_elements(p_allocations) LOOP
     v_amount:=round((v_item->>'amount')::numeric,2); v_method:=lower(coalesce(nullif(btrim(v_item->>'method'),''),'cash')); v_inst:=nullif(v_item->>'instrument_id','')::uuid;
-    IF v_inst IS NOT NULL THEN
-      SELECT type INTO v_inst_type FROM public.payment_instruments WHERE id=v_inst AND is_active=true;
-      IF v_inst_type IS NULL THEN RAISE EXCEPTION 'Unknown or inactive payment instrument'; END IF;
-      v_method:=CASE v_inst_type WHEN 'cash' THEN 'cash' WHEN 'bank' THEN 'bank' WHEN 'wallet' THEN 'wallet' WHEN 'upi' THEN 'upi' WHEN 'upi_qr' THEN 'upi' WHEN 'debit_card' THEN 'debit_card' WHEN 'credit_card' THEN 'credit_card' ELSE NULL END;
-      IF v_method IS NULL THEN RAISE EXCEPTION 'Unsupported payment instrument type'; END IF;
-    ELSE
-      IF v_method='card' THEN SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type) IN ('debit_card','credit_card') ORDER BY created_at ASC LIMIT 1;
-      ELSIF v_method='upi' THEN SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type) IN ('upi','upi_qr') ORDER BY created_at ASC LIMIT 1;
-      ELSE SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type)=v_method ORDER BY created_at ASC LIMIT 1;
-      END IF;
-    END IF;
+    IF v_inst IS NOT NULL THEN SELECT type INTO v_inst_type FROM public.payment_instruments WHERE id=v_inst AND is_active=true; IF v_inst_type IS NULL THEN RAISE EXCEPTION 'Unknown or inactive payment instrument'; END IF; v_method:=CASE v_inst_type WHEN 'cash' THEN 'cash' WHEN 'bank' THEN 'bank' WHEN 'wallet' THEN 'wallet' WHEN 'upi' THEN 'upi' WHEN 'upi_qr' THEN 'upi' WHEN 'debit_card' THEN 'debit_card' WHEN 'credit_card' THEN 'credit_card' ELSE NULL END; IF v_method IS NULL THEN RAISE EXCEPTION 'Unsupported payment instrument type'; END IF;
+    ELSE IF v_method='card' THEN SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type) IN ('debit_card','credit_card') ORDER BY created_at ASC LIMIT 1; ELSIF v_method='upi' THEN SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type) IN ('upi','upi_qr') ORDER BY created_at ASC LIMIT 1; ELSE SELECT id INTO v_inst FROM public.payment_instruments WHERE is_active AND lower(type)=v_method ORDER BY created_at ASC LIMIT 1; END IF; END IF;
     IF v_inst IS NULL THEN RAISE EXCEPTION 'No active payment instrument configured for %',v_method; END IF;
     INSERT INTO public.cash_entries(entry_date,method,direction,amount,description,ref_type,ref_id,instrument_id) VALUES(current_date,v_method,'in',v_amount,'Customer collection '||v_txn.transaction_number||' ('||upper(v_method)||')','transaction',p_txn_id,v_inst);
   END LOOP;
   v_due:=greatest(0,round(coalesce(v_txn.total_amount,v_txn.amount+coalesce(v_txn.service_fee,0)+coalesce(v_txn.portal_charge,0))-v_total,2));
-  IF v_due>0 AND v_txn.customer_id IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtextextended('erp:customer:'||v_txn.customer_id::text,0)); SELECT coalesce(balance,0) INTO v_prev FROM public.customers WHERE id=v_txn.customer_id FOR UPDATE; v_new:=round(v_prev+v_due,2); UPDATE public.customers SET balance=v_new,updated_at=now() WHERE id=v_txn.customer_id;
-    INSERT INTO public.customer_ledger(customer_id,entry_date,type,description,debit,credit,balance_after,ref_id) VALUES(v_txn.customer_id,current_date,'transaction',v_txn.transaction_number||' balance due',v_due,0,v_new,p_txn_id);
-  END IF;
+  IF v_due>0 AND v_txn.customer_id IS NOT NULL THEN PERFORM pg_advisory_xact_lock(hashtextextended('erp:customer:'||v_txn.customer_id::text,0)); SELECT coalesce(balance,0) INTO v_prev FROM public.customers WHERE id=v_txn.customer_id FOR UPDATE; v_new:=round(v_prev+v_due,2); UPDATE public.customers SET balance=v_new,updated_at=now() WHERE id=v_txn.customer_id; INSERT INTO public.customer_ledger(customer_id,entry_date,type,description,debit,credit,balance_after,ref_id) VALUES(v_txn.customer_id,current_date,'transaction',v_txn.transaction_number||' balance due',v_due,0,v_new,p_txn_id); END IF;
   UPDATE public.transactions SET customer_collected_amount=v_total,customer_due_amount=v_due,customer_collection_method=case when v_total>0 then lower(coalesce(p_allocations->0->>'method','cash')) else 'due' end,customer_pay_method=case when v_total>0 then lower(coalesce(p_allocations->0->>'method','cash')) else 'due' end,cash_in=case when lower(coalesce(p_allocations->0->>'method',''))='cash' then v_total else 0 end,bank_in=case when lower(coalesce(p_allocations->0->>'method',''))='bank' then v_total else 0 end,updated_at=now() WHERE id=p_txn_id;
   RETURN jsonb_build_object('success',true,'id',p_txn_id,'total_collected',v_total,'customer_due',v_due,'payment_count',jsonb_array_length(p_allocations));
 END; $$;
@@ -107,3 +89,5 @@ BEGIN
   END LOOP;
   RETURN jsonb_build_object('success',true,'id',v_txn,'transaction_number',v_result->>'transaction_number','total_collected',v_paid,'customer_due',v_due,'payment_count',jsonb_array_length(p_customer_collection_allocations));
 END; $$;
+
+-- Keep the migration source synchronized with the live Supabase functions.
