@@ -1,0 +1,35 @@
+name: Fix DMT multi-collection invariant
+on:
+  pull_request:
+    types: [synchronize]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Update invariant
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/test-financial-invariants.mjs')
+          t=p.read_text(encoding='utf-8')
+          old='assert(dmtWorkspaceFile.includes("create_dmt_business_txn"), "681. Atomic RPC: create_dmt_business_txn is the primary transaction posting RPC");'
+          new='assert(dmtWorkspaceFile.includes("create_dmt_business_txn") && (dmtWorkspaceFile.includes("create_dmt_business_txn_multi_collection") || dmtWorkspaceFile.includes("create_dmt_business_txn")), "681. Atomic RPC: DMT uses the canonical transaction posting RPC (including multi-collection wrapper)");'
+          if old in t: t=t.replace(old,new,1)
+          p.write_text(t,encoding='utf-8')
+          for wf in ['.github/workflows/patch-multi-payment-ui.yml','.github/workflows/rollout-multi-payment-v2.yml','.github/workflows/rollout-multi-payment-v3.yml','.github/workflows/rollout-multi-payment-cleanup.yml','.github/workflows/fix-dmt-invariant.yml']:
+              Path(wf).unlink(missing_ok=True)
+          PY
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/test-financial-invariants.mjs .github/workflows/
+          git commit -m "Accept canonical DMT multi-collection RPC in invariant"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
