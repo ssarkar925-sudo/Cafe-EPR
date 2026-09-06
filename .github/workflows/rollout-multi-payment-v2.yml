@@ -1,0 +1,107 @@
+name: Retry partial and multiple payment collection
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Patch source files
+        shell: bash
+        run: |
+          cat > /tmp/patch.py <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(p): return Path(p).read_text(encoding='utf-8')
+          def write(p,t): Path(p).write_text(t,encoding='utf-8')
+          def once(t,pat,rep,label):
+              o,n=re.subn(pat,rep,t,count=1,flags=re.S)
+              if n!=1: raise SystemExit(f'{label}: expected 1 match, got {n}')
+              return o
+          def imp(t,anchor):
+              if 'MultiPaymentCollection' in t: return t
+              if anchor not in t: raise SystemExit('missing import anchor')
+              return t.replace(anchor,anchor+'\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
+
+          # Standard POS
+          p='components/pos/pos-client.tsx'; t=read(p); t=imp(t,'import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";')
+          if 'totalDue={total}' not in t:
+              t=t.replace('                    {/* Quick Payment Tender Grid */}', '''                    <MultiPaymentCollection\n                      totalDue={total}\n                      disabled={payDisabled}\n                      mode="invoice"\n                      initialMethod={(payments[0]?.method as PaymentAllocation["method"]) || "cash"}\n                      onChange={(rows) => {\n                        setPayments(rows.map((row) => {\n                          const types = METHOD_ACCOUNT_TYPES[row.method] ?? [row.method];\n                          const inst = types.map((type) => instruments.find((i) => i.type === type)).find(Boolean);\n                          return { instrument_id: inst?.id ?? "", method: row.method, amount: row.amount };\n                        }));\n                      }}\n                    />\n\n                    {/* Quick Payment Tender Grid */}''',1)
+          write(p,t)
+
+          # Three business workspaces
+          for p,total,anchor,acct_start,acct_end in [
+            ('components/business/recharge-workspace.tsx','totalCustomerDebit','          {/* 05 Funding Source Account */}','// 4. Customer Collection Accounting Leg','// 5. Provider Funding Leg'),
+            ('components/business/utility-bill-workspace.tsx','totalCustomerDebit','          {/* 06 Funding Source */}','// 3. Customer Collection Accounting Leg','// 4. Provider Funding Leg'),
+            ('components/business/google-play-workspace.tsx','totalCustomerDebit','            {/* Funding Source Account (Cost Debited From) */}','// Customer Collection Leg','// Provider Funding Leg'),
+          ]:
+              t=read(p); t=imp(t,'import SearchableSelect from "@/components/ui/searchable-select";')
+              if 'customerPaymentAllocations' not in t:
+                  t=t.replace('  const [customerPaidNow, setCustomerPaidNow] = useState("");','  const [customerPaidNow, setCustomerPaidNow] = useState("");\n  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);',1)
+              t=once(t,r'const customerCollectionAmount = [^;]+;',f'const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min({total}, Math.max(0, customerPaymentAllocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min({total}, Math.max(0, Number(customerPaidNow) || 0)) : {total});',p+' amount')
+              if 'totalDue={totalCustomerDebit}' not in t:
+                  ui='''<MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />\n\n'''
+                  if anchor not in t: raise SystemExit(f'{p}: missing payment anchor')
+                  t=t.replace(anchor,ui+anchor,1)
+              acct=f'''{acct_start}\n      const {{ error: collectionError }} = await supabase.rpc("apply_transaction_customer_payment_split", {{ p_txn_id: newTxn.id, p_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0) }});\n      if (collectionError) throw collectionError;\n\n      {acct_end}'''
+              t=once(t,re.escape(acct_start)+r'[\s\S]*?'+re.escape(acct_end),acct,p+' accounting')
+              write(p,t)
+
+          # DMT
+          p='components/business/dmt-workspace.tsx'; t=read(p); t=imp(t,'import SearchableSelect from "@/components/ui/searchable-select";')
+          if 'customerPaymentAllocations' not in t:
+              t=t.replace('  const [customerPaidNow, setCustomerPaidNow] = useState("");','  const [customerPaidNow, setCustomerPaidNow] = useState("");\n  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);',1)
+          t=once(t,r'const customerCollectionAmount = [^;]+;','const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min(totalCollected, Math.max(0, customerPaymentAllocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCollected, Math.max(0, Number(customerPaidNow) || 0)) : totalCollected);','DMT amount')
+          if 'totalDue={totalCollected}' not in t:
+              ui='''<MultiPaymentCollection totalDue={totalCollected} disabled={isSubmitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />\n\n'''
+              t=t.replace('              {/* Reference & Remarks */}',ui+'              {/* Reference & Remarks */}',1)
+          t=t.replace('supabase.rpc("create_dmt_business_txn", {','supabase.rpc("create_dmt_business_txn_multi_collection", {',1)
+          if 'p_customer_collection_allocations:' not in t:
+              t=t.replace('        p_portal_charge: numCharge,\n      });','        p_portal_charge: numCharge,\n        p_customer_collection_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0),\n      });',1)
+          if 'setCustomerPaymentAllocations([]);' not in t:
+              t=t.replace('    setLastCompletedTxn(null);','    setLastCompletedTxn(null);\n    setCustomerPaymentAllocations([]);',1)
+          write(p,t)
+
+          # Invoices
+          p='components/invoices/invoices-client.tsx'; t=read(p); t=imp(t,'import CompactToggle from "@/components/ui/compact-toggle";')
+          if 'collectAllocations' not in t:
+              t=t.replace('  const [collectAmount, setCollectAmount] = useState("");','  const [collectAmount, setCollectAmount] = useState("");\n  const [collectAllocations, setCollectAllocations] = useState<PaymentAllocation[]>([]);',1)
+          t=once(t,r'  async function collectDue\(inv: InvoiceRow\) \{[\s\S]*?\n  \}\n\n  async function copyNumber','''  async function collectDue(inv: InvoiceRow) {\n    const allocations = collectAllocations.filter((row) => Number(row.amount) > 0);\n    const amt = allocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0);\n    if (!(amt > 0)) return;\n    setBusyId(inv.id);\n    const { data, error } = await supabase.rpc("record_invoice_multi_payment", { p_invoice_id: inv.id, p_allocations: allocations });\n    setBusyId(null); setCollectId(null); setCollectAmount(""); setCollectAllocations([]);\n    if (error) { flash("error", error.message); return; }\n    const r = data as { paid:number; due:number; status:string };\n    setInvoices((prev) => prev.map((x) => x.id === inv.id ? { ...x, paid:r.paid, due:r.due, status:r.status } : x));\n    const tenderText = allocations.map((row) => `${row.method.toUpperCase()} ${inr(Number(row.amount))}`).join(" + ");\n    flash("success", `${inv.invoice_number} — ${tenderText} collected`);\n    logAudit({ action:"payment", entity:"invoice", entity_id:inv.id, description:`Payment of ${inr(amt)} received (${tenderText})`, details:{ invoice_number:inv.invoice_number, allocations, amount:amt } });\n  }\n\n  async function copyNumber''','invoice collect')
+          t=t.replace('setCollectMethod("cash");\n                                  setCollectId(inv.id);setCollectAmount(String(Number(inv.due).toFixed(2)));','setCollectMethod("cash");\n                                  setCollectAmount(String(Number(inv.due).toFixed(2)));\n                                  setCollectAllocations([{ method:"cash", amount:String(Number(inv.due).toFixed(2)) }]);\n                                  setCollectId(inv.id);',1)
+          t=once(t,r'            <div>\n              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Amount \(₹\) \*</label>[\s\S]*?\n            </div>\n\n            <div>\n              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Date</label>','''            <MultiPaymentCollection totalDue={Number(selected.balance)} mode="invoice" onChange={setCollectAllocations} />\n\n            <div>\n              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Date</label>''','invoice modal')
+          write(p,t)
+
+          # Customer ledger
+          p='components/finance/ledger-client.tsx'; t=read(p); t=imp(t,'import CompactToggle from "@/components/ui/compact-toggle";')
+          if 'payAllocations' not in t:
+              t=t.replace('  const [payMethod, setPayMethod] = useState("cash");','  const [payMethod, setPayMethod] = useState("cash");\n  const [payAllocations, setPayAllocations] = useState<PaymentAllocation[]>([]);',1)
+          t=once(t,r'  async function handleRecordPayment\(\) \{[\s\S]*?\n  \}\n\n  async function handleRecordAdjustment','''  async function handleRecordPayment() {\n    const allocations = payAllocations.filter((row) => Number(row.amount) > 0);\n    const amt = allocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0);\n    if (!amt || amt <= 0) { showToast("error", "Please enter at least one positive payment allocation."); return; }\n    if (amt > Number(selected?.balance ?? 0) + 0.005) { showToast("error", "Payment cannot exceed the customer's outstanding due."); return; }\n    setPayBusy(true);\n    const { error } = await supabase.rpc("record_customer_multi_payment", { p_customer_id:customerId, p_entry_date:payDate, p_allocations:allocations, p_description:payRemarks.trim() || null });\n    setPayBusy(false);\n    if (error) { showToast("error", error.message); return; }\n    const tenderText = allocations.map((row) => `${row.method.toUpperCase()} ${inr(Number(row.amount))}`).join(" + ");\n    showToast("success", `Recorded ${tenderText} for ${selected?.name}.`);\n    setPayModal(false); setPayAmount(""); setPayRemarks(""); setPayAllocations([]);\n    await loadCustomerLedger(customerId);\n  }\n\n  async function handleRecordAdjustment''','ledger payment')
+          t=t.replace('setPayAmount(Number(selected.balance) > 0 ? String(selected.balance) : "");\n                    setPayModal(true);','setPayAmount(Number(selected.balance) > 0 ? String(selected.balance) : "");\n                    setPayAllocations(Number(selected.balance) > 0 ? [{ method:"cash", amount:String(Number(selected.balance).toFixed(2)) }] : []);\n                    setPayModal(true);',1)
+          t=once(t,r'            <div>\n              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Amount \(₹\) \*</label>[\s\S]*?\n            </div>\n\n            <div>\n              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Date</label>','''            <MultiPaymentCollection totalDue={Number(selected.balance)} mode="ledger" onChange={(rows) => { setPayAllocations(rows); setPayMethod(rows.find((row) => Number(row.amount) > 0)?.method ?? "cash"); }} />\n\n            <div>\n              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Date</label>''','ledger modal')
+          write(p,t)
+          print('PATCH_OK')
+          PY
+          python /tmp/patch.py
+
+      - name: Commit patched sources
+        shell: bash
+        run: |
+          if git diff --quiet; then echo "No source changes needed."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/ supabase/20260906_multi_payment_collection.sql
+          git commit -m "Roll out partial and multiple payment collection UI"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
