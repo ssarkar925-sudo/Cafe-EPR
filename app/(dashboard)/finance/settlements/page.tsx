@@ -63,13 +63,35 @@ export default async function SettlementsPage() {
     });
   }
 
+  // UPI QR records are the preferred master source. Some existing installations already
+  // have a dedicated `upi_qr` payment instrument but no row in `upi_merchant_qrs`; expose
+  // that real payment instrument as a QR selector entry so settlements remain usable.
+  const activeQrs = (qrs ?? []).filter((q: any) => q.is_active !== false);
+  const linkedInstrumentIds = new Set(
+    activeQrs.map((q: any) => q.payment_instrument_id).filter(Boolean)
+  );
+  const activeQrNames = new Set(
+    activeQrs.map((q: any) => String(q.display_name || "").trim().toLowerCase()).filter(Boolean)
+  );
+  const fallbackQrs = (paymentInstruments ?? [])
+    .filter((i: any) => i.is_active !== false && i.type === "upi_qr")
+    .filter((i: any) => !linkedInstrumentIds.has(i.id) && !activeQrNames.has(i.name.trim().toLowerCase()))
+    .map((i: any) => ({
+      id: i.id,
+      display_name: i.name,
+      upi_id: i.details?.upi_id ?? i.details?.vpa ?? "",
+      payment_instrument_id: i.id,
+      is_active: true,
+    }));
+  const settlementQrs = [...activeQrs, ...fallbackQrs];
+
   return (
     <SettlementsClient
       initialSettlements={rows as any}
       initialSummary={parsedSummary}
       initialPoolBalances={poolBalances as any}
       initialPortals={(portals ?? []) as any}
-      initialQrs={(qrs ?? []) as any}
+      initialQrs={settlementQrs as any}
       initialPaymentInstruments={(paymentInstruments ?? []) as any}
     />
   );
