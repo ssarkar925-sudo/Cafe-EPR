@@ -287,6 +287,7 @@ export default function UtilityBillWorkspace({
   const activeBillerConfig: BillerConfig = useMemo(() => {
     return getBillerConfig(selectedBillerId) || getFallbackBillerConfig(selectedCategoryId, selectedBiller?.name || currentCategory.name);
   }, [selectedBillerId, selectedCategoryId, selectedBiller, currentCategory]);
+  const activeBillerPrimaryKey = activeBillerConfig.parameters[0]?.key || "consumerId";
 
   // Valid Funding Instruments. Credit cards are supported as a real biller funding source.
   const validFundingInstruments = useMemo(() => {
@@ -316,11 +317,10 @@ export default function UtilityBillWorkspace({
   // Keep the currently entered account bound to the active biller parameter.
   // This fixes auto-fetch after switching billers while an account is already typed.
   useEffect(() => {
-    const primaryKey = activeBillerConfig.parameters[0]?.key || "consumerId";
     const value = consumerId.trim();
-    setBillerParams(value ? { [primaryKey]: value } : {});
+    setBillerParams(value ? { [activeBillerPrimaryKey]: value } : {});
     lastFetchedKeyRef.current = "";
-  }, [selectedBillerId, selectedCategoryId, activeBillerConfig]);
+  }, [selectedBillerId, selectedCategoryId, activeBillerPrimaryKey]);
 
   // Economics Math
   const billAmount = parseFloat(amount) || 0;
