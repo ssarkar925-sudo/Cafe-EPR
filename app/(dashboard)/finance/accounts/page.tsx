@@ -90,10 +90,12 @@ export default async function FinanceAccountsPage({
     { data: expenses },
     { data: purchases },
     { data: portals },
+    poolResult,
+    { data: seeds },
   ] = await Promise.all([
     supabase
       .from("payment_instruments")
-      .select("id, name, type, is_active, opening_balance, balance, details, created_at")
+      .select("id, name, type, is_active, opening_balance, details, created_at")
       .order("is_active", { ascending: false })
       .order("type")
       .order("name"),
@@ -103,10 +105,34 @@ export default async function FinanceAccountsPage({
     supabase.from("expenses").select("id, payment_instrument_id, payment_method, amount, status, created_at").limit(1000),
     supabase.from("purchases").select("id, payment_instrument_id, payment_method, paid_amount, amount, status, created_at").limit(1000),
     supabase.from("aeps_portals").select("id, payment_instrument_id").limit(100),
+    supabase.rpc("get_pool_balances"),
+    supabase.from("opening_balances").select("*").order("as_of", { ascending: false }),
   ]);
 
+  const poolBalances = (poolResult?.data ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
+  const safeAccounts = (accounts ?? []) as any[];
+
+  const preparedAccounts = safeAccounts.map((acc: any) => {
+    const poolKey = POOL_TYPE_MAP[acc.type] ?? acc.type;
+    const poolEntry = poolBalances[poolKey];
+    const matchingSeed = (seeds ?? []).find((s: any) => s.instrument_id === acc.id || (!s.instrument_id && (s.pool === poolKey || s.pool === acc.type)));
+    const sameTypeCount = safeAccounts.filter((a: any) => a.type === acc.type && a.is_active !== false).length;
+
+    let openingBal = Number(acc.opening_balance ?? 0);
+    if (!openingBal && matchingSeed?.amount) {
+      openingBal = Number(matchingSeed.amount);
+    } else if (!openingBal && poolEntry?.opening && acc.type !== "credit_card" && acc.type !== "debit_card" && sameTypeCount <= 1) {
+      openingBal = Number(poolEntry.opening);
+    }
+
+    return {
+      ...acc,
+      opening_balance: openingBal,
+    };
+  });
+
   const reconciledBalances = calculateAccountBalances({
-    instruments: (accounts ?? []) as any,
+    instruments: preparedAccounts,
     cashEntries: (cashEntries ?? []) as any,
     settlements: (settlements ?? []) as any,
     transactions: (transactions ?? []) as any,
