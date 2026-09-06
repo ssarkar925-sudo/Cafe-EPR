@@ -19,42 +19,10 @@ jobs:
       - name: Repair settings sidebar
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('components/dashboard-shell.tsx')
-          text = path.read_text(encoding='utf-8')
-
-          text = text.replace(
-              '    # Keep the full navigation visible on System Settings.',
-              '    // Keep the full navigation visible on System Settings.'
-          )
-
-          old_toggle = '''  function toggle() {
-    setCollapsed((c) => {
-      const next = !c;'''
-          new_toggle = '''  function toggle() {
-    setCollapsed((c) => {
-      if (pathname === "/settings") {
-        return false;
-      }
-      const next = !c;'''
-          if 'if (pathname === "/settings")' not in text:
-              if text.count(old_toggle) != 1:
-                  raise SystemExit('toggle block not found exactly once')
-              text = text.replace(old_toggle, new_toggle, 1)
-
-          path.write_text(text, encoding='utf-8')
-          print('Settings sidebar repair applied.')
-          PY
-
-          if grep -q '    // Keep the full navigation visible on System Settings.' components/dashboard-shell.tsx \
-             && grep -q 'if (pathname === "/settings")' components/dashboard-shell.tsx; then
-            echo 'Settings sidebar code is repaired.'
-          else
-            echo 'Settings sidebar repair validation failed.'
-            exit 1
-          fi
+          sed -i 's/^    # Keep the full navigation visible on System Settings\./    \/\/ Keep the full navigation visible on System Settings./' components/dashboard-shell.tsx
+          python -c 'from pathlib import Path; p=Path("components/dashboard-shell.tsx"); s=p.read_text(encoding="utf-8"); old="  function toggle() {\n    setCollapsed((c) => {\n      const next = !c;"; new="  function toggle() {\n    setCollapsed((c) => {\n      if (pathname === \\\"/settings\\\") return false;\n      const next = !c;"; assert s.count(old)==1, "toggle block not found exactly once"; p.write_text(s.replace(old,new,1),encoding="utf-8")'
+          grep -q '    // Keep the full navigation visible on System Settings.' components/dashboard-shell.tsx
+          grep -q 'if (pathname === "/settings") return false;' components/dashboard-shell.tsx
       - name: Commit repaired code and remove workflow
         shell: bash
         run: |
