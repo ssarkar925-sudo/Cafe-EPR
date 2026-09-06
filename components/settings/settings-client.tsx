@@ -345,7 +345,7 @@ export default function SettingsClient({
       {/* 2. Main Master-Detail Settings Workspace */}
       <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left Category Navigator */}
-        <div className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overflow-x-hidden lg:pr-2 lg:overscroll-contain lg:scrollbar-thin">
+        <div className="min-w-0 space-y-4 lg:col-span-4 xl:col-span-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overflow-x-hidden lg:pr-2 lg:overscroll-contain lg:scrollbar-thin">
           {/* Quick Search */}
           <div className="relative">
             <svg
