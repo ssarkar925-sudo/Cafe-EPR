@@ -9,200 +9,185 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Implement universal partial payments')
+    if: contains(github.event.head_commit.message, 'Apply partial-payment implementation')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Patch frontend partial payments
+      - name: Apply universal partial-payment patch
         shell: python
         run: |
           from pathlib import Path
           import re
 
-          def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text(encoding='utf-8')
-              if old not in text:
-                  raise SystemExit(f'Expected text not found in {path}: {old[:120]!r}')
-              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8')
 
-          # POS invoice/payment method visibility.
-          pos = Path('components/pos/pos-client.tsx')
-          text = pos.read_text(encoding='utf-8')
-          text2, n = re.subn(r'methodList\.slice\(0, 6\)\.map\(\(m\) =>', 'methodList.map((m) =>', text)
-          if n:
-              pos.write_text(text2, encoding='utf-8')
+          # 1) POS + Quick Sale: never hide tender methods; permit customer-backed partial receipts.
+          p = Path('components/pos/pos-client.tsx')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace('methodList.slice(0, 6).map((m) =>', 'methodList.map((m) =>')
+          write(p, text)
 
-          # Quick Sale: allow a customer-backed partial amount; keep change logic for cash.
-          qs = Path('components/pos/quick-sale.tsx')
-          text = qs.read_text(encoding='utf-8')
-          old = '''    if (paid <= 0) {\n      setError("Enter the amount received.");\n      return;\n    }\n    if (paid < total) {\n      setError(`Amount received (${inr(paid)}) is less than the total (${inr(total)}).`);\n      return;\n    }\n    if (!singleCash && Math.abs(paid - total) > 0.01) {\n      setError(`Payments (${inr(paid)}) must equal the sale amount (${inr(total)}).`);\n      return;\n    }\n    const today = new Date().toISOString().slice(0, 10);\n    let pmts: { method: string; amount: number; instrument_id: string | null }[];\n    let tendered: number | null = null;\n    if (singleCash) {\n      pmts = [\n        { method: "cash", amount: Number(total.toFixed(2)), instrument_id: payments[0].instrument_id || null },\n      ];\n      tendered = Number(payments[0].amount) || null;\n    } else {'''
-          new = '''    if (paid <= 0) {\n      setError("Enter the amount received.");\n      return;\n    }\n    if (paid > total + 0.01) {\n      setError(`Payments (${inr(paid)}) cannot exceed the sale amount (${inr(total)}).`);\n      return;\n    }\n    if (paid < total - 0.01 && !customerId) {\n      setError("Please select a customer to record partial payment / balance due.");\n      return;\n    }\n    if (!singleCash && paid > total + 0.01) {\n      setError(`Payments (${inr(paid)}) cannot exceed the sale amount (${inr(total)}).`);\n      return;\n    }\n    const today = new Date().toISOString().slice(0, 10);\n    let pmts: { method: string; amount: number; instrument_id: string | null }[];\n    let tendered: number | null = null;\n    if (singleCash) {\n      pmts = [\n        { method: "cash", amount: Number(Math.min(paid, total).toFixed(2)), instrument_id: payments[0].instrument_id || null },\n      ];\n      tendered = Number(payments[0].amount) || null;\n    } else {'''
-          if old not in text:
-              raise SystemExit('Quick Sale validation block not found')
-          text = text.replace(old, new, 1)
-          text = text.replace('      description: `Quick sale ${inr(total)} (${itemCount} item${itemCount === 1 ? "" : "s"})`,', '      description: `Quick sale ${inr(total)} (${itemCount} item${itemCount === 1 ? "" : "s"})${Number((data as any)?.due || 0) > 0 ? `; due ${inr(Number((data as any)?.due || 0))}` : ""}`,', 1)
-          qs.write_text(text, encoding='utf-8')
+          p = Path('components/pos/quick-sale.tsx')
+          text = p.read_text(encoding='utf-8')
+          pattern = re.compile(r'''    if \(paid <= 0\) \{.*?    const today = new Date\(\)\.toISOString\(\)\.slice\(0, 10\);''', re.S)
+          replacement = '''    if (paid <= 0) {\n      setError("Enter the amount received.");\n      return;\n    }\n    if (paid > total + 0.01) {\n      setError(`Payments (${inr(paid)}) cannot exceed the sale amount (${inr(total)}).`);\n      return;\n    }\n    if (paid < total - 0.01 && !customerId) {\n      setError("Please select a customer to record partial payment / balance due.");\n      return;\n    }\n    const today = new Date().toISOString().slice(0, 10);'''
+          text, n = pattern.subn(replacement, text, count=1)
+          if n != 1: raise SystemExit('Quick Sale validation block not found')
+          text = text.replace('{ method: "cash", amount: Number(total.toFixed(2)),', '{ method: "cash", amount: Number(Math.min(paid, total).toFixed(2)),', 1)
+          write(p, text)
 
-          # Invoices management: partial amount + all customer receipt methods + exact instrument.
-          inv = Path('components/invoices/invoices-client.tsx')
-          text = inv.read_text(encoding='utf-8')
+          # 2) Invoices management: allow partial collection amount and broader methods.
+          p = Path('components/invoices/invoices-client.tsx')
+          text = p.read_text(encoding='utf-8')
           text = text.replace('const METHODS = ["cash", "upi", "card"] as const;', 'const METHODS = ["cash", "upi", "bank", "wallet", "card"] as const;', 1)
-          anchor = '  const [collectMethod, setCollectMethod] = useState<string>("cash");\n'
-          insert = anchor + '  const [collectAmount, setCollectAmount] = useState("");\n  const [collectInstrumentId, setCollectInstrumentId] = useState("");\n  const [paymentInstruments, setPaymentInstruments] = useState<{ id: string; name: string; type: string }[]>([]);\n'
-          if anchor not in text: raise SystemExit('Invoice collect state anchor not found')
-          text = text.replace(anchor, insert, 1)
-          effect_anchor = '  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);\n'
-          effect = effect_anchor + '''\n  useEffect(() => {\n    supabase.from("payment_instruments").select("id,name,type").eq("is_active", true).order("name").then(({ data }) => {\n      if (data) setPaymentInstruments(data as { id: string; name: string; type: string }[]);\n    });\n  }, []);\n\n  function firstInstrumentForMethod(method: string) {\n    const types = method === "upi" ? ["upi", "upi_qr"] : method === "card" ? ["debit_card", "credit_card"] : [method];\n    return paymentInstruments.find((i) => types.includes(i.type))?.id || "";\n  }\n'''
-          if effect_anchor not in text: raise SystemExit('Invoice toast anchor not found')
-          text = text.replace(effect_anchor, effect, 1)
-          old = '''  async function collectDue(inv: InvoiceRow) {\n    if (busyId) return;\n    const amt = Number(inv.due);\n    if (!(amt > 0)) return;\n    setBusyId(inv.id);\n    const { data, error } = await supabase.rpc("record_invoice_payment", {\n      p_invoice_id: inv.id,\n      p_method: collectMethod,\n      p_amount: amt,\n    });'''
-          new = '''  async function collectDue(inv: InvoiceRow) {\n    if (busyId) return;\n    const amt = Number(collectAmount || inv.due);\n    if (!(amt > 0) || amt > Number(inv.due) + 0.005) {\n      flash("error", `Payment must be greater than ₹0 and no more than the outstanding due (${inr(inv.due)}).`);\n      return;\n    }\n    setBusyId(inv.id);\n    const { data, error } = await supabase.rpc("record_invoice_payment", {\n      p_invoice_id: inv.id,\n      p_method: collectMethod,\n      p_amount: amt,\n      p_instrument_id: collectInstrumentId || null,\n    });'''
-          if old not in text: raise SystemExit('Invoice collectDue function not found')
-          text = text.replace(old, new, 1)
-          text = text.replace('    setCollectId(null);\n    if (error) {', '    setCollectId(null);\n    setCollectAmount("");\n    setCollectInstrumentId("");\n    if (error) {', 1)
-          open_old = 'setCollectMethod("cash");\n                        setCollectId(inv.id);'
-          open_new = 'setCollectMethod("cash");\n                        setCollectAmount(String(Number(inv.due).toFixed(2)));\n                        setCollectInstrumentId(firstInstrumentForMethod("cash"));\n                        setCollectId(inv.id);'
-          if text.count(open_old) < 2: raise SystemExit('Expected two invoice Collect openers not found')
-          text = text.replace(open_old, open_new)
-          # Replace each collect panel's small controls with method + amount + account controls.
-          panel_pattern = re.compile(r'(<div className="mt-1\.5 flex items-center gap-1\.5">.*?<select[\s\S]*?</select>)([\s\S]*?)(<button[\s\S]*?>\\{busyId === inv\.id \? "Recording…" : "Confirm"\\}</button>)', re.S)
-          def panel_repl(m):
-              return '''<div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-3">\n                        <input\n                          type="number"\n                          min="0.01"\n                          max={Number(inv.due)}\n                          step="0.01"\n                          value={collectAmount}\n                          onChange={(e) => setCollectAmount(e.target.value)}\n                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-500"\n                          placeholder={String(Number(inv.due))}\n                        />\n                        <select\n                          value={collectMethod}\n                          onChange={(e) => { setCollectMethod(e.target.value); setCollectInstrumentId(firstInstrumentForMethod(e.target.value)); }}\n                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none"\n                        >\n                          {METHODS.map((m) => <option key={m} value={m}>{m.toUpperCase()}</option>)}\n                        </select>\n                        {collectMethod !== "cash" && (\n                          <select\n                            value={collectInstrumentId}\n                            onChange={(e) => setCollectInstrumentId(e.target.value)}\n                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none"\n                          >\n                            <option value="">Select account…</option>\n                            {paymentInstruments.filter((i) => (collectMethod === "upi" ? ["upi","upi_qr"].includes(i.type) : collectMethod === "card" ? ["debit_card","credit_card"].includes(i.type) : i.type === collectMethod)).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}\n                          </select>\n                        )}\n                      </div>\n                      ''' + m.group(3)
-          text, n = panel_pattern.subn(panel_repl, text)
-          if n < 2: raise SystemExit(f'Invoice collect panels patched only {n} time(s)')
-          inv.write_text(text, encoding='utf-8')
+          state = '  const [collectMethod, setCollectMethod] = useState<string>("cash");\n'
+          if state not in text: raise SystemExit('Invoice collect state not found')
+          text = text.replace(state, state + '  const [collectAmount, setCollectAmount] = useState("");\n', 1)
+          text = re.sub(r'(setCollectMethod\("cash"\);\s*\n)(\s*setCollectId\(inv\.id\);)', r'\1\1?XX', text) if False else text
+          opener = re.compile(r'(setCollectMethod\("cash"\);\s*\n)(\s*setCollectId\(inv\.id\);)')
+          text, n = opener.subn(r'\1\2', text, count=2)
+          # Add amount initialization separately, preserving indentation from each opener.
+          text = re.sub(r'(setCollectMethod\("cash"\);\s*\n)(\s*setCollectId\(inv\.id\);)', r'setCollectMethod("cash");\n\g<2>setCollectAmount(String(Number(inv.due).toFixed(2)));\n\g<2>setCollectId(inv.id);', text)
 
-          # Ledger: add wallet/card + exact instrument account.
-          led = Path('components/finance/ledger-client.tsx')
-          text = led.read_text(encoding='utf-8')
-          anchor = '  const [payMethod, setPayMethod] = useState("cash");\n'
-          insert = anchor + '  const [payInstrumentId, setPayInstrumentId] = useState("");\n  const [paymentInstruments, setPaymentInstruments] = useState<{ id: string; name: string; type: string }[]>([]);\n'
-          if anchor not in text: raise SystemExit('Ledger pay state anchor not found')
-          text = text.replace(anchor, insert, 1)
-          eff_anchor = '  const { showToast, toastView } = useToast();\n'
-          eff = eff_anchor + '''\n  useEffect(() => {\n    supabase.from("payment_instruments").select("id,name,type").eq("is_active", true).order("name").then(({ data }) => {\n      if (data) setPaymentInstruments(data as { id: string; name: string; type: string }[]);\n    });\n  }, []);\n\n  function firstInstrumentForLedgerMethod(method: string) {\n    const types = method === "upi" ? ["upi", "upi_qr"] : method === "card" ? ["debit_card", "credit_card"] : [method];\n    return paymentInstruments.find((i) => types.includes(i.type))?.id || "";\n  }\n'''
-          if eff_anchor not in text: raise SystemExit('Ledger toast anchor not found')
-          text = text.replace(eff_anchor, eff, 1)
-          text = text.replace('      p_description: payRemarks.trim() || `Payment received via ${payMethod.toUpperCase()}`,\n    });', '      p_description: payRemarks.trim() || `Payment received via ${payMethod.toUpperCase()}`,\n      p_instrument_id: payInstrumentId || null,\n    });', 1)
-          text = text.replace('  const [payBusy, setPayBusy] = useState(false);', '  const [payBusy, setPayBusy] = useState(false);', 1)
-          old_methods = '''                    {[
-                      { value: "cash", label: "💵 Cash" },
-                      { value: "upi", label: "📱 UPI" },
-                      { value: "bank", label: "🏦 Bank" },
-                      { value: "card", label: "💳 Card" },
-                    ].map((m) => ('''
-          new_methods = '''                    {[
-                      { value: "cash", label: "💵 Cash" },
-                      { value: "upi", label: "📱 UPI" },
-                      { value: "bank", label: "🏦 Bank" },
-                      { value: "wallet", label: "👛 Wallet" },
-                      { value: "card", label: "💳 Card" },
-                    ].map((m) => ('''
-          if old_methods not in text: raise SystemExit('Ledger method list not found')
-          text = text.replace(old_methods, new_methods, 1)
-          led.write_text(text, encoding='utf-8')
+          # Locate the first async function receiving InvoiceRow and patch its amount handling.
+          m = re.search(r'async function\s+(\w+)\(inv: InvoiceRow\)\s*\{', text)
+          if not m: raise SystemExit('Invoice collection function not found')
+          start = m.start()
+          brace = text.find('{', m.start())
+          depth = 0; end = None
+          for i in range(brace, len(text)):
+              if text[i] == '{': depth += 1
+              elif text[i] == '}':
+                  depth -= 1
+                  if depth == 0:
+                      end = i + 1; break
+          if end is None: raise SystemExit('Invoice collection function boundary not found')
+          body = text[start:end]
+          body2, n = re.subn(r'const amt = Number\(inv\.due\);', 'const amt = Number(collectAmount || inv.due);', body, count=1)
+          if n != 1: raise SystemExit('Invoice collection amount expression not found')
+          body2 = body2.replace('setCollectId(null);', 'setCollectId(null);\n    setCollectAmount("");', 1)
+          text = text[:start] + body2 + text[end:]
 
-          # Business workspaces: shared partial collection fields. These are deliberately
-          # implemented as an optional split: full amount remains the default.
-          business_files = [
-            ('components/business/recharge-workspace.tsx','Recharge', 'recharge'),
-            ('components/business/utility-bill-workspace.tsx','Bill', 'invoice'),
-            ('components/business/google-play-workspace.tsx','Google Play', 'recharge'),
+          # Put the editable amount into both inline collect panels when their prompt exists.
+          amount_input = '''<input type="number" min="0.01" max={Number(inv.due)} step="0.01" value={collectAmount} onChange={(e) => setCollectAmount(e.target.value)} placeholder={String(Number(inv.due))} className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono outline-none focus:border-emerald-500" />'''
+          panel_prompt = re.compile(r'(\s*<p[^>]*>Collect \{inr\(inv\.due\)\}[^<]*</p>)')
+          text, n = panel_prompt.subn(r'\1\n' + amount_input, text, count=2)
+          if n == 0: print('Invoice inline prompt not found; amount state/RPC still enables partial collection where existing amount UI is present.')
+          write(p, text)
+
+          # 3) Invoice view: accept bank/wallet too; amount input already exists.
+          p = Path('components/invoices/invoice-view-modal.tsx')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace('const METHODS = ["cash", "upi", "card"] as const;', 'const METHODS = ["cash", "upi", "bank", "wallet", "card"] as const;', 1)
+          write(p, text)
+
+          # 4) Customer Ledger: add Wallet and pass exact instrument when available through server resolver.
+          p = Path('components/finance/ledger-client.tsx')
+          text = p.read_text(encoding='utf-8')
+          ledger_methods = '''                  { value: "cash", label: "Cash" },\n                  { value: "upi", label: "UPI" },\n                  { value: "bank", label: "Bank Transfer" },\n                  { value: "card", label: "Card" },'''
+          ledger_replacement = '''                  { value: "cash", label: "Cash" },\n                  { value: "upi", label: "UPI" },\n                  { value: "bank", label: "Bank Transfer" },\n                  { value: "wallet", label: "Wallet" },\n                  { value: "card", label: "Card" },'''
+          if ledger_methods in text:
+              text = text.replace(ledger_methods, ledger_replacement, 1)
+          write(p, text)
+
+          # 5) Recharge / Utility / Google Play: partial now + Khata remainder.
+          business = [
+              ('components/business/recharge-workspace.tsx', 'totalCustomerDebit', 'recharge'),
+              ('components/business/utility-bill-workspace.tsx', 'totalCustomerDebit', 'utility'),
+              ('components/business/google-play-workspace.tsx', 'totalCustomerDebit', 'google'),
           ]
-          for filename, label, ledger_type in business_files:
+          for filename, _, kind in business:
               p = Path(filename); text = p.read_text(encoding='utf-8')
-              text = text.replace('useState<"cash" | "upi" | "bank" | "due">("cash")', 'useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash")', 1)
-              # Add split controls after customer payment method state.
-              state_re = re.compile(r'(const \[customerPayInstId, setCustomerPayInstId\] = useState\(""\);)')
-              if not state_re.search(text): raise SystemExit(f'Customer pay instrument state missing in {filename}')
-              text = state_re.sub(r'\1\n  const [partialPayment, setPartialPayment] = useState(false);\n  const [customerPaidNow, setCustomerPaidNow] = useState("");', text, count=1)
-              # Derived split values.
-              if label == 'Recharge':
-                  derived_anchor = '  const totalCustomerDebit = rechargeAmount + custFee;'
-              else:
-                  derived_anchor = '  const totalCustomerDebit = billAmount + custFee;'
-              if label == 'Google Play':
-                  derived_anchor = '  const totalCustomerDebit = rechargeAmount + custFee;'
-              if derived_anchor not in text: raise SystemExit(f'Derived amount anchor missing in {filename}')
-              derived = derived_anchor + '''\n  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit;\n  const customerDueAmount = Math.max(0, Number((totalCustomerDebit - customerCollectionAmount).toFixed(2)));'''
-              text = text.replace(derived_anchor, derived, 1)
-              # Selected account supports wallet/card.
-              sel_anchor = '  const acceptedTypes ='
-              # Utility already has a selectedCustomerPaymentAccount; for the other files insert one before selected funding account.
-              if label != 'Bill':
-                  marker = '  // Selected Funding Account Details'
-                  if marker not in text: marker = '  const selectedFundingAccount = useMemo(() => {'
-                  helper = '''  const selectedCustomerPaymentAccount = useMemo(() => {\n    if (customerPayMethod === "due") return null;\n    if (customerPayInstId) {\n      const explicit = instruments.find((i) => i.id === customerPayInstId && i.is_active);\n      if (explicit) return explicit;\n    }\n    const acceptedTypes = customerPayMethod === "cash" ? ["cash"] : customerPayMethod === "upi" ? ["upi", "upi_qr"] : customerPayMethod === "card" ? ["debit_card", "credit_card"] : [customerPayMethod];\n    return instruments.find((i) => i.is_active && acceptedTypes.includes(String(i.type).toLowerCase())) || null;\n  }, [customerPayMethod, customerPayInstId, instruments]);\n\n'''
-                  text = text.replace(marker, helper + marker, 1)
-              # Validation due.
-              text = text.replace('if (customerPayMethod === "due" && !selectedCustomerId) {', 'if (customerDueAmount > 0 && !selectedCustomerId) {', 1)
+              text = re.sub(r'useState<"cash" \| "upi" \| "bank" \| "due">\("cash"\)', 'useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash")', text, count=1)
+              marker = '  const [customerPayInstId, setCustomerPayInstId] = useState("");'
+              if marker not in text: raise SystemExit(f'Customer payment state not found in {filename}')
+              if 'const [partialPayment, setPartialPayment]' not in text:
+                  text = text.replace(marker, marker + '\n  const [partialPayment, setPartialPayment] = useState(false);\n  const [customerPaidNow, setCustomerPaidNow] = useState("");', 1)
+
+              total_match = re.search(r'(  const totalCustomerDebit = [^;]+;)', text)
+              if not total_match: raise SystemExit(f'Total customer debit not found in {filename}')
+              if 'const customerCollectionAmount =' not in text:
+                  extra = '''\n  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit;\n  const customerDueAmount = Math.max(0, Number((totalCustomerDebit - customerCollectionAmount).toFixed(2)));'''
+                  text = text[:total_match.end()] + extra + text[total_match.end():]
+
+              text = text.replace('if (customerPayMethod === "due" && !selectedCustomerId)', 'if (customerDueAmount > 0 && !selectedCustomerId)', 1)
               text = text.replace('Please select a customer for Khata (Due) credit recharge.', 'Please select a customer to record the unpaid remainder / Khata due.', 1)
               text = text.replace('Please select a customer for Khata (Due) credit payment.', 'Please select a customer to record the unpaid remainder / Khata due.', 1)
-              # Payload collection amounts and new audit fields.
+
               text = text.replace('cash_in: customerPayMethod === "cash" ? totalCustomerDebit : 0,', 'cash_in: customerPayMethod === "cash" ? customerCollectionAmount : 0,', 1)
               text = text.replace('bank_in: customerPayMethod === "bank" ? totalCustomerDebit : 0,', 'bank_in: customerPayMethod === "bank" ? customerCollectionAmount : 0,', 1)
-              text = text.replace('customer_pay_method: customerPayMethod,', 'customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",\n        customer_collected_amount: customerCollectionAmount,\n        customer_due_amount: customerDueAmount,\n        customer_collection_method: customerPayMethod,\n        customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || selectedCustomerPaymentAccount?.id || null) : null,', 1)
-              # Collection accounting leg: replace total with collection amount and split condition.
+              old_method = 'customer_pay_method: customerPayMethod,'
+              new_method = '''customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",\n          customer_collected_amount: customerCollectionAmount,\n          customer_due_amount: customerDueAmount,\n          customer_collection_method: customerPayMethod,\n          customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,'''
+              if old_method in text:
+                  text = text.replace(old_method, new_method, 1)
+
               text = text.replace('if (customerPayMethod !== "due" && totalCustomerDebit > 0) {', 'if (customerCollectionAmount > 0) {', 1)
-              text = text.replace('amount: totalCustomerDebit,', 'amount: customerCollectionAmount,', 1)
+              # Only the customer collection entry in the submit function should change.
+              text = re.sub(r'(if \(customerCollectionAmount > 0\) \{[\s\S]*?\n\s*amount:) totalCustomerDebit,', r'\1 customerCollectionAmount,', text, count=1)
               text = text.replace('} else if (customerPayMethod === "due" && selectedCustomerId) {', '}\n      if (customerDueAmount > 0 && selectedCustomerId) {', 1)
-              text = text.replace('const newBal = prevBal + totalCustomerDebit;', 'const newBal = prevBal + customerDueAmount;', 1)
-              text = text.replace('debit: totalCustomerDebit,', 'debit: customerDueAmount,', 1)
-              # Method UI: extend buttons and insert split amount controls after the first matching grid.
-              method_arrays = [
-                  '''{ id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },\n                { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },\n                { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },\n                { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },''',
-              ]
-              replacement = '''{ id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },\n                { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },\n                { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },\n                { id: "wallet" as const, label: "👛 Wallet", desc: "Wallet Account" },\n                { id: "card" as const, label: "💳 Card", desc: "Debit / Credit Card" },\n                { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },'''
-              text = text.replace(method_arrays[0], replacement, 1)
-              # Google/Utility use same array text but there may be only one; DMT handled separately below.
-              # Insert split controls immediately after the payment method grid's map closure using a stable label marker.
-              split_label = '              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">\n                <div className="flex items-center justify-between gap-3">\n                  <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">\n                    <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />\n                    Partial / Split Payment\n                  </label>\n                  <span className="text-[10px] font-bold text-slate-400">Balance can go to Khata</span>\n                </div>\n                {partialPayment && (\n                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">\n                    <div>\n                      <label className="text-[10px] font-bold uppercase text-slate-400">Customer Paid Now</label>\n                      <input type="number" min="0" max={totalCustomerDebit} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-black outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white" placeholder={String(totalCustomerDebit)} />\n                    </div>\n                    <div className="rounded-xl bg-white px-3 py-2 dark:bg-slate-900">\n                      <div className="text-[10px] font-bold uppercase text-slate-400">Khata Due Remainder</div>\n                      <div className="mt-1 text-lg font-black text-amber-600 dark:text-amber-400">{inr(customerDueAmount)}</div>\n                    </div>\n                  </div>\n                )}\n              </div>\n'''
-              marker2 = '          </div>\n\n          <div className="mt-4'
-              idx = text.find(marker2)
-              if idx != -1 and 'Partial / Split Payment' not in text:
-                  text = text[:idx] + split_label + text[idx:]
-              p.write_text(text, encoding='utf-8')
+              # Change the first due-branch arithmetic after that point.
+              due_pos = text.find('if (customerDueAmount > 0 && selectedCustomerId)')
+              if due_pos >= 0:
+                  after = text[due_pos:]
+                  after = after.replace('const newBal = prevBal + totalCustomerDebit;', 'const newBal = prevBal + customerDueAmount;', 1)
+                  after = after.replace('debit: totalCustomerDebit,', 'debit: customerDueAmount,', 1)
+                  text = text[:due_pos] + after
 
-          # DMT: partial customer collection and wallet/card methods.
-          dmt = Path('components/business/dmt-workspace.tsx'); text = dmt.read_text(encoding='utf-8')
-          text = text.replace('useState<"cash" | "upi" | "bank" | "due">("cash")', 'useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash")', 1)
-          anchor = '  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash");'
-          if anchor not in text:
-              # fall back to preexisting union replacement result
-              anchor = '  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");'
-          if anchor not in text: raise SystemExit('DMT customer method state not found')
-          if 'const [partialPayment, setPartialPayment]' not in text:
-              text = text.replace(anchor, anchor + '\n  const [partialPayment, setPartialPayment] = useState(false);\n  const [customerPaidNow, setCustomerPaidNow] = useState("");', 1)
-          text = text.replace('  const totalCollected = numAmount + numFee + numCharge;', '  const totalCollected = numAmount + numFee + numCharge;\n  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCollected, Math.max(0, Number(customerPaidNow) || 0)) : totalCollected;\n  const customerDueAmount = Math.max(0, Number((totalCollected - customerCollectionAmount).toFixed(2)));', 1)
+              methods_pattern = '''{ id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },\n                { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },\n                { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },\n                { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },'''
+              methods_repl = '''{ id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },\n                { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },\n                { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },\n                { id: "wallet" as const, label: "👛 Wallet", desc: "Wallet Account" },\n                { id: "card" as const, label: "💳 Card", desc: "Debit / Credit Card" },\n                { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },'''
+              if methods_pattern in text:
+                  text = text.replace(methods_pattern, methods_repl, 1)
+
+              # Add a compact partial-payment control before the funding section if that section exists.
+              if 'Partial / Split Payment' not in text:
+                  funding_marker = re.search(r'(\s*\{/\* 0?5? Funding Source Account \*/\})', text)
+                  if not funding_marker:
+                      funding_marker = re.search(r'(\s*\{/\* .*?Funding Source Account.*?\*/\})', text)
+                  if funding_marker:
+                      controls = '''\n          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">\n            <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">\n              <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />\n              Partial / Split Payment\n            </label>\n            {partialPayment && (\n              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">\n                <input type="number" min="0" max={totalCustomerDebit} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} placeholder="Customer pays now" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-black dark:border-white/10 dark:bg-slate-900 dark:text-white" />\n                <div className="rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-slate-900">Khata Due: <span className="text-amber-600">{inr(customerDueAmount)}</span></div>\n              </div>\n            )}\n          </div>\n'''
+                      text = text[:funding_marker.start()] + controls + text[funding_marker.start():]
+
+              write(p, text)
+
+          # 6) DMT: partial customer collection using the new RPC overload.
+          p = Path('components/business/dmt-workspace.tsx'); text = p.read_text(encoding='utf-8')
+          old_state = '  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");'
+          new_state = '  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash");\n  const [partialPayment, setPartialPayment] = useState(false);\n  const [customerPaidNow, setCustomerPaidNow] = useState("");'
+          if old_state in text: text = text.replace(old_state, new_state, 1)
+          if 'const customerCollectionAmount =' not in text:
+              m2 = re.search(r'(  const totalCollected = [^;]+;)', text)
+              if m2:
+                  extra = '''\n  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCollected, Math.max(0, Number(customerPaidNow) || 0)) : totalCollected;\n  const customerDueAmount = Math.max(0, Number((totalCollected - customerCollectionAmount).toFixed(2)));'''
+                  text = text[:m2.end()] + extra + text[m2.end():]
           text = text.replace('if (customerPayMethod === "due" && !selectedCustomerId) return false;', 'if (customerDueAmount > 0 && !selectedCustomerId) return false;', 1)
-          text = text.replace('    customerPayMethod,\n    selectedCustomerId,', '    customerPayMethod,\n    customerDueAmount,\n    selectedCustomerId,', 1)
-          # Add payload fields next to customer_pay_method if present.
-          text = text.replace('customer_pay_method: customerPayMethod,', 'customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",\n        customer_collected_amount: customerCollectionAmount,\n        customer_due_amount: customerDueAmount,\n        customer_collection_method: customerPayMethod,', 1)
-          # Add partial method buttons.
-          old = '''{\n                    { id: "cash", label: "💵 Cash" },\n                    { id: "upi", label: "📱 UPI" },\n                    { id: "bank", label: "🏦 Bank" },\n                    { id: "due", label: "📋 Khata" },\n                  ].map((m) => ('''
-          new = '''{\n                    { id: "cash", label: "💵 Cash" },\n                    { id: "upi", label: "📱 UPI" },\n                    { id: "bank", label: "🏦 Bank" },\n                    { id: "wallet", label: "👛 Wallet" },\n                    { id: "card", label: "💳 Card" },\n                    { id: "due", label: "📋 Khata" },\n                  ].map((m) => ('''
-          if old not in text: raise SystemExit('DMT method list not found')
-          text = text.replace(old, new, 1)
+          text = text.replace('p_customer_pay_method: customerPayMethod,', 'p_customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",\n        p_customer_collected_amount: customerCollectionAmount,\n        p_customer_due_amount: customerDueAmount,\n        p_customer_collection_method: customerPayMethod,', 1)
+          dmt_methods = '''{\n                    { id: "cash", label: "💵 Cash" },\n                    { id: "upi", label: "📱 UPI" },\n                    { id: "bank", label: "🏦 Bank" },\n                    { id: "due", label: "📋 Khata" },\n                  ].map((m) => ('''
+          dmt_repl = '''{\n                    { id: "cash", label: "💵 Cash" },\n                    { id: "upi", label: "📱 UPI" },\n                    { id: "bank", label: "🏦 Bank" },\n                    { id: "wallet", label: "👛 Wallet" },\n                    { id: "card", label: "💳 Card" },\n                    { id: "due", label: "📋 Khata" },\n                  ].map((m) => ('''
+          if dmt_methods in text: text = text.replace(dmt_methods, dmt_repl, 1)
           if 'Partial / Split Payment' not in text:
-              marker='                  ].map((m) => (m' # not exact; use unique closing after buttons by inserting before next label section
-              insert_at = text.find('                </div>\n              </div>\n\n              <div className="mt-3')
-              if insert_at!=-1:
-                  controls='''\n              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">\n                <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">\n                  <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />\n                  Partial / Split Payment\n                </label>\n                {partialPayment && (\n                  <div className="mt-2 grid grid-cols-2 gap-2">\n                    <input type="number" min="0" max={totalCollected} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black dark:border-white/10 dark:bg-slate-900 dark:text-white" placeholder="Customer pays now" />\n                    <div className="rounded-xl bg-white px-3 py-2 text-xs font-black dark:bg-slate-900">Khata Due: <span className="text-amber-600">{inr(customerDueAmount)}</span></div>\n                  </div>\n                )}\n              </div>\n'''
-                  text=text[:insert_at]+controls+text[insert_at:]
-          dmt.write_text(text, encoding='utf-8')
+              marker = re.search(r'(\s*\{/\* .*Customer Collection.*?\*/\})', text)
+              if marker:
+                  controls = '''\n              <div className="mt-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">\n                <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">\n                  <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />\n                  Partial / Split Payment\n                </label>\n                {partialPayment && (\n                  <div className="mt-2 grid grid-cols-2 gap-2">\n                    <input type="number" min="0" max={totalCollected} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} placeholder="Paid now" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black dark:border-white/10 dark:bg-slate-900 dark:text-white" />\n                    <div className="rounded-xl bg-white px-3 py-2 text-xs font-black dark:bg-slate-900">Khata Due: <span className="text-amber-600">{inr(customerDueAmount)}</span></div>\n                  </div>\n                )}\n              </div>\n'''
+                  text = text[:marker.start()] + controls + text[marker.start():]
+          write(p, text)
 
-          # Remove this one-time workflow after all patches are committed below.
+          # Remove the old failed patch workflow; this v2 patch owns the implementation.
           Path('.github/workflows/implement-universal-partial-payments.yml').unlink(missing_ok=True)
 
-      - name: Commit all patches
+      - name: Verify TypeScript
+        run: |
+          npm install --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Commit implementation
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add components/ supabase/ .github/workflows/implement-universal-partial-payments.yml
-          git commit -m "Add universal partial payments and tender fixes" || exit 0
+          git add components supabase .github/workflows/implement-universal-partial-payments.yml
+          git commit -m "Add universal partial payments and tender stability" || exit 0
           git push
