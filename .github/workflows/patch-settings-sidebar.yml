@@ -20,8 +20,8 @@ jobs:
         shell: bash
         run: |
           sed -i 's/^    # Keep the full navigation visible on System Settings\./    \/\/ Keep the full navigation visible on System Settings./' components/dashboard-shell.tsx
-          python -c 'from pathlib import Path; p=Path("components/dashboard-shell.tsx"); s=p.read_text(encoding="utf-8"); old="  function toggle() {\n    setCollapsed((c) => {\n      const next = !c;"; new="  function toggle() {\n    setCollapsed((c) => {\n      if (pathname === \\\"/settings\\\") return false;\n      const next = !c;"; assert s.count(old)==1, "toggle block not found exactly once"; p.write_text(s.replace(old,new,1),encoding="utf-8")'
-          grep -q '    // Keep the full navigation visible on System Settings.' components/dashboard-shell.tsx
+          perl -0pi -e 's/      const next = !c;/      if (pathname === "\/settings") return false;\n      const next = !c;/' components/dashboard-shell.tsx
+          grep -q '    \/\/ Keep the full navigation visible on System Settings.' components/dashboard-shell.tsx
           grep -q 'if (pathname === "/settings") return false;' components/dashboard-shell.tsx
       - name: Commit repaired code and remove workflow
         shell: bash
