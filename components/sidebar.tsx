@@ -132,9 +132,7 @@ export default function Sidebar({ name, email, role, shopName, logoUrl, avatarUr
       { label: "Audit Log", href: "/audit", icon: "audit" },
     ] },
     { title: "7. Tools & AI", items: [
-      { label: "AI Agent", href: "/ai-agent", icon: "ai", badge: { text: "NEW", tone: "purple" } },
-      { label: "AI Learning Control", href: "/ai-agent/learning", icon: "ai", badge: { text: "Owner", tone: "blue" } },
-      { label: "AI Control Center", href: "/ai", icon: "ai", badge: { text: "Smart", tone: "purple" } },
+      { label: "AI Agent", href: "/ai-agent", icon: "ai", badge: { text: "Live", tone: "purple" } },
       { label: "Financial Self-Audit", href: "/ai/self-audit", icon: "audit", badge: { text: "14-pt", tone: "emerald" } },
     ] },
     { title: "8. Administration", items: [
