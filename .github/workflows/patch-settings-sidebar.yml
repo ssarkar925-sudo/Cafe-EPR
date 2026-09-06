@@ -1,0 +1,36 @@
+name: Repair Settings Sidebar
+
+'on':
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[settings-sidebar-auto-patch]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch settings sidebar expansion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('components/dashboard-shell.tsx')
+          text = path.read_text(encoding='utf-8')
+          old = '''  useEffect(() => {\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");\n    } catch {}\n  }, []);'''
+          new = '''  useEffect(() => {\n    // Keep the full navigation visible on System Settings. A user may have\n    // collapsed the global sidebar elsewhere, but Settings needs the full\n    // menu so every administration section remains discoverable.\n    if (pathname === "/settings") {\n      setCollapsed(false);\n      try {\n        localStorage.setItem(COLLAPSE_KEY, "0");\n      } catch {}\n      return;\n    }\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");\n    } catch {}\n  }, [pathname]);'''
+          if text.count(old) != 1:\n              raise SystemExit('Sidebar state effect not found exactly once')\n          text = text.replace(old, new, 1)\n          path.write_text(text, encoding='utf-8')\n          print('Settings sidebar forced expanded.')\n          PY
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/dashboard-shell.tsx
+          git rm .github/workflows/patch-settings-sidebar.yml
+          git commit -m "fix: keep settings sidebar expanded [settings-sidebar-auto-patch]"
+          git push origin HEAD:main
