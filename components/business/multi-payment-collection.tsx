@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type PaymentAllocation = {
   method: "cash" | "upi" | "bank" | "wallet" | "card";
@@ -28,10 +28,32 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
   const [allocations, setAllocations] = useState<PaymentAllocation[]>(() =>
     safeTotal > 0 ? [{ method: initialMethod, amount: safeTotal.toFixed(2) }] : []
   );
+  const previousTotalRef = useRef(safeTotal);
+  const onChangeRef = useRef(onChange);
+  const lastEmittedRef = useRef("");
+
+  onChangeRef.current = onChange;
 
   useEffect(() => {
-    onChange(allocations);
-  }, [allocations, onChange]);
+    const prevTotal = previousTotalRef.current;
+    setAllocations((prev) => {
+      if (safeTotal <= 0) return [];
+      if (prev.length === 0) return [{ method: initialMethod, amount: safeTotal.toFixed(2) }];
+      const prevCollected = prev.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
+      if (prev.length === 1 && Math.abs(prevCollected - prevTotal) < 0.005) {
+        return [{ ...prev[0], amount: safeTotal.toFixed(2) }];
+      }
+      return prev;
+    });
+    previousTotalRef.current = safeTotal;
+  }, [safeTotal, initialMethod]);
+
+  useEffect(() => {
+    const serialized = JSON.stringify(allocations);
+    if (serialized === lastEmittedRef.current) return;
+    lastEmittedRef.current = serialized;
+    onChangeRef.current(allocations);
+  }, [allocations]);
 
   const collected = useMemo(
     () => allocations.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0),
@@ -58,8 +80,8 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
     <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-black text-slate-800 dark:text-slate-100">Multiple Payment Collection</div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400">Split one receipt across Cash, UPI, Bank, Wallet or Card.</div>
+          <div className="text-xs font-black text-slate-800 dark:text-slate-100">Partial + Multiple Payment Collection</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">Collect one receipt using Cash, UPI, Bank, Wallet and/or Card. Any remainder becomes Khata Due.</div>
         </div>
         <button
           type="button"
