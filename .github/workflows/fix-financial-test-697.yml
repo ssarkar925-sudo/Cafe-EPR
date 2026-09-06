@@ -17,24 +17,39 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
           p = Path('scripts/test-financial-invariants.mjs')
-          s = p.read_text()
-          pattern = re.compile(
-              r'assert\(\s*dmtWorkspaceFile\.includes\(["\']p_customer_pay_method: customerPayMethod["\']\)\s*,\s*["\']697\. Payment Method Invariant: customerPayMethod passed to atomic RPC["\']\s*\)\s*;'
-          )
-          new = '''assert(\n  dmtWorkspaceFile.includes("p_customer_pay_method:") &&\n  dmtWorkspaceFile.includes("customerPayMethod") &&\n  dmtWorkspaceFile.includes('"due"'),\n  "697. Payment Method Invariant: collection method preserved with due-only fallback"\n);'''
-          s2, count = pattern.subn(new, s, count=1)
-          if count != 1:
-              raise SystemExit('Expected test 697 assertion was not found; refusing to modify files.')
-          p.write_text(s2)
+          lines = p.read_text().splitlines()
+          label = '697. Payment Method Invariant:'
+          idx = next((i for i, line in enumerate(lines) if label in line), None)
+          if idx is None:
+              raise SystemExit('Could not locate invariant 697 label.')
+          start = idx
+          while start >= 0 and not lines[start].lstrip().startswith('assert('):
+              start -= 1
+          if start < 0:
+              raise SystemExit('Could not locate assert() start for invariant 697.')
+          end = idx
+          while end < len(lines) and ');' not in lines[end]:
+              end += 1
+          if end >= len(lines):
+              raise SystemExit('Could not locate assert() end for invariant 697.')
+          replacement = [
+              'assert(',
+              '  dmtWorkspaceFile.includes("p_customer_pay_method:") &&',
+              '  dmtWorkspaceFile.includes("customerPayMethod") &&',
+              '  dmtWorkspaceFile.includes(\'"due"\'),',
+              '  "697. Payment Method Invariant: collection method preserved with due-only fallback"',
+              ');',
+          ]
+          lines[start:end + 1] = replacement
+          p.write_text('\n'.join(lines) + '\n')
           PY
       - name: Commit fix and remove temporary files
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/fix-financial-test-697.yml .github/fix-697-trigger.txt
+          git rm .github/workflows/fix-financial-test-697.yml .github/fix-697-trigger.txt .github/fix-697-trigger-2.txt
           git add scripts/test-financial-invariants.mjs
           git commit -m 'test: validate DMT payment method due fallback semantically'
           git push
