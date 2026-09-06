@@ -57,7 +57,7 @@ export default async function DashboardPage() {
     supabase.from("invoices").select("id, invoice_number, invoice_date, total, paid, due, status, created_at, customers(name)").gte("invoice_date", thirtyDaysAgo).order("invoice_date", { ascending: false }).limit(300),
     supabase.from("quick_sales").select("id, sale_number, amount, cost, sale_date, status, created_at").gte("sale_date", thirtyDaysAgo),
     supabase.from("expenses").select("id, title, amount, category, expense_date, status, created_at").gte("expense_date", thirtyDaysAgo),
-    supabase.from("transactions").select("id, transaction_number, service_type, direction, total_amount, service_fee, portal_commission, transaction_date, status, created_at, customers(name)").gte("transaction_date", thirtyDaysAgo),
+    supabase.from("transactions").select("id, transaction_number, service_type, direction, amount, service_fee, portal_charge, portal_commission, transaction_date, status, created_at, customers(name)").gte("transaction_date", thirtyDaysAgo),
     supabase.from("cash_entries").select("id, amount, direction, method, entry_date, ref_type, created_at").gte("entry_date", thirtyDaysAgo),
     supabase.from("settlements").select("id, amount, from_pool, to_pool, settlement_date, status, created_at").gte("settlement_date", thirtyDaysAgo),
   ]);
@@ -320,22 +320,22 @@ export default async function DashboardPage() {
   const serviceBreakdown = {
     aeps: {
       count: aepsTxns.length,
-      volume: aepsTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      volume: aepsTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
       income: aepsTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
     },
     dmt: {
       count: dmtTxns.length,
-      volume: dmtTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
-      income: dmtTxns.reduce((s, t) => s + Number(t.service_fee || 0) - Number(t.portal_commission || 0), 0),
+      volume: dmtTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
+      income: dmtTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0) - Number(t.portal_charge || 0), 0),
     },
     upi: {
       count: upiTxns.length,
-      volume: upiTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      volume: upiTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
       income: upiTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0),
     },
     recharge: {
       count: rechargeTxns.length,
-      volume: rechargeTxns.reduce((s, t) => s + Number(t.total_amount || 0), 0),
+      volume: rechargeTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
       income: rechargeTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
     },
   };

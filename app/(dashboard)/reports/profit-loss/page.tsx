@@ -58,11 +58,12 @@ export default async function ProfitLossPage() {
   const purchaseReturns = (() => { const a = byCode.get("4100"); return a ? Number(a.credit) - Number(a.debit) : 0; })();
   const cogs = balance("5000");
   const inventoryAdjustment = balance("5200");
+  const cashVariance = balance("5210");
   const operatingExpenses = balance("6000");
 
   const totalRevenue = productSales + serviceRevenue + serviceFees + commissionIncome;
   const grossProfit = totalRevenue - salesReturns - cogs + purchaseReturns - inventoryAdjustment;
-  const net = grossProfit - operatingExpenses;
+  const net = grossProfit - operatingExpenses - cashVariance;
   const margin = totalRevenue > 0 ? (net / totalRevenue) * 100 : 0;
 
   const quickRevenue = (quickSales ?? []).reduce((s, x) => s + Number(x.amount || 0), 0);
@@ -85,6 +86,7 @@ export default async function ProfitLossPage() {
     ["Less: Inventory Adjustments", -inventoryAdjustment, "negative"],
     ["Gross Operating Profit", grossProfit, "subtotal"],
     ["Less: Operating Expenses", -operatingExpenses, "negative"],
+    ["Less: Cash Shortage / (Overage)", -cashVariance, cashVariance > 0 ? "negative" : "positive"],
     ["NET OPERATING PROFIT", net, "total"],
   ];
 

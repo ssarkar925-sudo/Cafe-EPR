@@ -21,7 +21,7 @@ type Pay = { method: string; amount: string; received_at: string; invoices: { in
 type Due = { id: string; name: string; balance: string };
 type Exp = { id: string; expense_date: string; category: string; amount: string; note: string | null; status: string };
 type Ret = { id: string; return_number: string; return_date: string; subtotal: string; refund: string; status: string; invoices: { invoice_number: string; status: string } | null };
-type Tx = { id: string; transaction_number: string; service_type: string; direction: string; transaction_date: string; customer_mobile: string | null; reference: string | null; amount: string; service_fee: string; portal_commission: string; status: string };
+type Tx = { id: string; transaction_number: string; service_type: string; direction: string; transaction_date: string; customer_mobile: string | null; reference: string | null; amount: string; service_fee: string; portal_charge?: string; portal_commission: string; status: string };
 type Inst = { id: string; name: string; type: string; is_active: boolean };
 type CashEntry = {
   id: string;
@@ -191,9 +191,9 @@ export default function ReportsClient({
       income: validTxns.reduce(
         (s, t) =>
           s +
-          (t.service_type === "dmt"
-            ? Number(t.service_fee) - Number(t.portal_commission)
-            : Number(t.service_fee) + Number(t.portal_commission)),
+          Number(t.service_fee || 0) +
+          Number(t.portal_commission || 0) -
+          (t.service_type === "dmt" ? Number(t.portal_charge || 0) : 0),
         0
       ),
     };
