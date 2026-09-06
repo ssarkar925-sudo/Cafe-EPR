@@ -24,7 +24,7 @@ export default async function FinancialReconciliationPage() {
   ] = await Promise.all([
     supabase.rpc("get_pool_balances", { p_as_of: today }),
     supabase.from("payment_instruments").select("id,name,type,opening_balance,details,is_active,created_at").order("type").order("name"),
-    supabase.from("cash_entries").select("id,instrument_id,direction,amount,created_at,entry_date,remarks,description,method,ref_type,ref_id").not("instrument_id", "is", null).order("created_at", { ascending: true }),
+    supabase.from("cash_entries").select("id,instrument_id,direction,amount,created_at,entry_date,description,method,ref_type,ref_id").not("instrument_id", "is", null).order("created_at", { ascending: true }),
     supabase.from("aeps_portals").select("id,payment_instrument_id,name"),
     supabase.from("transactions").select("id,transaction_number,service_type,amount,status,created_at,transaction_date,customer_pay_method,instrument_id,pay_from_instrument_id").eq("status", "success").order("created_at", { ascending: false }).limit(2000),
     supabase.from("settlements").select("id,source_instrument_id,dest_instrument_id,from_pool,to_pool,amount,status,created_at,settlement_number").eq("status", "success").order("created_at", { ascending: false }).limit(1000),

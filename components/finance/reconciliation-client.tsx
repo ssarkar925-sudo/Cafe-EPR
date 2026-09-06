@@ -146,7 +146,7 @@ export default function ReconciliationClient({
       ] = await Promise.all([
         supabase.rpc("get_pool_balances"),
         supabase.from("payment_instruments").select("*").order("type").order("name"),
-        supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, remarks, method, ref_type").not("instrument_id", "is", null),
+        supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, description, method, ref_type").not("instrument_id", "is", null),
         supabase.from("aeps_portals").select("id, payment_instrument_id, name"),
         supabase.from("transactions").select("id, transaction_number, service_type, pool_credit, pool_out, pool_credit_type, service_fee, upi_fee, amount, status, created_at, customer_pay_method, fee_source, portal_id, instrument_id").eq("status", "success").order("created_at", { ascending: false }).limit(200),
         supabase.from("settlements").select("id, source_instrument_id, dest_instrument_id, from_pool, to_pool, amount, status, created_at, settlement_number").eq("status", "success").order("created_at", { ascending: false }).limit(100),
@@ -282,7 +282,7 @@ export default function ReconciliationClient({
               type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
               amount: amt,
               date: e.created_at,
-              desc: e.remarks || "Direct cashbook adjustment",
+              desc: (e as any).description || (e as any).remarks || "Direct cashbook adjustment",
             });
           }
         }
@@ -302,7 +302,7 @@ export default function ReconciliationClient({
               type: e.direction === "out" ? "Outflow" : "Inflow",
               amount: amt,
               date: e.created_at,
-              desc: e.remarks || "Direct cashbook posting",
+              desc: (e as any).description || (e as any).remarks || "Direct cashbook posting",
             });
           }
         }
