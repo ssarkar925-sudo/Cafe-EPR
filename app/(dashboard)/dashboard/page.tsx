@@ -340,38 +340,54 @@ export default async function DashboardPage() {
     },
   };
 
-  // Unified Recent Activity Stream
+  // Unified Recent Activity Stream — merge every canonical activity source, then sort globally newest-first.
   const activityList: any[] = [];
-  for (const inv of invoices.slice(0, 10)) {
+
+  for (const inv of invoices) {
     activityList.push({
       id: "inv-" + inv.id,
       type: "sale",
       title: `Invoice #${inv.invoice_number}`,
-      subtitle: inv.customers?.name || "Counter Retail Customer",
+      subtitle: `Sales • ${inv.customers?.name || "Counter Retail Customer"}`,
       amount: Number(inv.total || 0),
       direction: "in",
       status: inv.status,
       date: inv.created_at || inv.invoice_date,
     });
   }
-  for (const exp of expenses.slice(0, 8)) {
+
+  for (const sale of quickSales) {
+    activityList.push({
+      id: "quick-" + sale.id,
+      type: "sale",
+      title: `Quick Sale #${sale.sale_number || ""}`,
+      subtitle: "Quick Sale • Counter",
+      amount: Number(sale.amount || 0),
+      direction: "in",
+      status: sale.status,
+      date: sale.created_at || sale.sale_date,
+    });
+  }
+
+  for (const exp of expenses) {
     activityList.push({
       id: "exp-" + exp.id,
       type: "expense",
       title: exp.title || "Store Expense",
-      subtitle: exp.category || "General Overhead",
+      subtitle: `Expense • ${exp.category || "General Overhead"}`,
       amount: Number(exp.amount || 0),
       direction: "out",
       status: exp.status,
       date: exp.created_at || exp.expense_date,
     });
   }
-  for (const tx of transactions.slice(0, 8)) {
+
+  for (const tx of transactions) {
     activityList.push({
       id: "tx-" + tx.id,
       type: tx.service_type || "service",
       title: `${(tx.service_type || "Service").toUpperCase()} #${tx.transaction_number || ""}`,
-      subtitle: tx.customers?.name || "Digital Counter Customer",
+      subtitle: `${(tx.service_type || "Service").replace(/_/g, " ")} • ${tx.customers?.name || "Digital Counter Customer"}`,
       amount: Number(tx.total_amount || 0),
       direction: tx.direction === "out" ? "out" : "in",
       status: tx.status,
@@ -379,8 +395,40 @@ export default async function DashboardPage() {
     });
   }
 
-  activityList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const recentActivity = activityList.slice(0, 8);
+  for (const entry of cashEntries) {
+    activityList.push({
+      id: "cash-" + entry.id,
+      type: entry.direction === "out" ? "expense" : "cash",
+      title: `Cash ${entry.direction === "out" ? "Out" : "In"}${entry.method ? ` • ${String(entry.method).toUpperCase()}` : ""}`,
+      subtitle: `Cashbook • ${entry.ref_type || "Manual Entry"}`,
+      amount: Number(entry.amount || 0),
+      direction: entry.direction === "out" ? "out" : "in",
+      status: "posted",
+      date: entry.created_at || entry.entry_date,
+    });
+  }
+
+  for (const settlement of settlements) {
+    activityList.push({
+      id: "settlement-" + settlement.id,
+      type: "settlement",
+      title: "Pool Settlement",
+      subtitle: `Settlement • ${settlement.from_pool || "—"} → ${settlement.to_pool || "—"}`,
+      amount: Number(settlement.amount || 0),
+      direction: "out",
+      status: settlement.status,
+      date: settlement.created_at || settlement.settlement_date,
+    });
+  }
+
+  activityList.sort((a, b) => {
+    const aTime = new Date(a.date || 0).getTime();
+    const bTime = new Date(b.date || 0).getTime();
+    return bTime - aTime;
+  });
+
+  // Keep a useful recent window while retaining activity from every source.
+  const recentActivity = activityList.slice(0, 20);
 
   // Deterministic Owner Alerts
   const alerts: any[] = [];
