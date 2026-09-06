@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import BillPaymentHub from "@/components/business/bill-payment-hub";
-import CustomerDetailsWorkspace from "@/components/business/customer-details-workspace";
+import UtilityBillWorkspace from "@/components/business/utility-bill-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +16,6 @@ export default async function BillPaymentPage({
 
   const { tab, category, provider } = await searchParams;
   const supabase = await createClient();
-
-  if (tab === "utility") {
-    return (
-      <CustomerDetailsWorkspace
-        initialCategory={category || "electricity"}
-        initialBiller={provider}
-      />
-    );
-  }
 
   const [
     { data: transactions },
@@ -43,7 +34,7 @@ export default async function BillPaymentPage({
       .limit(600),
     supabase
       .from("customers")
-      .select("id, name, code, phone")
+      .select("id, name, code, phone, balance")
       .eq("is_active", true)
       .order("name")
       .limit(300),
@@ -52,6 +43,16 @@ export default async function BillPaymentPage({
     supabase.from("payment_instruments").select("*").order("name"),
     supabase.from("bill_payment_commission_config").select("*").order("category_name").order("biller_name"),
   ]);
+
+  if (tab === "utility") {
+    return (
+      <UtilityBillWorkspace
+        initialTransactions={(transactions ?? []) as any}
+        initialCustomers={(customers ?? []) as any}
+        initialPaymentInstruments={(paymentInstruments ?? []) as any}
+      />
+    );
+  }
 
   return (
     <BillPaymentHub
