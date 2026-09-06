@@ -296,34 +296,34 @@ export default function SettingsClient({
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-4 py-6 lg:px-8 space-y-6">
       {/* 1. Executive Top Header */}
-      <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
+      <div className="min-w-0 rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
+        <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-50 dark:ring-blue-950/50">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 2.83 0l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0-4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.04 4.3l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 18.5 7.2l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
               </svg>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                <h1 className="truncate text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                   Settings &amp; System Control Center
                 </h1>
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                <span className="hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Live Operational Hub
                 </span>
               </div>
-              <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+              <p className="mt-1 truncate text-sm font-medium text-slate-500 dark:text-slate-400">
                 Configure business profile, payment accounts, BBPS commissions, team permissions, and financial automation.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
             <Link
               href="/ai/self-audit"
               className="inline-flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-bold text-purple-700 shadow-sm transition hover:bg-purple-100 dark:border-purple-500/30 dark:bg-purple-950/40 dark:text-purple-300 active:scale-[0.98]"
@@ -343,9 +343,9 @@ export default function SettingsClient({
       </div>
 
       {/* 2. Main Master-Detail Settings Workspace */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+      <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left Category Navigator */}
-        <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 lg:overscroll-contain lg:scrollbar-thin">
+        <div className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overflow-x-hidden lg:pr-2 lg:overscroll-contain lg:scrollbar-thin">
           {/* Quick Search */}
           <div className="relative">
             <svg
@@ -476,23 +476,23 @@ export default function SettingsClient({
         </div>
 
         {/* Right Detail Workspace */}
-        <div className="min-w-0 lg:col-span-8 xl:col-span-9 space-y-6">
+        <div className="min-w-0 overflow-x-hidden lg:col-span-8 xl:col-span-9 space-y-6">
           {/* Active Header Banner */}
-          <div className="flex items-center justify-between rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
-            <div>
+          <div className="flex min-w-0 items-center justify-between rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
+            <div className="min-w-0">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                 {activeMeta.group}
               </span>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+              <h2 className="truncate text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                 {activeMeta.title}
               </h2>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              <p className="truncate mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 {activeMeta.desc}
               </p>
             </div>
 
             {isFormTab && dirty && (
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   onClick={resetForm}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
@@ -571,7 +571,7 @@ export default function SettingsClient({
       </div>
 
       {isFormTab && dirty && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 rounded-2xl border border-slate-300 bg-slate-900/95 px-5 py-3 shadow-2xl backdrop-blur-xl text-white dark:border-white/20">
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-2xl border border-slate-300 bg-slate-900/95 px-5 py-3 text-white shadow-2xl backdrop-blur-xl dark:border-white/20">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
             <span className="text-xs font-bold">Unsaved configuration changes detected</span>
