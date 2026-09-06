@@ -48,3 +48,9 @@ search_result.txt
 summary.txt
 found.txt
 validation_report.txt
+
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/

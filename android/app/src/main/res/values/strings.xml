@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CafeERP</string>
+    <string name="title_activity_main">CafeERP</string>
+    <string name="package_name">com.sarkarcommunication.cafeerp</string>
+    <string name="custom_url_scheme">com.sarkarcommunication.cafeerp</string>
+</resources>

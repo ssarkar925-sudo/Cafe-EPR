@@ -22,6 +22,9 @@
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
     "@react-pdf/renderer": "^4.6.1",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.46.1",

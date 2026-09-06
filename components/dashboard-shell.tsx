@@ -9,6 +9,7 @@ import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
 import CloudSyncBadge from "./cloud-sync-badge";
 import WhatsAppStatusBadge from "./whatsapp/whatsapp-status-badge";
+import MobileBottomNav from "./mobile-bottom-nav";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
 
@@ -274,12 +275,13 @@ export default function DashboardShell({
           </div>
         </header>
 
-        <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6">
+        <div className="min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6 pb-24 lg:pb-6">
           {children}
         </div>
       </div>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <MobileBottomNav />
     </div>
   );
 }
