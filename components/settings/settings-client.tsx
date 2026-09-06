@@ -304,7 +304,7 @@ export default function SettingsClient({
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-50 dark:ring-blue-950/50">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.04 4.3l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 2.83 0l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0-4h-.09A1.65 1.65 0 0 0 19.4 15Z" />
               </svg>
             </div>
             <div>
@@ -345,7 +345,7 @@ export default function SettingsClient({
       {/* 2. Main Master-Detail Settings Workspace */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left Category Navigator */}
-        <div className="space-y-4 lg:col-span-4 xl:col-span-3">
+        <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 lg:overscroll-contain lg:scrollbar-thin">
           {/* Quick Search */}
           <div className="relative">
             <svg
@@ -538,7 +538,6 @@ export default function SettingsClient({
             <button type="submit" id="save-settings" className="hidden" />
           </form>
 
-          {/* Sub-Panels */}
           <PaymentAccountsPanel initialInstruments={initialInstruments} active={tab === "payment-accounts"} />
           <PaymentMethodsPanel initialPaymentMethods={initialPaymentMethods} active={tab === "payment-methods"} />
           <QuickFavoritesPanel initialServices={initialServices} active={tab === "quick-favorites"} />
@@ -571,7 +570,6 @@ export default function SettingsClient({
         </div>
       </div>
 
-      {/* 3. Sticky Floating Save Bar (When dirty) */}
       {isFormTab && dirty && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 rounded-2xl border border-slate-300 bg-slate-900/95 px-5 py-3 shadow-2xl backdrop-blur-xl text-white dark:border-white/20">
           <div className="flex items-center gap-2">
