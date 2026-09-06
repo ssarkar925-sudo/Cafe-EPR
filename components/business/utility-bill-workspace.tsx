@@ -148,6 +148,16 @@ export const POPULAR_BILLERS: BillerItem[] = [
   { id: "home_credit", categoryId: "loan", name: "Home Credit India", shortName: "Home Credit", commission: 10 },
   { id: "tata_capital", categoryId: "loan", name: "Tata Capital Financial Services", shortName: "Tata Capital", commission: 10 },
   { id: "muthoot_finance", categoryId: "loan", name: "Muthoot Finance Limited", shortName: "Muthoot Finance", commission: 10 },
+  { id: "hdb_financial", categoryId: "loan", name: "HDB Financial Services", shortName: "HDB Financial", commission: 10 },
+  { id: "shriram_finance", categoryId: "loan", name: "Shriram Finance Limited", shortName: "Shriram Finance", commission: 10 },
+  { id: "mahindra_finance", categoryId: "loan", name: "Mahindra & Mahindra Financial Services", shortName: "Mahindra Finance", commission: 10 },
+  { id: "manappuram_finance", categoryId: "loan", name: "Manappuram Finance Limited", shortName: "Manappuram Finance", commission: 10 },
+  { id: "chola_finance", categoryId: "loan", name: "Cholamandalam Investment and Finance Company", shortName: "Chola Finance", commission: 10 },
+  { id: "iifl_finance", categoryId: "loan", name: "IIFL Finance Limited", shortName: "IIFL Finance", commission: 10 },
+  { id: "l_and_t_finance", categoryId: "loan", name: "L&T Finance Limited", shortName: "L&T Finance", commission: 10 },
+  { id: "piramal_finance", categoryId: "loan", name: "Piramal Finance Limited", shortName: "Piramal Finance", commission: 10 },
+  { id: "aditya_birla_finance", categoryId: "loan", name: "Aditya Birla Finance Limited", shortName: "Aditya Birla Finance", commission: 10 },
+  { id: "poonawalla_fincorp", categoryId: "loan", name: "Poonawalla Fincorp Limited", shortName: "Poonawalla Fincorp", commission: 10 },
 ];
 
 export type FetchedBill = {
@@ -293,12 +303,24 @@ export default function UtilityBillWorkspace({
     }
   }, [validFundingInstruments, fundingInstId]);
 
-  // Reset biller when category changes
+  // Reset biller and stale lookup state when category changes.
   useEffect(() => {
     const firstBiller = billersForCategory[0];
     setSelectedBillerId(firstBiller ? firstBiller.id : "");
     setFetchedBill(null);
+    setFetchBadge(null);
+    setBillerParams({});
+    lastFetchedKeyRef.current = "";
   }, [selectedCategoryId, billersForCategory]);
+
+  // Keep the currently entered account bound to the active biller parameter.
+  // This fixes auto-fetch after switching billers while an account is already typed.
+  useEffect(() => {
+    const primaryKey = activeBillerConfig.parameters[0]?.key || "consumerId";
+    const value = consumerId.trim();
+    setBillerParams(value ? { [primaryKey]: value } : {});
+    lastFetchedKeyRef.current = "";
+  }, [selectedBillerId, selectedCategoryId, activeBillerConfig]);
 
   // Economics Math
   const billAmount = parseFloat(amount) || 0;
@@ -431,7 +453,13 @@ export default function UtilityBillWorkspace({
       return;
     }
 
-    const payloadParams = { ...paramsToFetch, [primaryKey]: primaryVal };
+    const payloadParams: Record<string, string> = {};
+    for (const param of activeBillerConfig.parameters) {
+      const value = String(paramsToFetch[param.key] ?? (param.key === primaryKey ? primaryVal : "")).trim();
+      if (value) payloadParams[param.key] = value;
+    }
+    payloadParams[primaryKey] = primaryVal;
+
     const queryKey = `${selectedBillerId}:${JSON.stringify(payloadParams)}`;
     lastFetchedKeyRef.current = queryKey;
     const currentSeq = ++fetchSeqRef.current;
@@ -526,8 +554,8 @@ export default function UtilityBillWorkspace({
     if (queryKey === lastFetchedKeyRef.current) return;
 
     const timer = setTimeout(() => {
-      executeBillFetch(payloadParams, false);
-    }, 350);
+      void executeBillFetch(payloadParams, false);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [billerParams, consumerId, selectedBillerId, activeBillerConfig, executeBillFetch]);
@@ -1165,7 +1193,14 @@ export default function UtilityBillWorkspace({
                       const val = e.target.value;
                       setConsumerId(val);
                       const pKey = activeBillerConfig.parameters[0]?.key || "consumerId";
-                      setBillerParams((prev) => ({ ...prev, [pKey]: val }));
+                      setBillerParams(val.trim() ? { [pKey]: val } : {});
+                      lastFetchedKeyRef.current = "";
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleFetchBill();
+                      }
                     }}
                     disabled={submitting}
                     placeholder={activeBillerConfig.parameters[0]?.placeholder || currentCategory.idPlaceholder}

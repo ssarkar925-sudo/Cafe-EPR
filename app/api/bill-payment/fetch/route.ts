@@ -23,7 +23,29 @@ export async function GET(request: NextRequest) {
   const parameters: Record<string, string> = {};
   searchParams.forEach((value, key) => { if (key !== "billerId" && key !== "category") parameters[key] = clean(value); });
   if (Object.keys(parameters).length > 30) return NextResponse.json({ ok: false, source: "invalid_input", error: "Too many bill parameters." }, { status: 400 });
-  const biller = getBillerConfig(billerId) || getFallbackBillerConfig(category || "electricity", billerId);
+  const biller = getBillerConfig(billerId);
+  if (!biller) {
+    return NextResponse.json({
+      ok: false,
+      configured: false,
+      source: "unconfigured",
+      billerId,
+      billerName: billerId,
+      error: "Live bill fetch is not configured for this biller yet.",
+      status: "unverified",
+    }, { status: 200 });
+  }
+  if (!biller.supportsFetch) {
+    return NextResponse.json({
+      ok: false,
+      configured: false,
+      source: "unconfigured",
+      billerId,
+      billerName: biller.billerName,
+      error: "Live bill fetch is disabled for this biller until its gateway mapping is configured.",
+      status: "unverified",
+    }, { status: 200 });
+  }
   for (const param of biller.parameters) if (param.required && !parameters[param.key]) return NextResponse.json({ ok: false, source: "invalid_input", error: `Parameter "${param.label}" is required.` }, { status: 400 });
   try {
     const result = await getBillProvider().fetchBill({ billerId, category, parameters });
