@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBillProvider } from "@/lib/bill-payment/provider-adapter";
-import { getBillerConfig, getFallbackBillerConfig } from "@/lib/bill-payment/biller-metadata";
+import { getBillerConfig } from "@/lib/bill-payment/biller-metadata";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 
