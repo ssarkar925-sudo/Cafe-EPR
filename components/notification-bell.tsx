@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
+import SendNotificationModal from "./notifications/send-notification-modal";
 
 const SEEN_KEY = "sccomm-notif-seen";
 
@@ -112,6 +113,7 @@ function timeAgo(iso: string) {
 
 export default function NotificationBell({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
   const [lowStock, setLowStock] = useState<LowStock[]>([]);
   const [dueInvoices, setDueInvoices] = useState<DueInvoice[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -307,7 +309,22 @@ export default function NotificationBell({ role }: { role: string }) {
                     : `${unreadCount} new change${unreadCount === 1 ? "" : "s"} · ${lowStock.length + dueInvoices.length} alert${lowStock.length + dueInvoices.length === 1 ? "" : "s"}`}
               </p>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setShowSendModal(true);
+                }}
+                title="Send Notification / Alert to Android & Desktop"
+                className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-100"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                  <path d="m22 2-7 20-4-9-9-4Z" />
+                  <path d="M22 2 11 13" />
+                </svg>
+                <span>Send Alert</span>
+              </button>
               <button
                 onClick={() => {
                   markSeen();
@@ -490,6 +507,9 @@ export default function NotificationBell({ role }: { role: string }) {
           </div>
         </div>
       )}
+
+      {/* Multi-Platform Notification Dispatch Modal */}
+      <SendNotificationModal open={showSendModal} onClose={() => setShowSendModal(false)} />
     </div>
   );
 }

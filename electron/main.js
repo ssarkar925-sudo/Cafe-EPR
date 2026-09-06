@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, Notification } = require("electron");
 const path = require("path");
 
 let mainWindow = null;
@@ -89,6 +89,34 @@ ipcMain.handle("print-thermal", async (_event, options = {}) => {
         }
       );
     });
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// IPC Handler for Windows Native Toast Notifications
+ipcMain.handle("show-notification", async (_event, options = {}) => {
+  try {
+    if (!Notification.isSupported()) {
+      return { success: false, error: "Native notifications are not supported on this system." };
+    }
+
+    const toast = new Notification({
+      title: options.title || "CafeERP Notification",
+      body: options.message || options.body || "",
+      icon: options.icon || path.join(__dirname, "../public/app-icon.png"),
+      silent: options.silent ?? false,
+    });
+
+    toast.on("click", () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+    });
+
+    toast.show();
+    return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }

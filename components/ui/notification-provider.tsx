@@ -85,6 +85,64 @@ function triggerHaptic(type: NotificationType) {
   }
 }
 
+// Global native dispatch for Windows Action Center Toast & Android System Tray
+export function dispatchNativeNotification(title: string, message: string, type: NotificationType = "info") {
+  if (typeof window === "undefined") return;
+
+  const resolvedTitle = title || TYPE_CONFIG[type]?.defaultTitle || "CafeERP Notification";
+
+  // 1. Windows Desktop Electron Native Action Center Toast
+  const electron = (window as any).electronAPI;
+  if (electron?.showNotification) {
+    try {
+      electron.showNotification({
+        title: resolvedTitle,
+        message,
+        icon: "/app-icon.png",
+      }).catch(() => {});
+    } catch {}
+    return;
+  }
+
+  // 2. Android Status Bar / Web Browser Notification API
+  if ("Notification" in window) {
+    try {
+      if (Notification.permission === "granted") {
+        new Notification(resolvedTitle, {
+          body: message,
+          icon: "/app-icon.png",
+          badge: "/app-icon.png",
+          tag: `cafeerp-${Date.now()}`,
+        });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((perm) => {
+          if (perm === "granted") {
+            new Notification(resolvedTitle, {
+              body: message,
+              icon: "/app-icon.png",
+              badge: "/app-icon.png",
+              tag: `cafeerp-${Date.now()}`,
+            });
+          }
+        }).catch(() => {});
+      }
+    } catch {
+      // Ignored if Notification constructor is restricted by browser policy
+    }
+  }
+}
+
+export async function requestNativeNotificationPermission(): Promise<"granted" | "denied" | "default" | "unsupported"> {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return "unsupported";
+  }
+}
+
 // Global standalone notify function that dispatches a CustomEvent
 export function notify(type: NotificationType, message: string, title?: string, duration: number = 3800) {
   if (typeof window === "undefined") return;
@@ -163,6 +221,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       // Sound and haptic cues
       playNotificationChime(type);
       triggerHaptic(type);
+
+      // Native OS Toast & System Tray dispatch (Windows Electron & Android Status Bar)
+      dispatchNativeNotification(title || "", message, type);
 
       setItems((prev) => [newItem, ...prev.slice(0, 4)]); // Keep max 5 concurrent
 

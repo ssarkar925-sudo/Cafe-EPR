@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
   printThermal: (options) => ipcRenderer.invoke("print-thermal", options),
   getPrinters: () => ipcRenderer.invoke("get-printers"),
+  showNotification: (options) => ipcRenderer.invoke("show-notification", options),
 });
