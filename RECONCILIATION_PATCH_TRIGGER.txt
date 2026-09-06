@@ -1,1 +1,1 @@
-One-time trigger for the reconciliation patch workflow. This file is removed by the workflow after the fix is applied.
+Temporary trigger for one-time reconciliation repair.
