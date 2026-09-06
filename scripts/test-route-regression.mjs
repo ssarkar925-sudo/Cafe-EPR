@@ -1,4 +1,4 @@
-const base = (process.env.BASE_URL || "https://cafe-epr-sarkar-communications-projects.vercel.app").replace(/\/$/, "");
+const base = (process.env.BASE_URL || "https://cafeerp.vercel.app").replace(/\/$/, "");
 const routes = [
   "/pos", "/inventory", "/invoices", "/business/dmt", "/business/aeps", "/business/upi", "/business/bill-payment", "/finance", "/reports", "/customers"
 ];

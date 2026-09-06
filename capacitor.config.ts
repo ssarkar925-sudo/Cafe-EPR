@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: "public",
   server: {
     // In production, Capacitor loads the live deployed cloud app for instant over-the-air updates
-    url: process.env.CAPACITOR_SERVER_URL || "https://cafe-epr.vercel.app",
+    url: process.env.CAPACITOR_SERVER_URL || "https://cafeerp.vercel.app",
     cleartext: true,
   },
   android: {
