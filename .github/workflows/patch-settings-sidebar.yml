@@ -1,0 +1,40 @@
+name: Repair Settings Sidebar
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch settings sidebar expansion
+        shell: bash
+        run: |
+          if git log -1 --pretty=%B | grep -Fq '[settings-sidebar-auto-patch]'; then
+            echo 'Settings sidebar patch already applied.'
+            exit 0
+          fi
+          python -c 'from pathlib import Path; p=Path("components/dashboard-shell.tsx"); s=p.read_text(encoding="utf-8"); old="  useEffect(() => {\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === \"1\");\n    } catch {}\n  }, []);"; new="  useEffect(() => {\n    // Keep the full navigation visible on System Settings.\n    if (pathname === \"/settings\") {\n      setCollapsed(false);\n      try {\n        localStorage.setItem(COLLAPSE_KEY, \"0\");\n      } catch {}\n      return;\n    }\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === \"1\");\n    } catch {}\n  }, [pathname]);"; assert s.count(old)==1, "sidebar state effect not found exactly once"; p.write_text(s.replace(old,new,1),encoding="utf-8")'
+      - name: Commit patch and remove temporary workflow
+        run: |
+          if git diff --quiet -- components/dashboard-shell.tsx; then
+            git rm .github/workflows/patch-settings-sidebar.yml
+            git commit -m "chore: remove settings sidebar repair workflow [settings-sidebar-auto-patch]"
+            git push origin HEAD:main
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/dashboard-shell.tsx
+          git rm .github/workflows/patch-settings-sidebar.yml
+          git commit -m "fix: keep settings sidebar expanded [settings-sidebar-auto-patch]"
+          git push origin HEAD:main
