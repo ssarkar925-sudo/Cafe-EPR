@@ -37,6 +37,7 @@ export default function ScanFillModal({
   const [error, setError] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const camInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -52,12 +53,10 @@ export default function ScanFillModal({
     } else {
       stopCamera();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
     return () => stopCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function stopCamera() {
@@ -109,16 +108,35 @@ export default function ScanFillModal({
     setError(null);
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("This browser can't access the camera. Use Upload screenshot instead.");
+        throw new Error("This browser can't access the camera. Use Take photo or Upload screenshot instead.");
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      });
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+      } catch {
+        // Fallback to basic video constraint if ideal facingMode or resolution fails
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
       streamRef.current = stream;
       setCamOn(true);
-    } catch {
-      setError("Camera unavailable. Use Upload screenshot instead.");
+    } catch (err) {
+      if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "PermissionDeniedError")) {
+        setError("Camera permission denied. Please allow camera permissions in your device or browser settings.");
+      } else if (err instanceof DOMException && err.name === "NotFoundError") {
+        setError("No camera found on this device. Use Take photo or Upload screenshot instead.");
+      } else {
+        setError(err instanceof Error ? err.message : "Camera unavailable. Use Take photo or Upload screenshot instead.");
+      }
     }
   }
 
@@ -129,7 +147,6 @@ export default function ScanFillModal({
       videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camOn]);
 
   function capture() {
@@ -278,31 +295,62 @@ export default function ScanFillModal({
         )}
 
         {tab === "camera" && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <input
+              ref={camInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={onFile}
+              className="hidden"
+            />
             {!camOn ? (
-              <button
-                onClick={startCamera}
-                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-6 text-sm text-slate-500 transition hover:border-violet-300 hover:text-violet-600"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
-                </svg>
-                Start camera
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => camInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 bg-violet-50/60 p-5 text-sm font-medium text-violet-700 transition hover:bg-violet-100/70 hover:border-violet-400"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-violet-600">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
+                  </svg>
+                  <span className="font-semibold text-slate-800">Take Photo</span>
+                  <span className="text-[11px] text-slate-500 text-center">Opens native phone camera for highest quality snap</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-medium text-slate-600 transition hover:border-violet-300 hover:text-violet-600"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-slate-500">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  <span className="font-semibold text-slate-800">Live Viewfinder</span>
+                  <span className="text-[11px] text-slate-500 text-center">Realtime scanning preview inside modal</span>
+                </button>
+              </div>
             ) : (
               <div className="space-y-2">
-                <video ref={videoRef} playsInline muted className="max-h-72 w-full rounded-xl bg-slate-900 object-contain" />
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="max-h-72 w-full rounded-xl bg-slate-900 object-contain"
+                />
                 <canvas ref={canvasRef} className="hidden" />
                 <div className="flex gap-2">
                   <button
                     onClick={capture}
-                    className="flex-1 rounded-xl bg-violet-600 py-2 text-sm font-semibold text-white transition hover:bg-violet-700"
+                    className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700"
                   >
-                    Capture & read
+                    Capture & Read
                   </button>
                   <button
                     onClick={stopCamera}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
                   >
                     Stop
                   </button>

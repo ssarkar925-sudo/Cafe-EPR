@@ -2827,7 +2827,7 @@ export default function DmtWorkspace({
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Confirm Account Number <span className="text-rose-500">*</span>
+                    Confirm Account Number
                   </label>
                   <input
                     type="text"

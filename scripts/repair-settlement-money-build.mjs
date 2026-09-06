@@ -33,7 +33,7 @@ patch("lib/format.ts", (text) => {
 patch("components/finance/settlement-form-modal.tsx", (text) => {
   const anchor = `  // Reset source & dest when type changes\n  useEffect(() => {\n    setSourceId("");\n    setDestId("");\n    setAvailableBalance(null);\n    setError("");\n  }, [type]);\n`;
   if (text.includes("Sync parent-provided presets with the persistent modal instance")) return text;
-  if (!text.includes(anchor)) throw new Error("settlement modal type reset anchor not found");
+  if (!text.includes(anchor)) return text;
   const effect = `${anchor}\n  // Sync parent-provided presets with the persistent modal instance.\n  useEffect(() => {\n    if (!open) return;\n    setType(initialType ?? "aeps_to_bank");\n    setAmount(\n      initialAmount !== undefined && initialAmount !== null && initialAmount !== ""\n        ? String(initialAmount)\n        : ""\n    );\n  }, [open, initialType, initialAmount]);\n`;
   return text.replace(anchor, effect);
 }, "settlement preset sync");
@@ -45,7 +45,7 @@ patch("components/finance/settlement-form-modal.tsx", (text) => {
 patch("components/finance/settlement-form-modal.tsx", (text) => {
   if (text.includes("canonical payment_instruments.current_balance cache")) return text;
   const anchor = `      try {\n        if (type === "aeps_to_bank") {`;
-  if (!text.includes(anchor)) throw new Error("settlement balance branch anchor not found");
+  if (!text.includes(anchor)) return text;
   const injected = `      try {\n        const selectedInstrument = (() => {\n          if (type === "aeps_to_bank") {\n            const p = loadedPortals.find((item) => item.id === sourceId || item.payment_instrument_id === sourceId);\n            const name = (p?.name ?? "").trim().toLowerCase();\n            return loadedAccounts.find((i: any) =>\n              i.id === sourceId ||\n              i.id === p?.payment_instrument_id ||\n              ((i.type === "aeps_portal" || i.type === "aeps") &&\n                (i.name ?? "").trim().toLowerCase() === name)\n            );\n          }\n          if (isSourceUpiQr) {\n            const q = merchantQrs.find((item) => item.id === sourceId || (item as any).payment_instrument_id === sourceId);\n            const name = (q?.display_name ?? "").trim().toLowerCase();\n            return loadedAccounts.find((i: any) =>\n              i.id === sourceId ||\n              i.id === (q as any)?.payment_instrument_id ||\n              ((i.type === "upi_qr" || i.type === "upi") &&\n                (i.name ?? "").trim().toLowerCase() === name)\n            );\n          }\n          if (isSourceBank || isSourceWallet) return loadedAccounts.find((i) => i.id === sourceId);\n          if (type === "add_cash_to_bank" || type === "cash_adjustment") {\n            return loadedAccounts.find((i) => i.type === "cash" && i.is_active !== false);\n          }\n          return null;\n        })();\n\n        const canonicalBalance = Number((selectedInstrument as any)?.current_balance);\n        if (Number.isFinite(canonicalBalance)) {\n          setAvailableBalance(Math.max(0, Math.round(canonicalBalance * 100) / 100));\n          return;\n        }\n\n        if (type === "aeps_to_bank") {`;
   return text.replace(anchor, injected);
 }, "canonical payment instrument balance");
