@@ -86,7 +86,12 @@ function triggerHaptic(type: NotificationType) {
 }
 
 // Global native dispatch for Windows Action Center Toast & Android System Tray
-export function dispatchNativeNotification(title: string, message: string, type: NotificationType = "info") {
+export function dispatchNativeNotification(
+  title: string,
+  message: string,
+  type: NotificationType = "info",
+  targetUrl: string = "/"
+) {
   if (typeof window === "undefined") return;
 
   const resolvedTitle = title || TYPE_CONFIG[type]?.defaultTitle || "CafeERP Notification";
@@ -104,11 +109,35 @@ export function dispatchNativeNotification(title: string, message: string, type:
     return;
   }
 
-  // 2. Android Status Bar / Web Browser Notification API
+  // 2. Android Status Bar / Web Browser Notification via Service Worker (preferred on Android)
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        return reg.showNotification(resolvedTitle, {
+          body: message,
+          icon: "/app-icon.png",
+          badge: "/app-icon.png",
+          vibrate: [200, 100, 200],
+          data: { url: targetUrl },
+          tag: `cafeerp-${Date.now()}`,
+        } as any);
+      })
+      .catch(() => {
+        // Fallback if service worker is not active
+        tryFallbackWindowNotification(resolvedTitle, message);
+      });
+    return;
+  }
+
+  // 3. Fallback: window.Notification
+  tryFallbackWindowNotification(resolvedTitle, message);
+}
+
+function tryFallbackWindowNotification(title: string, message: string) {
   if ("Notification" in window) {
     try {
       if (Notification.permission === "granted") {
-        new Notification(resolvedTitle, {
+        new Notification(title, {
           body: message,
           icon: "/app-icon.png",
           badge: "/app-icon.png",
@@ -117,7 +146,7 @@ export function dispatchNativeNotification(title: string, message: string, type:
       } else if (Notification.permission !== "denied") {
         Notification.requestPermission().then((perm) => {
           if (perm === "granted") {
-            new Notification(resolvedTitle, {
+            new Notification(title, {
               body: message,
               icon: "/app-icon.png",
               badge: "/app-icon.png",
@@ -235,6 +264,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     },
     [dismiss]
   );
+
+  // Register service worker for Android system tray and background notifications
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
 
   // Listen for global custom events
   useEffect(() => {

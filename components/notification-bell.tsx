@@ -5,6 +5,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import SendNotificationModal from "./notifications/send-notification-modal";
+import {
+  notify,
+  type NotificationType,
+  requestNativeNotificationPermission,
+} from "@/components/ui/notification-provider";
 
 const SEEN_KEY = "sccomm-notif-seen";
 
@@ -111,6 +116,90 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
 
+function formatAuditNotification(row: Activity): { title: string; message: string; type: NotificationType } {
+  const action = (row.action || "").toLowerCase();
+  const entity = (row.entity || "").toLowerCase();
+  const actor = row.user_name ? `${row.user_name}: ` : "";
+
+  if (action === "delete" || action === "cancel") {
+    return {
+      title: `⚠️ ${entity.toUpperCase()} Cancelled`,
+      message: `${actor}${row.description || `${action} on ${entity}`}`,
+      type: "warning",
+    };
+  }
+
+  if (action === "reverse") {
+    return {
+      title: `🔄 ${entity.toUpperCase()} Reversed`,
+      message: `${actor}${row.description || "Transaction reversed"}`,
+      type: "warning",
+    };
+  }
+
+  if (action === "payment" || entity === "payment") {
+    return {
+      title: "💰 Payment Received",
+      message: `${actor}${row.description || "Customer payment collected"}`,
+      type: "success",
+    };
+  }
+
+  if (entity === "invoice" || entity === "quick_sale") {
+    return {
+      title: action === "create" ? "🧾 New Invoice Billed" : `🧾 Invoice ${action}`,
+      message: `${actor}${row.description || "Invoice updated"}`,
+      type: "success",
+    };
+  }
+
+  if (entity === "transaction") {
+    return {
+      title: "⚡ Transaction Recorded",
+      message: `${actor}${row.description || "Counter banking/service transaction completed"}`,
+      type: "info",
+    };
+  }
+
+  if (entity === "expense") {
+    return {
+      title: "📉 Expense Recorded",
+      message: `${actor}${row.description || "Store expense added"}`,
+      type: "warning",
+    };
+  }
+
+  if (entity === "settlement") {
+    return {
+      title: "🏦 Settlement Transfer",
+      message: `${actor}${row.description || "Account settlement completed"}`,
+      type: "info",
+    };
+  }
+
+  if (entity === "return") {
+    return {
+      title: "↩️ Return & Refund",
+      message: `${actor}${row.description || "Sales return & refund processed"}`,
+      type: "warning",
+    };
+  }
+
+  if (entity === "customer") {
+    return {
+      title: "👤 Customer Directory",
+      message: `${actor}${row.description || "Customer account updated"}`,
+      type: "info",
+    };
+  }
+
+  return {
+    title: `🔔 Shop Change: ${entity || "System"}`,
+    message: `${actor}${row.description || `${action} on ${entity}`}`,
+    type: "info",
+  };
+}
+
 export default function NotificationBell({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
@@ -120,6 +209,62 @@ export default function NotificationBell({ role }: { role: string }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [liveAlerts, setLiveAlerts] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("cafeerp-live-change-alerts") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [notifPermission, setNotifPermission] = useState<string>("default");
+  const liveAlertsRef = useRef(liveAlerts);
+  useEffect(() => {
+    liveAlertsRef.current = liveAlerts;
+  }, [liveAlerts]);
+  const dedupeRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  const shouldNotify = (key: string) => {
+    if (!liveAlertsRef.current) return false;
+    const now = Date.now();
+    const prev = dedupeRef.current.get(key) || 0;
+    if (now - prev < 5000) return false;
+    dedupeRef.current.set(key, now);
+    if (dedupeRef.current.size > 80) {
+      for (const [k, t] of dedupeRef.current.entries()) {
+        if (now - t > 30000) dedupeRef.current.delete(k);
+      }
+    }
+    return true;
+  };
+
+  const toggleLiveAlerts = () => {
+    setLiveAlerts((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("cafeerp-live-change-alerts", String(next));
+      } catch {}
+      if (next) {
+        notify("success", "Live change notifications enabled for Android & Desktop.", "🔔 Live Alerts Active");
+      } else {
+        notify("info", "Live change notifications muted on this device.", "🔕 Live Alerts Muted");
+      }
+      return next;
+    });
+  };
+
+  const handleEnablePermission = async () => {
+    const res = await requestNativeNotificationPermission();
+    setNotifPermission(res);
+    if (res === "granted") {
+      notify("success", "Native notifications enabled! You will now receive change alerts on this device.", "Alerts Enabled");
+    }
+  };
   const [seen, setSeen] = useState<string>(() => {
     try {
       return localStorage.getItem(SEEN_KEY) || "";
@@ -197,21 +342,91 @@ export default function NotificationBell({ role }: { role: string }) {
           if (row && row.id) {
             setActivity((prev) => [row, ...prev].slice(0, 40));
             setUnreadCount((c) => c + 1);
+
+            const key = `audit_${row.entity}_${row.entity_id || row.id}`;
+            if (shouldNotify(key)) {
+              const { title, message, type } = formatAuditNotification(row);
+              notify(type, message, title, 4500);
+            }
           }
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "invoices" },
-        () => {
+        (payload) => {
           load();
+          if (payload.eventType === "INSERT") {
+            const inv = payload.new as any;
+            if (inv) {
+              const key = `audit_invoice_${inv.id}`;
+              if (shouldNotify(key)) {
+                notify(
+                  "success",
+                  `Invoice #${inv.invoice_number || "New"} for ₹${inv.total_amount || inv.due || 0} created.`,
+                  "🧾 New Invoice Billed",
+                  4500
+                );
+              }
+            }
+          }
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "transactions" },
-        () => {
+        (payload) => {
           load();
+          if (payload.eventType === "INSERT") {
+            const trx = payload.new as any;
+            if (trx) {
+              const key = `audit_transaction_${trx.id}`;
+              if (shouldNotify(key)) {
+                notify(
+                  "info",
+                  `${(trx.service_type || "Banking").toUpperCase()} transaction of ₹${trx.amount || 0} completed.`,
+                  "⚡ Transaction Recorded",
+                  4500
+                );
+              }
+            }
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "expenses" },
+        (payload) => {
+          const exp = payload.new as any;
+          if (exp) {
+            const key = `audit_expense_${exp.id}`;
+            if (shouldNotify(key)) {
+              notify(
+                "warning",
+                `₹${exp.amount || 0} recorded for "${exp.title || exp.category || "Expense"}".`,
+                "📉 Expense Recorded",
+                4500
+              );
+            }
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "products" },
+        (payload) => {
+          const p = payload.new as any;
+          if (p && Number(p.stock_qty) <= Number(p.reorder_level)) {
+            const key = `stock_low_${p.id}`;
+            if (shouldNotify(key)) {
+              notify(
+                "warning",
+                `"${p.name}" has reached reorder level (${p.stock_qty} ${p.unit || "units"} left).`,
+                "⚠️ Low Stock Alert",
+                5000
+              );
+            }
+          }
         }
       )
       .subscribe();
@@ -312,12 +527,29 @@ export default function NotificationBell({ role }: { role: string }) {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                onClick={toggleLiveAlerts}
+                title={
+                  liveAlerts
+                    ? "Live real-time change notifications are active for Android & Desktop. Click to mute."
+                    : "Live notifications are muted on this device. Click to activate."
+                }
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                  liveAlerts
+                    ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${liveAlerts ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                <span>{liveAlerts ? "Live" : "Muted"}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setOpen(false);
                   setShowSendModal(true);
                 }}
                 title="Send Notification / Alert to Android & Desktop"
-                className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                className="flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
                   <path d="m22 2-7 20-4-9-9-4Z" />
@@ -348,6 +580,25 @@ export default function NotificationBell({ role }: { role: string }) {
               </button>
             </div>
           </div>
+
+          {/* Android / Device Push Permission Banner */}
+          {notifPermission === "default" && (
+            <div className="flex items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/90 px-3.5 py-2 text-xs dark:border-indigo-950/50 dark:bg-indigo-950/40">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🔔</span>
+                <span className="text-[11px] font-medium text-indigo-950 dark:text-indigo-200">
+                  Allow notifications on phone & desktop
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleEnablePermission}
+                className="shrink-0 rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm transition hover:bg-indigo-700"
+              >
+                Allow
+              </button>
+            </div>
+          )}
 
           <div className="max-h-[380px] overflow-y-auto">
             {!loading && total === 0 && (
