@@ -117,10 +117,18 @@ export default function DashboardShell({
   const meta = metaFor(pathname);
 
   useEffect(() => {
+    # Keep the full navigation visible on System Settings.
+    if (pathname === "/settings") {
+      setCollapsed(false);
+      try {
+        localStorage.setItem(COLLAPSE_KEY, "0");
+      } catch {}
+      return;
+    }
     try {
       setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
     } catch {}
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
