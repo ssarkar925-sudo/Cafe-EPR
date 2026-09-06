@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 function setNativeValue(input: HTMLInputElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  setter?.call(input, value);
+  if (setter) setter.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
@@ -15,61 +15,102 @@ function isVisible(el: HTMLElement | null) {
   return style.display !== "none" && style.visibility !== "hidden" && el.getClientRects().length > 0;
 }
 
-function findLabel(fragment: string) {
-  return Array.from(document.querySelectorAll("label"))
-    .find((el) => el.textContent?.toLowerCase().includes(fragment.toLowerCase()) && isVisible(el as HTMLElement)) as HTMLLabelElement | undefined;
+function findLabel(fragment: string): HTMLLabelElement | undefined {
+  return Array.from(document.querySelectorAll("label")).find((el) => {
+    return el.textContent?.toLowerCase().includes(fragment.toLowerCase()) && isVisible(el as HTMLElement);
+  }) as HTMLLabelElement | undefined;
 }
 
-function findVisibleInput(placeholders: string[]) {
-  return Array.from(document.querySelectorAll("input"))
-    .find((el) => placeholders.includes(el.getAttribute("placeholder") || "") && isVisible(el as HTMLElement)) as HTMLInputElement | undefined;
+function findInputByPlaceholder(placeholder: string): HTMLInputElement | undefined {
+  return Array.from(document.querySelectorAll("input")).find((el) => {
+    return el.getAttribute("placeholder") === placeholder && isVisible(el as HTMLElement);
+  }) as HTMLInputElement | undefined;
 }
 
-function findInputForLabel(fragment: string) {
-  const label = findLabel(fragment);
+function findFieldInput(labelFragment: string): HTMLInputElement | undefined {
+  const label = findLabel(labelFragment);
   if (!label) return undefined;
   const field = label.closest(".space-y-1") as HTMLElement | null;
   return field?.querySelector("input") as HTMLInputElement | undefined;
 }
 
-function findCustomerValue(kind: "name" | "mobile") {
-  const selectors = kind === "name"
-    ? ['[data-dmt-customer-name]', '[data-customer-name]', 'input[name="customer_name"]', 'input[name="sender_name"]']
-    : ['[data-dmt-customer-mobile]', '[data-customer-mobile]', 'input[name="customer_mobile"]', 'input[name="sender_mobile"]'];
-
-  for (const selector of selectors) {
-    const el = document.querySelector(selector) as HTMLInputElement | HTMLElement | null;
-    if (!el || !isVisible(el)) continue;
-    const value = el instanceof HTMLInputElement ? el.value : el.textContent?.trim();
-    if (value) return value.trim();
-  }
-
-  const labelledInput = findInputForLabel(kind === "name" ? "Sender Name" : "Sender Mobile");
-  return labelledInput?.value?.trim() || "";
+function findSenderInput(labelFragment: string): HTMLInputElement | undefined {
+  return findFieldInput(labelFragment);
 }
 
-function addSelfButton(onClick: () => void) {
-  const labels = ["Beneficiary Bank", "Beneficiary UPI ID (VPA)"];
-  const label = labels.map(findLabel).find(Boolean);
-  if (!label) return;
+function removeRequiredAndStar(labelFragment: string, placeholder?: string) {
+  const label = findLabel(labelFragment);
+  if (label) {
+    for (const child of Array.from(label.children)) {
+      if (child.textContent?.trim() === "*") child.remove();
+    }
+    for (const node of Array.from(label.childNodes)) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+        node.textContent = node.textContent.replace(/\s*\*\s*$/, "");
+      }
+    }
+    const field = label.closest(".space-y-1") as HTMLElement | null;
+    field?.querySelectorAll("input, select, textarea").forEach((el) => {
+      el.removeAttribute("required");
+      el.setAttribute("aria-required", "false");
+    });
+  }
 
+  if (placeholder) {
+    const input = findInputByPlaceholder(placeholder);
+    input?.removeAttribute("required");
+    input?.setAttribute("aria-required", "false");
+  }
+}
+
+function makeOptionalDmtBeneficiaryDetails() {
+  removeRequiredAndStar("Account Number", "Enter account number");
+  removeRequiredAndStar("Bank IFSC Code", "e.g. SBIN0001234");
+  removeRequiredAndStar("Beneficiary UPI ID (VPA)", "e.g. username@oksbi or 9876543210@paytm");
+}
+
+function findCustomerValue(labelFragment: string, placeholderFallback?: string): string {
+  const input = findSenderInput(labelFragment) ?? (placeholderFallback ? findInputByPlaceholder(placeholderFallback) : undefined);
+  return input?.value?.trim() || "";
+}
+
+function fillSelfBeneficiary() {
+  const customerName = findCustomerValue("Sender Name");
+  const customerMobile = findCustomerValue("Sender Mobile");
+
+  const beneficiaryName = findFieldInput("Beneficiary Name") ?? findInputByPlaceholder("e.g. Suman Mondal");
+  const beneficiaryMobile = findFieldInput("Beneficiary Mobile") ?? findInputByPlaceholder("10-digit mobile");
+
+  if (beneficiaryName && customerName) setNativeValue(beneficiaryName, customerName);
+  if (beneficiaryMobile && customerMobile) {
+    setNativeValue(beneficiaryMobile, customerMobile.replace(/\D/g, "").slice(-10));
+  }
+
+  // Self means only customer identity (name/mobile). Never copy shop funding
+  // accounts, bank credentials, IFSC, or UPI details.
+  makeOptionalDmtBeneficiaryDetails();
+}
+
+function addSelfButton() {
+  const label = findLabel("Beneficiary Bank") ?? findLabel("Beneficiary UPI ID (VPA)");
+  if (!label) return;
   const field = label.closest(".space-y-1") as HTMLElement | null;
   if (!field || field.querySelector("[data-dmt-self-beneficiary]")) return;
 
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.dmtSelfBeneficiary = "true";
-  button.title = "Use the selected DMT customer as the beneficiary";
+  button.title = "Copy the selected customer name and mobile into the beneficiary fields";
   button.className = "inline-flex shrink-0 items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800/50 dark:bg-indigo-950/30 dark:text-indigo-300";
   button.textContent = "↪ Use Self";
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    void onClick();
+    fillSelfBeneficiary();
   });
 
   const existingHeader = label.parentElement;
-  if (existingHeader && existingHeader.classList.contains("flex") && existingHeader.classList.contains("items-center")) {
+  if (existingHeader?.classList.contains("flex") && existingHeader.classList.contains("items-center")) {
     existingHeader.appendChild(button);
     return;
   }
@@ -83,66 +124,18 @@ function addSelfButton(onClick: () => void) {
   field.insertBefore(header, field.firstChild);
 }
 
-function clearAddedRequired() {
-  const targets = ["Enter account number", "e.g. SBIN0001234", "e.g. username@oksbi or 9876543210@paytm"];
-  for (const placeholder of targets) {
-    const input = findVisibleInput([placeholder]);
-    if (input?.dataset.dmtSelfOptional === "true") {
-      input.removeAttribute("required");
-      delete input.dataset.dmtSelfOptional;
-    }
-  }
-}
-
-async function fillSelfBeneficiary() {
-  const customerName = findCustomerValue("name");
-  const customerMobile = findCustomerValue("mobile");
-
-  const receiver = findVisibleInput(["e.g. Suman Mondal"]);
-  if (receiver && customerName) setNativeValue(receiver, customerName);
-
-  const mobile = findVisibleInput(["10-digit mobile"]);
-  if (mobile && customerMobile) setNativeValue(mobile, customerMobile.replace(/\D/g, "").slice(-10));
-
-  // Never read payment_instruments or shop merchant QR details for Self.
-  // Bank/UPI credentials are only copied when customer-specific data attributes
-  // are present on the selected customer's form state.
-  const upiInput = findVisibleInput(["e.g. username@oksbi or 9876543210@paytm"]);
-  if (upiInput) {
-    const customerUpi = (upiInput.dataset.customerUpi || "").trim().toLowerCase();
-    if (customerUpi) setNativeValue(upiInput, customerUpi);
-    clearAddedRequired();
-    if (!customerUpi) upiInput.focus();
-    return;
-  }
-
-  const accountInput = findVisibleInput(["Enter account number"]);
-  if (accountInput) {
-    const customerAccount = (accountInput.dataset.customerAccount || "").replace(/\s+/g, "");
-    const ifscInput = findVisibleInput(["e.g. SBIN0001234"]);
-    const customerIfsc = (ifscInput?.dataset.customerIfsc || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
-
-    if (customerAccount) setNativeValue(accountInput, customerAccount);
-    if (ifscInput && customerIfsc) setNativeValue(ifscInput, customerIfsc);
-
-    clearAddedRequired();
-    if (!customerAccount) accountInput.focus();
-    else if (ifscInput && !customerIfsc) ifscInput.focus();
-  }
-}
-
 export default function DmtSelfBeneficiaryEnhancer() {
   useEffect(() => {
     let disposed = false;
 
-    const applyUiRepair = () => {
+    const apply = () => {
       if (disposed) return;
-      clearAddedRequired();
-      addSelfButton(fillSelfBeneficiary);
+      makeOptionalDmtBeneficiaryDetails();
+      addSelfButton();
     };
 
-    applyUiRepair();
-    const observer = new MutationObserver(applyUiRepair);
+    apply();
+    const observer = new MutationObserver(apply);
     observer.observe(document.body, { subtree: true, childList: true, characterData: true });
 
     return () => {
