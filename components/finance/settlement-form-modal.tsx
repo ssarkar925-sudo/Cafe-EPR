@@ -115,20 +115,16 @@ export default function SettlementFormModal({
     supabase.rpc("get_pool_balances").then(({ data }) => {
       if (data) setLivePools(data);
     });
-    if (loadedPortals.length === 0) {
-      supabase.from("aeps_portals").select("*").order("name").then(({ data }) => {
-        if (data) setLoadedPortals(data as any);
-      });
-    }
-    if (loadedQrs.length === 0) {
-      supabase.from("upi_merchant_qrs").select("*").order("display_name").then(({ data }) => {
-        if (data) setLoadedQrs(data as any);
-      });
-    }
+    supabase.from("aeps_portals").select("*").order("name").then(({ data }) => {
+      if (data) setLoadedPortals(data as any);
+    });
+    supabase.from("upi_merchant_qrs").select("*").order("display_name").then(({ data }) => {
+      if (data) setLoadedQrs(data as any);
+    });
     supabase.from("payment_instruments").select("*").eq("is_active", true).order("name").then(({ data }) => {
       if (data) setLoadedAccounts(data as any);
     });
-  }, [open, loadedPortals.length, loadedQrs.length]);
+  }, [open]);
 
   // Reset source & dest when type changes
   useEffect(() => {
@@ -162,6 +158,32 @@ export default function SettlementFormModal({
       return false;
     });
   }, [loadedPortals]);
+
+  // The QR master table may be empty while an active UPI-QR payment instrument already exists.
+  // Keep the settlement selector authoritative by using real QR rows first, then falling back to
+  // the linked payment instrument (its UUID becomes the settlement source instrument identity).
+  const merchantQrs = useMemo(() => {
+    const activeQrs = loadedQrs.filter((q: any) => q.is_active !== false);
+    const linkedInstrumentIds = new Set(
+      activeQrs.map((q: any) => q.payment_instrument_id).filter(Boolean)
+    );
+    const activeNames = new Set(
+      activeQrs.map((q: any) => String(q.display_name || "").trim().toLowerCase()).filter(Boolean)
+    );
+
+    const fallbackQrs = loadedAccounts
+      .filter((i) => i.is_active !== false && i.type === "upi_qr")
+      .filter((i) => !linkedInstrumentIds.has(i.id) && !activeNames.has(i.name.trim().toLowerCase()))
+      .map((i) => ({
+        id: i.id,
+        display_name: i.name,
+        upi_id: i.details?.upi_id ?? i.details?.vpa ?? "",
+        payment_instrument_id: i.id,
+        is_active: true,
+      }));
+
+    return [...activeQrs, ...fallbackQrs];
+  }, [loadedQrs, loadedAccounts]);
 
   // Determine what source selector is needed
   const isSourceAepsPortal = type === "aeps_to_bank";
@@ -237,7 +259,7 @@ export default function SettlementFormModal({
           const accountBal = openingBal + totalIn - totalOut;
           setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (type === "upi_qr_to_bank" || type === "upi_qr_to_wallet") {
-          const qrObj = loadedQrs.find((q) => q.id === sourceId || (q as any).payment_instrument_id === sourceId);
+          const qrObj = merchantQrs.find((q) => q.id === sourceId || (q as any).payment_instrument_id === sourceId);
           const qrName = (qrObj?.display_name ?? "").toLowerCase();
 
           const inst = loadedAccounts.find(
@@ -249,7 +271,7 @@ export default function SettlementFormModal({
           );
 
           const effectiveInstrumentId = inst?.id || (qrObj as any)?.payment_instrument_id || sourceId;
-          const effectiveQrId = qrObj?.id || loadedQrs.find(q => (q as any).payment_instrument_id === effectiveInstrumentId)?.id || sourceId;
+          const effectiveQrId = qrObj?.id || merchantQrs.find(q => (q as any).payment_instrument_id === effectiveInstrumentId)?.id || sourceId;
 
           const openingBal = Number(inst?.opening_balance ?? 0);
           const seedDate = livePools?.upi_qr?.seed_date || "0001-01-01";
@@ -287,28 +309,58 @@ export default function SettlementFormModal({
           const openingBal = Number(inst?.opening_balance ?? 0);
           const seedDate = livePools?.wallet?.seed_date || "0001-01-01";
 
-          const { data: ces } = await supabase
-            .from("cash_entries")
-            .select("direction, amount")
-            .eq("instrument_id", sourceId)
-            .gte("entry_date", seedDate);
+          const [{ data: ces }, { data: setts }] = await Promise.all([
+            supabase
+              .from("cash_entries")
+              .select("direction, amount")
+              .eq("instrument_id", sourceId)
+              .gte("entry_date", seedDate),
+            supabase
+              .from("settlements")
+              .select("amount, source_instrument_id, dest_instrument_id")
+              .gte("settlement_date", seedDate)
+              .eq("status", "success"),
+          ]);
 
-          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
-          const accountBal = openingBal + flow;
+          const cashFlow = (ces ?? []).reduce(
+            (acc, c) => acc + (c.direction === "in" ? Number(c.amount || 0) : -Number(c.amount || 0)),
+            0
+          );
+          const settlementFlow = (setts ?? []).reduce((acc, st: any) => {
+            const inflow = st.dest_instrument_id === sourceId ? Number(st.amount || 0) : 0;
+            const outflow = st.source_instrument_id === sourceId ? Number(st.amount || 0) : 0;
+            return acc + inflow - outflow;
+          }, 0);
+          const accountBal = openingBal + cashFlow + settlementFlow;
           setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (isSourceBank) {
           const inst = loadedAccounts.find((i) => i.id === sourceId);
           const openingBal = Number(inst?.opening_balance ?? 0);
           const seedDate = livePools?.bank?.seed_date || "0001-01-01";
 
-          const { data: ces } = await supabase
-            .from("cash_entries")
-            .select("direction, amount")
-            .eq("instrument_id", sourceId)
-            .gte("entry_date", seedDate);
+          const [{ data: ces }, { data: setts }] = await Promise.all([
+            supabase
+              .from("cash_entries")
+              .select("direction, amount")
+              .eq("instrument_id", sourceId)
+              .gte("entry_date", seedDate),
+            supabase
+              .from("settlements")
+              .select("amount, source_instrument_id, dest_instrument_id")
+              .gte("settlement_date", seedDate)
+              .eq("status", "success"),
+          ]);
 
-          const flow = (ces ?? []).reduce((acc, c) => acc + (c.direction === "in" ? Number(c.amount) : -Number(c.amount)), 0);
-          const accountBal = openingBal + flow;
+          const cashFlow = (ces ?? []).reduce(
+            (acc, c) => acc + (c.direction === "in" ? Number(c.amount || 0) : -Number(c.amount || 0)),
+            0
+          );
+          const settlementFlow = (setts ?? []).reduce((acc, st: any) => {
+            const inflow = st.dest_instrument_id === sourceId ? Number(st.amount || 0) : 0;
+            const outflow = st.source_instrument_id === sourceId ? Number(st.amount || 0) : 0;
+            return acc + inflow - outflow;
+          }, 0);
+          const accountBal = openingBal + cashFlow + settlementFlow;
           setAvailableBalance(Math.max(0, Math.round(accountBal * 100) / 100));
         } else if (type === "add_cash_to_bank" || type === "cash_adjustment") {
           const inst = loadedAccounts.find((i) => i.type === "cash");
@@ -333,7 +385,7 @@ export default function SettlementFormModal({
     }
 
     fetchLiveBalance();
-  }, [open, sourceId, type, loadedPortals, loadedQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet]);
+  }, [open, sourceId, type, loadedPortals, merchantQrs, loadedAccounts, livePools, isSourceBank, isSourceWallet]);
 
   if (!open) return null;
 
@@ -369,7 +421,7 @@ export default function SettlementFormModal({
       )?.id || sourceId;
     } else if (isSourceUpiQr) {
       if (!sourceId) return setError("Please select the Merchant QR (e.g. PhonePe QR, Google Pay QR) being settled.");
-      const q = loadedQrs.find((x) => x.id === sourceId || (x as any).payment_instrument_id === sourceId);
+      const q = merchantQrs.find((x) => x.id === sourceId || (x as any).payment_instrument_id === sourceId);
       sourceLabel = q ? `QR: ${q.display_name}` : "UPI QR";
       sourceInstrumentId = (q as any)?.payment_instrument_id || loadedAccounts.find(
         (i) => i.id === sourceId || (
@@ -521,7 +573,7 @@ export default function SettlementFormModal({
                   onChange={(v) => setSourceId(v)}
                   options={[
                     { value: "", label: "Select Merchant QR..." },
-                    ...loadedQrs.map((q) => ({ value: q.id, label: `📲 ${q.display_name} (${q.upi_id || "QR"})` })),
+                    ...merchantQrs.map((q) => ({ value: q.id, label: `📲 ${q.display_name} (${q.upi_id || "QR"})` })),
                   ]}
                   placeholder="Choose QR (PhonePe, GPay, BharatPe)..."
                   showClear={false}
@@ -568,8 +620,6 @@ export default function SettlementFormModal({
               </div>
             )}
 
-
-
             {/* Destination Selector */}
             {isDestBank && (
               <div>
@@ -591,7 +641,6 @@ export default function SettlementFormModal({
                 />
               </div>
             )}
-
 
             {isDestWallet && (
               <div>
