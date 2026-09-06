@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import BillPaymentHub from "@/components/business/bill-payment-hub";
+import CustomerDetailsWorkspace from "@/components/business/customer-details-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,15 @@ export default async function BillPaymentPage({
 
   const { tab, category, provider } = await searchParams;
   const supabase = await createClient();
+
+  if (tab === "utility") {
+    return (
+      <CustomerDetailsWorkspace
+        initialCategory={category || "electricity"}
+        initialBiller={provider}
+      />
+    );
+  }
 
   const [
     { data: transactions },
