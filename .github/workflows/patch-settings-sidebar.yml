@@ -1,6 +1,6 @@
 name: Repair Settings Sidebar
 
-'on':
+on:
   push:
     branches: [main]
 
@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   repair:
-    if: ${{ !contains(github.event.head_commit.message, '[settings-sidebar-auto-patch]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -18,40 +17,21 @@ jobs:
         with:
           fetch-depth: 0
       - name: Patch settings sidebar expansion
+        shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('components/dashboard-shell.tsx')
-          text = path.read_text(encoding='utf-8')
-          old = '''  useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
-    } catch {}
-  }, []);'''
-          new = '''  useEffect(() => {
-    // Keep the full navigation visible on System Settings. A user may have
-    // collapsed the global sidebar elsewhere, but Settings needs the full
-    // menu so every administration section remains discoverable.
-    if (pathname === "/settings") {
-      setCollapsed(false);
-      try {
-        localStorage.setItem(COLLAPSE_KEY, "0");
-      } catch {}
-      return;
-    }
-    try {
-      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
-    } catch {}
-  }, [pathname]);'''
-
-          if text.count(old) != 1:
-              raise SystemExit('Sidebar state effect not found exactly once')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          print('Settings sidebar forced expanded.')
-          PY
+          if git log -1 --pretty=%B | grep -Fq '[settings-sidebar-auto-patch]'; then
+            echo 'Settings sidebar patch already applied.'
+            exit 0
+          fi
+          python -c 'from pathlib import Path; p=Path("components/dashboard-shell.tsx"); s=p.read_text(encoding="utf-8"); old="  useEffect(() => {\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === \"1\");\n    } catch {}\n  }, []);"; new="  useEffect(() => {\n    # Keep the full navigation visible on System Settings.\n    if (pathname === \"/settings\") {\n      setCollapsed(false);\n      try {\n        localStorage.setItem(COLLAPSE_KEY, \"0\");\n      } catch {}\n      return;\n    }\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === \"1\");\n    } catch {}\n  }, [pathname]);"; assert s.count(old)==1, "sidebar state effect not found exactly once"; p.write_text(s.replace(old,new,1),encoding="utf-8")'
       - name: Commit patch and remove temporary workflow
         run: |
+          if git diff --quiet -- components/dashboard-shell.tsx; then
+            git rm .github/workflows/patch-settings-sidebar.yml
+            git commit -m "chore: remove settings sidebar repair workflow [settings-sidebar-auto-patch]"
+            git push origin HEAD:main
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add components/dashboard-shell.tsx
