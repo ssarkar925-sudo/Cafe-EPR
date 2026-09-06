@@ -1,0 +1,53 @@
+name: Finalize partial and multiple payment collection
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Harden and clean rollout
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('components/business/multi-payment-collection.tsx')
+          t=p.read_text(encoding='utf-8')
+          old='''  function updateRow(index: number, patch: Partial<PaymentAllocation>) {\n    setAllocations((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));\n  }'''
+          new='''  function updateRow(index: number, patch: Partial<PaymentAllocation>) {\n    setAllocations((prev) => prev.map((row, i) => {\n      if (i !== index) return row;\n      if (patch.amount === undefined) return { ...row, ...patch };\n      const otherCollected = prev.reduce((sum, item, itemIndex) => itemIndex === index ? sum : sum + Math.max(0, Number(item.amount) || 0), 0);\n      const maxForRow = Math.max(0, safeTotal - otherCollected);\n      const raw = patch.amount.trim() === "" ? "" : Math.max(0, Math.min(maxForRow, Number(patch.amount) || 0)).toFixed(2);\n      return { ...row, ...patch, amount: raw };\n    }));\n  }'''
+          if old in t: t=t.replace(old,new,1)
+          p.write_text(t,encoding='utf-8')
+
+          p=Path('components/invoices/invoices-client.tsx')
+          t=p.read_text(encoding='utf-8')
+          t=t.replace('setCollectId(inv.id);\n                                  setCollectId(inv.id);setCollectId(inv.id);','setCollectId(inv.id);',1)
+          p.write_text(t,encoding='utf-8')
+
+          # Reset allocation rows whenever the three service forms are reset by their existing clear-remarks step.
+          for name in ['recharge-workspace.tsx','utility-bill-workspace.tsx','google-play-workspace.tsx']:
+              p=Path('components/business')/name; t=p.read_text(encoding='utf-8')
+              if 'setCustomerPaymentAllocations([]);' not in t:
+                  marker='      setRemarks("");'
+                  if marker in t: t=t.replace(marker,marker+'\n      setCustomerPaymentAllocations([]);',1)
+              p.write_text(t,encoding='utf-8')
+
+          for wf in ['.github/workflows/patch-multi-payment-ui.yml','.github/workflows/rollout-multi-payment-v2.yml','.github/workflows/rollout-multi-payment-v3.yml','.github/workflows/rollout-multi-payment-cleanup.yml']:
+              Path(wf).unlink(missing_ok=True)
+          PY
+          if git diff --quiet; then echo "Nothing to finalize"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/ .github/workflows/
+          git commit -m "Finalize partial and multiple payment collection"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
