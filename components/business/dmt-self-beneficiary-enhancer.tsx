@@ -25,6 +25,13 @@ function findVisibleInput(placeholders: string[]) {
     .find((el) => placeholders.includes(el.getAttribute("placeholder") || "") && isVisible(el as HTMLElement)) as HTMLInputElement | undefined;
 }
 
+function findInputForLabel(fragment: string) {
+  const label = findLabel(fragment);
+  if (!label) return undefined;
+  const field = label.closest(".space-y-1") as HTMLElement | null;
+  return field?.querySelector("input") as HTMLInputElement | undefined;
+}
+
 function findCustomerValue(kind: "name" | "mobile") {
   const selectors = kind === "name"
     ? ['[data-dmt-customer-name]', '[data-customer-name]', 'input[name="customer_name"]', 'input[name="sender_name"]']
@@ -36,7 +43,9 @@ function findCustomerValue(kind: "name" | "mobile") {
     const value = el instanceof HTMLInputElement ? el.value : el.textContent?.trim();
     if (value) return value.trim();
   }
-  return "";
+
+  const labelledInput = findInputForLabel(kind === "name" ? "Sender Name" : "Sender Mobile");
+  return labelledInput?.value?.trim() || "";
 }
 
 function addSelfButton(onClick: () => void) {
@@ -95,8 +104,9 @@ async function fillSelfBeneficiary() {
   const mobile = findVisibleInput(["10-digit mobile"]);
   if (mobile && customerMobile) setNativeValue(mobile, customerMobile.replace(/\D/g, "").slice(-10));
 
-  // Self changes only the beneficiary identity. It must never add validation requirements.
-  // Never read payment_instruments or shop merchant QR details here.
+  // Never read payment_instruments or shop merchant QR details for Self.
+  // Bank/UPI credentials are only copied when customer-specific data attributes
+  // are present on the selected customer's form state.
   const upiInput = findVisibleInput(["e.g. username@oksbi or 9876543210@paytm"]);
   if (upiInput) {
     const customerUpi = (upiInput.dataset.customerUpi || "").trim().toLowerCase();
