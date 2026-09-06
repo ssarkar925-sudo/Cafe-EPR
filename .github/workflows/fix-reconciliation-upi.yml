@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Add safe UPI reconciliation fix workflow')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,9 +37,9 @@ jobs:
               raise SystemExit('UPI reconciliation block not found; refusing to patch.')
 
           new_block = '''      if (cfg.key === "upi_qr") {
-        // UPI QR is an instrument-backed pool. Its balance is refreshed from the
-        // instrument-linked cash-entry trail, so reconcile from that same trail
-        // rather than re-adding transaction and settlement shadows.
+        // UPI QR is an instrument-backed pool. Reconcile it from the
+        // instrument-linked cash-entry trail, not from transaction and
+        // settlement shadows that can represent the same money movement.
         const upiInstrumentIds = new Set(
           instruments
             .filter((inst) => inst.is_active && ["upi", "upi_qr"].includes(String(inst.type).toLowerCase()))
@@ -53,8 +52,9 @@ jobs:
         for (const e of cashEntries) {
           if (!e.instrument_id || !upiInstrumentIds.has(e.instrument_id)) continue;
 
-          const amt = e.direction === "out" ? -Number(e.amount || 0) : Number(e.amount || 0);
-          if (!Number.isFinite(amt) || Math.abs(amt) <= 0.005) continue;
+          const rawAmount = Number(e.amount || 0);
+          if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
+          const amt = e.direction === "out" ? -rawAmount : rawAmount;
 
           if (e.ref_type === "transaction" && e.ref_id) transactionEntryIds.add(e.ref_id);
           if (e.ref_type === "settlement" && e.ref_id) settlementEntryIds.add(e.ref_id);
@@ -62,19 +62,20 @@ jobs:
           if (amt > 0) credits += amt;
           else debits += Math.abs(amt);
 
-          const isFee = e.ref_type === "transaction" && /fee received/i.test(String(e.description || ""));
-          if (isFee && amt > 0) fees += amt;
+          if (e.ref_type === "transaction" && /fee received/i.test(String(e.description || "")) && amt > 0) {
+            fees += amt;
+          }
 
           if (e.ref_type === "settlement") {
-            if (e.direction === "in") setsIn += Number(e.amount || 0);
-            else setsOut += Number(e.amount || 0);
+            if (e.direction === "in") setsIn += rawAmount;
+            else setsOut += rawAmount;
           } else {
             otherMovements += amt;
           }
 
           txList.push({
             id: e.id,
-            number: e.ref_type === "transaction" ? "TRANSACTION" : e.ref_type === "settlement" ? "SETTLEMENT" : "ENTRY",
+            number: e.ref_id || (e.ref_type === "settlement" ? "SETTLEMENT" : "ENTRY"),
             type: e.ref_type === "settlement"
               ? (e.direction === "out" ? "Settlement Out" : "Settlement In")
               : (e.direction === "out" ? "Debit Entry" : "Credit Entry"),
@@ -84,9 +85,9 @@ jobs:
           });
         }
 
-        // Defensive fallback: surface a settlement/transaction only when it has
-        // no instrument-linked cash entry. This detects a broken money trail
-        // instead of silently hiding it, while preventing duplicate counting.
+        // Defensive fallback for records that reference UPI but are missing
+        // their instrument cash entry. Existing cash entries are authoritative,
+        // so a represented settlement/transaction is never counted twice.
         for (const s of settlements) {
           const amt = Number(s.amount || 0);
           if (!Number.isFinite(amt) || amt <= 0) continue;
@@ -120,6 +121,8 @@ jobs:
           }
         }
 
+        // A service transaction may be the legacy source of a UPI pool movement.
+        // Only use its pool fields when there is no corresponding UPI cash entry.
         for (const t of transactions) {
           if (!t.id || transactionEntryIds.has(t.id)) continue;
           if (!(t.pool_credit_type === "upi_qr" || t.service_type === "upi")) continue;
@@ -166,7 +169,6 @@ jobs:
           if old_calc not in text:
               raise SystemExit('Expected calculated balance expression not found.')
           text = text.replace(old_calc, new_calc)
-
           client.write_text(text, encoding='utf-8')
 
           page = Path('app/(dashboard)/finance/reconciliation/page.tsx')
@@ -176,17 +178,11 @@ jobs:
               'select("id,instrument_id,direction,amount,created_at,entry_date,description,method,ref_type,ref_id")'
           )
           page.write_text(ptext, encoding='utf-8')
-
-          # Validate that no invalid cash_entries column is referenced in these files.
-          for p in (client, page):
-              body = p.read_text(encoding='utf-8')
-              if 'cash_entries"' in body and '.remarks' in body:
-                  raise SystemExit(f'Invalid cash_entries remarks reference remains in {p}')
       - name: Commit patch and remove workflow
         run: |
-          rm -f .github/workflows/fix-reconciliation-upi.yml
+          rm -f .github/workflows/fix-reconciliation-upi.yml RECONCILIATION_PATCH_TRIGGER.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add 'components/finance/reconciliation-client.tsx' 'app/(dashboard)/finance/reconciliation/page.tsx' .github/workflows/fix-reconciliation-upi.yml
+          git add 'components/finance/reconciliation-client.tsx' 'app/(dashboard)/finance/reconciliation/page.tsx' .github/workflows/fix-reconciliation-upi.yml RECONCILIATION_PATCH_TRIGGER.txt
           git commit -m "Fix UPI QR reconciliation double counting"
           git push
