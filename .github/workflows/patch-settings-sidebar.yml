@@ -21,11 +21,35 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+
           path = Path('components/dashboard-shell.tsx')
           text = path.read_text(encoding='utf-8')
-          old = '''  useEffect(() => {\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");\n    } catch {}\n  }, []);'''
-          new = '''  useEffect(() => {\n    // Keep the full navigation visible on System Settings. A user may have\n    // collapsed the global sidebar elsewhere, but Settings needs the full\n    // menu so every administration section remains discoverable.\n    if (pathname === "/settings") {\n      setCollapsed(false);\n      try {\n        localStorage.setItem(COLLAPSE_KEY, "0");\n      } catch {}\n      return;\n    }\n    try {\n      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");\n    } catch {}\n  }, [pathname]);'''
-          if text.count(old) != 1:\n              raise SystemExit('Sidebar state effect not found exactly once')\n          text = text.replace(old, new, 1)\n          path.write_text(text, encoding='utf-8')\n          print('Settings sidebar forced expanded.')\n          PY
+          old = '''  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {}
+  }, []);'''
+          new = '''  useEffect(() => {
+    // Keep the full navigation visible on System Settings. A user may have
+    // collapsed the global sidebar elsewhere, but Settings needs the full
+    // menu so every administration section remains discoverable.
+    if (pathname === "/settings") {
+      setCollapsed(false);
+      try {
+        localStorage.setItem(COLLAPSE_KEY, "0");
+      } catch {}
+      return;
+    }
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {}
+  }, [pathname]);'''
+
+          if text.count(old) != 1:
+              raise SystemExit('Sidebar state effect not found exactly once')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          print('Settings sidebar forced expanded.')
+          PY
       - name: Commit patch and remove temporary workflow
         run: |
           git config user.name "github-actions[bot]"
