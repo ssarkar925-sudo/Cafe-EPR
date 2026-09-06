@@ -1,0 +1,42 @@
+name: Patch dashboard recent activity stream
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, 'Patch dashboard recent activity stream')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Patch unified activity stream
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('app/(dashboard)/dashboard/page.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''  // Unified Recent Activity Stream\n  const activityList: any[] = [];\n  for (const inv of invoices.slice(0, 10)) {\n    activityList.push({\n      id: \"inv-\" + inv.id,\n      type: \"sale\",\n      title: `Invoice #${inv.invoice_number}`,\n      subtitle: inv.customers?.name || \"Counter Retail Customer\",\n      amount: Number(inv.total || 0),\n      direction: \"in\",\n      status: inv.status,\n      date: inv.created_at || inv.invoice_date,\n    });\n  }\n  for (const exp of expenses.slice(0, 8)) {\n    activityList.push({\n      id: \"exp-\" + exp.id,\n      type: \"expense\",\n      title: exp.title || \"Store Expense\",\n      subtitle: exp.category || \"General Overhead\",\n      amount: Number(exp.amount || 0),\n      direction: \"out\",\n      status: exp.status,\n      date: exp.created_at || exp.expense_date,\n    });\n  }\n  for (const tx of transactions.slice(0, 8)) {\n    activityList.push({\n      id: \"tx-\" + tx.id,\n      type: tx.service_type || \"service\",\n      title: `${(tx.service_type || \"Service\").toUpperCase()} #${tx.transaction_number || \"\"}`,\n      subtitle: tx.customers?.name || \"Digital Counter Customer\",\n      amount: Number(tx.total_amount || 0),\n      direction: tx.direction === \"out\" ? \"out\" : \"in\",\n      status: tx.status,\n      date: tx.created_at || tx.transaction_date,\n    });\n  }\n\n  activityList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());\n  const recentActivity = activityList.slice(0, 8);'''
+
+          new = '''  // Unified Recent Activity Stream — merge every canonical activity source, then sort globally newest-first.\n  const activityList: any[] = [];\n\n  for (const inv of invoices) {\n    activityList.push({\n      id: \"inv-\" + inv.id,\n      type: \"sale\",\n      title: `Invoice #${inv.invoice_number}`,\n      subtitle: `Sales • ${inv.customers?.name || \"Counter Retail Customer\"}`,\n      amount: Number(inv.total || 0),\n      direction: \"in\",\n      status: inv.status,\n      date: inv.created_at || inv.invoice_date,\n    });\n  }\n\n  for (const sale of quickSales) {\n    activityList.push({\n      id: \"quick-\" + sale.id,\n      type: \"sale\",\n      title: `Quick Sale #${sale.sale_number || \"\"}`,\n      subtitle: \"Quick Sale • Counter\",\n      amount: Number(sale.amount || 0),\n      direction: \"in\",\n      status: sale.status,\n      date: sale.created_at || sale.sale_date,\n    });\n  }\n\n  for (const exp of expenses) {\n    activityList.push({\n      id: \"exp-\" + exp.id,\n      type: \"expense\",\n      title: exp.title || \"Store Expense\",\n      subtitle: `Expense • ${exp.category || \"General Overhead\"}`,\n      amount: Number(exp.amount || 0),\n      direction: \"out\",\n      status: exp.status,\n      date: exp.created_at || exp.expense_date,\n    });\n  }\n\n  for (const tx of transactions) {\n    activityList.push({\n      id: \"tx-\" + tx.id,\n      type: tx.service_type || \"service\",\n      title: `${(tx.service_type || \"Service\").toUpperCase()} #${tx.transaction_number || \"\"}`,\n      subtitle: `${(tx.service_type || \"Service\").replace(/_/g, \" \")} • ${tx.customers?.name || \"Digital Counter Customer\"}`,\n      amount: Number(tx.total_amount || 0),\n      direction: tx.direction === \"out\" ? \"out\" : \"in\",\n      status: tx.status,\n      date: tx.created_at || tx.transaction_date,\n    });\n  }\n\n  for (const entry of cashEntries) {\n    activityList.push({\n      id: \"cash-\" + entry.id,\n      type: entry.direction === \"out\" ? \"expense\" : \"cash\",\n      title: `Cash ${entry.direction === \"out\" ? \"Out\" : \"In\"}${entry.method ? ` • ${String(entry.method).toUpperCase()}` : \"\"}`,\n      subtitle: `Cashbook • ${entry.ref_type || \"Manual Entry\"}`,\n      amount: Number(entry.amount || 0),\n      direction: entry.direction === \"out\" ? \"out\" : \"in\",\n      status: \"posted\",\n      date: entry.created_at || entry.entry_date,\n    });\n  }\n\n  for (const settlement of settlements) {\n    activityList.push({\n      id: \"settlement-\" + settlement.id,\n      type: \"settlement\",\n      title: \"Pool Settlement\",\n      subtitle: `Settlement • ${settlement.from_pool || \"—\"} → ${settlement.to_pool || \"—\"}`,\n      amount: Number(settlement.amount || 0),\n      direction: \"out\",\n      status: settlement.status,\n      date: settlement.created_at || settlement.settlement_date,\n    });\n  }\n\n  activityList.sort((a, b) => {\n    const aTime = new Date(a.date || 0).getTime();\n    const bTime = new Date(b.date || 0).getTime();\n    return bTime - aTime;\n  });\n\n  // Keep a useful recent window while retaining activity from every source.\n  const recentActivity = activityList.slice(0, 20);'''
+
+          if old not in text:
+              raise SystemExit('Expected activity block was not found; refusing to modify the file.')
+
+          path.write_text(text.replace(old, new), encoding='utf-8')
+      - name: Commit patch and remove one-time workflow
+        run: |
+          rm -f .github/workflows/patch-dashboard-activity.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'app/(dashboard)/dashboard/page.tsx' .github/workflows/patch-dashboard-activity.yml
+          git commit -m "Show unified recent activity from all sources"
+          git push
