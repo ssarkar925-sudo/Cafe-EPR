@@ -220,8 +220,10 @@ export default function UtilityBillWorkspace({
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [amount, setAmount] = useState("");
   const [serviceFee, setServiceFee] = useState("0");
-  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
+  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash");
   const [customerPayInstId, setCustomerPayInstId] = useState("");
+  const [partialPayment, setPartialPayment] = useState(false);
+  const [customerPaidNow, setCustomerPaidNow] = useState("");
   const [fundingInstId, setFundingInstId] = useState("");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -326,6 +328,8 @@ export default function UtilityBillWorkspace({
   const billAmount = parseFloat(amount) || 0;
   const custFee = parseFloat(serviceFee) || 0;
   const totalCustomerDebit = billAmount + custFee;
+  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit;
+  const customerDueAmount = Math.max(0, Number((totalCustomerDebit - customerCollectionAmount).toFixed(2)));
 
   const commissionResolution: CommissionResolution = useMemo(() => {
     return resolveBillCommission(commissionConfigs, {
@@ -626,8 +630,8 @@ export default function UtilityBillWorkspace({
       showToast("error", "Please enter a valid bill amount greater than ₹0.");
       return;
     }
-    if (customerPayMethod === "due" && !selectedCustomerId) {
-      showToast("error", "Please select a customer for Khata (Due) credit payment.");
+    if (customerDueAmount > 0 && !selectedCustomerId) {
+      showToast("error", "Please select a customer to record the unpaid remainder / Khata due.");
       return;
     }
     if (!fundingInstId) {
@@ -677,12 +681,16 @@ export default function UtilityBillWorkspace({
         service_fee: custFee,
         portal_commission: commissionEarned,
         portal_charge: 0,
-        cash_in: customerPayMethod === "cash" ? totalCustomerDebit : 0,
-        bank_in: customerPayMethod === "bank" ? totalCustomerDebit : 0,
+        cash_in: customerPayMethod === "cash" ? customerCollectionAmount : 0,
+        bank_in: customerPayMethod === "bank" ? customerCollectionAmount : 0,
         pool_out: netProviderCost,
         pool_credit: 0,
         pool_credit_type: "utility",
-        customer_pay_method: customerPayMethod,
+        customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
+          customer_collected_amount: customerCollectionAmount,
+          customer_due_amount: customerDueAmount,
+          customer_collection_method: customerPayMethod,
+          customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,
       };
 
       let newTxn: any = null;
@@ -727,19 +735,20 @@ export default function UtilityBillWorkspace({
       }
 
       // 3. Customer Collection Accounting Leg
-      if (customerPayMethod !== "due" && totalCustomerDebit > 0) {
+      if (customerCollectionAmount > 0) {
         const payInst = selectedCustomerPaymentAccount;
         await supabase.from("cash_entries").insert({
           entry_date: todayDate,
           method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",
           direction: "in",
-          amount: totalCustomerDebit,
+          amount: customerCollectionAmount,
           description: `Bill ${txnNumber} collection for ${billerName} (${customerPayMethod.toUpperCase()})`,
           ref_type: "transaction",
           ref_id: newTxn.id,
           instrument_id: payInst?.id || null,
         });
-      } else if (customerPayMethod === "due" && selectedCustomerId) {
+      }
+      if (customerDueAmount > 0 && selectedCustomerId) {
         // Khata Due: Debit Customer Ledger
         const { data: custData } = await supabase
           .from("customers")
@@ -747,7 +756,7 @@ export default function UtilityBillWorkspace({
           .eq("id", selectedCustomerId)
           .single();
         const prevBal = Number(custData?.balance || 0);
-        const newBal = prevBal + totalCustomerDebit;
+        const newBal = prevBal + customerDueAmount;
 
         await supabase.from("customers").update({ balance: newBal }).eq("id", selectedCustomerId);
         await supabase.from("customer_ledger").insert({
@@ -755,7 +764,7 @@ export default function UtilityBillWorkspace({
           entry_date: todayDate,
           type: "invoice",
           description: `Utility Bill ${txnNumber} (${billerName}) on credit (Khata)`,
-          debit: totalCustomerDebit,
+          debit: customerDueAmount,
           credit: 0,
           balance_after: newBal,
           ref_type: "transaction",
@@ -1348,6 +1357,8 @@ export default function UtilityBillWorkspace({
                 { id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },
                 { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },
                 { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },
+                { id: "wallet" as const, label: "👛 Wallet", desc: "Wallet Account" },
+                { id: "card" as const, label: "💳 Card", desc: "Debit / Credit Card" },
                 { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },
               ].map((m) => {
                 const isSelected = customerPayMethod === m.id;

@@ -64,7 +64,7 @@ export type QuickSaleRow = {
 };
 
 const STATUSES = ["all", "paid", "partial", "unpaid", "cancelled"] as const;
-const METHODS = ["cash", "upi", "card"] as const;
+const METHODS = ["cash", "upi", "bank", "wallet", "card"] as const;
 const COLLECT_TIMEOUT = 5000;
 const VIEW_KEY = "sccomm-invoices-view";
 
@@ -155,6 +155,7 @@ export default function InvoicesClient({
   const [returnId, setReturnId] = useState<string | null>(null);
   const [collectId, setCollectId] = useState<string | null>(null);
   const [collectMethod, setCollectMethod] = useState<string>("cash");
+  const [collectAmount, setCollectAmount] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -426,7 +427,7 @@ export default function InvoicesClient({
   }
 
   async function collectDue(inv: InvoiceRow) {
-    const amt = Number(inv.due);
+    const amt = Number(collectAmount || inv.due);
     if (!(amt > 0)) return;
     setBusyId(inv.id);
     const { data, error } = await supabase.rpc("record_invoice_payment", {
@@ -436,6 +437,7 @@ export default function InvoicesClient({
     });
     setBusyId(null);
     setCollectId(null);
+    setCollectAmount("");
     if (error) {
       flash("error", error.message);
       return;
@@ -953,7 +955,8 @@ export default function InvoicesClient({
                       onClick={(e) => {
                         e.stopPropagation();
                         setCollectMethod("cash");
-                        setCollectId(inv.id);
+                        setCollectId(inv.id);setCollectAmount(String(Number(inv.due).toFixed(2)));
+                        setCollectId(inv.id);setCollectId(inv.id);
                       }}
                       className="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600"
                     >
@@ -1124,7 +1127,8 @@ export default function InvoicesClient({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setCollectMethod("cash");
-                                  setCollectId(inv.id);
+                                  setCollectId(inv.id);setCollectAmount(String(Number(inv.due).toFixed(2)));
+                                  setCollectId(inv.id);setCollectId(inv.id);
                                 }}
                                 className="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600"
                               >

@@ -1268,7 +1268,7 @@ export default function PosClient({
                         Payment Tender
                       </label>
                       <div className="mt-1 grid grid-cols-3 gap-1.5">
-                        {methodList.slice(0, 6).map((m) => (
+                        {methodList.map((m) => (
                           <button
                             key={m}
                             type="button"

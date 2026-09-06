@@ -251,8 +251,10 @@ export default function RechargeWorkspace({
   const [serviceFee, setServiceFee] = useState("0");
   const [selectedPlan, setSelectedPlan] = useState<PlanItem | null>(null);
   const [planCategory, setPlanCategory] = useState("Popular Plans");
-  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
+  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash");
   const [customerPayInstId, setCustomerPayInstId] = useState("");
+  const [partialPayment, setPartialPayment] = useState(false);
+  const [customerPaidNow, setCustomerPaidNow] = useState("");
   const [fundingInstId, setFundingInstId] = useState("");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -492,6 +494,8 @@ export default function RechargeWorkspace({
   const rechargeAmount = parseFloat(amount) || 0;
   const custFee = parseFloat(serviceFee) || 0;
   const totalCustomerDebit = rechargeAmount + custFee;
+  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit;
+  const customerDueAmount = Math.max(0, Number((totalCustomerDebit - customerCollectionAmount).toFixed(2)));
   const commissionEarned = commissionCalculation.commission;
   const netProviderCost = commissionCalculation.providerCost;
   const netOperatorIncome = custFee + commissionEarned;
@@ -644,8 +648,8 @@ export default function RechargeWorkspace({
       showToast("error", "Please enter a valid recharge plan amount greater than ₹0.");
       return;
     }
-    if (customerPayMethod === "due" && !selectedCustomerId) {
-      showToast("error", "Please select a customer for Khata (Due) credit recharge.");
+    if (customerDueAmount > 0 && !selectedCustomerId) {
+      showToast("error", "Please select a customer to record the unpaid remainder / Khata due.");
       return;
     }
     if (!fundingInstId) {
@@ -698,12 +702,16 @@ export default function RechargeWorkspace({
           service_fee: custFee,
           portal_commission: commissionEarned,
           portal_charge: 0,
-          cash_in: customerPayMethod === "cash" ? totalCustomerDebit : 0,
-          bank_in: customerPayMethod === "bank" ? totalCustomerDebit : 0,
+          cash_in: customerPayMethod === "cash" ? customerCollectionAmount : 0,
+          bank_in: customerPayMethod === "bank" ? customerCollectionAmount : 0,
           pool_out: netProviderCost,
           pool_credit: 0,
           pool_credit_type: "recharge",
-          customer_pay_method: customerPayMethod,
+          customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
+          customer_collected_amount: customerCollectionAmount,
+          customer_due_amount: customerDueAmount,
+          customer_collection_method: customerPayMethod,
+          customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,
         })
         .select(`
           *,
@@ -720,7 +728,7 @@ export default function RechargeWorkspace({
       }
 
       // 4. Customer Collection Accounting Leg
-      if (customerPayMethod !== "due" && totalCustomerDebit > 0) {
+      if (customerCollectionAmount > 0) {
         const cashDrawer = instruments.find((i) => i.type === "cash") || instruments[0];
         const payInst =
           customerPayMethod === "cash"
@@ -732,13 +740,14 @@ export default function RechargeWorkspace({
           entry_date: todayDate,
           method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",
           direction: "in",
-          amount: totalCustomerDebit,
+          amount: customerCollectionAmount,
           description: `Recharge ${nextNum} collection from ${cleanMobile} (${customerPayMethod.toUpperCase()})`,
           ref_type: "transaction",
           ref_id: newTxn.id,
           instrument_id: payInst?.id || null,
         });
-      } else if (customerPayMethod === "due" && selectedCustomerId) {
+      }
+      if (customerDueAmount > 0 && selectedCustomerId) {
         // Khata Due: Debit Customer Ledger
         const { data: custData } = await supabase
           .from("customers")
@@ -746,7 +755,7 @@ export default function RechargeWorkspace({
           .eq("id", selectedCustomerId)
           .single();
         const prevBal = Number(custData?.balance || 0);
-        const newBal = prevBal + totalCustomerDebit;
+        const newBal = prevBal + customerDueAmount;
 
         await supabase.from("customers").update({ balance: newBal }).eq("id", selectedCustomerId);
         await supabase.from("customer_ledger").insert({
@@ -754,7 +763,7 @@ export default function RechargeWorkspace({
           entry_date: todayDate,
           type: "recharge",
           description: `Recharge ${nextNum} for ${cleanMobile} on credit (Khata)`,
-          debit: totalCustomerDebit,
+          debit: customerDueAmount,
           credit: 0,
           balance_after: newBal,
           ref_type: "transaction",
@@ -1380,6 +1389,8 @@ export default function RechargeWorkspace({
                 { id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },
                 { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },
                 { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },
+                { id: "wallet" as const, label: "👛 Wallet", desc: "Wallet Account" },
+                { id: "card" as const, label: "💳 Card", desc: "Debit / Credit Card" },
                 { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },
               ].map((m) => {
                 const isSelected = customerPayMethod === m.id;
@@ -1402,6 +1413,19 @@ export default function RechargeWorkspace({
               })}
             </div>
           </div>
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">
+            <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">
+              <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />
+              Partial / Split Payment
+            </label>
+            {partialPayment && (
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input type="number" min="0" max={totalCustomerDebit} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} placeholder="Customer pays now" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-black dark:border-white/10 dark:bg-slate-900 dark:text-white" />
+                <div className="rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-slate-900">Khata Due: <span className="text-amber-600">{inr(customerDueAmount)}</span></div>
+              </div>
+            )}
+          </div>
+
 
           {/* 05 Funding Source Account */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">

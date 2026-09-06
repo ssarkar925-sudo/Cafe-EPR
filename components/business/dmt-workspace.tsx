@@ -183,7 +183,9 @@ export default function DmtWorkspace({
   const [selectedBankInstrumentId, setSelectedBankInstrumentId] = useState<string>(liveInstruments[0]?.id || "");
 
   // Step 7: Customer Collection Instrument
-  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
+  const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "wallet" | "card" | "due">("cash");
+  const [partialPayment, setPartialPayment] = useState(false);
+  const [customerPaidNow, setCustomerPaidNow] = useState("");
 
   // Step 8: Reference & Remarks (Clean initial state)
   const [reference, setReference] = useState<string>("");
@@ -361,6 +363,8 @@ export default function DmtWorkspace({
   const numComm = Number(portalCommission || 0);
 
   const totalCollected = numAmount + numFee + numCharge;
+  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCollected, Math.max(0, Number(customerPaidNow) || 0)) : totalCollected;
+  const customerDueAmount = Math.max(0, Number((totalCollected - customerCollectionAmount).toFixed(2)));
   const businessRevenue = numFee + numComm;
   const providerCost = numCharge;
   const netContribution = businessRevenue - providerCost;
@@ -433,7 +437,7 @@ export default function DmtWorkspace({
     if (senderMobile.trim() && senderMobile.trim().replace(/\D/g, "").length !== 10) return false;
     if (paidFrom === "portal" && !selectedPortalId) return false;
     if (paidFrom === "bank" && !selectedBankInstrumentId) return false;
-    if (customerPayMethod === "due" && !selectedCustomerId) return false;
+    if (customerDueAmount > 0 && !selectedCustomerId) return false;
     return true;
   }, [
     numAmount,
@@ -915,7 +919,10 @@ export default function DmtWorkspace({
         p_portal_commission: numComm,
         p_fee_source: null,
         p_paid_from: paidFrom,
-        p_customer_pay_method: customerPayMethod,
+        p_customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
+        p_customer_collected_amount: customerCollectionAmount,
+        p_customer_due_amount: customerDueAmount,
+        p_customer_collection_method: customerPayMethod,
         p_pay_from_instrument_id: paidFrom === "bank" ? selectedBankInstrumentId || null : null,
         p_pay_from_method: paidFrom,
         p_receiver_name: receiverName.trim() || null,
