@@ -794,6 +794,7 @@ export default function UtilityBillWorkspace({
       setFetchedBill(null);
       setReference("");
       setRemarks("");
+      setCustomerPaymentAllocations([]);
     } catch (err: any) {
       console.error("Bill Payment Error:", err);
       showToast("error", err.message || "Failed to process bill payment.");

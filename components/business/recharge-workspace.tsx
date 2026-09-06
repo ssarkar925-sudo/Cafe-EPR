@@ -786,6 +786,7 @@ export default function RechargeWorkspace({
       setSelectedPlan(null);
       setReference("");
       setRemarks("");
+      setCustomerPaymentAllocations([]);
     } catch (err: any) {
       console.error("Recharge Error:", err);
       showToast("error", err.message || "Failed to process recharge.");

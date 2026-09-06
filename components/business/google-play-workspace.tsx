@@ -400,6 +400,7 @@ export default function GooglePlayWorkspace({
       setVoucherCode("");
       setReference("");
       setRemarks("");
+      setCustomerPaymentAllocations([]);
       setSubmitting(false);
     } catch (err: any) {
       setSubmitting(false);

@@ -62,7 +62,14 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
   const remaining = Math.max(0, safeTotal - collected);
 
   function updateRow(index: number, patch: Partial<PaymentAllocation>) {
-    setAllocations((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    setAllocations((prev) => prev.map((row, i) => {
+      if (i !== index) return row;
+      if (patch.amount === undefined) return { ...row, ...patch };
+      const otherCollected = prev.reduce((sum, item, itemIndex) => itemIndex === index ? sum : sum + Math.max(0, Number(item.amount) || 0), 0);
+      const maxForRow = Math.max(0, safeTotal - otherCollected);
+      const raw = patch.amount.trim() === "" ? "" : Math.max(0, Math.min(maxForRow, Number(patch.amount) || 0)).toFixed(2);
+      return { ...row, ...patch, amount: raw };
+    }));
   }
 
   function addRow() {

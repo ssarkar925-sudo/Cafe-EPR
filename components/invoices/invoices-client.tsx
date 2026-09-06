@@ -1115,7 +1115,6 @@ export default function InvoicesClient({
                                   setCollectAmount(String(Number(inv.due).toFixed(2)));
                                   setCollectAllocations([{ method:"cash", amount:String(Number(inv.due).toFixed(2)) }]);
                                   setCollectId(inv.id);
-                                  setCollectId(inv.id);setCollectId(inv.id);
                                 }}
                                 className="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600"
                               >
