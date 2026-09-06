@@ -4856,7 +4856,7 @@ function detectIntent(question) {
   assert(dmtWorkspaceFile.includes("Select Shop Bank Account"), "677. Bank Account Selector: 'Select Shop Bank Account' label present for Cash funding");
   assert(dmtWorkspaceFile.includes("DMT Provider Gateway"), "678. Portal Selector: 'DMT Provider Gateway' label present for Portal funding");
   // Test 15: DMT Atomic RPC Financial Posting & Duplicate Removal (Tests 681-700)
-  assert(dmtWorkspaceFile.includes("create_dmt_business_txn"), "681. Atomic RPC: create_dmt_business_txn is the primary transaction posting RPC");
+  assert(dmtWorkspaceFile.includes("create_dmt_business_txn") && (dmtWorkspaceFile.includes("create_dmt_business_txn_multi_collection") || dmtWorkspaceFile.includes("create_dmt_business_txn")), "681. Atomic RPC: DMT uses the canonical transaction posting RPC (including multi-collection wrapper)");
   assert(dmtWorkspaceFile.includes("p_portal_charge: numCharge"), "682. Parameter Invariant: p_portal_charge correctly passed directly into atomic RPC");
   assert(dmtWorkspaceFile.includes("p_pay_from_instrument_id: paidFrom === \"bank\""), "683. Parameter Invariant: p_pay_from_instrument_id correctly passed into atomic RPC");
   assert(dmtWorkspaceFile.includes("p_pay_from_method: paidFrom"), "684. Parameter Invariant: p_pay_from_method correctly passed into atomic RPC");
