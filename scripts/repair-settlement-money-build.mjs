@@ -3,12 +3,13 @@ import fs from "node:fs";
 function patch(file, transform, label) {
   const before = fs.readFileSync(file, "utf8");
   const after = transform(before);
-  if (after === before) throw new Error(`${label}: no change made; source anchor may have moved`);
-  fs.writeFileSync(file, after);
+  if (after !== before) fs.writeFileSync(file, after);
+  else console.log(`${label}: already applied`);
 }
 
 // Keep all currency rendering finite and consistently formatted.
 patch("lib/format.ts", (text) => {
+  if (text.includes('const raw = typeof n === "string"')) return text;
   const re = /export function inr\(n: number \| string\) \{[\s\S]*?\n\}/;
   if (!re.test(text)) throw new Error("inr() function not found");
   return text.replace(re, `export function inr(n: number | string) {
@@ -30,8 +31,8 @@ patch("lib/format.ts", (text) => {
 // while closed, so state initialized only once can otherwise retain a previous/blank amount.
 patch("components/finance/settlement-form-modal.tsx", (text) => {
   const anchor = `  // Reset source & dest when type changes\n  useEffect(() => {\n    setSourceId("");\n    setDestId("");\n    setAvailableBalance(null);\n    setError("");\n  }, [type]);\n`;
-  if (!text.includes(anchor)) throw new Error("settlement modal type reset anchor not found");
   if (text.includes("Sync parent-provided presets with the persistent modal instance")) return text;
+  if (!text.includes(anchor)) throw new Error("settlement modal type reset anchor not found");
   const effect = `${anchor}\n  // Sync parent-provided presets with the persistent modal instance.\n  useEffect(() => {\n    if (!open) return;\n    setType(initialType ?? "aeps_to_bank");\n    setAmount(\n      initialAmount !== undefined && initialAmount !== null && initialAmount !== ""\n        ? String(initialAmount)\n        : ""\n    );\n  }, [open, initialType, initialAmount]);\n`;
   return text.replace(anchor, effect);
 }, "settlement preset sync");
@@ -50,15 +51,22 @@ patch("components/finance/settlement-form-modal.tsx", (text) => {
 // with the settlement journal.
 patch("components/finance/settlements-client.tsx", (text) => {
   const re = /\n    const sType = payload\.p_settlement_type;\n    const sId = \(data as any\)\?\.id;\n    if \(sId\) \{[\s\S]*?\n    \}\n\n    logAudit\(\{/;
-  if (!re.test(text)) throw new Error("browser-side settlement cash leg block not found");
+  if (!re.test(text)) return text;
   return text.replace(re, "\n    logAudit({");
 }, "remove settlement cash duplication");
+
+// The backend reversal RPC owns reversal accounting. Do not delete its cash leg from the browser.
+patch("components/finance/settlements-client.tsx", (text) => {
+  const line = '    await supabase.from("cash_entries").delete().eq("ref_type", "settlement").eq("ref_id", reverseTarget.id);\n\n';
+  if (!text.includes(line)) return text;
+  return text.replace(line, "");
+}, "preserve reversal cash leg");
 
 // Never carry a prior preset into a fresh settlement form.
 patch("components/finance/settlements-client.tsx", (text) => {
   const old = `    setShowForm(false);\n    showToast("success", \`Settlement \${(data as any)?.settlement_number} recorded\`);`;
   const newer = `    setShowForm(false);\n    setFormPreset(null);\n    showToast("success", \`Settlement \${(data as any)?.settlement_number} recorded\`);`;
-  if (!text.includes(old)) throw new Error("settlement save close anchor not found");
+  if (!text.includes(old)) return text;
   return text.replace(old, newer);
 }, "clear settlement preset after save");
 
@@ -66,6 +74,14 @@ patch("components/finance/settlements-client.tsx", (text) => {
 patch("components/finance/settlements-client.tsx", (text) => {
   const old = `              onClick={() => setShowForm(true)}`;
   const newer = `              onClick={() => {\n                setFormPreset(null);\n                setShowForm(true);\n              }}`;
-  if (!text.includes(old)) throw new Error("new settlement button anchor not found");
+  if (!text.includes(old)) return text;
   return text.replace(old, newer, 1);
 }, "reset new settlement form");
+
+// Keep CSV exports numeric even when an API response returns a numeric string with formatting.
+patch("components/finance/settlements-client.tsx", (text) => {
+  const old = "        Number(r.amount).toFixed(2),";
+  const newer = "        Number(String(r.amount ?? 0).replace(/,/g, \"\")).toFixed(2),";
+  if (!text.includes(old)) return text;
+  return text.replace(old, newer, 1);
+}, "normalize settlement CSV amount");
