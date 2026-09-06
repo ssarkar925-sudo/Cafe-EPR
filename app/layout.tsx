@@ -1,9 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
 import ThemeProvider from "@/components/theme-provider";
+import { NotificationProvider } from "@/components/ui/notification-provider";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: { default: "Cafe ERP", template: "%s | Cafe ERP" },
@@ -19,7 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `try{var r=document.documentElement,m=localStorage.getItem("sccomm-display-mode")||"light",isDark=m==="dark";r.classList.toggle("dark",isDark);r.setAttribute("data-display-mode",isDark?"dark":"light");r.setAttribute("data-theme",isDark?"dark":"light");r.setAttribute("data-motion",localStorage.getItem("sccomm-motion-enabled")||"on");r.setAttribute("data-accent",localStorage.getItem("sccomm-accent")||"violet");r.setAttribute("data-density",localStorage.getItem("sccomm-density")||"comfortable");r.setAttribute("data-font-scale",localStorage.getItem("sccomm-font-scale")||"standard");localStorage.removeItem("cafe-erp-design-style");r.removeAttribute("data-design-style");r.removeAttribute("data-design-style-v2");}catch(e){}`,
           }}
         />
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

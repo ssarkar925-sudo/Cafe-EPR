@@ -12,6 +12,7 @@ import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWh
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import Modal from "@/components/ui/modal";
+import { showToast } from "@/components/ui/use-toast";
 import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
 import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
@@ -626,6 +627,7 @@ export default function PosClient({
       return;
     }
     logAudit({ action: "create", entity: "expense", entity_id: null, description: `Money Out ${inr(amt)}`, details: { amount: amt, note: moNote.trim() || null } });
+    showToast("success", `Money Out of ${inr(amt)} recorded successfully`);
     setMoAmount("");
     setMoNote("");
     setShowMoneyOut(false);
@@ -861,6 +863,7 @@ export default function PosClient({
     setBusy(false);
     if (error) {
       setError(error.message);
+      showToast("error", error.message || "Failed to process sale");
       return;
     }
 
@@ -878,6 +881,7 @@ export default function PosClient({
     };
     setSuccess(saleRes);
     setWaStatus("idle");
+    showToast("success", `Sale completed • ${inr(total)} • Invoice #${saleRes.invoice_number}`);
 
     const waCfg = getWhatsAppConfig();
     if (waCfg.provider !== "off" && waCfg.auto_send_pos && selCust?.phone) handleSendInvoiceWhatsApp(saleRes);

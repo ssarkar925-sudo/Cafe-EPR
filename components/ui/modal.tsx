@@ -156,14 +156,14 @@ export default function Modal({
 
       {/* Header */}
       {!noHeader && (
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-50/90 px-6 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-50/90 px-4 py-3 sm:px-6 sm:py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
           {header !== undefined ? (
             header
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
               {icon && (
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${a.icon} text-white shadow-md ${a.glow}`}
+                  className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${a.icon} text-white shadow-md ${a.glow}`}
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -172,18 +172,18 @@ export default function Modal({
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="h-4.5 w-4.5"
+                    className="h-4 w-4 sm:h-4.5 sm:w-4.5"
                   >
                     <path d={icon} />
                   </svg>
                 </div>
               )}
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+              <div className="min-w-0">
+                <h2 className="truncate text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
                   {title}
                 </h2>
                 {subtitle && (
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="truncate mt-0.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
                     {subtitle}
                   </p>
                 )}
@@ -191,7 +191,7 @@ export default function Modal({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {headerRight}
             <button
               type="button"
@@ -210,7 +210,7 @@ export default function Modal({
       {/* Body */}
       <div
         ref={bodyRef}
-        className={`min-h-0 flex-1 overflow-y-auto bg-white p-6 dark:bg-slate-900 sm:p-6 ${
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-4 dark:bg-slate-900 sm:p-6 ${
           bodyClassName ?? ""
         }`}
       >
@@ -219,17 +219,17 @@ export default function Modal({
 
       {/* Footer */}
       {footer !== undefined && (
-        <div className="shrink-0 border-t border-slate-200/80 bg-slate-50/90 px-6 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/90">
+        <div className="shrink-0 border-t border-slate-200/80 bg-slate-50/90 px-4 py-3 sm:px-6 sm:py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/90">
           {footer}
         </div>
       )}
     </>
   );
 
-  const panelClass = `relative z-10 my-auto flex max-h-[90vh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-[24px] border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-900/5 dark:border-white/10 dark:bg-slate-900 dark:ring-white/10 animate-modal-panel`;
+  const panelClass = `relative z-10 my-auto flex max-h-[92dvh] sm:max-h-[90vh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-2xl sm:rounded-[24px] border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-900/5 dark:border-white/10 dark:bg-slate-900 dark:ring-white/10 animate-modal-panel`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-2 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
       {/* Frosted Backdrop */}
       <div
         className="fixed inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity animate-modal-backdrop"

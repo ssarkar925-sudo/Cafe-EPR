@@ -1,10 +1,11 @@
 /* Cafe ERP — mobile modal usability layer */
 
 @media (max-width: 640px) {
-  [role="dialog"] {
-    width: calc(100vw - 16px) !important;
-    max-width: calc(100vw - 16px) !important;
-    max-height: 94vh !important;
+  [role="dialog"],
+  .floating-mac-window {
+    width: calc(100vw - 14px) !important;
+    max-width: calc(100vw - 14px) !important;
+    max-height: 92dvh !important;
     margin: 0 auto !important;
     border-radius: 18px !important;
   }
@@ -13,8 +14,20 @@
     height: 3px !important;
   }
 
+  /* Prevent auto-zoom in mobile Safari / Chrome WebView by keeping font size >= 16px */
+  [role="dialog"] input,
+  [role="dialog"] select,
+  [role="dialog"] textarea,
+  [role="dialog"] [role="combobox"],
+  .floating-mac-window input,
+  .floating-mac-window select,
+  .floating-mac-window textarea {
+    font-size: 16px !important;
+    min-height: 42px;
+  }
+
   [role="dialog"] > div:nth-child(2) {
-    padding: 12px !important;
+    padding: 12px 14px !important;
     gap: 8px !important;
     flex-wrap: wrap !important;
     align-items: flex-start !important;
@@ -66,6 +79,7 @@
   [role="dialog"] > div:nth-child(3) {
     padding: 14px !important;
     font-size: 14px;
+    overscroll-behavior: contain;
   }
 
   [role="dialog"] > div:nth-child(3) table {
@@ -83,25 +97,19 @@
     padding-bottom: 9px !important;
   }
 
-  [role="dialog"] > div:nth-child(3) input,
-  [role="dialog"] > div:nth-child(3) select,
-  [role="dialog"] > div:nth-child(3) textarea,
-  [role="dialog"] > div:nth-child(3) [role="combobox"] {
-    min-height: 42px;
-    font-size: 14px !important;
-  }
-
   [role="dialog"] > div:last-child {
     padding: 12px 14px !important;
   }
 
   [role="dialog"] > div:last-child > div {
     flex-wrap: wrap;
+    gap: 8px;
   }
 
   [role="dialog"] > div:last-child button {
-    min-height: 40px;
-    padding: 8px 12px !important;
+    min-height: 42px;
+    padding: 9px 14px !important;
+    touch-action: manipulation;
   }
 
   /* Invoice detail financial summary */
@@ -133,12 +141,13 @@
 }
 
 @media (max-width: 390px) {
-  [role="dialog"] {
-    width: calc(100vw - 10px) !important;
-    max-width: calc(100vw - 10px) !important;
+  [role="dialog"],
+  .floating-mac-window {
+    width: calc(100vw - 8px) !important;
+    max-width: calc(100vw - 8px) !important;
   }
 
   [role="dialog"] > div:nth-child(3) {
-    padding: 12px !important;
+    padding: 10px !important;
   }
 }

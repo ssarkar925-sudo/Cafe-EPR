@@ -6,11 +6,11 @@ import { createPortal } from "react-dom";
 export type WindowSize = "sm" | "md" | "lg" | "xl" | "fullscreen";
 
 const SIZE_CLASSES: Record<WindowSize, string> = {
-  sm: "w-full max-w-[520px] max-h-[85vh]",
-  md: "w-full max-w-[760px] max-h-[88vh]",
-  lg: "w-full max-w-[1040px] max-h-[90vh]",
-  xl: "w-full max-w-[1240px] max-h-[92vh]",
-  fullscreen: "w-[96vw] h-[94vh]",
+  sm: "w-full max-w-[520px] max-h-[92dvh] sm:max-h-[85vh]",
+  md: "w-full max-w-[760px] max-h-[92dvh] sm:max-h-[88vh]",
+  lg: "w-full max-w-[1040px] max-h-[92dvh] sm:max-h-[90vh]",
+  xl: "w-full max-w-[1240px] max-h-[92dvh] sm:max-h-[92vh]",
+  fullscreen: "w-[98vw] h-[94dvh]",
 };
 
 export default function FloatingWindow({
@@ -55,7 +55,7 @@ export default function FloatingWindow({
   if (!mounted || !isOpen) return null;
 
   const windowNode = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] animate-fade-in">
       {/* Frosted Spatial Backdrop */}
       <div
         onClick={onClose}
@@ -66,8 +66,8 @@ export default function FloatingWindow({
       {/* Floating Spatial macOS Window Panel */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`floating-mac-window relative z-10 flex flex-col ${
-          isFullscreen ? "h-[95vh] w-[98vw]" : SIZE_CLASSES[size]
+        className={`floating-mac-window relative z-10 flex flex-col rounded-2xl sm:rounded-[22px] overflow-hidden ${
+          isFullscreen ? "h-[94dvh] w-[98vw]" : SIZE_CLASSES[size]
         } animate-modal-panel`}
         role="dialog"
         aria-modal="true"
@@ -107,14 +107,14 @@ export default function FloatingWindow({
             </div>
 
             {/* Window Title & Subtitle */}
-            <div className="flex items-center gap-2 pl-2">
-              {icon && <span className="text-base">{icon}</span>}
-              <div className="flex flex-col">
-                <span className="text-xs font-black text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2 pl-2 min-w-0 pr-2">
+              {icon && <span className="text-base shrink-0">{icon}</span>}
+              <div className="flex flex-col min-w-0">
+                <span className="truncate text-xs font-black text-slate-900 dark:text-white">
                   {title}
                 </span>
                 {subtitle && (
-                  <span className="text-[10px] text-slate-400">
+                  <span className="truncate text-[10px] text-slate-400">
                     {subtitle}
                   </span>
                 )}
@@ -123,27 +123,27 @@ export default function FloatingWindow({
           </div>
 
           {/* Header Right Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {headerRight}
           </div>
         </div>
 
-        {/* Window Content Area (with optional sidebar) */}
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Window Content Area (with responsive sidebar) */}
+        <div className="flex flex-col sm:flex-row min-h-0 flex-1 overflow-hidden">
           {sidebar && (
-            <aside className="w-56 shrink-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40 sm:w-64">
+            <aside className="w-full sm:w-56 sm:shrink-0 max-h-40 sm:max-h-none overflow-y-auto border-b sm:border-b-0 sm:border-r border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40 sm:w-64">
               {sidebar}
             </aside>
           )}
 
-          <main className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-7">
+          <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-7">
             {children}
           </main>
         </div>
 
         {/* Optional Window Footer Tray */}
         {footer && (
-          <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-6 py-3.5 backdrop-blur-md dark:border-white/5 dark:bg-slate-950/60">
+          <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6 sm:py-3.5 backdrop-blur-md dark:border-white/5 dark:bg-slate-950/60">
             {footer}
           </div>
         )}

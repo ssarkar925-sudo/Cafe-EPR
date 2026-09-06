@@ -8,6 +8,7 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
+import { showToast } from "@/components/ui/use-toast";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { PosProduct, PosService, PosCustomer, PosInstrument, CartLine } from "./pos-client";
 import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
@@ -562,6 +563,7 @@ export default function QuickSaleModule({
     setBusy(false);
     if (err) {
       setError(err.message);
+      showToast("error", err.message || "Quick sale failed");
       return;
     }
     const sale = data as unknown as QuickSale;
@@ -586,6 +588,7 @@ export default function QuickSaleModule({
       description: `Quick sale ${inr(total)} (${itemCount} item${itemCount === 1 ? "" : "s"})`,
       details: { sale_number: (data as any)?.sale_number ?? null, amount: Number(total.toFixed(2)) },
     });
+    showToast("success", `Quick sale recorded: ${inr(total)} (${sale.sale_number || "Completed"})`);
     refresh();
 
     // WhatsApp Automation check
@@ -642,6 +645,7 @@ export default function QuickSaleModule({
       entity_id: s.id,
       description: `Quick sale cancelled: ${s.sale_number} (${inr(s.amount)})`,
     });
+    showToast("info", `Quick sale ${s.sale_number} cancelled & reversed.`);
     refresh();
   }
 
