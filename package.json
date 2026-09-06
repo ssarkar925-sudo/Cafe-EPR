@@ -1,7 +1,7 @@
 {
   "name": "sccomm-web",
   "version": "0.1.0",
-  "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "start": "next start",
+    "electron:dev": "electron electron/main.js",
+    "dist:win": "electron-builder --win",
     "test": "node scripts/test-financial-invariants.mjs",
     "test:invariants": "node scripts/test-financial-invariants.mjs",
     "test:ai-browser": "node scripts/test-ai-browser-safety.mjs",
@@ -44,9 +46,47 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.sarkarcommunication.cafeerp",
+    "productName": "CafeERP",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/app-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CafeERP"
+    }
   }
 }

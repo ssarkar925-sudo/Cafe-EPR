@@ -308,6 +308,7 @@ export default function SettlementsClient({
       details: payload,
     });
     setShowForm(false);
+    setFormPreset(null);
     showToast("success", `Settlement ${(data as any)?.settlement_number} recorded`);
     await refresh();
     router.refresh();
@@ -328,8 +329,6 @@ export default function SettlementsClient({
       setReason("");
       return;
     }
-
-    await supabase.from("cash_entries").delete().eq("ref_type", "settlement").eq("ref_id", reverseTarget.id);
 
     logAudit({
       action: "reverse",
@@ -355,7 +354,7 @@ export default function SettlementsClient({
         POOL_LABEL[r.from_pool],
         POOL_LABEL[r.to_pool],
         `"${(r.reference ?? "").replace(/"/g, '""')}"`,
-        Number(r.amount).toFixed(2),
+        Number(String(r.amount ?? 0).replace(/,/g, "")).toFixed(2),
         r.status,
       ].join(",");
     });
@@ -587,7 +586,10 @@ export default function SettlementsClient({
               Export CSV
             </button>
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => {
+                setFormPreset(null);
+                setShowForm(true);
+              }}
               className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
             >
               <Icon d={ICONS.plus} className="h-4 w-4" />

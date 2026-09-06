@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 const path = "components/business/dmt-workspace.tsx";
-let source = fs.readFileSync(path, "utf8");
+let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
 const validation = /  \/\/ (?:Strict Form Validation Guard|Form Validation Guard: beneficiary bank\/account\/IFSC\/UPI are optional)[\s\S]*?\n  \/\/ Current Active Lifecycle Step/;
 const replacement = `  // Form Validation Guard: beneficiary bank/account/IFSC/UPI are optional.
@@ -31,8 +31,9 @@ const replacement = `  // Form Validation Guard: beneficiary bank/account/IFSC/U
 
   // Current Active Lifecycle Step`;
 
-if (!validation.test(source)) throw new Error("DMT validation block not found");
-source = source.replace(validation, replacement);
+if (validation.test(source)) {
+  source = source.replace(validation, replacement);
+}
 
 const step = /  const currentStep = useMemo\(\(\) => \{[\s\S]*?\n  \}, \[selectedCustomerId, senderName, senderMobile, transferMethod, beneficiaryAccount, beneficiaryBank, beneficiaryIfsc, upiId, numAmount\]\);/;
 const stepReplacement = `  const currentStep = useMemo(() => {
@@ -40,8 +41,9 @@ const stepReplacement = `  const currentStep = useMemo(() => {
     if (numAmount <= 0) return 4;
     return 5;
   }, [selectedCustomerId, senderName, senderMobile, numAmount]);`;
-if (!step.test(source)) throw new Error("DMT currentStep block not found");
-source = source.replace(step, stepReplacement);
+if (step.test(source)) {
+  source = source.replace(step, stepReplacement);
+}
 
 const exactReplacements = [
   ["Beneficiary Bank <span className=\"text-rose-500\">*</span>", "Beneficiary Bank"],

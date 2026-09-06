@@ -2,8 +2,9 @@ import fs from "node:fs";
 
 function patch(file, transform, label) {
   const before = fs.readFileSync(file, "utf8");
-  const after = transform(before);
-  if (after !== before) fs.writeFileSync(file, after);
+  const normalized = before.replace(/\r\n/g, "\n");
+  const after = transform(normalized);
+  if (after !== normalized) fs.writeFileSync(file, after);
   else console.log(`${label}: already applied`);
 }
 

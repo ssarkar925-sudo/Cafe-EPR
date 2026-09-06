@@ -54,3 +54,6 @@ android/.gradle/
 android/build/
 android/app/build/
 android/captures/
+
+# Electron build outputs
+dist-electron/

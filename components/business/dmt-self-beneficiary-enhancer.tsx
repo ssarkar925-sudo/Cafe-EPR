@@ -136,7 +136,7 @@ export default function DmtSelfBeneficiaryEnhancer() {
 
     apply();
     const observer = new MutationObserver(apply);
-    observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+    observer.observe(document.body, { subtree: true, childList: true });
 
     return () => {
       disposed = true;

@@ -465,7 +465,7 @@ export default function DayCloseClient({
               {totals && (
                 <tfoot>
                   <tr className="border-t border-slate-100 bg-slate-50 text-sm font-semibold text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
-                    <td className="px-4 py-2.5">Total</td>
+                    <td className="px-4 py-2.5">Actual Funds Total</td>
                     <td className="px-3 py-2.5 text-right">{inr(totals.opening)}</td>
                     <td className="px-3 py-2.5 text-right">{inr(totals.computed - totals.opening)}</td>
                     <td className="px-3 py-2.5 text-right">{inr(totals.computed)}</td>
@@ -708,7 +708,7 @@ export default function DayCloseClient({
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Next Day Opening Position
+                    Next Day Opening Funds
                   </span>
                   <div className="icon-box-3d flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xs">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -721,7 +721,7 @@ export default function DayCloseClient({
                 </div>
               </div>
               <div className="mt-2 text-xs font-medium text-slate-400">
-                Closing balances roll into tomorrow auto
+                Liquid closing balances roll into tomorrow auto
               </div>
             </Link>
           </div>

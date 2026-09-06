@@ -424,26 +424,16 @@ export default function DmtWorkspace({
       .slice(0, 6);
   }, [transactions]);
 
-  // Strict Form Validation Guard
+  // Form Validation Guard: beneficiary bank/account/IFSC/UPI are optional.
+  // Amount, reference and settlement routing remain required.
   const isFormValid = useMemo(() => {
     if (numAmount <= 0) return false;
     if (numCharge < 0 || numFee < 0 || numComm < 0) return false;
     if (!reference.trim() || reference.trim().length < 6) return false;
-
-    if (transferMethod === "bank_account") {
-      if (!beneficiaryAccount.trim() || beneficiaryAccount.trim().length < 4) return false;
-      if (!beneficiaryIfsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase()))
-        return false;
-      if (!beneficiaryBank.trim()) return false;
-    } else {
-      if (!upiId.trim() || !upiId.includes("@")) return false;
-    }
-
     if (senderMobile.trim() && senderMobile.trim().replace(/\D/g, "").length !== 10) return false;
     if (paidFrom === "portal" && !selectedPortalId) return false;
     if (paidFrom === "bank" && !selectedBankInstrumentId) return false;
     if (customerPayMethod === "due" && !selectedCustomerId) return false;
-
     return true;
   }, [
     numAmount,
@@ -451,11 +441,6 @@ export default function DmtWorkspace({
     numFee,
     numComm,
     reference,
-    transferMethod,
-    beneficiaryAccount,
-    beneficiaryIfsc,
-    beneficiaryBank,
-    upiId,
     senderMobile,
     paidFrom,
     selectedPortalId,
@@ -467,15 +452,9 @@ export default function DmtWorkspace({
   // Current Active Lifecycle Step (1-5)
   const currentStep = useMemo(() => {
     if (!selectedCustomerId && !senderName.trim() && !senderMobile.trim()) return 1;
-    if (transferMethod === "bank_account") {
-      if (!beneficiaryAccount.trim() || !beneficiaryBank.trim()) return 2;
-      if (!beneficiaryIfsc.trim()) return 3;
-    } else {
-      if (!upiId.trim()) return 2;
-    }
     if (numAmount <= 0) return 4;
     return 5;
-  }, [selectedCustomerId, senderName, senderMobile, transferMethod, beneficiaryAccount, beneficiaryBank, beneficiaryIfsc, upiId, numAmount]);
+  }, [selectedCustomerId, senderName, senderMobile, numAmount]);
 
   // Reset to clean form for New Transfer
   const handleNewTransfer = useCallback(() => {
@@ -1673,7 +1652,7 @@ export default function DmtWorkspace({
                   <div className="space-y-1 sm:col-span-2">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        Beneficiary Bank <span className="text-rose-500">*</span>
+                        Beneficiary Bank
                       </label>
                       <button
                         type="button"
@@ -1696,7 +1675,7 @@ export default function DmtWorkspace({
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Account Number <span className="text-rose-500">*</span>
+                      Account Number
                     </label>
                     <input
                       type="text"
@@ -1710,7 +1689,7 @@ export default function DmtWorkspace({
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Bank IFSC Code <span className="text-rose-500">*</span>
+                      Bank IFSC Code
                     </label>
                     <input
                       type="text"
@@ -1731,7 +1710,7 @@ export default function DmtWorkspace({
                 <>
                   <div className="space-y-1 sm:col-span-2">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Beneficiary UPI ID (VPA) <span className="text-rose-500">*</span>
+                      Beneficiary UPI ID (VPA)
                     </label>
                     <input
                       type="text"
@@ -2834,7 +2813,7 @@ export default function DmtWorkspace({
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Account Number <span className="text-rose-500">*</span>
+                    Account Number
                   </label>
                   <input
                     type="text"

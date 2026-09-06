@@ -1,7 +1,11 @@
 export function inr(n: number | string) {
+  const raw = typeof n === "string" ? n.replace(/,/g, "").trim() : n;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "₹0.00";
+
   return (
     "₹" +
-    Number(n).toLocaleString("en-IN", {
+    value.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })

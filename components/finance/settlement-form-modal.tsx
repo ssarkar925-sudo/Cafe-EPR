@@ -134,6 +134,17 @@ export default function SettlementFormModal({
     setError("");
   }, [type]);
 
+  // Sync parent-provided presets with the persistent modal instance.
+  useEffect(() => {
+    if (!open) return;
+    setType(initialType ?? "aeps_to_bank");
+    setAmount(
+      initialAmount !== undefined && initialAmount !== null && initialAmount !== ""
+        ? String(initialAmount)
+        : ""
+    );
+  }, [open, initialType, initialAmount]);
+
   const selected = SETTLEMENT_TYPES.find((t) => t.value === type)!;
   const isAdjustment = type === "cash_adjustment";
 
@@ -208,6 +219,40 @@ export default function SettlementFormModal({
 
     async function fetchLiveBalance() {
       try {
+        const selectedInstrument = (() => {
+          if (type === "aeps_to_bank") {
+            const p = loadedPortals.find((item) => item.id === sourceId || item.payment_instrument_id === sourceId);
+            const name = (p?.name ?? "").trim().toLowerCase();
+            return loadedAccounts.find((i: any) =>
+              i.id === sourceId ||
+              i.id === p?.payment_instrument_id ||
+              ((i.type === "aeps_portal" || i.type === "aeps") &&
+                (i.name ?? "").trim().toLowerCase() === name)
+            );
+          }
+          if (isSourceUpiQr) {
+            const q = merchantQrs.find((item) => item.id === sourceId || (item as any).payment_instrument_id === sourceId);
+            const name = (q?.display_name ?? "").trim().toLowerCase();
+            return loadedAccounts.find((i: any) =>
+              i.id === sourceId ||
+              i.id === (q as any)?.payment_instrument_id ||
+              ((i.type === "upi_qr" || i.type === "upi") &&
+                (i.name ?? "").trim().toLowerCase() === name)
+            );
+          }
+          if (isSourceBank || isSourceWallet) return loadedAccounts.find((i) => i.id === sourceId);
+          if (type === "add_cash_to_bank" || type === "cash_adjustment") {
+            return loadedAccounts.find((i) => i.type === "cash" && i.is_active !== false);
+          }
+          return null;
+        })();
+
+        const canonicalBalance = Number((selectedInstrument as any)?.current_balance);
+        if (Number.isFinite(canonicalBalance)) {
+          setAvailableBalance(Math.max(0, Math.round(canonicalBalance * 100) / 100));
+          return;
+        }
+
         if (type === "aeps_to_bank") {
           const portalObj = loadedPortals.find((p) => p.id === sourceId || p.payment_instrument_id === sourceId);
           const portalName = (portalObj?.name ?? "").toLowerCase();
