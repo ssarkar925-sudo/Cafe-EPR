@@ -587,7 +587,7 @@ export default function AepsWorkspace({
       const effectiveFeeSource = feeTreatment === "deduct" ? "cut_from_withdrawal" : "customer_paid_extra";
       const effectivePayMethod = feeTreatment === "separate" ? customerPayMethod : "cash";
 
-      const res = await supabase.rpc("create_business_txn", {
+      const rpcPayload: Record<string, any> = {
         p_service_type: "aeps",
         p_transaction_date: dateStr,
         p_transaction_timestamp: nowIso,
@@ -615,8 +615,18 @@ export default function AepsWorkspace({
         p_fee_source: effectiveFeeSource,
         p_paid_from: "portal",
         p_customer_pay_method: effectivePayMethod,
+        p_pay_from_instrument_id: null,
+        p_pay_from_method: "portal",
         p_receiver_name: null,
-      });
+        p_portal_charge: 0,
+      };
+
+      let res = await supabase.rpc("create_business_txn", rpcPayload);
+      if (res.error && (res.error.message?.includes("p_portal_charge") || res.error.message?.includes("schema cache"))) {
+        const fallback = { ...rpcPayload };
+        delete fallback.p_portal_charge;
+        res = await supabase.rpc("create_business_txn", fallback);
+      }
 
       if (res.error) throw res.error;
 

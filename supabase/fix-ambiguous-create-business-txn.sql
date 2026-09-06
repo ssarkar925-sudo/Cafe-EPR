@@ -1,0 +1,35 @@
+-- Fix: Drop the obsolete 30-parameter create_business_txn overload
+-- This permanently resolves the "Could not choose the best candidate function" error in Supabase.
+
+DROP FUNCTION IF EXISTS public.create_business_txn(
+  p_service_type text,
+  p_transaction_date date,
+  p_transaction_timestamp timestamp with time zone,
+  p_customer_id uuid,
+  p_customer_mobile text,
+  p_reference text,
+  p_remarks text,
+  p_status text,
+  p_bank_id uuid,
+  p_portal_id uuid,
+  p_merchant_qr_id uuid,
+  p_aadhaar_last4 text,
+  p_transfer_method text,
+  p_sender_name text,
+  p_sender_mobile text,
+  p_beneficiary_name text,
+  p_beneficiary_mobile text,
+  p_beneficiary_bank text,
+  p_beneficiary_ifsc text,
+  p_beneficiary_account text,
+  p_upi_id text,
+  p_amount numeric,
+  p_service_fee numeric,
+  p_portal_commission numeric,
+  p_fee_source text,
+  p_paid_from text,
+  p_customer_pay_method text,
+  p_pay_from_instrument_id uuid,
+  p_pay_from_method text,
+  p_receiver_name text
+);

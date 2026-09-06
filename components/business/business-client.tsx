@@ -602,8 +602,14 @@ export default function BusinessClient({
         p_customer_pay_method: payload.p_customer_pay_method || null,
         p_pay_from_instrument_id: (payload.p_pay_from_instrument_id as string) || (payload.payment_account_id as string) || (payload.p_bank_id as string) || null,
         p_pay_from_method: (payload.p_pay_from_method as string) || ((payload.p_paid_from as string) === "portal" ? "dmt" : "bank"),
+        p_portal_charge: (payload.p_portal_charge as number) || 0,
       };
-      const res = await supabase.rpc("create_business_txn", rpcPayload);
+      let res = await supabase.rpc("create_business_txn", rpcPayload);
+      if (res.error && (res.error.message?.includes("p_portal_charge") || res.error.message?.includes("schema cache"))) {
+        const fallback: Record<string, any> = { ...rpcPayload };
+        delete fallback.p_portal_charge;
+        res = await supabase.rpc("create_business_txn", fallback);
+      }
       data = res.data;
       error = res.error;
     }

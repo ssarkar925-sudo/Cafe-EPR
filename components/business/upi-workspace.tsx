@@ -259,9 +259,17 @@ export default function UpiWorkspace({
         p_fee_source: formFeeSource,
         p_paid_from: null,
         p_customer_pay_method: "cash",
+        p_pay_from_instrument_id: null,
+        p_pay_from_method: null,
+        p_portal_charge: 0,
       };
 
-      const res = await supabase.rpc("create_business_txn", rpcPayload);
+      let res = await supabase.rpc("create_business_txn", rpcPayload);
+      if (res.error && (res.error.message?.includes("p_portal_charge") || res.error.message?.includes("schema cache"))) {
+        const fallback: Record<string, any> = { ...rpcPayload };
+        delete fallback.p_portal_charge;
+        res = await supabase.rpc("create_business_txn", fallback);
+      }
       if (res.error) {
         showToast("error", res.error.message);
         return;
