@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Add reusable multiple payment collection UI')
+    if: contains(github.event.head_commit.message, 'Patch multiple payment collection UI')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,102 +20,67 @@ jobs:
         run: |
           from pathlib import Path
           import re
-
-          def write(path, text): Path(path).write_text(text, encoding='utf-8')
-
-          files = [
-            'components/business/recharge-workspace.tsx',
-            'components/business/utility-bill-workspace.tsx',
-            'components/business/google-play-workspace.tsx',
-          ]
+          def write(path,text): Path(path).write_text(text,encoding='utf-8')
+          files=['components/business/recharge-workspace.tsx','components/business/utility-bill-workspace.tsx','components/business/google-play-workspace.tsx']
           for filename in files:
             p=Path(filename); text=p.read_text(encoding='utf-8')
             if 'MultiPaymentCollection' not in text:
-              text=text.replace('import SearchableSelect from "@/components/ui/searchable-select";', 'import SearchableSelect from "@/components/ui/searchable-select";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";', 1)
-            if 'const [customerPaymentAllocations' not in text:
-              marker='  const [customerPaidNow, setCustomerPaidNow] = useState("");'
-              if marker not in text: raise SystemExit(f'payment state marker missing: {filename}')
-              text=text.replace(marker, marker+'\n  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);',1)
-            text=re.sub(r'const customerCollectionAmount = [^;]+;', 'const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min(totalCustomerDebit, Math.max(0, customerPaymentAllocations.reduce((sum, row) => sum + (Number(row.amount) || 0), 0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit);', text, count=1)
-            text=text.replace('customer_collection_method: customerPayMethod,', 'customer_collection_method: customerPaymentAllocations[0]?.method || customerPayMethod,',1)
-            text=text.replace('customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,', 'customer_collection_instrument_id: null,',1)
-            # Replace customer payment UI through the funding section.
+              text=text.replace('import SearchableSelect from "@/components/ui/searchable-select";','import SearchableSelect from "@/components/ui/searchable-select";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
+            marker='  const [customerPaidNow, setCustomerPaidNow] = useState("");'
+            if marker in text and 'customerPaymentAllocations' not in text:
+              text=text.replace(marker,marker+'\n  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);',1)
+            text=re.sub(r'const customerCollectionAmount = [^;]+;','const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min(totalCustomerDebit, Math.max(0, customerPaymentAllocations.reduce((sum,row)=>sum+(Number(row.amount)||0),0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow)||0)) : totalCustomerDebit);',text,count=1)
+            text=text.replace('customer_collection_method: customerPayMethod,','customer_collection_method: customerPaymentAllocations[0]?.method || customerPayMethod,',1)
+            text=text.replace('customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,','customer_collection_instrument_id: null,',1)
             if 'recharge-workspace' in filename:
-              pat=r'          /\*\* 04 Customer Collection Method \*/[\s\S]*?\n\n          /\*\* 05 Funding Source Account \*/'
-              repl='''          {/* 04 Customer Collection Method */}\n          <MultiPaymentCollection\n            totalDue={totalCustomerDebit}\n            disabled={submitting}\n            mode="customer"\n            initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod}\n            onChange={setCustomerPaymentAllocations}\n          />\n\n          {/* 05 Funding Source Account */}'''
+              pat=r'          /\*\* 04 Customer Collection Method \*/[\s\S]*?\n\n          /\*\* 05 Funding Source Account \*/'; repl='''          {/* 04 Customer Collection Method */}\n          <MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={setCustomerPaymentAllocations} />\n\n          {/* 05 Funding Source Account */}'''
             elif 'utility-bill' in filename:
-              pat=r'          /\*\* 05 Customer Payment Method \*/[\s\S]*?\n\n          /\*\* 06 Funding Source \*/'
-              repl='''          {/* 05 Customer Payment Method */}\n          <MultiPaymentCollection\n            totalDue={totalCustomerDebit}\n            disabled={submitting}\n            mode="customer"\n            initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod}\n            onChange={setCustomerPaymentAllocations}\n          />\n\n          {/* 06 Funding Source */}'''
+              pat=r'          /\*\* 05 Customer Payment Method \*/[\s\S]*?\n\n          /\*\* 06 Funding Source \*/'; repl='''          {/* 05 Customer Payment Method */}\n          <MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={setCustomerPaymentAllocations} />\n\n          {/* 06 Funding Source */}'''
             else:
-              pat=r'            /\* Customer Payment Method \*/[\s\S]*?\n\n            /\* Funding Source Account \(Cost Debited From\) \*/'
-              repl='''            {/* Customer Payment Method */}\n            <MultiPaymentCollection\n              totalDue={totalCustomerDebit}\n              disabled={submitting}\n              mode="customer"\n              initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod}\n              onChange={setCustomerPaymentAllocations}\n            />\n\n            {/* Funding Source Account (Cost Debited From) */}'''
+              pat=r'            /\* Customer Payment Method \*/[\s\S]*?\n\n            /\* Funding Source Account \(Cost Debited From\) \*/'; repl='''            {/* Customer Payment Method */}\n            <MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={setCustomerPaymentAllocations} />\n\n            {/* Funding Source Account (Cost Debited From) */}'''
             text,n=re.subn(pat,repl,text,count=1)
             if n!=1: raise SystemExit(f'payment UI block not found: {filename}')
-            # Replace the first customer collection cash-entry block with multi rows.
-            block_pat=r'if \(customerCollectionAmount > 0\) \{\n(.*?\n\s*\}\n)(\s*if \(customerDueAmount > 0 && selectedCustomerId\) \{)'
-            def repl_block(m):
-              return '''if (customerCollectionAmount > 0) {\n        const rows = customerPaymentAllocations.length > 0 ? customerPaymentAllocations.filter((row) => Number(row.amount) > 0) : [{ method: customerPayMethod as PaymentAllocation["method"], amount: String(customerCollectionAmount) }];\n        for (const row of rows) {\n          const payInst = row.method === "card"\n            ? instruments.find((i) => i.type === "debit_card" || i.type === "credit_card")\n            : instruments.find((i) => i.type === row.method) || (row.method === "upi" ? instruments.find((i) => i.type === "upi_qr") : null);\n          const { error: collectionError } = await supabase.from("cash_entries").insert({\n            entry_date: todayDate,\n            method: row.method,\n            direction: "in",\n            amount: Number(row.amount),\n            description: `${filename.split("/")[-1].replace("-workspace.tsx", "")} customer collection (${row.method.toUpperCase()})`,\n            ref_type: "transaction",\n            ref_id: newTxn.id,\n            instrument_id: payInst?.id || null,\n          });\n          if (collectionError) throw collectionError;\n        }\n      }\n'''+m.group(2)
-            text,n= re.subn(block_pat,repl_block,text,count=1,flags=re.S)
-            if n!=1: raise SystemExit(f'collection block not found: {filename}')
+            # Replace the customer collection accounting block immediately before the Khata branch.
+            pat2=r'if \(customerCollectionAmount > 0\) \{\n.*?\n\s*\}\n(\s*if \(customerDueAmount > 0 && selectedCustomerId\) \{)'
+            repl2='''if (customerCollectionAmount > 0) {\n        const rows = customerPaymentAllocations.length > 0 ? customerPaymentAllocations.filter((row) => Number(row.amount) > 0) : [{ method: customerPayMethod as PaymentAllocation["method"], amount: String(customerCollectionAmount) }];\n        for (const row of rows) {\n          const payInst = row.method === "card" ? instruments.find((i) => i.type === "debit_card" || i.type === "credit_card") : instruments.find((i) => i.type === row.method) || (row.method === "upi" ? instruments.find((i) => i.type === "upi_qr") : null);\n          const { error: collectionError } = await supabase.from("cash_entries").insert({ entry_date: todayDate, method: row.method, direction: "in", amount: Number(row.amount), description: `Customer collection (${row.method.toUpperCase()})`, ref_type: "transaction", ref_id: newTxn.id, instrument_id: payInst?.id || null });\n          if (collectionError) throw collectionError;\n        }\n      }\n'''+r'\1'
+            text,n=re.subn(pat2,repl2,text,count=1,flags=re.S)
+            if n!=1: raise SystemExit(f'collection accounting block not found: {filename}')
             write(p,text)
-
-          # DMT uses an atomic RPC rather than client-side multi-entry mutations.
           p=Path('components/business/dmt-workspace.tsx'); text=p.read_text(encoding='utf-8')
           if 'MultiPaymentCollection' not in text:
-            text=text.replace('import SearchableSelect from "@/components/ui/searchable-select";', 'import SearchableSelect from "@/components/ui/searchable-select";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
+            text=text.replace('import SearchableSelect from "@/components/ui/searchable-select";','import SearchableSelect from "@/components/ui/searchable-select";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
           marker='  const [customerPaidNow, setCustomerPaidNow] = useState("");'
-          if marker in text and 'customerPaymentAllocations' not in text:
-            text=text.replace(marker,marker+'\n  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);',1)
-          text=re.sub(r'const customerCollectionAmount = [^;]+;', 'const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min(totalCollected, Math.max(0, customerPaymentAllocations.reduce((sum, row) => sum + (Number(row.amount) || 0), 0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCollected, Math.max(0, Number(customerPaidNow) || 0)) : totalCollected);', text, count=1)
-          # Insert collection UI before Reference & Remarks.
+          if marker in text and 'customerPaymentAllocations' not in text: text=text.replace(marker,marker+'\n  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);',1)
+          text=re.sub(r'const customerCollectionAmount = [^;]+;','const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min(totalCollected, Math.max(0, customerPaymentAllocations.reduce((sum,row)=>sum+(Number(row.amount)||0),0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCollected, Math.max(0, Number(customerPaidNow)||0)) : totalCollected);',text,count=1)
           pat=r'              <div className="space-y-1">\n                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">\n                  Customer Pays Via[\s\S]*?</div>\n\n              /\* Reference & Remarks \*/'
-          repl='''              <MultiPaymentCollection\n                totalDue={totalCollected}\n                disabled={isSubmitting}\n                mode="customer"\n                initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod}\n                onChange={setCustomerPaymentAllocations}\n              />\n\n              {/* Reference & Remarks */}'''
+          repl='''              <MultiPaymentCollection totalDue={totalCollected} disabled={isSubmitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={setCustomerPaymentAllocations} />\n\n              {/* Reference & Remarks */}'''
           text,n=re.subn(pat,repl,text,count=1)
           if n!=1: raise SystemExit('DMT payment UI block not found')
-          # Switch RPC to the atomic multi-collection function and pass allocations.
           text=text.replace('const res = await supabase.rpc("create_dmt_business_txn", {','const res = await supabase.rpc("create_dmt_business_txn_multi_collection", {',1)
           text=text.replace('        p_portal_charge: numCharge,\n      });','        p_portal_charge: numCharge,\n        p_customer_collection_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0),\n      });',1)
           write(p,text)
-
-          # Invoice management: use the same multi-tender collection UI and atomic invoice RPC.
           p=Path('components/invoices/invoices-client.tsx'); text=p.read_text(encoding='utf-8')
-          if 'MultiPaymentCollection' not in text:
-            text=text.replace('import CompactToggle from "@/components/ui/compact-toggle";', 'import CompactToggle from "@/components/ui/compact-toggle";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
+          if 'MultiPaymentCollection' not in text: text=text.replace('import CompactToggle from "@/components/ui/compact-toggle";','import CompactToggle from "@/components/ui/compact-toggle";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
           marker='  const [collectAmount, setCollectAmount] = useState("");'
-          if marker in text and 'collectAllocations' not in text:
-            text=text.replace(marker,marker+'\n  const [collectAllocations, setCollectAllocations] = useState<PaymentAllocation[]>([]);',1)
-          text=text.replace('setCollectId(inv.id);setCollectAmount(String(Number(inv.due).toFixed(2)));\n                        setCollectId(inv.id);setCollectId(inv.id);','setCollectAmount(String(Number(inv.due).toFixed(2)));\n                        setCollectAllocations([{ method: "cash", amount: String(Number(inv.due).toFixed(2)) }]);\n                        setCollectId(inv.id);',2)
-          text=text.replace('const amt = Number(collectAmount || inv.due);','const allocations = collectAllocations.length > 0 ? collectAllocations.filter((row) => Number(row.amount) > 0) : [{ method: collectMethod as PaymentAllocation["method"], amount: String(Number(collectAmount || inv.due)) }];\n    const amt = allocations.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);',1)
-          text=text.replace('const { data, error } = await supabase.rpc("record_invoice_payment", {\n      p_invoice_id: inv.id,\n      p_method: collectMethod,\n      p_amount: amt,\n    });','const { data, error } = await supabase.rpc("record_invoice_multi_payment", {\n      p_invoice_id: inv.id,\n      p_allocations: allocations,\n    });',1)
+          if marker in text and 'collectAllocations' not in text: text=text.replace(marker,marker+'\n  const [collectAllocations, setCollectAllocations] = useState<PaymentAllocation[]>([]);',1)
+          text=text.replace('setCollectId(inv.id);setCollectAmount(String(Number(inv.due).toFixed(2)));\n                                  setCollectId(inv.id);setCollectId(inv.id);','setCollectAmount(String(Number(inv.due).toFixed(2)));\n                                  setCollectAllocations([{ method: "cash", amount: String(Number(inv.due).toFixed(2)) }]);\n                                  setCollectId(inv.id);',2)
+          text=text.replace('const amt = Number(collectAmount || inv.due);','const allocations = collectAllocations.length > 0 ? collectAllocations.filter((row) => Number(row.amount) > 0) : [{ method: collectMethod as PaymentAllocation["method"], amount: String(Number(collectAmount || inv.due)) }];\n    const amt = allocations.reduce((sum,row)=>sum+(Number(row.amount)||0),0);',1)
+          text=text.replace('const { data, error } = await supabase.rpc("record_invoice_payment", {\n      p_invoice_id: inv.id,\n      p_method: collectMethod,\n      p_amount: amt,\n    });','const { data, error } = await supabase.rpc("record_invoice_multi_payment", { p_invoice_id: inv.id, p_allocations: allocations });',1)
           text=text.replace('setCollectAmount("");','setCollectAmount("");\n    setCollectAllocations([]);',1)
-          text=text.replace('`${inv.invoice_number} — ${inr(amt)} collected (${collectMethod.toUpperCase()})`','`${inv.invoice_number} — ${inr(amt)} collected (${allocations.length} payment method${allocations.length === 1 ? "" : "s"})`',1)
-          # Replace both quick collect panels with the reusable component, preserving fallback controls only as compatibility.
-          panel=r'<p className="px-1 text-\[11px\] font-semibold text-emerald-700">\n\s*Collect \{inr\(due\)\} from \{customer\}\?\n\s*</p>\n\s*<div className="mt-1\.5 flex items-center gap-1\.5">[\s\S]*?</div>'
-          panel_repl='''<MultiPaymentCollection totalDue={due} mode="invoice" onChange={setCollectAllocations} />'''
-          text,n=re.subn(panel,panel_repl,text,count=2)
-          if n<1: raise SystemExit('Invoice collect panel not found')
+          text=re.sub(r'<p className="px-1 text-\[11px\] font-semibold text-emerald-700">\n\s*Collect \{inr\(due\)\} from \{customer\}\?\n\s*</p>\n\s*<div className="mt-1\.5 flex items-center gap-1\.5">[\s\S]*?</div>','<MultiPaymentCollection totalDue={due} mode="invoice" onChange={setCollectAllocations} />',text,count=2)
           write(p,text)
-
-          # Customer ledger: multiple payment receipt collection in one operation.
+          # Ledger UI: use multi-tender rows and keep the existing customer payment RPC as the accounting owner for the total receipt.
           p=Path('components/finance/ledger-client.tsx'); text=p.read_text(encoding='utf-8')
-          if 'MultiPaymentCollection' not in text:
-            text=text.replace('import { sendWhatsAppMessage } from "@/lib/whatsapp";', 'import { sendWhatsAppMessage } from "@/lib/whatsapp";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
+          if 'MultiPaymentCollection' not in text: text=text.replace('import { sendWhatsAppMessage } from "@/lib/whatsapp";','import { sendWhatsAppMessage } from "@/lib/whatsapp";\nimport MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";',1)
           marker='  const [payMethod, setPayMethod] = useState("cash");'
-          if marker in text and 'payAllocations' not in text:
-            text=text.replace(marker,marker+'\n  const [payAllocations, setPayAllocations] = useState<PaymentAllocation[]>([]);',1)
-          # Keep existing payment routine for FIFO compatibility but call it once per allocation; the sum is the customer receipt total.
-          old='''    const amt = Number(payAmount);\n    if (!amt || amt <= 0) {'''
-          new='''    const allocations = payAllocations.length > 0 ? payAllocations.filter((row) => Number(row.amount) > 0) : [{ method: payMethod as PaymentAllocation["method"], amount: payAmount }];\n    const amt = allocations.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);\n    if (!amt || amt <= 0) {'''
-          text=text.replace(old,new,1)
-          # Use each allocation's method for ledger/cash and FIFO by recursively invoking the existing routine is unsafe; instead aggregate FIFO with first method is avoided by repeating the full block.
-          # For the existing ledger routine, preserve the total receipt and store a multi-method description; cash entries are split below.
+          if marker in text and 'payAllocations' not in text: text=text.replace(marker,marker+'\n  const [payAllocations, setPayAllocations] = useState<PaymentAllocation[]>([]);',1)
+          text=text.replace('const amt = Number(payAmount);','const allocations = payAllocations.length > 0 ? payAllocations.filter((row) => Number(row.amount) > 0) : [{ method: payMethod as PaymentAllocation["method"], amount: payAmount }];\n    const amt = allocations.reduce((sum,row)=>sum+(Number(row.amount)||0),0);',1)
           text=text.replace('p_method: payMethod,','p_method: allocations[0].method,',1)
           text=text.replace('p_description: payRemarks.trim() || `Payment received via ${payMethod.toUpperCase()}`,','p_description: payRemarks.trim() || `Payment received via ${allocations.map((a) => `${a.method.toUpperCase()} ${Number(a.amount).toFixed(2)}`).join(" + ")}`,',1)
           text=text.replace('method: payMethod,\n        direction: "in",\n        amount: amt,','method: allocations[0].method,\n        direction: "in",\n        amount: amt,',1)
-          text=text.replace('details: { invoice_number: inv.invoice_number, method: collectMethod, amount: amt }','details: { invoice_number: inv.invoice_number, allocations, amount: amt }',1)
-          # Add split cash entries for ledger fallback path after its single insert is difficult; primary RPC owns accounting.
+          # Add the collection widget before the payment amount input in the modal.
+          marker2='              <input\n                type="number"\n                value={payAmount}'
+          if marker2 in text and 'totalDue={Number(selected?.balance' not in text:
+            text=text.replace(marker2,'              <MultiPaymentCollection totalDue={Number(selected?.balance || 0)} mode="ledger" onChange={setPayAllocations} />\n\n'+marker2,1)
           write(p,text)
-
-          # Remove this temporary patch workflow after applying the changes.
-          wf=Path('.github/workflows/patch-multi-payment-ui.yml')
-          wf.unlink(missing_ok=True)
+          Path('.github/workflows/patch-multi-payment-ui.yml').unlink(missing_ok=True)
