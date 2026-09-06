@@ -90,54 +90,25 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
           <div className="text-xs font-black text-slate-800 dark:text-slate-100">Partial + Multiple Payment Collection</div>
           <div className="text-[10px] text-slate-500 dark:text-slate-400">Collect one receipt using Cash, UPI, Bank, Wallet and/or Card. Any remainder becomes Khata Due.</div>
         </div>
-        <button
-          type="button"
-          onClick={addRow}
-          disabled={disabled || collected >= safeTotal - 0.005 || allocations.length >= METHODS.length}
-          className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white disabled:opacity-40"
-        >
+        <button type="button" onClick={addRow} disabled={disabled || collected >= safeTotal - 0.005 || allocations.length >= METHODS.length} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white disabled:opacity-40">
           + Add Payment
         </button>
       </div>
-
       <div className="mt-2 space-y-2">
         {allocations.map((row, index) => (
           <div key={`${index}-${row.method}`} className="grid grid-cols-[1fr_110px_auto] items-center gap-2">
-            <select
-              value={row.method}
-              onChange={(e) => updateRow(index, { method: e.target.value as PaymentAllocation["method"] })}
-              disabled={disabled}
-              className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
-            >
+            <select value={row.method} onChange={(e) => updateRow(index, { method: e.target.value as PaymentAllocation["method"] })} disabled={disabled} className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white">
               {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
-            <input
-              type="number"
-              min="0"
-              max={safeTotal}
-              step="0.01"
-              value={row.amount}
-              onChange={(e) => updateRow(index, { amount: e.target.value })}
-              disabled={disabled}
-              className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-black font-mono text-right outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
-            />
-            <button
-              type="button"
-              onClick={() => removeRow(index)}
-              disabled={disabled || allocations.length <= 1}
-              className="h-8 w-8 rounded-lg border border-rose-200 bg-white text-rose-600 disabled:opacity-30 dark:border-rose-900/40 dark:bg-slate-900"
-              title="Remove payment"
-            >
-              ×
-            </button>
+            <input type="number" min="0" max={safeTotal} step="0.01" value={row.amount} onChange={(e) => updateRow(index, { amount: e.target.value })} disabled={disabled} className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-black font-mono text-right outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white" />
+            <button type="button" onClick={() => removeRow(index)} disabled={disabled || allocations.length <= 1} className="h-8 w-8 rounded-lg border border-rose-200 bg-white text-rose-600 disabled:opacity-30 dark:border-rose-900/40 dark:bg-slate-900" title="Remove payment">×</button>
           </div>
         ))}
       </div>
-
       <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-black">
         <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">Total</span><div>₹{safeTotal.toFixed(2)}</div></div>
         <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">Collected</span><div className="text-emerald-600">₹{collected.toFixed(2)}</div></div>
-        <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">{mode === "customer" ? "Khata Due" : "Remaining"}</span><div className="text-amber-600">₹{remaining.toFixed(2)}</div></div>
+        <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">{mode === "customer" ? "Khata Due" : mode === "invoice" ? "Balance Due" : "Remaining"}</span><div className="text-amber-600">₹{remaining.toFixed(2)}</div></div>
       </div>
     </div>
   );
