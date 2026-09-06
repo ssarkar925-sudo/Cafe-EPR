@@ -16,6 +16,7 @@ import { showToast } from "@/components/ui/use-toast";
 import type { ScanFields } from "@/lib/scan/extract";
 import QuickSaleModule, { type QuickSale } from "./quick-sale";
 import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
+import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import { calculateGstInvoice } from "@/lib/gst";
 import {
   ShoppingBag,
@@ -1261,6 +1262,20 @@ export default function PosClient({
                         className={inputClass}
                       />
                     </div>
+
+                    <MultiPaymentCollection
+                      totalDue={total}
+                      disabled={payDisabled}
+                      mode="invoice"
+                      initialMethod={(payments[0]?.method as PaymentAllocation["method"]) || "cash"}
+                      onChange={(rows) => {
+                        setPayments(rows.map((row) => {
+                          const types = METHOD_ACCOUNT_TYPES[row.method] ?? [row.method];
+                          const inst = types.map((type) => instruments.find((i) => i.type === type)).find(Boolean);
+                          return { instrument_id: inst?.id ?? "", method: row.method, amount: row.amount };
+                        }));
+                      }}
+                    />
 
                     {/* Quick Payment Tender Grid */}
                     <div>

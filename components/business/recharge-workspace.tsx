@@ -8,6 +8,7 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import SearchableSelect from "@/components/ui/searchable-select";
+import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import FloatingWindow from "@/components/ui/floating-window";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
@@ -255,6 +256,7 @@ export default function RechargeWorkspace({
   const [customerPayInstId, setCustomerPayInstId] = useState("");
   const [partialPayment, setPartialPayment] = useState(false);
   const [customerPaidNow, setCustomerPaidNow] = useState("");
+  const [customerPaymentAllocations, setCustomerPaymentAllocations] = useState<PaymentAllocation[]>([]);
   const [fundingInstId, setFundingInstId] = useState("");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -494,7 +496,7 @@ export default function RechargeWorkspace({
   const rechargeAmount = parseFloat(amount) || 0;
   const custFee = parseFloat(serviceFee) || 0;
   const totalCustomerDebit = rechargeAmount + custFee;
-  const customerCollectionAmount = customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit;
+  const customerCollectionAmount = customerPaymentAllocations.length > 0 ? Math.min(totalCustomerDebit, Math.max(0, customerPaymentAllocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0))) : (customerPayMethod === "due" ? 0 : partialPayment ? Math.min(totalCustomerDebit, Math.max(0, Number(customerPaidNow) || 0)) : totalCustomerDebit);
   const customerDueAmount = Math.max(0, Number((totalCustomerDebit - customerCollectionAmount).toFixed(2)));
   const commissionEarned = commissionCalculation.commission;
   const netProviderCost = commissionCalculation.providerCost;
@@ -728,48 +730,8 @@ export default function RechargeWorkspace({
       }
 
       // 4. Customer Collection Accounting Leg
-      if (customerCollectionAmount > 0) {
-        const cashDrawer = instruments.find((i) => i.type === "cash") || instruments[0];
-        const payInst =
-          customerPayMethod === "cash"
-            ? cashDrawer
-            : customerPayMethod === "upi"
-            ? instruments.find((i) => i.type === "upi_qr") || instruments.find((i) => i.type === "bank") || cashDrawer
-            : instruments.find((i) => i.type === "bank") || cashDrawer;
-        await supabase.from("cash_entries").insert({
-          entry_date: todayDate,
-          method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",
-          direction: "in",
-          amount: customerCollectionAmount,
-          description: `Recharge ${nextNum} collection from ${cleanMobile} (${customerPayMethod.toUpperCase()})`,
-          ref_type: "transaction",
-          ref_id: newTxn.id,
-          instrument_id: payInst?.id || null,
-        });
-      }
-      if (customerDueAmount > 0 && selectedCustomerId) {
-        // Khata Due: Debit Customer Ledger
-        const { data: custData } = await supabase
-          .from("customers")
-          .select("balance, name")
-          .eq("id", selectedCustomerId)
-          .single();
-        const prevBal = Number(custData?.balance || 0);
-        const newBal = prevBal + customerDueAmount;
-
-        await supabase.from("customers").update({ balance: newBal }).eq("id", selectedCustomerId);
-        await supabase.from("customer_ledger").insert({
-          customer_id: selectedCustomerId,
-          entry_date: todayDate,
-          type: "recharge",
-          description: `Recharge ${nextNum} for ${cleanMobile} on credit (Khata)`,
-          debit: customerDueAmount,
-          credit: 0,
-          balance_after: newBal,
-          ref_type: "transaction",
-          ref_id: newTxn.id,
-        });
-      }
+      const { error: collectionError } = await supabase.rpc("apply_transaction_customer_payment_split", { p_txn_id: newTxn.id, p_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0) });
+      if (collectionError) throw collectionError;
 
       // 5. Provider Funding Leg (Debited from funding instrument)
       if (netProviderCost > 0 && selectedFundingAccount) {
@@ -1426,6 +1388,8 @@ export default function RechargeWorkspace({
             )}
           </div>
 
+
+<MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />
 
           {/* 05 Funding Source Account */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
