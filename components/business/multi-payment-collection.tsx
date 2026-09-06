@@ -32,7 +32,9 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
   const onChangeRef = useRef(onChange);
   const lastEmittedRef = useRef("");
 
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     const prevTotal = previousTotalRef.current;
