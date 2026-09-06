@@ -495,6 +495,14 @@ export default function BillPaymentHub({
 
           // Insert Corrected Customer Collection Leg
           if (editPayMethod !== "due" && totalCustomerPaid > 0) {
+            const cashDrawer = paymentInstruments.find((i) => i.type === "cash") || paymentInstruments[0];
+            const payInst =
+              editPayMethod === "cash"
+                ? cashDrawer
+                : editPayMethod === "upi"
+                ? paymentInstruments.find((i) => i.type === "upi_qr") || paymentInstruments.find((i) => i.type === "bank") || cashDrawer
+                : paymentInstruments.find((i) => i.type === "bank") || cashDrawer;
+
             await supabase.from("cash_entries").insert({
               entry_date: entryDate,
               method: editPayMethod === "cash" ? "cash" : editPayMethod === "upi" ? "upi" : "bank",
@@ -503,7 +511,7 @@ export default function BillPaymentHub({
               description: `Collection for ${editTxn.transaction_number} (${editPayMethod.toUpperCase()}) [Reconciled]`,
               ref_type: "transaction",
               ref_id: editTxn.id,
-              instrument_id: fundingInst?.id || null,
+              instrument_id: payInst?.id || null,
             });
           }
 
@@ -552,6 +560,7 @@ export default function BillPaymentHub({
       setTransactions((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...updated } : t)));
       setEditTxn(null);
       showToast("success", `✓ Transaction ${editTxn.transaction_number} reconciled and saved successfully.`);
+      router.refresh();
     } catch (err: any) {
       showToast("error", err.message || "Failed to save transaction edits.");
     } finally {

@@ -721,7 +721,13 @@ export default function RechargeWorkspace({
 
       // 4. Customer Collection Accounting Leg
       if (customerPayMethod !== "due" && totalCustomerDebit > 0) {
-        const payInst = instruments.find((i) => i.id === customerPayInstId) || selectedFundingAccount;
+        const cashDrawer = instruments.find((i) => i.type === "cash") || instruments[0];
+        const payInst =
+          customerPayMethod === "cash"
+            ? cashDrawer
+            : customerPayMethod === "upi"
+            ? instruments.find((i) => i.type === "upi_qr") || instruments.find((i) => i.type === "bank") || cashDrawer
+            : instruments.find((i) => i.type === "bank") || cashDrawer;
         await supabase.from("cash_entries").insert({
           entry_date: todayDate,
           method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",

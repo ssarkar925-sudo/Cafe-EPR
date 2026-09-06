@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { inr } from "@/lib/format";
+import { useRealtime } from "@/lib/supabase/realtime";
 
 const POOL_META: Record<string, { label: string; icon: string; color: string; bg: string; border: string; grad: string; glow: string }> = {
   cash: { label: "Cash Drawer", icon: "M2 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm10-3V5H4a2 2 0 0 0-2 2", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50/80 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-800/40", grad: "from-emerald-500 to-teal-600", glow: "card-glow-emerald" },
@@ -80,6 +81,16 @@ export default function FinanceDashboardClient({
   pendingSettlements: any[];
   recentEntries: any[];
 }) {
+  useRealtime([
+    "payment_instruments",
+    "cash_entries",
+    "settlements",
+    "transactions",
+    "expenses",
+    "purchases",
+    "opening_balances",
+  ]);
+
   const pools = useMemo(() => {
     return Object.entries(POOL_META).map(([key, meta]) => {
       const poolData = poolBalances?.[key];

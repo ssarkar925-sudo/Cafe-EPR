@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { calculateAccountBalances, POOL_TYPE_MAP } from "@/lib/finance/account-balances";
+import AccountsRealtimeWatcher from "@/components/finance/accounts-realtime-watcher";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,7 @@ export default async function FinanceAccountsPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+      <AccountsRealtimeWatcher />
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

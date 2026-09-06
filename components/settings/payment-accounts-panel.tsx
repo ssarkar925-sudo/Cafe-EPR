@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
@@ -109,6 +110,7 @@ export default function PaymentAccountsPanel({
   active: boolean;
 }) {
   const supabase = createClient();
+  const router = useRouter();
   const { showToast, toastView } = useToast();
   const [instruments, setInstruments] = useState<InstrumentRow[]>(initialInstruments);
   const [addingInst, setAddingInst] = useState(false);
@@ -124,7 +126,9 @@ export default function PaymentAccountsPanel({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    setInstruments(initialInstruments);
+    if (initialInstruments && initialInstruments.length > 0) {
+      setInstruments(initialInstruments);
+    }
   }, [initialInstruments]);
 
   // Maps instrument type → pool key used by get_pool_balances RPC
@@ -260,10 +264,14 @@ export default function PaymentAccountsPanel({
 
         // 3. Single active account for its type: authoritative pool balance
         if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
+          const effectiveOpening = Number(i.opening_balance ?? 0) || Number(poolEntry.opening ?? 0);
+          const movements = instDeltas[i.id] !== undefined && instDeltas[i.id] !== 0
+            ? instDeltas[i.id]
+            : (poolEntry.movements ?? 0);
           return {
             ...i,
-            balance: poolEntry.current ?? poolEntry.opening + poolEntry.movements,
-            opening_balance: poolEntry.opening,
+            balance: effectiveOpening + movements,
+            opening_balance: effectiveOpening,
           };
         }
 
@@ -482,11 +490,13 @@ export default function PaymentAccountsPanel({
         }
 
         // Generic Accounts (Cash, Bank, AEPS Float, DMT Float, Wallet)
-        const opening = isSingleAccount ? (poolEntry.opening ?? 0) : Number(inst.opening_balance ?? 0);
-        const delta = isSingleAccount ? (poolEntry.movements ?? 0) : (instDeltas[inst.id] ?? 0);
+        const opening = Number(inst.opening_balance ?? 0) || (isSingleAccount ? (poolEntry.opening ?? 0) : 0);
+        const delta = isSingleAccount && (instDeltas[inst.id] === undefined || instDeltas[inst.id] === 0)
+          ? (poolEntry.movements ?? 0)
+          : (instDeltas[inst.id] ?? 0);
         const calculated = opening + delta;
-        const canonical = isSingleAccount ? (poolEntry.current ?? (poolEntry.opening + poolEntry.movements)) : calculated;
-        const variance = calculated - canonical;
+        const canonical = isSingleAccount ? (poolEntry.current ?? calculated) : calculated;
+        const variance = Math.round((calculated - canonical) * 100) / 100;
         const isReconciled = Math.abs(variance) < 0.01;
 
         const txList: any[] = [];
@@ -601,6 +611,8 @@ export default function PaymentAccountsPanel({
       entity_id: row.id,
       description: `${row.name} ${next ? "activated" : "deactivated"}`,
     });
+    refreshLiveBalances();
+    router.refresh();
   }
 
   function openInstCreate() {
@@ -685,9 +697,7 @@ export default function PaymentAccountsPanel({
         type,
         details,
       };
-      if (type === "credit_card") {
-        updatePayload.opening_balance = openingBal;
-      }
+      updatePayload.opening_balance = openingBal;
 
       const { error } = await supabase
         .from("payment_instruments")
@@ -697,6 +707,22 @@ export default function PaymentAccountsPanel({
       if (error) {
         showToast("error", error.message);
         return;
+      }
+
+      // If opening balance changed on an account, synchronize opening_balances table as well
+      if (Number(prev.opening_balance ?? 0) !== openingBal) {
+        const poolKey = POOL_MAP[type] || type;
+        await supabase
+          .from("opening_balances")
+          .update({ amount: openingBal })
+          .eq("instrument_id", prev.id);
+
+        if (instruments.filter((x) => x.type === type && x.is_active).length <= 1) {
+          await supabase
+            .from("opening_balances")
+            .update({ amount: openingBal })
+            .eq("pool", poolKey);
+        }
       }
 
       let updatedList = instruments.map((x) =>
@@ -710,6 +736,7 @@ export default function PaymentAccountsPanel({
             }
           : x
       );
+      updatedList = updatedList.map((x) => (x.id === prev.id ? { ...x, opening_balance: openingBal } : x));
 
       // BANK RENAME CASCADE:
       if (prev.type === "bank" && prev.name !== name) {
@@ -783,6 +810,7 @@ export default function PaymentAccountsPanel({
     }
     setInstModal(null);
     refreshLiveBalances();
+    router.refresh();
   }
 
   async function requestDeleteInstrument(row: InstrumentRow) {
@@ -870,6 +898,7 @@ export default function PaymentAccountsPanel({
 
     setDeleteInst(null);
     refreshLiveBalances();
+    router.refresh();
   }
 
   function instSummary(row: InstrumentRow) {
