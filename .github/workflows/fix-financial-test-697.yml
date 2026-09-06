@@ -17,15 +17,19 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
           p = Path('scripts/test-financial-invariants.mjs')
           s = p.read_text()
-          old = 'assert(dmtWorkspaceFile.includes("p_customer_pay_method: customerPayMethod"), "697. Payment Method Invariant: customerPayMethod passed to atomic RPC");'
+          pattern = re.compile(
+              r'assert\(\s*dmtWorkspaceFile\.includes\(["\']p_customer_pay_method: customerPayMethod["\']\)\s*,\s*["\']697\. Payment Method Invariant: customerPayMethod passed to atomic RPC["\']\s*\)\s*;'
+          )
           new = '''assert(\n  dmtWorkspaceFile.includes("p_customer_pay_method:") &&\n  dmtWorkspaceFile.includes("customerPayMethod") &&\n  dmtWorkspaceFile.includes('"due"'),\n  "697. Payment Method Invariant: collection method preserved with due-only fallback"\n);'''
-          if old not in s:
+          s2, count = pattern.subn(new, s, count=1)
+          if count != 1:
               raise SystemExit('Expected test 697 assertion was not found; refusing to modify files.')
-          p.write_text(s.replace(old, new, 1))
+          p.write_text(s2)
           PY
-      - name: Commit fix and remove temporary workflow and trigger
+      - name: Commit fix and remove temporary files
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
