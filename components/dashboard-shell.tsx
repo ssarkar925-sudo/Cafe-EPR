@@ -117,7 +117,7 @@ export default function DashboardShell({
   const meta = metaFor(pathname);
 
   useEffect(() => {
-    # Keep the full navigation visible on System Settings.
+    // Keep the full navigation visible on System Settings.
     if (pathname === "/settings") {
       setCollapsed(false);
       try {
@@ -143,6 +143,7 @@ export default function DashboardShell({
 
   function toggle() {
     setCollapsed((c) => {
+      if (pathname === "/settings") return false;
       const next = !c;
       try {
         localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
