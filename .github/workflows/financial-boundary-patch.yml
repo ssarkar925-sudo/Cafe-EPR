@@ -1,0 +1,40 @@
+name: Financial Boundary Patch
+on:
+  push:
+    branches: [chore/financial-hardening-final]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove legacy financial writes
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('components/business/business-client.tsx')
+          s = p.read_text()
+          start = s.index('      // Resilient fallback if create_recharge RPC is missing or schema cache not reloaded')
+          end = s.index('    } else {', start)
+          s = s[:start] + s[end:]
+          start = s.index('    // Synchronize Cashbook & Payment Accounts for all transaction types')
+          end = s.index('\n    const waCfg =', start)
+          s = s[:start] + s[end:]
+          start = s.index('  async function syncCashbookForTxn(')
+          end = s.index('\n  function handleSendWhatsAppTxn', start)
+          s = s[:start] + s[end:]
+          start = s.index('\n    if (reverseTxn.service_type === "dmt") {')
+          end = s.index('\n\n    setTxns(', start)
+          s = s[:start] + s[end:]
+          marker = '\n    await supabase.from("cash_entries").delete().eq("ref_type", "transaction").eq("ref_id", deleteTxn.id);'
+          if marker in s:
+              s = s.replace(marker, '', 1)
+          p.write_text(s)
+      - name: Commit patched source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add components/business/business-client.tsx
+          git diff --cached --quiet || git commit -m 'chore: enforce financial RPC boundary in business client'
+          git push
