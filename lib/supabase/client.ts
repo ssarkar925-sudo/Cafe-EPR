@@ -15,6 +15,14 @@ const FINANCIAL_IDEMPOTENT_RPCS = new Set([
   "reverse_business_txn",
   "edit_bill_payment",
   "update_recharge",
+  "edit_invoice",
+  "update_business_txn",
+  "record_advance",
+  "return_advance",
+  "process_return",
+  "cancel_expense",
+  "set_opening_balance",
+  "record_customer_multi_payment",
 ]);
 
 const idempotencyKeys = new Map<string, string>();
