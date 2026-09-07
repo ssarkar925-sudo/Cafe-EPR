@@ -90,6 +90,8 @@ jobs:
             echo "No utility patch changes to commit."
           else
             git commit -m "chore: apply utility billing safe patch"
+            git fetch origin chore/financial-hardening-final
+            git rebase origin/chore/financial-hardening-final
             git push origin HEAD:${GITHUB_HEAD_REF}
           fi
 
