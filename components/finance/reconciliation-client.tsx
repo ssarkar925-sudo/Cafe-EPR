@@ -125,6 +125,7 @@ export default function ReconciliationClient({
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(() =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
   );
+  const [selectedCreditCardId, setSelectedCreditCardId] = useState<string | null>(null);
 
   const [cashEntries, setCashEntries] = useState<any[]>(initialCashEntries);
   const [portals, setPortals] = useState<any[]>(initialPortals);
@@ -392,6 +393,92 @@ function getPoolForMethod(method?: string | null): string | null {
   const allReconciled = useMemo(() => {
     return Object.values(poolReconMap).every((p) => p.isReconciled);
   }, [poolReconMap]);
+
+  // ── Credit Card Facility Audit ──────────────────────────────────────────────
+  const creditCardAudit = useMemo(() => {
+    const cards = instruments.filter((i) => i.type === "credit_card");
+    return cards.map((card) => {
+      const limit = Number(card.details?.credit_limit || 0);
+      const openingOutstanding = Number(card.opening_balance || card.details?.used_limit || 0);
+
+      // Charges: pool_out via this card's instrument_id or pay_from_instrument_id
+      let charges = 0;
+      let repayments = 0;
+      const txList: { id: string; ref: string; type: string; amount: number; date: string; desc: string }[] = [];
+
+      for (const tx of transactions) {
+        if (tx.status === "cancelled" || tx.status === "failed") continue;
+        const isCharge =
+          tx.funding_instrument_id === card.id ||
+          tx.pay_from_instrument_id === card.id ||
+          tx.instrument_id === card.id;
+        if (isCharge) {
+          const pOut = Number(tx.pool_out) || 0;
+          if (pOut > 0) {
+            charges += pOut;
+            txList.push({
+              id: tx.id,
+              ref: tx.transaction_number || "TXN",
+              type: "Charge",
+              amount: -pOut,
+              date: tx.created_at,
+              desc: `${(tx.service_type || "transaction").replace(/_/g, " ").toUpperCase()} — ${inr(tx.amount || pOut)}`,
+            });
+          }
+        }
+      }
+
+      for (const s of settlements) {
+        if (s.status === "cancelled" || s.status === "failed") continue;
+        const amt = Number(s.amount) || 0;
+        if (amt <= 0) continue;
+        if (s.dest_instrument_id === card.id || s.to_pool === "credit_card") {
+          repayments += amt;
+          txList.push({
+            id: s.id,
+            ref: s.settlement_number || "SETL",
+            type: "Repayment",
+            amount: amt,
+            date: s.created_at,
+            desc: `Credit card repayment / payment — ${inr(amt)}`,
+          });
+        }
+        if (s.source_instrument_id === card.id || s.from_pool === "credit_card") {
+          charges += amt;
+          txList.push({
+            id: s.id,
+            ref: s.settlement_number || "SETL",
+            type: "Charge (Settlement)",
+            amount: -amt,
+            date: s.created_at,
+            desc: `Charged via settlement — ${inr(amt)}`,
+          });
+        }
+      }
+
+      const currentOutstanding = Math.max(0, openingOutstanding + charges - repayments);
+      const availableCredit = Math.max(0, limit - currentOutstanding);
+      const utilizationPct = limit > 0 ? Math.round((currentOutstanding / limit) * 100) : 0;
+
+      return {
+        id: card.id,
+        name: card.name,
+        limit,
+        openingOutstanding,
+        charges,
+        repayments,
+        currentOutstanding,
+        availableCredit,
+        utilizationPct,
+        txList,
+      };
+    });
+  }, [instruments, transactions, settlements]);
+
+  const ccTotalLimit = creditCardAudit.reduce((s, c) => s + c.limit, 0);
+  const ccTotalOutstanding = creditCardAudit.reduce((s, c) => s + c.currentOutstanding, 0);
+  const ccTotalAvailable = creditCardAudit.reduce((s, c) => s + c.availableCredit, 0);
+  const ccOverallUtilPct = ccTotalLimit > 0 ? Math.round((ccTotalOutstanding / ccTotalLimit) * 100) : 0;
 
   const selectedPool = poolReconMap[selectedPoolKey] || poolReconMap["upi_qr"];
   const totalPosition = balances?.total ?? 6151;
@@ -676,6 +763,208 @@ function getPoolForMethod(method?: string | null): string | null {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. CREDIT CARD FACILITY DEEP AUDIT */}
+      {/* ========================================================================= */}
+      {creditCardAudit.length > 0 && (
+        <section className="space-y-4">
+          {/* Section Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">💳 Credit Card Facility Audit</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Per-card outstanding debt, credit utilization, charges & repayments. Distinct from liquid asset pools.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+              {creditCardAudit.length} Card{creditCardAudit.length !== 1 ? "s" : ""} Active
+            </span>
+          </div>
+
+          {/* Portfolio Summary Bento */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-purple-100 bg-gradient-to-b from-purple-50/60 to-white p-4 shadow-sm dark:border-purple-900/20 dark:from-purple-950/20 dark:to-slate-900">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Total Credit Limit</div>
+              <div className="mt-1 text-xl font-black text-purple-900 dark:text-purple-100">{inr(ccTotalLimit)}</div>
+              <div className="mt-0.5 text-[11px] text-purple-500 dark:text-purple-400">{creditCardAudit.length} cards combined</div>
+            </div>
+            <div className="rounded-2xl border border-rose-100 bg-gradient-to-b from-rose-50/60 to-white p-4 shadow-sm dark:border-rose-900/20 dark:from-rose-950/20 dark:to-slate-900">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Total Outstanding</div>
+              <div className="mt-1 text-xl font-black text-rose-900 dark:text-rose-100">{inr(ccTotalOutstanding)}</div>
+              <div className="mt-0.5 text-[11px] text-rose-500 dark:text-rose-400">Current debt / liability</div>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-b from-emerald-50/60 to-white p-4 shadow-sm dark:border-emerald-900/20 dark:from-emerald-950/20 dark:to-slate-900">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Available</div>
+              <div className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100">{inr(ccTotalAvailable)}</div>
+              <div className="mt-0.5 text-[11px] text-emerald-500 dark:text-emerald-400">Unused credit facility</div>
+            </div>
+            <div className="rounded-2xl border border-amber-100 bg-gradient-to-b from-amber-50/60 to-white p-4 shadow-sm dark:border-amber-900/20 dark:from-amber-950/20 dark:to-slate-900">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Portfolio Utilization</div>
+              <div className="mt-1 text-xl font-black text-amber-900 dark:text-amber-100">{ccOverallUtilPct}%</div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                <div
+                  style={{ width: `${Math.min(100, ccOverallUtilPct)}%` }}
+                  className={`h-full rounded-full transition-all ${ccOverallUtilPct > 80 ? "bg-rose-500" : ccOverallUtilPct > 50 ? "bg-amber-500" : "bg-emerald-500"}`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Per-Card Breakdown Table */}
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="border-b border-slate-100 px-6 py-4 dark:border-white/5">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">Individual Card Analysis</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Click a row to see activity trace. Utilization = Outstanding ÷ Credit Limit.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-wide text-slate-500 dark:bg-white/[0.03]">
+                  <tr>
+                    <th className="px-6 py-3">Card Name</th>
+                    <th className="px-6 py-3 text-right">Credit Limit</th>
+                    <th className="px-6 py-3 text-right">Opening Debt</th>
+                    <th className="px-6 py-3 text-right text-rose-600">+ Charges</th>
+                    <th className="px-6 py-3 text-right text-emerald-600">− Repayments</th>
+                    <th className="px-6 py-3 text-right font-black text-slate-900 dark:text-white">Outstanding</th>
+                    <th className="px-6 py-3 text-right text-emerald-600">Available</th>
+                    <th className="px-6 py-3">Utilization</th>
+                    <th className="px-6 py-3 text-center">Activity</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {creditCardAudit.map((card) => (
+                    <>
+                      <tr
+                        key={card.id}
+                        className={`cursor-pointer transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] ${selectedCreditCardId === card.id ? "bg-purple-50/50 dark:bg-purple-950/10" : ""}`}
+                        onClick={() => setSelectedCreditCardId(selectedCreditCardId === card.id ? null : card.id)}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">💳</span>
+                            <div>
+                              <div className="font-bold text-slate-900 dark:text-white">{card.name}</div>
+                              <div className="text-[11px] text-slate-400">{card.txList.length} transaction{card.txList.length !== 1 ? "s" : ""}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono font-bold text-purple-700 dark:text-purple-300">
+                          {inr(card.limit)}
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-slate-500 dark:text-slate-400">
+                          {inr(card.openingOutstanding)}
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-rose-600 dark:text-rose-400">
+                          {card.charges > 0 ? `+${inr(card.charges)}` : "₹0.00"}
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                          {card.repayments > 0 ? `−${inr(card.repayments)}` : "₹0.00"}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-base font-black text-rose-700 dark:text-rose-300">{inr(card.currentOutstanding)}</div>
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                          {inr(card.availableCredit)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                              <div
+                                style={{ width: `${Math.min(100, card.utilizationPct)}%` }}
+                                className={`h-full rounded-full ${card.utilizationPct > 80 ? "bg-rose-500" : card.utilizationPct > 50 ? "bg-amber-500" : "bg-emerald-500"}`}
+                              />
+                            </div>
+                            <span className={`text-xs font-bold ${card.utilizationPct > 80 ? "text-rose-600" : card.utilizationPct > 50 ? "text-amber-600" : "text-emerald-600"}`}>
+                              {card.utilizationPct}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            {selectedCreditCardId === card.id ? "▲ Hide" : "▼ Trace"}
+                          </span>
+                        </td>
+                      </tr>
+                      {/* Inline Transaction Trace */}
+                      {selectedCreditCardId === card.id && card.txList.length > 0 && (
+                        <tr key={`${card.id}-trace`}>
+                          <td colSpan={9} className="bg-purple-50/40 px-6 pb-4 dark:bg-purple-950/10">
+                            <div className="mt-2 overflow-hidden rounded-2xl border border-purple-200/60 dark:border-purple-800/40">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-purple-200/60 bg-purple-100/60 text-[10px] uppercase font-bold text-purple-700 dark:border-purple-800/40 dark:bg-purple-900/20 dark:text-purple-300">
+                                    <th className="p-3 text-left">Reference</th>
+                                    <th className="p-3 text-left">Type</th>
+                                    <th className="p-3 text-left">Description</th>
+                                    <th className="p-3 text-right">Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-purple-100/60 dark:divide-purple-900/20">
+                                  {card.txList.map((tx) => (
+                                    <tr key={tx.id} className="hover:bg-purple-50/40 dark:hover:bg-purple-950/10">
+                                      <td className="p-3 font-mono font-bold text-purple-800 dark:text-purple-200">{tx.ref}</td>
+                                      <td className="p-3 text-slate-600 dark:text-slate-400">{tx.type}</td>
+                                      <td className="p-3 text-slate-700 dark:text-slate-300">{tx.desc}</td>
+                                      <td className={`p-3 text-right font-bold ${tx.amount >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                        {tx.amount >= 0 ? `+${inr(tx.amount)}` : inr(tx.amount)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {selectedCreditCardId === card.id && card.txList.length === 0 && (
+                        <tr key={`${card.id}-empty`}>
+                          <td colSpan={9} className="bg-purple-50/40 px-6 py-4 text-center text-xs text-slate-500 dark:bg-purple-950/10 dark:text-slate-400">
+                            No charges or repayments recorded since opening balance was set.
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+                {/* Portfolio Total Row */}
+                <tfoot className="border-t-2 border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.02]">
+                  <tr>
+                    <td className="px-6 py-4 font-black text-slate-900 dark:text-white">Portfolio Total</td>
+                    <td className="px-6 py-4 text-right font-black font-mono text-purple-700 dark:text-purple-300">{inr(ccTotalLimit)}</td>
+                    <td className="px-6 py-4 text-right font-mono text-slate-500" />
+                    <td className="px-6 py-4 text-right font-mono text-rose-600">
+                      {creditCardAudit.reduce((s, c) => s + c.charges, 0) > 0
+                        ? `+${inr(creditCardAudit.reduce((s, c) => s + c.charges, 0))}`
+                        : "₹0.00"}
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono text-emerald-600">
+                      {creditCardAudit.reduce((s, c) => s + c.repayments, 0) > 0
+                        ? `−${inr(creditCardAudit.reduce((s, c) => s + c.repayments, 0))}`
+                        : "₹0.00"}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black font-mono text-rose-700 dark:text-rose-300">{inr(ccTotalOutstanding)}</td>
+                    <td className="px-6 py-4 text-right font-black font-mono text-emerald-700 dark:text-emerald-300">{inr(ccTotalAvailable)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                          <div
+                            style={{ width: `${Math.min(100, ccOverallUtilPct)}%` }}
+                            className={`h-full rounded-full ${ccOverallUtilPct > 80 ? "bg-rose-500" : ccOverallUtilPct > 50 ? "bg-amber-500" : "bg-emerald-500"}`}
+                          />
+                        </div>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-300">{ccOverallUtilPct}%</span>
+                      </div>
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         </section>
       )}
