@@ -5746,9 +5746,9 @@ assert(
   assert(utilVariance === 0.00, "1000. Utility Zero Variance: Net Cash Flow (₹1,255 - ₹1,245 = ₹10.00) matches Net Income with ₹0.00 variance");
 
   // 10. Collection & Funding Invariants
-  assert(bp_utilityWorkspaceFile.includes('service_type: "bill_payment"'), "1001. Utility Collection: Posts to transactions with service_type = bill_payment");
+  assert(bp_utilityWorkspaceFile.includes('record_bill_payment') && bp_utilityWorkspaceFile.includes('p_customer_payment_allocations'), "1001. Utility Collection: Posts through canonical record_bill_payment RPC");
   assert(bp_utilityWorkspaceFile.includes("cash_entries") && bp_utilityWorkspaceFile.includes("totalCustomerDebit"), "1002. Utility Collection: Cash/UPI/Bank payment generates customer collection entry");
-  assert(bp_utilityWorkspaceFile.includes("customer_ledger") && bp_utilityWorkspaceFile.includes("balance_after"), "1003. Utility Khata: Customer ledger receivable balance increases without increasing cash drawer");
+  assert(bp_utilityWorkspaceFile.includes('p_customer_id: selectedCustomerId || null') && bp_utilityWorkspaceFile.includes('p_customer_payment_allocations: customerAllocations'), "1003. Utility Khata: Canonical RPC carries customer receivable allocation without client-side ledger mutation");
   assert(bp_utilityWorkspaceFile.includes("netProviderCost") && bp_utilityWorkspaceFile.includes("fundingInstId"), "1004. Utility Funding: Debits net provider cost from selected payment instrument");
 
   // 11. Concurrency, Receipt, Reversal & History
