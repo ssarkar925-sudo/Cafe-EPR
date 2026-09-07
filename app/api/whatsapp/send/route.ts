@@ -26,15 +26,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { phone, message, options } = body as {
       phone: string;
-      message: string;
-      options?: { templateName?: string; templateLang?: string };
+      message?: string;
+      options?: { templateName?: string; templateLang?: string; documentUrl?: string; documentFilename?: string; documentCaption?: string };
     };
 
-    // Provider credentials, gateway URL, phone/WABA IDs and tokens are always
-    // authoritative server-side values. Never allow browser-supplied config to
-    // override them (prevents configuration injection / SSRF).
     const serverConfig = await getServerWhatsAppConfig();
-    const result = await sendWhatsAppViaConfig(phone, message, serverConfig, options);
+    const result = await sendWhatsAppViaConfig(phone, message || "", serverConfig, options);
 
     if (!result.success) {
       return NextResponse.json(
