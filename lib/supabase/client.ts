@@ -7,9 +7,14 @@ const FINANCIAL_IDEMPOTENT_RPCS = new Set([
   "create_sale",
   "record_quick_sale",
   "create_business_txn",
+  "create_recharge",
   "record_invoice_payment",
+  "record_invoice_multi_payment",
   "cancel_invoice",
   "cancel_quick_sale",
+  "reverse_business_txn",
+  "edit_bill_payment",
+  "update_recharge",
 ]);
 
 const idempotencyKeys = new Map<string, string>();
@@ -157,7 +162,7 @@ export function clearClientAuthCookies() {
       toRemove.forEach((key) => localStorage.removeItem(key));
     }
   } catch {
-    /* ignore localStorage errors */
+    /* ignore localStorage cleanup failures */
   }
 }
 
