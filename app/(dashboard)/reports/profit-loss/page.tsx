@@ -122,7 +122,14 @@ export default async function ProfitLossPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            href="/finance/pnl"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-xs transition hover:bg-emerald-100 active:scale-95 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+          >
+            <span>📊</span>
+            <span>Real-Time Analytics P&amp;L →</span>
+          </Link>
           <a
             href={exportHref}
             download="profit-loss-statement.csv"

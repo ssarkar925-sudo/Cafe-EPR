@@ -222,6 +222,13 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/reports/profit-loss"
+              className="btn-3d-tactile-secondary inline-flex items-center gap-1.5 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-xs transition hover:bg-indigo-100 active:scale-95 dark:border-indigo-800/50 dark:bg-indigo-950/40 dark:text-indigo-300"
+            >
+              <span>⚖️</span>
+              <span>Formal Double-Entry GL P&amp;L →</span>
+            </Link>
             <button onClick={exportStatement} className="btn-3d-tactile-secondary px-4 py-2 text-xs font-bold">Export Detailed CSV</button>
             <div className="flex rounded-xl border border-slate-200/80 bg-slate-100 p-1 text-xs dark:border-white/10 dark:bg-white/5">
               {PERIODS.map((p) => (

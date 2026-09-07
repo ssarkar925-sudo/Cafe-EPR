@@ -43,6 +43,15 @@ const MODULE_GROUPS = [
       { href: "/finance/reconciliation", label: "Bank Reconciliation", desc: "Statement vs. ledger alignment", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", color: "text-green-600 bg-green-50 dark:bg-green-950/40 dark:text-green-300" },
     ],
   },
+  {
+    title: "Financial Intelligence & Statutory Reports",
+    links: [
+      { href: "/reports/income", label: "Income Breakdown", desc: "POS, service commissions & margin splits", icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300" },
+      { href: "/reports/cash-bank", label: "Cash & Bank Statement", desc: "Multi-instrument balance audit report", icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300" },
+      { href: "/reports/transaction-audit", label: "Transaction Audit", desc: "Postings and funding verification", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300" },
+      { href: "/reports/gst", label: "GST Statutory Returns", desc: "GSTR-1, GSTR-3B outwards summary & HSN", icon: "M9 14l6-6m-6 0h.01M15 14h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-300" },
+    ],
+  },
 ];
 
 const REF_TYPE_LABEL: Record<string, string> = {
