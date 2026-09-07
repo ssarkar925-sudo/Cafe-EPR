@@ -22,6 +22,8 @@ const FINANCIAL_IDEMPOTENT_RPCS = new Set([
   "return_advance",
   "process_return",
   "cancel_expense",
+  "add_expense",
+  "update_expense",
   "set_opening_balance",
   "record_customer_multi_payment",
 ]);
