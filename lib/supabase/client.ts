@@ -3,6 +3,120 @@ import { createBrowserClient } from "@supabase/ssr";
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 let rejectionListenerInstalled = false;
 
+const FINANCIAL_IDEMPOTENT_RPCS = new Set([
+  "create_sale",
+  "record_quick_sale",
+  "create_business_txn",
+  "record_invoice_payment",
+  "cancel_invoice",
+  "cancel_quick_sale",
+]);
+
+const idempotencyKeys = new Map<string, string>();
+
+function stableSerialize(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
+
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableSerialize(object[key])}`)
+    .join(",")}}`;
+}
+
+function fingerprint(value: unknown): string {
+  const input = stableSerialize(value);
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function newIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function getFinancialIdempotencyKey(operation: string, args: Record<string, unknown>): { cacheKey: string; key: string } {
+  const payload = { ...args };
+  delete payload.p_idempotency_key;
+  const cacheKey = `cafeerp:idempotency:${operation}:${fingerprint(payload)}`;
+
+  let key = idempotencyKeys.get(cacheKey);
+  if (!key && typeof sessionStorage !== "undefined") {
+    try {
+      key = sessionStorage.getItem(cacheKey) || undefined;
+    } catch {
+      // Browser privacy/storage restrictions: fall back to module memory.
+    }
+  }
+
+  if (!key) {
+    key = newIdempotencyKey();
+    idempotencyKeys.set(cacheKey, key);
+    if (typeof sessionStorage !== "undefined") {
+      try {
+        sessionStorage.setItem(cacheKey, key);
+      } catch {
+        // Best-effort persistence. The in-memory cache still covers same-page retries.
+      }
+    }
+  }
+
+  return { cacheKey, key };
+}
+
+function clearFinancialIdempotencyKey(cacheKey: string) {
+  idempotencyKeys.delete(cacheKey);
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      sessionStorage.removeItem(cacheKey);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+  }
+}
+
+function wrapFinancialMutationClient(client: ReturnType<typeof createBrowserClient>) {
+  if (typeof window === "undefined") return client;
+
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      if (prop !== "rpc") return Reflect.get(target, prop, receiver);
+
+      return (functionName: string, args?: Record<string, unknown>, ...rest: unknown[]) => {
+        const directRpc = (target as any).rpc.bind(target);
+        if (!FINANCIAL_IDEMPOTENT_RPCS.has(functionName)) {
+          return directRpc(functionName, args, ...rest);
+        }
+
+        const requestArgs: Record<string, unknown> = { ...(args ?? {}) };
+        let cacheKey: string | null = null;
+
+        const explicitKey = typeof requestArgs.p_idempotency_key === "string"
+          ? requestArgs.p_idempotency_key.trim()
+          : "";
+
+        if (!explicitKey) {
+          const generated = getFinancialIdempotencyKey(functionName, requestArgs);
+          cacheKey = generated.cacheKey;
+          requestArgs.p_idempotency_key = generated.key;
+        }
+
+        return Promise.resolve(directRpc(functionName, requestArgs, ...rest)).then((result: any) => {
+          if (!result?.error && cacheKey) clearFinancialIdempotencyKey(cacheKey);
+          return result;
+        });
+      };
+    },
+  }) as ReturnType<typeof createBrowserClient>;
+}
+
 export function clearClientAuthCookies() {
   if (typeof document === "undefined") return;
   try {
@@ -40,7 +154,7 @@ export function clearClientAuthCookies() {
           toRemove.push(key);
         }
       }
-      toRemove.forEach((k) => localStorage.removeItem(k));
+      toRemove.forEach((key) => localStorage.removeItem(key));
     }
   } catch {
     /* ignore localStorage errors */
@@ -102,9 +216,6 @@ function wrapReconciliationClient(client: ReturnType<typeof createBrowserClient>
                       .join(",")
                   : columns;
 
-              // Settlement rows are represented by the dedicated settlements stream.
-              // Keeping them out of cash_entries prevents the same UPI settlement from
-              // being counted once as a settlement and again as a cashbook movement.
               return (query as any)
                 .select(rewrittenColumns, ...rest)
                 .neq("ref_type", "settlement");
@@ -139,10 +250,10 @@ export function createClient() {
       },
     });
 
-    browserClient = wrapReconciliationClient(rawClient);
+    const financialClient = wrapFinancialMutationClient(rawClient);
+    browserClient = wrapReconciliationClient(financialClient);
     setupBrowserAuthErrorHandlers(browserClient);
   }
 
   return browserClient;
 }
-
