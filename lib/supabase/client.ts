@@ -13,6 +13,7 @@ const FINANCIAL_IDEMPOTENT_RPCS = new Set([
   "cancel_invoice",
   "cancel_quick_sale",
   "reverse_business_txn",
+  "record_bill_payment",
   "edit_bill_payment",
   "update_recharge",
   "edit_invoice",
