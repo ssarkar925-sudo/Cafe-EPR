@@ -1,18 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+import pg from "pg";
 import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const { Client } = pg;
+const databaseUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
-if (!url || !serviceRoleKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
+if (!databaseUrl) {
+  console.error("Missing DATABASE_URL (or SUPABASE_DB_URL). This audit is read-only and requires direct PostgreSQL connectivity.");
   process.exit(2);
 }
-
-const supabase = createClient(url, serviceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
 
 const protectedTables = [
   "transactions",
@@ -36,50 +32,83 @@ const sensitiveFunctions = [
   "update_recharge",
 ];
 
-const { data: tableGrants, error: grantsError } = await supabase
-  .from("information_schema.role_table_grants")
-  .select("grantee, table_name, privilege_type")
-  .in("grantee", ["anon", "authenticated"])
-  .in("table_name", protectedTables);
+const client = new Client({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
 
-if (grantsError) {
-  console.error(`Failed to inspect table grants: ${grantsError.message}`);
-  process.exit(1);
-}
+try {
+  await client.connect();
 
-const writable = (tableGrants ?? []).filter((row) =>
-  ["INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"].includes(row.privilege_type),
-);
+  const tables = await client.query(
+    `
+      SELECT grantee, table_name, privilege_type
+      FROM information_schema.role_table_grants
+      WHERE table_schema = 'public'
+        AND grantee IN ('anon', 'authenticated')
+        AND table_name = ANY($1::text[])
+      ORDER BY table_name, grantee, privilege_type
+    `,
+    [protectedTables],
+  );
 
-const { data: rpcGrants, error: rpcError } = await supabase.rpc("get_function_grants_audit");
+  const writableClientGrants = tables.rows.filter((row) =>
+    ["INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"].includes(row.privilege_type),
+  );
 
-if (rpcError) {
-  console.warn(`Function grant helper unavailable: ${rpcError.message}`);
-}
+  const functions = await client.query(
+    `
+      SELECT
+        p.oid::regprocedure::text AS signature,
+        p.proname,
+        p.prosecdef AS security_definer,
+        has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+        has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_execute
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public'
+        AND p.proname = ANY($1::text[])
+      ORDER BY p.proname, p.oid::regprocedure::text
+    `,
+    [sensitiveFunctions],
+  );
 
-const findings = {
-  protectedTables,
-  writableClientGrants: writable,
-  sensitiveFunctions,
-  functionGrantAudit: rpcGrants ?? null,
-  approvedMigration: null,
-};
+  const anonymousExecutableSensitive = functions.rows.filter((row) => row.anon_execute);
 
-const migrationPath = "supabase/migrations/20260907_01_controlled_financial_remediation.sql";
-if (existsSync(migrationPath)) {
-  const bytes = readFileSync(migrationPath);
-  findings.approvedMigration = {
-    path: migrationPath,
-    bytes: bytes.length,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
+  const findings = {
+    captured_at: new Date().toISOString(),
+    protectedTables,
+    writableClientGrants,
+    sensitiveFunctionGrants: functions.rows,
+    anonymousExecutableSensitive,
+    approvedMigration: null,
   };
+
+  const migrationPath = "supabase/migrations/20260907_01_controlled_financial_remediation.sql";
+  if (existsSync(migrationPath)) {
+    const bytes = readFileSync(migrationPath);
+    findings.approvedMigration = {
+      path: migrationPath,
+      bytes: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+  }
+
+  console.log(JSON.stringify(findings, null, 2));
+
+  if (writableClientGrants.length > 0) {
+    console.error("FAIL: one or more protected financial tables grant client write privileges.");
+    process.exitCode = 1;
+  }
+
+  if (anonymousExecutableSensitive.length > 0) {
+    console.error("FAIL: one or more sensitive financial RPC overloads are executable by anon.");
+    process.exitCode = 1;
+  }
+
+  if (writableClientGrants.length === 0 && anonymousExecutableSensitive.length === 0) {
+    console.log("PASS: financial mutation surface is locked at the database privilege boundary.");
+  }
+} catch (error) {
+  console.error(`Financial surface audit failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+} finally {
+  await client.end().catch(() => {});
 }
-
-console.log(JSON.stringify(findings, null, 2));
-
-if (writable.length > 0) {
-  console.error("FAIL: one or more protected financial tables grant client write privileges.");
-  process.exit(1);
-}
-
-console.log("PASS: protected financial tables expose no client write privileges.");
