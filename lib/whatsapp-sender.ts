@@ -15,6 +15,9 @@ export interface SendWhatsAppResult {
 export interface SendWhatsAppOptions {
   templateName?: string;
   templateLang?: string;
+  documentUrl?: string;
+  documentFilename?: string;
+  documentCaption?: string;
 }
 
 function normalizeGatewayUrl(raw: unknown): string | null {
@@ -66,8 +69,9 @@ export async function sendWhatsAppViaConfig(
   config: WhatsAppConfig,
   options?: SendWhatsAppOptions
 ): Promise<SendWhatsAppResult> {
-  if (!phone || (!message && !options?.templateName)) {
-    return { success: false, error: "Phone number and message text or template are required.", status: 400 };
+  const wantsDocument = Boolean(options?.documentUrl);
+  if (!phone || (!message && !options?.templateName && !wantsDocument)) {
+    return { success: false, error: "Phone number and message text, template, or document are required.", status: 400 };
   }
 
   if (!config || config.provider === "off") {
@@ -79,31 +83,39 @@ export async function sendWhatsAppViaConfig(
     const token = config.meta_access_token?.trim();
     const wabaId = config.meta_waba_id?.trim();
 
-    if (!phoneId || !token) {
-      return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
-    }
+    if (!phoneId || !token) return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
 
     const cleanTo = formatWhatsAppPhone(phone);
-    if (!cleanTo || cleanTo.length < 10) {
-      return { success: false, error: "Invalid recipient phone number format.", status: 400 };
-    }
+    if (!cleanTo || cleanTo.length < 10) return { success: false, error: "Invalid recipient phone number format.", status: 400 };
 
     const metaUrl = `https://graph.facebook.com/v21.0/${encodeURIComponent(phoneId)}/messages`;
-    const payload = options?.templateName
+    const payload = options?.documentUrl
       ? {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: cleanTo,
-          type: "template",
-          template: { name: options.templateName, language: { code: options.templateLang || "en_US" } },
+          type: "document",
+          document: {
+            link: options.documentUrl,
+            filename: options.documentFilename || "Invoice.pdf",
+            ...(options.documentCaption ? { caption: options.documentCaption } : {}),
+          },
         }
-      : {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: cleanTo,
-          type: "text",
-          text: { preview_url: true, body: message },
-        };
+      : options?.templateName
+        ? {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: cleanTo,
+            type: "template",
+            template: { name: options.templateName, language: { code: options.templateLang || "en_US" } },
+          }
+        : {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: cleanTo,
+            type: "text",
+            text: { preview_url: true, body: message },
+          };
 
     const metaRes = await fetch(metaUrl, {
       method: "POST",
@@ -130,10 +142,9 @@ export async function sendWhatsAppViaConfig(
 
   if (config.provider === "local_gateway") {
     const gatewayUrl = normalizeGatewayUrl(config.gateway_url);
-    if (!gatewayUrl) {
-      return { success: false, error: "WhatsApp gateway URL is missing or invalid. Use HTTPS, or HTTP only for localhost.", status: 400 };
-    }
-    const isLocal = new URL(gatewayUrl).hostname.toLowerCase() === "localhost" || ["127.0.0.1", "::1"].includes(new URL(gatewayUrl).hostname.toLowerCase());
+    if (!gatewayUrl) return { success: false, error: "WhatsApp gateway URL is missing or invalid. Use HTTPS, or HTTP only for localhost.", status: 400 };
+    const gatewayHost = new URL(gatewayUrl).hostname.toLowerCase();
+    const isLocal = gatewayHost === "localhost" || ["127.0.0.1", "::1"].includes(gatewayHost);
 
     if (message === "__PING_HEALTH_CHECK__") {
       if (isLocal) return { success: false, error: "Local PC gateway must be checked directly from the browser on this machine.", status: 400 };
@@ -146,13 +157,16 @@ export async function sendWhatsAppViaConfig(
       }
     }
 
-    const targetUrl = `${gatewayUrl}/send-message`;
+    const targetUrl = wantsDocument ? `${gatewayUrl}/send-document` : `${gatewayUrl}/send-message`;
     async function attemptSend(attempt = 1): Promise<{ ok: boolean; status: number; data: any; error?: string }> {
       try {
+        const body = wantsDocument
+          ? { phone, number: phone, documentUrl: options?.documentUrl, document: options?.documentUrl, fileName: options?.documentFilename || "Invoice.pdf", caption: options?.documentCaption || "" }
+          : { phone, number: phone, message, text: message };
         const res = await fetch(targetUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true", ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}) },
-          body: JSON.stringify({ phone, number: phone, message, text: message }),
+          body: JSON.stringify(body),
           signal: AbortSignal.timeout(60000),
         });
         const data = await res.json().catch(() => ({}));
@@ -172,13 +186,24 @@ export async function sendWhatsAppViaConfig(
       return { success: false, error: result.error || `Gateway returned HTTP ${result.status}`, status: 400 };
     }
     if (result.data?.status === "dispatched_mock") return { success: false, error: `Gateway is running at ${gatewayUrl}, but WhatsApp is not linked yet.`, status: 400 };
-    return { success: true, provider: "local_gateway", data: result.data };
+    return { success: true, provider: "local_gateway", messageId: result.data?.messageId || result.data?.id, data: result.data };
   }
 
   if (config.provider === "ultramsg") {
     const instanceId = config.ultramsg_instance_id?.trim();
     const token = config.ultramsg_token?.trim();
     if (!instanceId || !token) return { success: false, error: "UltraMsg Instance ID and Token are required.", status: 400 };
+
+    if (options?.documentUrl) {
+      const ultraUrl = `https://api.ultramsg.com/${encodeURIComponent(instanceId)}/messages/document`;
+      const params = new URLSearchParams({ token, to: phone, filename: options.documentFilename || "Invoice.pdf", document: options.documentUrl });
+      if (options.documentCaption) params.set("caption", options.documentCaption);
+      const res = await fetch(ultraUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString(), signal: AbortSignal.timeout(15000) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.error) return { success: false, error: data?.error || "UltraMsg document error", status: 400, data };
+      return { success: true, provider: "ultramsg", messageId: data?.id || data?.messageId, data };
+    }
+
     const ultraUrl = `https://api.ultramsg.com/${encodeURIComponent(instanceId)}/messages/chat`;
     const params = new URLSearchParams({ token, to: phone, body: message });
     const res = await fetch(ultraUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString(), signal: AbortSignal.timeout(15000) });
