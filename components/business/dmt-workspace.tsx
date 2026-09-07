@@ -260,9 +260,23 @@ export default function DmtWorkspace({
   const [bankCreateError, setBankCreateError] = useState("");
   const [bankCreateSubmitting, setBankCreateSubmitting] = useState(false);
 
-  // Edit Transaction Modal State
+  // Edit Transaction Modal State (Full Financial & Operational)
   const [editTxnWindowOpen, setEditTxnWindowOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Txn | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editServiceFee, setEditServiceFee] = useState<string>("");
+  const [editPortalCommission, setEditPortalCommission] = useState<string>("");
+  const [editPaidFrom, setEditPaidFrom] = useState<"portal" | "bank">("bank");
+  const [editPortalId, setEditPortalId] = useState<string>("");
+  const [editPayFromInstrumentId, setEditPayFromInstrumentId] = useState<string>("");
+  const [editCustomerPayMethod, setEditCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
+  const [editTransferMethod, setEditTransferMethod] = useState<"bank_account" | "upi">("bank_account");
+  const [editBeneficiaryName, setEditBeneficiaryName] = useState<string>("");
+  const [editBeneficiaryMobile, setEditBeneficiaryMobile] = useState<string>("");
+  const [editBeneficiaryBank, setEditBeneficiaryBank] = useState<string>("");
+  const [editBeneficiaryAccount, setEditBeneficiaryAccount] = useState<string>("");
+  const [editBeneficiaryIfsc, setEditBeneficiaryIfsc] = useState<string>("");
+  const [editUpiId, setEditUpiId] = useState<string>("");
   const [editSenderName, setEditSenderName] = useState<string>("");
   const [editSenderMobile, setEditSenderMobile] = useState<string>("");
   const [editCustomerId, setEditCustomerId] = useState<string>("");
@@ -732,76 +746,150 @@ export default function DmtWorkspace({
     }
   }
 
-  // Open Edit Modal for Non-Financial Field Corrections
+  // Open Edit Modal for Complete Financial & Operational Edit
   function handleOpenEdit(t: Txn) {
     setEditingTxn(t);
+    setEditAmount(String(t.amount ?? ""));
+    setEditServiceFee(String(t.service_fee ?? "0"));
+    setEditPortalCommission(String(t.portal_commission ?? "0"));
+    setEditPaidFrom(t.paid_from === "portal" ? "portal" : "bank");
+    setEditPortalId(t.portal_id || portals[0]?.id || "");
+    setEditPayFromInstrumentId(t.pay_from_instrument_id || liveInstruments[0]?.id || "");
+    setEditCustomerPayMethod((t.customer_pay_method as any) || "cash");
+    setEditTransferMethod((t.transfer_method as any) || (t.upi_id ? "upi" : "bank_account"));
+    setEditBeneficiaryName(t.beneficiary_name || t.receiver_name || "");
+    setEditBeneficiaryMobile(t.beneficiary_mobile || "");
+    setEditBeneficiaryBank(t.beneficiary_bank || "");
+    setEditBeneficiaryAccount(t.beneficiary_account || "");
+    setEditBeneficiaryIfsc(t.beneficiary_ifsc || "");
+    setEditUpiId(t.upi_id || "");
     setEditSenderName(t.sender_name || "");
-    setEditSenderMobile(t.sender_mobile || "");
+    setEditSenderMobile(t.sender_mobile || t.customer_mobile || "");
     setEditCustomerId(t.customer_id || "");
     setEditReference(t.reference || "");
     setEditRemarks(t.remarks || "");
     setEditTxnWindowOpen(true);
   }
 
-  // Save Transaction Non-Financial Correction
+  // Save Transaction Complete Financial & Operational Edit
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingTxn) return;
+
+    const parsedAmt = parseFloat(editAmount);
+    if (isNaN(parsedAmt) || parsedAmt <= 0) {
+      showToast("error", "Transfer amount must be greater than ₹0.");
+      return;
+    }
+    const parsedFee = parseFloat(editServiceFee) || 0;
+    if (parsedFee < 0) {
+      showToast("error", "Service fee cannot be negative.");
+      return;
+    }
+    const parsedComm = parseFloat(editPortalCommission) || 0;
+    if (!editReference.trim()) {
+      showToast("error", "Bank UTR / reference number is required.");
+      return;
+    }
+    if (editPaidFrom === "bank" && !editPayFromInstrumentId) {
+      showToast("error", "Please select the funding bank account.");
+      return;
+    }
+    if (editPaidFrom === "portal" && !editPortalId) {
+      showToast("error", "Please select the DMT service portal.");
+      return;
+    }
+    if (editCustomerPayMethod === "due" && !editCustomerId) {
+      showToast("error", "Please assign a customer to record as Due (Khata).");
+      return;
+    }
+
     setEditSubmitting(true);
 
     try {
-      const updatedRef = editReference.trim() || null;
-      const updatedRemarks = editRemarks.trim() || null;
-      const updatedCustId = editCustomerId || null;
-      const updatedSenderName = editSenderName.trim() || null;
-      const updatedSenderMobile = editSenderMobile.trim() || null;
+      const fundingInstrumentId =
+        editPaidFrom === "bank"
+          ? editPayFromInstrumentId
+          : portals.find((p) => p.id === editPortalId)?.payment_instrument_id || null;
 
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          customer_id: updatedCustId,
-          sender_name: updatedSenderName,
-          sender_mobile: updatedSenderMobile,
-          reference: updatedRef,
-          remarks: updatedRemarks,
-        })
-        .eq("id", editingTxn.id);
-
-      if (updateError) throw updateError;
-
-      await logAudit({
-        action: "update",
-        entity: "transaction",
-        entity_id: editingTxn.id,
-        description: `Corrected non-financial reference on DMT Txn #${editingTxn.transaction_number}`,
-        details: {
-          transaction_number: editingTxn.transaction_number,
-          old_reference: editingTxn.reference,
-          new_reference: updatedRef,
-          old_remarks: editingTxn.remarks,
-          new_remarks: updatedRemarks,
-          reason: "Operator correction",
-        },
+      const res = await supabase.rpc("update_business_txn", {
+        p_txn_id: editingTxn.id,
+        p_transaction_date: editingTxn.transaction_date,
+        p_transaction_timestamp: editingTxn.transaction_timestamp || new Date().toISOString(),
+        p_customer_id: editCustomerId || null,
+        p_customer_mobile: editSenderMobile.trim() || null,
+        p_reference: editReference.trim(),
+        p_remarks: editRemarks.trim() || null,
+        p_bank_id: null,
+        p_portal_id: editPaidFrom === "portal" ? editPortalId : null,
+        p_merchant_qr_id: null,
+        p_aadhaar_last4: null,
+        p_transfer_method: editTransferMethod,
+        p_sender_name: editSenderName.trim() || "Walk-in Sender",
+        p_sender_mobile: editSenderMobile.trim() || null,
+        p_beneficiary_name: editBeneficiaryName.trim() || null,
+        p_beneficiary_mobile: editBeneficiaryMobile.trim() || null,
+        p_beneficiary_bank: editBeneficiaryBank.trim() || null,
+        p_beneficiary_ifsc: editBeneficiaryIfsc.trim().toUpperCase() || null,
+        p_beneficiary_account: editBeneficiaryAccount.trim() || null,
+        p_upi_id: editTransferMethod === "upi" ? editUpiId.trim() : null,
+        p_amount: parsedAmt,
+        p_service_fee: parsedFee,
+        p_portal_commission: parsedComm,
+        p_fee_source: null,
+        p_paid_from: editPaidFrom,
+        p_customer_pay_method: editCustomerPayMethod,
+        p_pay_from_instrument_id: fundingInstrumentId,
+        p_pay_from_method: editPaidFrom,
+        p_receiver_name: editBeneficiaryName.trim() || null,
       });
 
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === editingTxn.id
-            ? {
-                ...t,
-                customer_id: updatedCustId,
-                sender_name: updatedSenderName,
-                sender_mobile: updatedSenderMobile,
-                reference: updatedRef,
-                remarks: updatedRemarks,
-                customers: customers.find((c) => c.id === updatedCustId) || null,
-              }
-            : t
-        )
-      );
+      if (res.error) throw res.error;
 
+      // Re-fetch updated row with relations
+      const { data: updatedTxn } = await supabase
+        .from("transactions")
+        .select("*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), profiles(full_name)")
+        .eq("id", editingTxn.id)
+        .single();
+
+      if (updatedTxn) {
+        setTransactions((prev) => prev.map((t) => (t.id === editingTxn.id ? (updatedTxn as any) : t)));
+      } else {
+        setTransactions((prev) =>
+          prev.map((t) =>
+            t.id === editingTxn.id
+              ? {
+                  ...t,
+                  amount: parsedAmt,
+                  service_fee: parsedFee,
+                  portal_commission: parsedComm,
+                  paid_from: editPaidFrom,
+                  customer_pay_method: editCustomerPayMethod,
+                  transfer_method: editTransferMethod,
+                  beneficiary_name: editBeneficiaryName.trim() || null,
+                  beneficiary_mobile: editBeneficiaryMobile.trim() || null,
+                  beneficiary_bank: editBeneficiaryBank.trim() || null,
+                  beneficiary_ifsc: editBeneficiaryIfsc.trim().toUpperCase() || null,
+                  beneficiary_account: editBeneficiaryAccount.trim() || null,
+                  upi_id: editTransferMethod === "upi" ? editUpiId.trim() : null,
+                  sender_name: editSenderName.trim() || null,
+                  sender_mobile: editSenderMobile.trim() || null,
+                  customer_id: editCustomerId || null,
+                  reference: editReference.trim(),
+                  remarks: editRemarks.trim() || null,
+                  pay_from_instrument_id: fundingInstrumentId,
+                  customers: customers.find((c) => c.id === editCustomerId) || t.customers,
+                }
+              : t
+          )
+        );
+      }
+
+      await refreshBalances();
       setEditTxnWindowOpen(false);
-      showToast("success", `Transaction #${editingTxn.transaction_number} updated with audit trail.`);
+      setEditingTxn(null);
+      showToast("success", `✓ DMT Transfer #${editingTxn.transaction_number} reconciled and updated!`);
     } catch (err: any) {
       console.error("Transaction edit error:", err);
       showToast("error", err.message || "Failed to update transaction.");
@@ -2356,6 +2444,16 @@ export default function DmtWorkspace({
                         {!isReversed && (
                           <button
                             type="button"
+                            onClick={() => handleOpenEdit(t)}
+                            className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 active:scale-95 transition dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+                            title="Edit full transaction"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        {!isReversed && (
+                          <button
+                            type="button"
                             onClick={() => handleOpenReverse(t)}
                             className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 active:scale-95 transition dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
                             title="Reverse transaction"
@@ -2505,16 +2603,18 @@ export default function DmtWorkspace({
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedDetailTxn(null);
-                        handleOpenEdit(selectedDetailTxn);
-                      }}
-                      className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-                    >
-                      Edit Attribution
-                    </button>
+                    {selectedDetailTxn.status !== "reversed" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDetailTxn(null);
+                          handleOpenEdit(selectedDetailTxn);
+                        }}
+                        className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+                      >
+                        ✏️ Edit Transaction
+                      </button>
+                    )}
                     {selectedDetailTxn.status !== "reversed" && (
                       <button
                         type="button"
@@ -2536,94 +2636,415 @@ export default function DmtWorkspace({
       )}
 
       {/* ===============================================================================
-          EDIT TRANSACTION MODAL
+          EDIT TRANSACTION MODAL (FULL FINANCIAL & OPERATIONAL)
       =============================================================================== */}
       {editTxnWindowOpen && editingTxn && (
         <FloatingWindow
           isOpen={editTxnWindowOpen}
-          size="sm"
-          title={`Edit DMT Transaction #${editingTxn.transaction_number}`}
+          size="lg"
+          title={`Edit DMT Transfer #${editingTxn.transaction_number}`}
           onClose={() => setEditTxnWindowOpen(false)}
         >
-          <form onSubmit={handleSaveEdit} className="p-5 space-y-4 text-xs">
-            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-              <strong>Immutable Audit Safeguard:</strong> Transfer amount ({inr(editingTxn.amount)}) and settlement ledger entries are permanently locked. You may update attribution, UTR reference, or remarks.
-            </div>
+          {(() => {
+            const editNumAmt = parseFloat(editAmount) || 0;
+            const editNumFee = parseFloat(editServiceFee) || 0;
+            const editNumComm = parseFloat(editPortalCommission) || 0;
+            const editTotalCollected = editNumAmt + editNumFee;
+            const editNetIncome = editNumFee + editNumComm;
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer Attribution
-              </label>
-              <SearchableSelect
-                options={[
-                  { value: "", label: "-- Walk-in (No Attribution) --" },
-                  ...customers.map((c) => ({
-                    value: c.id,
-                    label: `${c.name}${c.phone ? ` (${c.phone})` : ""}`,
-                  })),
-                ]}
-                value={editCustomerId}
-                onChange={(val) => setEditCustomerId(val)}
-                placeholder="Assign registered customer…"
-              />
-            </div>
+            const selectedFundingInst = liveInstruments.find((i) => i.id === editPayFromInstrumentId);
+            const selectedPortalObj = portals.find((p) => p.id === editPortalId);
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Sender Name
-              </label>
-              <input
-                type="text"
-                value={editSenderName}
-                onChange={(e) => setEditSenderName(e.target.value)}
-                placeholder="Sender name"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
+            return (
+              <form onSubmit={handleSaveEdit} className="p-5 space-y-4 text-xs">
+                <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3 text-indigo-900 dark:text-indigo-300">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>Full Ledger Reversal &amp; Double-Entry Repost</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-indigo-800 dark:text-indigo-400">
+                    Modifying transfer amount, funding bank/portal, or customer collection atomically reverses previous ledger postings and records new entries with ₹0.00 variance across all treasury pools.
+                  </p>
+                </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Bank UTR / Reference
-              </label>
-              <input
-                type="text"
-                value={editReference}
-                onChange={(e) => setEditReference(e.target.value)}
-                placeholder="Correct UTR number"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
+                {/* Transfer Mode Toggle */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Transfer Mode:</label>
+                  <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setEditTransferMethod("bank_account")}
+                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                        editTransferMethod === "bank_account"
+                          ? "bg-white text-indigo-600 shadow-xs dark:bg-indigo-600 dark:text-white"
+                          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                      }`}
+                    >
+                      🏦 Bank Account (IMPS/NEFT)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditTransferMethod("upi")}
+                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                        editTransferMethod === "upi"
+                          ? "bg-white text-indigo-600 shadow-xs dark:bg-indigo-600 dark:text-white"
+                          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                      }`}
+                    >
+                      📱 UPI ID (Instant VPA)
+                    </button>
+                  </div>
+                </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Audit Correction Remarks
-              </label>
-              <input
-                type="text"
-                value={editRemarks}
-                onChange={(e) => setEditRemarks(e.target.value)}
-                placeholder="Add correction notes…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
+                {/* Amounts & Fees */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Transfer Amount (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setEditTxnWindowOpen(false)}
-                className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={editSubmitting}
-                className="rounded-xl bg-indigo-600 px-5 py-2 font-bold text-white shadow-md hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {editSubmitting ? "Saving…" : "Save Correction"}
-              </button>
-            </div>
-          </form>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Service Fee (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editServiceFee}
+                      onChange={(e) => setEditServiceFee(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Portal Commission (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editPortalCommission}
+                      onChange={(e) => setEditPortalCommission(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Funding Source (Disbursement) */}
+                <div className="space-y-1.5 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3.5 dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Funding Account (Disbursement Channel) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditPaidFrom("bank")}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                          editPaidFrom === "bank"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300"
+                        }`}
+                      >
+                        🏦 Bank Account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditPaidFrom("portal")}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                          editPaidFrom === "portal"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300"
+                        }`}
+                      >
+                        🌐 DMT Portal Float
+                      </button>
+                    </div>
+                  </div>
+
+                  {editPaidFrom === "bank" ? (
+                    <div className="space-y-1">
+                      <select
+                        value={editPayFromInstrumentId}
+                        onChange={(e) => setEditPayFromInstrumentId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                      >
+                        <option value="">-- Select Bank Account --</option>
+                        {liveInstruments
+                          .filter((i) => ["bank", "debit_card", "wallet"].includes(String(i.type).toLowerCase()))
+                          .map((inst) => (
+                            <option key={inst.id} value={inst.id}>
+                              {inst.name} ({String(inst.type).toUpperCase()}) · Bal: {inr(Number(inst.current_balance ?? inst.opening_balance ?? 0))}
+                            </option>
+                          ))}
+                      </select>
+                      {selectedFundingInst && (
+                        <p className="text-[11px] text-slate-500">
+                          Selected: <strong className="text-slate-800 dark:text-slate-200">{selectedFundingInst.name}</strong> · Live Balance: <strong className="text-indigo-600 dark:text-indigo-400">{inr(Number(selectedFundingInst.current_balance ?? selectedFundingInst.opening_balance ?? 0))}</strong>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <select
+                        value={editPortalId}
+                        onChange={(e) => setEditPortalId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                      >
+                        <option value="">-- Select DMT Portal --</option>
+                        {portals.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                      {selectedPortalObj && (
+                        <p className="text-[11px] text-slate-500">
+                          Disbursing via portal float: <strong className="text-slate-800 dark:text-slate-200">{selectedPortalObj.name}</strong>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Customer Payment Collection */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Customer Payment Collection Method <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      { id: "cash", label: "💵 Cash Drawer", desc: "Collected in Till" },
+                      { id: "upi", label: "📱 UPI / QR Float", desc: "Received on QR" },
+                      { id: "bank", label: "🏦 Bank Deposit", desc: "Direct Bank In" },
+                      { id: "due", label: "📋 Customer Khata", desc: "Added to Due" },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setEditCustomerPayMethod(m.id as any)}
+                        className={`rounded-xl border p-2 text-center transition ${
+                          editCustomerPayMethod === m.id
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-bold dark:bg-emerald-950/40 dark:text-emerald-200"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{m.label}</div>
+                        <div className="text-[10px] text-slate-400">{m.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Beneficiary Details */}
+                <div className="space-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3.5 dark:border-white/10 dark:bg-white/5">
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>🎯</span>
+                    <span>Beneficiary Destination Details</span>
+                  </div>
+
+                  {editTransferMethod === "bank_account" ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Beneficiary Name</label>
+                        <input
+                          type="text"
+                          value={editBeneficiaryName}
+                          onChange={(e) => setEditBeneficiaryName(e.target.value)}
+                          placeholder="Account holder name"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Beneficiary Bank Name</label>
+                        <input
+                          type="text"
+                          value={editBeneficiaryBank}
+                          onChange={(e) => setEditBeneficiaryBank(e.target.value)}
+                          placeholder="e.g. State Bank of India"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Account Number</label>
+                        <input
+                          type="text"
+                          value={editBeneficiaryAccount}
+                          onChange={(e) => setEditBeneficiaryAccount(e.target.value.replace(/\s+/g, ""))}
+                          placeholder="Bank account number"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">IFSC Code</label>
+                        <input
+                          type="text"
+                          value={editBeneficiaryIfsc}
+                          onChange={(e) => setEditBeneficiaryIfsc(e.target.value.toUpperCase())}
+                          placeholder="e.g. SBIN0001234"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Receiver Name</label>
+                        <input
+                          type="text"
+                          value={editBeneficiaryName}
+                          onChange={(e) => setEditBeneficiaryName(e.target.value)}
+                          placeholder="Receiver display name"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">UPI ID (VPA) <span className="text-rose-500">*</span></label>
+                        <input
+                          type="text"
+                          value={editUpiId}
+                          onChange={(e) => setEditUpiId(e.target.value.trim().toLowerCase())}
+                          placeholder="e.g. rahul@okhdfcbank"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-900"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sender & Attribution */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer (CRM Attribution)</label>
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "-- Walk-in (No Attribution) --" },
+                        ...customers.map((c) => ({
+                          value: c.id,
+                          label: `${c.name}${c.phone ? ` (${c.phone})` : ""}`,
+                        })),
+                      ]}
+                      value={editCustomerId}
+                      onChange={(val) => {
+                        setEditCustomerId(val);
+                        const cust = customers.find((c) => c.id === val);
+                        if (cust) {
+                          if (cust.name) setEditSenderName(cust.name);
+                          if (cust.phone) setEditSenderMobile(cust.phone);
+                        }
+                      }}
+                      placeholder="Assign customer…"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Sender Name</label>
+                    <input
+                      type="text"
+                      value={editSenderName}
+                      onChange={(e) => setEditSenderName(e.target.value)}
+                      placeholder="Sender name"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Sender Mobile</label>
+                    <input
+                      type="tel"
+                      value={editSenderMobile}
+                      onChange={(e) => setEditSenderMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="10-digit mobile"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                </div>
+
+                {/* Audit & UTR */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Bank UTR / Reference Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editReference}
+                      onChange={(e) => setEditReference(e.target.value)}
+                      placeholder="Bank UTR / Reference"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Audit Remarks / Notes</label>
+                    <input
+                      type="text"
+                      value={editRemarks}
+                      onChange={(e) => setEditRemarks(e.target.value)}
+                      placeholder="Reason for correction…"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                </div>
+
+                {/* Summary Box */}
+                <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Projected Double-Entry Impact</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <div>
+                      <span className="text-slate-400">Sent to Beneficiary:</span>
+                      <p className="font-black text-slate-900 dark:text-white">{inr(editNumAmt)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Collected from Customer:</span>
+                      <p className="font-black text-indigo-600 dark:text-indigo-400">{inr(editTotalCollected)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Paid Via:</span>
+                      <p className="font-bold text-slate-700 dark:text-slate-300 truncate">{editPaidFrom === "bank" ? (selectedFundingInst?.name || "Bank") : (selectedPortalObj?.name || "Portal")}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Net Earned:</span>
+                      <p className="font-black text-emerald-600 dark:text-emerald-400">+{inr(editNetIncome)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setEditTxnWindowOpen(false)}
+                    disabled={editSubmitting}
+                    className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting || editNumAmt <= 0 || !editReference.trim()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 font-bold text-white shadow-md hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {editSubmitting ? (
+                      <>
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                        <span>Reconciling &amp; Saving…</span>
+                      </>
+                    ) : (
+                      "Save & Reconcile Transfer"
+                    )}
+                  </button>
+                </div>
+              </form>
+            );
+          })()}
         </FloatingWindow>
       )}
 

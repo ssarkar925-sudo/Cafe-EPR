@@ -184,6 +184,32 @@ export default function ReconciliationClient({
     };
   }, [supabase, refreshLiveBalances]);
 
+function getPoolForInstrumentType(type?: string | null): string | null {
+  if (!type) return null;
+  const t = type.toLowerCase();
+  if (t === "upi_qr" || t === "upi") return "upi_qr";
+  if (t === "bank" || t === "debit_card") return "bank";
+  if (t === "cash") return "cash";
+  if (t === "aeps_portal" || t === "aeps") return "aeps";
+  if (t === "dmt_portal" || t === "dmt") return "dmt";
+  if (t === "wallet") return "wallet";
+  if (t === "credit_card") return "credit_card";
+  return null;
+}
+
+function getPoolForMethod(method?: string | null): string | null {
+  if (!method) return null;
+  const m = method.toLowerCase();
+  if (m === "upi" || m === "upi_qr" || m === "qr") return "upi_qr";
+  if (m === "bank" || m === "net_banking" || m === "card" || m === "debit_card") return "bank";
+  if (m === "cash") return "cash";
+  if (m === "aeps" || m === "aeps_portal") return "aeps";
+  if (m === "dmt" || m === "dmt_portal") return "dmt";
+  if (m === "wallet") return "wallet";
+  if (m === "credit_card") return "credit_card";
+  return null;
+}
+
   // Compute detailed reconciliation for every pool
   const poolReconMap = useMemo(() => {
     const map: Record<string, PoolReconDetail> = {};
@@ -203,13 +229,16 @@ export default function ReconciliationClient({
       const txList: any[] = [];
 
       if (cfg.key === "upi_qr") {
+        const accountedTxnIds = new Set<string>();
         for (const t of transactions) {
           const pCredit = Number(t.pool_credit) || 0;
           const pOut = Number(t.pool_out) || 0;
           const uFee = Number(t.upi_fee) || 0;
+          let used = false;
 
           if (pCredit > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
             credits += pCredit;
+            used = true;
             txList.push({
               id: t.id,
               number: t.transaction_number || "TXN",
@@ -222,6 +251,7 @@ export default function ReconciliationClient({
 
           if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
             debits += pOut;
+            used = true;
             txList.push({
               id: t.id,
               number: t.transaction_number || "TXN",
@@ -235,6 +265,7 @@ export default function ReconciliationClient({
           if (uFee > 0 || (t.fee_source === "upi" && Number(t.service_fee) > 0)) {
             const feeAmt = uFee > 0 ? uFee : Number(t.service_fee);
             fees += feeAmt;
+            used = true;
             txList.push({
               id: `${t.id}-fee`,
               number: t.transaction_number || "TXN",
@@ -244,12 +275,16 @@ export default function ReconciliationClient({
               desc: `Service fee collected via UPI (${t.service_type?.toUpperCase()})`,
             });
           }
+
+          if (used) accountedTxnIds.add(t.id);
         }
 
+        const accountedSettlementIds = new Set<string>();
         for (const s of settlements) {
           const amt = Number(s.amount) || 0;
           if (s.to_pool === "upi_qr") {
             setsIn += amt;
+            accountedSettlementIds.add(s.id);
             txList.push({
               id: s.id,
               number: s.settlement_number || "SETTLEMENT",
@@ -261,6 +296,7 @@ export default function ReconciliationClient({
           }
           if (s.from_pool === "upi_qr") {
             setsOut += amt;
+            accountedSettlementIds.add(s.id);
             txList.push({
               id: s.id,
               number: s.settlement_number || "SETTLEMENT",
@@ -273,18 +309,29 @@ export default function ReconciliationClient({
         }
 
         for (const e of cashEntries) {
-          if (e.method === "upi" || e.method === "upi_qr" || e.method === "qr") {
-            const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-            otherMovements += amt;
-            txList.push({
-              id: e.id,
-              number: "ENTRY",
-              type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
-              amount: amt,
-              date: e.created_at,
-              desc: (e as any).description || (e as any).remarks || "Direct cashbook adjustment",
-            });
+          const inst = e.instrument_id ? instruments.find((i) => i.id === e.instrument_id) : undefined;
+          const entryPool = getPoolForInstrumentType(inst?.type) ?? getPoolForMethod(e.method);
+
+          if (entryPool !== "upi_qr") continue;
+
+          // Guard against double-counting entries already represented in settlements or transactions
+          if (e.ref_type === "settlement" && e.ref_id && accountedSettlementIds.has(e.ref_id)) {
+            continue;
           }
+          if (e.ref_type === "transaction" && e.ref_id && accountedTxnIds.has(e.ref_id)) {
+            continue;
+          }
+
+          const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
+          otherMovements += amt;
+          txList.push({
+            id: e.id,
+            number: e.ref_type === "invoice" ? "INVOICE" : e.ref_type === "quick_sale" ? "SALE" : "ENTRY",
+            type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
+            amount: amt,
+            date: e.created_at,
+            desc: (e as any).description || (e as any).remarks || "Direct cashbook adjustment",
+          });
         }
       } else {
         // Generic pool movements
@@ -294,11 +341,14 @@ export default function ReconciliationClient({
         otherMovements = delta;
 
         for (const e of cashEntries) {
-          if (e.method === cfg.key) {
+          const inst = e.instrument_id ? instruments.find((i) => i.id === e.instrument_id) : undefined;
+          const entryPool = getPoolForInstrumentType(inst?.type) ?? getPoolForMethod(e.method);
+
+          if (entryPool === cfg.key) {
             const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
             txList.push({
               id: e.id,
-              number: "CASH-ENTRY",
+              number: e.ref_type === "invoice" ? "INVOICE" : e.ref_type === "quick_sale" ? "SALE" : "CASH-ENTRY",
               type: e.direction === "out" ? "Outflow" : "Inflow",
               amount: amt,
               date: e.created_at,
@@ -337,7 +387,7 @@ export default function ReconciliationClient({
     }
 
     return map;
-  }, [balances, transactions, settlements, cashEntries]);
+  }, [balances, transactions, settlements, cashEntries, instruments]);
 
   const allReconciled = useMemo(() => {
     return Object.values(poolReconMap).every((p) => p.isReconciled);

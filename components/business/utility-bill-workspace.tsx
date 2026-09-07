@@ -222,6 +222,8 @@ export default function UtilityBillWorkspace({
   const [serviceFee, setServiceFee] = useState("0");
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
   const [customerPayInstId, setCustomerPayInstId] = useState("");
+  const [splitWithKhata, setSplitWithKhata] = useState(false);
+  const [paidNowAmount, setPaidNowAmount] = useState("");
   const [fundingInstId, setFundingInstId] = useState("");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -626,7 +628,15 @@ export default function UtilityBillWorkspace({
       showToast("error", "Please enter a valid bill amount greater than ₹0.");
       return;
     }
-    if (customerPayMethod === "due" && !selectedCustomerId) {
+    const isPartial = splitWithKhata && customerPayMethod !== "due";
+    const paidNow = isPartial
+      ? Math.min(totalCustomerDebit, Math.max(0, parseFloat(paidNowAmount) || 0))
+      : customerPayMethod === "due"
+      ? 0
+      : totalCustomerDebit;
+    const dueRemainder = totalCustomerDebit - paidNow;
+
+    if ((dueRemainder > 0 || customerPayMethod === "due") && !selectedCustomerId) {
       showToast("error", "Please select a customer for Khata (Due) credit payment.");
       return;
     }
@@ -638,7 +648,7 @@ export default function UtilityBillWorkspace({
       showToast("error", "Cash is not permitted as a funding account for online bill payment.");
       return;
     }
-    if (customerPayMethod !== "due" && !selectedCustomerPaymentAccount) {
+    if (paidNow > 0 && !selectedCustomerPaymentAccount) {
       showToast("error", `No active collection account is configured for ${customerPayMethod.toUpperCase()}.`);
       return;
     }
@@ -677,8 +687,8 @@ export default function UtilityBillWorkspace({
         service_fee: custFee,
         portal_commission: commissionEarned,
         portal_charge: 0,
-        cash_in: customerPayMethod === "cash" ? totalCustomerDebit : 0,
-        bank_in: customerPayMethod === "bank" ? totalCustomerDebit : 0,
+        cash_in: customerPayMethod === "cash" ? paidNow : 0,
+        bank_in: (customerPayMethod === "bank" || customerPayMethod === "upi") ? paidNow : 0,
         pool_out: netProviderCost,
         pool_credit: 0,
         pool_credit_type: "utility",
@@ -727,19 +737,20 @@ export default function UtilityBillWorkspace({
       }
 
       // 3. Customer Collection Accounting Leg
-      if (customerPayMethod !== "due" && totalCustomerDebit > 0) {
+      if (paidNow > 0) {
         const payInst = selectedCustomerPaymentAccount;
         await supabase.from("cash_entries").insert({
           entry_date: todayDate,
           method: customerPayMethod === "cash" ? "cash" : customerPayMethod === "upi" ? "upi" : "bank",
           direction: "in",
-          amount: totalCustomerDebit,
-          description: `Bill ${txnNumber} collection for ${billerName} (${customerPayMethod.toUpperCase()})`,
+          amount: paidNow,
+          description: `Bill ${txnNumber} collection for ${billerName} (${customerPayMethod.toUpperCase()}${dueRemainder > 0 ? ` - Partial ${inr(paidNow)}` : ""})`,
           ref_type: "transaction",
           ref_id: newTxn.id,
           instrument_id: payInst?.id || null,
         });
-      } else if (customerPayMethod === "due" && selectedCustomerId) {
+      }
+      if (dueRemainder > 0 && selectedCustomerId) {
         // Khata Due: Debit Customer Ledger
         const { data: custData } = await supabase
           .from("customers")
@@ -747,15 +758,15 @@ export default function UtilityBillWorkspace({
           .eq("id", selectedCustomerId)
           .single();
         const prevBal = Number(custData?.balance || 0);
-        const newBal = prevBal + totalCustomerDebit;
+        const newBal = prevBal + dueRemainder;
 
         await supabase.from("customers").update({ balance: newBal }).eq("id", selectedCustomerId);
         await supabase.from("customer_ledger").insert({
           customer_id: selectedCustomerId,
           entry_date: todayDate,
           type: "invoice",
-          description: `Utility Bill ${txnNumber} (${billerName}) on credit (Khata)`,
-          debit: totalCustomerDebit,
+          description: `Utility Bill ${txnNumber} (${billerName}) ${paidNow > 0 ? `partial balance due (${inr(dueRemainder)})` : `on credit (Khata)`}`,
+          debit: dueRemainder,
           credit: 0,
           balance_after: newBal,
           ref_type: "transaction",
@@ -1369,6 +1380,123 @@ export default function UtilityBillWorkspace({
                 );
               })}
             </div>
+
+            {customerPayMethod !== "due" && (
+              <div className="mt-3 overflow-hidden rounded-2xl border border-cyan-200/80 bg-gradient-to-b from-cyan-50/70 to-cyan-50/30 p-3.5 shadow-xs dark:border-cyan-900/50 dark:from-cyan-950/30 dark:to-cyan-950/10">
+                <div className="flex items-center justify-between">
+                  <label className="flex cursor-pointer items-center gap-2.5 text-xs font-black text-slate-800 dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={splitWithKhata}
+                      onChange={(e) => {
+                        setSplitWithKhata(e.target.checked);
+                        if (e.target.checked && !paidNowAmount) {
+                          setPaidNowAmount(String(totalCustomerDebit));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    <span>Split with Khata Due (Partial Payment)</span>
+                  </label>
+                  {splitWithKhata && (
+                    <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-black uppercase text-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-300">
+                      Active Split
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Customer pays part now ({customerPayMethod.toUpperCase()}) and remainder is posted to Khata Due
+                </p>
+
+                {splitWithKhata && (
+                  <div className="mt-3 space-y-3">
+                    {/* Visual Segmented Settlement Bar */}
+                    {totalCustomerDebit > 0 && (() => {
+                      const curPaid = Math.min(totalCustomerDebit, Math.max(0, parseFloat(paidNowAmount) || 0));
+                      const curDue = Math.max(0, totalCustomerDebit - curPaid);
+                      const paidPct = Math.round((curPaid / totalCustomerDebit) * 100);
+                      const duePct = 100 - paidPct;
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-[11px] font-bold">
+                            <span className="text-emerald-700 dark:text-emerald-400">
+                              💵 Paid Now: {inr(curPaid)} ({paidPct}%)
+                            </span>
+                            <span className="text-amber-700 dark:text-amber-400">
+                              📋 Khata Due: {inr(curDue)} ({duePct}%)
+                            </span>
+                          </div>
+                          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                            <div
+                              style={{ width: `${paidPct}%` }}
+                              className="bg-emerald-500 transition-all duration-200"
+                            />
+                            <div
+                              style={{ width: `${duePct}%` }}
+                              className="bg-amber-500 transition-all duration-200"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Quick Percentage Chips */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-black uppercase text-slate-400">Quick Split:</span>
+                      {[
+                        { label: "25%", frac: 0.25 },
+                        { label: "50%", frac: 0.5 },
+                        { label: "75%", frac: 0.75 },
+                        { label: "100% (Full)", frac: 1 },
+                      ].map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          onClick={() => {
+                            const val = Number((totalCustomerDebit * chip.frac).toFixed(2));
+                            setPaidNowAmount(String(val));
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 shadow-2xs transition hover:border-cyan-300 hover:bg-cyan-50/50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Dual Inputs: Paid Now vs Balance to Khata */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Paid Now ({customerPayMethod.toUpperCase()})
+                        </span>
+                        <div className="relative mt-1">
+                          <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={totalCustomerDebit}
+                            step="0.01"
+                            value={paidNowAmount}
+                            onChange={(e) => setPaidNowAmount(e.target.value)}
+                            placeholder={String(totalCustomerDebit)}
+                            className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-6 pr-2.5 text-xs font-black text-slate-900 shadow-2xs outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Balance to Khata Due
+                        </span>
+                        <div className="mt-1 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-black text-amber-800 shadow-2xs dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                          <span>{inr(Math.max(0, totalCustomerDebit - (parseFloat(paidNowAmount) || 0)))}</span>
+                          <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">Khata</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 06 Funding Source */}

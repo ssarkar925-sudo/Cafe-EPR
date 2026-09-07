@@ -17,7 +17,7 @@ import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWh
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import Modal from "@/components/ui/modal";
 
-export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string };
+export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string; payment_instrument_id?: string | null };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
 
 export type Txn = {
@@ -53,6 +53,7 @@ export type Txn = {
   portal_commission: number | string;
   fee_source: string | null;
   paid_from: string | null;
+  pay_from_instrument_id?: string | null;
   customer_pay_method: string | null;
   customers: { name: string; phone: string | null } | null;
   banks: { name: string } | null;
@@ -1052,46 +1053,12 @@ export default function BusinessClient({
         p_remarks: payload.p_remarks || null,
         p_amount: payload.p_amount,
         p_customer_pay_method: payload.p_customer_pay_method || "cash",
+        p_pay_from_instrument_id: (payload.p_pay_from_instrument_id as string) || (payload.payment_account_id as string) || null,
+        p_pay_from_method: (payload.p_pay_from_method as string) || "bank",
       };
       const res = await supabase.rpc("update_recharge", rechargeArgs);
       data = res.data;
       error = res.error;
-
-      if (error && (error.message?.includes("schema cache") || error.code === "PGRST202" || error.message?.includes("function public.update_recharge"))) {
-        const provId = rechargeArgs.p_provider_id as string;
-        const amt = Number(rechargeArgs.p_amount) || 0;
-        let comm = 0;
-        if (provId) {
-          const { data: slabs } = await supabase.from("recharge_commission_slabs").select("*").eq("provider_id", provId);
-          const slab = (slabs ?? []).find((s: any) => amt >= Number(s.min_amount) && amt <= Number(s.max_amount));
-          if (slab) {
-            comm = Math.round((amt * Number(slab.commission_percent)) / 100);
-          }
-        }
-        const cost = amt - comm;
-
-        const { data: updated, error: updErr } = await supabase.from("transactions").update({
-          transaction_date: ((payload.p_transaction_timestamp as string) ?? payload.p_transaction_date)?.slice(0, 10),
-          transaction_timestamp: payload.p_transaction_timestamp || new Date().toISOString(),
-          customer_id: payload.p_customer_id || null,
-          customer_mobile: payload.p_customer_mobile || null,
-          reference: payload.p_reference || null,
-          remarks: payload.p_remarks || null,
-          provider_id: payload.p_provider_id || null,
-          amount: amt,
-          portal_commission: comm,
-          cash_in: amt,
-          pool_out: cost,
-          updated_at: new Date().toISOString(),
-        }).eq("id", editTxn.id).select().single();
-
-        if (updErr) {
-          showToast("error", updErr.message);
-          return;
-        }
-        data = updated;
-        error = null;
-      }
     } else {
       const updateArgs = {
         p_txn_id: editTxn.id,
@@ -1101,7 +1068,7 @@ export default function BusinessClient({
         p_customer_mobile: payload.p_customer_mobile || null,
         p_reference: payload.p_reference || null,
         p_remarks: payload.p_remarks || null,
-        p_bank_id: payload.p_bank_id || null,
+        p_bank_id: payload.p_bank_id || (service === "dmt" ? payload.payment_account_id : null) || null,
         p_portal_id: payload.p_portal_id || null,
         p_merchant_qr_id: payload.p_merchant_qr_id || null,
         p_aadhaar_last4: payload.p_aadhaar_last4 || null,
@@ -1121,6 +1088,8 @@ export default function BusinessClient({
         p_fee_source: payload.p_fee_source || null,
         p_paid_from: payload.p_paid_from || null,
         p_customer_pay_method: payload.p_customer_pay_method || null,
+        p_pay_from_instrument_id: (payload.p_pay_from_instrument_id as string) || (payload.payment_account_id as string) || (service === "dmt" ? (payload.payment_account_id as string) : null) || null,
+        p_pay_from_method: (payload.p_pay_from_method as string) || null,
       };
       const res = await supabase.rpc("update_business_txn", updateArgs);
       data = res.data;
@@ -1159,6 +1128,8 @@ export default function BusinessClient({
       fee_source: (payload.p_fee_source as string) || null,
       paid_from: (payload.p_paid_from as string) || null,
       customer_pay_method: (payload.p_customer_pay_method as string) || null,
+      pay_from_instrument_id: (payload.p_pay_from_instrument_id as string) || (payload.payment_account_id as string) || null,
+      pay_from_method: (payload.p_pay_from_method as string) || null,
       banks: (payload.p_bank_id as string)
         ? {
             name:
@@ -1169,10 +1140,7 @@ export default function BusinessClient({
         : null,
       providers: (payload.p_provider_id as string) ? { name: initialRechargeProviders.find((p) => p.id === payload.p_provider_id)?.name ?? "-" } : null,
     };
-    setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd } : t)));
-
-    // Synchronize Cashbook & Payment Accounts on edit
-    await syncCashbookForTxn(service, editTxn.transaction_number, editTxn.id, payload, initialPaymentInstruments);
+    setTxns((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...upd, ...(data || {}) } : t)));
 
     setEditTxn(null);
     showToast("success", `Transaction ${editTxn.transaction_number} updated`);

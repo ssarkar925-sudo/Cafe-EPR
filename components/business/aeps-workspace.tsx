@@ -104,12 +104,14 @@ export default function AepsWorkspace({
   initialCustomers,
   initialBanks,
   initialPortals,
+  paymentInstruments = [],
   float,
 }: {
   initialTransactions: Txn[];
   initialCustomers: CustomerRow[];
   initialBanks: Master[];
   initialPortals: Master[];
+  paymentInstruments?: any[];
   float: any;
 }) {
   const supabase = createClient();
@@ -122,6 +124,7 @@ export default function AepsWorkspace({
   const [customers, setCustomers] = useState<CustomerRow[]>(initialCustomers);
   const [banks, setBanks] = useState<Master[]>(initialBanks);
   const [portals, setPortals] = useState<Master[]>(initialPortals);
+  const [liveInstruments, setLiveInstruments] = useState<any[]>(paymentInstruments);
   const [livePool, setLivePool] = useState<any>(float);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(() =>
@@ -146,7 +149,7 @@ export default function AepsWorkspace({
   const [portalCommission, setPortalCommission] = useState<string>("");
   
   // Fee Treatment: "separate" (Collect Separately) vs "deduct" (Deduct From Payout)
-  const [feeTreatment, setFeeTreatment] = useState<"separate" | "deduct">("separate");
+  const [feeTreatment, setFeeTreatment] = useState<"deduct" | "separate">("deduct");
   // Fee Collection Instrument (when separate): "cash", "upi", "bank", "due"
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
 
@@ -182,9 +185,17 @@ export default function AepsWorkspace({
   const [custCreateError, setCustCreateError] = useState("");
   const [custCreateSubmitting, setCustCreateSubmitting] = useState(false);
 
-  // Edit Transaction Modal
+  // Edit Transaction Modal (Full Financial & Operational)
   const [editTxnWindowOpen, setEditTxnWindowOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Txn | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editServiceFee, setEditServiceFee] = useState<string>("");
+  const [editPortalCommission, setEditPortalCommission] = useState<string>("");
+  const [editFeeTreatment, setEditFeeTreatment] = useState<"deduct" | "separate">("deduct");
+  const [editCustomerPayMethod, setEditCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
+  const [editBankId, setEditBankId] = useState<string>("");
+  const [editPortalId, setEditPortalId] = useState<string>("");
+  const [editAadhaarLast4, setEditAadhaarLast4] = useState<string>("");
   const [editCustomerId, setEditCustomerId] = useState<string>("");
   const [editCustomerMobile, setEditCustomerMobile] = useState<string>("");
   const [editReference, setEditReference] = useState<string>("");
@@ -488,72 +499,136 @@ export default function AepsWorkspace({
     }
   }
 
-  // Open Edit Modal for Non-Financial Reference Correction
+  // Open Edit Modal for Complete Financial & Operational Edit
   function handleOpenEdit(t: Txn) {
     setEditingTxn(t);
+    setEditAmount(String(t.amount ?? ""));
+    setEditServiceFee(String(t.service_fee ?? "0"));
+    setEditPortalCommission(String(t.portal_commission ?? "0"));
+    const isDeduct = t.fee_source === "cut_from_withdrawal" || t.fee_source === "deducted_from_cash";
+    setEditFeeTreatment(isDeduct ? "deduct" : "separate");
+    setEditCustomerPayMethod((t.customer_pay_method as any) || (t.fee_source === "upi" ? "upi" : "cash"));
+    setEditBankId(t.bank_id || "");
+    setEditPortalId(t.portal_id || portals[0]?.id || "");
+    setEditAadhaarLast4(t.aadhaar_last4 || "");
     setEditCustomerId(t.customer_id || "");
-    setEditCustomerMobile(t.customer_mobile || "");
+    setEditCustomerMobile(t.customer_mobile || t.customers?.phone || "");
     setEditReference(t.reference || "");
     setEditRemarks(t.remarks || "");
     setEditTxnWindowOpen(true);
   }
 
-  // Save Transaction Non-Financial Reference Correction
+  // Save Complete Financial & Operational Edit
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingTxn) return;
+
+    const parsedAmt = parseFloat(editAmount);
+    if (isNaN(parsedAmt) || parsedAmt <= 0) {
+      showToast("error", "Please enter a valid withdrawal amount.");
+      return;
+    }
+    const parsedFee = parseFloat(editServiceFee) || 0;
+    if (parsedFee < 0) {
+      showToast("error", "Service fee cannot be negative.");
+      return;
+    }
+    const parsedComm = parseFloat(editPortalCommission) || 0;
+    if (!editBankId) {
+      showToast("error", "Please select customer's bank.");
+      return;
+    }
+    if (!editPortalId) {
+      showToast("error", "Please select AEPS portal.");
+      return;
+    }
+    if (!/^\d{4}$/.test(editAadhaarLast4)) {
+      showToast("error", "Aadhaar must be exactly 4 digits.");
+      return;
+    }
+
     setEditSubmitting(true);
 
     try {
-      const updatedRef = editReference.trim() || null;
-      const updatedRemarks = editRemarks.trim() || null;
-      const updatedCustId = editCustomerId || null;
-      const updatedCustMobile = editCustomerMobile.trim() || null;
+      const effectiveFeeSource = editFeeTreatment === "deduct" ? "cut_from_withdrawal" : "customer_paid_extra";
+      const effectivePayMethod = editFeeTreatment === "separate" ? editCustomerPayMethod : "cash";
 
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          customer_id: updatedCustId,
-          customer_mobile: updatedCustMobile,
-          reference: updatedRef,
-          remarks: updatedRemarks,
-        })
-        .eq("id", editingTxn.id);
-
-      if (updateError) throw updateError;
-
-      await logAudit({
-        action: "update",
-        entity: "transaction",
-        entity_id: editingTxn.id,
-        description: `Corrected non-financial reference on AEPS Txn #${editingTxn.transaction_number}`,
-        details: {
-          transaction_number: editingTxn.transaction_number,
-          old_reference: editingTxn.reference,
-          new_reference: updatedRef,
-          old_remarks: editingTxn.remarks,
-          new_remarks: updatedRemarks,
-          reason: "Operator correction",
-        },
+      const res = await supabase.rpc("update_business_txn", {
+        p_txn_id: editingTxn.id,
+        p_transaction_date: editingTxn.transaction_date,
+        p_transaction_timestamp: editingTxn.transaction_timestamp || new Date().toISOString(),
+        p_customer_id: editCustomerId || null,
+        p_customer_mobile: editCustomerMobile.trim() || null,
+        p_reference: editReference.trim() || null,
+        p_remarks: editRemarks.trim() || null,
+        p_bank_id: editBankId,
+        p_portal_id: editPortalId,
+        p_merchant_qr_id: null,
+        p_aadhaar_last4: editAadhaarLast4,
+        p_transfer_method: null,
+        p_sender_name: null,
+        p_sender_mobile: null,
+        p_beneficiary_name: null,
+        p_beneficiary_mobile: null,
+        p_beneficiary_bank: null,
+        p_beneficiary_ifsc: null,
+        p_beneficiary_account: null,
+        p_upi_id: null,
+        p_amount: parsedAmt,
+        p_service_fee: parsedFee,
+        p_portal_commission: parsedComm,
+        p_fee_source: effectiveFeeSource,
+        p_paid_from: "portal",
+        p_customer_pay_method: effectivePayMethod,
+        p_pay_from_instrument_id: portals.find((p) => p.id === editPortalId)?.payment_instrument_id || null,
+        p_pay_from_method: "aeps_portal",
       });
 
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === editingTxn.id
-            ? {
-                ...t,
-                customer_id: updatedCustId,
-                customer_mobile: updatedCustMobile,
-                reference: updatedRef,
-                remarks: updatedRemarks,
-                customers: customers.find((c) => c.id === updatedCustId) || null,
-              }
-            : t
-        )
-      );
+      if (res.error) throw res.error;
+
+      // Re-fetch updated row with relations
+      const { data: updatedTxn } = await supabase
+        .from("transactions")
+        .select("*, customers(name, phone), banks:aeps_banks(name, code), portals:aeps_portals(name, code), profiles(full_name)")
+        .eq("id", editingTxn.id)
+        .single();
+
+      if (updatedTxn) {
+        setTransactions((prev) => prev.map((t) => (t.id === editingTxn.id ? (updatedTxn as any) : t)));
+      } else {
+        setTransactions((prev) =>
+          prev.map((t) =>
+            t.id === editingTxn.id
+              ? {
+                  ...t,
+                  amount: parsedAmt,
+                  service_fee: parsedFee,
+                  portal_commission: parsedComm,
+                  fee_source: effectiveFeeSource,
+                  customer_pay_method: effectivePayMethod,
+                  bank_id: editBankId,
+                  portal_id: editPortalId,
+                  aadhaar_last4: editAadhaarLast4,
+                  customer_id: editCustomerId || null,
+                  customer_mobile: editCustomerMobile.trim() || null,
+                  reference: editReference.trim() || null,
+                  remarks: editRemarks.trim() || null,
+                  banks: banks.find((b) => b.id === editBankId) || t.banks,
+                  portals: portals.find((p) => p.id === editPortalId) || t.portals,
+                  customers: customers.find((c) => c.id === editCustomerId) || t.customers,
+                }
+              : t
+          )
+        );
+      }
+
+      // Refresh pool balance
+      const { data: freshPool } = await supabase.rpc("get_pool_balances");
+      if (freshPool) setLivePool((freshPool as any)?.aeps ?? null);
 
       setEditTxnWindowOpen(false);
-      showToast("success", `Transaction #${editingTxn.transaction_number} updated.`);
+      setEditingTxn(null);
+      showToast("success", `✓ AEPS Transaction #${editingTxn.transaction_number} reconciled and updated!`);
     } catch (err: any) {
       console.error("Transaction edit error:", err);
       showToast("error", err.message || "Failed to update transaction.");
@@ -615,8 +690,8 @@ export default function AepsWorkspace({
         p_fee_source: effectiveFeeSource,
         p_paid_from: "portal",
         p_customer_pay_method: effectivePayMethod,
-        p_pay_from_instrument_id: null,
-        p_pay_from_method: "portal",
+        p_pay_from_instrument_id: portals.find((p) => p.id === selectedPortalId)?.payment_instrument_id || null,
+        p_pay_from_method: "aeps_portal",
         p_receiver_name: null,
         p_portal_charge: 0,
       };
@@ -843,7 +918,7 @@ export default function AepsWorkspace({
 
       {recentTxn && <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3"><div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5"><div className="flex items-center gap-2"><h2 className="text-xs font-black uppercase tracking-wider text-slate-400">LIVE AEPS ACTIVITY</h2><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /></div><span className="text-[10px] text-slate-400">Latest Completed Event</span></div><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3"><div className="flex items-center gap-3"><span className="flex h-3 w-3 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" /><div><div className="flex items-center gap-2 flex-wrap"><span className="font-mono text-xs font-bold text-slate-900 dark:text-white">{recentTxn.transaction_number}</span><span className="text-xs text-slate-400">·</span><span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Customer: {recentTxn.customers?.name || "Walk-in"}</span><span className="text-xs text-slate-400">·</span><strong className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{inr(Number(recentTxn.amount))}</strong><span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">✓ {recentTxn.status.toUpperCase()}</span></div><p className="mt-0.5 text-[11px] text-slate-400">{fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· RRN: ${recentTxn.reference}` : ""} {recentTxn.banks?.name ? `· Bank: ${recentTxn.banks.name}` : ""}</p></div></div><div className="flex items-center gap-2 self-start sm:self-auto"><button type="button" onClick={() => setSelectedDetailTxn(recentTxn)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">View</button><Link href={`/business/receipt/${recentTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`} target="_blank" className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" title="Print thermal receipt">🖨️ Receipt</Link><button type="button" onClick={() => handleOpenWhatsApp(recentTxn)} className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300">💬 WhatsApp</button></div></div></section>}
 
-      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-base font-bold text-slate-900 dark:text-white">AEPS TRANSACTION HISTORY</h2><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Authoritative transaction ledger for Aadhaar biometric cash withdrawals and portal settlements.</p></div><div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">{[{ key: "all", label: `All (${transactions.length})` }, { key: "success", label: "Successful" }, { key: "pending", label: "Pending" }, { key: "failed", label: "Failed" }].map((tab) => <button key={tab.key} type="button" onClick={() => setStatusFilter(tab.key)} className={`rounded-lg px-3 py-1 font-semibold transition ${statusFilter === tab.key ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}>{tab.label}</button>)}</div></div><div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between"><div className="flex-1"><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by RRN reference, mobile, customer name, bank or portal…" className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900" /></div><button type="button" onClick={handleExportCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg><span>Export CSV</span></button></div></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5"><th className="px-4 py-3">TRANSACTION</th><th className="px-4 py-3">CUSTOMER &amp; AADHAAR</th><th className="px-4 py-3">BANK &amp; PORTAL</th><th className="px-4 py-3">DATE / TIME</th><th className="px-4 py-3 text-right">WITHDRAWAL</th><th className="px-4 py-3 text-right">CASH HANDED</th><th className="px-4 py-3 text-right">FEE</th><th className="px-4 py-3 text-center">STATUS</th><th className="px-4 py-3 text-right">ACTIONS</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">{filteredTxns.length === 0 ? <tr><td colSpan={9} className="py-12 text-center text-slate-400">No AEPS transactions match the selected filters.</td></tr> : filteredTxns.map((t) => { const isDeducted = t.fee_source === "cut_from_withdrawal"; const txnCashHanded = isDeducted ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0)) : Number(t.amount || 0); const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`; return <tr key={t.id} className="transition hover:bg-slate-50/70 dark:hover:bg-white/5"><td className="px-4 py-3.5"><div className="font-mono font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>{t.reference && <span className="text-[10px] text-slate-400 truncate max-w-[140px] block">RRN: {t.reference}</span>}</td><td className="px-4 py-3.5"><div className="font-semibold text-slate-800 dark:text-slate-200">{t.customers?.name || "Walk-in"}</div><span className="text-[10px] text-slate-400">{t.customer_mobile ? `${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `· **** ${t.aadhaar_last4}` : ""}</span></td><td className="px-4 py-3.5"><div className="font-semibold text-slate-800 dark:text-slate-200">{t.banks?.name || "Bank"}</div><span className="text-[10px] text-teal-600 dark:text-teal-400">{t.portals?.name || "Portal"}</span></td><td className="px-4 py-3.5 text-slate-500 dark:text-slate-400"><div>{fmtDate(t.transaction_date)}</div><span className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</span></td><td className="px-4 py-3.5 text-right font-bold text-slate-900 dark:text-white">{inr(t.amount)}</td><td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{inr(txnCashHanded)}</td><td className="px-4 py-3.5 text-right font-semibold text-cyan-600 dark:text-cyan-400">+{inr(Number(t.service_fee || 0))}</td><td className="px-4 py-3.5 text-center"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${t.status === "success" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : t.status === "pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"}`}>{t.status === "success" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}{t.status === "success" ? "✓ Successful" : t.status === "pending" ? "◌ Pending" : "! Failed"}</span></td><td className="px-4 py-3.5 text-right"><div className="flex items-center justify-end gap-1"><Link href={receiptUrl} target="_blank" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white" title="Print 80mm thermal receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg></Link><button type="button" onClick={() => handleOpenWhatsApp(t)} className="rounded-lg p-1 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400" title="Send WhatsApp receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg></button><button type="button" onClick={() => setSelectedDetailTxn(t)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white" title="View complete details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg></button><button type="button" onClick={() => handleOpenEdit(t)} className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400" title="Edit non-financial reference"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg></button></div></td></tr>; })}</tbody></table></div></section>
+      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-base font-bold text-slate-900 dark:text-white">AEPS TRANSACTION HISTORY</h2><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Authoritative transaction ledger for Aadhaar biometric cash withdrawals and portal settlements.</p></div><div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">{[{ key: "all", label: `All (${transactions.length})` }, { key: "success", label: "Successful" }, { key: "pending", label: "Pending" }, { key: "failed", label: "Failed" }].map((tab) => <button key={tab.key} type="button" onClick={() => setStatusFilter(tab.key)} className={`rounded-lg px-3 py-1 font-semibold transition ${statusFilter === tab.key ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}>{tab.label}</button>)}</div></div><div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between"><div className="flex-1"><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by RRN reference, mobile, customer name, bank or portal…" className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900" /></div><button type="button" onClick={handleExportCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg><span>Export CSV</span></button></div></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5"><th className="px-4 py-3">TRANSACTION</th><th className="px-4 py-3">CUSTOMER &amp; AADHAAR</th><th className="px-4 py-3">BANK &amp; PORTAL</th><th className="px-4 py-3">DATE / TIME</th><th className="px-4 py-3 text-right">WITHDRAWAL</th><th className="px-4 py-3 text-right">CASH HANDED</th><th className="px-4 py-3 text-right">FEE</th><th className="px-4 py-3 text-center">STATUS</th><th className="px-4 py-3 text-right">ACTIONS</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">{filteredTxns.length === 0 ? <tr><td colSpan={9} className="py-12 text-center text-slate-400">No AEPS transactions match the selected filters.</td></tr> : filteredTxns.map((t) => { const isDeducted = t.fee_source === "cut_from_withdrawal"; const txnCashHanded = isDeducted ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0)) : Number(t.amount || 0); const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`; return <tr key={t.id} className="transition hover:bg-slate-50/70 dark:hover:bg-white/5"><td className="px-4 py-3.5"><div className="font-mono font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>{t.reference && <span className="text-[10px] text-slate-400 truncate max-w-[140px] block">RRN: {t.reference}</span>}</td><td className="px-4 py-3.5"><div className="font-semibold text-slate-800 dark:text-slate-200">{t.customers?.name || "Walk-in"}</div><span className="text-[10px] text-slate-400">{t.customer_mobile ? `${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `· **** ${t.aadhaar_last4}` : ""}</span></td><td className="px-4 py-3.5"><div className="font-semibold text-slate-800 dark:text-slate-200">{t.banks?.name || "Bank"}</div><span className="text-[10px] text-teal-600 dark:text-teal-400">{t.portals?.name || "Portal"}</span></td><td className="px-4 py-3.5 text-slate-500 dark:text-slate-400"><div>{fmtDate(t.transaction_date)}</div><span className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</span></td><td className="px-4 py-3.5 text-right font-bold text-slate-900 dark:text-white">{inr(t.amount)}</td><td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{inr(txnCashHanded)}</td><td className="px-4 py-3.5 text-right font-semibold text-cyan-600 dark:text-cyan-400">+{inr(Number(t.service_fee || 0))}</td><td className="px-4 py-3.5 text-center"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${t.status === "success" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : t.status === "pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"}`}>{t.status === "success" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}{t.status === "success" ? "✓ Successful" : t.status === "pending" ? "◌ Pending" : "! Failed"}</span></td><td className="px-4 py-3.5 text-right"><div className="flex items-center justify-end gap-1"><Link href={receiptUrl} target="_blank" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white" title="Print 80mm thermal receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg></Link><button type="button" onClick={() => handleOpenWhatsApp(t)} className="rounded-lg p-1 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400" title="Send WhatsApp receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg></button><button type="button" onClick={() => setSelectedDetailTxn(t)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white" title="View complete details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg></button><button type="button" onClick={() => handleOpenEdit(t)} className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400" title="Edit full transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg></button></div></td></tr>; })}</tbody></table></div></section>
 
       {confirmWindowOpen && <FloatingWindow isOpen={confirmWindowOpen} size="sm" title="Confirm AEPS Cash Withdrawal" onClose={() => setConfirmWindowOpen(false)}><div className="p-5 space-y-4"><div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2"><div className="flex justify-between"><span className="text-slate-500">Withdrawal Amount:</span><strong className="text-base text-slate-900 dark:text-white">{inr(numAmount)}</strong></div><div className="flex justify-between"><span className="text-slate-500">Customer Bank:</span><strong className="text-slate-900 dark:text-white">{selectedBank?.name}</strong></div><div className="flex justify-between"><span className="text-slate-500">Aadhaar (Last 4):</span><strong className="text-slate-900 dark:text-white">**** {cleanAadhaar}</strong></div><div className="flex justify-between"><span className="text-slate-500">{feeTreatment === "deduct" ? "Fee Deducted from Payout:" : "Customer Service Fee:"}</span><strong className={feeTreatment === "deduct" ? "text-amber-600 dark:text-amber-400 font-bold" : "text-emerald-600 dark:text-emerald-400 font-bold"}>{feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}</strong></div><div className="flex justify-between"><span className="text-slate-500">Fee Treatment:</span><strong className="text-slate-900 dark:text-white">{feeTreatment === "deduct" ? "Deducted from Payout" : `Separate via ${customerPayMethod.toUpperCase()}`}</strong></div>{feeTreatment === "separate" && customerPayMethod === "cash" && <div className="flex justify-between"><span className="text-slate-500">Total Customer Cash Received:</span><strong className="text-slate-900 dark:text-white">{inr(numAmount + numFee)}</strong></div>}<div className="flex justify-between"><span className="text-slate-500">Portal Commission:</span><strong className="text-teal-600 dark:text-teal-400 font-bold">+{inr(numComm)}</strong></div><div className="flex justify-between"><span className="text-slate-700 font-bold">Operator Net Income:</span><strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong></div><div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10"><span className="text-slate-700 font-bold dark:text-slate-300">Physical Cash to Hand to Customer:</span><strong className="text-emerald-600 dark:text-emerald-400 text-sm font-black">{inr(cashHanded)}</strong></div></div><p className="text-[11px] text-slate-500">Please verify biometric confirmation on your AEPS device before confirming.</p><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setConfirmWindowOpen(false)} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5">Cancel</button><button type="button" onClick={handleProcessTransaction} disabled={isSubmitting || !isFormValid} className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 disabled:opacity-50">{isSubmitting ? "Processing…" : `Confirm & Disburse ${inr(cashHanded)}`}</button></div></div></FloatingWindow>}
 
@@ -851,9 +926,301 @@ export default function AepsWorkspace({
 
       {addCustomerWindowOpen && <FloatingWindow isOpen={addCustomerWindowOpen} size="sm" title="Add New Customer to CRM" onClose={() => setAddCustomerWindowOpen(false)}><form onSubmit={handleCreateCustomer} className="p-5 space-y-4 text-xs"><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Name <span className="text-rose-500">*</span></label><input type="text" required value={newCustName} onChange={(e) => setNewCustName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Mobile Number <span className="text-rose-500">*</span></label><input type="tel" required maxLength={10} value={newCustPhone} onChange={(e) => setNewCustPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit mobile number" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Email Address (Optional)</label><input type="email" value={newCustEmail} onChange={(e) => setNewCustEmail(e.target.value)} placeholder="customer@email.com" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Address / Location (Optional)</label><input type="text" value={newCustAddress} onChange={(e) => setNewCustAddress(e.target.value)} placeholder="e.g. Ward 4, Newtown" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setAddCustomerWindowOpen(false)} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5">Cancel</button><button type="submit" disabled={custCreateSubmitting} className="rounded-xl bg-teal-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50">{custCreateSubmitting ? "Saving…" : "Save & Select"}</button></div></form></FloatingWindow>}
 
-      {editTxnWindowOpen && editingTxn && <FloatingWindow isOpen={editTxnWindowOpen} size="sm" title={`Edit AEPS Transaction #${editingTxn.transaction_number}`} onClose={() => setEditTxnWindowOpen(false)}><form onSubmit={handleSaveEdit} className="p-5 space-y-4 text-xs"><div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300"><strong>Immutable Audit Safeguard:</strong> Withdrawal amount ({inr(editingTxn.amount)}) and settlement ledger entries are permanently locked. You may update attribution, RRN reference, or remarks.</div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Attribution</label><SearchableSelect value={editCustomerId} onChange={setEditCustomerId} minSearchLength={2} minSearchPrompt="Type at least 2 characters to search…" options={[{ value: "", label: "-- Walk-in Customer --" }, ...customers.map((c) => ({ value: c.id, label: `${c.name} (${maskMobile(c.phone) || c.code})` }))]} placeholder="Assign to customer…" /></div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Mobile</label><input type="tel" value={editCustomerMobile} onChange={(e) => setEditCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank RRN / Terminal Reference Number</label><input type="text" value={editReference} onChange={(e) => setEditReference(e.target.value)} placeholder="RRN / Auth Reference" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="space-y-1.5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Operator Remarks / Notes</label><input type="text" value={editRemarks} onChange={(e) => setEditRemarks(e.target.value)} placeholder="Add correction notes…" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setEditTxnWindowOpen(false)} className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5">Cancel</button><button type="submit" disabled={editSubmitting} className="rounded-xl bg-teal-600 px-5 py-2 font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50">{editSubmitting ? "Saving…" : "Save Correction"}</button></div></form></FloatingWindow>}
+      {editTxnWindowOpen && editingTxn && (
+        <FloatingWindow
+          isOpen={editTxnWindowOpen}
+          size="md"
+          title={`Edit AEPS Transaction #${editingTxn.transaction_number}`}
+          onClose={() => setEditTxnWindowOpen(false)}
+        >
+          {(() => {
+            const editNumAmt = parseFloat(editAmount) || 0;
+            const editNumFee = parseFloat(editServiceFee) || 0;
+            const editNumComm = parseFloat(editPortalCommission) || 0;
+            const editCashHanded = editFeeTreatment === "deduct" ? Math.max(0, editNumAmt - editNumFee) : editNumAmt;
+            const editTotalIncome = editNumFee + editNumComm;
 
-      {selectedDetailTxn && <FloatingWindow isOpen={Boolean(selectedDetailTxn)} size="md" title={`AEPS Transaction #${selectedDetailTxn.transaction_number}`} onClose={() => setSelectedDetailTxn(null)}>{(() => { const isDeducted = selectedDetailTxn.fee_source === "cut_from_withdrawal"; const detailCashHanded = isDeducted ? Math.max(0, Number(selectedDetailTxn.amount || 0) - Number(selectedDetailTxn.service_fee || 0)) : Number(selectedDetailTxn.amount || 0); const receiptUrl = `/business/receipt/${selectedDetailTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`; const invoiceUrl = `/business/receipt/${selectedDetailTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`; return <div className="p-5 space-y-4 text-xs"><div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5"><div><span className="text-slate-400">Date:</span> <div className="font-bold">{selectedDetailTxn.transaction_date}</div></div><div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div><div><span className="text-slate-400">Withdrawal Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div><div><span className="text-slate-400">Cash Handed to Customer:</span> <div className="font-black text-sm text-emerald-700 dark:text-emerald-400">{inr(detailCashHanded)}</div></div><div><span className="text-slate-400">{isDeducted ? "Fee Deducted from Payout:" : "Customer Service Fee:"}</span> <div className={isDeducted ? "font-bold text-amber-600 dark:text-amber-400" : "font-bold text-emerald-600"}>{isDeducted ? `-${inr(selectedDetailTxn.service_fee)}` : `+${inr(selectedDetailTxn.service_fee)}`}</div></div><div><span className="text-slate-400">Fee Treatment:</span> <div className="font-bold text-slate-700 dark:text-slate-300">{isDeducted ? "Deducted from Payout" : `Separate via ${(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}`}</div></div><div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-teal-600 dark:text-teal-400">+{inr(selectedDetailTxn.portal_commission)}</div></div><div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div><div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div><div><span className="text-slate-400">Aadhaar:</span> <div className="font-bold">**** {selectedDetailTxn.aadhaar_last4 || "N/A"}</div></div><div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.banks?.name || "N/A"}</div></div><div><span className="text-slate-400">Portal:</span> <div className="font-bold">{selectedDetailTxn.portals?.name || "N/A"}</div></div>{selectedDetailTxn.reference && <div className="col-span-2"><span className="text-slate-400">RRN / Ref:</span> <div className="font-bold">{selectedDetailTxn.reference}</div></div>}{selectedDetailTxn.remarks && <div className="col-span-2"><span className="text-slate-400">Remarks:</span> <div className="font-semibold">{selectedDetailTxn.remarks}</div></div>}</div><div className="flex justify-between items-center pt-2"><div className="flex gap-2"><Link href={receiptUrl} target="_blank" className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-teal-600">🖨️ 80mm</Link><Link href={invoiceUrl} target="_blank" className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200">📄 A4 Invoice</Link><button type="button" onClick={() => { setSelectedDetailTxn(null); handleOpenEdit(selectedDetailTxn); }} className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 font-bold text-teal-700 hover:bg-teal-100 dark:border-teal-900/40 dark:bg-teal-950/40 dark:text-teal-300">✏️ Edit Reference</button></div><button type="button" onClick={() => setSelectedDetailTxn(null)} className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100">Close</button></div></div>; })()}</FloatingWindow>}
+            return (
+              <form onSubmit={handleSaveEdit} className="p-5 space-y-4 text-xs">
+                <div className="rounded-xl border border-teal-500/20 bg-teal-500/10 p-3 text-teal-900 dark:text-teal-300">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>Full Reversal &amp; Double-Entry Repost</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-teal-800 dark:text-teal-400">
+                    Modifying amounts, fees, or routing atomically reverses previous ledger postings and records new entries across Cash Drawer and AEPS Float Pool with ₹0.00 variance.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Withdrawal Amount (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Service Fee (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editServiceFee}
+                      onChange={(e) => setEditServiceFee(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Portal Commission (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editPortalCommission}
+                      onChange={(e) => setEditPortalCommission(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Fee Treatment Model
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditFeeTreatment("deduct")}
+                      className={`rounded-xl border p-2 text-left transition ${
+                        editFeeTreatment === "deduct"
+                          ? "border-teal-600 bg-teal-50/80 font-bold text-teal-900 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-200"
+                          : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">✂️ Deduct from Payout</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Cash handed: {inr(Math.max(0, editNumAmt - editNumFee))}</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditFeeTreatment("separate")}
+                      className={`rounded-xl border p-2 text-left transition ${
+                        editFeeTreatment === "separate"
+                          ? "border-teal-600 bg-teal-50/80 font-bold text-teal-900 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-200"
+                          : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">💵 Collect Separately</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Cash handed: {inr(editNumAmt)}</div>
+                    </button>
+                  </div>
+                </div>
+
+                {editFeeTreatment === "separate" && (
+                  <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-white/5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Fee Collection Instrument
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: "cash", label: "💵 Cash" },
+                        { id: "upi", label: "📱 UPI / QR" },
+                        { id: "bank", label: "🏦 Bank" },
+                        { id: "due", label: "📋 Due" },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setEditCustomerPayMethod(m.id as any)}
+                          className={`rounded-lg border p-1.5 text-center text-xs font-bold transition ${
+                            editCustomerPayMethod === m.id
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Bank <span className="text-rose-500">*</span>
+                    </label>
+                    <SearchableSelect
+                      value={editBankId}
+                      onChange={setEditBankId}
+                      options={[
+                        { value: "", label: "-- Select Bank --" },
+                        ...banks.map((b) => ({ value: b.id, label: b.name })),
+                      ]}
+                      placeholder="Search bank…"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      AEPS Service Portal <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={editPortalId}
+                      onChange={(e) => setEditPortalId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    >
+                      {portals.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={editAadhaarLast4}
+                      onChange={(e) => setEditAadhaarLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="e.g. 1234"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold tracking-widest outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Bank RRN / Auth Reference Number
+                    </label>
+                    <input
+                      type="text"
+                      value={editReference}
+                      onChange={(e) => setEditReference(e.target.value)}
+                      placeholder="12-digit RRN / Ref"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Attribution
+                    </label>
+                    <SearchableSelect
+                      value={editCustomerId}
+                      onChange={(id) => {
+                        setEditCustomerId(id);
+                        const c = customers.find((cust) => cust.id === id);
+                        if (c?.phone) setEditCustomerMobile(c.phone);
+                      }}
+                      minSearchLength={2}
+                      minSearchPrompt="Type to search…"
+                      options={[
+                        { value: "", label: "-- Walk-in Customer --" },
+                        ...customers.map((c) => ({ value: c.id, label: `${c.name} (${maskMobile(c.phone) || c.code})` })),
+                      ]}
+                      placeholder="Assign customer…"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={editCustomerMobile}
+                      onChange={(e) => setEditCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="10-digit mobile"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Operator Remarks / Reason for Edit
+                  </label>
+                  <input
+                    type="text"
+                    value={editRemarks}
+                    onChange={(e) => setEditRemarks(e.target.value)}
+                    placeholder="e.g. Corrected withdrawal amount and RRN from receipt slip"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Projected Reconciliation Summary</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <div>
+                      <span className="text-slate-400">Withdrawal:</span>
+                      <p className="font-black text-slate-900 dark:text-white">{inr(editNumAmt)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Cash Handed:</span>
+                      <p className="font-black text-emerald-600 dark:text-emerald-400">{inr(editCashHanded)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Float Credited:</span>
+                      <p className="font-black text-teal-600 dark:text-teal-400">{inr(editNumAmt + editNumComm)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Net Earned:</span>
+                      <p className="font-black text-cyan-600 dark:text-cyan-400">+{inr(editTotalIncome)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setEditTxnWindowOpen(false)}
+                    disabled={editSubmitting}
+                    className="rounded-xl px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting || editNumAmt <= 0}
+                    className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2 font-bold text-white shadow-md hover:bg-teal-700 disabled:opacity-50"
+                  >
+                    {editSubmitting ? (
+                      <>
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                        <span>Reconciling &amp; Saving…</span>
+                      </>
+                    ) : (
+                      "Save & Reconcile Transaction"
+                    )}
+                  </button>
+                </div>
+              </form>
+            );
+          })()}
+        </FloatingWindow>
+      )}
+
+      {selectedDetailTxn && <FloatingWindow isOpen={Boolean(selectedDetailTxn)} size="md" title={`AEPS Transaction #${selectedDetailTxn.transaction_number}`} onClose={() => setSelectedDetailTxn(null)}>{(() => { const isDeducted = selectedDetailTxn.fee_source === "cut_from_withdrawal"; const detailCashHanded = isDeducted ? Math.max(0, Number(selectedDetailTxn.amount || 0) - Number(selectedDetailTxn.service_fee || 0)) : Number(selectedDetailTxn.amount || 0); const receiptUrl = `/business/receipt/${selectedDetailTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`; const invoiceUrl = `/business/receipt/${selectedDetailTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`; return <div className="p-5 space-y-4 text-xs"><div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-white/5"><div><span className="text-slate-400">Date:</span> <div className="font-bold">{selectedDetailTxn.transaction_date}</div></div><div><span className="text-slate-400">Status:</span> <div className="font-bold text-emerald-600">{selectedDetailTxn.status.toUpperCase()}</div></div><div><span className="text-slate-400">Withdrawal Amount:</span> <div className="font-black text-sm">{inr(selectedDetailTxn.amount)}</div></div><div><span className="text-slate-400">Cash Handed to Customer:</span> <div className="font-black text-sm text-emerald-700 dark:text-emerald-400">{inr(detailCashHanded)}</div></div><div><span className="text-slate-400">{isDeducted ? "Fee Deducted from Payout:" : "Customer Service Fee:"}</span> <div className={isDeducted ? "font-bold text-amber-600 dark:text-amber-400" : "font-bold text-emerald-600"}>{isDeducted ? `-${inr(selectedDetailTxn.service_fee)}` : `+${inr(selectedDetailTxn.service_fee)}`}</div></div><div><span className="text-slate-400">Fee Treatment:</span> <div className="font-bold text-slate-700 dark:text-slate-300">{isDeducted ? "Deducted from Payout" : `Separate via ${(selectedDetailTxn.customer_pay_method || "CASH").toUpperCase()}`}</div></div><div><span className="text-slate-400">Portal Commission:</span> <div className="font-bold text-teal-600 dark:text-teal-400">+{inr(selectedDetailTxn.portal_commission)}</div></div><div><span className="text-slate-400">Total Operator Income:</span> <div className="font-black text-emerald-600">+{inr(Number(selectedDetailTxn.service_fee || 0) + Number(selectedDetailTxn.portal_commission || 0))}</div></div><div><span className="text-slate-400">Customer:</span> <div className="font-bold">{selectedDetailTxn.customers?.name || "Walk-in"}</div></div><div><span className="text-slate-400">Aadhaar:</span> <div className="font-bold">**** {selectedDetailTxn.aadhaar_last4 || "N/A"}</div></div><div><span className="text-slate-400">Bank:</span> <div className="font-bold">{selectedDetailTxn.banks?.name || "N/A"}</div></div><div><span className="text-slate-400">Portal:</span> <div className="font-bold">{selectedDetailTxn.portals?.name || "N/A"}</div></div>{selectedDetailTxn.reference && <div className="col-span-2"><span className="text-slate-400">RRN / Ref:</span> <div className="font-bold">{selectedDetailTxn.reference}</div></div>}{selectedDetailTxn.remarks && <div className="col-span-2"><span className="text-slate-400">Remarks:</span> <div className="font-semibold">{selectedDetailTxn.remarks}</div></div>}</div><div className="flex justify-between items-center pt-2"><div className="flex gap-2"><Link href={receiptUrl} target="_blank" className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white hover:bg-slate-800 dark:bg-teal-600">🖨️ 80mm</Link><Link href={invoiceUrl} target="_blank" className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200">📄 A4 Invoice</Link><button type="button" onClick={() => { setSelectedDetailTxn(null); handleOpenEdit(selectedDetailTxn); }} className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 font-bold text-teal-700 hover:bg-teal-100 dark:border-teal-900/40 dark:bg-teal-950/40 dark:text-teal-300">✏️ Edit Transaction</button></div><button type="button" onClick={() => setSelectedDetailTxn(null)} className="rounded-xl px-4 py-2 font-bold text-slate-500 hover:bg-slate-100">Close</button></div></div>; })()}</FloatingWindow>}
 
       {waModal.open && <WhatsAppSendModal open={waModal.open} onClose={() => setWaModal((prev) => ({ ...prev, open: false }))} phone={waModal.phone} initialMessage={waModal.msg} recipientName={waModal.name} messageType="banking_txn" refId={waModal.refId} refNumber={waModal.refNum} onSent={() => showToast("success", "WhatsApp receipt dispatched.")} />}
 

@@ -47,7 +47,7 @@ type Payment = {
   received_at: string;
 };
 
-const METHODS = ["cash", "upi", "card"] as const;
+const METHODS = ["cash", "upi", "bank", "wallet", "card"] as const;
 
 export default function InvoiceViewModal({
   invoiceId,

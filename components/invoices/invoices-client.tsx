@@ -64,7 +64,7 @@ export type QuickSaleRow = {
 };
 
 const STATUSES = ["all", "paid", "partial", "unpaid", "cancelled"] as const;
-const METHODS = ["cash", "upi", "card"] as const;
+const METHODS = ["cash", "upi", "bank", "wallet", "card"] as const;
 const COLLECT_TIMEOUT = 5000;
 const VIEW_KEY = "sccomm-invoices-view";
 
@@ -155,6 +155,7 @@ export default function InvoicesClient({
   const [returnId, setReturnId] = useState<string | null>(null);
   const [collectId, setCollectId] = useState<string | null>(null);
   const [collectMethod, setCollectMethod] = useState<string>("cash");
+  const [collectAmount, setCollectAmount] = useState<string>("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -426,7 +427,9 @@ export default function InvoicesClient({
   }
 
   async function collectDue(inv: InvoiceRow) {
-    const amt = Number(inv.due);
+    const totalDue = Number(inv.due);
+    const parsedAmt = parseFloat(collectAmount);
+    const amt = !isNaN(parsedAmt) && parsedAmt > 0 ? Math.min(parsedAmt, totalDue) : totalDue;
     if (!(amt > 0)) return;
     setBusyId(inv.id);
     const { data, error } = await supabase.rpc("record_invoice_payment", {
@@ -436,6 +439,7 @@ export default function InvoicesClient({
     });
     setBusyId(null);
     setCollectId(null);
+    setCollectAmount("");
     if (error) {
       flash("error", error.message);
       return;
@@ -964,11 +968,11 @@ export default function InvoicesClient({
 
                 {/* Quick collect panel */}
                 {collectId === inv.id && (
-                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2">
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5">
                     <p className="px-1 text-[11px] font-semibold text-emerald-700">
-                      Collect {inr(due)} from {customer}?
+                      Collect payment from {customer} (Total Due: {inr(due)})
                     </p>
-                    <div className="mt-1.5 flex items-center gap-1.5">
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <select
                         value={collectMethod}
                         onChange={(e) => setCollectMethod(e.target.value)}
@@ -980,15 +984,28 @@ export default function InvoicesClient({
                           </option>
                         ))}
                       </select>
+                      <input
+                        type="number"
+                        min="0"
+                        max={due}
+                        step="0.01"
+                        value={collectAmount}
+                        onChange={(e) => setCollectAmount(e.target.value)}
+                        placeholder={`Amount (max ${due})`}
+                        className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 outline-none"
+                      />
                       <button
                         onClick={() => collectDue(inv)}
                         disabled={busyId === inv.id}
-                        className="flex-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                        className="flex-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                       >
                         {busyId === inv.id ? "Recording…" : "Confirm"}
                       </button>
                       <button
-                        onClick={() => setCollectId(null)}
+                        onClick={() => {
+                          setCollectId(null);
+                          setCollectAmount("");
+                        }}
                         className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-500 transition hover:bg-slate-50"
                       >
                         Cancel
@@ -1139,7 +1156,7 @@ export default function InvoicesClient({
                           <td colSpan={8} className="px-5 py-2.5">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="text-[11px] font-semibold text-emerald-700">
-                                Collect {inr(due)} from {customer}?
+                                Collect payment from {customer} (Total Due: {inr(due)})
                               </p>
                               <select
                                 value={collectMethod}
@@ -1152,15 +1169,28 @@ export default function InvoicesClient({
                                   </option>
                                 ))}
                               </select>
+                              <input
+                                type="number"
+                                min="0"
+                                max={due}
+                                step="0.01"
+                                value={collectAmount}
+                                onChange={(e) => setCollectAmount(e.target.value)}
+                                placeholder={`Amount (max ${due})`}
+                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 outline-none"
+                              />
                               <button
                                 onClick={() => collectDue(inv)}
                                 disabled={busyId === inv.id}
-                                className="flex-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                className="flex-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                               >
                                 {busyId === inv.id ? "Recording…" : "Confirm"}
                               </button>
                               <button
-                                onClick={() => setCollectId(null)}
+                                onClick={() => {
+                                  setCollectId(null);
+                                  setCollectAmount("");
+                                }}
                                 className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-500 transition hover:bg-slate-50"
                               >
                                 Cancel

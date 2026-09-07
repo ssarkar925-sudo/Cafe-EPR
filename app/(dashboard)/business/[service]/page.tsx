@@ -88,6 +88,7 @@ export default async function BusinessServicePage({
         initialCustomers={(customers ?? []) as any}
         initialBanks={(banks ?? []) as any}
         initialPortals={(portals ?? []) as any}
+        paymentInstruments={(paymentInstruments ?? []) as any}
         float={poolBal ?? null}
       />
     );

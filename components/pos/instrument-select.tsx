@@ -24,29 +24,42 @@ export const METHOD_ACCOUNT_TYPES: Record<string, string[]> = {
   wallet: ["wallet"],
   debit_card: ["debit_card"],
   credit_card: ["credit_card"],
+  credit: ["credit_card"],
 };
 
 type PosInstrument = { id: string; name: string; type: string };
 
+export function normalizeMethod(method: string): string {
+  if (method === "credit") return "credit_card";
+  return method;
+}
+
 export function instrumentLabel(method: string) {
-  return INSTRUMENT_TYPES.find((t) => t.value === method)?.label ?? method;
+  const norm = normalizeMethod(method);
+  return INSTRUMENT_TYPES.find((t) => t.value === norm)?.label ?? (method === "credit" ? "Credit Card" : method);
 }
 
 export function buildInstrumentOptions(instruments: PosInstrument[], enabled?: string[]) {
-  return INSTRUMENT_TYPES.filter((t) => !enabled || enabled.includes(t.value)).map((t) => {
+  const normEnabled = enabled?.map(normalizeMethod);
+  return INSTRUMENT_TYPES.filter((t) => !normEnabled || normEnabled.includes(t.value)).map((t) => {
     const acceptedTypes = t.value === "upi" ? ["upi", "upi_qr"] : [t.value];
     const named = instruments.filter((i) => acceptedTypes.includes(i.type));
     const options = named.map((i) => ({ value: i.id, label: i.name }));
-    if (named.length === 0) {
-      options.push({ value: "__gen__:" + t.value, label: t.label });
-    }
+    options.push({ value: "__gen__:" + t.value, label: named.length > 0 ? `General ${t.label}` : t.label });
     return { group: t.label, options };
   });
 }
 
-export function selectValueOf(pick: InstrumentPick) {
+export function selectValueOf(pick: InstrumentPick, instruments?: PosInstrument[]) {
   if (pick.instrument_id) return pick.instrument_id;
-  return pick.method ? "__gen__:" + pick.method : "";
+  const m = normalizeMethod(pick.method);
+  if (!m) return "";
+  if (instruments && instruments.length > 0) {
+    const types = METHOD_ACCOUNT_TYPES[m] ?? [m];
+    const match = instruments.find((i) => types.includes(i.type));
+    if (match) return match.id;
+  }
+  return "__gen__:" + m;
 }
 
 export function parseInstrumentValue(
@@ -55,7 +68,8 @@ export function parseInstrumentValue(
 ): InstrumentPick | null {
   if (value === "__add__") return null;
   if (value.startsWith("__gen__:")) {
-    return { method: value.slice(8), instrument_id: "" };
+    const raw = value.slice(8);
+    return { method: normalizeMethod(raw), instrument_id: "" };
   }
   const inst = instruments.find((i) => i.id === value);
   const method = inst?.type === "upi_qr" ? "upi" : inst?.type ?? "cash";
@@ -117,14 +131,21 @@ export default function InstrumentSelect({
 }) {
   const groups = buildInstrumentOptions(instruments, enabled);
   const selectRef = useResetPairedAmountWhenCartClears();
+  const selectedVal = selectValueOf(pick, instruments);
+  const valueExists = groups.some((g) => g.options.some((o) => o.value === selectedVal));
 
   return (
     <select
       ref={selectRef}
-      value={selectValueOf(pick)}
+      value={selectedVal}
       onChange={(e) => onChange(parseInstrumentValue(e.target.value, instruments))}
       className={className}
     >
+      {!valueExists && selectedVal ? (
+        <option key={selectedVal} value={selectedVal}>
+          {instrumentLabel(pick.method)}
+        </option>
+      ) : null}
       {groups.map((g) => (
         <optgroup key={g.group} label={g.group}>
           {g.options.map((o) => (

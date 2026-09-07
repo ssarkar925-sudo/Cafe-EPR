@@ -807,6 +807,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
                   { value: "cash", label: "Cash" },
                   { value: "upi", label: "UPI" },
                   { value: "bank", label: "Bank Transfer" },
+                  { value: "wallet", label: "Wallet" },
                   { value: "card", label: "Card" },
                 ].map((m) => (
                   <button

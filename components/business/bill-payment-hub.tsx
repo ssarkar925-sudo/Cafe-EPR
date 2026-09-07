@@ -451,113 +451,45 @@ export default function BillPaymentHub({
         editFundingInstId !== (editTxn.instrument_id || "") ||
         editStatus !== editTxn.status;
 
-      // 1. Update Transaction Row
-      const { data: updated, error: updateErr } = await supabase
-        .from("transactions")
-        .update({
-          customer_id: editCustomerId || null,
-          customer_mobile: editMobile.replace(/\D/g, "") || null,
-          reference: editRef.trim() || null,
-          amount: parsedAmount,
-          service_fee: parsedFee,
-          portal_commission: parsedComm,
-          pool_out: parsedProviderCost,
-          customer_pay_method: editPayMethod,
-          instrument_id: editFundingInstId || null,
-          pay_from_instrument_id: editFundingInstId || null,
-          pay_from_method: fundingInst?.type || editPayMethod,
-          remarks: editRemarks.trim() || null,
-          status: editStatus,
-          cash_in: editPayMethod === "cash" ? totalCustomerPaid : 0,
-          bank_in: editPayMethod === "bank" || editPayMethod === "upi" ? totalCustomerPaid : 0,
-        })
-        .eq("id", editTxn.id)
-        .select("*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)")
-        .single();
+      // 1. Call atomic database RPC edit_bill_payment
+      const { data: updatedTxnData, error: rpcErr } = await supabase.rpc("edit_bill_payment", {
+        p_txn_id: editTxn.id,
+        p_customer_id: editCustomerId || null,
+        p_customer_mobile: editMobile.replace(/\D/g, "") || null,
+        p_reference: editRef.trim() || null,
+        p_amount: parsedAmount,
+        p_service_fee: parsedFee,
+        p_portal_commission: parsedComm,
+        p_customer_pay_method: editPayMethod,
+        p_funding_instrument_id: editFundingInstId || null,
+        p_status: editStatus,
+        p_remarks: editRemarks.trim() || null,
+      });
 
-      if (updateErr) {
-        showToast("error", updateErr.message);
+      if (rpcErr) {
+        showToast("error", rpcErr.message);
         setEditing(false);
         return;
       }
 
-      // 2. Atomic Reconciliation of Financial Postings
-      if (financialChanged) {
-        // Delete existing cash_entries for this transaction
-        await supabase
-          .from("cash_entries")
-          .delete()
-          .eq("ref_type", "transaction")
-          .eq("ref_id", editTxn.id);
+      // 2. Fetch full updated transaction with relations for UI
+      const { data: fullUpdated } = await supabase
+        .from("transactions")
+        .select("*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)")
+        .eq("id", editTxn.id)
+        .single();
 
-        if (editStatus === "success") {
-          const entryDate = editTxn.transaction_date || new Date().toISOString().slice(0, 10);
-
-          // Insert Corrected Customer Collection Leg
-          if (editPayMethod !== "due" && totalCustomerPaid > 0) {
-            const cashDrawer = paymentInstruments.find((i) => i.type === "cash") || paymentInstruments[0];
-            const payInst =
-              editPayMethod === "cash"
-                ? cashDrawer
-                : editPayMethod === "upi"
-                ? paymentInstruments.find((i) => i.type === "upi_qr") || paymentInstruments.find((i) => i.type === "bank") || cashDrawer
-                : paymentInstruments.find((i) => i.type === "bank") || cashDrawer;
-
-            await supabase.from("cash_entries").insert({
-              entry_date: entryDate,
-              method: editPayMethod === "cash" ? "cash" : editPayMethod === "upi" ? "upi" : "bank",
-              direction: "in",
-              amount: totalCustomerPaid,
-              description: `Collection for ${editTxn.transaction_number} (${editPayMethod.toUpperCase()}) [Reconciled]`,
-              ref_type: "transaction",
-              ref_id: editTxn.id,
-              instrument_id: payInst?.id || null,
-            });
-          }
-
-          // Insert Corrected Provider Funding Leg
-          if (parsedProviderCost > 0 && fundingInst) {
-            await supabase.from("cash_entries").insert({
-              entry_date: entryDate,
-              method: fundingInst.type === "cash" ? "cash" : fundingInst.type === "bank" ? "bank" : fundingInst.type === "wallet" ? "wallet" : "upi",
-              direction: "out",
-              amount: parsedProviderCost,
-              description: `Settlement for ${editTxn.transaction_number} from ${fundingInst.name} [Reconciled]`,
-              ref_type: "transaction",
-              ref_id: editTxn.id,
-              instrument_id: fundingInst.id,
-            });
-          }
-        }
+      // 3. Refresh live payment instrument balance cache in UI state
+      const { data: freshInsts } = await supabase
+        .from("payment_instruments")
+        .select("*")
+        .order("name");
+      if (freshInsts && freshInsts.length > 0) {
+        setPaymentInstruments(freshInsts);
       }
 
-      // 3. Audit Trail Logging
-      await logAudit({
-        action: "edit",
-        entity: "transaction",
-        entity_id: editTxn.id,
-        description: `Complete Edit & Reconciliation on ${editTxn.transaction_number}`,
-        details: {
-          previous: {
-            amount: editTxn.amount,
-            fee: editTxn.service_fee,
-            commission: editTxn.portal_commission,
-            method: editTxn.customer_pay_method,
-            instrument: editTxn.instrument_id,
-            status: editTxn.status,
-          },
-          updated: {
-            amount: parsedAmount,
-            fee: parsedFee,
-            commission: parsedComm,
-            method: editPayMethod,
-            instrument: editFundingInstId,
-            status: editStatus,
-          },
-        },
-      });
-
-      setTransactions((prev) => prev.map((t) => (t.id === editTxn.id ? { ...t, ...updated } : t)));
+      const txnToSet = fullUpdated || (updatedTxnData ? { ...editTxn, ...updatedTxnData } : editTxn);
+      setTransactions((prev) => prev.map((t) => (t.id === editTxn.id ? txnToSet : t)));
       setEditTxn(null);
       showToast("success", `✓ Transaction ${editTxn.transaction_number} reconciled and saved successfully.`);
       router.refresh();

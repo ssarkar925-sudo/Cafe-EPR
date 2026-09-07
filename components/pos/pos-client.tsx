@@ -432,9 +432,10 @@ export default function PosClient({
     const types = METHOD_ACCOUNT_TYPES[m] ?? [m];
     const first = types.map((t) => instruments.find((i) => i.type === t)).find(Boolean);
     const instId = first?.id ?? "";
-    setPayments((prev) =>
-      prev.length === 1 ? [{ instrument_id: instId, method: m, amount: prev[0].amount }] : [{ instrument_id: instId, method: m, amount: "" }]
-    );
+    setPayments((prev) => {
+      const amt = prev.length === 1 ? prev[0].amount : (total > 0 ? String(total.toFixed(2)) : "");
+      return [{ instrument_id: instId, method: m, amount: amt }];
+    });
   }
 
   function applyPaymentScan(f: ScanFields) {
@@ -1267,8 +1268,8 @@ export default function PosClient({
                       <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                         Payment Tender
                       </label>
-                      <div className="mt-1 grid grid-cols-3 gap-1.5">
-                        {methodList.slice(0, 6).map((m) => (
+                      <div className="mt-1 grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-3">
+                        {methodList.map((m) => (
                           <button
                             key={m}
                             type="button"

@@ -97,6 +97,19 @@ export default function UpiWorkspace({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedQrId, setSelectedQrId] = useState<string>("");
 
+  // Edit UPI Transaction Modal State (Full Financial & Operational)
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingTxn, setEditingTxn] = useState<Txn | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editFee, setEditFee] = useState<string>("0");
+  const [editFeeSource, setEditFeeSource] = useState<"cut_from_withdrawal" | "customer_paid_extra">("cut_from_withdrawal");
+  const [editQrId, setEditQrId] = useState<string>("");
+  const [editCustomerId, setEditCustomerId] = useState<string>("");
+  const [editCustomerMobile, setEditCustomerMobile] = useState<string>("");
+  const [editReference, setEditReference] = useState<string>("");
+  const [editRemarks, setEditRemarks] = useState<string>("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
   const activeQr = useMemo(() => {
     if (selectedQrId) {
       const found = qrs.find((q) => q.id === selectedQrId);
@@ -287,7 +300,12 @@ export default function UpiWorkspace({
 
       if (!existingLegs || existingLegs.length === 0) {
         const defaultCash = liveInstruments.find((i) => i.type === "cash" && i.is_active) || liveInstruments.find((i) => i.type === "cash");
-        const defaultUpi = liveInstruments.find((i) => i.type === "upi" && i.is_active) || liveInstruments.find((i) => i.type === "upi");
+        const selectedQr = qrs.find((q) => q.id === formQrId);
+        const defaultUpi = (selectedQr?.payment_instrument_id
+          ? liveInstruments.find((i) => i.id === selectedQr.payment_instrument_id)
+          : null) ||
+          liveInstruments.find((i) => (i.type === "upi" || i.type === "upi_qr") && i.is_active) ||
+          liveInstruments.find((i) => i.type === "upi" || i.type === "upi_qr");
 
         // Inflow into UPI
         await supabase.from("cash_entries").insert({
@@ -361,6 +379,119 @@ export default function UpiWorkspace({
       refNum: t.transaction_number,
       refId: t.id,
     });
+  };
+
+  // Handle Open Edit
+  const handleOpenEdit = (t: Txn) => {
+    setEditingTxn(t);
+    setEditAmount(String(t.amount ?? ""));
+    setEditFee(String(t.service_fee ?? "0"));
+    setEditFeeSource((t.fee_source as any) || "cut_from_withdrawal");
+    setEditQrId(t.merchant_qr_id || qrs[0]?.id || "");
+    setEditCustomerId(t.customer_id || "");
+    setEditCustomerMobile(t.customer_mobile || t.customers?.phone || "");
+    setEditReference(t.reference || "");
+    setEditRemarks(t.remarks || "");
+    setEditModalOpen(true);
+  };
+
+  // Handle Save Edit via atomic update_business_txn RPC
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTxn) return;
+
+    const numAmt = parseFloat(editAmount);
+    if (isNaN(numAmt) || numAmt <= 0) {
+      showToast("error", "Please enter a valid amount greater than ₹0.");
+      return;
+    }
+    const numFee = parseFloat(editFee) || 0;
+    if (numFee < 0) {
+      showToast("error", "Service fee cannot be negative.");
+      return;
+    }
+
+    setEditSubmitting(true);
+
+    try {
+      const res = await supabase.rpc("update_business_txn", {
+        p_txn_id: editingTxn.id,
+        p_transaction_date: editingTxn.transaction_date,
+        p_transaction_timestamp: editingTxn.transaction_timestamp || new Date().toISOString(),
+        p_customer_id: editCustomerId || null,
+        p_customer_mobile: editCustomerMobile.trim() || null,
+        p_reference: editReference.trim() || null,
+        p_remarks: editRemarks.trim() || null,
+        p_bank_id: null,
+        p_portal_id: null,
+        p_merchant_qr_id: editQrId || null,
+        p_aadhaar_last4: null,
+        p_transfer_method: "upi",
+        p_sender_name: null,
+        p_sender_mobile: null,
+        p_beneficiary_name: null,
+        p_beneficiary_mobile: null,
+        p_beneficiary_bank: null,
+        p_beneficiary_ifsc: null,
+        p_beneficiary_account: null,
+        p_upi_id: null,
+        p_amount: numAmt,
+        p_service_fee: numFee,
+        p_portal_commission: 0,
+        p_fee_source: editFeeSource,
+        p_paid_from: null,
+        p_customer_pay_method: "qr",
+        p_pay_from_instrument_id: null,
+        p_pay_from_method: "upi_qr",
+        p_receiver_name: null,
+      });
+
+      if (res.error) throw res.error;
+
+      // Re-fetch updated row with relations
+      const { data: updatedTxn } = await supabase
+        .from("transactions")
+        .select("*, customers(name, phone), upi_merchant_qrs(display_name, upi_id), profiles(full_name)")
+        .eq("id", editingTxn.id)
+        .single();
+
+      if (updatedTxn) {
+        setTransactions((prev) => prev.map((t) => (t.id === editingTxn.id ? (updatedTxn as any) : t)));
+      } else {
+        setTransactions((prev) =>
+          prev.map((t) =>
+            t.id === editingTxn.id
+              ? {
+                  ...t,
+                  amount: numAmt,
+                  service_fee: numFee,
+                  fee_source: editFeeSource,
+                  merchant_qr_id: editQrId || null,
+                  customer_id: editCustomerId || null,
+                  customer_mobile: editCustomerMobile.trim() || null,
+                  reference: editReference.trim() || null,
+                  remarks: editRemarks.trim() || null,
+                  customers: customers.find((c) => c.id === editCustomerId) || t.customers,
+                  upi_merchant_qrs: qrs.find((q) => q.id === editQrId) || (t as any).upi_merchant_qrs,
+                }
+              : t
+          )
+        );
+      }
+
+      // Refresh pool balances
+      const { data: pools } = await supabase.rpc("get_pool_balances");
+      if (pools) setLivePool((pools as any)?.upi_qr ?? null);
+
+      setEditModalOpen(false);
+      setEditingTxn(null);
+      showToast("success", `✓ UPI Transaction #${editingTxn.transaction_number} reconciled and updated!`);
+    } catch (err: any) {
+      console.error("UPI edit error:", err);
+      showToast("error", err.message || "Failed to update UPI transaction.");
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   // Export CSV
@@ -876,6 +1007,19 @@ export default function UpiWorkspace({
                           </svg>
                         </button>
 
+                        {t.status === "success" && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(t)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 active:scale-95 transition dark:hover:bg-blue-950/30 dark:hover:text-blue-400"
+                            title="Edit full transaction"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                            </svg>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(t)}
@@ -1191,6 +1335,19 @@ export default function UpiWorkspace({
               >
                 A4 Receipt
               </Link>
+              {detailTxn.status === "success" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = detailTxn;
+                    setDetailTxn(null);
+                    handleOpenEdit(t);
+                  }}
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-1.5 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+                >
+                  ✏️ Edit Transaction
+                </button>
+              )}
             </div>
           </div>
         </Modal>
@@ -1268,6 +1425,232 @@ export default function UpiWorkspace({
             await refreshData();
           }}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* EDIT UPI TRANSACTION MODAL */}
+      {/* ========================================================================= */}
+      {editModalOpen && editingTxn && (
+        <Modal
+          title={`Edit UPI Cash Out #${editingTxn.transaction_number}`}
+          onClose={() => setEditModalOpen(false)}
+        >
+          {(() => {
+            const editNumAmt = parseFloat(editAmount) || 0;
+            const editNumFee = parseFloat(editFee) || 0;
+            const editCashHanded =
+              editFeeSource === "customer_paid_extra"
+                ? editNumAmt
+                : Math.max(0, editNumAmt - editNumFee);
+            const editQrReceived =
+              editFeeSource === "customer_paid_extra"
+                ? editNumAmt + editNumFee
+                : editNumAmt;
+
+            return (
+              <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+                <div className="rounded-xl border border-teal-500/20 bg-teal-500/10 p-3 text-teal-900 dark:text-teal-300">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>Full Ledger Reversal &amp; Double-Entry Repost</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-teal-800 dark:text-teal-400">
+                    Modifying amounts or fees atomically reverses previous ledger postings and records new entries across Cash Drawer and UPI QR Float Pool with ₹0.00 variance.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Disbursement Amount (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Service Fee (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editFee}
+                      onChange={(e) => setEditFee(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Fee Deduction Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditFeeSource("cut_from_withdrawal")}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        editFeeSource === "cut_from_withdrawal"
+                          ? "border-teal-600 bg-teal-50/80 font-bold text-teal-900 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-200"
+                          : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">✂️ Deduct from Cash Payout</div>
+                      <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                        Customer sends {inr(editNumAmt)} via QR; receives {inr(Math.max(0, editNumAmt - editNumFee))} cash.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditFeeSource("customer_paid_extra")}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        editFeeSource === "customer_paid_extra"
+                          ? "border-teal-600 bg-teal-50/80 font-bold text-teal-900 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-200"
+                          : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">💵 Added to QR Amount</div>
+                      <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                        Customer sends {inr(editNumAmt + editNumFee)} via QR; receives {inr(editNumAmt)} full cash.
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Merchant QR Terminal
+                    </label>
+                    <select
+                      value={editQrId}
+                      onChange={(e) => setEditQrId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    >
+                      {qrs.map((q) => (
+                        <option key={q.id} value={q.id}>
+                          {q.display_name} ({q.upi_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Bank UTR / Reference Number
+                    </label>
+                    <input
+                      type="text"
+                      value={editReference}
+                      onChange={(e) => setEditReference(e.target.value)}
+                      placeholder="12-digit UTR number"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Attribution
+                    </label>
+                    <select
+                      value={editCustomerId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setEditCustomerId(id);
+                        const c = customers.find((cust) => cust.id === id);
+                        if (c?.phone) setEditCustomerMobile(c.phone);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    >
+                      <option value="">-- Walk-in Customer --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.phone || c.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Customer Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={editCustomerMobile}
+                      onChange={(e) => setEditCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="10-digit mobile"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Remarks / Correction Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={editRemarks}
+                    onChange={(e) => setEditRemarks(e.target.value)}
+                    placeholder="Reason for correction…"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
+                  />
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Projected Double-Entry Impact
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-400">QR Received:</span>
+                      <p className="font-black text-emerald-600 dark:text-emerald-400">{inr(editQrReceived)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Cash Disbursed:</span>
+                      <p className="font-black text-slate-900 dark:text-white">{inr(editCashHanded)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Shop Fee Profit:</span>
+                      <p className="font-black text-cyan-600 dark:text-cyan-400">+{inr(editNumFee)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setEditModalOpen(false)}
+                    disabled={editSubmitting}
+                    className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 active:scale-95 transition dark:text-slate-300 dark:hover:bg-white/10"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting || editNumAmt <= 0}
+                    className="btn-3d-tactile-primary rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-md active:scale-95 transition disabled:opacity-50"
+                  >
+                    {editSubmitting ? "Reconciling & Saving..." : "Save & Reconcile Transaction"}
+                  </button>
+                </div>
+              </form>
+            );
+          })()}
+        </Modal>
       )}
     </div>
   );

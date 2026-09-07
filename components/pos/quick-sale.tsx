@@ -235,10 +235,8 @@ export default function QuickSaleModule({
     const first = types.map((t) => instrumentList.find((i) => i.type === t)).find(Boolean);
     const instId = first?.id ?? "";
     setPayments((prev) => {
-      if (prev.length === 1) {
-        return [{ instrument_id: instId, method: m, amount: prev[0].amount }];
-      }
-      return [{ instrument_id: instId, method: m, amount: total > 0 ? String(total.toFixed(2)) : "" }];
+      const amt = prev.length === 1 ? prev[0].amount : (total > 0 ? String(total.toFixed(2)) : "");
+      return [{ instrument_id: instId, method: m, amount: amt }];
     });
   }
 
@@ -521,18 +519,19 @@ export default function QuickSaleModule({
       setError("Enter the amount received.");
       return;
     }
-    if (paid < total) {
-      setError(`Amount received (${inr(paid)}) is less than the total (${inr(total)}).`);
+    const isPartial = paid < total;
+    if (isPartial && !customerId) {
+      setError("Please select a customer to record partial payment / balance due.");
       return;
     }
-    if (!singleCash && Math.abs(paid - total) > 0.01) {
+    if (!isPartial && !singleCash && Math.abs(paid - total) > 0.01) {
       setError(`Payments (${inr(paid)}) must equal the sale amount (${inr(total)}).`);
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
     let pmts: { method: string; amount: number; instrument_id: string | null }[];
     let tendered: number | null = null;
-    if (singleCash) {
+    if (singleCash && !isPartial) {
       pmts = [
         { method: "cash", amount: Number(total.toFixed(2)), instrument_id: payments[0].instrument_id || null },
       ];
@@ -541,6 +540,9 @@ export default function QuickSaleModule({
       pmts = payments
         .filter((p) => Number(p.amount) > 0)
         .map((p) => ({ method: p.method, amount: Number(p.amount), instrument_id: p.instrument_id || null }));
+      if (singleCash && isPartial) {
+        tendered = paid;
+      }
     }
     const items = cart.map((l) => ({
       product_id: l.product_id,
@@ -551,26 +553,80 @@ export default function QuickSaleModule({
       cost_price: l.product_id || l.service_id ? 0 : l.cost ?? 0,
     }));
     setBusy(true);
-    const { data, error: err } = await supabase.rpc("record_quick_sale", {
-      p_sale_date: today,
-      p_amount: 0,
-      p_cost: 0,
-      p_customer_id: customerId || null,
-      p_tendered: tendered,
-      p_payments: pmts,
-      p_items: items,
-    });
-    setBusy(false);
-    if (err) {
-      setError(err.message);
-      showToast("error", err.message || "Quick sale failed");
-      return;
-    }
-    const sale = data as unknown as QuickSale;
+
+    let sale: QuickSale;
     const custObj = customers.find((c) => c.id === customerId);
-    if (custObj?.phone) {
-      sale.customers = { name: custObj.name, phone: custObj.phone };
+
+    if (isPartial) {
+      const saleItems = cart.map((l) => ({
+        product_id: l.product_id || null,
+        service_id: l.service_id || null,
+        description: l.name,
+        qty: l.qty,
+        rate: l.rate,
+        amount: Number((l.qty * l.rate).toFixed(2)),
+        cost_price: l.product_id || l.service_id ? 0 : l.cost ?? 0,
+      }));
+      const { data: invData, error: invErr } = await supabase.rpc("create_sale", {
+        p_customer_id: customerId,
+        p_invoice_date: today,
+        p_subtotal: Number(total.toFixed(2)),
+        p_discount: 0,
+        p_total: Number(total.toFixed(2)),
+        p_payments: pmts,
+        p_items: saleItems,
+      });
+      setBusy(false);
+      if (invErr) {
+        setError(invErr.message);
+        showToast("error", invErr.message || "Sale failed");
+        return;
+      }
+      sale = {
+        id: (invData as any)?.invoice_id || (invData as any)?.id || "",
+        sale_number: (invData as any)?.invoice_number || "QS-DUE",
+        sale_date: today,
+        customer_id: customerId,
+        product_id: null,
+        service_id: null,
+        item_name: cart.map((c) => `${c.name} (${c.qty})`).join(", "),
+        amount: total,
+        cost: items.reduce((s, it) => s + it.cost_price * it.qty, 0),
+        tendered: paid,
+        change_due: 0,
+        payments: pmts,
+        status: "active",
+        created_at: new Date().toISOString(),
+        customers: custObj ? { name: custObj.name, phone: custObj.phone } : null,
+        products: null,
+        services: null,
+      };
+      showToast(
+        "success",
+        `Partial sale recorded! ${inr(paid)} received, ${inr(total - paid)} added to ${custObj?.name || "customer"}'s Khata.`
+      );
+    } else {
+      const { data, error: err } = await supabase.rpc("record_quick_sale", {
+        p_sale_date: today,
+        p_amount: 0,
+        p_cost: 0,
+        p_customer_id: customerId || null,
+        p_tendered: tendered,
+        p_payments: pmts,
+        p_items: items,
+      });
+      setBusy(false);
+      if (err) {
+        setError(err.message);
+        showToast("error", err.message || "Quick sale failed");
+        return;
+      }
+      sale = data as unknown as QuickSale;
+      if (custObj?.phone) {
+        sale.customers = { name: custObj.name, phone: custObj.phone };
+      }
     }
+
     setLastSale(sale);
     setCart([]);
     setCustomerId("");
@@ -584,9 +640,9 @@ export default function QuickSaleModule({
     logAudit({
       action: "create",
       entity: "quick_sale",
-      entity_id: (data as any)?.id ?? null,
+      entity_id: sale.id ?? null,
       description: `Quick sale ${inr(total)} (${itemCount} item${itemCount === 1 ? "" : "s"})`,
-      details: { sale_number: (data as any)?.sale_number ?? null, amount: Number(total.toFixed(2)) },
+      details: { sale_number: sale.sale_number ?? null, amount: Number(total.toFixed(2)) },
     });
     showToast("success", `Quick sale recorded: ${inr(total)} (${sale.sale_number || "Completed"})`);
     refresh();
@@ -1195,7 +1251,7 @@ export default function QuickSaleModule({
 
                   <div className="flex items-center gap-2 pt-1 border-t border-emerald-100 dark:border-emerald-900/40">
                     <a
-                      href={`/receipt/quick/${lastSale.id}`}
+                      href={lastSale.sale_number.startsWith("INV") ? `/receipt/${lastSale.id}` : `/receipt/quick/${lastSale.id}`}
                       target="_blank"
                       className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 dark:bg-slate-900 dark:text-emerald-300"
                     >
