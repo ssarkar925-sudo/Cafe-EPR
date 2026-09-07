@@ -28,7 +28,10 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Build Windows Executables
-        run: npx electron-builder --win --x64
+        # Build installers only; do not attempt a GitHub release from CI.
+        # electron-builder otherwise enables implicit publishing in CI and
+        # fails when GH_TOKEN is not configured.
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Upload Windows Setup Installer
         uses: actions/upload-artifact@v4

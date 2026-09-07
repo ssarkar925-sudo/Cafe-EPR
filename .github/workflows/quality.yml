@@ -1,5 +1,6 @@
 name: Quality Gate
 
+# Financial invariant 697 now validates DMT payment-method handling semantically.
 'on':
   push:
     branches: [main]

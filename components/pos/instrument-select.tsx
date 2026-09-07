@@ -29,37 +29,31 @@ export const METHOD_ACCOUNT_TYPES: Record<string, string[]> = {
 
 type PosInstrument = { id: string; name: string; type: string };
 
-export function normalizeMethod(method: string): string {
-  if (method === "credit") return "credit_card";
-  return method;
+function normalizeMethod(method: string) {
+  return method === "credit" ? "credit_card" : method;
 }
 
 export function instrumentLabel(method: string) {
-  const norm = normalizeMethod(method);
-  return INSTRUMENT_TYPES.find((t) => t.value === norm)?.label ?? (method === "credit" ? "Credit Card" : method);
+  const normalized = normalizeMethod(method);
+  return INSTRUMENT_TYPES.find((t) => t.value === normalized)?.label ?? method;
 }
 
 export function buildInstrumentOptions(instruments: PosInstrument[], enabled?: string[]) {
-  const normEnabled = enabled?.map(normalizeMethod);
-  return INSTRUMENT_TYPES.filter((t) => !normEnabled || normEnabled.includes(t.value)).map((t) => {
+  return INSTRUMENT_TYPES.filter((t) => !enabled || enabled.includes(t.value) || (t.value === "credit_card" && enabled.includes("credit"))).map((t) => {
     const acceptedTypes = t.value === "upi" ? ["upi", "upi_qr"] : [t.value];
     const named = instruments.filter((i) => acceptedTypes.includes(i.type));
     const options = named.map((i) => ({ value: i.id, label: i.name }));
-    options.push({ value: "__gen__:" + t.value, label: named.length > 0 ? `General ${t.label}` : t.label });
+    // Always keep a generic option. A controlled native <select> must always
+    // contain the current value or browsers silently snap it to the first option.
+    options.unshift({ value: "__gen__:" + t.value, label: `Generic ${t.label}` });
     return { group: t.label, options };
   });
 }
 
 export function selectValueOf(pick: InstrumentPick, instruments?: PosInstrument[]) {
   if (pick.instrument_id) return pick.instrument_id;
-  const m = normalizeMethod(pick.method);
-  if (!m) return "";
-  if (instruments && instruments.length > 0) {
-    const types = METHOD_ACCOUNT_TYPES[m] ?? [m];
-    const match = instruments.find((i) => types.includes(i.type));
-    if (match) return match.id;
-  }
-  return "__gen__:" + m;
+  const method = normalizeMethod(pick.method || "");
+  return method ? "__gen__:" + method : "";
 }
 
 export function parseInstrumentValue(
@@ -68,20 +62,14 @@ export function parseInstrumentValue(
 ): InstrumentPick | null {
   if (value === "__add__") return null;
   if (value.startsWith("__gen__:")) {
-    const raw = value.slice(8);
-    return { method: normalizeMethod(raw), instrument_id: "" };
+    const method = normalizeMethod(value.slice(8));
+    return { method, instrument_id: "" };
   }
   const inst = instruments.find((i) => i.id === value);
   const method = inst?.type === "upi_qr" ? "upi" : inst?.type ?? "cash";
   return { method, instrument_id: value };
 }
 
-/**
- * POS Clear currently resets the cart state in the parent. The payment controls
- * must not retain the previous tender amount while that React state settles.
- * Keep this behavior local to the payment control and reset only its paired
- * amount input when the enclosing POS cart becomes empty.
- */
 function useResetPairedAmountWhenCartClears() {
   const selectRef = useRef<HTMLSelectElement | null>(null);
 
@@ -131,21 +119,21 @@ export default function InstrumentSelect({
 }) {
   const groups = buildInstrumentOptions(instruments, enabled);
   const selectRef = useResetPairedAmountWhenCartClears();
-  const selectedVal = selectValueOf(pick, instruments);
-  const valueExists = groups.some((g) => g.options.some((o) => o.value === selectedVal));
+  const currentVal = selectValueOf(pick);
+  const optionValues = groups.flatMap((g) => g.options.map((o) => o.value));
 
   return (
     <select
       ref={selectRef}
-      value={selectedVal}
+      value={currentVal}
       onChange={(e) => onChange(parseInstrumentValue(e.target.value, instruments))}
       className={className}
     >
-      {!valueExists && selectedVal ? (
-        <option key={selectedVal} value={selectedVal}>
+      {!optionValues.includes(currentVal) && currentVal && (
+        <option value={currentVal} hidden>
           {instrumentLabel(pick.method)}
         </option>
-      ) : null}
+      )}
       {groups.map((g) => (
         <optgroup key={g.group} label={g.group}>
           {g.options.map((o) => (

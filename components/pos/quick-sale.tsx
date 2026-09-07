@@ -519,13 +519,13 @@ export default function QuickSaleModule({
       setError("Enter the amount received.");
       return;
     }
-    const isPartial = paid < total;
-    if (isPartial && !customerId) {
-      setError("Please select a customer to record partial payment / balance due.");
+    const isPartial = paid < total - 0.01;
+    if (paid > total + 0.01 && !singleCash) {
+      setError(`Payments (${inr(paid)}) cannot exceed the sale amount (${inr(total)}).`);
       return;
     }
-    if (!isPartial && !singleCash && Math.abs(paid - total) > 0.01) {
-      setError(`Payments (${inr(paid)}) must equal the sale amount (${inr(total)}).`);
+    if (isPartial && !customerId) {
+      setError("Please select a customer to record partial payment / balance due.");
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
@@ -533,7 +533,7 @@ export default function QuickSaleModule({
     let tendered: number | null = null;
     if (singleCash && !isPartial) {
       pmts = [
-        { method: "cash", amount: Number(total.toFixed(2)), instrument_id: payments[0].instrument_id || null },
+        { method: "cash", amount: Number(Math.min(paid, total).toFixed(2)), instrument_id: payments[0].instrument_id || null },
       ];
       tendered = Number(payments[0].amount) || null;
     } else {

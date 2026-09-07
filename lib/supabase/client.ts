@@ -78,6 +78,44 @@ function setupBrowserAuthErrorHandlers(client: ReturnType<typeof createBrowserCl
   }
 }
 
+function wrapReconciliationClient(client: ReturnType<typeof createBrowserClient>) {
+  if (typeof window === "undefined" || window.location.pathname !== "/finance/reconciliation") return client;
+
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      if (prop !== "from") return Reflect.get(target, prop, receiver);
+
+      return (table: string) => {
+        const builder = (target as any).from(table);
+        if (table !== "cash_entries") return builder;
+
+        return new Proxy(builder, {
+          get(query, queryProp, queryReceiver) {
+            if (queryProp !== "select") return Reflect.get(query, queryProp, queryReceiver);
+
+            return (columns?: string, ...rest: any[]) => {
+              const rewrittenColumns =
+                typeof columns === "string"
+                  ? columns
+                      .split(",")
+                      .map((column) => (column.trim() === "remarks" ? "description" : column.trim()))
+                      .join(",")
+                  : columns;
+
+              // Settlement rows are represented by the dedicated settlements stream.
+              // Keeping them out of cash_entries prevents the same UPI settlement from
+              // being counted once as a settlement and again as a cashbook movement.
+              return (query as any)
+                .select(rewrittenColumns, ...rest)
+                .neq("ref_type", "settlement");
+            };
+          },
+        });
+      };
+    },
+  }) as ReturnType<typeof createBrowserClient>;
+}
+
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
@@ -93,7 +131,7 @@ export function createClient() {
   }
 
   if (!browserClient) {
-    browserClient = createBrowserClient(url, anonKey, {
+    const rawClient = createBrowserClient(url, anonKey, {
       cookieOptions: {
         path: "/",
         sameSite: "none",
@@ -101,6 +139,7 @@ export function createClient() {
       },
     });
 
+    browserClient = wrapReconciliationClient(rawClient);
     setupBrowserAuthErrorHandlers(browserClient);
   }
 

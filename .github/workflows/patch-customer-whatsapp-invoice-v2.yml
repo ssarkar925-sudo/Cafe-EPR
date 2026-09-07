@@ -1,0 +1,121 @@
+name: Finalize customer WhatsApp invoice PDF-only rollout
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch gateway, add regression test, clean temporary workflows
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          gateway = Path('scripts/whatsapp-gateway.js')
+          text = gateway.read_text(encoding='utf-8')
+          marker = '  // Send Message Endpoint\n'
+          block = '''  // Customer invoice PDF attachment endpoint. Sends only an application/pdf document.
+  if ((urlPath === "/send-document" || urlPath === "/api/send-document") && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const phone = payload.phone || payload.number;
+        const documentUrl = payload.documentUrl || payload.document;
+        const fileName = payload.fileName || payload.filename || "Invoice.pdf";
+        if (!phone || !documentUrl) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ success:false, error:"Phone and document URL are required." })); return; }
+        const parsed = new URL(documentUrl);
+        if (!["https:", "http:"].includes(parsed.protocol)) throw new Error("Document URL must be HTTP(S).");
+        const jid = formatJid(phone);
+        if (!isConnected || !sock) { res.writeHead(200, { "Content-Type":"application/json" }); res.end(JSON.stringify({ success:true, status:"dispatched_mock", to:jid })); return; }
+        const fileRes = await fetch(documentUrl, { signal: AbortSignal.timeout(30000) });
+        if (!fileRes.ok) throw new Error(`Invoice PDF endpoint returned HTTP ${fileRes.status}`);
+        const contentType = (fileRes.headers.get("content-type") || "").toLowerCase();
+        if (!contentType.includes("application/pdf")) throw new Error("Invoice endpoint did not return a PDF document.");
+        const buffer = Buffer.from(await fileRes.arrayBuffer());
+        if (buffer.length > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds 15 MB.");
+        const sent = await sock.sendMessage(jid, { document: buffer, mimetype:"application/pdf", fileName });
+        res.writeHead(200, { "Content-Type":"application/json" });
+        res.end(JSON.stringify({ success:true, status:"sent", to:jid, messageId:sent?.key?.id, type:"document" }));
+      } catch (err) {
+        res.writeHead(500, { "Content-Type":"application/json" });
+        res.end(JSON.stringify({ success:false, error:err.message }));
+      }
+    });
+    return;
+  }
+
+'''
+          if '/send-document' not in text:
+              if marker not in text: raise SystemExit('Gateway anchor not found')
+              gateway.write_text(text.replace(marker, block + marker, 1), encoding='utf-8')
+
+          Path('scripts/test-whatsapp-invoice-only.mjs').write_text('''import fs from "fs";
+const f={
+  modal:fs.readFileSync("./components/whatsapp/whatsapp-send-modal.tsx","utf8"),
+  send:fs.readFileSync("./app/api/whatsapp/send/route.ts","utf8"),
+  sendInvoice:fs.readFileSync("./app/api/whatsapp/send-invoice/route.ts","utf8"),
+  pdfRoute:fs.readFileSync("./app/api/whatsapp/invoice/[id]/route.ts","utf8"),
+  link:fs.readFileSync("./lib/customer-invoice-link.ts","utf8"),
+  document:fs.readFileSync("./lib/whatsapp-document.ts","utf8"),
+  gateway:fs.readFileSync("./scripts/whatsapp-gateway.js","utf8"),
+  pdf:fs.readFileSync("./components/pdf/customer-invoice-pdf.tsx","utf8"),
+  a4:fs.readFileSync("./app/receipt/[id]/a4/page.tsx","utf8"),
+  actions:fs.readFileSync("./components/pdf/a4-actions.tsx","utf8")
+};
+const checks=[
+ [f.modal.includes('invoiceOnly = messageType === "pos_invoice"')&&f.modal.includes('/api/whatsapp/send-invoice')&&f.modal.includes('PDF ONLY'),'Invoice customer modal is PDF-only'],
+ [f.sendInvoice.includes('buildCustomerInvoiceUrl')&&f.sendInvoice.includes('sendCustomerInvoicePdf'),'Dedicated invoice PDF dispatch route exists'],
+ [f.pdfRoute.includes('verifyCustomerInvoiceToken')&&f.pdfRoute.includes('application/pdf')&&f.pdfRoute.includes('Content-Disposition'),'Signed customer URL returns downloadable PDF'],
+ [f.link.includes('createHmac')&&f.link.includes('TOKEN_TTL_SECONDS'),'Customer invoice URL is signed and expiring'],
+ [f.document.includes('type: "document"')&&f.document.includes('/send-document')&&f.document.includes('/messages/document'),'Meta/local/UltraMsg document transports exist'],
+ [f.send.includes('legacyInvoiceMatch')&&f.send.includes('sendCustomerInvoicePdf'),'Generic send endpoint converts invoice text dispatches to PDF-only'],
+ [f.gateway.includes('/send-document')&&f.gateway.includes('mimetype:"application/pdf"')&&f.gateway.includes('document: buffer'),'Local gateway sends a real PDF attachment'],
+ [f.pdf.includes('TAX INVOICE')&&f.pdf.includes('Grand Total')&&!f.pdf.includes('Portal Commission')&&!f.pdf.includes('Net Operator Income'),'Customer PDF excludes internal earnings'],
+ [f.a4.includes('A4Actions')&&f.actions.includes('View Receipt (80mm)')&&f.actions.includes('Print Invoice (A4)')&&f.actions.includes('Download PDF'),'Application-user receipt/A4 controls remain']
+];
+let failed=0;for(const[ok,label]of checks){if(ok)console.log('PASS: '+label);else{console.error('FAIL: '+label);failed++;}}
+console.log(`Customer WhatsApp invoice-only checks: ${checks.length-failed} passed, ${failed} failed`);process.exit(failed?1:0);
+''', encoding='utf-8')
+
+          quality=Path('.github/workflows/quality.yml')
+          q=quality.read_text(encoding='utf-8')
+          if 'scripts/test-whatsapp-invoice-only.mjs' not in q:
+              marker_q='      - name: AI browser safety'
+              step_q='      - name: Customer WhatsApp invoice PDF-only checks\n        run: node scripts/test-whatsapp-invoice-only.mjs\n\n'
+              if marker_q not in q: raise SystemExit('Quality Gate anchor not found')
+              quality.write_text(q.replace(marker_q,step_q+marker_q,1),encoding='utf-8')
+
+          # Remove temporary customer-WhatsApp patcher files. This finalizer intentionally self-deletes to prevent loops.
+          for x in [
+            '.github/workflows/patch-customer-whatsapp-invoice-main.yml',
+            '.github/workflows/apply-customer-whatsapp-invoice-fix.yml',
+            '.github/workflows/patch-customer-whatsapp-invoice-v2.yml',
+            '.github/workflows/apply-customer-whatsapp-invoice-fix.yml',
+            '.github/workflows/apply-customer-whatsapp-invoice-fix.yml'
+          ]:
+              Path(x).unlink(missing_ok=True)
+          Path('scripts/.customer-whatsapp-rollout-trigger').unlink(missing_ok=True)
+          print('PATCH_OK')
+          PY
+
+      - name: Commit final rollout
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/whatsapp components/ lib/customer-invoice-link.ts lib/whatsapp-document.ts components/pdf/customer-invoice-pdf.tsx scripts/whatsapp-gateway.js scripts/test-whatsapp-invoice-only.mjs .github/workflows/quality.yml .github/workflows/
+          git commit -m "Enforce customer WhatsApp invoice PDF-only delivery"
+          git push origin main

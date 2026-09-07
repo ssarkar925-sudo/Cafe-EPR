@@ -8,6 +8,7 @@ import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
 import CompactToggle from "@/components/ui/compact-toggle";
+import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
@@ -94,6 +95,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   const [payModal, setPayModal] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
+  const [payAllocations, setPayAllocations] = useState<PaymentAllocation[]>([]);
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [payRemarks, setPayRemarks] = useState("");
   const [payBusy, setPayBusy] = useState(false);
@@ -198,109 +200,17 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   }
 
   async function handleRecordPayment() {
-    const amt = Number(payAmount);
-    if (!amt || amt <= 0) {
-      showToast("error", "Please enter a valid positive payment amount.");
-      return;
-    }
+    const allocations = payAllocations.filter((row) => Number(row.amount) > 0);
+    const amt = allocations.reduce((sum,row) => sum + (Number(row.amount) || 0), 0);
+    if (!amt || amt <= 0) { showToast("error", "Please enter at least one positive payment allocation."); return; }
+    if (amt > Number(selected?.balance ?? 0) + 0.005) { showToast("error", "Payment cannot exceed the customer's outstanding due."); return; }
     setPayBusy(true);
-    let { error } = await supabase.rpc("adjust_customer_ledger", {
-      p_customer_id: customerId,
-      p_entry_date: payDate,
-      p_type: "payment",
-      p_direction: "credit",
-      p_amount: amt,
-      p_method: payMethod,
-      p_description: payRemarks.trim() || `Payment received via ${payMethod.toUpperCase()}`,
-    });
-
-    // Resilient fallback if RPC function is not yet created in Supabase
-    if (error && (error.message.includes("Could not find the function") || error.code === "PGRST202")) {
-      const currentBal = Number(selected?.balance ?? 0);
-      const newBal = currentBal - amt;
-      const { error: custErr } = await supabase
-        .from("customers")
-        .update({ balance: newBal, updated_at: new Date().toISOString() })
-        .eq("id", customerId);
-      if (custErr) {
-        setPayBusy(false);
-        showToast("error", custErr.message);
-        return;
-      }
-      const { data: lEntry, error: ledgErr } = await supabase
-        .from("customer_ledger")
-        .insert({
-          customer_id: customerId,
-          entry_date: payDate,
-          type: "payment",
-          description: payRemarks.trim() || `Payment received (${payMethod.toUpperCase()})`,
-          debit: 0,
-          credit: amt,
-          balance_after: newBal,
-        })
-        .select("id")
-        .single();
-      if (ledgErr) {
-        setPayBusy(false);
-        showToast("error", ledgErr.message);
-        return;
-      }
-      await supabase.from("cash_entries").insert({
-        entry_date: payDate,
-        method: payMethod,
-        direction: "in",
-        amount: amt,
-        description: `Payment received from ${selected?.name || "Customer"}`,
-        ref_type: "customer_payment",
-        ref_id: lEntry?.id || customerId,
-      });
-      error = null;
-    }
-
-    // Automated FIFO Invoice Allocation across unpaid/partial invoices
-    if (!error && unpaidInvoices.length > 0) {
-      let remaining = amt;
-      for (const inv of unpaidInvoices) {
-        if (remaining <= 0) break;
-        const invTotal = Number(inv.total);
-        const invPaid = Number(inv.paid || 0);
-        const invDue = Number(inv.due ?? (invTotal - invPaid));
-        if (invDue <= 0) continue;
-
-        const applied = Math.min(remaining, invDue);
-        const newPaid = invPaid + applied;
-        const newDue = Math.max(0, invTotal - newPaid);
-        const newStatus = newDue <= 0.001 ? "paid" : "partial";
-
-        await Promise.all([
-          supabase.from("payments").insert({
-            invoice_id: inv.id,
-            amount: applied,
-            method: payMethod,
-            received_at: `${payDate}T${new Date().toISOString().slice(11, 19)}`,
-            note: payRemarks.trim() ? `FIFO: ${payRemarks.trim()}` : `Auto FIFO Settlement from Customer Ledger`,
-          }),
-          supabase.from("invoices").update({
-            paid: newPaid,
-            due: newDue,
-            status: newStatus,
-            updated_at: new Date().toISOString(),
-          }).eq("id", inv.id),
-        ]);
-
-        remaining -= applied;
-      }
-    }
-
+    const { error } = await supabase.rpc("record_customer_multi_payment", { p_customer_id:customerId, p_entry_date:payDate, p_allocations:allocations, p_description:payRemarks.trim() || null });
     setPayBusy(false);
-    if (error) {
-      showToast("error", error.message);
-      return;
-    }
-    showToast("success", `Recorded payment of ${inr(amt)} for ${selected?.name}.`);
-    setPayModal(false);
-    setPayAmount("");
-    setPayRemarks("");
+    if (error) { showToast("error", error.message); return; }
+    const tenderText = allocations.map((row) => `${row.method.toUpperCase()} ${inr(Number(row.amount))}`).join(" + ");
+    showToast("success", `Recorded ${tenderText} for ${selected?.name}.`);
+    setPayModal(false); setPayAmount(""); setPayRemarks(""); setPayAllocations([]);
     await loadCustomerLedger(customerId);
   }
 
@@ -416,6 +326,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
                   type="button"
                   onClick={() => {
                     setPayAmount(Number(selected.balance) > 0 ? String(selected.balance) : "");
+                    setPayAllocations(Number(selected.balance) > 0 ? [{ method:"cash", amount:String(Number(selected.balance).toFixed(2)) }] : []);
                     setPayModal(true);
                   }}
                   className="btn-3d-tactile-emerald flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-sm"
@@ -787,44 +698,7 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Amount (₹) *</label>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-                placeholder="0.00"
-                className={`${inputClass} mt-1 text-base font-bold`}
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Method *</label>
-              <div className="mt-1 flex gap-2">
-                {[
-                  { value: "cash", label: "Cash" },
-                  { value: "upi", label: "UPI" },
-                  { value: "bank", label: "Bank Transfer" },
-                  { value: "wallet", label: "Wallet" },
-                  { value: "card", label: "Card" },
-                ].map((m) => (
-                  <button
-                    key={m.value}
-                    type="button"
-                    onClick={() => setPayMethod(m.value)}
-                    className={`flex-1 rounded-xl border px-3 py-2 text-xs font-semibold ${
-                      payMethod === m.value
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                        : "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <MultiPaymentCollection totalDue={Number(selected.balance)} mode="ledger" onChange={(rows) => { setPayAllocations(rows); setPayMethod(rows.find((row) => Number(row.amount) > 0)?.method ?? "cash"); }} />
 
             <div>
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Payment Date</label>
