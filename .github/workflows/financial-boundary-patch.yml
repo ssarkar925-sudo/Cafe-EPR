@@ -3,6 +3,8 @@ name: Financial Boundary Patch
 on:
   push:
     branches: [chore/financial-hardening-final]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
