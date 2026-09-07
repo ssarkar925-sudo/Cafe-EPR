@@ -1,0 +1,45 @@
+name: Financial Boundary Patch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/financial-hardening-final
+          fetch-depth: 1
+      - name: Remove direct recharge fallback
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p = Path("components/business/business-client.tsx")
+          s = p.read_text()
+          pattern = r'''\n      // Resilient fallback if create_recharge RPC is missing or schema cache not reloaded\n      if \(error && \(error\.message\?\.includes\("schema cache"\) \|\| error\.code === "PGRST202" \|\| error\.message\?\.includes\("function public\.create_recharge"\)\)\) \{.*?\n      \}\n    \} else \{'''
+          replacement = '''\n      if (error) {\n        // Financial writes are fail-closed: never fall back to direct table mutations.\n        throw new Error(`Canonical create_recharge RPC failed: ${error.message}`);\n      }\n    } else {'''
+          out, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit(f"expected exactly one recharge fallback block, found {n}")
+          p.write_text(out)
+      - name: Verify no direct financial fallback remains
+        run: |
+          ! grep -nE 'from\("(transactions|cash_entries|customer_ledger|customers)"\)\.(insert|update|upsert|delete)' components/business/business-client.tsx
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/business/business-client.tsx
+          git diff --cached --quiet || git commit -m "fix: fail closed on recharge RPC errors"
+          git push origin HEAD:chore/financial-hardening-final
+      - name: Remove patch workflow
+        if: always()
+        run: |
+          git rm -f .github/workflows/financial-boundary-patch.yml || true
+          git diff --cached --quiet || git commit -m "chore: remove one-shot financial boundary patch workflow"
+          git push origin HEAD:chore/financial-hardening-final || true
