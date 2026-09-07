@@ -1,0 +1,267 @@
+name: Finalize customer WhatsApp invoice PDF-only rollout
+
+on:
+  push:
+    branches:
+      - feat/customer-whatsapp-invoice-only
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/customer-whatsapp-invoice-only
+          fetch-depth: 0
+
+      - name: Restore invoices client and patch customer WhatsApp path
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git checkout origin/main -- components/invoices/invoices-client.tsx
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('components/invoices/invoices-client.tsx')
+          t=p.read_text(encoding='utf-8')
+          pattern=r'  function handleSendInvoiceWhatsApp\(inv: InvoiceRow\) \{[\s\S]*?\n  \}\n\n  function handleSendQuickSaleWhatsApp'
+          replacement='''  function handleSendInvoiceWhatsApp(inv: InvoiceRow) {
+    const phone = inv.customers?.phone || "";
+    setWaModal({
+      open: true,
+      phone,
+      name: inv.customers?.name || "Customer",
+      msg: "",
+      type: "pos_invoice",
+      refNum: inv.invoice_number,
+      refId: inv.id,
+    });
+  }
+
+  function handleSendQuickSaleWhatsApp'''
+          t2,n=re.subn(pattern,replacement,t,count=1)
+          if n != 1: raise SystemExit(f'invoice WhatsApp handler replacement expected 1 match, got {n}')
+          p.write_text(t2,encoding='utf-8')
+          PY
+
+      - name: Patch WhatsApp automation and outbox to use invoice PDF dispatch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('lib/whatsapp.ts')
+          t=p.read_text(encoding='utf-8')
+
+          marker='''  const templates = config.templates || DEFAULT_WA_TEMPLATES;'''
+          auto='''  // Customer invoice delivery is a document-only operation. Never send the generic invoice template text/receipt URL.
+  if (event.type === "pos_invoice" && event.referenceId) {
+    try {
+      const response = await fetch("/api/whatsapp/send-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId: event.referenceId, phone: event.phone }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        return { triggered: false, reason: result.error || "Failed to send customer invoice PDF." };
+      }
+      return { triggered: true, messageId: result.messageId };
+    } catch (error) {
+      return { triggered: false, reason: error instanceof Error ? error.message : "Customer invoice PDF dispatch failed." };
+    }
+  }
+
+'''
+          if 'event.type === "pos_invoice" && event.referenceId' not in t:
+              if marker not in t: raise SystemExit('automation marker not found')
+              t=t.replace(marker,auto+marker,1)
+
+          old='''      const sendRes = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: msg.phone,
+          message: msg.message_body,
+          config,
+        }),
+      });
+
+      const resData = await sendRes.json().catch(() => ({}));'''
+          new='''      let sendRes: Response;
+      let resData: any;
+      if (msg.message_type === "pos_invoice" && msg.reference_id) {
+        sendRes = await fetch("/api/whatsapp/send-invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: msg.reference_id, phone: msg.phone }),
+        });
+        resData = await sendRes.json().catch(() => ({}));
+      } else {
+        sendRes = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: msg.phone,
+            message: msg.message_body,
+            config,
+          }),
+        });
+        resData = await sendRes.json().catch(() => ({}));
+      }'''
+          if 'msg.message_type === "pos_invoice" && msg.reference_id' not in t:
+              if old not in t: raise SystemExit('outbox send block not found')
+              t=t.replace(old,new,1)
+          p.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Add local gateway PDF document endpoint
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/whatsapp-gateway.js')
+          t=p.read_text(encoding='utf-8')
+          marker='''  // Send Message Endpoint\n'''
+          block='''  // Send PDF document endpoint — customer invoice delivery uses an attachment, never a receipt URL/text message.
+  if ((urlPath === "/send-document" || urlPath === "/api/send-document") && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const phone = payload.phone || payload.number;
+        const documentUrl = payload.documentUrl || payload.document;
+        const fileName = payload.fileName || payload.filename || "Invoice.pdf";
+
+        if (!phone || !documentUrl) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Phone and document URL are required." }));
+          return;
+        }
+
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(documentUrl);
+          if (!["https:", "http:"].includes(parsedUrl.protocol)) throw new Error("Unsupported document URL protocol");
+        } catch (e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Document URL must be HTTP(S)." }));
+          return;
+        }
+
+        const jid = formatJid(phone);
+        if (!isConnected || !sock) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true, status: "dispatched_mock", note: "Gateway active, scan QR to deliver invoice PDF", to: jid }));
+          return;
+        }
+
+        const fileRes = await fetch(documentUrl, { signal: AbortSignal.timeout(30000) });
+        if (!fileRes.ok) throw new Error(`Invoice PDF endpoint returned HTTP ${fileRes.status}`);
+        const contentType = (fileRes.headers.get("content-type") || "").toLowerCase();
+        if (!contentType.includes("application/pdf")) throw new Error("Invoice endpoint did not return a PDF document.");
+        const length = Number(fileRes.headers.get("content-length") || 0);
+        if (length > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds the 15 MB WhatsApp document limit enforced by the gateway.");
+        const buffer = Buffer.from(await fileRes.arrayBuffer());
+        if (buffer.length > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds the 15 MB WhatsApp document limit enforced by the gateway.");
+
+        const sent = await sock.sendMessage(jid, {
+          document: buffer,
+          mimetype: "application/pdf",
+          fileName,
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, status: "sent", to: jid, messageId: sent?.key?.id, type: "document" }));
+      } catch (err) {
+        console.error("[WhatsApp Gateway] ❌ Error sending PDF:", err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+'''
+          if '/send-document' not in t:
+              if marker not in t: raise SystemExit('gateway marker not found')
+              t=t.replace(marker,block+marker,1)
+          p.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Add customer WhatsApp invoice regression test
+        shell: bash
+        run: |
+          cat > scripts/test-whatsapp-invoice-only.mjs <<'JS'
+          import fs from "fs";
+
+          const invoiceClient = fs.readFileSync("./components/invoices/invoices-client.tsx", "utf8");
+          const modal = fs.readFileSync("./components/whatsapp/whatsapp-send-modal.tsx", "utf8");
+          const sendInvoiceRoute = fs.readFileSync("./app/api/whatsapp/send-invoice/route.ts", "utf8");
+          const linkRoute = fs.readFileSync("./app/api/whatsapp/invoice/[id]/route.ts", "utf8");
+          const sender = fs.readFileSync("./lib/whatsapp-sender.ts", "utf8");
+          const whatsapp = fs.readFileSync("./lib/whatsapp.ts", "utf8");
+          const gateway = fs.readFileSync("./scripts/whatsapp-gateway.js", "utf8");
+          const pdf = fs.readFileSync("./components/pdf/invoice-pdf.tsx", "utf8");
+          const appUserA4 = fs.readFileSync("./app/receipt/[id]/a4/page.tsx", "utf8");
+          const actions = fs.readFileSync("./components/pdf/a4-actions.tsx", "utf8");
+
+          const checks = [
+            [invoiceClient.includes('msg: ""') && invoiceClient.includes('type: "pos_invoice"'), "Invoice WhatsApp launch does not construct a receipt/A4 URL or editable customer message"],
+            [modal.includes('const invoiceOnly = messageType === "pos_invoice" && Boolean(refId);'), "WhatsApp modal has explicit invoice-only mode"],
+            [modal.includes('fetch("/api/whatsapp/send-invoice"'), "Invoice-only modal uses dedicated invoice PDF endpoint"],
+            [modal.includes("PDF ONLY") && !modal.includes("Open in WhatsApp App / Web (wa.me) ↗</button>\n          ) : ("), "Invoice-only modal removes wa.me/text fallback"],
+            [sendInvoiceRoute.includes("buildCustomerInvoiceUrl") && sendInvoiceRoute.includes("documentUrl"), "Dedicated send endpoint creates a signed customer PDF document URL"],
+            [linkRoute.includes('verifyCustomerInvoiceToken') && linkRoute.includes('Content-Type": "application/pdf"') && linkRoute.includes('Content-Disposition'), "Customer document URL is signed, expiring, and returns an attachment PDF"],
+            [sender.includes('type: "document"') && sender.includes('documentUrl') && sender.includes('/send-document') && sender.includes('/messages/document'), "All WhatsApp providers support document delivery for invoice PDFs"],
+            [whatsapp.includes('event.type === "pos_invoice" && event.referenceId') && whatsapp.includes('/api/whatsapp/send-invoice'), "Automatic POS invoice WhatsApp dispatch uses PDF-only endpoint"],
+            [whatsapp.includes('msg.message_type === "pos_invoice" && msg.reference_id'), "Queued POS invoice outbox delivery uses PDF-only endpoint"],
+            [gateway.includes('/send-document') && gateway.includes('mimetype: "application/pdf"') && gateway.includes('document: buffer'), "Local gateway sends an actual PDF attachment"],
+            [pdf.includes("TAX INVOICE") && pdf.includes("Grand Total") && !pdf.includes("Portal Commission") && !pdf.includes("Net Operator Income"), "Customer PDF invoice contains invoice data without internal earnings"],
+            [appUserA4.includes("A4Actions") && actions.includes("View Receipt (80mm)") && actions.includes("Print Invoice (A4)") && actions.includes("Download PDF"), "Application users retain receipt/A4/download controls"],
+            [!invoiceClient.includes('function handleSendInvoiceWhatsApp(inv: InvoiceRow) {\n    const cfg = getWhatsAppConfig();'), "Old editable template-based invoice WhatsApp handler removed"],
+            [!invoiceClient.includes('const receiptUrl = `${origin}/receipt/${inv.id}/a4`;'), "Invoice WhatsApp launcher no longer exposes /receipt/{id}/a4"],
+          ];
+
+          let failed = 0;
+          for (const [ok, label] of checks) {
+            if (ok) console.log(`PASS: ${label}`);
+            else { console.error(`FAIL: ${label}`); failed++; }
+          }
+          console.log(`\nWhatsApp invoice-only checks: ${checks.length - failed} passed, ${failed} failed`);
+          process.exit(failed ? 1 : 0);
+          JS
+
+      - name: Wire regression test into Quality Gate
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/quality.yml')
+          t=p.read_text(encoding='utf-8')
+          if 'scripts/test-whatsapp-invoice-only.mjs' not in t:
+              marker='''      - name: AI browser safety'''
+              step='''      - name: Customer WhatsApp invoice PDF-only checks
+        run: node scripts/test-whatsapp-invoice-only.mjs
+'''
+              if marker not in t: raise SystemExit('quality gate insertion marker not found')
+              t=t.replace(marker,step+'\n'+marker,1)
+          p.write_text(t,encoding='utf-8')
+          PY
+
+      - name: Commit final rollout
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/finalize-customer-whatsapp-invoice.yml
+          git add components/invoices/invoices-client.tsx lib/whatsapp.ts scripts/whatsapp-gateway.js scripts/test-whatsapp-invoice-only.mjs .github/workflows/quality.yml
+          git commit -m "Enforce customer WhatsApp invoice PDF-only delivery"
+          git push origin feat/customer-whatsapp-invoice-only
