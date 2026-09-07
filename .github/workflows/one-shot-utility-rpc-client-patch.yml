@@ -14,8 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Patch utility bill financial writes
-        env:
-          TARGET: components/business/utility-bill-workspace.tsx
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -24,7 +22,6 @@ jobs:
           s = p.read_text()
           if "CANONICAL_UTILITY_BILL_RPC_V1" in s:
               raise SystemExit(0)
-
           payment = r'''      // CANONICAL_UTILITY_BILL_RPC_V1
           // All financial mutation is owned by the SECURITY DEFINER RPC. The browser
           // never inserts transactions/cash entries or mutates customer balances here.
@@ -50,11 +47,9 @@ jobs:
             p_customer_collection_instrument_id: customerAllocations.length === 1 ? (selectedCustomerPaymentAccount?.id || null) : null,
             p_customer_payment_allocations: customerAllocations,
           });
-
           if (paymentError) throw paymentError;
           const createdTxnId = paymentResult?.id;
           if (!createdTxnId) throw new Error("Canonical bill-payment RPC returned no transaction id.");
-
           const { data: newTxn, error: loadTxnError } = await supabase
             .from("transactions")
             .select(`*, customers(name, phone), profiles(full_name)`)
@@ -64,17 +59,10 @@ jobs:
 
           // 5. Audit Trail Logging
 '''
-
-          pattern = re.compile(r'      // 2\. Post to Canonical transactions Table.*?      // 5\. Audit Trail Logging\n', re.S)
-          s2, n = pattern.subn(payment, s, count=1)
-          if n != 1:
-              raise SystemExit("payment block marker not found")
-
-          reversal = re.compile(r'      // Offset cash entries.*?\n      setTransactions\(\(prev\) =>', re.S)
-          s3, n = reversal.subn('      setTransactions((prev) =>', s2, count=1)
-          if n != 1:
-              raise SystemExit("reversal direct-write block marker not found")
-
+          s2, n = re.subn(r'      // 2\. Post to Canonical transactions Table.*?      // 5\. Audit Trail Logging\n', payment, s, count=1, flags=re.S)
+          if n != 1: raise SystemExit("payment block marker not found")
+          s3, n = re.subn(r'      // Offset cash entries.*?\n      setTransactions\(\(prev\) =>', '      setTransactions((prev) =>', s2, count=1, flags=re.S)
+          if n != 1: raise SystemExit("reversal direct-write block marker not found")
           p.write_text(s3)
           PY
       - name: Commit patch
