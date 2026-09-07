@@ -656,112 +656,62 @@ export default function UtilityBillWorkspace({
       const todayDate = todayIso.slice(0, 10);
       const billerName = selectedBiller?.name || currentCategory.name;
 
-      // 1. Generate a collision-resistant transaction number.
-      // Count-based numbering is race-prone: two simultaneous payments can read the same count.
-      const nextNum = `BIL-${todayDate.replace(/-/g, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
-      const txnNumber = nextNum;
+      // 1. Transaction numbering is generated atomically inside record_bill_payment.
 
-      // 2. Post to Canonical transactions Table
-      const insertPayload = {
-        transaction_number: nextNum,
-        service_type: "bill_payment",
-        direction: "in",
-        transaction_date: todayDate,
-        transaction_timestamp: todayIso,
-        customer_id: selectedCustomerId || null,
-        customer_mobile: customerMobile.replace(/\D/g, "") || null,
-        reference: `${reference.trim() || consumerId.trim()}-${nextNum}`,
+      // 2. Canonical financial mutation: SECURITY DEFINER RPC.
+      // No direct transactions/cash_entries writes are permitted from the browser.
+      const customerAllocations = customerPaymentAllocations.filter((row) => Number(row.amount) > 0);
+      const effectiveCustomerMethod =
+        customerCollectionAmount > 0
+          ? (customerAllocations.length === 1
+              ? customerAllocations[0].method
+              : (customerPayMethod === "due" ? "cash" : customerPayMethod))
+          : "due";
 
-        remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
-        status: "success",
-        // Customer collection account (Cash/UPI/Bank). This MUST NOT be the
-        // provider funding account; the latter is stored in pay_from_instrument_id.
-        instrument_id: selectedCustomerPaymentAccount?.id || null,
-        pay_from_instrument_id: fundingInstId,
-        pay_from_method: selectedFundingAccount.type,
-        amount: billAmount,
-        service_fee: custFee,
-        portal_commission: commissionEarned,
-        portal_charge: 0,
-        cash_in: customerPayMethod === "cash" ? customerCollectionAmount : 0,
-        bank_in: customerPayMethod === "bank" ? customerCollectionAmount : 0,
-        pool_out: netProviderCost,
-        pool_credit: 0,
-        pool_credit_type: "utility",
-        customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
-          customer_collected_amount: customerCollectionAmount,
-          customer_due_amount: customerDueAmount,
-          customer_collection_method: customerPayMethod,
-          customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,
-      };
+      const { data: paymentResult, error: paymentError } = await supabase.rpc("record_bill_payment", {
+        p_transaction_date: todayDate,
+        p_transaction_timestamp: todayIso,
+        p_customer_id: selectedCustomerId || null,
+        p_customer_mobile: customerMobile.replace(/\D/g, "") || null,
+        p_reference: `${reference.trim() || consumerId.trim()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`,
+        p_remarks: remarks.trim() || `${currentCategory.name} - ${billerName} (${consumerId.trim()})`,
+        p_status: "success",
+        p_amount: billAmount,
+        p_service_fee: custFee,
+        p_portal_commission: commissionEarned,
+        p_pay_from_instrument_id: fundingInstId,
+        p_pay_from_method: selectedFundingAccount.type,
+        p_customer_pay_method: effectiveCustomerMethod,
+        p_customer_collection_instrument_id:
+          customerAllocations.length === 1 ? (selectedCustomerPaymentAccount?.id || null) : null,
+        p_customer_payment_allocations: customerAllocations,
+      });
+      if (paymentError) throw paymentError;
 
-      let newTxn: any = null;
-      const { data: primaryTxn, error: txnErr } = await supabase
+      const createdTxnId = paymentResult?.id;
+      if (!createdTxnId) {
+        throw new Error("Canonical bill-payment RPC returned no transaction id.");
+      }
+
+      const { data: newTxn, error: loadTxnError } = await supabase
         .from("transactions")
-        .insert(insertPayload)
-        .select(`
-          *,
-          customers(name, phone),
-          profiles(full_name)
-        `)
+        .select(`*, customers(name, phone), profiles(full_name)`)
+        .eq("id", createdTxnId)
         .single();
-
-      if (txnErr) {
-        if (txnErr.message.includes("check constraint") || txnErr.message.includes("service_type_check")) {
-          const { data: retryTxn, error: retryErr } = await supabase
-            .from("transactions")
-            .insert({
-              ...insertPayload,
-              service_type: "recharge",
-            })
-            .select(`
-              *,
-              customers(name, phone),
-              profiles(full_name)
-            `)
-            .single();
-
-          if (retryErr) {
-            showToast("error", retryErr.message);
-            setSubmitting(false);
-            return;
-          }
-          newTxn = retryTxn;
-        } else {
-          showToast("error", txnErr.message);
-          setSubmitting(false);
-          return;
-        }
-      } else {
-        newTxn = primaryTxn;
+      if (loadTxnError || !newTxn) {
+        throw loadTxnError || new Error("Bill payment was posted but could not be loaded.");
       }
 
-      // 3. Customer Collection Accounting Leg
-      const { error: collectionError } = await supabase.rpc("apply_transaction_customer_payment_split", { p_txn_id: newTxn.id, p_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0) });
-      if (collectionError) throw collectionError;
-
-      // 4. Provider Funding Leg (Debited from funding instrument)
-      if (netProviderCost > 0 && selectedFundingAccount) {
-        await supabase.from("cash_entries").insert({
-          entry_date: todayDate,
-          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : selectedFundingAccount.type === "credit_card" ? "credit_card" : selectedFundingAccount.type === "wallet" ? "wallet" : "upi",
-          direction: "out",
-          amount: netProviderCost,
-          description: `Bill ${txnNumber} settlement to ${billerName} from ${selectedFundingAccount.name}`,
-          ref_type: "transaction",
-          ref_id: newTxn.id,
-          instrument_id: selectedFundingAccount.id,
-        });
-      }
+      const actualTxnNumber = newTxn.transaction_number || paymentResult.transaction_number || "BILL-PAYMENT";
 
       // 5. Audit Trail Logging
       await logAudit({
         action: "create",
         entity: "transaction",
         entity_id: newTxn.id,
-        description: `Paid Utility Bill ${txnNumber} for ${billerName} | Consumer ID: ${consumerId.trim()} | Amount: ${inr(billAmount)} | Commission: ${inr(commissionEarned)}`,
+        description: `Paid Utility Bill ${actualTxnNumber} for ${billerName} | Consumer ID: ${consumerId.trim()} | Amount: ${inr(billAmount)} | Commission: ${inr(commissionEarned)}`,
         details: {
-          transaction_number: txnNumber,
+          transaction_number: actualTxnNumber,
           category: currentCategory.name,
           biller: billerName,
           consumer_id: consumerId.trim(),
@@ -785,7 +735,7 @@ export default function UtilityBillWorkspace({
 
       setTransactions((prev) => [formattedTxn, ...prev]);
       setReceiptTxn(formattedTxn);
-      showToast("success", `✓ Bill payment ${txnNumber} processed successfully!`);
+      showToast("success", `✓ Bill payment ${actualTxnNumber} processed successfully!`);
 
       // Reset form
       setConsumerId("");
@@ -820,48 +770,8 @@ export default function UtilityBillWorkspace({
         return;
       }
 
-      // Offset cash entries
-      const { data: oldEntries } = await supabase
-        .from("cash_entries")
-        .select("*")
-        .eq("ref_type", "transaction")
-        .eq("ref_id", reverseTxn.id);
-
-      if (oldEntries && oldEntries.length > 0) {
-        for (const ce of oldEntries) {
-          await supabase.from("cash_entries").insert({
-            entry_date: new Date().toISOString().slice(0, 10),
-            method: ce.method,
-            direction: ce.direction === "out" ? "in" : "out",
-            amount: ce.amount,
-            description: `Reversed Utility Bill ${reverseTxn.transaction_number} (${ce.direction === "out" ? "refund to funding account" : "return customer collection"})`,
-            ref_type: "transaction",
-            ref_id: reverseTxn.id,
-            instrument_id: ce.instrument_id,
-          });
-        }
-      }
-
-      // Reverse Customer Ledger if Khata
-      if (reverseTxn.customer_pay_method === "due" && reverseTxn.customer_id) {
-        const { data: cust } = await supabase.from("customers").select("balance").eq("id", reverseTxn.customer_id).single();
-        const prevBal = Number(cust?.balance || 0);
-        const refundAmt = Number(reverseTxn.amount) + Number(reverseTxn.service_fee || 0);
-        const newBal = Math.max(0, prevBal - refundAmt);
-
-        await supabase.from("customers").update({ balance: newBal }).eq("id", reverseTxn.customer_id);
-        await supabase.from("customer_ledger").insert({
-          customer_id: reverseTxn.customer_id,
-          entry_date: new Date().toISOString().slice(0, 10),
-          type: "return",
-          description: `Reversal credit for Utility Bill ${reverseTxn.transaction_number}`,
-          debit: 0,
-          credit: refundAmt,
-          balance_after: newBal,
-          ref_type: "transaction",
-          ref_id: reverseTxn.id,
-        });
-      }
+      // reverse_business_txn owns the append-only reversal, customer ledger,
+      // and accounting legs. Do not mutate cash_entries/customers/customer_ledger here.
 
       setTransactions((prev) =>
         prev.map((t) => (t.id === reverseTxn.id ? { ...t, status: "reversed" } : t))
