@@ -19,6 +19,7 @@ export type InstrumentRow = {
   details: any;
   opening_balance: number | string;
   balance: number | string;
+  current_balance?: number | string;
 };
 
 export type ServiceFavRow = {
