@@ -40,7 +40,7 @@
     "next": "^15.1.6",
     "pg": "^8.23.0",
     "playwright": "^1.62.1",
-    "qrcode": "^1.62.1",
+    "qrcode": "^1.5.6",
     "qrcode-terminal": "^0.12.0",
     "tesseract.js": "^7.0.0"
   },
