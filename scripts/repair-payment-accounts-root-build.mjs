@@ -57,8 +57,6 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
       }
 
       const updated = rows.map((i) => {
-        const bucket = entriesByInstrument[i.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };
-
         // Debit cards are mirrors of their linked bank account, never a second asset.
         if (i.type === "debit_card") {
           const linkedBankId = i.details?.linked_bank_instrument_id ||
@@ -103,13 +101,8 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
         const isDebit = inst.type === "debit_card";
         const limit = isCredit ? Number(inst.details?.credit_limit || 0) : undefined;
         const used = isCredit ? Math.max(0, Number(limit) - current) : undefined;
-        const expected = isDebit
-          ? current
-          : isCredit
-            ? current
-            : opening + bucket.net;
+        const expected = isDebit ? current : isCredit ? current : opening + bucket.net;
         const variance = isCredit || isDebit ? 0 : Math.round((expected - current) * 100) / 100;
-
         const statusVariant = isDebit ? "linked" : isCredit ? "credit_limit" : Math.abs(variance) < 0.01 ? "reconciled" : "variance";
         const statusLabel = isDebit
           ? "Linked to Bank"
@@ -117,7 +110,7 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
             ? "Credit Facility"
             : Math.abs(variance) < 0.01
               ? "✓ Reconciled"
-              : `⚠ Variance ${inr(variance)}`;
+              : "⚠ Variance " + inr(variance);
 
         reconMap[inst.id] = {
           id: inst.id,
@@ -157,8 +150,8 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
       setIsRefreshing(false);
     }
   }, [supabase]);`;
-const next = source.slice(0, start) + replacement + "\n\n" + source.slice(end + "  }, [supabase]);".length);
-if (!next.includes("SINGLE SOURCE OF TRUTH")) throw new Error("payment accounts root patch did not apply");
+const nextBase = source.slice(0, start) + replacement + "\n\n" + source.slice(end + "  }, [supabase]);".length);
+if (!nextBase.includes("SINGLE SOURCE OF TRUTH")) throw new Error("payment accounts root patch did not apply");
 const staleCreditMetadata = 'details.used_limit = String(openingOutstanding);';
 const derivedCreditMetadata = `details.used_limit = String(
         Math.max(
@@ -168,6 +161,6 @@ const derivedCreditMetadata = `details.used_limit = String(
             : Math.max(0, fullLimit - openingOutstanding))
         )
       );`;
-if (next.includes(staleCreditMetadata)) next = next.replace(staleCreditMetadata, derivedCreditMetadata);
+const next = nextBase.includes(staleCreditMetadata) ? nextBase.replace(staleCreditMetadata, derivedCreditMetadata) : nextBase;
 fs.writeFileSync(file, next);
 console.log("Patched payment account balance engine: cash_entries + persisted current_balance only.");
