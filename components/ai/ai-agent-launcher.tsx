@@ -50,14 +50,13 @@ export default function AIAgentLauncher({ role }: { role: string }) {
       href="/ai-agent"
       aria-label={critical > 0 ? `Open Cafe AI Agent — ${critical} critical alert${critical === 1 ? "" : "s"}` : "Open Cafe AI Agent"}
       title={critical > 0 ? `${critical} critical business alert${critical === 1 ? "" : "s"}` : "Open Cafe AI Agent"}
-      className="fixed bottom-[calc(4rem+0.75rem+env(safe-area-inset-bottom))] right-4 z-[60] flex items-center gap-2 rounded-2xl border border-indigo-400/30 bg-slate-950 px-4 py-3 text-xs font-black text-white shadow-xl shadow-indigo-500/20 ring-1 ring-white/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-2xl hover:shadow-indigo-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:bottom-[calc(4rem+1rem+env(safe-area-inset-bottom))] sm:right-5 lg:bottom-6 lg:right-6"
+      className="fixed bottom-6 right-6 z-[60] hidden items-center gap-2 rounded-2xl border border-indigo-400/30 bg-slate-950 px-4 py-3 text-xs font-black text-white shadow-xl shadow-indigo-500/20 ring-1 ring-white/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-2xl hover:shadow-indigo-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 lg:flex"
     >
       <span className="relative flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-500/20 text-base">
         ✦
         {critical > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white ring-2 ring-slate-950">{critical > 9 ? "9+" : critical}</span>}
       </span>
-      <span className="hidden sm:inline">Cafe AI Agent</span>
-      <span className="sm:hidden">AI Agent</span>
+      <span>Cafe AI Agent</span>
     </Link>
   );
 }
