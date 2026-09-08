@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
-    "prebuild": "node scripts/repair-dmt-build.mjs && node scripts/fix-day-close-build.mjs && node scripts/repair-settlement-money-build.mjs",
+    "prebuild": "node scripts/repair-dmt-build.mjs && node scripts/fix-day-close-build.mjs && node scripts/repair-settlement-money-build.mjs && node scripts/repair-recharge-build.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
@@ -40,7 +40,7 @@
     "next": "^15.1.6",
     "pg": "^8.23.0",
     "playwright": "^1.62.1",
-    "qrcode": "^1.5.4",
+    "qrcode": "^1.62.1",
     "qrcode-terminal": "^0.12.0",
     "tesseract.js": "^7.0.0"
   },
