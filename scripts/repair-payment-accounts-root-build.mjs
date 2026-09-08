@@ -64,7 +64,7 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
               ? rows.find((b) => b.type === "bank" && b.is_active)?.id
               : null);
           const linkedBank = linkedBankId ? rows.find((b) => b.id === linkedBankId) : null;
-          const bankBalance = Number(linkedBank?.current_balance ?? 0);
+          const bankBalance = Number((linkedBank as (InstrumentRow & { current_balance?: number }) | null)?.current_balance ?? linkedBank?.balance ?? 0);
           return { ...i, balance: bankBalance, opening_balance: Number(linkedBank?.opening_balance ?? 0) };
         }
 
@@ -72,7 +72,7 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
         // current_balance is authoritative; used credit is derived from limit - available.
         if (i.type === "credit_card") {
           const limit = Number(i.details?.credit_limit || 0);
-          const available = Math.max(0, Number(i.current_balance ?? limit));
+          const available = Math.max(0, Number((i as InstrumentRow & { current_balance?: number }).current_balance ?? limit));
           const used = Math.max(0, limit - available);
           return {
             ...i,
@@ -83,7 +83,7 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
         }
 
         // All normal liquidity instruments use their persisted current_balance.
-        return { ...i, balance: Number(i.current_balance ?? 0) };
+        return { ...i, balance: Number((i as InstrumentRow & { current_balance?: number }).current_balance ?? 0) };
       });
       setInstruments(updated);
 
@@ -95,7 +95,7 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
         const bucket = entriesByInstrument[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };
         const current = inst.type === "debit_card"
           ? Number(inst.balance ?? 0)
-          : Number(inst.current_balance ?? inst.balance ?? 0);
+          : Number((inst as InstrumentRow & { current_balance?: number }).current_balance ?? inst.balance ?? 0);
         const opening = Number(inst.opening_balance ?? 0);
         const isCredit = inst.type === "credit_card";
         const isDebit = inst.type === "debit_card";
@@ -157,7 +157,7 @@ const derivedCreditMetadata = `details.used_limit = String(
         Math.max(
           0,
           fullLimit - (instModal.mode === "edit" && instModal.row?.type === "credit_card"
-            ? Number(instModal.row.balance ?? instModal.row.current_balance ?? fullLimit)
+            ? Number((instModal.row as InstrumentRow & { current_balance?: number })?.balance ?? (instModal.row as InstrumentRow & { current_balance?: number })?.current_balance ?? fullLimit)
             : Math.max(0, fullLimit - openingOutstanding))
         )
       );`;
