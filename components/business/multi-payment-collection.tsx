@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 export type PaymentAllocation = {
   method: "cash" | "upi" | "bank" | "wallet" | "card";
   amount: string;
+  /** Optional concrete payment instrument used for this allocation. */
+  instrument_id?: string | null;
 };
 
 type Props = {
@@ -26,7 +28,7 @@ const METHODS: { id: PaymentAllocation["method"]; label: string }[] = [
 export default function MultiPaymentCollection({ totalDue, disabled, mode = "customer", initialMethod = "cash", onChange }: Props) {
   const safeTotal = Math.max(0, Number(totalDue) || 0);
   const [allocations, setAllocations] = useState<PaymentAllocation[]>(() =>
-    safeTotal > 0 ? [{ method: initialMethod, amount: safeTotal.toFixed(2) }] : []
+    safeTotal > 0 ? [{ method: initialMethod, amount: safeTotal.toFixed(2), instrument_id: null }] : []
   );
   const previousTotalRef = useRef(safeTotal);
   const onChangeRef = useRef(onChange);
@@ -40,7 +42,7 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
     const prevTotal = previousTotalRef.current;
     setAllocations((prev) => {
       if (safeTotal <= 0) return [];
-      if (prev.length === 0) return [{ method: initialMethod, amount: safeTotal.toFixed(2) }];
+      if (prev.length === 0) return [{ method: initialMethod, amount: safeTotal.toFixed(2), instrument_id: null }];
       const prevCollected = prev.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
       if (prev.length === 1 && Math.abs(prevCollected - prevTotal) < 0.005) {
         return [{ ...prev[0], amount: safeTotal.toFixed(2) }];
@@ -78,7 +80,7 @@ export default function MultiPaymentCollection({ totalDue, disabled, mode = "cus
     if (collected >= safeTotal - 0.005) return;
     const used = new Set(allocations.map((x) => x.method));
     const nextMethod = METHODS.find((m) => !used.has(m.id))?.id || "cash";
-    setAllocations((prev) => [...prev, { method: nextMethod, amount: remaining.toFixed(2) }]);
+    setAllocations((prev) => [...prev, { method: nextMethod, amount: remaining.toFixed(2), instrument_id: null }]);
   }
 
   function removeRow(index: number) {
