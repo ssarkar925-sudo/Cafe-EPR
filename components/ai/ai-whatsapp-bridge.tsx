@@ -23,6 +23,14 @@ export default function AIWhatsAppBridge() {
     };
     window.fetch = wrappedFetch;
 
+    const enableNotifications = async () => {
+      try {
+        if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission();
+      } catch {
+        // Notification permission is optional; the in-app watcher remains the fallback.
+      }
+    };
+
     const check = async () => {
       try {
         const response = await originalFetch("/api/ai/whatsapp", {
@@ -47,6 +55,7 @@ export default function AIWhatsAppBridge() {
       }
     };
 
+    void enableNotifications();
     void check();
     const timer = window.setInterval(() => { void check(); }, 5 * 60 * 1000);
     return () => {
