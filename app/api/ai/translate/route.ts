@@ -7,11 +7,11 @@ type TranslateBody = { text?: unknown; targetLanguage?: unknown; sourceLanguage?
 
 const LANGUAGE_NAMES: Record<string, string> = { en: "English", hi: "Hindi", bn: "Bengali" };
 const DEPRECATED_GEMINI_MODELS = new Set(["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-pro"]);
-const DEFAULT_GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+const DEFAULT_GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
 
 function getGeminiModels() {
   const configured = (process.env.GEMINI_MODEL || "").trim();
-  const requested = configured && !DEPRECATED_GEMINI_MODELS.has(configured) ? configured : "gemini-3.6-flash";
+  const requested = configured && !DEPRECATED_GEMINI_MODELS.has(configured) ? configured : "gemini-3.8-flash";
   return Array.from(new Set([requested, ...DEFAULT_GEMINI_MODELS])).filter((model) => !DEPRECATED_GEMINI_MODELS.has(model));
 }
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: systemInstruction }] }, contents: [{ role: "user", parts: [{ text }] }], generationConfig: { temperature: 0.1 } }),
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: systemInstruction }] }, contents: [{ role: "user", parts: [{ text }] }] }),
       });
       data = await response.json().catch(() => ({}));
       if (response.ok) break;
