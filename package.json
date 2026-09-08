@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
-    "prebuild": "node scripts/repair-build-script-syntax.mjs && node scripts/restore-upi-workspace-build.mjs && node scripts/repair-dmt-build.mjs && node scripts/fix-day-close-build.mjs && node scripts/repair-settlement-money-build.mjs && node scripts/repair-settlement-cash-routing-build-v3.mjs && node scripts/repair-credit-card-repayment-build-v2.mjs && node scripts/repair-recharge-build.mjs && node scripts/repair-recharge-build-v2.mjs && node scripts/repair-business-edit-split-build.mjs && node scripts/repair-bill-payment-split-display-build.mjs && node scripts/repair-service-collection-reporting-build.mjs && node scripts/repair-payment-accounts-root-build.mjs && node scripts/repair-finance-accounts-canonical-build.mjs && node scripts/repair-financial-reports-root-build.mjs && node scripts/repair-upi-reconciliation-cashout-build.mjs && node scripts/repair-upi-cashout-display-build.mjs && node scripts/repair-upi-qr-binding-build.mjs && node scripts/repair-reconciliation-root-build.mjs && node scripts/repair-reconciliation-rounding-build.mjs && node scripts/repair-reconciliation-final-safety-build.mjs && node scripts/repair-bank-to-aeps-settlement-ui-build.mjs",
+    "prebuild": "node scripts/repair-build-script-syntax.mjs && node scripts/restore-upi-workspace-build.mjs && node scripts/repair-dmt-build.mjs && node scripts/fix-day-close-build.mjs && node scripts/repair-settlement-money-build.mjs && node scripts/repair-settlement-cash-routing-build-v3.mjs && node scripts/repair-credit-card-repayment-build-v2.mjs && node scripts/repair-recharge-build.mjs && node scripts/repair-recharge-build-v2.mjs && node scripts/repair-business-edit-split-build.mjs && node scripts/repair-bill-payment-edit-split-build-v2.mjs && node scripts/repair-bill-payment-split-display-build.mjs && node scripts/repair-service-collection-reporting-build.mjs && node scripts/repair-payment-accounts-root-build.mjs && node scripts/repair-finance-accounts-canonical-build.mjs && node scripts/repair-financial-reports-root-build.mjs && node scripts/repair-upi-reconciliation-cashout-build.mjs && node scripts/repair-upi-cashout-display-build.mjs && node scripts/repair-upi-qr-binding-build.mjs && node scripts/repair-reconciliation-root-build.mjs && node scripts/repair-reconciliation-rounding-build.mjs && node scripts/repair-reconciliation-final-safety-build.mjs && node scripts/repair-bank-to-aeps-settlement-ui-build.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
@@ -45,14 +45,14 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5",
+    "eslint": "^9.39.5",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "^44.2.0",
-    "electron-builder": "^26.15.3",
-    "eslint": "^9.39.5",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5"
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "com.sarkarcommunication.cafeerp",
