@@ -16,7 +16,7 @@ const endMarker = "      // 7. Update UI State & Open Celebration Receipt";
 
 if (source.includes(startMarker) && source.includes(endMarker)) {
   const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker);
+  const end = source.indexOf(endMarker, start);
 
   const replacement = `      const todayIso = new Date().toISOString();
       const todayDate = todayIso.slice(0, 10);
@@ -78,11 +78,11 @@ if (source.includes(startMarker) && source.includes(endMarker)) {
 // The canonical recharge RPC owns all cash_entries/customer-ledger/expense writes.
 const reverseStartMarker = "      // Offset cash entries";
 const reverseEndMarker = "      setTransactions((prev) =>";
-if (source.includes(reverseStartMarker) && source.includes(reverseEndMarker)) {
-  const start = source.indexOf(reverseStartMarker);
-  const end = source.indexOf(reverseEndMarker);
+const reverseStart = source.indexOf(reverseStartMarker);
+const reverseEnd = reverseStart >= 0 ? source.indexOf(reverseEndMarker, reverseStart) : -1;
+if (reverseStart >= 0 && reverseEnd > reverseStart) {
   const replacement = "      // reverse_business_txn atomically reverses every stored money leg and any outstanding Khata due.\n";
-  source = source.slice(0, start) + replacement + source.slice(end);
+  source = source.slice(0, reverseStart) + replacement + source.slice(reverseEnd);
 }
 
 // Build repair must be idempotent even if another prebuild repair has already inserted a
@@ -106,4 +106,4 @@ if (source.includes(allocationReset) && !source.includes(`${allocationReset}\n  
 }
 
 fs.writeFileSync(path, source);
-console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, transaction number, duplicate-handler protection, and atomic reversal are enforced.");
+console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, transaction number, correctly targeted atomic reversal, and duplicate-handler protection are enforced.");
