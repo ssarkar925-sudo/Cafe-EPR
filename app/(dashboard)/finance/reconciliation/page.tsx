@@ -24,9 +24,10 @@ export default async function FinancialReconciliationPage() {
   ] = await Promise.all([
     supabase.rpc("get_pool_balances", { p_as_of: today }),
     supabase.from("payment_instruments").select("id,name,type,opening_balance,details,is_active,created_at").order("type").order("name"),
-    // Settlement cash entries are already represented by the settlement stream;
-    // exclude them here so the client does not double-count the same movement.
-    supabase.from("cash_entries").select("id,instrument_id,direction,amount,created_at,entry_date,description,method,ref_type,ref_id").not("instrument_id", "is", null).neq("ref_type", "settlement").order("created_at", { ascending: true }),
+    // Reconciliation consumes the canonical cash-entry stream directly.
+    // Do not remove settlement rows here: they are real ledger movements and
+    // must be included exactly once instead of being reconstructed separately.
+    supabase.from("cash_entries").select("id,instrument_id,direction,amount,created_at,entry_date,description,method,ref_type,ref_id").not("instrument_id", "is", null),
     supabase.from("aeps_portals").select("id,payment_instrument_id,name"),
     supabase.from("transactions").select("id,transaction_number,service_type,amount,status,created_at,transaction_date,customer_pay_method,instrument_id,pay_from_instrument_id,pool_credit,pool_out,pool_credit_type,service_fee,upi_fee,fee_source").eq("status", "success").order("created_at", { ascending: false }).limit(2000),
     supabase.from("settlements").select("id,source_instrument_id,dest_instrument_id,from_pool,to_pool,amount,status,created_at,settlement_number").eq("status", "success").order("created_at", { ascending: false }).limit(1000),
