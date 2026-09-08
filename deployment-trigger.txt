@@ -1,1 +1,2 @@
 Deployment trigger for the latest Money Out popup fix.
+Credit-card repayment settlement UI enabled and ready for deployment verification.
