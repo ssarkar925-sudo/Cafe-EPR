@@ -30,8 +30,19 @@ if (repaired.includes(metricsOld)) {
   repaired = repaired.replace(metricsOld, metricsNew);
 }
 
+// The restored UI must expose the same fee modes accepted by the server RPC.
+// `cut_from_payment` means the service fee reduces the net UPI/payout amount.
+repaired = repaired.replace(
+  '"cut_from_withdrawal" | "customer_paid_extra"',
+  '"cut_from_withdrawal" | "cut_from_payment" | "customer_paid_extra"'
+);
+repaired = repaired.replace(
+  '<option value="cut_from_withdrawal">Cut from payout</option>\n                  <option value="customer_paid_extra">Customer pays extra</option>',
+  '<option value="cut_from_withdrawal">Cut from payout</option>\n                  <option value="cut_from_payment">Cut from payment</option>\n                  <option value="customer_paid_extra">Customer pays extra</option>'
+);
+
 // The restored UI uses `select(*)` for transactions, which includes cash_out.
 // Keep the component complete; this script only restores the known-good source
-// and changes the cash-out metric calculation to honor the authoritative field.
+// and applies the authoritative cash-out and fee-mode repairs above.
 fs.writeFileSync(path, repaired);
-console.log("Restored UPI workspace from known-good production source and patched authoritative cash-out metrics.");
+console.log("Restored UPI workspace and enabled cut-from-payment fee semantics.");
