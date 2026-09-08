@@ -17,6 +17,7 @@ const EXECUTABLE_ACTIONS = new Set<AgentAction>([
   "write_transaction",
   "delete_record",
   "change_rule",
+  "repair_whatsapp",
 ]);
 
 export function isApprovalRequired(action: AgentAction) {
@@ -41,12 +42,7 @@ export async function requireOwnerApproval(action: AgentAction, payload: Record<
 
   const { data, error } = await supabase
     .from("ai_action_approvals")
-    .insert({
-      requested_by: userResult.user.id,
-      action,
-      status: "pending",
-      request_payload: payload,
-    })
+    .insert({ requested_by: userResult.user.id, action, status: "pending", request_payload: payload })
     .select("id, action, status, request_payload, created_at, expires_at")
     .single();
 
@@ -65,12 +61,7 @@ export async function approveAction(approvalId: string, note?: string) {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("ai_action_approvals")
-    .update({
-      status: "approved",
-      approved_by: userResult.user.id,
-      approved_at: now,
-      decision_note: note?.trim() || null,
-    })
+    .update({ status: "approved", approved_by: userResult.user.id, approved_at: now, decision_note: note?.trim() || null })
     .eq("id", approvalId)
     .eq("status", "pending")
     .gt("expires_at", now)
@@ -81,11 +72,6 @@ export async function approveAction(approvalId: string, note?: string) {
   return data;
 }
 
-/**
- * Atomically claims an approved action for execution.
- * A second request cannot claim the same approval, preventing duplicate
- * execution when the browser/client retries the approval request.
- */
 export async function claimApprovedAction(approvalId: string) {
   const role = await getUserRole();
   if (role !== "admin") throw new Error("Owner approval is required.");
@@ -102,9 +88,6 @@ export async function claimApprovedAction(approvalId: string) {
     .select("id, action, status, request_payload, created_at, expires_at, approved_at")
     .single();
 
-  if (error || !data) {
-    throw new Error("Approval is no longer available for execution. It may already be executing or executed.");
-  }
-
+  if (error || !data) throw new Error("Approval is no longer available for execution. It may already be executing or executed.");
   return data;
 }
