@@ -159,5 +159,15 @@ const replacement = `const refreshLiveBalances = useCallback(async () => {
   }, [supabase]);`;
 const next = source.slice(0, start) + replacement + "\n\n" + source.slice(end + "  }, [supabase]);".length);
 if (!next.includes("SINGLE SOURCE OF TRUTH")) throw new Error("payment accounts root patch did not apply");
+const staleCreditMetadata = 'details.used_limit = String(openingOutstanding);';
+const derivedCreditMetadata = `details.used_limit = String(
+        Math.max(
+          0,
+          fullLimit - (instModal.mode === "edit" && instModal.row?.type === "credit_card"
+            ? Number(instModal.row.balance ?? instModal.row.current_balance ?? fullLimit)
+            : Math.max(0, fullLimit - openingOutstanding))
+        )
+      );`;
+if (next.includes(staleCreditMetadata)) next = next.replace(staleCreditMetadata, derivedCreditMetadata);
 fs.writeFileSync(file, next);
 console.log("Patched payment account balance engine: cash_entries + persisted current_balance only.");
