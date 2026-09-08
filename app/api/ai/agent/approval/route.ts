@@ -11,32 +11,24 @@ const allowedActions = new Set<AgentAction>([
   "write_transaction",
   "delete_record",
   "change_rule",
+  "repair_whatsapp",
 ]);
 
 export async function POST(request: Request) {
   const role = await getUserRole();
-  if (!hasRole(role, ["admin", "staff"])) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!hasRole(role, ["admin", "staff"])) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json().catch(() => null);
   const action = body?.action as AgentAction;
-  if (!allowedActions.has(action)) {
-    return NextResponse.json({ error: "Unsupported or unsafe AI action" }, { status: 400 });
-  }
+  if (!allowedActions.has(action)) return NextResponse.json({ error: "Unsupported or unsafe AI action" }, { status: 400 });
 
   const payload = body?.payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return NextResponse.json({ error: "A structured action payload is required" }, { status: 400 });
-  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return NextResponse.json({ error: "A structured action payload is required" }, { status: 400 });
 
   try {
     const approval = await requireOwnerApproval(action, payload as Record<string, unknown>);
     return NextResponse.json({ approval, mode: "approval-required", executed: false });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to create approval request" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create approval request" }, { status: 400 });
   }
 }
