@@ -1,16 +1,18 @@
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
-// Some Vercel installs can honor the root dependency declaration but still restore
-// an incomplete npm lock state. Ensure the UI icon dependency required by existing
-// catalog/customer/inventory components is present before Next.js compilation.
+// The existing UI imports lucide-react. The repository lockfile currently declares
+// it at the root but lacks its concrete package entry, so some clean Vercel builds
+// do not materialize it. Install only the missing package without rewriting or
+// reconciling the project's lockfile/dependency tree.
 if (!fs.existsSync("node_modules/lucide-react/package.json")) {
-  const install = spawnSync("npm", ["install", "--no-save", "lucide-react@1.39.0"], {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
-  if (install.status !== 0) {
-    throw new Error("Unable to install lucide-react@1.39.0 required by existing UI components");
+  const install = spawnSync(
+    "npm",
+    ["install", "--no-save", "--package-lock=false", "--ignore-scripts", "--include=dev", "lucide-react@1.39.0"],
+    { stdio: "inherit", shell: process.platform === "win32" }
+  );
+  if (install.status !== 0 || !fs.existsSync("node_modules/lucide-react/package.json")) {
+    throw new Error("Unable to materialize lucide-react@1.39.0 required by existing UI components");
   }
 }
 
