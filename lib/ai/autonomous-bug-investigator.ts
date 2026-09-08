@@ -12,7 +12,7 @@ export type Investigation = {
   nextStep: "review" | "blocked";
 };
 
-const SAFE_SOURCE = /(?:^|[\\/])(app|components|lib|hooks|utils)[\\/]([^\\s:)]+?)(?::(\\d+))?(?::(\\d+))?(?:\\)|$)/i;
+const SAFE_SOURCE = /(?:^|[\\/])(app|components|lib|hooks|utils)[\\/]([^\\s:)]+?)(?::(\\d+))?(?::(\\d+))?(?:\)|$)/i;
 
 function inferLocation(message: string) {
   const match = message.match(SAFE_SOURCE);
@@ -31,9 +31,7 @@ export async function investigateBugs(): Promise<Investigation[]> {
     const location = inferLocation(bug.message);
     const evidence = [normalize(bug.message), bug.route ? `Route: ${bug.route}` : "No route metadata supplied", bug.source === "github-actions" ? `Workflow run: ${bug.runId ?? "unknown"}` : `Deployment: ${bug.deploymentId ?? "unknown"}`];
     const inferredPath = location.path;
-    const rootCause = inferredPath
-      ? `Failure points to ${inferredPath}${location.line ? `:${location.line}` : ""}. The investigator mapped the observed error to the first safe application source location in the stack/error text.`
-      : "The failure was detected, but its stack/error text does not contain a safe application source path. Manual source selection is required before a patch can be prepared.";
+    const rootCause = inferredPath ? `Failure points to ${inferredPath}${location.line ? `:${location.line}` : ""}. The investigator mapped the observed error to the first safe application source location in the stack/error text.` : "The failure was detected, but its stack/error text does not contain a safe application source path. Manual source selection is required before a patch can be prepared.";
     return { bug, rootCause, confidence: inferredPath ? 0.78 : 0.42, evidence, inferredPath, line: location.line, column: location.column, repairPlan: null, nextStep: inferredPath ? "review" : "blocked" };
   });
 }
