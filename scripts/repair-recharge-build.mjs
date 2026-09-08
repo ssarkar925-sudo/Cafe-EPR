@@ -3,107 +3,166 @@ import fs from "node:fs";
 const path = "components/business/recharge-workspace.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
-// Persist one idempotency key per user submission. It is cleared only after a successful commit,
-// so a lost network response can safely be retried without creating a duplicate recharge.
-const submittingMarker = '  const [submitting, setSubmitting] = useState(false);';
-const keyRefLine = '  const rechargeIdempotencyKeyRef = useRef<string>("");';
-if (source.includes(submittingMarker) && !source.includes(keyRefLine)) {
-  source = source.replace(submittingMarker, `${submittingMarker}\n${keyRefLine}`);
-}
+// The recharge workflow must cross one atomic database boundary. The old client flow
+// inserted the transaction, returned from that request, and only afterward inserted
+// collection/funding legs. Because the service-accounting trigger is deferred to the
+// database transaction boundary, it could post a journal containing only AR + commission
+// (for example Dr 198 / Cr 1.98) before the later funding entry existed.
+//
+// Replace the complete handler rather than trying to patch individual statements so this
+// repair remains effective even when older prebuild repair scripts have changed the source.
+const start = source.indexOf("  async function handleCompleteRecharge() {");
+const end = source.indexOf("\n  // Reversal Execution", start);
 
-const startMarker = "      const todayIso = new Date().toISOString();";
-const endMarker = "      // 7. Update UI State & Open Celebration Receipt";
-
-if (source.includes(startMarker) && source.includes(endMarker)) {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start);
-
-  const replacement = `      const todayIso = new Date().toISOString();
-      const todayDate = todayIso.slice(0, 10);
-
-      // Resolve provider metadata locally; the database is authoritative for commission/cost.
-      const matchedDbProvider = providers.find(
-        (p) =>
-          p.id === selectedOperatorCode ||
-          p.name.toLowerCase().includes(selectedOperatorCode.toLowerCase())
-      );
-      const operatorName = allOperators.find((o) => o.code === selectedOperatorCode)?.name || "Mobile Recharge";
-
-      const allocations = customerPaymentAllocations
-        .filter((row) => Number(row.amount) > 0)
-        .map((row) => ({
-          method: row.method,
-          amount: Number(row.amount),
-          instrument_id: row.instrument_id || null,
-        }));
-
-      const idempotencyKey = rechargeIdempotencyKeyRef.current ||
-        \`recharge:\${todayIso}:\${cleanMobile}:\${rechargeAmount}:\${crypto.randomUUID()}\`;
-      rechargeIdempotencyKeyRef.current = idempotencyKey;
-
-      // All recharge financial writes cross the SECURITY DEFINER/idempotent RPC boundary.
-      const { data: newTxn, error: txnErr } = await supabase.rpc("create_recharge", {
-        p_provider_id: matchedDbProvider?.id || null,
-        p_transaction_date: todayDate,
-        p_transaction_timestamp: todayIso,
-        p_customer_id: selectedCustomerId || null,
-        p_customer_mobile: cleanMobile,
-        p_reference: reference.trim() || null,
-        p_remarks: remarks.trim() || \`Recharge \${cleanMobile} (\${operatorName})\`,
-        p_status: "success",
-        p_amount: rechargeAmount,
-        p_service_fee: custFee,
-        p_customer_pay_method: customerPayMethod,
-        p_pay_from_instrument_id: fundingInstId,
-        p_pay_from_method: selectedFundingAccount.type,
-        p_customer_collected_amount: customerCollectionAmount,
-        p_customer_due_amount: customerDueAmount,
-        p_customer_collection_allocations: allocations,
-        p_idempotency_key: idempotencyKey,
-      });
-
-      if (txnErr) {
-        showToast("error", txnErr.message);
-        setSubmitting(false);
-        return;
-      }
-
-      const nextNum = newTxn?.transaction_number || "RCH-NEW";
-
-`;
+if (start >= 0 && end > start) {
+  const replacement = [
+    "  async function handleCompleteRecharge() {",
+    "    if (submitting) return;",
+    "",
+    "    const cleanMobile = mobileNumber.replace(/\\D/g, \"\");",
+    "    if (cleanMobile.length !== 10) {",
+    "      showToast(\"error\", \"Please enter a valid 10-digit mobile number.\");",
+    "      return;",
+    "    }",
+    "    if (!selectedOperatorCode) {",
+    "      showToast(\"error\", \"Please select the telecom operator.\");",
+    "      return;",
+    "    }",
+    "    if (rechargeAmount <= 0) {",
+    "      showToast(\"error\", \"Please enter a valid recharge plan amount greater than ₹0.\");",
+    "      return;",
+    "    }",
+    "    if (customerDueAmount > 0 && !selectedCustomerId) {",
+    "      showToast(\"error\", \"Please select a customer to record the unpaid remainder / Khata due.\");",
+    "      return;",
+    "    }",
+    "    if (!fundingInstId) {",
+    "      showToast(\"error\", \"Please select the funding account used to pay the operator/gateway.\");",
+    "      return;",
+    "    }",
+    "    if (!selectedFundingAccount || selectedFundingAccount.type === \"cash\") {",
+    "      showToast(\"error\", \"Cash is not permitted as a funding account for online recharge.\");",
+    "      return;",
+    "    }",
+    "",
+    "    setSubmitting(true);",
+    "",
+    "    try {",
+    "      const todayIso = new Date().toISOString();",
+    "      const todayDate = todayIso.slice(0, 10);",
+    "",
+    "      const matchedDbProvider = providers.find((p) =>",
+    "        p.id === selectedOperatorCode ||",
+    "        p.code?.toLowerCase() === selectedOperatorCode.toLowerCase() ||",
+    "        p.name.toLowerCase().includes(selectedOperatorCode.toLowerCase())",
+    "      );",
+    "      const operatorName = allOperators.find((o) => o.code === selectedOperatorCode)?.name || \"Mobile Recharge\";",
+    "",
+    "      const allocations = customerPaymentAllocations",
+    "        .filter((row) => Number(row.amount) > 0)",
+    "        .map((row) => ({",
+    "          method: row.method,",
+    "          amount: Number(row.amount),",
+    "          instrument_id: row.instrument_id || null,",
+    "        }));",
+    "",
+    "      const idempotencyKey = `recharge:${todayIso}:${cleanMobile}:${rechargeAmount}:${crypto.randomUUID()}`;",
+    "",
+    "      // One RPC owns the transaction, customer collection, provider funding, commission,",
+    "      // Khata due and audit posting so deferred accounting sees the complete money trail.",
+    "      const { data: rpcResult, error: txnErr } = await supabase.rpc(\"create_recharge\", {",
+    "        p_provider_id: matchedDbProvider?.id || null,",
+    "        p_transaction_date: todayDate,",
+    "        p_transaction_timestamp: todayIso,",
+    "        p_customer_id: selectedCustomerId || null,",
+    "        p_customer_mobile: cleanMobile,",
+    "        p_reference: reference.trim() || null,",
+    "        p_remarks: remarks.trim() || `Recharge ${cleanMobile} (${operatorName})`,",
+    "        p_status: \"success\",",
+    "        p_amount: rechargeAmount,",
+    "        p_service_fee: custFee,",
+    "        p_customer_pay_method: customerPayMethod,",
+    "        p_pay_from_instrument_id: fundingInstId,",
+    "        p_pay_from_method: selectedFundingAccount.type,",
+    "        p_customer_collected_amount: customerCollectionAmount,",
+    "        p_customer_due_amount: customerDueAmount,",
+    "        p_customer_collection_allocations: allocations,",
+    "        p_idempotency_key: idempotencyKey,",
+    "      });",
+    "",
+    "      if (txnErr) {",
+    "        showToast(\"error\", txnErr.message);",
+    "        return;",
+    "      }",
+    "",
+    "      const createdId = rpcResult?.id as string | undefined;",
+    "      if (!createdId) {",
+    "        throw new Error(\"Recharge was not committed: database did not return a transaction id.\");",
+    "      }",
+    "",
+    "      const { data: persistedTxn, error: readErr } = await supabase",
+    "        .from(\"transactions\")",
+    "        .select(`*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)`)",
+    "        .eq(\"id\", createdId)",
+    "        .single();",
+    "",
+    "      if (readErr || !persistedTxn) {",
+    "        throw readErr || new Error(\"Recharge committed but the transaction could not be reloaded.\");",
+    "      }",
+    "",
+    "      const nextNum = persistedTxn.transaction_number || rpcResult?.transaction_number || \"RCH-NEW\";",
+    "      const formattedTxn: Txn = {",
+    "        ...persistedTxn,",
+    "        providers: { name: persistedTxn.providers?.name || operatorName },",
+    "        customers: selectedCustomerId",
+    "          ? { name: persistedTxn.customers?.name || customers.find((c) => c.id === selectedCustomerId)?.name || \"Customer\" }",
+    "          : null,",
+    "      };",
+    "",
+    "      await logAudit({",
+    "        action: \"create\",",
+    "        entity: \"transaction\",",
+    "        entity_id: createdId,",
+    "        description: `Completed Recharge ${nextNum} for ${cleanMobile} (${operatorName}) | Amount: ${inr(rechargeAmount)} | Commission: ${inr(Number(formattedTxn.portal_commission || 0))}` ,",
+    "        details: {",
+    "          transaction_number: nextNum,",
+    "          mobile: cleanMobile,",
+    "          operator: operatorName,",
+    "          amount: rechargeAmount,",
+    "          customer_fee: custFee,",
+    "          total_customer_debit: totalCustomerDebit,",
+    "          commission: Number(formattedTxn.portal_commission || 0),",
+    "          provider_cost: Number(formattedTxn.pool_out || 0),",
+    "          net_income: netOperatorIncome,",
+    "          funding_account: selectedFundingAccount.name,",
+    "          payment_method: customerPayMethod,",
+    "          customer_collected_amount: customerCollectionAmount,",
+    "          customer_due_amount: customerDueAmount,",
+    "        },",
+    "      });",
+    "",
+    "      setTransactions((prev) => [formattedTxn, ...prev.filter((t) => t.id !== createdId)]);",
+    "      setReceiptTxn(formattedTxn);",
+    "      showToast(\"success\", `✓ Recharge ${nextNum} completed successfully!`);",
+    "",
+    "      setMobileNumber(\"\");",
+    "      setAmount(\"\");",
+    "      setServiceFee(\"0\");",
+    "      setSelectedPlan(null);",
+    "      setReference(\"\");",
+    "      setRemarks(\"\");",
+    "      setCustomerPaymentAllocations([]);",
+    "    } catch (err: any) {",
+    "      console.error(\"Recharge Error:\", err);",
+    "      showToast(\"error\", err.message || \"Failed to process recharge.\");",
+    "    } finally {",
+    "      setSubmitting(false);",
+    "    }",
+    "  }",
+  ].join("\\n");
 
   source = source.slice(0, start) + replacement + source.slice(end);
 }
 
-// The canonical recharge RPC owns all cash_entries/customer-ledger/expense writes.
-const reverseStartMarker = "      // Offset cash entries";
-const reverseEndMarker = "      setTransactions((prev) =>";
-const reverseStart = source.indexOf(reverseStartMarker);
-const reverseEnd = reverseStart >= 0 ? source.indexOf(reverseEndMarker, reverseStart) : -1;
-if (reverseStart >= 0 && reverseEnd > reverseStart) {
-  const replacement = "      // reverse_business_txn atomically reverses every stored money leg and any outstanding Khata due.\n";
-  source = source.slice(0, reverseStart) + replacement + source.slice(reverseEnd);
-}
-
-// Build repair must be idempotent even if another prebuild repair has already inserted a
-// reversal handler. Keep the first public handler name and disambiguate any later duplicate.
-const reverseSignature = "async function handleReverse()";
-let firstReverse = source.indexOf(reverseSignature);
-if (firstReverse >= 0) {
-  let searchFrom = firstReverse + reverseSignature.length;
-  while (true) {
-    const duplicate = source.indexOf(reverseSignature, searchFrom);
-    if (duplicate < 0) break;
-    source = source.slice(0, duplicate) + "async function handleReverseDuplicate()" + source.slice(duplicate + reverseSignature.length);
-    searchFrom = duplicate + "async function handleReverseDuplicate()".length;
-  }
-}
-
-// Clear the idempotency key only after the success path reaches the existing form-reset block.
-const allocationReset = "      setCustomerPaymentAllocations([]);";
-if (source.includes(allocationReset) && !source.includes(`${allocationReset}\n      rechargeIdempotencyKeyRef.current = \"\";`)) {
-  source = source.replace(allocationReset, `${allocationReset}\n      rechargeIdempotencyKeyRef.current = \"\";`);
-}
-
 fs.writeFileSync(path, source);
-console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, transaction number, correctly targeted atomic reversal, and duplicate-handler protection are enforced.");
+console.log("Recharge build repair applied: canonical create_recharge RPC is now the only commit path, preventing split-request journal imbalance.");
