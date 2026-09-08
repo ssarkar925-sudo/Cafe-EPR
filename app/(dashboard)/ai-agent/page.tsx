@@ -3,6 +3,7 @@ import { getUserRole, hasRole } from "@/lib/authz";
 import CafeAIAgent from "@/components/ai/cafe-ai-agent";
 import AIMemoryPanel from "@/components/ai/ai-memory-panel";
 import AIBusinessWatcher from "@/components/ai/ai-business-watcher";
+import AIWhatsAppBridge from "@/components/ai/ai-whatsapp-bridge";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function CafeAIAgentPage() {
   if (!hasRole(role, ["admin", "staff"])) redirect("/dashboard");
   return (
     <div className="space-y-6">
+      <AIWhatsAppBridge />
       <CafeAIAgent />
       <AIBusinessWatcher />
       <AIMemoryPanel />
