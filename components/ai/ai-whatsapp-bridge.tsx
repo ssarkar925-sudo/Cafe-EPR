@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const WHATSAPP_QUERY = /\bwhatsapp\b/i;
+const WHATSAPP_QUERY = /\bwhatsapp\b.*\b(status|connected|connection|gateway|disconnect(?:ed)?|reconnect|connect|repair|fix|error|health)\b|\b(is|check|show|verify|repair|fix|reconnect|connect)\b.*\bwhatsapp\b/i;
 const ALERT_KEY = "cafe-epr-whatsapp-alert";
 
 export default function AIWhatsAppBridge() {
