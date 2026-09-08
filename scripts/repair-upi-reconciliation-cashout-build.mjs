@@ -35,7 +35,7 @@ if (!source.includes("const inferredCashOut = t.service_type === \"upi\"")) {
 }
 
 const outflowMarker = `          if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {\n            debits += pOut;\n            used = true;\n            txList.push({\n              id: t.id,\n              number: t.transaction_number || "TXN",\n              type: "Outflow",\n              amount: -pOut,\n              date: t.created_at,\n              desc: "UPI payout / settlement",\n            });\n          }\n\n`;
-const outflowReplacement = `${outflowMarker}          if (inferredCashOut > 0) {\n            debits += inferredCashOut;\n            used = true;\n            txList.push({\n              id: \`${t.id}-cashout\`,\n              number: t.transaction_number || "TXN",\n              type: "Cash Out",\n              amount: -inferredCashOut,\n              date: t.created_at,\n              desc: "Customer cash disbursement linked to UPI receipt",\n            });\n          }\n\n`;
+const outflowReplacement = outflowMarker + `          if (inferredCashOut > 0) {\n            debits += inferredCashOut;\n            used = true;\n            txList.push({\n              id: t.id + "-cashout",\n              number: t.transaction_number || "TXN",\n              type: "Cash Out",\n              amount: -inferredCashOut,\n              date: t.created_at,\n              desc: "Customer cash disbursement linked to UPI receipt",\n            });\n          }\n\n`;
 if (!source.includes('type: "Cash Out"') && source.includes(outflowMarker)) {
   source = source.replace(outflowMarker, outflowReplacement);
 }
