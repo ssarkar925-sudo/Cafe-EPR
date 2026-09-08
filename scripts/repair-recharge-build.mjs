@@ -67,6 +67,8 @@ if (source.includes(startMarker) && source.includes(endMarker)) {
         return;
       }
 
+      const nextNum = newTxn?.transaction_number || "RCH-NEW";
+
 `;
 
   source = source.slice(0, start) + replacement + source.slice(end);
@@ -89,4 +91,4 @@ if (source.includes(allocationReset) && !source.includes(`${allocationReset}\n  
 }
 
 fs.writeFileSync(path, source);
-console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, and atomic reversal are enforced.");
+console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, transaction number, and atomic reversal are enforced.");
