@@ -1,4 +1,18 @@
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
+
+// Some Vercel installs can honor the root dependency declaration but still restore
+// an incomplete npm lock state. Ensure the UI icon dependency required by existing
+// catalog/customer/inventory components is present before Next.js compilation.
+if (!fs.existsSync("node_modules/lucide-react/package.json")) {
+  const install = spawnSync("npm", ["install", "--no-save", "lucide-react@1.39.0"], {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+  if (install.status !== 0) {
+    throw new Error("Unable to install lucide-react@1.39.0 required by existing UI components");
+  }
+}
 
 const path = "components/finance/reconciliation-client.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
