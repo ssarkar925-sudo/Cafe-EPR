@@ -6,7 +6,7 @@ import { runIntelligentAgent, type AgentHistoryItem } from "@/lib/ai/agent-runti
 
 export const dynamic = "force-dynamic";
 
-const LIVE_REPORT_PATTERN = /(?:profit(?:\s*(?:and|&|\/)\s*loss)?|p&l|p\/l|net\s+profit|revenue|expenses?|business\s+report|monthly\s+report|this\s+month|current\s+month|cost)/i;
+const LIVE_REPORT_PATTERN = /(?:profit(?:\s*(?:and|&|\/)\s*loss)?|p&l|p\/l|net\s+profit|revenue|expenses?|business\s+report|monthly\s+report|this\s+month|current\s+month|net\s+margin|gross\s+margin)/i;
 const STOCK_ALERT_PATTERN = /(?:low\s+stock|out\s+of\s+stock|reorder|inventory\s+alert|stock\s+level)/i;
 const DUES_PATTERN = /(?:customer\s+due|khata\s+due|who\s+owes|unpaid\s+balance|receivables)/i;
 const MAX_MESSAGE_LENGTH = 16_000;
@@ -81,7 +81,6 @@ export async function POST(request: Request) {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Keep high-frequency deterministic reads fast and exact. The agentic layer handles everything else.
     if (STOCK_ALERT_PATTERN.test(message)) {
       const { data: products, error } = await supabase.from("products").select("id,name,stock_qty,reorder_level,unit").eq("is_active", true);
       if (!error) {
@@ -134,24 +133,8 @@ export async function POST(request: Request) {
     const memoryContext = (memories || []).map((m: any) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)} (confidence ${m.confidence})`).join("\n") || "No owner memory has been stored yet.";
     const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner memory:\n${memoryContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nOperational rule: use live read-only tools whenever the question concerns current Cafe-EPR data. Do not claim a write, deletion, payment, transaction, invoice, or configuration change unless a dedicated approved execution endpoint has actually confirmed it. For consequential actions, prepare the action and request explicit owner approval rather than pretending it was executed. If the owner explicitly teaches a durable workflow, explain that it can be saved through the Learning Control Center.`;
 
-    const result = await runIntelligentAgent({
-      apiKey,
-      message,
-      history: normalizeHistory(body?.history),
-      systemInstruction,
-      supabase,
-      userId: auth.user.id,
-    });
-
-    return NextResponse.json({
-      message: result.message,
-      mode: "agentic",
-      canExecute: false,
-      approvalRequired: false,
-      toolsUsed: result.usedTools,
-      rounds: result.rounds,
-      finishReason: result.finishReason,
-    });
+    const result = await runIntelligentAgent({ apiKey, message, history: normalizeHistory(body?.history), systemInstruction, supabase, userId: auth.user.id });
+    return NextResponse.json({ message: result.message, mode: "agentic", canExecute: false, approvalRequired: false, toolsUsed: result.usedTools, rounds: result.rounds, finishReason: result.finishReason });
   } catch (error) {
     console.error("Cafe AI agent failed", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Cafe AI Agent failed" }, { status: 502 });
