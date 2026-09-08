@@ -51,7 +51,7 @@ const creditCardJsx = [
   '                  value={destId}', '                  onChange={(v) => setDestId(v)}', '                  options={[',
   '                    { value: "", label: "Select Credit Card..." },', '                    ...creditCardAccounts.map((c) => ({',
   '                      value: c.id,',
-  '                      label: "💳 " + c.name + (Number.isFinite(Number(c.balance ?? c.details?.available_credit)) ? " (Avail. ₹" + Number(c.balance ?? c.details?.available_credit).toLocaleString("en-IN", { minimumFractionDigits: 2 }) + ")" : ""),',
+  '                      label: "💳 " + c.name + (Number.isFinite(Number(c.details?.available_credit)) ? " (Avail. ₹" + Number(c.details?.available_credit).toLocaleString("en-IN", { minimumFractionDigits: 2 }) + ")" : ""),',
   '                    })),', '                  ]}', '                  placeholder="Choose Credit Card to Repay..."', '                  showClear={false}', '                />',
   '                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">',
   '                  Repayment increases available credit and reduces utilization. It does not create an operating expense.',
