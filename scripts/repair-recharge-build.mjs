@@ -3,7 +3,7 @@ import fs from "node:fs";
 const path = "components/business/recharge-workspace.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
-const startMarker = "      // 1. Generate Transaction Number";
+const startMarker = "      const todayIso = new Date().toISOString();";
 const endMarker = "      // 7. Update UI State & Open Celebration Receipt";
 
 if (source.includes(startMarker) && source.includes(endMarker)) {
