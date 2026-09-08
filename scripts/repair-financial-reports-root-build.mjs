@@ -21,8 +21,8 @@ patch("app/(dashboard)/reports/profit-loss/page.tsx", [
 ]);
 
 // Income report: POS invoices represent taxable operating revenue plus tax liability.
-// Do not treat the GST-inclusive invoice total as income. Pass taxable revenue and expose
-// the gross tax separately in the source row for future reporting extensions.
+// Do not treat the GST-inclusive invoice total as income. Pass taxable revenue so the
+// income report agrees with the P&L revenue basis.
 patch("app/(dashboard)/reports/income/page.tsx", [
   [
     '      .select("id, invoice_number, invoice_date, total, status, created_at")',
@@ -34,4 +34,15 @@ patch("app/(dashboard)/reports/income/page.tsx", [
   ],
 ]);
 
-console.log("Financial reporting root repairs applied: posted-only P&L GL and GST-exclusive POS income.");
+// Transaction audit must resolve the full posted journal history for a voucher,
+// including edit snapshots and additive reversal/correction journals. Matching only
+// accounting_general_ledger.source_id can double-count an edited voucher because a
+// reversal may point to its original journal id rather than the transaction id.
+patch("app/(dashboard)/reports/transaction-audit/page.tsx", [
+  [
+    '  let gl: GL[] = [];\n  if (ids.length) {\n    const { data } = await supabase\n      .from("accounting_general_ledger")\n      .select("source_id,entry_number,account_code,account_name,account_type,debit,credit,line_description")\n      .in("source_id", ids)\n      .order("entry_number")\n      .order("account_code");\n    gl = (data ?? []) as GL[];\n  }',
+    '  let gl: GL[] = [];\n  if (ids.length) {\n    const { data, error } = await supabase.rpc("get_transaction_gl_audit", { p_transaction_ids: ids });\n    if (error) console.error("Transaction GL audit RPC error:", error);\n    gl = (data ?? []) as GL[];\n  }',
+  ],
+]);
+
+console.log("Financial reporting root repairs applied: posted-only P&L GL, GST-exclusive POS income, and resolved transaction journal history.");
