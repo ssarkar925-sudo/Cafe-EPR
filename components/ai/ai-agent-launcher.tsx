@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function AIAgentLauncher({ role }: { role: string }) {
+  const pathname = usePathname();
   const [critical, setCritical] = useState(0);
 
   useEffect(() => {
+    if (pathname === "/ai-agent") return;
     if (role !== "admin" && role !== "staff") return;
     let active = true;
     let firstTimer: number | null = null;
@@ -35,8 +38,11 @@ export default function AIAgentLauncher({ role }: { role: string }) {
       if (firstTimer !== null) window.clearTimeout(firstTimer);
       window.clearInterval(timer);
     };
-  }, [role]);
+  }, [role, pathname]);
 
+  // The AI Agent page already contains the full AI interface. Do not render
+  // the global launcher there, which would duplicate the action and obscure content.
+  if (pathname === "/ai-agent") return null;
   if (role !== "admin" && role !== "staff") return null;
 
   return (
