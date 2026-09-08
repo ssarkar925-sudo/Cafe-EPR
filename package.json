@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
-    "prebuild": "node scripts/restore-upi-workspace-build.mjs && node scripts/repair-dmt-build.mjs && node scripts/fix-day-close-build.mjs && node scripts/repair-settlement-money-build.mjs && node scripts/repair-settlement-cash-routing-build-v3.mjs && node scripts/repair-recharge-build.mjs && node scripts/repair-recharge-build-v2.mjs && node scripts/repair-business-edit-split-build.mjs && node scripts/repair-bill-payment-split-display-build.mjs && node scripts/repair-upi-reconciliation-cashout-build.mjs && node scripts/repair-upi-cashout-display-build.mjs && node scripts/repair-upi-qr-binding-build.mjs",
+    "prebuild": "node scripts/restore-upi-workspace-build.mjs && node scripts/repair-dmt-build.mjs && node scripts/fix-day-close-build.mjs && node scripts/repair-settlement-money-build.mjs && node scripts/repair-settlement-cash-routing-build-v3.mjs && node scripts/repair-credit-card-repayment-build.mjs && node scripts/repair-recharge-build.mjs && node scripts/repair-recharge-build-v2.mjs && node scripts/repair-business-edit-split-build.mjs && node scripts/repair-bill-payment-split-display-build.mjs && node scripts/repair-upi-reconciliation-cashout-build.mjs && node scripts/repair-upi-cashout-display-build.mjs && node scripts/repair-upi-qr-binding-build.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
@@ -36,7 +36,7 @@
     "@types/qrcode": "^1.5.6",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "localtunnel": "^2.0.0",
-    "lucide-react": "^1.39.0",
+    "lucide-react": "^1.39.5",
     "next": "^15.1.6",
     "pg": "^8.23.0",
     "playwright": "^1.62.1",
