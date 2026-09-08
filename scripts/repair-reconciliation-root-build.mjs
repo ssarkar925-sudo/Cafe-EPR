@@ -48,8 +48,6 @@ const newPoolBlock = `  // ROOT ACCOUNTING RULE: reconciliation math comes from 
         });
       }
 
-      // Expected balance is independently rebuilt from the prior-day canonical position
-      // plus today's instrument-level ledger movement, then compared with persisted current balances.
       const ledgerNet = credits - debits;
       const calculatedBal = roundMoney(openingBal + ledgerNet);
       const instrumentCurrent = roundMoney(canonicalBal);
@@ -73,7 +71,7 @@ const newPoolBlock = `  // ROOT ACCOUNTING RULE: reconciliation math comes from 
         canonicalBalance: instrumentCurrent,
         variance: roundMoney(variance),
         isReconciled,
-        canonicalSource: `payment_instruments.current_balance + cash_entries (${asOf})`,
+        canonicalSource: \\`payment_instruments.current_balance + cash_entries (\${asOf})\\`,
         contributingTxns: txList,
       };
     }
@@ -153,5 +151,6 @@ if (!source.includes(oldTotalPosition)) throw new Error("reconciliation-client.t
 source = source.replace(oldTotalPosition, newTotalPosition);
 
 if (!source.includes("cash_entries are the canonical movement ledger")) throw new Error("reconciliation root patch did not apply");
+// This final marker intentionally changes with each root-audit revision so a Git push triggers a fresh production build.
 fs.writeFileSync(file, source);
 console.log("Reconciliation root audit engine repaired: canonical instrument ledger only, credit-card ledger included, stale hero removed.");
