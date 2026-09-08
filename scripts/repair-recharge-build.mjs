@@ -34,6 +34,7 @@ if (source.includes(startMarker) && source.includes(endMarker)) {
         .map((row) => ({
           method: row.method,
           amount: Number(row.amount),
+          instrument_id: row.instrument_id || null,
         }));
 
       const idempotencyKey = rechargeIdempotencyKeyRef.current ||
@@ -84,6 +85,20 @@ if (source.includes(reverseStartMarker) && source.includes(reverseEndMarker)) {
   source = source.slice(0, start) + replacement + source.slice(end);
 }
 
+// Build repair must be idempotent even if another prebuild repair has already inserted a
+// reversal handler. Keep the first public handler name and disambiguate any later duplicate.
+const reverseSignature = "async function handleReverse()";
+let firstReverse = source.indexOf(reverseSignature);
+if (firstReverse >= 0) {
+  let searchFrom = firstReverse + reverseSignature.length;
+  while (true) {
+    const duplicate = source.indexOf(reverseSignature, searchFrom);
+    if (duplicate < 0) break;
+    source = source.slice(0, duplicate) + "async function handleReverseDuplicate()" + source.slice(duplicate + reverseSignature.length);
+    searchFrom = duplicate + "async function handleReverseDuplicate()".length;
+  }
+}
+
 // Clear the idempotency key only after the success path reaches the existing form-reset block.
 const allocationReset = "      setCustomerPaymentAllocations([]);";
 if (source.includes(allocationReset) && !source.includes(`${allocationReset}\n      rechargeIdempotencyKeyRef.current = \"\";`)) {
@@ -91,4 +106,4 @@ if (source.includes(allocationReset) && !source.includes(`${allocationReset}\n  
 }
 
 fs.writeFileSync(path, source);
-console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, transaction number, and atomic reversal are enforced.");
+console.log("Recharge build repair applied: canonical atomic create_recharge RPC, idempotency, transaction number, duplicate-handler protection, and atomic reversal are enforced.");
