@@ -60,8 +60,8 @@ const creditCardJsx = [
 replaceOnce('            {isDestBank && (', creditCardJsx + '            {isDestBank && (', "repayment credit card selector");
 
 replaceOnce(
-  '    let routingTag = "";\n    if (sourceLabel && destLabel) {',
-  '    let routingTag = "";\n    if (type === "bank_to_credit_card") routingTag = "[BANK → CREDIT CARD REPAYMENT]";\n    else if (type === "cash_to_credit_card") routingTag = "[CASH → CREDIT CARD REPAYMENT]";\n    else if (sourceLabel && destLabel) {',
+  '    if (sourceLabel && destLabel) {',
+  '    if (type === "bank_to_credit_card") routingTag = "[BANK → CREDIT CARD REPAYMENT]";\n    else if (type === "cash_to_credit_card") routingTag = "[CASH → CREDIT CARD REPAYMENT]";\n    else if (sourceLabel && destLabel) {',
   "repayment routing tag"
 );
 
