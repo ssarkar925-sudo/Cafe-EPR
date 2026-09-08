@@ -1,0 +1,113 @@
+import crypto from "node:crypto";
+
+const REPO = "ssarkar925-sudo/Cafe-EPR";
+const VERCEL_PROJECT_ID = "prj_n5w51NII0aWMHtIxRFIvlApyWKko";
+const VERCEL_TEAM = "sarkar-communications-projects";
+const MAX_SOURCE = 30000;
+const MAX_DIFF = 12000;
+const ALLOWED_PREFIXES = ["app/", "components/", "lib/", "hooks/", "utils/"];
+const BLOCKED_PREFIXES = [".github/", ".env", "supabase/migrations/", "migrations/", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"];
+
+export type CodeBug = { id: string; source: "vercel" | "github-actions"; severity: "high" | "medium"; message: string; route?: string; deploymentId?: string; runId?: number; createdAt: string; };
+export type CodeRepairPlan = { bug: CodeBug; path: string; oldSha: string; oldContentHash: string; newContent: string; diff: string; explanation: string; tests: string[]; confidence: number; generatedAt: string; };
+
+function githubHeaders() {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (!token) throw new Error("GITHUB_TOKEN is not configured for controlled code repair.");
+  return { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" };
+}
+function sha256(value: string) { return crypto.createHash("sha256").update(value).digest("hex"); }
+function allowedPath(path: string) { return ALLOWED_PREFIXES.some((p) => path.startsWith(p)) && !BLOCKED_PREFIXES.some((p) => path.startsWith(p) || path === p); }
+function decodeGithubContent(encoded: string) { return Buffer.from(encoded.replace(/\n/g, ""), "base64").toString("utf8"); }
+
+export async function detectRuntimeBugs(): Promise<CodeBug[]> {
+  const token = process.env.VERCEL_TOKEN;
+  if (!token) return [];
+  const url = `https://api.vercel.com/v2/now/metrics?projectId=${encodeURIComponent(VERCEL_PROJECT_ID)}`;
+  // Runtime error clusters are fetched from Vercel's project logs API when available.
+  const response = await fetch(`https://api.vercel.com/v1/projects/${encodeURIComponent(VERCEL_PROJECT_ID)}/runtime-logs?teamId=${encodeURIComponent(VERCEL_TEAM)}&limit=50`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) return [];
+  const data: any = await response.json().catch(() => ({}));
+  const rows = Array.isArray(data?.logs) ? data.logs : Array.isArray(data?.entries) ? data.entries : [];
+  return rows.filter((row: any) => /error|fatal/i.test(String(row.level || row.type || ""))).slice(0, 20).map((row: any, index: number) => ({ id: `vercel:${row.requestId || row.id || index}`, source: "vercel" as const, severity: "high" as const, message: String(row.message || row.error?.message || "Runtime error"), route: row.path || row.requestPath || row.route, deploymentId: row.deploymentId, createdAt: row.timestamp ? new Date(row.timestamp).toISOString() : new Date().toISOString() }));
+}
+
+export async function getLatestBuildFailures(): Promise<CodeBug[]> {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (!token) return [];
+  const response = await fetch(`https://api.github.com/repos/${REPO}/actions/runs?branch=main&per_page=20`, { headers: githubHeaders(), signal: AbortSignal.timeout(15000) });
+  if (!response.ok) return [];
+  const data: any = await response.json();
+  return (data.workflow_runs || []).filter((run: any) => run.conclusion === "failure").slice(0, 10).map((run: any) => ({ id: `gha:${run.id}`, source: "github-actions" as const, severity: "high" as const, message: `${run.name} failed on ${run.head_sha.slice(0, 8)}.`, runId: run.id, createdAt: run.updated_at || run.created_at }));
+}
+
+export async function detectCodeBugs() {
+  const [runtime, builds] = await Promise.all([detectRuntimeBugs().catch(() => []), getLatestBuildFailures().catch(() => [])]);
+  return [...runtime, ...builds].slice(0, 20);
+}
+
+async function fetchSource(path: string) {
+  if (!allowedPath(path)) throw new Error("The selected source file is outside the safe repair scope.");
+  const response = await fetch(`https://api.github.com/repos/${REPO}/contents/${path}?ref=main`, { headers: githubHeaders(), signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`Could not inspect ${path}: GitHub returned ${response.status}.`);
+  const data: any = await response.json();
+  if (data.type !== "file" || !data.content || !data.sha) throw new Error("Selected source is not a normal text file.");
+  const content = decodeGithubContent(data.content);
+  if (content.length > MAX_SOURCE) throw new Error("Source file is too large for the controlled repair scope.");
+  return { sha: data.sha as string, content };
+}
+
+function unifiedDiff(path: string, oldContent: string, newContent: string) {
+  const oldLines = oldContent.split("\n");
+  const newLines = newContent.split("\n");
+  let start = 0;
+  while (start < oldLines.length && start < newLines.length && oldLines[start] === newLines[start]) start++;
+  let endOld = oldLines.length - 1, endNew = newLines.length - 1;
+  while (endOld >= start && endNew >= start && oldLines[endOld] === newLines[endNew]) { endOld--; endNew--; }
+  const contextStart = Math.max(0, start - 3);
+  const contextEndOld = Math.min(oldLines.length - 1, endOld + 3);
+  const contextEndNew = Math.min(newLines.length - 1, endNew + 3);
+  const lines = [`--- a/${path}`, `+++ b/${path}`, `@@ ${contextStart + 1},${Math.max(1, contextEndOld - contextStart + 1)} +${contextStart + 1},${Math.max(1, contextEndNew - contextStart + 1)} @@`];
+  for (let i = contextStart; i < start; i++) lines.push(` ${oldLines[i]}`);
+  for (let i = start; i <= endOld; i++) lines.push(`-${oldLines[i]}`);
+  for (let i = start; i <= endNew; i++) lines.push(`+${newLines[i]}`);
+  for (let i = endOld + 1; i <= contextEndOld; i++) lines.push(` ${oldLines[i]}`);
+  return lines.join("\n").slice(0, MAX_DIFF);
+}
+
+function extractJson(text: string): any {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] || text;
+  const start = fenced.indexOf("{");
+  const end = fenced.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("AI did not return a structured repair plan.");
+  return JSON.parse(fenced.slice(start, end + 1));
+}
+
+export async function prepareCodeRepair(bug: CodeBug, path: string): Promise<CodeRepairPlan> {
+  if (!allowedPath(path)) throw new Error("Repair path is outside the safe source scope.");
+  const source = await fetchSource(path);
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
+  const prompt = `You are preparing a minimal, approval-gated code repair for Cafe-EPR. Do not modify secrets, auth, permissions, CI workflows, migrations, financial invariants, package manifests, or production configuration. Only repair the diagnosed defect in the supplied file. Preserve behavior outside the defect. Return JSON only with keys: newContent (complete file), explanation, tests (array), confidence (0-1).\n\nBUG:\n${JSON.stringify(bug)}\n\nFILE:${path}\nSOURCE:\n${source.content}`;
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 16000 } }), signal: AbortSignal.timeout(45000) });
+  const data: any = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error?.message || "Code repair generation failed.");
+  const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text).filter(Boolean).join("\n");
+  const plan = extractJson(text);
+  const newContent = String(plan.newContent || "");
+  if (!newContent || newContent.length > MAX_SOURCE) throw new Error("Generated repair is empty or too large.");
+  if (newContent === source.content) throw new Error("Generated repair makes no source change.");
+  const diff = unifiedDiff(path, source.content, newContent);
+  if (!diff || diff.length > MAX_DIFF) throw new Error("Generated diff exceeds the controlled repair limit.");
+  return { bug, path, oldSha: source.sha, oldContentHash: sha256(source.content), newContent, diff, explanation: String(plan.explanation || "Minimal repair prepared from the observed defect."), tests: Array.isArray(plan.tests) ? plan.tests.slice(0, 8).map(String) : ["npm test", "npx tsc --noEmit", "npm run build"], confidence: Math.max(0, Math.min(1, Number(plan.confidence) || 0)), generatedAt: new Date().toISOString() };
+}
+
+export async function applyCodeRepair(plan: CodeRepairPlan) {
+  if (!allowedPath(plan.path)) throw new Error("Repair path is outside the safe source scope.");
+  const current = await fetchSource(plan.path);
+  if (current.sha !== plan.oldSha || sha256(current.content) !== plan.oldContentHash) throw new Error("Source changed after approval was prepared. Repair stopped to prevent overwriting newer code.");
+  const response = await fetch(`https://api.github.com/repos/${REPO}/contents/${plan.path}`, { method: "PUT", headers: { ...githubHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ message: `fix(ai): ${plan.bug.message.slice(0, 72)}`, content: Buffer.from(plan.newContent, "utf8").toString("base64"), sha: current.sha, branch: "main" }), signal: AbortSignal.timeout(20000) });
+  const data: any = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.message || `GitHub repair write failed: ${response.status}`);
+  return { commitSha: data?.commit?.sha || null, path: plan.path };
+}
