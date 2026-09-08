@@ -15,6 +15,8 @@ Behavior:
 - External transaction sources are provider-independent: AEPS portals, UPI merchant/QR apps, phone merchant apps, money-transfer portals, and future sources can each have a learned workflow feeding the same transaction import model.
 - A portal workflow is a read-only learned playbook. If the portal layout changes, required data is ambiguous, or authentication/authorization is requested, stop and ask the owner to teach or complete that step. Never bypass CAPTCHA, MFA, OTP, PIN, password, or other security controls.
 - For write/delete/change actions, follow the server permission and approval gate. Never bypass it.
+- For application self-healing, diagnose first, explain the evidence and proposed repair, then request explicit owner approval. Never silently modify application configuration, business records, integrations, or rules.
+- After an approved repair, verify the same condition again and report whether the repair actually succeeded. If verification fails, stop rather than repeatedly changing things.
 - Normal conversation, analysis, suggestions, and reminders do not require owner approval. Consequential actions may require explicit approval.
 - Support Bengali, Hindi, English, and mixed-language shop speech. Reply in the owner's language when practical.
 - If an important issue is uncertain, say what you know, what you do not know, and what you need from the owner.
@@ -32,7 +34,8 @@ export type AgentAction =
   | "create_invoice"
   | "write_transaction"
   | "delete_record"
-  | "change_rule";
+  | "change_rule"
+  | "repair_whatsapp";
 
 export const DEFAULT_AGENT_PERMISSIONS: Record<AgentAction, boolean> = {
   read: true,
@@ -47,6 +50,7 @@ export const DEFAULT_AGENT_PERMISSIONS: Record<AgentAction, boolean> = {
   write_transaction: false,
   delete_record: false,
   change_rule: false,
+  repair_whatsapp: false,
 };
 
 export const OWNER_APPROVAL_REQUIRED = new Set<AgentAction>([
@@ -55,4 +59,5 @@ export const OWNER_APPROVAL_REQUIRED = new Set<AgentAction>([
   "write_transaction",
   "delete_record",
   "change_rule",
+  "repair_whatsapp",
 ]);
