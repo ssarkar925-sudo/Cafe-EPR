@@ -13,17 +13,15 @@ declare
   v_expected_funding numeric := 0;
   v_collection_in numeric := 0;
   v_funding_out numeric := 0;
-  v_pay_method text;
   v_complete_allocations boolean := false;
 begin
   if lower(coalesce(new.status,'')) not in ('success','successful','completed','posted') then
     return new;
   end if;
 
-  v_pay_method := lower(coalesce(new.customer_pay_method,''));
   v_expected_collection := greatest(0, round(coalesce(new.customer_collected_amount,0),2));
 
-  if lower(coalesce(new.service_type,'')) in ('dmt') then
+  if lower(coalesce(new.service_type,'')) = 'dmt' then
     v_expected_funding := greatest(0, round(coalesce(new.amount,0),2));
   elsif lower(coalesce(new.service_type,'')) in ('recharge','bill_payment','google_play_recharge','google_play') then
     v_expected_funding := greatest(0, round(coalesce(new.pool_out,0),2));
@@ -93,12 +91,12 @@ begin
 
     select coalesce(sum(
       case
-        when ce.direction in ('out','withdrawal') then ce.amount
         when v_complete_allocations and exists (
           select 1
           from jsonb_array_elements(new.customer_payment_allocations) a
           where nullif(a->>'instrument_id','') = ce.instrument_id::text
         ) then 0
+        when ce.direction in ('out','withdrawal') then ce.amount
         else -ce.amount
       end
     ),0)
@@ -118,11 +116,8 @@ end;
 $function$;
 
 drop trigger if exists trg_validate_service_transaction_money_trail on public.transactions;
-
 create constraint trigger trg_validate_service_transaction_money_trail
-after insert or update of status, service_type, amount, customer_collected_amount,
-  customer_collection_instrument_id, customer_payment_allocations, pool_out,
-  pay_from_instrument_id, pay_from_method
+after insert or update of status, service_type, amount, customer_collected_amount, customer_collection_instrument_id, customer_payment_allocations, pool_out, pay_from_instrument_id, pay_from_method
 on public.transactions
 deferrable initially deferred
 for each row execute function public.validate_service_transaction_money_trail();
