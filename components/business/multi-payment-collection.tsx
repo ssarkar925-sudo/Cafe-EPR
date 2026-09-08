@@ -14,6 +14,7 @@ type Props = {
   disabled?: boolean;
   mode?: "customer" | "invoice" | "ledger";
   initialMethod?: PaymentAllocation["method"];
+  initialAllocations?: PaymentAllocation[];
   onChange: (allocations: PaymentAllocation[]) => void;
 };
 
@@ -25,10 +26,38 @@ const METHODS: { id: PaymentAllocation["method"]; label: string }[] = [
   { id: "card", label: "💳 Card" },
 ];
 
-export default function MultiPaymentCollection({ totalDue, disabled, mode = "customer", initialMethod = "cash", onChange }: Props) {
+function normalizeInitialAllocations(
+  total: number,
+  initialMethod: PaymentAllocation["method"],
+  initialAllocations?: PaymentAllocation[]
+): PaymentAllocation[] {
+  const rows = Array.isArray(initialAllocations)
+    ? initialAllocations
+        .filter((row) => Number(row?.amount) > 0)
+        .map((row) => ({
+          method: row.method,
+          amount: Math.max(0, Number(row.amount) || 0).toFixed(2),
+          instrument_id: row.instrument_id || null,
+        }))
+    : [];
+
+  if (rows.length > 0) return rows;
+  return total > 0
+    ? [{ method: initialMethod, amount: total.toFixed(2), instrument_id: null }]
+    : [];
+}
+
+export default function MultiPaymentCollection({
+  totalDue,
+  disabled,
+  mode = "customer",
+  initialMethod = "cash",
+  initialAllocations,
+  onChange,
+}: Props) {
   const safeTotal = Math.max(0, Number(totalDue) || 0);
   const [allocations, setAllocations] = useState<PaymentAllocation[]>(() =>
-    safeTotal > 0 ? [{ method: initialMethod, amount: safeTotal.toFixed(2), instrument_id: null }] : []
+    normalizeInitialAllocations(safeTotal, initialMethod, initialAllocations)
   );
   const previousTotalRef = useRef(safeTotal);
   const onChangeRef = useRef(onChange);
