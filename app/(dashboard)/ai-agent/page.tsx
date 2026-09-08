@@ -6,6 +6,7 @@ import AIBusinessWatcher from "@/components/ai/ai-business-watcher";
 import AIWhatsAppBridge from "@/components/ai/ai-whatsapp-bridge";
 import AISelfHealingBridge from "@/components/ai/ai-self-healing-bridge";
 import AICommandCenter from "@/components/ai/ai-command-center";
+import AICodeRepairGuardian from "@/components/ai/ai-code-repair-guardian";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function CafeAIAgentPage() {
     <div className="space-y-6">
       <AIWhatsAppBridge />
       <AICommandCenter />
+      <AICodeRepairGuardian />
       <AISelfHealingBridge />
       <CafeAIAgent />
       <AIBusinessWatcher />
