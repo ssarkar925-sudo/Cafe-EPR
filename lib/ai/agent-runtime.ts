@@ -64,7 +64,7 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
 }
 
 function normalizeHistory(history: AgentHistoryItem[] | undefined): AgentHistoryItem[] { return (Array.isArray(history) ? history : []).filter((item) => item && (item.role === "user" || item.role === "assistant") && typeof item.content === "string").map((item) => ({ role: item.role, content: item.content.trim().slice(0, 4000) })).filter((item) => item.content).slice(-MAX_HISTORY); }
-function getModelCandidates() { const configured = (process.env.GEMINI_MODEL || "").trim(); const defaults = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"]; return Array.from(new Set([configured, ...defaults].filter(Boolean))); }
+function getModelCandidates() { const configured = (process.env.GEMINI_MODEL || "").trim(); const deprecated = new Set(["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-pro"]); const defaults = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]; return Array.from(new Set([configured, ...defaults].filter((model) => model && !deprecated.has(model)))); }
 async function callGemini(apiKey: string, model: string, body: Record<string, unknown>) { const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) }); const data = await response.json().catch(() => ({})); return { ok: response.ok, data, error: data?.error?.message || `${model}: ${response.status} ${response.statusText}` }; }
 
 export async function runIntelligentAgent({ apiKey, message, history, systemInstruction, supabase, userId }: { apiKey: string; message: string; history?: AgentHistoryItem[]; systemInstruction: string; supabase: SupabaseClient<any, any, any>; userId: string; }) {
@@ -72,7 +72,7 @@ export async function runIntelligentAgent({ apiKey, message, history, systemInst
   const contents: any[] = safeHistory.map((item) => ({ role: item.role === "assistant" ? "model" : "user", parts: [{ text: item.content }] }));
   contents.push({ role: "user", parts: [{ text: message }] });
   const tools = [{ functionDeclarations: TOOL_DECLARATIONS }];
-  const baseBody = { systemInstruction: { parts: [{ text: `${systemInstruction}\n\nYou are an agent, not just a chatbot. Prefer verified Cafe-EPR tools for live facts. Use the minimum tools necessary. You may call multiple independent tools in one turn. Never expose hidden chain-of-thought; give a concise evidence/reasoning summary instead. If a tool returns an error or no data, say that clearly. Never invent missing values.\n\nCurrent India date: ${indiaDate()}.` }] }, tools, generationConfig: { temperature: 0.2, maxOutputTokens: 1800 } };
+  const baseBody = { systemInstruction: { parts: [{ text: `${systemInstruction}\n\nYou are an agent, not just a chatbot. Prefer verified Cafe-EPR tools for live facts. Use the minimum tools necessary. You may call multiple independent tools in one turn. Never expose hidden chain-of-thought; give a concise evidence/reasoning summary instead. If a tool returns an error or no data, say that clearly. Never invent missing values.\n\nCurrent India date: ${indiaDate()}.` }] }, tools, generationConfig: { maxOutputTokens: 1800 } };
   let lastError = "Cafe AI request failed"; const usedTools: string[] = []; let finalData: any = null;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     let result: { ok: boolean; data: any; error: string } | null = null;
@@ -83,7 +83,7 @@ export async function runIntelligentAgent({ apiKey, message, history, systemInst
     const calls: ToolCall[] = parts.filter((p) => p.functionCall?.name).map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args || {}, id: p.functionCall!.id }));
     if (!calls.length) { const text = parts.map((p) => p.text).filter(Boolean).join("\n").trim(); return { message: text || "I understood the request, but I could not produce a response.", usedTools, rounds: round + 1, finishReason: finalData?.candidates?.[0]?.finishReason || null }; }
     contents.push({ role: "model", parts });
-    const toolResponses = await Promise.all(calls.map(async (call) => { usedTools.push(call.name); try { return { functionResponse: { name: call.name, id: call.id, response: { result: await executeTool(call, { supabase, userId }) } } }; } catch (error) { return { functionResponse: { name: call.name, id: call.id, response: { error: error instanceof Error ? error.message : "Tool failed" } } }; } }));
+    const toolResponses = await Promise.all(calls.map(async (call) => { usedTools.push(call.name); try { return { functionResponse: { name: call.name, call_id: call.id, response: await executeTool(call, { supabase, userId }) } }; } catch (error) { return { functionResponse: { name: call.name, call_id: call.id, response: { error: error instanceof Error ? error.message : "Tool failed" } } }; } }));
     contents.push({ role: "user", parts: toolResponses });
   }
   const fallback = finalData?.candidates?.[0]?.content?.parts?.map((p: GeminiPart) => p.text).filter(Boolean).join("\n").trim();
