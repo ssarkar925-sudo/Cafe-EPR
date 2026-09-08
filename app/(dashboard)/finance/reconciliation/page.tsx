@@ -23,10 +23,9 @@ export default async function FinancialReconciliationPage() {
     { data: openingBalances },
   ] = await Promise.all([
     supabase.rpc("get_pool_balances", { p_as_of: today }),
-    supabase.from("payment_instruments").select("id,name,type,opening_balance,details,is_active,created_at").order("type").order("name"),
-    // Reconciliation consumes the canonical cash-entry stream directly.
-    // Do not remove settlement rows here: they are real ledger movements and
-    // must be included exactly once instead of being reconstructed separately.
+    supabase.from("payment_instruments").select("id,name,type,opening_balance,current_balance,details,is_active,created_at").order("type").order("name"),
+    // Canonical movement ledger. Transactions and settlements are trace metadata;
+    // their amounts must never be added a second time to reconciliation math.
     supabase.from("cash_entries").select("id,instrument_id,direction,amount,created_at,entry_date,description,method,ref_type,ref_id").not("instrument_id", "is", null),
     supabase.from("aeps_portals").select("id,payment_instrument_id,name"),
     supabase.from("transactions").select("id,transaction_number,service_type,amount,status,created_at,transaction_date,customer_pay_method,instrument_id,pay_from_instrument_id,pool_credit,pool_out,pool_credit_type,service_fee,upi_fee,fee_source").eq("status", "success").order("created_at", { ascending: false }).limit(2000),
