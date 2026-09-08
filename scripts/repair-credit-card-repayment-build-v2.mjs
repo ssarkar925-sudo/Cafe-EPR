@@ -5,15 +5,12 @@ let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 const original = source;
 
 function replaceOnce(needle, replacement, label) {
-  if (!source.includes(needle)) {
-    throw new Error(`Credit-card repayment patch anchor missing: ${label}`);
-  }
+  if (!source.includes(needle)) throw new Error(`Credit-card repayment patch anchor missing: ${label}`);
   source = source.replace(needle, replacement);
 }
 
-// This script intentionally runs AFTER repair-settlement-cash-routing-build-v3.mjs.
-// Keep generated JSX in arrays rather than nested template literals so the build
-// repair script itself cannot be broken by JSX/template interpolation.
+// Runs after repair-settlement-cash-routing-build-v3.mjs.
+// v3 already owns cash source/destination selectors and cash defaults.
 
 replaceOnce(
   '  { value: "bank_to_wallet", label: "Bank Account → Digital Wallet (Wallet Load)", from: "bank", to: "wallet", icon: "wallet", grad: "from-emerald-500 to-teal-600", desc: "Load digital wallet float (Rupepro, CSC Wallet) from bank balance." },\n',
@@ -29,8 +26,6 @@ replaceOnce(
   "pool label"
 );
 
-// v3 orders these declarations as bankAccounts -> wallets -> cashAccounts.
-// Add the repayment-specific collections without duplicating cashAccounts.
 replaceOnce(
   '  const bankAccounts = loadedAccounts.filter((i) => i.type === "bank" || i.type === "debit_card");\n  const wallets = loadedAccounts.filter((i) => i.type === "wallet");\n  const cashAccounts = loadedAccounts.filter((i) => i.type === "cash");',
   '  const bankAccounts = loadedAccounts.filter((i) => i.type === "bank" || i.type === "debit_card");\n  const sourceBankAccounts = loadedAccounts.filter((i) => i.type === "bank");\n  const creditCardAccounts = loadedAccounts.filter((i) => i.type === "credit_card");\n  const wallets = loadedAccounts.filter((i) => i.type === "wallet");\n  const cashAccounts = loadedAccounts.filter((i) => i.type === "cash");',
@@ -71,31 +66,9 @@ replaceOnce(
   "repayment destination validation"
 );
 
-const sourceCashJsx = [
-  '            {isSourceCash && (',
-  '              <div>',
-  '                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">',
-  '                  Funding Account — Cash Drawer *',
-  '                </label>',
-  '                <SearchableSelect',
-  '                  value={sourceId}',
-  '                  onChange={(v) => setSourceId(v)}',
-  '                  options={[',
-  '                    { value: "", label: "Select Cash Drawer..." },',
-  '                    ...cashAccounts.map((c) => ({',
-  '                      value: c.id,',
-  '                      label: "💵 " + c.name,',
-  '                    })),',
-  '                  ]}',
-  '                  placeholder="Choose Cash Drawer..."',
-  '                  showClear={false}',
-  '                />',
-  '              </div>',
-  '            )}',
-  '',
-].join("\n");
-replaceOnce('            {isSourceBank && (', sourceCashJsx + '            {isSourceBank && (', "repayment cash source selector");
-
+// The cash-routing repair already inserts the cash selector. Only restrict the
+// bank selector to real bank accounts so a debit-card instrument cannot be used
+// as the repayment funding source.
 replaceOnce(
   '                    ...bankAccounts.map((b) => ({\n                      value: b.id,\n                      label: `🏦 ${b.name}${b.details?.account_number ? ` (••••${String(b.details.account_number).slice(-4)})` : ""}`,\n                    })),',
   '                    ...sourceBankAccounts.map((b) => ({\n                      value: b.id,\n                      label: `🏦 ${b.name}${b.details?.account_number ? ` (••••${String(b.details.account_number).slice(-4)})` : ""}`,\n                    })),',
@@ -136,9 +109,6 @@ replaceOnce(
   "repayment routing tag"
 );
 
-if (source === original) {
-  throw new Error("Credit-card repayment patch made no changes");
-}
-
+if (source === original) throw new Error("Credit-card repayment patch made no changes");
 fs.writeFileSync(path, source);
 console.log("Patched settlement UI with safe credit-card repayment routes after cash-routing repair.");
