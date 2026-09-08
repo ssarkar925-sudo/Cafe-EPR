@@ -22,7 +22,7 @@ function inferLocation(message: string) {
 }
 
 function normalize(message: string) {
-  return message.replace(/\\b[0-9a-f]{7,40}\\b/gi, "<sha>").replace(/\\b\\d+ms\\b/g, "<latency>").trim();
+  return message.replace(/\b[0-9a-f]{7,40}\b/gi, "<sha>").replace(/\b\d+ms\b/g, "<latency>").trim();
 }
 
 export async function investigateBugs(): Promise<Investigation[]> {
