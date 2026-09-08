@@ -67,8 +67,28 @@ replaceOnce(
 );
 
 // 6. Source selector. Insert before the existing bank selector.
-const sourceCashJsx = `            {isSourceCash && (\n              <div>\n                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">\n                  Funding Account — Cash Drawer *\n                </label>\n                <SearchableSelect\n                  value={sourceId}\n                  onChange={(v) => setSourceId(v)}\n                  options={[\n                    { value: "", label: "Select Cash Drawer..." },\n                    ...cashAccounts.map((c) => ({\n                      value: c.id,\n                      label: `💵 ${c.name}`,\n                    })),\n                  ]}\n                  placeholder="Choose Cash Drawer..."\n                  showClear={false}\n                />\n              </div>\n            )}\n\n`;
-replaceOnce('            {isSourceBank && (', sourceCashJsx + '            {isSourceBank && (', "cash source selector")
+const sourceCashJsx =
+  '            {isSourceCash && (\n' +
+  '              <div>\n' +
+  '                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">\n' +
+  '                  Funding Account — Cash Drawer *\n' +
+  '                </label>\n' +
+  '                <SearchableSelect\n' +
+  '                  value={sourceId}\n' +
+  '                  onChange={(v) => setSourceId(v)}\n' +
+  '                  options={[\n' +
+  '                    { value: "", label: "Select Cash Drawer..." },\n' +
+  '                    ...cashAccounts.map((c) => ({\n' +
+  '                      value: c.id,\n' +
+  '                      label: `💵 ${c.name}`,\n' +
+  '                    })),\n' +
+  '                  ]}\n' +
+  '                  placeholder="Choose Cash Drawer..."\n' +
+  '                  showClear={false}\n' +
+  '                />\n' +
+  '              </div>\n' +
+  '            )}\n\n';
+replaceOnce('            {isSourceBank && (', sourceCashJsx + '            {isSourceBank && (', "cash source selector");
 
 // Restrict the source bank selector to true bank instruments. Debit cards remain available in other supported bank routes.
 replaceOnce(
@@ -78,8 +98,31 @@ replaceOnce(
 );
 
 // 7. Credit-card destination selector before the existing bank destination selector.
-const creditCardJsx = `            {isDestCreditCard && (\n              <div>\n                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">\n                  Credit Card to Repay *\n                </label>\n                <SearchableSelect\n                  value={destId}\n                  onChange={(v) => setDestId(v)}\n                  options={[\n                    { value: "", label: "Select Credit Card..." },\n                    ...creditCardAccounts.map((c) => ({\n                      value: c.id,\n                      label: `💳 ${c.name}${Number.isFinite(Number(c.current_balance ?? c.details?.available_credit)) ? ` (Avail. ₹${Number(c.current_balance ?? c.details?.available_credit).toLocaleString("en-IN", { minimumFractionDigits: 2 })})` : ""}`,\n                    })),\n                  ]}\n                  placeholder="Choose Credit Card to Repay..."\n                  showClear={false}\n                />\n                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">\n                  Repayment increases available credit and reduces utilization. It does not create an operating expense.\n                </p>\n              </div>\n            )}\n\n`;
-replaceOnce('            {isDestBank && (', creditCardJsx + '            {isDestBank && (', "credit card destination selector")
+const creditCardJsx =
+  '            {isDestCreditCard && (\n' +
+  '              <div>\n' +
+  '                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">\n' +
+  '                  Credit Card to Repay *\n' +
+  '                </label>\n' +
+  '                <SearchableSelect\n' +
+  '                  value={destId}\n' +
+  '                  onChange={(v) => setDestId(v)}\n' +
+  '                  options={[\n' +
+  '                    { value: "", label: "Select Credit Card..." },\n' +
+  '                    ...creditCardAccounts.map((c) => ({\n' +
+  '                      value: c.id,\n' +
+  '                      label: `💳 ${c.name}${Number.isFinite(Number(c.current_balance ?? c.details?.available_credit)) ? ` (Avail. ₹${Number(c.current_balance ?? c.details?.available_credit).toLocaleString("en-IN", { minimumFractionDigits: 2 })})` : ""}`,\n' +
+  '                    })),\n' +
+  '                  ]}\n' +
+  '                  placeholder="Choose Credit Card to Repay..."\n' +
+  '                  showClear={false}\n' +
+  '                />\n' +
+  '                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">\n' +
+  '                  Repayment increases available credit and reduces utilization. It does not create an operating expense.\n' +
+  '                </p>\n' +
+  '              </div>\n' +
+  '            )}\n\n';
+replaceOnce('            {isDestBank && (', creditCardJsx + '            {isDestBank && (', "credit card destination selector");
 
 // 8. Make route changes visible in the routing tag without changing the server contract.
 replaceOnce(
