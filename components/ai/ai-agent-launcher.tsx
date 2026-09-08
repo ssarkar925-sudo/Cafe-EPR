@@ -44,7 +44,7 @@ export default function AIAgentLauncher({ role }: { role: string }) {
       href="/ai-agent"
       aria-label={critical > 0 ? `Open Cafe AI Agent — ${critical} critical alert${critical === 1 ? "" : "s"}` : "Open Cafe AI Agent"}
       title={critical > 0 ? `${critical} critical business alert${critical === 1 ? "" : "s"}` : "Open Cafe AI Agent"}
-      className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-2xl border border-indigo-400/30 bg-slate-950 px-4 py-3 text-xs font-black text-white shadow-xl shadow-indigo-500/20 ring-1 ring-white/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-2xl hover:shadow-indigo-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:bottom-6 sm:right-6"
+      className="fixed bottom-[calc(4rem+0.75rem+env(safe-area-inset-bottom))] right-4 z-[60] flex items-center gap-2 rounded-2xl border border-indigo-400/30 bg-slate-950 px-4 py-3 text-xs font-black text-white shadow-xl shadow-indigo-500/20 ring-1 ring-white/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-slate-900 hover:shadow-2xl hover:shadow-indigo-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:bottom-[calc(4rem+1rem+env(safe-area-inset-bottom))] sm:right-5 lg:bottom-6 lg:right-6"
     >
       <span className="relative flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-500/20 text-base">
         ✦
