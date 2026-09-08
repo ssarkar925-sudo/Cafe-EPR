@@ -29,8 +29,6 @@ if (source.includes(refreshSelect) && !source.includes(refreshSelectFixed)) {
 // back get_pool_balances. Reconstructing the balance from transactions, cash-out
 // inference, fees, and settlement rows creates double counting because those are
 // merely views of the same ledger postings.
-const start = '      if (cfg.key === "upi_qr") {';
-const end = '      } else {\n        // Generic pool movements';
 const upiCanonicalBlock = `      if (cfg.key === "upi_qr") {
         const upiInstrumentIds = new Set(
           instruments
