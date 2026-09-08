@@ -1,1 +1,1 @@
-Deployment trigger for the Quick POS layout fix.
+Deployment trigger for the reconciliation root-fix verification.
