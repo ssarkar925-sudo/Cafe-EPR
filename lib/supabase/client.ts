@@ -94,7 +94,24 @@ function wrapFinancialMutationClient(client: ReturnType<typeof createBrowserClie
           cacheKey = generated.cacheKey;
           requestArgs.p_idempotency_key = generated.key;
         }
-        return Promise.resolve(directRpc(functionName, requestArgs, ...rest)).then((result: any) => {
+
+        const options = rest[0] && typeof rest[0] === "object" ? rest[0] : undefined;
+        const call = fetch("/api/pos/financial-rpc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ function_name: functionName, args: requestArgs, options }),
+        })
+          .then(async (response) => {
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              return { data: null, error: payload?.error ?? { message: `Financial RPC failed (HTTP ${response.status}).` } };
+            }
+            return payload;
+          })
+          .catch((error: any) => ({ data: null, error: { message: error?.message || "Unable to reach the financial transaction service." } }));
+
+        return call.then((result: any) => {
           if (!result?.error && cacheKey) clearFinancialIdempotencyKey(cacheKey);
           return result;
         });
