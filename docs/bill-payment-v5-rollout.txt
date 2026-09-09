@@ -1,1 +1,0 @@
-Bill Payment v5 rollout: redesigned settlement console with non-overlapping layout, one funding-account category visible at a time, and full-width final settlement rail.
