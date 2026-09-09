@@ -106,9 +106,11 @@ export default async function DashboardPage() {
   }
 
   // Credit Card Facility
-  const creditCardLimit = Number(rawPools.credit_card?.opening || 0);
-  const creditCardUsed = Number(rawPools.credit_card?.movements || 0);
-  const creditCardAvailable = Math.max(0, creditCardLimit - creditCardUsed);
+  const creditCardLimit = Number(rawPools.credit_card?.credit_limit || 0);
+  const creditCardUsed = Number(rawPools.credit_card?.used_credit || 0);
+  const creditCardAvailable = Number(
+    rawPools.credit_card?.available_credit ?? Math.max(0, creditCardLimit - creditCardUsed)
+  );
 
   // Canonical Tax & P&L Report (FY YTD)
   const taxReport = taxReportRes.data || {
@@ -312,10 +314,10 @@ export default async function DashboardPage() {
   }
 
   // Digital Services Breakdown
-  const aepsTxns = transactions.filter((t) => t.service_type === "aeps");
-  const dmtTxns = transactions.filter((t) => t.service_type === "dmt");
-  const upiTxns = transactions.filter((t) => t.service_type === "upi");
-  const rechargeTxns = transactions.filter((t) => t.service_type === "recharge");
+  const aepsTxns = transactions.filter((t) => t.service_type === "aeps" && t.status === "success");
+  const dmtTxns = transactions.filter((t) => t.service_type === "dmt" && t.status === "success");
+  const upiTxns = transactions.filter((t) => t.service_type === "upi" && t.status === "success");
+  const rechargeTxns = transactions.filter((t) => t.service_type === "recharge" && t.status === "success");
 
   const serviceBreakdown = {
     aeps: {

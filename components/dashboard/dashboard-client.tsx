@@ -870,7 +870,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </span>
               <h3 className="text-base font-black text-slate-900 dark:text-white">Digital &amp; Cyber Services Performance</h3>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time throughput, transaction volume, and fee income across digital counters.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Successful transaction throughput, service volume, and earned income — last 30 days.</p>
           </div>
           <div className="text-right">
             <span className="text-xs font-bold text-slate-400">Total Custodial Throughput: </span>
