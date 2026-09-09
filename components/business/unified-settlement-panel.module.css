@@ -1,12 +1,19 @@
 .settlementHistoryScope {}
 
+:global(html[data-cafe-bill-recharge-settlement="1"]),
+:global(html[data-cafe-bill-recharge-settlement="1"] body) {
+  overflow-x: hidden !important;
+}
+
 :global(html[data-cafe-bill-recharge-settlement="1"]) :global(.overflow-x-auto:has(table)) {
   overflow-x: visible !important;
+  max-width: 100% !important;
 }
 
 :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table) {
   width: 100% !important;
   min-width: 0 !important;
+  max-width: 100% !important;
   table-layout: fixed;
 }
 
