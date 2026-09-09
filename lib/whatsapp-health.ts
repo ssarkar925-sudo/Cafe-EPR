@@ -27,7 +27,6 @@ function resolveSafeReconnectEndpoint(gatewayUrl: string, endpoint: unknown): st
 export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
   const config = await getServerWhatsAppConfig();
   if (!config.provider || config.provider === "off") return { provider: "off", configured: false, connected: false, status: "not_configured", error: "WhatsApp integration is disabled." };
-
   if (config.provider === "meta") {
     const phoneId = config.meta_phone_number_id?.trim();
     const token = config.meta_access_token?.trim();
@@ -44,7 +43,6 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       return { provider: "meta", configured: true, connected: false, status: "unknown", error: err?.message || "Could not reach Meta." };
     }
   }
-
   if (config.provider === "local_gateway") {
     const gatewayUrl = String(config.gateway_url || "").trim().replace(/\/$/, "");
     if (!gatewayUrl) return { provider: "local_gateway", configured: false, connected: false, status: "not_configured", error: "WhatsApp gateway URL is missing." };
@@ -58,32 +56,12 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       const reconnectEndpoint = isController ? String(data?.reconnectEndpoint || "") : "";
       const safeReconnectUrl = isController ? resolveSafeReconnectEndpoint(gatewayUrl, reconnectEndpoint) : null;
       const reconnectSupported = Boolean(safeReconnectUrl);
-      const error = connected
-        ? undefined
-        : waitingForQr
-          ? "WhatsApp gateway is running, but this gateway session is waiting for a QR scan."
-          : data?.error || `Gateway returned HTTP ${response.status}`;
-      return {
-        provider: "local_gateway",
-        configured: true,
-        connected,
-        status: connected ? "connected" : "disconnected",
-        code: response.status,
-        error,
-        details: {
-          ...data,
-          gatewayUrl,
-          waitingForQr,
-          reconnectSupported,
-          reconnectEndpoint: reconnectSupported ? reconnectEndpoint : undefined,
-          reconnectUrl: safeReconnectUrl || undefined,
-        },
-      };
+      const error = connected ? undefined : waitingForQr ? "WhatsApp gateway is running, but this gateway session is waiting for a QR scan." : data?.error || `Gateway returned HTTP ${response.status}`;
+      return { provider: "local_gateway", configured: true, connected, status: connected ? "connected" : "disconnected", code: response.status, error, details: { ...data, gatewayUrl, waitingForQr, reconnectSupported, reconnectEndpoint: reconnectSupported ? reconnectEndpoint : undefined, reconnectUrl: safeReconnectUrl || undefined } };
     } catch (err: any) {
       return { provider: "local_gateway", configured: true, connected: false, status: "disconnected", error: `Could not reach WhatsApp Gateway: ${err?.message || "request failed"}` };
     }
   }
-
   if (config.provider === "ultramsg") {
     const instanceId = config.ultramsg_instance_id?.trim();
     const token = config.ultramsg_token?.trim();
@@ -97,44 +75,27 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       return { provider: "ultramsg", configured: true, connected: false, status: "unknown", error: err?.message || "Could not reach UltraMsg." };
     }
   }
-
   return { provider: config.provider, configured: true, connected: false, status: "unknown", error: "Unknown WhatsApp provider." };
 }
 
-/** Safely restarts a gateway only when the gateway itself advertises the CafeERP recovery contract. */
 export async function repairLocalWhatsAppGateway() {
   const config = await getServerWhatsAppConfig();
   if (config.provider !== "local_gateway") return { repaired: false, reason: "Self-repair is only supported for the configured local_gateway provider." };
   const gatewayUrl = String(config.gateway_url || "").trim().replace(/\/$/, "");
   if (!gatewayUrl) return { repaired: false, reason: "WhatsApp gateway URL is missing." };
-
   try {
     const before = await checkWhatsAppHealth();
     const reconnectUrl = typeof before.details?.reconnectUrl === "string" ? before.details.reconnectUrl : null;
-    if (!reconnectUrl || before.details?.reconnectSupported !== true) {
-      return { repaired: false, reason: "The configured WhatsApp gateway did not advertise the verified CafeERP reconnect contract." };
-    }
-
-    const response = await fetch(reconnectUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Bypass-Tunnel-Reminder": "true",
-        ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(10000),
-    });
+    if (!reconnectUrl || before.details?.reconnectSupported !== true) return { repaired: false, reason: "The configured WhatsApp gateway did not advertise the verified CafeERP reconnect contract." };
+    const response = await fetch(reconnectUrl, { method: "POST", headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true", ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}) }, cache: "no-store", signal: AbortSignal.timeout(10000) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return { repaired: false, reason: data?.error || `Gateway reconnect returned HTTP ${response.status}`, code: response.status };
-
     for (let attempt = 0; attempt < 12; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       const health = await checkWhatsAppHealth();
       if (health.connected) return { repaired: true, verified: true, message: "WhatsApp gateway was restarted and the connection is healthy." };
       if (health.details?.waitingForQr) return { repaired: true, verified: false, requiresQr: true, message: "Gateway restarted successfully, but WhatsApp now requires a QR scan to link the device." };
     }
-
     const after = await checkWhatsAppHealth();
     return { repaired: true, verified: false, requiresQr: Boolean(after.details?.waitingForQr), message: after.error || "Gateway restart completed, but WhatsApp is not connected yet." };
   } catch (err: any) {
@@ -142,7 +103,6 @@ export async function repairLocalWhatsAppGateway() {
   }
 }
 
-/** Safely repairs a stale Meta Phone Number ID by resolving the configured WABA's phone list. */
 export async function repairMetaPhoneNumberId() {
   const config = await getServerWhatsAppConfig();
   if (config.provider !== "meta") return { repaired: false, reason: "Self-repair is only supported for Meta Cloud API." };
@@ -170,29 +130,19 @@ export async function repairMetaPhoneNumberId() {
 export async function recordWhatsAppHealthAlert(health: WhatsAppHealth) {
   const db = createAdminClient();
   const title = "WhatsApp gateway is disconnected or unhealthy";
-
   if (health.connected) {
     const { error } = await db.from("ai_monitor_events")
-      .update({
-        status: "resolved",
-        resolved_at: new Date().toISOString(),
-        resolution_note: "Automatically resolved after a successful live WhatsApp health check.",
-        details: { provider: health.provider, status: health.status, code: health.code, details: health.details || {} },
-      })
+      .update({ status: "resolved", resolved_at: new Date().toISOString(), details: { provider: health.provider, status: health.status, code: health.code, details: health.details || {} } })
       .eq("source", "system")
       .eq("title", title)
       .in("status", ["open", "acknowledged"]);
     if (error) throw error;
     return null;
   }
-
   if (health.status === "not_configured") return null;
   const { data: existing } = await db.from("ai_monitor_events").select("id").eq("source", "system").eq("title", title).in("status", ["open", "acknowledged"]).limit(1).maybeSingle();
   if (existing) {
-    await db.from("ai_monitor_events").update({
-      severity: "critical",
-      details: { provider: health.provider, status: health.status, error: health.error, code: health.code, details: health.details || {} },
-    }).eq("id", existing.id);
+    await db.from("ai_monitor_events").update({ severity: "critical", details: { provider: health.provider, status: health.status, error: health.error, code: health.code, details: health.details || {} } }).eq("id", existing.id);
     return existing;
   }
   const { data, error } = await db.from("ai_monitor_events").insert({ severity: "critical", source: "system", title, details: { provider: health.provider, status: health.status, error: health.error, code: health.code, details: health.details || {} }, status: "open" }).select("id,severity,source,title,details,status,detected_at").single();
