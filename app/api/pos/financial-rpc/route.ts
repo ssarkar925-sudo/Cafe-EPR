@@ -37,6 +37,14 @@ function safeStatus(message: string) {
 
 export async function POST(request: Request) {
   try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) {
+      return NextResponse.json(
+        { data: null, error: { message: "Cross-origin financial requests are not allowed." } },
+        { status: 403 }
+      );
+    }
+
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -69,10 +77,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data, error: null }, { status: 200 });
   } catch (error: any) {
-    const message = error?.message || "Unable to process financial transaction.";
     return NextResponse.json(
-      { data: null, error: { message } },
-      { status: safeStatus(message) >= 500 ? 500 : 500 }
+      { data: null, error: { message: error?.message || "Unable to process financial transaction." } },
+      { status: 500 }
     );
   }
 }
