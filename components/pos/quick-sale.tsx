@@ -223,7 +223,7 @@ export default function QuickSaleModule({
 
   const methodList = useMemo(() => {
     const all = Object.keys(METHOD_BTN);
-    if (enabledMethods && enabledMethods.length > 0) return all.filter((m) => enabledMethods.includes(m));
+    if (enabledMethods && enabledMethods.length > 0) return all.filter((m) => m === "khata" || enabledMethods.includes(m));
     return all;
   }, [enabledMethods]);
 
@@ -231,6 +231,10 @@ export default function QuickSaleModule({
   const accountFilter = payments.length === 1 ? METHOD_ACCOUNT_TYPES[activeMethod] ?? enabledMethods : enabledMethods;
 
   function quickMethod(m: string) {
+    if (m === "khata") {
+      setPayments([{ instrument_id: "", method: "khata", amount: "0" }]);
+      return;
+    }
     const types = METHOD_ACCOUNT_TYPES[m] ?? [m];
     const first = types.map((t) => instrumentList.find((i) => i.type === t)).find(Boolean);
     const instId = first?.id ?? "";
@@ -515,7 +519,7 @@ export default function QuickSaleModule({
       setError("Add an item to the sale first.");
       return;
     }
-    if (paid <= 0) {
+    if (paid <= 0 && activeMethod !== "khata") {
       setError("Enter the amount received.");
       return;
     }
@@ -1148,23 +1152,32 @@ export default function QuickSaleModule({
                 <div className="space-y-2">
                   {payments.map((p, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <InstrumentSelect
-                        instruments={instrumentList}
-                        pick={p}
-                        onChange={(pick) => setPaymentInstrument(i, pick)}
-                        enabled={accountFilter}
-                        className="w-36 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500"
-                      />
-                      <input
-                        ref={payments.length === 1 ? payRef : undefined}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={p.amount}
-                        onChange={(e) => setPaymentAmount(i, e.target.value)}
-                        placeholder={payments.length === 1 ? "Amount received" : "Amount"}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500"
-                      />
+                      {p.method === "khata" ? (
+                        <div className="flex flex-1 items-center justify-between rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-800">
+                          <span>Khata / Due — Customer ledger</span>
+                          <span>₹0 received</span>
+                        </div>
+                      ) : (
+                        <>
+                          <InstrumentSelect
+                            instruments={instrumentList}
+                            pick={p}
+                            onChange={(pick) => setPaymentInstrument(i, pick)}
+                            enabled={accountFilter}
+                            className="w-36 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500"
+                          />
+                          <input
+                            ref={payments.length === 1 ? payRef : undefined}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={p.amount}
+                            onChange={(e) => setPaymentAmount(i, e.target.value)}
+                            placeholder={payments.length === 1 ? "Amount received" : "Amount"}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500"
+                          />
+                        </>
+                      )}
                       {payments.length > 1 && (
                         <button
                           onClick={() => setPayments((prev) => prev.filter((_, j) => j !== i))}
