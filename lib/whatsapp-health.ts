@@ -11,6 +11,19 @@ export type WhatsAppHealth = {
   details?: Record<string, unknown>;
 };
 
+function resolveSafeReconnectEndpoint(gatewayUrl: string, endpoint: unknown): string | null {
+  if (typeof endpoint !== "string" || !endpoint.trim()) return null;
+  try {
+    const base = new URL(gatewayUrl);
+    if (base.protocol !== "http:" && base.protocol !== "https:") return null;
+    const resolved = new URL(endpoint, base);
+    if (resolved.protocol !== base.protocol || resolved.hostname !== base.hostname || resolved.port !== base.port) return null;
+    return resolved.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
   const config = await getServerWhatsAppConfig();
   if (!config.provider || config.provider === "off") return { provider: "off", configured: false, connected: false, status: "not_configured", error: "WhatsApp integration is disabled." };
@@ -41,11 +54,14 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       const connected = response.ok && Boolean(data?.connected);
       const gatewayState = String(data?.status || "").toLowerCase();
       const waitingForQr = gatewayState === "waiting_for_qr";
-      const isCafeLocalGateway = /^http:\/\/(localhost|127\.0\.0\.1):3001$/i.test(gatewayUrl);
+      const isController = data?.controller === "cafeerp-whatsapp-gateway-controller-v1";
+      const reconnectEndpoint = isController ? String(data?.reconnectEndpoint || "") : "";
+      const safeReconnectUrl = isController ? resolveSafeReconnectEndpoint(gatewayUrl, reconnectEndpoint) : null;
+      const reconnectSupported = Boolean(safeReconnectUrl);
       const error = connected
         ? undefined
         : waitingForQr
-          ? "WhatsApp gateway is running, but this PC's WhatsApp session is waiting for a QR scan."
+          ? "WhatsApp gateway is running, but this gateway session is waiting for a QR scan."
           : data?.error || `Gateway returned HTTP ${response.status}`;
       return {
         provider: "local_gateway",
@@ -58,8 +74,9 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
           ...data,
           gatewayUrl,
           waitingForQr,
-          reconnectSupported: isCafeLocalGateway,
-          reconnectEndpoint: isCafeLocalGateway ? "/reconnect" : undefined,
+          reconnectSupported,
+          reconnectEndpoint: reconnectSupported ? reconnectEndpoint : undefined,
+          reconnectUrl: safeReconnectUrl || undefined,
         },
       };
     } catch (err: any) {
@@ -84,23 +101,40 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
   return { provider: config.provider, configured: true, connected: false, status: "unknown", error: "Unknown WhatsApp provider." };
 }
 
-/** Safely restarts the CafeERP local WhatsApp gateway without deleting its saved authentication. */
+/** Safely restarts a gateway only when the gateway itself advertises the CafeERP recovery contract. */
 export async function repairLocalWhatsAppGateway() {
   const config = await getServerWhatsAppConfig();
-  if (config.provider !== "local_gateway") return { repaired: false, reason: "Self-repair is only supported for the CafeERP local WhatsApp gateway." };
+  if (config.provider !== "local_gateway") return { repaired: false, reason: "Self-repair is only supported for the configured local_gateway provider." };
   const gatewayUrl = String(config.gateway_url || "").trim().replace(/\/$/, "");
-  if (!/^http:\/\/(localhost|127\.0\.0\.1):3001$/i.test(gatewayUrl)) return { repaired: false, reason: "The configured gateway is not the CafeERP local gateway, so its restart contract cannot be assumed safely." };
+  if (!gatewayUrl) return { repaired: false, reason: "WhatsApp gateway URL is missing." };
+
   try {
-    const response = await fetch(`${gatewayUrl}/reconnect`, { method: "POST", headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true", ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}) }, cache: "no-store", signal: AbortSignal.timeout(10000) });
+    const before = await checkWhatsAppHealth();
+    const reconnectUrl = typeof before.details?.reconnectUrl === "string" ? before.details.reconnectUrl : null;
+    if (!reconnectUrl || before.details?.reconnectSupported !== true) {
+      return { repaired: false, reason: "The configured WhatsApp gateway did not advertise the verified CafeERP reconnect contract." };
+    }
+
+    const response = await fetch(reconnectUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Bypass-Tunnel-Reminder": "true",
+        ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return { repaired: false, reason: data?.error || `Gateway reconnect returned HTTP ${response.status}`, code: response.status };
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       const health = await checkWhatsAppHealth();
       if (health.connected) return { repaired: true, verified: true, message: "WhatsApp gateway was restarted and the connection is healthy." };
       if (health.details?.waitingForQr) return { repaired: true, verified: false, requiresQr: true, message: "Gateway restarted successfully, but WhatsApp now requires a QR scan to link the device." };
     }
+
     const after = await checkWhatsAppHealth();
     return { repaired: true, verified: false, requiresQr: Boolean(after.details?.waitingForQr), message: after.error || "Gateway restart completed, but WhatsApp is not connected yet." };
   } catch (err: any) {
