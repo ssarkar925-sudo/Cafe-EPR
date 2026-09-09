@@ -27,6 +27,8 @@ function inRange(value: unknown, start: Date, end: Date): boolean {
   return !Number.isNaN(d.getTime()) && d >= start && d < end;
 }
 
+const MONITOR_SOURCES: MonitorSource[] = ["application", "business", "transaction", "security", "customer", "inventory"];
+
 export async function runBusinessMonitorScan() {
   const db = createAdminClient();
   const now = new Date();
@@ -47,19 +49,13 @@ export async function runBusinessMonitorScan() {
     db.from("products").select("id,name,stock_qty,reorder_level,is_active").eq("is_active", true).limit(1000),
     db.from("customers").select("id,name,balance,credit_limit,is_active,created_at").eq("is_active", true).limit(2000),
     db.from("settlements").select("id,amount,status,settlement_date,from_pool,to_pool,reference").order("created_at", { ascending: false }).limit(1000),
+    // Only unresolved non-PASS findings are actionable. Historical PASS rows are
+    // retained for audit history but must never reopen a current security alert.
     db.from("audit_findings").select("id,severity,status,resolution_status,description,created_at").in("severity", ["HIGH", "CRITICAL"]).order("created_at", { ascending: false }).limit(200),
     db.from("cash_entries").select("id,method,direction,amount,entry_date,created_at").limit(3000),
   ]);
 
-  for (const result of [
-    invoicesRes,
-    transactionsRes,
-    productsRes,
-    customersRes,
-    settlementsRes,
-    auditFindingsRes,
-    cashEntriesRes,
-  ]) {
+  for (const result of [invoicesRes, transactionsRes, productsRes, customersRes, settlementsRes, auditFindingsRes, cashEntriesRes]) {
     if (result.error) throw result.error;
   }
 
@@ -72,8 +68,8 @@ export async function runBusinessMonitorScan() {
   const cashEntries = cashEntriesRes.data || [];
 
   const events: MonitorEvent[] = [];
-
   const activeInvoice = (row: any) => String(row.status || "").toLowerCase() !== "cancelled";
+
   const current7Revenue = invoices
     .filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, current7, now))
     .reduce((s, r) => s + n(r.total), 0);
@@ -122,25 +118,27 @@ export async function runBusinessMonitorScan() {
       details: {
         customerCount: overdueCustomers.length,
         totalOutstanding: overdueTotal,
-        topBalances: [...overdueCustomers]
-          .sort((a, b) => n(b.balance) - n(a.balance))
-          .slice(0, 10)
-          .map((c) => ({ name: c.name, balance: n(c.balance) })),
+        topBalances: [...overdueCustomers].sort((a, b) => n(b.balance) - n(a.balance)).slice(0, 10).map((c) => ({ name: c.name, balance: n(c.balance) })),
       },
     });
   }
 
-  const failedSettlements = settlements.filter((s) => ["failed", "reversed", "cancelled"].includes(String(s.status || "").toLowerCase()));
+  // Reversed/cancelled settlements are final states and should not remain as an
+  // active warning. Only an actually FAILED settlement needs intervention.
+  const failedSettlements = settlements.filter((s) => String(s.status || "").toLowerCase() === "failed");
   if (failedSettlements.length > 0) {
     events.push({
       severity: "attention",
       source: "transaction",
-      title: "Settlements need review",
+      title: "Failed settlements need review",
       details: { count: failedSettlements.length, recent: failedSettlements.slice(0, 10).map((s) => ({ amount: n(s.amount), status: s.status, from: s.from_pool, to: s.to_pool, reference: s.reference })) },
     });
   }
 
-  const openHighFindings = auditFindings.filter((f) => String(f.resolution_status || "OPEN") !== "RESOLVED" && String(f.status || "").toUpperCase() !== "PASS");
+  const openHighFindings = auditFindings.filter((f) =>
+    String(f.resolution_status || "OPEN").toUpperCase() !== "RESOLVED" &&
+    String(f.status || "").toUpperCase() !== "PASS"
+  );
   const criticalFindings = openHighFindings.filter((f) => String(f.severity || "").toUpperCase() === "CRITICAL");
   if (criticalFindings.length > 0) {
     events.push({
@@ -170,18 +168,30 @@ export async function runBusinessMonitorScan() {
     });
   }
 
-  const inserted: any[] = [];
-  for (const event of events) {
-    const { data: existing } = await db
-      .from("ai_monitor_events")
-      .select("id")
-      .eq("source", event.source)
-      .eq("title", event.title)
-      .in("status", ["open", "acknowledged"])
-      .limit(1)
-      .maybeSingle();
+  // Reconcile the current monitor state instead of accumulating stale alerts.
+  // System/WhatsApp alerts are managed by their own health monitor and are not touched here.
+  const { data: priorOpenEvents, error: priorError } = await db
+    .from("ai_monitor_events")
+    .select("id,severity,source,title,details,status")
+    .in("status", ["open", "acknowledged"])
+    .in("source", MONITOR_SOURCES);
+  if (priorError) throw priorError;
 
-    if (!existing) {
+  const currentKeys = new Set(events.map((event) => `${event.source}:${event.title}`));
+  const priorByKey = new Map((priorOpenEvents || []).map((event) => [`${event.source}:${event.title}`, event]));
+  const inserted: any[] = [];
+
+  for (const event of events) {
+    const key = `${event.source}:${event.title}`;
+    const existing = priorByKey.get(key);
+    if (existing) {
+      const { error } = await db.from("ai_monitor_events").update({
+        severity: event.severity,
+        details: event.details,
+        status: "open",
+      }).eq("id", existing.id);
+      if (error) throw error;
+    } else {
       const { data, error } = await db.from("ai_monitor_events").insert({
         severity: event.severity,
         source: event.source,
@@ -192,6 +202,17 @@ export async function runBusinessMonitorScan() {
       if (error) throw error;
       if (data) inserted.push(data);
     }
+  }
+
+  for (const event of priorOpenEvents || []) {
+    const key = `${event.source}:${event.title}`;
+    if (currentKeys.has(key)) continue;
+    const { error } = await db.from("ai_monitor_events").update({
+      status: "resolved",
+      resolved_at: now.toISOString(),
+      resolution_note: "Automatically resolved because the latest live monitor scan no longer detects this condition.",
+    }).eq("id", event.id).in("status", ["open", "acknowledged"]);
+    if (error) throw error;
   }
 
   let aiRecommendations: string[] = [];
@@ -232,27 +253,20 @@ export async function runBusinessMonitorScan() {
     }
   }
 
+  const insightTitle = "AI business growth recommendations are available";
+  const existingInsight = priorByKey.get(`business:${insightTitle}`);
   if (aiRecommendations.length) {
-    const insightTitle = "AI business growth recommendations are available";
-    const { data: existingInsight } = await db
-      .from("ai_monitor_events")
-      .select("id")
-      .eq("source", "business")
-      .eq("title", insightTitle)
-      .in("status", ["open", "acknowledged"])
-      .limit(1)
-      .maybeSingle();
-    if (!existingInsight) {
-      const { data, error } = await db.from("ai_monitor_events").insert({
-        severity: "info",
-        source: "business",
-        title: insightTitle,
-        details: { recommendations: aiRecommendations },
-        status: "open",
-      }).select("id,severity,source,title,details,status,detected_at").single();
+    if (existingInsight) {
+      const { error } = await db.from("ai_monitor_events").update({ severity: "info", details: { recommendations: aiRecommendations }, status: "open" }).eq("id", existingInsight.id);
+      if (error) throw error;
+    } else {
+      const { data, error } = await db.from("ai_monitor_events").insert({ severity: "info", source: "business", title: insightTitle, details: { recommendations: aiRecommendations }, status: "open" }).select("id,severity,source,title,details,status,detected_at").single();
       if (error) throw error;
       if (data) inserted.push(data);
     }
+  } else if (existingInsight) {
+    const { error } = await db.from("ai_monitor_events").update({ status: "resolved", resolved_at: now.toISOString(), resolution_note: "AI recommendation set refreshed and no current recommendations were generated." }).eq("id", existingInsight.id).in("status", ["open", "acknowledged"]);
+    if (error) throw error;
   }
 
   const { data: openEvents } = await db
