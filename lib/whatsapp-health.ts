@@ -24,9 +24,9 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         const metaError = data?.error;
-        return { provider: "meta", configured: true, connected: false, status: "disconnected", error: metaError?.message || `Meta returned HTTP ${response.status}`, code: metaError?.code, details: { errorType: metaError?.type, errorSubcode: metaError?.error_subcode } };
+        return { provider: "meta", configured: true, connected: false, status: "disconnected", error: metaError?.message || `Meta returned HTTP ${response.status}`, code: metaError?.code, details: { httpStatus: response.status, errorType: metaError?.type, errorSubcode: metaError?.error_subcode } };
       }
-      return { provider: "meta", configured: true, connected: true, status: "connected", details: { phoneNumberId: phoneId, displayPhoneNumber: data?.display_phone_number, verifiedName: data?.verified_name, qualityRating: data?.quality_rating, status: data?.status, codeVerificationStatus: data?.code_verification_status } };
+      return { provider: "meta", configured: true, connected: true, status: "connected", code: response.status, details: { phoneNumberId: phoneId, displayPhoneNumber: data?.display_phone_number, verifiedName: data?.verified_name, qualityRating: data?.quality_rating, status: data?.status, codeVerificationStatus: data?.code_verification_status } };
     } catch (err: any) {
       return { provider: "meta", configured: true, connected: false, status: "unknown", error: err?.message || "Could not reach Meta." };
     }
@@ -39,7 +39,7 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       const response = await fetch(`${gatewayUrl}/health`, { headers: { "Bypass-Tunnel-Reminder": "true", ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}) }, cache: "no-store", signal: AbortSignal.timeout(12000) });
       const data = await response.json().catch(() => ({}));
       const connected = response.ok && Boolean(data?.connected);
-      return { provider: "local_gateway", configured: true, connected, status: connected ? "connected" : "disconnected", error: connected ? undefined : data?.error || `Gateway returned HTTP ${response.status}`, details: data };
+      return { provider: "local_gateway", configured: true, connected, status: connected ? "connected" : "disconnected", code: response.status, error: connected ? undefined : data?.error || `Gateway returned HTTP ${response.status}`, details: data };
     } catch (err: any) {
       return { provider: "local_gateway", configured: true, connected: false, status: "disconnected", error: `Could not reach WhatsApp Gateway: ${err?.message || "request failed"}` };
     }
@@ -53,7 +53,7 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       const response = await fetch(`https://api.ultramsg.com/${encodeURIComponent(instanceId)}/instance/status?token=${encodeURIComponent(token)}`, { cache: "no-store", signal: AbortSignal.timeout(12000) });
       const data = await response.json().catch(() => ({}));
       const connected = response.ok && String(data?.status || "").toLowerCase() === "authenticated";
-      return { provider: "ultramsg", configured: true, connected, status: connected ? "connected" : "disconnected", error: connected ? undefined : data?.error || "UltraMsg instance is not authenticated.", details: data };
+      return { provider: "ultramsg", configured: true, connected, status: connected ? "connected" : "disconnected", code: response.status, error: connected ? undefined : data?.error || "UltraMsg instance is not authenticated.", details: data };
     } catch (err: any) {
       return { provider: "ultramsg", configured: true, connected: false, status: "unknown", error: err?.message || "Could not reach UltraMsg." };
     }
