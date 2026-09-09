@@ -57,7 +57,7 @@ function labelType(type: string) {
 }
 
 export default function DefaultRoutingClient() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { showToast, toastView } = useToast();
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -195,13 +195,7 @@ export default function DefaultRoutingClient() {
                 </div>
                 <select
                   value={selected?.id || ""}
-                  onChange={(e) => {
-                    if (!e.target.value) {
-                      void clearDefault({ purpose: "customer_collection", method: method.key });
-                    } else {
-                      void setDefault({ purpose: "customer_collection", method: method.key, instrumentId: e.target.value });
-                    }
-                  }}
+                  onChange={(e) => e.target.value ? void setDefault({ purpose: "customer_collection", method: method.key, instrumentId: e.target.value }) : void clearDefault({ purpose: "customer_collection", method: method.key })}
                   disabled={busyKey === key || loading || options.length === 0}
                   className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                 >
@@ -238,13 +232,7 @@ export default function DefaultRoutingClient() {
                 </div>
                 <select
                   value={selected?.id || ""}
-                  onChange={(e) => {
-                    if (!e.target.value) {
-                      void clearDefault({ purpose: "provider_funding", serviceType: service.key });
-                    } else {
-                      void setDefault({ purpose: "provider_funding", serviceType: service.key, instrumentId: e.target.value });
-                    }
-                  }}
+                  onChange={(e) => e.target.value ? void setDefault({ purpose: "provider_funding", serviceType: service.key, instrumentId: e.target.value }) : void clearDefault({ purpose: "provider_funding", serviceType: service.key })}
                   disabled={busyKey === key || loading || options.length === 0}
                   className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-900 dark:text-white"
                 >
