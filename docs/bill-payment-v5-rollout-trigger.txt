@@ -1,1 +1,0 @@
-Production rollout trigger for Bill Payment v5.
