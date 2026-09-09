@@ -1,15 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Finding = { id: string; severity: "critical" | "high" | "medium" | "info"; area: string; title: string; evidence: string; recommendation: string; autoFixable: boolean; repairKind?: string };
 type Diagnosis = { findings: Finding[]; scannedAt: string };
 
 const APPROVAL_KEY = "cafe-epr-self-heal-approval";
 
-async function readJson(response: Response) {
-  return response.json().catch(() => ({} as any));
-}
+async function readJson(response: Response) { return response.json().catch(() => ({} as any)); }
 
 export default function AISelfHealingBridge() {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
@@ -17,9 +15,11 @@ export default function AISelfHealingBridge() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [scanError, setScanError] = useState("");
+  const scanBusy = useRef(false);
 
   const scan = useCallback(async () => {
-    if (busy) return;
+    if (scanBusy.current) return;
+    scanBusy.current = true;
     setBusy(true);
     setScanError("");
     setMessage("Scanning application health…");
@@ -29,7 +29,6 @@ export default function AISelfHealingBridge() {
       if (!response.ok) throw new Error(data?.error || `Scan failed (${response.status})`);
       const nextDiagnosis = data.diagnosis || { findings: [], scannedAt: new Date().toISOString() };
       setDiagnosis(nextDiagnosis);
-
       const repairable = (nextDiagnosis.findings || []).find((item: Finding) => item.autoFixable && item.repairKind);
       if (!repairable) {
         setApproval(null);
@@ -37,14 +36,12 @@ export default function AISelfHealingBridge() {
         setMessage(nextDiagnosis.findings?.length ? `Scan completed — ${nextDiagnosis.findings.length} application issue(s) detected. No repair was applied.` : "Scan completed — no repair-worthy application issue detected.");
         return;
       }
-
       const fingerprint = `${repairable.id}:${repairable.repairKind}:${repairable.evidence}`;
       const previous = window.localStorage.getItem(APPROVAL_KEY);
       if (previous === fingerprint) {
         setMessage(`Scan completed — ${nextDiagnosis.findings.length} issue(s) detected. Existing approval request is still available.`);
         return;
       }
-
       const prepare = await fetch("/api/ai/self-heal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prepareRepair: true }), cache: "no-store" });
       const prepared = await readJson(prepare);
       if (!prepare.ok) throw new Error(prepared?.error || `Repair preparation failed (${prepare.status})`);
@@ -58,13 +55,13 @@ export default function AISelfHealingBridge() {
         setMessage(`Scan completed — ${nextDiagnosis.findings.length} issue(s) detected. No repair approval was generated.`);
       }
     } catch (error) {
-      const text = error instanceof Error ? error.message : "AI self-healing scan failed";
-      setScanError(text);
+      setScanError(error instanceof Error ? error.message : "AI self-healing scan failed");
       setMessage("");
     } finally {
+      scanBusy.current = false;
       setBusy(false);
     }
-  }, [busy]);
+  }, []);
 
   useEffect(() => {
     void scan();
@@ -85,9 +82,7 @@ export default function AISelfHealingBridge() {
         setMessage(data.repair?.message || "Repair completed and verified.");
         window.localStorage.removeItem(APPROVAL_KEY);
         void scan();
-      } else {
-        setMessage("Approval was recorded, but the repair was not executed.");
-      }
+      } else setMessage("Approval was recorded, but the repair was not executed.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Repair failed");
     } finally {
