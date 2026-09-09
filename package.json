@@ -18,7 +18,7 @@
     "start": "next start",
     "electron:dev": "electron electron/main.js",
     "dist:win": "electron-builder --win",
-    "gateway": "node scripts/whatsapp-gateway.js",
+    "gateway": "node scripts/whatsapp-gateway-controller.js",
     "ai:portal:teach": "node scripts/ai-portal-worker.mjs teach",
     "ai:portal:receipt-teach": "node scripts/ai-portal-receipt-teach.mjs",
     "ai:erp:aeps:teach": "node scripts/ai-erp-aeps-teach.mjs",
@@ -38,21 +38,20 @@
     "localtunnel": "^2.0.0",
     "lucide-react": "^1.39.0",
     "next": "^15.1.6",
-    "pg": "^8.23.0",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5",
-    "eslint": "^9.39.5",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "^44.2.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.39.5",
+    "typescript": "^5"
   },
   "build": {
     "appId": "com.sarkarcommunication.cafeerp",
