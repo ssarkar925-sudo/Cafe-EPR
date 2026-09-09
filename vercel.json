@@ -1,4 +1,5 @@
 {
+  "buildCommand": "node scripts/repair-unified-settlement-build.mjs && npm run build",
   "crons": [
     {
       "path": "/api/ai/monitor/cron",
