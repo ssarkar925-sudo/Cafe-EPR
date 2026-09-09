@@ -35,22 +35,12 @@ export async function runBusinessMonitorScan() {
   const current7 = dayStart(7);
   const previous7 = dayStart(14);
 
-  const [
-    invoicesRes,
-    transactionsRes,
-    productsRes,
-    customersRes,
-    settlementsRes,
-    auditFindingsRes,
-    cashEntriesRes,
-  ] = await Promise.all([
+  const [invoicesRes, transactionsRes, productsRes, customersRes, settlementsRes, auditFindingsRes, cashEntriesRes] = await Promise.all([
     db.from("invoices").select("id,invoice_date,total,paid,due,status,created_at").limit(2000),
     db.from("transactions").select("id,service_type,amount,commission,status,transaction_date,created_at").limit(3000),
     db.from("products").select("id,name,stock_qty,reorder_level,is_active").eq("is_active", true).limit(1000),
     db.from("customers").select("id,name,balance,credit_limit,is_active,created_at").eq("is_active", true).limit(2000),
     db.from("settlements").select("id,amount,status,settlement_date,from_pool,to_pool,reference").order("created_at", { ascending: false }).limit(1000),
-    // Only unresolved non-PASS findings are actionable. Historical PASS rows are
-    // retained for audit history but must never reopen a current security alert.
     db.from("audit_findings").select("id,severity,status,resolution_status,description,created_at").in("severity", ["HIGH", "CRITICAL"]).order("created_at", { ascending: false }).limit(200),
     db.from("cash_entries").select("id,method,direction,amount,entry_date,created_at").limit(3000),
   ]);
@@ -70,111 +60,54 @@ export async function runBusinessMonitorScan() {
   const events: MonitorEvent[] = [];
   const activeInvoice = (row: any) => String(row.status || "").toLowerCase() !== "cancelled";
 
-  const current7Revenue = invoices
-    .filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, current7, now))
-    .reduce((s, r) => s + n(r.total), 0);
-  const previous7Revenue = invoices
-    .filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, previous7, current7))
-    .reduce((s, r) => s + n(r.total), 0);
+  const current7Revenue = invoices.filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, current7, now)).reduce((s, r) => s + n(r.total), 0);
+  const previous7Revenue = invoices.filter((r) => activeInvoice(r) && inRange(r.invoice_date || r.created_at, previous7, current7)).reduce((s, r) => s + n(r.total), 0);
   if (previous7Revenue > 0 && current7Revenue < previous7Revenue * 0.65) {
     const dropPct = Math.round((1 - current7Revenue / previous7Revenue) * 100);
-    events.push({
-      severity: dropPct >= 50 ? "critical" : "attention",
-      source: "business",
-      title: "Revenue is materially below the previous 7-day baseline",
-      details: { current7Revenue, previous7Revenue, dropPercent: dropPct },
-    });
+    events.push({ severity: dropPct >= 50 ? "critical" : "attention", source: "business", title: "Revenue is materially below the previous 7-day baseline", details: { current7Revenue, previous7Revenue, dropPercent: dropPct } });
   }
 
   const recentTxns = transactions.filter((r) => inRange(r.transaction_date || r.created_at, current7, now));
   const failedTxns = recentTxns.filter((r) => ["failed", "reversed"].includes(String(r.status || "").toLowerCase()));
   const failedRate = recentTxns.length ? failedTxns.length / recentTxns.length : 0;
   if (failedTxns.length >= 5 && failedRate >= 0.1) {
-    events.push({
-      severity: failedRate >= 0.25 ? "critical" : "attention",
-      source: "transaction",
-      title: "Transaction failure/reversal rate is elevated",
-      details: { recentTransactions: recentTxns.length, failedOrReversed: failedTxns.length, failureRatePercent: Math.round(failedRate * 100) },
-    });
+    events.push({ severity: failedRate >= 0.25 ? "critical" : "attention", source: "transaction", title: "Transaction failure/reversal rate is elevated", details: { recentTransactions: recentTxns.length, failedOrReversed: failedTxns.length, failureRatePercent: Math.round(failedRate * 100) } });
   }
 
   const lowStock = products.filter((p) => n(p.stock_qty) <= n(p.reorder_level) && n(p.reorder_level) > 0);
   if (lowStock.length > 0) {
-    events.push({
-      severity: lowStock.length >= 5 ? "attention" : "info",
-      source: "inventory",
-      title: "Products are at or below their reorder level",
-      details: { count: lowStock.length, products: lowStock.slice(0, 15).map((p) => ({ name: p.name, stock: n(p.stock_qty), reorderLevel: n(p.reorder_level) })) },
-    });
+    events.push({ severity: lowStock.length >= 5 ? "attention" : "info", source: "inventory", title: "Products are at or below their reorder level", details: { count: lowStock.length, products: lowStock.slice(0, 15).map((p) => ({ name: p.name, stock: n(p.stock_qty), reorderLevel: n(p.reorder_level) })) } });
   }
 
   const overdueCustomers = customers.filter((c) => n(c.balance) > 0);
   const overdueTotal = overdueCustomers.reduce((s, c) => s + n(c.balance), 0);
   if (overdueCustomers.length > 0 && overdueTotal > 0) {
-    events.push({
-      severity: overdueTotal >= 25000 ? "attention" : "info",
-      source: "customer",
-      title: "Customer outstanding balances need review",
-      details: {
-        customerCount: overdueCustomers.length,
-        totalOutstanding: overdueTotal,
-        topBalances: [...overdueCustomers].sort((a, b) => n(b.balance) - n(a.balance)).slice(0, 10).map((c) => ({ name: c.name, balance: n(c.balance) })),
-      },
-    });
+    events.push({ severity: overdueTotal >= 25000 ? "attention" : "info", source: "customer", title: "Customer outstanding balances need review", details: { customerCount: overdueCustomers.length, totalOutstanding: overdueTotal, topBalances: [...overdueCustomers].sort((a, b) => n(b.balance) - n(a.balance)).slice(0, 10).map((c) => ({ name: c.name, balance: n(c.balance) })) } });
   }
 
-  // Reversed/cancelled settlements are final states and should not remain as an
-  // active warning. Only an actually FAILED settlement needs intervention.
+  // Reversed/cancelled settlements are final states. Only a failed settlement is actionable.
   const failedSettlements = settlements.filter((s) => String(s.status || "").toLowerCase() === "failed");
   if (failedSettlements.length > 0) {
-    events.push({
-      severity: "attention",
-      source: "transaction",
-      title: "Failed settlements need review",
-      details: { count: failedSettlements.length, recent: failedSettlements.slice(0, 10).map((s) => ({ amount: n(s.amount), status: s.status, from: s.from_pool, to: s.to_pool, reference: s.reference })) },
-    });
+    events.push({ severity: "attention", source: "transaction", title: "Failed settlements need review", details: { count: failedSettlements.length, recent: failedSettlements.slice(0, 10).map((s) => ({ amount: n(s.amount), status: s.status, from: s.from_pool, to: s.to_pool, reference: s.reference })) } });
   }
 
-  const openHighFindings = auditFindings.filter((f) =>
-    String(f.resolution_status || "OPEN").toUpperCase() !== "RESOLVED" &&
-    String(f.status || "").toUpperCase() !== "PASS"
-  );
+  const openHighFindings = auditFindings.filter((f) => String(f.resolution_status || "OPEN").toUpperCase() !== "RESOLVED" && String(f.status || "").toUpperCase() !== "PASS");
   const criticalFindings = openHighFindings.filter((f) => String(f.severity || "").toUpperCase() === "CRITICAL");
   if (criticalFindings.length > 0) {
-    events.push({
-      severity: "critical",
-      source: "security",
-      title: "Critical audit findings remain open",
-      details: { count: criticalFindings.length, findings: criticalFindings.slice(0, 8).map((f) => ({ description: f.description, status: f.status, resolutionStatus: f.resolution_status })) },
-    });
+    events.push({ severity: "critical", source: "security", title: "Critical audit findings remain open", details: { count: criticalFindings.length, findings: criticalFindings.slice(0, 8).map((f) => ({ description: f.description, status: f.status, resolutionStatus: f.resolution_status })) } });
   } else if (openHighFindings.length > 0) {
-    events.push({
-      severity: "attention",
-      source: "security",
-      title: "High-severity audit findings remain open",
-      details: { count: openHighFindings.length, findings: openHighFindings.slice(0, 8).map((f) => ({ severity: f.severity, description: f.description, status: f.status })) },
-    });
+    events.push({ severity: "attention", source: "security", title: "High-severity audit findings remain open", details: { count: openHighFindings.length, findings: openHighFindings.slice(0, 8).map((f) => ({ severity: f.severity, description: f.description, status: f.status })) } });
   }
 
   const recentCash = cashEntries.filter((r) => inRange(r.entry_date || r.created_at, current7, now));
   const cashIn = recentCash.filter((r) => r.direction === "in").reduce((s, r) => s + n(r.amount), 0);
   const cashOut = recentCash.filter((r) => r.direction === "out").reduce((s, r) => s + n(r.amount), 0);
   if (cashOut > cashIn * 1.5 && cashOut - cashIn >= 5000) {
-    events.push({
-      severity: "attention",
-      source: "business",
-      title: "Cash outflow materially exceeds cash inflow",
-      details: { cashIn, cashOut, netCashMovement: cashIn - cashOut },
-    });
+    events.push({ severity: "attention", source: "business", title: "Cash outflow materially exceeds cash inflow", details: { cashIn, cashOut, netCashMovement: cashIn - cashOut } });
   }
 
-  // Reconcile the current monitor state instead of accumulating stale alerts.
-  // System/WhatsApp alerts are managed by their own health monitor and are not touched here.
-  const { data: priorOpenEvents, error: priorError } = await db
-    .from("ai_monitor_events")
-    .select("id,severity,source,title,details,status")
-    .in("status", ["open", "acknowledged"])
-    .in("source", MONITOR_SOURCES);
+  // Reconcile current monitor state so resolved conditions cannot remain as stale UI alerts.
+  const { data: priorOpenEvents, error: priorError } = await db.from("ai_monitor_events").select("id,severity,source,title,details,status").in("status", ["open", "acknowledged"]).in("source", MONITOR_SOURCES);
   if (priorError) throw priorError;
 
   const currentKeys = new Set(events.map((event) => `${event.source}:${event.title}`));
@@ -185,64 +118,27 @@ export async function runBusinessMonitorScan() {
     const key = `${event.source}:${event.title}`;
     const existing = priorByKey.get(key);
     if (existing) {
-      const { error } = await db.from("ai_monitor_events").update({
-        severity: event.severity,
-        details: event.details,
-        status: "open",
-      }).eq("id", existing.id);
+      const { error } = await db.from("ai_monitor_events").update({ severity: event.severity, details: event.details, status: "open" }).eq("id", existing.id);
       if (error) throw error;
     } else {
-      const { data, error } = await db.from("ai_monitor_events").insert({
-        severity: event.severity,
-        source: event.source,
-        title: event.title,
-        details: event.details,
-        status: "open",
-      }).select("id,severity,source,title,details,status,detected_at").single();
+      const { data, error } = await db.from("ai_monitor_events").insert({ severity: event.severity, source: event.source, title: event.title, details: event.details, status: "open" }).select("id,severity,source,title,details,status,detected_at").single();
       if (error) throw error;
       if (data) inserted.push(data);
     }
   }
 
   for (const event of priorOpenEvents || []) {
-    const key = `${event.source}:${event.title}`;
-    if (currentKeys.has(key)) continue;
-    const { error } = await db.from("ai_monitor_events").update({
-      status: "resolved",
-      resolved_at: now.toISOString(),
-      resolution_note: "Automatically resolved because the latest live monitor scan no longer detects this condition.",
-    }).eq("id", event.id).in("status", ["open", "acknowledged"]);
+    if (currentKeys.has(`${event.source}:${event.title}`)) continue;
+    const { error } = await db.from("ai_monitor_events").update({ status: "resolved", resolved_at: now.toISOString() }).eq("id", event.id).in("status", ["open", "acknowledged"]);
     if (error) throw error;
   }
 
   let aiRecommendations: string[] = [];
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
-    const summary = {
-      current7Revenue,
-      previous7Revenue,
-      recentTransactions: recentTxns.length,
-      failedOrReversed: failedTxns.length,
-      lowStockCount: lowStock.length,
-      outstandingCustomers: overdueCustomers.length,
-      outstandingTotal: overdueTotal,
-      failedSettlements: failedSettlements.length,
-      openHighAuditFindings: openHighFindings.length,
-      criticalAuditFindings: criticalFindings.length,
-      cashIn,
-      cashOut,
-    };
+    const summary = { current7Revenue, previous7Revenue, recentTransactions: recentTxns.length, failedOrReversed: failedTxns.length, lowStockCount: lowStock.length, outstandingCustomers: overdueCustomers.length, outstandingTotal: overdueTotal, failedSettlements: failedSettlements.length, openHighAuditFindings: openHighFindings.length, criticalAuditFindings: criticalFindings.length, cashIn, cashOut };
     try {
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
-          reasoning: { effort: "low" },
-          instructions: "You are a cautious small-business operations advisor. Analyze only the supplied aggregated metrics. Return exactly 3 concise, practical business opportunities or actions, one per line, with no markdown bullets. Never invent facts, prices, customers, or causes. Never recommend unauthorized financial transactions.",
-          input: JSON.stringify(summary),
-        }),
-      });
+      const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-5.6-luna", reasoning: { effort: "low" }, instructions: "You are a cautious small-business operations advisor. Analyze only the supplied aggregated metrics. Return exactly 3 concise, practical business opportunities or actions, one per line, with no markdown bullets. Never invent facts, prices, customers, or causes. Never recommend unauthorized financial transactions.", input: JSON.stringify(summary) }) });
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         const text = typeof data?.output_text === "string" ? data.output_text : "";
@@ -265,32 +161,16 @@ export async function runBusinessMonitorScan() {
       if (data) inserted.push(data);
     }
   } else if (existingInsight) {
-    const { error } = await db.from("ai_monitor_events").update({ status: "resolved", resolved_at: now.toISOString(), resolution_note: "AI recommendation set refreshed and no current recommendations were generated." }).eq("id", existingInsight.id).in("status", ["open", "acknowledged"]);
+    const { error } = await db.from("ai_monitor_events").update({ status: "resolved", resolved_at: now.toISOString() }).eq("id", existingInsight.id).in("status", ["open", "acknowledged"]);
     if (error) throw error;
   }
 
-  const { data: openEvents } = await db
-    .from("ai_monitor_events")
-    .select("id,severity,source,title,details,status,detected_at")
-    .in("status", ["open", "acknowledged"])
-    .order("detected_at", { ascending: false })
-    .limit(100);
+  const { data: openEvents } = await db.from("ai_monitor_events").select("id,severity,source,title,details,status,detected_at").in("status", ["open", "acknowledged"]).order("detected_at", { ascending: false }).limit(100);
 
   return {
     scannedAt: now.toISOString(),
     created: inserted,
     events: openEvents || [],
-    metrics: {
-      current7Revenue,
-      previous7Revenue,
-      recentTransactions: recentTxns.length,
-      failedOrReversed: failedTxns.length,
-      lowStockCount: lowStock.length,
-      outstandingTotal: overdueTotal,
-      openHighAuditFindings: openHighFindings.length,
-      criticalAuditFindings: criticalFindings.length,
-      cashIn,
-      cashOut,
-    },
+    metrics: { current7Revenue, previous7Revenue, recentTransactions: recentTxns.length, failedOrReversed: failedTxns.length, lowStockCount: lowStock.length, outstandingTotal: overdueTotal, openHighAuditFindings: openHighFindings.length, criticalAuditFindings: criticalFindings.length, cashIn, cashOut },
   };
 }
