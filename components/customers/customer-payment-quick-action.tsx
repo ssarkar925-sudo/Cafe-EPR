@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import Modal from "@/components/ui/modal";
 
 function inr(value: number | string) {
@@ -20,13 +19,17 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   credit_card: "Credit Card",
 };
 
+function newRequestKey() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
 export default function CustomerPaymentQuickAction({
   customer,
 }: {
   customer: { id: string; name: string; balance: number | string };
 }) {
   const router = useRouter();
-  const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("cash");
@@ -63,22 +66,33 @@ export default function CustomerPaymentQuickAction({
     }
 
     setSaving(true);
-    const { error: rpcError } = await supabase.rpc("record_customer_multi_payment", {
-      p_customer_id: customer.id,
-      p_entry_date: date,
-      p_allocations: [{ method, amount: Number(value.toFixed(2)) }],
-      p_reference: reference.trim() || null,
-    });
-    setSaving(false);
+    try {
+      const response = await fetch("/api/pos/customer-due-payment", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_id: customer.id,
+          entry_date: date,
+          amount: Number(value.toFixed(2)),
+          method,
+          reference: reference.trim() || null,
+          idempotency_key: newRequestKey(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.error) {
+        setError(payload?.error?.message || payload?.error || "Unable to record customer payment.");
+        return;
+      }
 
-    if (rpcError) {
-      setError(rpcError.message || "Unable to record customer payment.");
-      return;
+      close();
+      router.refresh();
+    } catch (requestError: any) {
+      setError(requestError?.message || "Unable to reach the customer payment service.");
+    } finally {
+      setSaving(false);
     }
-
-    close();
-    router.refresh();
-    window.location.reload();
   }
 
   return (
