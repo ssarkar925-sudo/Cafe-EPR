@@ -12,7 +12,7 @@ function replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, file
   if (start === -1) throw new Error(`[unified-settlement] start marker not found in ${fileName}: ${startNeedle}`);
   const end = source.indexOf(endNeedle, start);
   if (end === -1) throw new Error(`[unified-settlement] end marker not found in ${fileName}: ${endNeedle}`);
-  return source.slice(0, start) + replacement + source.slice(end);
+  return source.slice(0, start) + replacement + source.slice(end + endNeedle.length);
 }
 
 function ensureImport(source) {
@@ -165,20 +165,20 @@ const utilityReplacement = [
 const results = [];
 results.push(transform(
   "components/business/google-play-workspace.tsx",
-  "/* Right Column: Funding & Settlement Summary */",
-  "/* Google Play Recharge History Section */",
+  "{/* Right Column: Funding & Settlement Summary */}",
+  "{/* Google Play Recharge History Section */}",
   gpReplacement,
 ));
 results.push(transform(
   "components/business/recharge-workspace.tsx",
-  "/* RIGHT: Order Summary & Settlement Panel */",
-  "/* 4. TRANSACTION HISTORY CONSOLE */",
+  "{/* RIGHT: Order Summary & Settlement Panel */}",
+  "{/* 4. TRANSACTION HISTORY CONSOLE */}",
   rechargeReplacement,
 ));
 results.push(transform(
   "components/business/utility-bill-workspace.tsx",
-  "/* RIGHT: Order Summary & Settlement Panel */",
-  "/* 4. TRANSACTION HISTORY CONSOLE */",
+  "{/* RIGHT: Order Summary & Settlement Panel */}",
+  "{/* 4. TRANSACTION HISTORY CONSOLE */}",
   utilityReplacement,
 ));
 
