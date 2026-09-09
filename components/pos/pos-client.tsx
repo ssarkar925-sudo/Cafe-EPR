@@ -423,13 +423,17 @@ export default function PosClient({
 
   const methodList = useMemo(() => {
     const all = Object.keys(METHOD_BTN);
-    return enabledMethods && enabledMethods.length > 0 ? all.filter((m) => enabledMethods.includes(m)) : all;
+    return enabledMethods && enabledMethods.length > 0 ? all.filter((m) => m === "khata" || enabledMethods.includes(m)) : all;
   }, [enabledMethods]);
 
   const activeMethod = payments.length === 1 ? payments[0].method : "";
   const accountFilter = payments.length === 1 ? METHOD_ACCOUNT_TYPES[activeMethod] ?? enabledMethods : enabledMethods;
 
   function quickMethod(m: string) {
+    if (m === "khata") {
+      setPayments([{ instrument_id: "", method: "khata", amount: "0" }]);
+      return;
+    }
     const types = METHOD_ACCOUNT_TYPES[m] ?? [m];
     const first = types.map((t) => instruments.find((i) => i.type === t)).find(Boolean);
     const instId = first?.id ?? "";
@@ -461,7 +465,7 @@ export default function PosClient({
 
   useEffect(() => {
     setPayments((prev) =>
-      prev.length === 1 && (prev[0].amount === "" || Number(prev[0].amount) === 0)
+      prev.length === 1 && prev[0].method !== "khata" && (prev[0].amount === "" || Number(prev[0].amount) === 0)
         ? [
             {
               instrument_id: prev[0].instrument_id,
@@ -761,7 +765,7 @@ export default function PosClient({
       setError("Cart is empty");
       return;
     }
-    if (total > 0 && paid + advanceUsed <= 0) {
+    if (total > 0 && paid + advanceUsed <= 0 && activeMethod !== "khata") {
       setError("Enter a payment amount");
       return;
     }
@@ -1302,20 +1306,29 @@ export default function PosClient({
                     {/* Payment Row */}
                     {payments.map((p, i) => (
                       <div key={i} className="flex gap-2">
-                        <InstrumentSelect
-                          instruments={instruments}
-                          pick={p}
-                          onChange={(x) => setPaymentInstrument(i, x)}
-                          enabled={accountFilter}
-                          className="w-36"
-                        />
-                        <input
-                          type="number"
-                          value={p.amount}
-                          onChange={(e) => setPaymentAmount(i, e.target.value)}
-                          placeholder="Amount"
-                          className={inputClass}
-                        />
+                        {p.method === "khata" ? (
+                          <div className="flex flex-1 items-center justify-between rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200">
+                            <span>Khata / Due — Customer ledger</span>
+                            <span>₹0 received</span>
+                          </div>
+                        ) : (
+                          <>
+                            <InstrumentSelect
+                              instruments={instruments}
+                              pick={p}
+                              onChange={(x) => setPaymentInstrument(i, x)}
+                              enabled={accountFilter}
+                              className="w-36"
+                            />
+                            <input
+                              type="number"
+                              value={p.amount}
+                              onChange={(e) => setPaymentAmount(i, e.target.value)}
+                              placeholder="Amount"
+                              className={inputClass}
+                            />
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

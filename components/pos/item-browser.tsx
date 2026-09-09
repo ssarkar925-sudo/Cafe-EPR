@@ -96,6 +96,11 @@ export const METHOD_BTN: Record<string, { label: string; active: string; idle: s
     active: "bg-rose-600 text-white ring-2 ring-rose-500 shadow-md shadow-rose-500/25 scale-[1.02] font-black",
     idle: "bg-rose-50/80 text-rose-800 border border-rose-200/80 hover:bg-rose-100 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300 font-bold",
   },
+  khata: {
+    label: "Khata / Due",
+    active: "bg-slate-900 text-white ring-2 ring-slate-700 shadow-md shadow-slate-900/25 scale-[1.02] font-black",
+    idle: "bg-slate-100/90 text-slate-800 border border-slate-300/80 hover:bg-slate-200 dark:bg-slate-800 dark:border-white/10 dark:text-slate-200 font-bold",
+  },
 };
 
 export type Category = { id: string; name: string; count: number };
