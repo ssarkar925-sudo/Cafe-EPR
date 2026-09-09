@@ -10,7 +10,8 @@ export type SelfHealingFinding = {
   recommendation: string;
   autoFixable: boolean;
   repairBlocker?: string;
-  repairKind?: "meta_phone_number_id";
+  repairKind?: "meta_phone_number_id" | "local_gateway_reconnect";
+  actionUrl?: string;
 };
 
 export async function diagnoseApplication(supabase: SupabaseClient<any, any, any>): Promise<{ findings: SelfHealingFinding[]; scannedAt: string }> {
@@ -23,6 +24,10 @@ export async function diagnoseApplication(supabase: SupabaseClient<any, any, any
     const isLocalGateway = whatsapp.provider === "local_gateway";
     const isUltraMsg = whatsapp.provider === "ultramsg";
     const gatewayReachable = isLocalGateway && whatsapp.code === 200;
+    const waitingForQr = Boolean(whatsapp.details?.waitingForQr);
+    const reconnectSupported = Boolean(whatsapp.details?.reconnectSupported);
+    const localExecutable = isLocalGateway && gatewayReachable && reconnectSupported && !waitingForQr;
+    const gatewayUrl = typeof whatsapp.details?.gatewayUrl === "string" ? String(whatsapp.details.gatewayUrl) : undefined;
     findings.push({
       id: "whatsapp-disconnected",
       severity: "critical",
@@ -32,20 +37,23 @@ export async function diagnoseApplication(supabase: SupabaseClient<any, any, any
       recommendation: isMeta
         ? "Resolve the configured Meta WABA phone number ID against the WABA phone-number list, persist the unique match, then re-check the Graph API connection."
         : isLocalGateway
-          ? gatewayReachable
-            ? "The WhatsApp gateway is reachable but reports a disconnected session. Re-authenticate/reconnect the gateway session, then run the health check again; do not replace credentials or invent a reconnect endpoint."
-            : "Restore connectivity to the configured WhatsApp gateway, then re-run its /health check and confirm connected=true before sending messages."
+          ? waitingForQr
+            ? "The local WhatsApp gateway is running but the saved WhatsApp session is waiting for QR pairing. Open the gateway dashboard and scan the QR from WhatsApp → Linked Devices; AI cannot perform the phone-side scan."
+            : localExecutable
+              ? "Restart the CafeERP WhatsApp gateway using its supported recovery endpoint, preserve the existing authentication files, then re-run the health check. If the saved session is invalid, the gateway will expose a fresh QR instead of deleting credentials automatically."
+              : "Restore connectivity to the configured WhatsApp gateway, then re-run its /health check and confirm connected=true before sending messages."
           : isUltraMsg
             ? "Reconnect/authenticate the configured UltraMsg instance, then re-run the instance status check until it reports authenticated."
             : "Identify the configured WhatsApp provider and its supported reconnect/authentication procedure, then re-run the health check.",
-      autoFixable: isMeta,
-      repairKind: isMeta ? "meta_phone_number_id" : undefined,
-      repairBlocker: isMeta
+      autoFixable: isMeta || localExecutable,
+      repairKind: isMeta ? "meta_phone_number_id" : localExecutable ? "local_gateway_reconnect" : undefined,
+      actionUrl: isLocalGateway && waitingForQr ? gatewayUrl : undefined,
+      repairBlocker: isMeta || localExecutable
         ? undefined
         : isLocalGateway
-          ? gatewayReachable
-            ? "The gateway is reachable, but the application has no documented/safe reconnect operation for this provider. AI will not invent one or change gateway credentials."
-            : "The gateway cannot currently be reached, so an application-side repair cannot be safely executed."
+          ? waitingForQr
+            ? "The gateway needs a human phone-side QR scan. AI can start/restart the gateway, but it cannot approve or perform the WhatsApp Linked Device scan on your phone."
+            : "The configured gateway is not the CafeERP gateway with a verified recovery contract, so AI will not invent a restart endpoint or change credentials."
           : isUltraMsg
             ? "Re-authentication requires the provider session and cannot be safely invented by the ERP."
             : "No safe provider-specific repair operation is configured for this provider.",
