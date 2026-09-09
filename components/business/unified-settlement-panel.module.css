@@ -1,0 +1,113 @@
+.settlementHistoryScope {}
+
+:global(html[data-cafe-bill-recharge-settlement="1"]),
+:global(html[data-cafe-bill-recharge-settlement="1"] body) {
+  overflow-x: hidden !important;
+}
+
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(.overflow-x-auto:has(table)) {
+  overflow-x: visible !important;
+  max-width: 100% !important;
+}
+
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table) {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  table-layout: fixed;
+}
+
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td) {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(1)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(1)) { width: 11%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(2)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(2)) { width: 10%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(3)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(3)) { width: 15%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(4)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(4)) { width: 15%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(5)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(5)) { width: 10%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(6)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(6)) { width: 10%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(7)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(7)) { width: 9%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(8)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(8)) { width: 9%; }
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table th:nth-child(9)),
+:global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td:nth-child(9)) { width: 11%; }
+
+@media (max-width: 900px) {
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table),
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody),
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tr),
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table td) {
+    display: block;
+    width: 100% !important;
+  }
+
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table thead) {
+    display: none;
+  }
+
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody tr) {
+    margin: 0 0 .75rem;
+    padding: .55rem .8rem;
+    border: 1px solid rgba(148, 163, 184, .22);
+    border-radius: 1rem;
+    background: rgba(248, 250, 252, .72);
+  }
+
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td) {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .42rem 0 !important;
+    border: 0 !important;
+    text-align: right;
+    font-size: 10px;
+  }
+
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td::before) {
+    flex: 0 0 38%;
+    text-align: left;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.25;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: rgb(100 116 139);
+  }
+
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(1)::before) { content: "Date / Time"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(2)::before) { content: "Txn #"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(3)::before) { content: "Service / Operator"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(4)::before) { content: "Customer / Target"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(5)::before) { content: "Amount / Ref"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(6)::before) { content: "Commission / Margin"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(7)::before) { content: "Payment Method"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(8)::before) { content: "Status"; }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:nth-child(9)::before) { content: "Actions"; }
+
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td:last-child) {
+    padding-bottom: 0 !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody tr) {
+    background: rgba(15, 23, 42, .42);
+    border-color: rgba(255, 255, 255, .08);
+  }
+  :global(html[data-cafe-bill-recharge-settlement="1"]) :global(table tbody td::before) {
+    color: rgb(148 163 184);
+  }
+}
