@@ -5,7 +5,7 @@ const ROOT = process.cwd();
 const NL = String.fromCharCode(10);
 const SHARED_IMPORT = 'import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel";';
 const HISTORY_STYLE_IMPORT = 'import "@/components/business/unified-settlement-panel.module.css";';
-const MARKER = "UNIFIED_SETTLEMENT_RENDER_V2";
+const MARKER = "UNIFIED_SETTLEMENT_RENDER_V3";
 
 function ensureImport(source) {
   const imports = [SHARED_IMPORT, HISTORY_STYLE_IMPORT].filter((statement) => !source.includes(statement));
@@ -41,41 +41,63 @@ function findMatchingDivClose(source, openIndex, fileName) {
   throw new Error(`[unified-settlement] could not find matching </div> in ${fileName}`);
 }
 
-function findRightColumnOpen(source, marker, fileName) {
+function findSettlementColumnOpen(source, marker, historyMarker, fileName) {
   const markerIndex = source.indexOf(marker);
-  if (markerIndex === -1) throw new Error(`[unified-settlement] marker not found in ${fileName}: ${marker}`);
+  if (markerIndex === -1) throw new Error(`[unified-settlement] settlement marker not found in ${fileName}: ${marker}`);
+  const historyIndex = source.indexOf(historyMarker, markerIndex);
+  if (historyIndex === -1) throw new Error(`[unified-settlement] history marker not found in ${fileName}: ${historyMarker}`);
 
-  const regionStart = Math.max(0, markerIndex - 1400);
-  const before = source.slice(regionStart, markerIndex);
+  // The settlement marker is inside the right column. Find every preceding <div>
+  // whose matching close occurs before the history section. The right-column wrapper
+  // is the nearest such closing div to the history marker; this survives changes in
+  // Tailwind classes made by other prebuild repair scripts.
+  const windowStart = Math.max(0, markerIndex - 9000);
+  const prefix = source.slice(windowStart, markerIndex);
   const candidates = [];
-  const patterns = [
-    /<div\b[^>]*lg:col-span-4[^>]*>/g,
-    /<div\b[^>]*lg:col-span-5[^>]*>/g,
-  ];
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(before)) !== null) {
-      candidates.push(regionStart + match.index);
+  const openRe = /<div\b[^>]*>/g;
+  let match;
+  while ((match = openRe.exec(prefix)) !== null) {
+    const openIndex = windowStart + match.index;
+    try {
+      const close = findMatchingDivClose(source, openIndex, fileName);
+      if (close.index > markerIndex && close.index < historyIndex) {
+        candidates.push({ openIndex, closeIndex: close.index });
+      }
+    } catch {
+      // Ignore unmatched candidates here; JSX comments/expressions and other repair
+      // layers may create div-like fragments outside the actual enclosing column.
     }
   }
+
   if (candidates.length === 0) {
-    throw new Error(`[unified-settlement] settlement column opening div not found near marker in ${fileName}`);
+    throw new Error(`[unified-settlement] no enclosing settlement column found in ${fileName} before history section`);
   }
-  return Math.max(...candidates);
+
+  candidates.sort((a, b) => b.closeIndex - a.closeIndex);
+  return candidates[0].openIndex;
 }
 
-function replaceRightColumn(source, marker, replacement, fileName) {
-  const openIndex = findRightColumnOpen(source, marker, fileName);
+function replaceRightColumn(source, marker, historyMarker, replacement, fileName) {
+  const markerIndex = source.indexOf(marker);
+  const historyIndex = source.indexOf(historyMarker, markerIndex);
+  const openIndex = findSettlementColumnOpen(source, marker, historyMarker, fileName);
   const close = findMatchingDivClose(source, openIndex, fileName);
+  if (close.index >= historyIndex) {
+    throw new Error(`[unified-settlement] selected settlement column crosses history section in ${fileName}`);
+  }
   return source.slice(0, openIndex) + replacement + source.slice(close.index + close.length);
 }
 
-function transform(filePath, marker, replacement) {
+function transform(filePath, marker, historyMarker, replacement) {
   const abs = path.join(ROOT, filePath);
   let source = fs.readFileSync(abs, "utf8");
-  if (source.includes(MARKER)) return false;
+  if (source.includes(MARKER)) {
+    if (!source.includes(HISTORY_STYLE_IMPORT)) source = ensureImport(source);
+    fs.writeFileSync(abs, source, "utf8");
+    return false;
+  }
   source = ensureImport(source);
-  source = replaceRightColumn(source, marker, replacement, filePath);
+  source = replaceRightColumn(source, marker, historyMarker, replacement, filePath);
   fs.writeFileSync(abs, source, "utf8");
   return true;
 }
@@ -199,9 +221,24 @@ const utilityReplacement = panel([
 ]);
 
 const changed = [
-  transform("components/business/google-play-workspace.tsx", "{/* Right Column: Funding & Settlement Summary */}", gpReplacement),
-  transform("components/business/recharge-workspace.tsx", "{/* RIGHT: Order Summary & Settlement Panel */}", rechargeReplacement),
-  transform("components/business/utility-bill-workspace.tsx", "{/* RIGHT: Order Summary & Settlement Panel */}", utilityReplacement),
+  transform(
+    "components/business/google-play-workspace.tsx",
+    "{/* Right Column: Funding & Settlement Summary */}",
+    "{/* Google Play Recharge History Section */}",
+    gpReplacement,
+  ),
+  transform(
+    "components/business/recharge-workspace.tsx",
+    "{/* RIGHT: Order Summary & Settlement Panel */}",
+    "{/* 4. TRANSACTION HISTORY CONSOLE */}",
+    rechargeReplacement,
+  ),
+  transform(
+    "components/business/utility-bill-workspace.tsx",
+    "{/* RIGHT: Order Summary & Settlement Panel */}",
+    "{/* 4. TRANSACTION HISTORY CONSOLE */}",
+    utilityReplacement,
+  ),
 ].filter(Boolean).length;
 
 console.log(`[unified-settlement] applied to ${changed}/3 workspace source file(s).`);
