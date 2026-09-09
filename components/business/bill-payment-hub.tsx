@@ -920,7 +920,7 @@ export default function BillPaymentHub({
                     <th className="px-2.5 py-3 align-middle">Fee &amp; Margin</th>
                     <th className="px-2.5 py-3 align-middle">Payment</th>
                     <th className="px-2.5 py-3 align-middle">Status</th>
-                    <th className="px-4 py-3.5 text-right">Actions</th>
+                    <th className="px-2 py-3 align-middle text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium">
@@ -1647,6 +1647,41 @@ export default function BillPaymentHub({
                   <span>Target / Ref:</span>
                   <span className="font-bold">{printTxn.customer_mobile || printTxn.reference}</span>
                 </div>
+
+                {classifyTxn(printTxn).isUtility && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Biller:</span>
+                      <span className="font-bold">{classifyTxn(printTxn).providerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Consumer / Ref:</span>
+                      <span className="font-bold">{printTxn.reference || "—"}</span>
+                    </div>
+                  </>
+                )}
+
+                {classifyTxn(printTxn).isGooglePlay && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Provider:</span>
+                      <span className="font-bold">Google Play</span>
+                    </div>
+                    {printTxn.reference && (
+                      <div className="flex justify-between">
+                        <span>Voucher / Ref:</span>
+                        <span className="font-bold">{printTxn.reference}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {classifyTxn(printTxn).isRecharge && !classifyTxn(printTxn).isUtility && !classifyTxn(printTxn).isGooglePlay && (
+                  <div className="flex justify-between">
+                    <span>Operator:</span>
+                    <span className="font-bold">{classifyTxn(printTxn).providerName}</span>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-b py-2 space-y-1">
