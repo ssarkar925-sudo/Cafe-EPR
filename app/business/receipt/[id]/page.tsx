@@ -8,7 +8,14 @@ export const dynamic = "force-dynamic";
 const SERVICE_TITLE: Record<string, string> = {
   aeps: "AEPS CASH WITHDRAWAL",
   dmt: "DMT MONEY TRANSFER",
-  upi: "UPI CASH OUT",
+  upi: "UPI COLLECTION",
+  recharge: "MOBILE RECHARGE",
+  recharge_due: "MOBILE RECHARGE",
+  bill_payment: "UTILITY BILL PAYMENT",
+  utility_bill: "UTILITY BILL PAYMENT",
+  utility: "UTILITY BILL PAYMENT",
+  google_play: "GOOGLE PLAY RECHARGE",
+  google_play_recharge: "GOOGLE PLAY RECHARGE",
 };
 
 export default async function BusinessReceiptPage({
@@ -199,6 +206,104 @@ export default async function BusinessReceiptPage({
             </>
           )}
 
+          {(service === "recharge" || service === "recharge_due") && (
+            <>
+              <div className="flex justify-between">
+                <span>Mobile</span>
+                <span>{txn.customer_mobile || "-"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Operator</span>
+                <span>{txn.providers?.name || "Telecom Operator"}</span>
+              </div>
+              {txn.reference && (
+                <div className="flex justify-between">
+                  <span>Operator Ref</span>
+                  <span>{txn.reference}</span>
+                </div>
+              )}
+              <div className="my-1 border-t border-dashed border-slate-400" />
+              <div className="flex justify-between text-sm font-bold">
+                <span>RECHARGE AMOUNT</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>Service Fee</span>
+                  <span>+{money(txn.service_fee)}</span>
+                </div>
+              )}
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between text-sm font-bold">
+                  <span>TOTAL PAID</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {(service === "google_play" || service === "google_play_recharge") && (
+            <>
+              <div className="flex justify-between">
+                <span>Provider</span>
+                <span>Google Play</span>
+              </div>
+              {txn.customer_mobile && (
+                <div className="flex justify-between">
+                  <span>Customer Mobile</span>
+                  <span>{maskedMobile}</span>
+                </div>
+              )}
+              {txn.reference && (
+                <div className="flex justify-between">
+                  <span>Voucher / Ref</span>
+                  <span>{txn.reference}</span>
+                </div>
+              )}
+              <div className="my-1 border-t border-dashed border-slate-400" />
+              <div className="flex justify-between text-sm font-bold">
+                <span>RECHARGE AMOUNT</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between text-sm font-bold">
+                  <span>TOTAL PAID</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {(service === "bill_payment" || service === "utility_bill" || service === "utility") && (
+            <>
+              <div className="flex justify-between">
+                <span>Biller</span>
+                <span>{txn.providers?.name || txn.remarks?.split(" (")[0] || "BBPS Biller"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Consumer / Ref</span>
+                <span>{txn.reference || "-"}</span>
+              </div>
+              <div className="my-1 border-t border-dashed border-slate-400" />
+              <div className="flex justify-between text-sm font-bold">
+                <span>BILL AMOUNT</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>Service Fee</span>
+                  <span>+{money(txn.service_fee)}</span>
+                </div>
+              )}
+              {showCustomerFeeDetails && (
+                <div className="flex justify-between text-sm font-bold text-emerald-700">
+                  <span>TOTAL PAID</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
           {service === "dmt" && (
             <>
               <div className="flex justify-between">
@@ -266,6 +371,10 @@ export default async function BusinessReceiptPage({
                 </>
               )}
             </>
+          )}
+
+          {service !== "aeps" && service !== "dmt" && service !== "upi" && txn.pool_credit_type && (
+            <div className="mt-2 text-[10px] text-slate-500">Service Type: {String(txn.pool_credit_type)}</div>
           )}
 
           {txn.remarks && (

@@ -897,18 +897,29 @@ export default function BillPaymentHub({
 
           {/* Table Container */}
           <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-hidden">
+              <table className="w-full table-fixed text-left text-[10px]">
+                <colgroup>
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "17%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "13%" }} />
+                </colgroup>
                 <thead className="border-b border-slate-200/80 bg-slate-50/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:border-white/10 dark:bg-slate-800/50 dark:text-slate-400">
                   <tr>
-                    <th className="px-4 py-3.5">Date / Time</th>
-                    <th className="px-4 py-3.5">Txn No</th>
-                    <th className="px-4 py-3.5">Service &amp; Provider</th>
-                    <th className="px-4 py-3.5">Target / Consumer</th>
-                    <th className="px-4 py-3.5">Bill Amount</th>
-                    <th className="px-4 py-3.5">Fee &amp; Margin</th>
-                    <th className="px-4 py-3.5">Payment</th>
-                    <th className="px-4 py-3.5">Status</th>
+                    <th className="px-2.5 py-3 align-middle">Date / Time</th>
+                    <th className="px-2.5 py-3 align-middle">Txn No</th>
+                    <th className="px-2.5 py-3 align-middle">Service &amp; Provider</th>
+                    <th className="px-2.5 py-3 align-middle">Target / Consumer</th>
+                    <th className="px-2.5 py-3 align-middle">Bill Amount</th>
+                    <th className="px-2.5 py-3 align-middle">Fee &amp; Margin</th>
+                    <th className="px-2.5 py-3 align-middle">Payment</th>
+                    <th className="px-2.5 py-3 align-middle">Status</th>
                     <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -930,7 +941,7 @@ export default function BillPaymentHub({
                       return (
                         <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition">
                           {/* Date / Time */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-2.5 py-3 align-middle">
                             <span className="block font-bold text-slate-900 dark:text-white">
                               {fmtDate(t.transaction_timestamp || t.transaction_date)}
                             </span>
@@ -938,14 +949,14 @@ export default function BillPaymentHub({
                           </td>
 
                           {/* Txn Number */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                          <td className="px-2.5 py-3 align-middle">
+                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200 break-all">
                               {t.transaction_number}
                             </span>
                           </td>
 
                           {/* Service & Provider */}
-                          <td className="px-4 py-3.5">
+                          <td className="px-2.5 py-3 align-middle">
                             <div className="flex items-center gap-2">
                               <span className="text-base">{info.categoryIcon}</span>
                               <div className="min-w-0">
@@ -958,9 +969,9 @@ export default function BillPaymentHub({
                           </td>
 
                           {/* Target / Consumer */}
-                          <td className="px-4 py-3.5">
+                          <td className="px-2.5 py-3 align-middle">
                             <div className="min-w-0">
-                              <span className="block font-mono font-bold text-slate-800 dark:text-slate-200 truncate">
+                              <span className="block font-mono font-bold text-slate-800 dark:text-slate-200 break-all line-clamp-2">
                                 {t.customer_mobile || t.reference || "—"}
                               </span>
                               {t.customers?.name && (
@@ -970,12 +981,12 @@ export default function BillPaymentHub({
                           </td>
 
                           {/* Amount */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-2.5 py-3 align-middle">
                             <span className="font-bold text-slate-900 dark:text-white">{inr(amt)}</span>
                           </td>
 
                           {/* Fee & Margin */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-2.5 py-3 align-middle">
                             <span className="block font-bold text-emerald-600 dark:text-emerald-400">
                               +{inr(netMargin)}
                             </span>
@@ -985,14 +996,14 @@ export default function BillPaymentHub({
                           </td>
 
                           {/* Payment Method */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-2.5 py-3 align-middle">
                             <span className="inline-flex rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700 dark:bg-white/10 dark:text-slate-300">
                               {t.customer_pay_method || "CASH"}
                             </span>
                           </td>
 
                           {/* Status */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-2.5 py-3 align-middle">
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                 t.status === "success"
@@ -1020,7 +1031,7 @@ export default function BillPaymentHub({
                           </td>
 
                           {/* Actions Group (5 Actions) */}
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <td className="px-2 py-3 align-middle text-right">
                             <div className="flex items-center justify-end gap-1">
                               {/* 1. View */}
                               <button
