@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   migrate:
-    if: contains(github.event.head_commit.message, 'chore: run one-time Khata source migration')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
