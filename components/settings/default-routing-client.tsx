@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
-
 type Instrument = {
   id: string;
   name: string;
@@ -181,11 +180,10 @@ export default function DefaultRoutingClient() {
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {COLLECTION_METHODS.map((method) => {
-            const route = routeFor("customer_collection", null, method.key === "card" ? null : method.key);
-            const cardRoutes = method.key === "card" ? routes.filter((r) => r.purpose === "customer_collection" && !r.service_type && r.customer_payment_method === null) : [];
-            const selected = route ? byId.get(route.instrument_id) : cardRoutes.length ? byId.get(cardRoutes[0].instrument_id) : null;
-            const options = active.filter((i) => method.allowed.includes(i.type as never));
-            const key = `customer_collection::${method.key === "card" ? "" : method.key}`;
+            const route = routeFor("customer_collection", null, method.key);
+            const selected = route ? byId.get(route.instrument_id) : null;
+            const options = active.filter((i) => (method.allowed as readonly string[]).includes(i.type));
+            const key = `customer_collection:${method.key}`;
             return (
               <div key={method.key} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-950/40">
                 <div className="flex items-center justify-between gap-3">
@@ -199,9 +197,9 @@ export default function DefaultRoutingClient() {
                   value={selected?.id || ""}
                   onChange={(e) => {
                     if (!e.target.value) {
-                      void clearDefault({ purpose: "customer_collection", method: method.key === "card" ? null : method.key });
+                      void clearDefault({ purpose: "customer_collection", method: method.key });
                     } else {
-                      void setDefault({ purpose: "customer_collection", method: method.key === "card" ? "card" : method.key, instrumentId: e.target.value });
+                      void setDefault({ purpose: "customer_collection", method: method.key, instrumentId: e.target.value });
                     }
                   }}
                   disabled={busyKey === key || loading || options.length === 0}
