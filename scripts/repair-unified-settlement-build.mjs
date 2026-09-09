@@ -8,11 +8,24 @@ const HISTORY_STYLE_IMPORT = 'import "@/components/business/unified-settlement-p
 const MARKER = "UNIFIED_SETTLEMENT_RENDER_V1";
 
 function replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, fileName) {
-  const start = source.indexOf(startNeedle);
+  let start = source.indexOf(startNeedle);
   if (start === -1) throw new Error(`[unified-settlement] start marker not found in ${fileName}: ${startNeedle}`);
+
+  // Some legacy prebuild repair scripts can leave a standalone JSX `{` immediately
+  // before the section comment. Do not carry that wrapper into the shared component.
+  const lineStart = source.lastIndexOf(NL, start) + 1;
+  const beforeMarkerOnLine = source.slice(lineStart, start);
+  if (beforeMarkerOnLine.trim() === "{") {
+    start = lineStart + beforeMarkerOnLine.indexOf("{");
+  }
+
   const end = source.indexOf(endNeedle, start);
   if (end === -1) throw new Error(`[unified-settlement] end marker not found in ${fileName}: ${endNeedle}`);
-  return source.slice(0, start) + replacement + source.slice(end + endNeedle.length);
+  const next = source.slice(0, start) + replacement + source.slice(end + endNeedle.length);
+  if (new RegExp(`^\\s+\\{\\s+\\{\\/\\* ${MARKER} \\/\\*`, "m").test(next)) {
+    throw new Error(`[unified-settlement] stray JSX wrapper detected after transforming ${fileName}`);
+  }
+  return next;
 }
 
 function ensureImport(source) {
