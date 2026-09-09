@@ -4,6 +4,7 @@ import path from "node:path";
 const ROOT = process.cwd();
 const NL = String.fromCharCode(10);
 const SHARED_IMPORT = 'import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel";';
+const HISTORY_STYLE_IMPORT = 'import "@/components/business/unified-settlement-panel.module.css";';
 const MARKER = "UNIFIED_SETTLEMENT_RENDER_V1";
 
 function replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, fileName) {
@@ -15,21 +16,26 @@ function replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, file
 }
 
 function ensureImport(source) {
-  if (source.includes(SHARED_IMPORT)) return source;
+  const imports = [SHARED_IMPORT, HISTORY_STYLE_IMPORT].filter((statement) => !source.includes(statement));
+  if (imports.length === 0) return source;
   const lines = source.split(NL);
   let lastImport = -1;
   for (let i = 0; i < lines.length; i += 1) {
     if (lines[i].startsWith("import ")) lastImport = i;
   }
-  if (lastImport === -1) return `${SHARED_IMPORT}${NL}${source}`;
-  lines.splice(lastImport + 1, 0, SHARED_IMPORT);
+  if (lastImport === -1) return `${imports.join(NL)}${NL}${source}`;
+  lines.splice(lastImport + 1, 0, ...imports);
   return lines.join(NL);
 }
 
 function transform(filePath, startNeedle, endNeedle, replacement) {
   const abs = path.join(ROOT, filePath);
   let source = fs.readFileSync(abs, "utf8");
-  if (source.includes(MARKER)) return false;
+  if (source.includes(MARKER)) {
+    if (!source.includes(HISTORY_STYLE_IMPORT)) source = ensureImport(source);
+    fs.writeFileSync(abs, source, "utf8");
+    return false;
+  }
   source = ensureImport(source);
   source = replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, filePath);
   fs.writeFileSync(abs, source, "utf8");
@@ -178,6 +184,6 @@ results.push(transform(
 
 const changed = results.filter(Boolean).length;
 if (changed !== 3) {
-  console.log(`[unified-settlement] ${changed}/3 workspaces already transformed.`);
+  console.log(`[unified-settlement] ${changed}/3 workspaces changed; existing markers were preserved.`);
 }
 console.log(`[unified-settlement] applied to ${changed} workspace file(s).`);
