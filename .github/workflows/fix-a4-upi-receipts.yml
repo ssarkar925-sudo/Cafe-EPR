@@ -1,0 +1,62 @@
+name: Complete receipt coverage
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add UPI and fallback receipt sections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/business/receipt/[id]/page.tsx')
+          s = p.read_text()
+          anchor = '''          {service === "dmt" && ('''
+          insert = '''          {service === "upi" && (\n            <>\n              <div className="flex justify-between">\n                <span>Merchant / UPI</span>\n                <span>{txn.merchant_qrs?.display_name || txn.merchant_qrs?.upi_id || txn.upi_id || "Shop UPI"}</span>\n              </div>\n              {txn.reference && (\n                <div className="flex justify-between">\n                  <span>Reference / UTR</span>\n                  <span>{txn.reference}</span>\n                </div>\n              )}\n              <div className="my-1 border-t border-dashed border-slate-400" />\n              <div className="flex justify-between text-sm font-bold">\n                <span>COLLECTION AMOUNT</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between text-[11px] text-slate-600">\n                  <span>Service Fee</span>\n                  <span>+{money(txn.service_fee)}</span>\n                </div>\n              )}\n              {showCustomerFeeDetails && (\n                <div className="flex justify-between text-sm font-bold">\n                  <span>TOTAL PAID</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n'''
+          if insert not in s:
+              if anchor not in s:
+                  raise SystemExit('Receipt UPI anchor missing')
+              s = s.replace(anchor, insert + anchor, 1)
+          p.write_text(s)
+          PY
+
+      - name: Add UPI and fallback A4 receipt sections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/business/receipt/[id]/a4/page.tsx')
+          s = p.read_text()
+          title_old = '''const SERVICE_TITLE: Record<string, string> = {\n  aeps: "AEPS CASH WITHDRAWAL",\n  dmt: "DMT MONEY TRANSFER",\n  upi: "UPI CASH OUT",\n};'''
+          title_new = '''const SERVICE_TITLE: Record<string, string> = {\n  aeps: "AEPS CASH WITHDRAWAL",\n  dmt: "DMT MONEY TRANSFER",\n  upi: "UPI COLLECTION",\n  recharge: "MOBILE RECHARGE",\n  recharge_due: "MOBILE RECHARGE",\n  bill_payment: "UTILITY BILL PAYMENT",\n  utility_bill: "UTILITY BILL PAYMENT",\n  utility: "UTILITY BILL PAYMENT",\n  google_play: "GOOGLE PLAY RECHARGE",\n  google_play_recharge: "GOOGLE PLAY RECHARGE",\n};'''
+          if title_old in s:
+              s = s.replace(title_old, title_new, 1)
+          anchor = '''          {service === "dmt" && ('''
+          insert = '''          {service === "upi" && (\n            <>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Merchant / UPI</span>\n                <span className="font-medium text-slate-900">{txn.merchant_qrs?.display_name || txn.merchant_qrs?.upi_id || txn.upi_id || "Shop UPI"}</span>\n              </div>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Collection Amount</span>\n                <span className="font-medium text-slate-900">{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">\n                  <span>Service Fee</span>\n                  <span>+{money(txn.service_fee)}</span>\n                </div>\n              )}\n              {showCustomerFeeDetails && (\n                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                  <span>Total Paid by Customer</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n          {(service === "recharge" || service === "recharge_due") && (\n            <>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Mobile</span>\n                <span className="font-medium text-slate-900">{txn.customer_mobile || "-"}</span>\n              </div>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Operator</span>\n                <span className="font-medium text-slate-900">{txn.providers?.name || "Telecom Operator"}</span>\n              </div>\n              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                <span>Recharge Amount</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">\n                  <span>Service Fee</span>\n                  <span>+{money(txn.service_fee)}</span>\n                </div>\n              )}\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                  <span>Total Paid by Customer</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n          {(service === "google_play" || service === "google_play_recharge") && (\n            <>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Provider</span>\n                <span className="font-medium text-slate-900">Google Play</span>\n              </div>\n              {txn.reference && (\n                <div className="flex justify-between border-b border-slate-100 py-1.5">\n                  <span className="text-slate-600">Voucher / Ref</span>\n                  <span className="font-medium text-slate-900">{txn.reference}</span>\n                </div>\n              )}\n              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                <span>Recharge Amount</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                  <span>Total Paid by Customer</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n          {(service === "bill_payment" || service === "utility_bill" || service === "utility") && (\n            <>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Biller</span>\n                <span className="font-medium text-slate-900">{txn.providers?.name || txn.remarks?.split(" (")[0] || "BBPS Biller"}</span>\n              </div>\n              <div className="flex justify-between border-b border-slate-100 py-1.5">\n                <span className="text-slate-600">Consumer / Ref</span>\n                <span className="font-medium text-slate-900">{txn.reference || "-"}</span>\n              </div>\n              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                <span>Bill Amount</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">\n                  <span>Service Fee</span>\n                  <span>+{money(txn.service_fee)}</span>\n                </div>\n              )}\n              {showCustomerFeeDetails && (\n                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">\n                  <span>Total Paid by Customer</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n'''
+          if insert not in s:
+              if anchor not in s:
+                  raise SystemExit('A4 receipt service anchor missing')
+              s = s.replace(anchor, insert + anchor, 1)
+          p.write_text(s)
+          PY
+
+      - name: Remove workflow after patch
+        run: rm -f .github/workflows/fix-a4-upi-receipts.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'app/business/receipt/[id]/page.tsx' 'app/business/receipt/[id]/a4/page.tsx' .github/workflows/fix-a4-upi-receipts.yml
+          git diff --cached --quiet || git commit -m 'fix(receipts): complete UPI and A4 receipt coverage'
+          git push
