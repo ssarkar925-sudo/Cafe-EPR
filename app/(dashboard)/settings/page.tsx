@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import getUserRoleHack from "@/lib/authz";
+import { getUserRole, hasRole } from "@/lib/authz";
 import SystemSettingsClient from "@/components/settings/system-settings-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const role = await getUserRoleHack.getUserRole();
-  if (!getUserRoleHack.hasRole(role, ["admin"])) redirect("/dashboard");
+  const role = await getUserRole();
+  if (!hasRole(role, ["admin"])) redirect("/dashboard");
   return (
     <>
       <div className="mx-auto w-full max-w-7xl px-4 pt-4 lg:px-8">
