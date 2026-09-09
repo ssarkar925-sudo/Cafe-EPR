@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { inr } from "@/lib/format";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
+import SettlementFundingCardV2 from "@/components/business/settlement-funding-card-v2";
 import type { PaymentInstrument } from "@/components/business/recharge-workspace";
 
 type PaymentMethod = "cash" | "upi" | "bank" | "wallet" | "card" | "due";
@@ -117,11 +118,6 @@ export default function UnifiedSettlementPanel({
       delete root.dataset.cafeBillRechargeSettlement;
     };
   }, []);
-
-  const activeFunding = useMemo(
-    () => fundingInstruments.filter((instrument) => instrument.is_active !== false),
-    [fundingInstruments]
-  );
 
   const hasFundingBalance = typeof selectedFundingAccount?.balance === "number";
   const insufficientFunding =
@@ -272,67 +268,17 @@ export default function UnifiedSettlementPanel({
             ) : null}
           </section>
 
-          <section className="settlement-subcard mt-3 rounded-2xl border border-violet-200/80 bg-violet-50/45 p-3.5 dark:border-violet-500/20 dark:bg-violet-950/20">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700 dark:text-violet-300">Funding Account</div>
-                <div className="mt-1 text-[9px] text-slate-500 dark:text-slate-400">Provider cost is debited from this account</div>
-              </div>
-              <span className="rounded-lg bg-white/80 px-2 py-1 text-base dark:bg-slate-900/70">{accountIcon(selectedFundingAccount?.type)}</span>
-            </div>
-
-            <select
-              value={fundingInstId}
-              onChange={(e) => setFundingInstId(e.target.value)}
-              disabled={submitting}
-              className="mt-3 w-full rounded-xl border border-violet-200 bg-white px-3 py-2.5 text-xs font-black text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/15 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-            >
-              <option value="">Select funding account…</option>
-              {activeFunding.map((instrument) => (
-                <option key={instrument.id} value={instrument.id}>
-                  {instrument.name} · {instrument.type.replace(/_/g, " ").toUpperCase()}
-                </option>
-              ))}
-            </select>
-
-            {selectedFundingAccount ? (
-              <div className="mt-3 rounded-xl border border-white/80 bg-white/70 p-3 dark:border-white/5 dark:bg-slate-900/55">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black text-slate-900 dark:text-white">{selectedFundingAccount.name}</div>
-                    <div className="mt-0.5 text-[9px] font-bold uppercase text-violet-600 dark:text-violet-300">{selectedFundingAccount.type.replace(/_/g, " ")}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[9px] font-black uppercase text-slate-400">Provider Debit</div>
-                    <div className="mt-0.5 text-sm font-black font-mono text-violet-700 dark:text-violet-300">{money(providerCost)}</div>
-                  </div>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 dark:border-white/5">
-                  <div>
-                    <div className="text-[9px] font-bold uppercase text-slate-400">Recorded balance</div>
-                    <div className="mt-0.5 text-xs font-black font-mono text-slate-800 dark:text-slate-100">
-                      {hasFundingBalance ? money(Number(selectedFundingAccount.balance)) : "Not available"}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[9px] font-bold uppercase text-slate-400">After debit</div>
-                    <div className={`mt-0.5 text-xs font-black font-mono ${balanceAfter !== null && balanceAfter < 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                      {balanceAfter !== null ? money(balanceAfter) : "—"}
-                    </div>
-                  </div>
-                </div>
-                {insufficientFunding ? (
-                  <div className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-[10px] font-black text-rose-700 dark:bg-rose-950/35 dark:text-rose-300">
-                    Funding balance is below the provider debit. Choose another funding account.
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="mt-3 rounded-xl border border-dashed border-violet-300/70 bg-white/45 px-3 py-4 text-center text-[10px] font-bold text-violet-700 dark:border-violet-500/20 dark:bg-slate-900/40 dark:text-violet-300">
-                Select the business account used to settle the provider.
-              </div>
-            )}
-          </section>
+          <SettlementFundingCardV2
+            fundingInstId={fundingInstId}
+            setFundingInstId={setFundingInstId}
+            fundingInstruments={fundingInstruments}
+            selectedFundingAccount={selectedFundingAccount}
+            providerCost={providerCost}
+            submitting={submitting}
+            hasFundingBalance={hasFundingBalance}
+            insufficientFunding={insufficientFunding}
+            balanceAfter={balanceAfter}
+          />
 
           <section className="settlement-subcard mt-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 dark:border-white/10 dark:bg-white/[0.035]">
             <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Business Economics</div>
