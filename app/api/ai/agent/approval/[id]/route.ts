@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { approveAction, claimApprovedAction } from "@/lib/ai/approval-gate";
 import { calculateGstInvoice } from "@/lib/gst";
-import { checkWhatsAppHealth, repairMetaPhoneNumberId } from "@/lib/whatsapp-health";
+import { checkWhatsAppHealth, repairLocalWhatsAppGateway, repairMetaPhoneNumberId } from "@/lib/whatsapp-health";
 import { applyCodeRepair, type CodeRepairPlan } from "@/lib/ai/code-repair";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (!plan?.path || !plan?.oldSha || !plan?.oldContentHash || !plan?.newContent) throw new Error("Approved code repair plan is incomplete.");
       if (plan.path.startsWith(".github/") || plan.path.startsWith("supabase/migrations/") || plan.path === "package.json" || plan.path === "package-lock.json" || plan.path.startsWith(".env")) throw new Error("This source path is not eligible for automatic code repair.");
       const applied = await applyCodeRepair(plan);
-      // Deployment is intentionally not claimed here. Vercel/GitHub must pass the repository quality gate before production is considered verified.
       const executed = await markExecuted(id, applied.commitSha ? `github:${applied.commitSha}` : `github:${applied.path}`);
       return NextResponse.json({ approval: executed ?? { ...claimed, status: "executed" }, mode: "code-repair-applied", executed: true, repair: { changed: true, path: applied.path, commitSha: applied.commitSha, message: "Approved source patch applied. The repository quality gate must pass before deployment is considered verified." } });
     }
@@ -38,9 +37,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (approval.action === "repair_whatsapp") {
       const claimed = await claimApprovedAction(id);
       const payload = claimed.request_payload as any;
-      if (payload?.repair_kind !== "meta_phone_number_id") throw new Error("Unsupported AI repair plan.");
+      const repairKind = payload?.repair_kind;
+      if (repairKind !== "meta_phone_number_id" && repairKind !== "local_gateway_reconnect") throw new Error("Unsupported AI repair plan.");
       const before = await checkWhatsAppHealth();
       if (before.connected) { const executed = await markExecuted(id, "already-healthy"); return NextResponse.json({ approval: executed ?? { ...claimed, status: "executed" }, mode: "verified", executed: true, repair: { changed: false, message: "WhatsApp was already healthy; no configuration was changed." } }); }
+
+      if (repairKind === "local_gateway_reconnect") {
+        if (before.provider !== "local_gateway") throw new Error(`This approved repair is only valid for the local WhatsApp gateway. Current provider: ${before.provider || "not configured"}.`);
+        const repair = await repairLocalWhatsAppGateway();
+        if (!repair.repaired) { await restoreApproved(id, repair.reason || "Local gateway repair could not be executed."); throw new Error(repair.reason || "Local gateway repair could not be executed."); }
+        const after = await checkWhatsAppHealth();
+        const reference = repair.verified ? "local-gateway-reconnect:verified" : "local-gateway-reconnect:awaiting-user";
+        const executed = await markExecuted(id, reference);
+        return NextResponse.json({ approval: executed ?? { ...claimed, status: "executed" }, mode: repair.verified ? "self-healed" : "repair-started", executed: true, repair: { changed: true, verified: repair.verified, requiresUserAction: Boolean(repair.requiresQr), message: repair.verified ? "WhatsApp gateway was restarted and the connection was verified successfully." : (after.error || repair.message || "Gateway restarted. Complete the displayed QR pairing if requested, then run Guardian again.") } });
+      }
+
       if (before.provider !== "meta") throw new Error(`This approved repair is only valid for Meta WhatsApp. Current provider: ${before.provider || "not configured"}.`);
       const repair = await repairMetaPhoneNumberId();
       const after = await checkWhatsAppHealth();
