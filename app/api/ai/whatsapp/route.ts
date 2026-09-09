@@ -21,8 +21,10 @@ export async function POST(request: Request) {
     if (repair?.repaired || repair?.phoneNumberId) health = await checkWhatsAppHealth();
   }
 
-  if (!health.connected && health.status !== "not_configured") {
-    await recordWhatsAppHealthAlert(health).catch((error) => console.error("[AI WhatsApp] alert recording failed", error));
+  // Always reconcile the system WhatsApp alert after a health check. A healthy
+  // gateway must close any stale critical alert left by an earlier disconnect.
+  if (health.status !== "not_configured") {
+    await recordWhatsAppHealthAlert(health).catch((error) => console.error("[AI WhatsApp] health alert reconciliation failed", error));
   }
 
   const providerLabel = health.provider === "meta" ? "Meta Cloud API" : health.provider === "local_gateway" ? "Local WhatsApp Gateway" : health.provider === "ultramsg" ? "UltraMsg" : health.provider;
