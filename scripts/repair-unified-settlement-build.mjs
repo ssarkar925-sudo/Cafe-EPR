@@ -5,7 +5,7 @@ const ROOT = process.cwd();
 const NL = String.fromCharCode(10);
 const SHARED_IMPORT = 'import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel";';
 const HISTORY_STYLE_IMPORT = 'import "@/components/business/unified-settlement-panel.module.css";';
-const MARKER = "UNIFIED_SETTLEMENT_RENDER_V3";
+const MARKER = "UNIFIED_SETTLEMENT_RENDER_V4";
 
 function ensureImport(source) {
   const imports = [SHARED_IMPORT, HISTORY_STYLE_IMPORT].filter((statement) => !source.includes(statement));
@@ -41,18 +41,9 @@ function findMatchingDivClose(source, openIndex, fileName) {
   throw new Error(`[unified-settlement] could not find matching </div> in ${fileName}`);
 }
 
-function findSettlementColumnOpen(source, marker, historyMarker, fileName) {
-  const markerIndex = source.indexOf(marker);
-  if (markerIndex === -1) throw new Error(`[unified-settlement] settlement marker not found in ${fileName}: ${marker}`);
-  const historyIndex = source.indexOf(historyMarker, markerIndex);
-  if (historyIndex === -1) throw new Error(`[unified-settlement] history marker not found in ${fileName}: ${historyMarker}`);
-
-  // The settlement marker is inside the right column. Find every preceding <div>
-  // whose matching close occurs before the history section. The right-column wrapper
-  // is the nearest such closing div to the history marker; this survives changes in
-  // Tailwind classes made by other prebuild repair scripts.
-  const windowStart = Math.max(0, markerIndex - 9000);
-  const prefix = source.slice(windowStart, markerIndex);
+function findOpenForKnownClose(source, closeIndex, fileName) {
+  const windowStart = Math.max(0, closeIndex - 12000);
+  const prefix = source.slice(windowStart, closeIndex);
   const candidates = [];
   const openRe = /<div\b[^>]*>/g;
   let match;
@@ -60,32 +51,47 @@ function findSettlementColumnOpen(source, marker, historyMarker, fileName) {
     const openIndex = windowStart + match.index;
     try {
       const close = findMatchingDivClose(source, openIndex, fileName);
-      if (close.index > markerIndex && close.index < historyIndex) {
-        candidates.push({ openIndex, closeIndex: close.index });
-      }
+      if (close.index === closeIndex) candidates.push(openIndex);
     } catch {
-      // Ignore unmatched candidates here; JSX comments/expressions and other repair
-      // layers may create div-like fragments outside the actual enclosing column.
+      // Continue searching through nested candidates.
     }
   }
-
   if (candidates.length === 0) {
-    throw new Error(`[unified-settlement] no enclosing settlement column found in ${fileName} before history section`);
+    throw new Error(`[unified-settlement] could not resolve settlement column opener in ${fileName}`);
+  }
+  return Math.max(...candidates);
+}
+
+function findSettlementColumn(source, marker, historyMarker, fileName) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) throw new Error(`[unified-settlement] settlement marker not found in ${fileName}: ${marker}`);
+  const historyIndex = source.indexOf(historyMarker, markerIndex);
+  if (historyIndex === -1) throw new Error(`[unified-settlement] history marker not found in ${fileName}: ${historyMarker}`);
+
+  const beforeMarker = source.slice(0, markerIndex);
+  const closeRe = /<\/div\s*>/g;
+  let closeMatch;
+  let closeIndex = -1;
+  let closeLength = 0;
+  while ((closeMatch = closeRe.exec(beforeMarker)) !== null) {
+    closeIndex = closeMatch.index;
+    closeLength = closeMatch[0].length;
+  }
+  if (closeIndex === -1) {
+    throw new Error(`[unified-settlement] no closing div found immediately before marker in ${fileName}`);
   }
 
-  candidates.sort((a, b) => b.closeIndex - a.closeIndex);
-  return candidates[0].openIndex;
+  const openIndex = findOpenForKnownClose(source, closeIndex, fileName);
+  const close = findMatchingDivClose(source, openIndex, fileName);
+  if (close.index !== closeIndex || close.index >= historyIndex) {
+    throw new Error(`[unified-settlement] resolved settlement column boundary is invalid in ${fileName}`);
+  }
+  return { openIndex, closeIndex, closeLength };
 }
 
 function replaceRightColumn(source, marker, historyMarker, replacement, fileName) {
-  const markerIndex = source.indexOf(marker);
-  const historyIndex = source.indexOf(historyMarker, markerIndex);
-  const openIndex = findSettlementColumnOpen(source, marker, historyMarker, fileName);
-  const close = findMatchingDivClose(source, openIndex, fileName);
-  if (close.index >= historyIndex) {
-    throw new Error(`[unified-settlement] selected settlement column crosses history section in ${fileName}`);
-  }
-  return source.slice(0, openIndex) + replacement + source.slice(close.index + close.length);
+  const { openIndex, closeIndex, closeLength } = findSettlementColumn(source, marker, historyMarker, fileName);
+  return source.slice(0, openIndex) + replacement + source.slice(closeIndex + closeLength);
 }
 
 function transform(filePath, marker, historyMarker, replacement) {
