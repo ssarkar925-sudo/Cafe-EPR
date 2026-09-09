@@ -52,25 +52,10 @@ jobs:
               p.write_text(s)
           PY
 
-      - name: Set AEPS fee treatment default to separate
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('components/business/aeps-workspace.tsx')
-          s = p.read_text()
-          old = '  const [feeTreatment, setFeeTreatment] = useState<"deduct" | "separate">("deduct");'
-          new = '  const [feeTreatment, setFeeTreatment] = useState<"deduct" | "separate">("separate");'
-          if old in s:
-              s = s.replace(old, new, 1)
-              p.write_text(s)
-          elif new not in s:
-              raise SystemExit('AEPS fee treatment default anchor missing')
-          PY
-
       - name: Commit repair
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add components/business/recharge-workspace.tsx components/settings/settings-config.ts components/business/aeps-workspace.tsx
-          git diff --cached --quiet || git commit -m 'fix(aeps): make separate fee collection the default'
+          git add components/business/recharge-workspace.tsx components/settings/settings-config.ts
+          git diff --cached --quiet || git commit -m 'fix(build): repair payment instrument balance typing'
           git push
