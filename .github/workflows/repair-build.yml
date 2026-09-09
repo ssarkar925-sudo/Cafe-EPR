@@ -102,6 +102,54 @@ jobs:
           p.write_text(s)
           PY
 
+      - name: Make transaction history fit without horizontal scrolling
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('components/business/bill-payment-hub.tsx')
+          s = p.read_text()
+          old = '''          <div className="overflow-x-auto">\n              <table className="w-full text-left text-xs">'''
+          new = '''          <div className="overflow-hidden">\n              <table className="w-full table-fixed text-left text-[10px]">\n                <colgroup>\n                  <col style={{ width: "10%" }} />\n                  <col style={{ width: "11%" }} />\n                  <col style={{ width: "17%" }} />\n                  <col style={{ width: "15%" }} />\n                  <col style={{ width: "8%" }} />\n                  <col style={{ width: "10%" }} />\n                  <col style={{ width: "8%" }} />\n                  <col style={{ width: "8%" }} />\n                  <col style={{ width: "13%" }} />\n                </colgroup>'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit('History table anchor missing')
+
+          s = s.replace('className="px-4 py-3.5 whitespace-nowrap"', 'className="px-2.5 py-3 align-middle"')
+          s = s.replace('className="px-4 py-3.5"', 'className="px-2.5 py-3 align-middle"')
+          s = s.replace('className="px-4 py-3.5 text-right whitespace-nowrap"', 'className="px-2 py-3 align-middle text-right"')
+          s = s.replace('className="px-4 py-3.5 whitespace-nowrap"', 'className="px-2.5 py-3 align-middle"')
+          s = s.replace('className="font-mono font-bold text-slate-800 dark:text-slate-200">\n                              {t.transaction_number}', 'className="font-mono font-bold text-slate-800 dark:text-slate-200 break-all">\n                              {t.transaction_number}', 1)
+          s = s.replace('className="block font-mono font-bold text-slate-800 dark:text-slate-200 truncate">', 'className="block font-mono font-bold text-slate-800 dark:text-slate-200 break-all line-clamp-2">', 1)
+          p.write_text(s)
+          PY
+
+      - name: Universalize business transaction receipts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/business/receipt/[id]/page.tsx')
+          s = p.read_text()
+
+          old_titles = '''const SERVICE_TITLE: Record<string, string> = {\n  aeps: "AEPS CASH WITHDRAWAL",\n  dmt: "DMT MONEY TRANSFER",\n  upi: "UPI CASH OUT",\n};'''
+          new_titles = '''const SERVICE_TITLE: Record<string, string> = {\n  aeps: "AEPS CASH WITHDRAWAL",\n  dmt: "DMT MONEY TRANSFER",\n  upi: "UPI COLLECTION",\n  recharge: "MOBILE RECHARGE",\n  recharge_due: "MOBILE RECHARGE",\n  bill_payment: "UTILITY BILL PAYMENT",\n  utility_bill: "UTILITY BILL PAYMENT",\n  utility: "UTILITY BILL PAYMENT",\n  google_play: "GOOGLE PLAY RECHARGE",\n  google_play_recharge: "GOOGLE PLAY RECHARGE",\n};'''
+          if old_titles in s:
+              s = s.replace(old_titles, new_titles, 1)
+          elif new_titles not in s:
+              raise SystemExit('Service title anchor missing')
+
+          old_branch = '''          {service === "dmt" && ('''
+          if old_branch not in s:
+              raise SystemExit('DMT branch anchor missing')
+
+          insert = '''          {(service === "recharge" || service === "recharge_due") && (\n            <>\n              <div className="flex justify-between">\n                <span>Mobile</span>\n                <span>{txn.customer_mobile || "-"}</span>\n              </div>\n              <div className="flex justify-between">\n                <span>Operator</span>\n                <span>{txn.providers?.name || "Telecom Operator"}</span>\n              </div>\n              {txn.reference && (\n                <div className="flex justify-between">\n                  <span>Operator Ref</span>\n                  <span>{txn.reference}</span>\n                </div>\n              )}\n              <div className="my-1 border-t border-dashed border-slate-400" />\n              <div className="flex justify-between text-sm font-bold">\n                <span>RECHARGE AMOUNT</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between text-[11px] text-slate-600">\n                  <span>Service Fee</span>\n                  <span>+{money(txn.service_fee)}</span>\n                </div>\n              )}\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between text-sm font-bold">\n                  <span>TOTAL PAID</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n          {(service === "google_play" || service === "google_play_recharge") && (\n            <>\n              <div className="flex justify-between">\n                <span>Provider</span>\n                <span>Google Play</span>\n              </div>\n              {txn.customer_mobile && (\n                <div className="flex justify-between">\n                  <span>Customer Mobile</span>\n                  <span>{maskedMobile}</span>\n                </div>\n              )}\n              {txn.reference && (\n                <div className="flex justify-between">\n                  <span>Voucher / Ref</span>\n                  <span>{txn.reference}</span>\n                </div>\n              )}\n              <div className="my-1 border-t border-dashed border-slate-400" />\n              <div className="flex justify-between text-sm font-bold">\n                <span>RECHARGE AMOUNT</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between text-sm font-bold">\n                  <span>TOTAL PAID</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n          {(service === "bill_payment" || service === "utility_bill" || service === "utility") && (\n            <>\n              <div className="flex justify-between">\n                <span>Biller</span>\n                <span>{txn.providers?.name || txn.remarks?.split(" (")[0] || "BBPS Biller"}</span>\n              </div>\n              <div className="flex justify-between">\n                <span>Consumer / Ref</span>\n                <span>{txn.reference || "-"}</span>\n              </div>\n              <div className="my-1 border-t border-dashed border-slate-400" />\n              <div className="flex justify-between text-sm font-bold">\n                <span>BILL AMOUNT</span>\n                <span>{money(txn.amount)}</span>\n              </div>\n              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (\n                <div className="flex justify-between text-[11px] text-slate-600">\n                  <span>Service Fee</span>\n                  <span>+{money(txn.service_fee)}</span>\n                </div>\n              )}\n              {showCustomerFeeDetails && (\n                <div className="flex justify-between text-sm font-bold text-emerald-700">\n                  <span>TOTAL PAID</span>\n                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>\n                </div>\n              )}\n            </>\n          )}\n\n'''
+          s = s.replace(old_branch, insert + old_branch, 1)
+
+          s = s.replace('''          {txn.remarks && (''', '''          {service !== "aeps" && service !== "dmt" && service !== "upi" && txn.pool_credit_type && (\n            <div className="mt-2 text-[10px] text-slate-500">Service Type: {String(txn.pool_credit_type)}</div>\n          )}\n\n          {txn.remarks && (''', 1)
+
+          p.write_text(s)
+          PY
+
       - name: Remove temporary dashboard hardening workflow
         run: rm -f .github/workflows/dashboard-metrics-hardening.yml
 
@@ -109,6 +157,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add components/business/recharge-workspace.tsx components/settings/settings-config.ts 'app/(dashboard)/dashboard/page.tsx' components/dashboard/dashboard-client.tsx .github/workflows/repair-build.yml .github/workflows/dashboard-metrics-hardening.yml
-          git diff --cached --quiet || git commit -m 'fix(dashboard): correct liquidity and service performance calculations'
+          git add components/business/recharge-workspace.tsx components/settings/settings-config.ts 'app/(dashboard)/dashboard/page.tsx' components/dashboard/dashboard-client.tsx components/business/bill-payment-hub.tsx 'app/business/receipt/[id]/page.tsx' .github/workflows/repair-build.yml .github/workflows/dashboard-metrics-hardening.yml
+          git diff --cached --quiet || git commit -m 'fix(receipts): universalize transaction receipts and make history responsive'
           git push
