@@ -304,6 +304,38 @@ export default async function BusinessReceiptPage({
             </>
           )}
 
+          {service === "upi" && (
+            <>
+              <div className="flex justify-between">
+                <span>Merchant / UPI</span>
+                <span>{txn.merchant_qrs?.display_name || txn.merchant_qrs?.upi_id || txn.upi_id || "Shop UPI"}</span>
+              </div>
+              {txn.reference && (
+                <div className="flex justify-between">
+                  <span>Reference / UTR</span>
+                  <span>{txn.reference}</span>
+                </div>
+              )}
+              <div className="my-1 border-t border-dashed border-slate-400" />
+              <div className="flex justify-between text-sm font-bold">
+                <span>COLLECTION AMOUNT</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>Service Fee</span>
+                  <span>+{money(txn.service_fee)}</span>
+                </div>
+              )}
+              {showCustomerFeeDetails && (
+                <div className="flex justify-between text-sm font-bold">
+                  <span>TOTAL PAID</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
           {service === "dmt" && (
             <>
               <div className="flex justify-between">

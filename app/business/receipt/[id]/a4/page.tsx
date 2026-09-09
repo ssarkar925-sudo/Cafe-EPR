@@ -8,7 +8,14 @@ export const dynamic = "force-dynamic";
 const SERVICE_TITLE: Record<string, string> = {
   aeps: "AEPS CASH WITHDRAWAL",
   dmt: "DMT MONEY TRANSFER",
-  upi: "UPI CASH OUT",
+  upi: "UPI COLLECTION",
+  recharge: "MOBILE RECHARGE",
+  recharge_due: "MOBILE RECHARGE",
+  bill_payment: "UTILITY BILL PAYMENT",
+  utility_bill: "UTILITY BILL PAYMENT",
+  utility: "UTILITY BILL PAYMENT",
+  google_play: "GOOGLE PLAY RECHARGE",
+  google_play_recharge: "GOOGLE PLAY RECHARGE",
 };
 
 export default async function BusinessReceiptA4Page({
@@ -211,6 +218,114 @@ export default async function BusinessReceiptA4Page({
                     <span className="text-emerald-700">{money(cashHanded)}</span>
                   </div>
                 </>
+              )}
+            </>
+          )}
+
+          {service === "upi" && (
+            <>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Merchant / UPI</span>
+                <span className="font-medium text-slate-900">{txn.merchant_qrs?.display_name || txn.merchant_qrs?.upi_id || txn.upi_id || "Shop UPI"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Collection Amount</span>
+                <span className="font-medium text-slate-900">{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                  <span>Service Fee</span>
+                  <span>+{money(txn.service_fee)}</span>
+                </div>
+              )}
+              {showCustomerFeeDetails && (
+                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                  <span>Total Paid by Customer</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {(service === "recharge" || service === "recharge_due") && (
+            <>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Mobile</span>
+                <span className="font-medium text-slate-900">{txn.customer_mobile || "-"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Operator</span>
+                <span className="font-medium text-slate-900">{txn.providers?.name || "Telecom Operator"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                <span>Recharge Amount</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                  <span>Service Fee</span>
+                  <span>+{money(txn.service_fee)}</span>
+                </div>
+              )}
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                  <span>Total Paid by Customer</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {(service === "google_play" || service === "google_play_recharge") && (
+            <>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Provider</span>
+                <span className="font-medium text-slate-900">Google Play</span>
+              </div>
+              {txn.reference && (
+                <div className="flex justify-between border-b border-slate-100 py-1.5">
+                  <span className="text-slate-600">Voucher / Ref</span>
+                  <span className="font-medium text-slate-900">{txn.reference}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                <span>Recharge Amount</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                  <span>Total Paid by Customer</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {(service === "bill_payment" || service === "utility_bill" || service === "utility") && (
+            <>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Biller</span>
+                <span className="font-medium text-slate-900">{txn.providers?.name || txn.remarks?.split(" (")[0] || "BBPS Biller"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-600">Consumer / Ref</span>
+                <span className="font-medium text-slate-900">{txn.reference || "-"}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                <span>Bill Amount</span>
+                <span>{money(txn.amount)}</span>
+              </div>
+              {showCustomerFeeDetails && Number(txn.service_fee || 0) > 0 && (
+                <div className="flex justify-between border-b border-slate-100 py-1.5 text-slate-600">
+                  <span>Service Fee</span>
+                  <span>+{money(txn.service_fee)}</span>
+                </div>
+              )}
+              {showCustomerFeeDetails && (
+                <div className="flex justify-between border-b border-slate-100 py-2 font-bold text-slate-900">
+                  <span>Total Paid by Customer</span>
+                  <span>{money(Number(txn.amount || 0) + Number(txn.service_fee || 0))}</span>
+                </div>
               )}
             </>
           )}
