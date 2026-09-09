@@ -5,15 +5,7 @@ const ROOT = process.cwd();
 const NL = String.fromCharCode(10);
 const SHARED_IMPORT = 'import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel";';
 const HISTORY_STYLE_IMPORT = 'import "@/components/business/unified-settlement-panel.module.css";';
-const MARKER = "UNIFIED_SETTLEMENT_RENDER_V1";
-
-function replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, fileName) {
-  const start = source.indexOf(startNeedle);
-  if (start === -1) throw new Error(`[unified-settlement] start marker not found in ${fileName}: ${startNeedle}`);
-  const end = source.indexOf(endNeedle, start);
-  if (end === -1) throw new Error(`[unified-settlement] end marker not found in ${fileName}: ${endNeedle}`);
-  return source.slice(0, start) + replacement + source.slice(end + endNeedle.length);
-}
+const MARKER = "UNIFIED_SETTLEMENT_RENDER_V2";
 
 function ensureImport(source) {
   const imports = [SHARED_IMPORT, HISTORY_STYLE_IMPORT].filter((statement) => !source.includes(statement));
@@ -28,23 +20,77 @@ function ensureImport(source) {
   return lines.join(NL);
 }
 
-function transform(filePath, startNeedle, endNeedle, replacement) {
+function findMatchingDivClose(source, openIndex, fileName) {
+  const token = /<\/?div\b[^>]*>/g;
+  token.lastIndex = openIndex;
+  let depth = 0;
+  let seenOpen = false;
+  let match;
+  while ((match = token.exec(source)) !== null) {
+    const text = match[0];
+    if (text.startsWith("</")) {
+      if (!seenOpen) continue;
+      depth -= 1;
+      if (depth === 0) return { index: match.index, length: text.length };
+      continue;
+    }
+    if (/\/\s*>$/.test(text)) continue;
+    depth += 1;
+    seenOpen = true;
+  }
+  throw new Error(`[unified-settlement] could not find matching </div> in ${fileName}`);
+}
+
+function findRightColumnOpen(source, marker, fileName) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) throw new Error(`[unified-settlement] marker not found in ${fileName}: ${marker}`);
+
+  const regionStart = Math.max(0, markerIndex - 1400);
+  const before = source.slice(regionStart, markerIndex);
+  const candidates = [];
+  const patterns = [
+    /<div\b[^>]*lg:col-span-4[^>]*>/g,
+    /<div\b[^>]*lg:col-span-5[^>]*>/g,
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(before)) !== null) {
+      candidates.push(regionStart + match.index);
+    }
+  }
+  if (candidates.length === 0) {
+    throw new Error(`[unified-settlement] settlement column opening div not found near marker in ${fileName}`);
+  }
+  return Math.max(...candidates);
+}
+
+function replaceRightColumn(source, marker, replacement, fileName) {
+  const openIndex = findRightColumnOpen(source, marker, fileName);
+  const close = findMatchingDivClose(source, openIndex, fileName);
+  return source.slice(0, openIndex) + replacement + source.slice(close.index + close.length);
+}
+
+function transform(filePath, marker, replacement) {
   const abs = path.join(ROOT, filePath);
   let source = fs.readFileSync(abs, "utf8");
-  if (source.includes(MARKER)) {
-    if (!source.includes(HISTORY_STYLE_IMPORT)) source = ensureImport(source);
-    fs.writeFileSync(abs, source, "utf8");
-    return false;
-  }
+  if (source.includes(MARKER)) return false;
   source = ensureImport(source);
-  source = replaceBetweenMarkers(source, startNeedle, endNeedle, replacement, filePath);
+  source = replaceRightColumn(source, marker, replacement, filePath);
   fs.writeFileSync(abs, source, "utf8");
   return true;
 }
 
-const gpReplacement = [
-  `      {/* ${MARKER} */}`,
-  "      <UnifiedSettlementPanel",
+function panel(props) {
+  return [
+    `      {/* ${MARKER} */}`,
+    "      <UnifiedSettlementPanel",
+    ...props,
+    "      />",
+    "",
+  ].join(NL);
+}
+
+const gpReplacement = panel([
   '        serviceLabel="Google Play Recharge"',
   '        targetLabel="Customer Mobile"',
   '        targetValue={customerMobile ? "+91 " + customerMobile : "Enter mobile number"}',
@@ -78,13 +124,9 @@ const gpReplacement = [
   "        canSubmit={rechargeAmount > 0 && !!fundingInstId}",
   '        submitLabel="Complete Recharge"',
   '        validationHint="Customer collection, provider cost, funding debit and margin are reconciled before posting."',
-  "      />",
-  "",
-].join(NL);
+]);
 
-const rechargeReplacement = [
-  `      {/* ${MARKER} */}`,
-  "      <UnifiedSettlementPanel",
+const rechargeReplacement = panel([
   '        serviceLabel={selectedOperatorCode ? (allOperators.find((o) => o.code === selectedOperatorCode)?.name || "Mobile") + " Recharge" : "Mobile Recharge"}',
   '        targetLabel="Target Mobile"',
   '        targetValue={mobileNumber ? "+91 " + mobileNumber : "Enter mobile number"}',
@@ -118,13 +160,9 @@ const rechargeReplacement = [
   "        canSubmit={rechargeAmount > 0 && mobileNumber.length === 10 && !!selectedOperatorCode && !!fundingInstId}",
   '        submitLabel="Complete Recharge"',
   '        validationHint="Select operator, enter a valid target number and confirm the funding account before settlement."',
-  "      />",
-  "",
-].join(NL);
+]);
 
-const utilityReplacement = [
-  `      {/* ${MARKER} */}`,
-  "      <UnifiedSettlementPanel",
+const utilityReplacement = panel([
   '        serviceLabel={selectedBiller?.shortName || selectedBiller?.name || currentCategory.name}',
   "        targetLabel={currentCategory.idLabel}",
   '        targetValue={consumerId || "Enter consumer identifier"}',
@@ -158,32 +196,12 @@ const utilityReplacement = [
   "        canSubmit={billAmount > 0 && !!consumerId.trim() && (billersForCategory.length === 0 || !!selectedBillerId) && !!fundingInstId}",
   '        submitLabel="Pay Bill"',
   '        validationHint={fetchedBill ? "Verified bill " + fetchedBill.billNumber + " is ready for settlement." : "Enter the consumer identifier and verify the bill where the biller requires a fetch."}',
-  "      />",
-  "",
-].join(NL);
+]);
 
-const results = [];
-results.push(transform(
-  "components/business/google-play-workspace.tsx",
-  "{/* Right Column: Funding & Settlement Summary */}",
-  "{/* Google Play Recharge History Section */}",
-  gpReplacement,
-));
-results.push(transform(
-  "components/business/recharge-workspace.tsx",
-  "{/* RIGHT: Order Summary & Settlement Panel */}",
-  "{/* 4. TRANSACTION HISTORY CONSOLE */}",
-  rechargeReplacement,
-));
-results.push(transform(
-  "components/business/utility-bill-workspace.tsx",
-  "{/* RIGHT: Order Summary & Settlement Panel */}",
-  "{/* 4. TRANSACTION HISTORY CONSOLE */}",
-  utilityReplacement,
-));
+const changed = [
+  transform("components/business/google-play-workspace.tsx", "{/* Right Column: Funding & Settlement Summary */}", gpReplacement),
+  transform("components/business/recharge-workspace.tsx", "{/* RIGHT: Order Summary & Settlement Panel */}", rechargeReplacement),
+  transform("components/business/utility-bill-workspace.tsx", "{/* RIGHT: Order Summary & Settlement Panel */}", utilityReplacement),
+].filter(Boolean).length;
 
-const changed = results.filter(Boolean).length;
-if (changed !== 3) {
-  console.log(`[unified-settlement] ${changed}/3 workspaces changed; existing markers were preserved.`);
-}
-console.log(`[unified-settlement] applied to ${changed} workspace file(s).`);
+console.log(`[unified-settlement] applied to ${changed}/3 workspace source file(s).`);
