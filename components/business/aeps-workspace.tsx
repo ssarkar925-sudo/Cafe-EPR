@@ -149,7 +149,7 @@ export default function AepsWorkspace({
   const [portalCommission, setPortalCommission] = useState<string>("");
   
   // Fee Treatment: "separate" (Collect Separately) vs "deduct" (Deduct From Payout)
-  const [feeTreatment, setFeeTreatment] = useState<"deduct" | "separate">("deduct");
+  const [feeTreatment, setFeeTreatment] = useState<"deduct" | "separate">("separate");
   // Fee Collection Instrument (when separate): "cash", "upi", "bank", "due"
   const [customerPayMethod, setCustomerPayMethod] = useState<"cash" | "upi" | "bank" | "due">("cash");
 
