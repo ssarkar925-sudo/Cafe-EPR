@@ -169,10 +169,32 @@ export async function repairMetaPhoneNumberId() {
 
 export async function recordWhatsAppHealthAlert(health: WhatsAppHealth) {
   const db = createAdminClient();
-  if (health.connected || health.status === "not_configured") return null;
   const title = "WhatsApp gateway is disconnected or unhealthy";
+
+  if (health.connected) {
+    const { error } = await db.from("ai_monitor_events")
+      .update({
+        status: "resolved",
+        resolved_at: new Date().toISOString(),
+        resolution_note: "Automatically resolved after a successful live WhatsApp health check.",
+        details: { provider: health.provider, status: health.status, code: health.code, details: health.details || {} },
+      })
+      .eq("source", "system")
+      .eq("title", title)
+      .in("status", ["open", "acknowledged"]);
+    if (error) throw error;
+    return null;
+  }
+
+  if (health.status === "not_configured") return null;
   const { data: existing } = await db.from("ai_monitor_events").select("id").eq("source", "system").eq("title", title).in("status", ["open", "acknowledged"]).limit(1).maybeSingle();
-  if (existing) return existing;
+  if (existing) {
+    await db.from("ai_monitor_events").update({
+      severity: "critical",
+      details: { provider: health.provider, status: health.status, error: health.error, code: health.code, details: health.details || {} },
+    }).eq("id", existing.id);
+    return existing;
+  }
   const { data, error } = await db.from("ai_monitor_events").insert({ severity: "critical", source: "system", title, details: { provider: health.provider, status: health.status, error: health.error, code: health.code, details: health.details || {} }, status: "open" }).select("id,severity,source,title,details,status,detected_at").single();
   if (error) throw error;
   return data;
