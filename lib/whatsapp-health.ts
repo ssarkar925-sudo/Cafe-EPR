@@ -39,7 +39,29 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
       const response = await fetch(`${gatewayUrl}/health`, { headers: { "Bypass-Tunnel-Reminder": "true", ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}) }, cache: "no-store", signal: AbortSignal.timeout(12000) });
       const data = await response.json().catch(() => ({}));
       const connected = response.ok && Boolean(data?.connected);
-      return { provider: "local_gateway", configured: true, connected, status: connected ? "connected" : "disconnected", code: response.status, error: connected ? undefined : data?.error || `Gateway returned HTTP ${response.status}`, details: data };
+      const gatewayState = String(data?.status || "").toLowerCase();
+      const waitingForQr = gatewayState === "waiting_for_qr";
+      const isCafeLocalGateway = /^http:\/\/(localhost|127\.0\.0\.1):3001$/i.test(gatewayUrl);
+      const error = connected
+        ? undefined
+        : waitingForQr
+          ? "WhatsApp gateway is running, but this PC's WhatsApp session is waiting for a QR scan."
+          : data?.error || `Gateway returned HTTP ${response.status}`;
+      return {
+        provider: "local_gateway",
+        configured: true,
+        connected,
+        status: connected ? "connected" : "disconnected",
+        code: response.status,
+        error,
+        details: {
+          ...data,
+          gatewayUrl,
+          waitingForQr,
+          reconnectSupported: isCafeLocalGateway,
+          reconnectEndpoint: isCafeLocalGateway ? "/reconnect" : undefined,
+        },
+      };
     } catch (err: any) {
       return { provider: "local_gateway", configured: true, connected: false, status: "disconnected", error: `Could not reach WhatsApp Gateway: ${err?.message || "request failed"}` };
     }
@@ -60,6 +82,30 @@ export async function checkWhatsAppHealth(): Promise<WhatsAppHealth> {
   }
 
   return { provider: config.provider, configured: true, connected: false, status: "unknown", error: "Unknown WhatsApp provider." };
+}
+
+/** Safely restarts the CafeERP local WhatsApp gateway without deleting its saved authentication. */
+export async function repairLocalWhatsAppGateway() {
+  const config = await getServerWhatsAppConfig();
+  if (config.provider !== "local_gateway") return { repaired: false, reason: "Self-repair is only supported for the CafeERP local WhatsApp gateway." };
+  const gatewayUrl = String(config.gateway_url || "").trim().replace(/\/$/, "");
+  if (!/^http:\/\/(localhost|127\.0\.0\.1):3001$/i.test(gatewayUrl)) return { repaired: false, reason: "The configured gateway is not the CafeERP local gateway, so its restart contract cannot be assumed safely." };
+  try {
+    const response = await fetch(`${gatewayUrl}/reconnect`, { method: "POST", headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true", ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}) }, cache: "no-store", signal: AbortSignal.timeout(10000) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { repaired: false, reason: data?.error || `Gateway reconnect returned HTTP ${response.status}`, code: response.status };
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const health = await checkWhatsAppHealth();
+      if (health.connected) return { repaired: true, verified: true, message: "WhatsApp gateway was restarted and the connection is healthy." };
+      if (health.details?.waitingForQr) return { repaired: true, verified: false, requiresQr: true, message: "Gateway restarted successfully, but WhatsApp now requires a QR scan to link the device." };
+    }
+    const after = await checkWhatsAppHealth();
+    return { repaired: true, verified: false, requiresQr: Boolean(after.details?.waitingForQr), message: after.error || "Gateway restart completed, but WhatsApp is not connected yet." };
+  } catch (err: any) {
+    return { repaired: false, reason: err?.message || "Local gateway reconnect failed." };
+  }
 }
 
 /** Safely repairs a stale Meta Phone Number ID by resolving the configured WABA's phone list. */
