@@ -7,8 +7,10 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "predev": "node scripts/repair-unified-settlement-build.mjs && node scripts/repair-transaction-history-layout.mjs",
-    "build": "next build",
+    "build": "npx opennextjs-cloudflare build",
     "prebuild": "node scripts/prebuild-repair-once.mjs",
+    "deploy": "npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy",
+    "preview": "npx opennextjs-cloudflare build && npx opennextjs-cloudflare preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-financial-invariants.mjs",
