@@ -5,8 +5,8 @@ const config: CapacitorConfig = {
   appName: "CafeERP",
   webDir: "public",
   server: {
-    // In production, Capacitor loads the live deployed cloud app for instant over-the-air updates
-    url: process.env.CAPACITOR_SERVER_URL || "https://cafeerp.vercel.app",
+    // In production, Capacitor loads the live deployed Cloudflare Worker app for instant over-the-air updates
+    url: process.env.CAPACITOR_SERVER_URL || "https://cafeerp.workers.dev",
     cleartext: true,
   },
   android: {
