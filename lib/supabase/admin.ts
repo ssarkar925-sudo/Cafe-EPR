@@ -1,27 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { env as workerEnv } from "cloudflare:workers";
 
 function getRuntimeEnv(): Record<string, unknown> {
   try {
-    return (workerEnv as unknown as Record<string, unknown>) || {};
+    const context = getCloudflareContext();
+    return (context?.env as Record<string, unknown>) || {};
   } catch {
-    try {
-      const context = getCloudflareContext();
-      return (context?.env as Record<string, unknown>) || {};
-    } catch {
-      return {};
-    }
+    // The helper also runs in non-Cloudflare environments (for local Next.js tooling).
+    return {};
   }
 }
 
 function getAdminConfig() {
   const runtimeEnv = getRuntimeEnv();
-  const url = String(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      runtimeEnv.NEXT_PUBLIC_SUPABASE_URL ||
-      ""
-  ).trim();
+  const url = String(process.env.NEXT_PUBLIC_SUPABASE_URL || runtimeEnv.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  // Prefer the canonical name, but support the existing Cloudflare secret alias
+  // so an already-configured production secret can continue to be used.
   const serviceKey = String(
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
       runtimeEnv.SUPABASE_SERVICE_ROLE_KEY ||
