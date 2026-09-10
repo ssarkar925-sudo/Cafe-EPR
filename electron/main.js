@@ -3,7 +3,7 @@ const path = require("path");
 
 let mainWindow = null;
 
-const DEFAULT_CLOUD_URL = "https://cafeerp.workers.dev";
+const DEFAULT_CLOUD_URL = "https://cafeerp.ssarkar925.workers.dev";
 const APP_URL = process.env.APP_URL || DEFAULT_CLOUD_URL;
 
 function createWindow() {
