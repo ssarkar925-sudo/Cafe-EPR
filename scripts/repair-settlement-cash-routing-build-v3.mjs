@@ -3,6 +3,25 @@ import fs from "node:fs";
 const path = "components/finance/settlement-form-modal.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
+// OpenNext runs the Next.js build a second time in the same workspace. Other
+// build-repair scripts may also rewrite this file between the two passes, so
+// exact anchor matching alone is not sufficient to detect an already-applied
+// cash-routing repair. Require the durable signatures of the complete repair
+// before skipping it; a partial first pass will still be allowed to continue.
+const cashRoutingAlreadyApplied =
+  source.includes('const cashAccounts = loadedAccounts.filter((i) => i.type === "cash");') &&
+  source.includes('const isSourceCash = type === "add_cash_to_bank" || type === "cash_adjustment";') &&
+  source.includes('const isDestCash = type === "bank_withdrawal" || type === "cash_adjustment";') &&
+  source.includes("Source Cash Drawer *") &&
+  source.includes("Destination Cash Drawer *") &&
+  source.includes('sourceLabel = c ? "Cash: " + c.name : "Cash Drawer";') &&
+  source.includes('destLabel = c ? "Cash: " + c.name : "Cash Drawer";');
+
+if (cashRoutingAlreadyApplied) {
+  console.log("Settlement cash routing repair: already applied");
+  process.exit(0);
+}
+
 function patch(search, replacement, label) {
   if (source.includes(replacement)) return;
   if (!source.includes(search)) throw new Error(`${label}: anchor not found`);
