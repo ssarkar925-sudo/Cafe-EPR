@@ -3,7 +3,7 @@ const path = require("path");
 
 let mainWindow = null;
 
-const DEFAULT_CLOUD_URL = "https://cafeerp.vercel.app";
+const DEFAULT_CLOUD_URL = "https://cafeerp.workers.dev";
 const APP_URL = process.env.APP_URL || DEFAULT_CLOUD_URL;
 
 function createWindow() {
@@ -26,7 +26,7 @@ function createWindow() {
   // Remove default window menu for modern app feel
   mainWindow.setMenuBarVisibility(false);
 
-  // Load cloud URL for instant over-the-air updates
+  // Load Cloudflare Worker URL for instant over-the-air updates
   mainWindow.loadURL(APP_URL);
 
   // Handle load failures gracefully (e.g. offline)
