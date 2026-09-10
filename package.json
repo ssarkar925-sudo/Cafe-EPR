@@ -11,7 +11,7 @@
     "prebuild": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && node scripts/prebuild-repair-once.mjs",
     "postbuild": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && npx --yes @opennextjs/cloudflare@1.20.6 build --skipNextBuild",
     "build:worker": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && npx --yes @opennextjs/cloudflare@1.20.6 build",
-    "deploy": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 deploy -- --keep-vars",
+    "deploy": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && npx --yes @opennextjs/cloudflare@1.20.6 deploy -- --keep-vars",
     "preview": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 build && npx --yes @opennextjs/cloudflare@1.20.6 preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
