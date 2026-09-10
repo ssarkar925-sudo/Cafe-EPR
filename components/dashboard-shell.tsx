@@ -146,7 +146,6 @@ export default function DashboardShell({
 
   return (
     <div className="min-h-screen bg-[var(--page)] text-slate-900 dark:text-white">
-      {/* Sidebar Navigation */}
       <Sidebar
         name={name}
         email={email}
@@ -161,7 +160,6 @@ export default function DashboardShell({
         onMobileClose={() => setMobileOpen(false)}
       />
 
-      {/* Mobile Top Header */}
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 lg:hidden">
         <button
           onClick={() => setMobileOpen(true)}
@@ -175,6 +173,14 @@ export default function DashboardShell({
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-black text-slate-900 dark:text-white">{meta.title}</p>
         </div>
+        <Link
+          href="/ai-agent"
+          aria-label="Open Cafe AI Agent"
+          title="Open Cafe AI Agent"
+          className="flex h-8 w-8 items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+        >
+          <span aria-hidden="true">✦</span>
+        </Link>
         <button
           onClick={() => setSearchOpen(true)}
           className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
@@ -188,15 +194,12 @@ export default function DashboardShell({
         <Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" />
       </header>
 
-      {/* Desktop Main Workstation Layout */}
       <div
         className={`min-h-screen transition-all duration-300 ${
           collapsed ? "lg:pl-[88px]" : "lg:pl-[288px]"
         } lg:pr-3 lg:pt-3 lg:pb-6`}
       >
-        {/* Desktop Luxury Floating Top Bar */}
         <header className="sticky top-3 z-20 hidden h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/80 px-6 shadow-md shadow-slate-900/5 backdrop-blur-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/80 dark:shadow-black/20 dark:ring-white/10 lg:flex mb-4 transition-all duration-300">
-          {/* Breadcrumb & Title with Toggle Button */}
           <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
@@ -231,7 +234,6 @@ export default function DashboardShell({
             </div>
           </div>
 
-          {/* Global Quick Search Pill */}
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
@@ -247,15 +249,24 @@ export default function DashboardShell({
             </kbd>
           </button>
 
-          {/* Right Action Tray */}
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Quick POS Shortcut */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <Link
               href="/pos"
               className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700 shrink-0"
             >
               <span>+ New Bill</span>
               <kbd className="rounded bg-blue-700 px-1 py-0.2 text-[9px] font-bold">F2</kbd>
+            </Link>
+
+            <Link
+              href="/ai-agent"
+              aria-label="Open Cafe AI Agent"
+              title="Open Cafe AI Agent"
+              className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20 shrink-0"
+            >
+              <span aria-hidden="true">✦</span>
+              <span className="hidden xl:inline">Cafe AI Agent</span>
+              <span className="xl:hidden">AI</span>
             </Link>
 
             <CloudSyncBadge />
