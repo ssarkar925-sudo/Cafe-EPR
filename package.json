@@ -26,7 +26,7 @@
     "gateway": "node scripts/whatsapp-gateway-controller.js",
     "ai:portal:teach": "node scripts/ai-portal-worker.mjs teach",
     "ai:portal:receipt-teach": "node scripts/ai-portal-receipt-teach.mjs",
-    "ai:erp:aeps:teach": "node scripts/ai-erp-aeps-teach.mjs teach",
+    "ai:erp:aeps:teach": "node scripts/ai-erp-aeps-teach.mjs",
     "ai:aeps:run": "node scripts/ai-aeps-one-command-v3.mjs",
     "ai:portal:learn": "node scripts/ai-portal-worker.mjs learn",
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect"
@@ -45,7 +45,8 @@
     "next": "^15.1.6",
     "pg": "^8.23.0",
     "playwright": "^1.62.1",
-    "qrcode": "^1.5.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
