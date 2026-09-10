@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "predev": "node scripts/repair-unified-settlement-build.mjs && node scripts/repair-transaction-history-layout.mjs",
-    "build": "npx opennextjs-cloudflare build",
+    "build": "next build",
+    "build:worker": "npx opennextjs-cloudflare build",
     "prebuild": "node scripts/prebuild-repair-once.mjs",
     "deploy": "npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy",
     "preview": "npx opennextjs-cloudflare build && npx opennextjs-cloudflare preview",
