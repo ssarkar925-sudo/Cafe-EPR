@@ -1,28 +1,10 @@
-import { ImageResponse } from "next/og";
-
-export const runtime = "edge";
+const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#4f46e5"/><text x="32" y="45" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="48" font-weight="800" fill="#fff">C</text></svg>`;
 
 export async function GET() {
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#4f46e5",
-          borderRadius: 14,
-          color: "white",
-          fontSize: 48,
-          fontWeight: 800,
-          fontFamily: "Arial",
-        }}
-      >
-        C
-      </div>
-    ),
-    { width: 64, height: 64 }
-  );
+  return new Response(ICON_SVG, {
+    headers: {
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
 }
