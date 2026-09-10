@@ -1,0 +1,167 @@
+/* CafeERP — Royal Premium Tech UI
+ * Visual-only layer. Existing routes, components, data and business logic remain unchanged.
+ */
+:root {
+  --royal-bg: #f4f7fb;
+  --royal-surface: #ffffff;
+  --royal-surface-2: #eef3f9;
+  --royal-ink: #101827;
+  --royal-muted: #64748b;
+  --royal-line: rgba(49, 87, 213, .14);
+  --royal-primary: #3157d5;
+  --royal-primary-2: #2447bd;
+  --royal-cyan: #0891b2;
+  --royal-gold: #b8892e;
+  --royal-success: #15803d;
+  --royal-danger: #dc2626;
+  --royal-radius-sm: 8px;
+  --royal-radius-md: 12px;
+  --royal-radius-lg: 16px;
+  --royal-shadow: 0 10px 30px rgba(15, 23, 42, .07);
+  --royal-shadow-lg: 0 20px 55px rgba(15, 23, 42, .12);
+}
+
+.dark {
+  --royal-bg: #080c14;
+  --royal-surface: #101725;
+  --royal-surface-2: #172033;
+  --royal-ink: #f5f7fa;
+  --royal-muted: #94a3b8;
+  --royal-line: rgba(148, 163, 184, .14);
+  --royal-primary: #5b7cff;
+  --royal-primary-2: #4667e8;
+  --royal-cyan: #35d5e8;
+  --royal-gold: #d6a84e;
+}
+
+html, body { background: var(--royal-bg); }
+body {
+  background-image:
+    radial-gradient(circle at 8% 4%, color-mix(in srgb, var(--royal-primary) 7%, transparent), transparent 30%),
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--royal-cyan) 5%, transparent), transparent 26%),
+    linear-gradient(135deg, transparent 0 48%, color-mix(in srgb, var(--royal-primary) 2%, transparent) 48% 49%, transparent 49% 100%);
+  background-attachment: fixed;
+}
+
+/* Global premium surfaces */
+.bento-surface, .bento-surface-interactive, .luxury-card, .floating-mac-window,
+.vault-3d-card, .pos-touch-tile-3d {
+  border-radius: var(--royal-radius-md) !important;
+  border-color: var(--royal-line) !important;
+  box-shadow: var(--royal-shadow) !important;
+}
+
+.bento-surface-interactive:hover, .luxury-card:hover, .pos-touch-tile-3d:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--royal-shadow-lg) !important;
+}
+
+/* Graphical accent surfaces */
+.luxury-card::before, .bento-surface::before {
+  content: "";
+  display: block;
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Buttons: stronger premium hierarchy without changing behavior */
+button[class*="bg-indigo-"], button[class*="bg-blue-"], a[class*="bg-indigo-"], a[class*="bg-blue-"] {
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--royal-primary) 22%, transparent);
+}
+button[class*="bg-indigo-"], button[class*="bg-blue-"] { border-radius: var(--royal-radius-sm); }
+
+/* Form controls */
+input, select, textarea {
+  border-radius: var(--royal-radius-sm) !important;
+  border-color: var(--royal-line) !important;
+  background-color: color-mix(in srgb, var(--royal-surface) 94%, var(--royal-surface-2)) !important;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: color-mix(in srgb, var(--royal-primary) 72%, white) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--royal-primary) 14%, transparent) !important;
+}
+
+/* Tables: premium operational density */
+table { border-collapse: separate; border-spacing: 0; }
+thead th {
+  background: color-mix(in srgb, var(--royal-surface-2) 78%, transparent);
+  color: var(--royal-muted);
+  font-size: .69rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+tbody tr { transition: background-color .16s ease, transform .16s ease; }
+tbody tr:hover { background: color-mix(in srgb, var(--royal-primary) 4%, transparent); }
+td, th { border-color: var(--royal-line) !important; }
+
+/* Financial numbers */
+[class*="tabular-nums"], [class*="font-mono"] { font-variant-numeric: tabular-nums; }
+
+/* Badges / status pills */
+[class*="rounded-full"][class*="border"] { box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+
+/* Sidebar: preserve existing navigation and make it royal-tech */
+aside {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--royal-surface) 97%, var(--royal-primary)), color-mix(in srgb, var(--royal-surface) 92%, var(--royal-surface-2))) !important;
+  border-color: var(--royal-line) !important;
+  box-shadow: 12px 0 45px rgba(15, 23, 42, .08) !important;
+}
+.dark aside {
+  background: linear-gradient(180deg, #0d1422 0%, #101725 52%, #0b111d 100%) !important;
+  box-shadow: 16px 0 50px rgba(0,0,0,.34) !important;
+}
+aside a.rounded-2xl {
+  border-radius: 11px !important;
+  position: relative;
+  overflow: hidden;
+}
+aside a.rounded-2xl[class*="text-white"] {
+  background: linear-gradient(100deg, var(--royal-primary), var(--royal-primary-2)) !important;
+  box-shadow: 0 9px 24px color-mix(in srgb, var(--royal-primary) 28%, transparent) !important;
+}
+aside a.rounded-2xl[class*="text-white"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,.12), transparent 70%);
+  transform: translateX(-100%);
+  transition: transform .55s ease;
+}
+aside a.rounded-2xl[class*="text-white"]:hover::after { transform: translateX(100%); }
+aside input { border-radius: 10px !important; }
+
+/* Premium graphical separators */
+hr { border-color: var(--royal-line) !important; }
+
+/* Modal depth */
+[role="dialog"] {
+  box-shadow: 0 30px 90px rgba(15, 23, 42, .22) !important;
+}
+.dark [role="dialog"] { box-shadow: 0 30px 90px rgba(0,0,0,.55) !important; }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--royal-primary) 48%, transparent) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--royal-primary) 42%, transparent); border-radius: 99px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Motion system */
+@keyframes royal-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes royal-shimmer { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+
+main > * { animation: royal-rise .32s cubic-bezier(.16,1,.3,1) both; }
+
+/* Accessibility: honor the existing motion preference */
+@media (prefers-reduced-motion: reduce), [data-motion="off"] * {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: .01ms !important;
+}
+
+@media (max-width: 768px) {
+  body { background-image: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--royal-primary) 7%, transparent), transparent 35%); }
+  .bento-surface, .bento-surface-interactive, .luxury-card { border-radius: 12px !important; }
+}
