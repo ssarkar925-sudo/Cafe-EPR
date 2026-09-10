@@ -17,8 +17,6 @@ body{background-image:radial-gradient(circle at 8% 4%,color-mix(in srgb,var(--ro
 /* GLOBAL SURFACES */
 .bento-surface,.bento-surface-interactive,.luxury-card,.floating-mac-window,.vault-3d-card,.pos-touch-tile-3d{border-radius:var(--royal-radius-md)!important;border-color:var(--royal-line)!important;box-shadow:var(--royal-shadow)!important}
 .bento-surface-interactive:hover,.luxury-card:hover,.pos-touch-tile-3d:hover{transform:translateY(-2px);box-shadow:var(--royal-shadow-lg)!important}
-
-/* DASHBOARD / KPI GRAPHICS — existing cards only */
 main [class*="rounded-3xl"],main [class*="rounded-[28px"]{border-radius:var(--royal-radius-md)!important}
 main [class*="shadow-2xl"],main [class*="shadow-xl"]{box-shadow:var(--royal-shadow)!important}
 main [class*="from-indigo-"],main [class*="from-blue-"]{background-image:linear-gradient(135deg,color-mix(in srgb,var(--royal-primary) 10%,var(--royal-surface)),var(--royal-surface))!important}
@@ -72,4 +70,103 @@ hr{border-color:var(--royal-line)!important}
 @keyframes royal-rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 main>*{animation:royal-rise .26s cubic-bezier(.16,1,.3,1) both}
 @media(prefers-reduced-motion:reduce),[data-motion="off"] *{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
-@media(max-width:768px){body{background-image:radial-gradient(circle at 50% 0,color-mix(in srgb,var(--royal-primary) 7%,transparent),transparent 35%)}.bento-surface,.bento-surface-interactive,.luxury-card{border-radius:12px!important}}
+
+/* ================================================================
+   ROYAL PREMIUM PASS 02 — EXISTING UI ONLY
+   No new modules, controls, routes or business behavior.
+   ================================================================ */
+
+/* App shell: sharper enterprise workspace rather than decorative cards. */
+main{isolation:isolate}
+main>div{min-width:0}
+main h1{font-size:clamp(1.35rem,2vw,1.75rem);font-weight:800;letter-spacing:-.035em}
+main h2{letter-spacing:-.025em}
+main h3{letter-spacing:-.015em}
+main p{line-height:1.5}
+
+/* Existing card family: consistent header/body/footer rhythm. */
+main [class*="rounded-xl"],main [class*="rounded-2xl"],main [class*="rounded-3xl"]{border-color:var(--royal-line)}
+main [class*="bg-white"]{background-color:var(--royal-surface)!important}
+.dark main [class*="bg-white"]{background-color:var(--royal-surface)!important}
+main [class*="bg-slate-50"],main [class*="bg-gray-50"]{background-color:var(--royal-surface-2)!important}
+.dark main [class*="bg-slate-50"],.dark main [class*="bg-gray-50"]{background-color:color-mix(in srgb,var(--royal-surface) 72%,var(--royal-surface-2))!important}
+
+/* KPI cards: quiet chrome with a deliberate accent edge. */
+main [class*="text-xs"]{line-height:1.35}
+main [class*="text-sm"]{line-height:1.45}
+main [class*="shadow-sm"]{box-shadow:0 5px 18px rgba(15,23,42,.045)!important}
+.dark main [class*="shadow-sm"]{box-shadow:0 7px 22px rgba(0,0,0,.18)!important}
+
+/* Existing primary actions: uniform control height and visual weight. */
+button,a[role="button"]{font-weight:650}
+button[class*="rounded-full"],a[role="button"][class*="rounded-full"]{border-radius:999px!important}
+button[class*="rounded-lg"],button[class*="rounded-md"]{border-radius:var(--royal-radius-sm)!important}
+
+/* Secondary/ghost controls stay quiet; do not compete with primary actions. */
+button[class*="bg-transparent"],button[class*="bg-white"],button[class*="bg-slate-50"],button[class*="bg-gray-50"]{box-shadow:none}
+button[class*="border"]:not([class*="bg-indigo-"]):not([class*="bg-blue-"]){border-color:var(--royal-line)!important}
+
+/* Existing tabs: premium segmented navigation. */
+[role="tablist"]{gap:4px!important;padding:4px!important;border:1px solid var(--royal-line);border-radius:var(--royal-radius-md);background:color-mix(in srgb,var(--royal-surface-2) 72%,transparent)}
+[role="tab"]{border-radius:8px!important;font-weight:650;transition:background .16s ease,color .16s ease,box-shadow .16s ease}
+[role="tab"][aria-selected="true"]{background:var(--royal-surface)!important;color:var(--royal-primary)!important;box-shadow:0 3px 12px rgba(15,23,42,.08)}
+.dark [role="tab"][aria-selected="true"]{box-shadow:0 3px 14px rgba(0,0,0,.25)}
+
+/* Dropdowns and popovers already present in the application. */
+[role="menu"],[data-radix-menu-content],[data-radix-select-content],[data-radix-popover-content]{border:1px solid var(--royal-line)!important;border-radius:12px!important;background:var(--royal-surface)!important;box-shadow:0 22px 60px rgba(15,23,42,.16)!important;backdrop-filter:blur(16px)}
+.dark [role="menu"],[data-radix-menu-content],[data-radix-select-content],[data-radix-popover-content]{box-shadow:0 25px 70px rgba(0,0,0,.45)!important}
+
+/* Invoices / finance / ledger: dense data without visual noise. */
+main table{width:100%;font-size:.82rem}
+main table th{height:38px;padding:.55rem .7rem!important}
+main table td{padding:.62rem .7rem!important}
+main table td:first-child,main table th:first-child{padding-left:.9rem!important}
+main table td:last-child,main table th:last-child{padding-right:.9rem!important}
+main table tbody tr:last-child td{border-bottom:0!important}
+
+/* Financial values: keep INR columns easy to scan. */
+main [class*="font-mono"],main [class*="tabular-nums"]{letter-spacing:-.01em}
+
+/* Existing POS workspace: distinguish catalog, cart and totals without changing layout. */
+.pos-touch-tile-3d{background:var(--royal-surface)!important;border:1px solid var(--royal-line)!important}
+.pos-touch-tile-3d:focus-within{border-color:color-mix(in srgb,var(--royal-primary) 52%,var(--royal-line))!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--royal-primary) 10%,transparent),var(--royal-shadow)!important}
+
+/* Existing quick-action tiles: compact command-center appearance. */
+main a[class*="group"] svg,main button[class*="group"] svg{flex:none}
+main a[class*="group"]:hover,main button[class*="group"]:hover{border-color:color-mix(in srgb,var(--royal-primary) 30%,var(--royal-line))}
+
+/* Existing alert/status blocks. */
+main [class*="border-emerald-"],main [class*="border-green-"]{border-color:color-mix(in srgb,var(--royal-success) 24%,var(--royal-line))!important}
+main [class*="border-red-"],main [class*="border-rose-"]{border-color:color-mix(in srgb,var(--royal-danger) 24%,var(--royal-line))!important}
+main [class*="border-amber-"]{border-color:color-mix(in srgb,var(--royal-gold) 34%,var(--royal-line))!important}
+
+/* Existing charts: give chart containers a clean analytics-console frame. */
+main svg{max-width:100%}
+main [class*="recharts-wrapper"],main [class*="recharts-responsive-container"]{overflow:visible}
+
+/* Existing modals: premium header separation and safer mobile sizing. */
+[role="dialog"]>div:first-child{border-color:var(--royal-line)}
+[role="dialog"] button[aria-label*="Close"],
+[role="dialog"] button[aria-label*="close"]{border-radius:8px!important}
+
+/* Toast/notification surfaces already rendered by the app. */
+[role="alert"], [data-sonner-toast]{border:1px solid var(--royal-line)!important;border-radius:12px!important;box-shadow:0 16px 45px rgba(15,23,42,.14)!important;background:var(--royal-surface)!important}
+
+/* Avoid accidental global image rounding; only existing image containers retain it. */
+main img{max-width:100%}
+
+/* Mobile: preserve existing information density and make controls touch-safe. */
+@media(max-width:768px){
+  body{background-image:radial-gradient(circle at 50% 0,color-mix(in srgb,var(--royal-primary) 7%,transparent),transparent 35%)}
+  .bento-surface,.bento-surface-interactive,.luxury-card{border-radius:12px!important}
+  main{padding-bottom:env(safe-area-inset-bottom)}
+  main table{font-size:.76rem}
+  main table th{font-size:.63rem;padding:.48rem .55rem!important}
+  main table td{padding:.55rem!important}
+  input,select,textarea,button{min-height:40px}
+  [role="tablist"]{overflow-x:auto;max-width:100%}
+  [role="tab"]{white-space:nowrap}
+}
+
+/* Motion remains restrained and respects the app's existing preference. */
+@media(prefers-reduced-motion:reduce),[data-motion="off"] *{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
