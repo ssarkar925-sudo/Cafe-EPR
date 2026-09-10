@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: "public",
   server: {
     // In production, Capacitor loads the live deployed Cloudflare Worker app for instant over-the-air updates
-    url: process.env.CAPACITOR_SERVER_URL || "https://cafeerp.workers.dev",
+    url: process.env.CAPACITOR_SERVER_URL || "https://cafeerp.ssarkar925.workers.dev",
     cleartext: true,
   },
   android: {
