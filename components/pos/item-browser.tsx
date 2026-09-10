@@ -208,7 +208,6 @@ export function PosItemToolbar({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2.5">
-      {/* Category Tabs */}
       <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
         {tabs.map((t) => (
           <button
@@ -226,7 +225,6 @@ export function PosItemToolbar({
         ))}
       </div>
 
-      {/* Search Input */}
       <div className="relative min-w-[220px] flex-1">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
@@ -247,7 +245,6 @@ export function PosItemToolbar({
         )}
       </div>
 
-      {/* Sort Selector */}
       <div className="relative flex items-center">
         <select
           value={sort}
@@ -263,7 +260,6 @@ export function PosItemToolbar({
         <ArrowUpDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-slate-400" />
       </div>
 
-      {/* View Mode Toggle */}
       <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
         <button
           type="button"
@@ -373,7 +369,6 @@ export function PosGrid({
               out ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
-            {/* Ambient Radial Accent Glow */}
             <div
               className={`absolute -right-4 -top-4 w-20 h-20 rounded-full blur-xl pointer-events-none transition-transform duration-300 group-hover:scale-150 ${
                 isProd ? "bg-purple-500/10 dark:bg-purple-500/15" : "bg-cyan-500/10 dark:bg-cyan-500/15"
@@ -461,8 +456,8 @@ export function PosTable({
   emptyText?: string;
 }) {
   return (
-    <div className="mt-4 overflow-x-auto rounded-[20px] border border-slate-200/90 bg-white dark:border-white/10 dark:bg-slate-900">
-      <table className="w-full text-left text-xs">
+    <div className="relative mt-4 overflow-x-auto rounded-[20px] border border-slate-200/90 bg-white dark:border-white/10 dark:bg-slate-900">
+      <table className="w-full min-w-[760px] text-left text-xs">
         <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black uppercase text-slate-400 dark:border-white/5 dark:bg-white/[0.02]">
           <tr>
             <th className="px-4 py-3">Type</th>
@@ -470,7 +465,7 @@ export function PosTable({
             <th className="px-4 py-3">Category</th>
             <th className="px-4 py-3">Price</th>
             <th className="px-4 py-3">Stock Status</th>
-            <th className="px-4 py-3 text-right">Action</th>
+            <th className="sticky right-0 z-20 bg-slate-50/95 px-4 py-3 text-right shadow-[-8px_0_16px_-14px_rgba(15,23,42,0.55)] backdrop-blur-sm dark:bg-slate-900/95 dark:shadow-[-8px_0_16px_-14px_rgba(0,0,0,0.7)]">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -534,12 +529,12 @@ export function PosTable({
                     <span className="text-slate-400">Digital / Service</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right">
+                <td className="sticky right-0 z-10 bg-white px-4 py-2.5 text-right shadow-[-8px_0_16px_-14px_rgba(15,23,42,0.45)] dark:bg-slate-900 dark:shadow-[-8px_0_16px_-14px_rgba(0,0,0,0.7)]">
                   <button
                     type="button"
                     onClick={() => onAdd(x.id, x.name, price, isProd)}
                     disabled={out}
-                    className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-blue-600 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
+                    className="inline-flex min-w-[62px] items-center justify-center rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-blue-600 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
                   >
                     {out ? "Out" : "+ Add"}
                   </button>
