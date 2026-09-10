@@ -8,7 +8,7 @@
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "predev": "node scripts/repair-unified-settlement-build.mjs && node scripts/repair-transaction-history-layout.mjs",
     "build": "next build",
-    "prebuild": "node scripts/prebuild-repair-once.mjs",
+    "prebuild": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && node scripts/prebuild-repair-once.mjs",
     "postbuild": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && npx --yes @opennextjs/cloudflare@1.20.6 build --skipNextBuild",
     "build:worker": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && npx --yes @opennextjs/cloudflare@1.20.6 build",
     "deploy": "npm install --no-save --package-lock=false @opennextjs/cloudflare@1.20.6 && npx --yes @opennextjs/cloudflare@1.20.6 deploy",
