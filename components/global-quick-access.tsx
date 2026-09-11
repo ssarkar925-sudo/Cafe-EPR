@@ -7,7 +7,6 @@ import { DEFAULT_QUICK_ACCESS, type QuickAccessItem } from "@/components/quick-a
 import {
   loadQuickAccessDisplayMode,
   loadQuickAccessItems,
-  saveQuickAccessDisplayMode,
   subscribeQuickAccess,
   type QuickAccessDisplayMode,
 } from "@/components/quick-access-store";
@@ -80,11 +79,6 @@ export default function GlobalQuickAccess() {
     return subscribeQuickAccess(sync);
   }, []);
 
-  function changeDisplayMode(mode: QuickAccessDisplayMode) {
-    setDisplayMode(mode);
-    saveQuickAccessDisplayMode(mode);
-  }
-
   return (
     <nav className="cafe-quick-access" aria-label="Quick Access">
       <div className="cafe-quick-access__inner">
@@ -110,29 +104,6 @@ export default function GlobalQuickAccess() {
               </Link>
             );
           })}
-        </div>
-
-        <div className="cafe-quick-access__mode" role="group" aria-label="Quick Access display mode">
-          <button
-            type="button"
-            aria-pressed={displayMode === "full"}
-            onClick={() => changeDisplayMode("full")}
-            title="Show icon and full name"
-            className={`cafe-quick-access__mode-button ${displayMode === "full" ? "is-active" : ""}`}
-          >
-            <span aria-hidden="true">▤</span>
-            <span>Names</span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={displayMode === "icon"}
-            onClick={() => changeDisplayMode("icon")}
-            title="Show icons only"
-            className={`cafe-quick-access__mode-button ${displayMode === "icon" ? "is-active" : ""}`}
-          >
-            <span aria-hidden="true">◈</span>
-            <span>Icons</span>
-          </button>
         </div>
       </div>
     </nav>
