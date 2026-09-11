@@ -33,7 +33,7 @@ html:not(.dark) main > div.space-y-6.pb-16 > div:first-child button.scale-\[1\.0
 
 /* KPI cards */
 main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-emerald,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-indigo,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-rose,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-amber,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-cyan{position:relative!important;overflow:hidden!important;min-height:178px!important;border:1px solid var(--db-line)!important;border-radius:13px!important;background:var(--db-surface)!important;box-shadow:0 8px 24px rgba(15,23,42,.055),inset 0 1px 0 rgba(255,255,255,.06)!important;transform:none!important}
-main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-emerald::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-indigo::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-rose::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-amber::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-cyan::before{content:"";position:absolute;left:0;right:0;top:0;height:3px}
+main > div.space-y-6.pb-16 .card-glow-emerald::before,main > div.space-y-6.pb-16 .card-glow-indigo::before,main > div.space-y-6.pb-16 .card-glow-rose::before,main > div.space-y-6.pb-16 .card-glow-amber::before,main > div.space-y-6.pb-16 .card-glow-cyan::before{content:"";position:absolute;left:0;right:0;top:0;height:3px}
 main > div.space-y-6.pb-16 .card-glow-emerald::before{background:linear-gradient(90deg,var(--db-green),transparent 75%)}
 main > div.space-y-6.pb-16 .card-glow-indigo::before{background:linear-gradient(90deg,var(--db-purple),transparent 75%)}
 main > div.space-y-6.pb-16 .card-glow-rose::before{background:linear-gradient(90deg,var(--db-red),transparent 75%)}
@@ -53,3 +53,10 @@ main > div.space-y-6.pb-16 a[class*="group"][class*="rounded"]{border-radius:11p
   main > div.space-y-6.pb-16 > div:first-child{padding:16px!important;border-radius:14px!important}
   main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-emerald,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-indigo,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-rose,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-amber,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-cyan{min-height:160px!important}
 }
+
+/* Final light-mode safeguard: identify the active period by its exact Tailwind
+   class tokens and the root's explicit light-mode attribute. This avoids all
+   dependency on generated selector escaping or rule ordering. */
+html[data-theme="light"] main button[class~="scale-[1.02]"]{background:linear-gradient(135deg,#365fe4 0%,#2148c9 100%)!important;background-color:#2148c9!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:1px solid #2b54dc!important;opacity:1!important;visibility:visible!important;box-shadow:0 4px 12px rgba(43,84,220,.28)!important}
+html[data-theme="light"] main button[class~="scale-[1.02]"] span,html[data-theme="light"] main button[class~="scale-[1.02]"] svg{color:#fff!important;-webkit-text-fill-color:#fff!important}
+html[data-theme="light"] main button[class~="from-indigo-600"][class~="to-blue-600"]{background:linear-gradient(135deg,#365fe4 0%,#2148c9 100%)!important;background-color:#2148c9!important;color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;visibility:visible!important;box-shadow:0 4px 12px rgba(43,84,220,.28)!important}
