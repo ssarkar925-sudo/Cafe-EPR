@@ -16,6 +16,7 @@ if (!fs.existsSync("node_modules/lucide-react/package.json")) {
 
 const path = "components/finance/reconciliation-client.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+let changed = false;
 
 // Refresh must carry ledger references so the client can trace the same rows
 // used by the canonical reconciliation calculation.
@@ -23,12 +24,14 @@ const refreshSelect = 'supabase.from("cash_entries").select("id, instrument_id, 
 const refreshSelectFixed = 'supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, description, method, ref_type, ref_id, entry_date").not("instrument_id", "is", null)';
 if (source.includes(refreshSelect) && !source.includes(refreshSelectFixed)) {
   source = source.replace(refreshSelect, refreshSelectFixed);
+  changed = true;
 }
 
-// UPI reconciliation must use the same authoritative instrument-ledger rows that
-// back get_pool_balances. Reconstructing the balance from transactions, cash-out
-// inference, fees, and settlement rows creates double counting because those are
-// merely views of the same ledger postings.
+// Older builds used a text marker around the UPI-specific reconstruction block.
+// The reconciliation component is now source-managed and already uses the
+// canonical payment-instrument ledger directly. In that newer form there is no
+// legacy marker to replace, so the repair must be safely idempotent instead of
+// failing the entire production build.
 const upiCanonicalBlock = `      if (cfg.key === "upi_qr") {
         const upiInstrumentIds = new Set(
           instruments
@@ -82,17 +85,40 @@ const upiCanonicalBlock = `      if (cfg.key === "upi_qr") {
         // Generic pool movements`;
 
 const blockPattern = /      if \(cfg\.key === "upi_qr"\) \{[\s\S]*?      \} else \{\n        \/\/ Generic pool movements/;
-if (!blockPattern.test(source)) {
-  throw new Error("UPI reconciliation block marker not found");
+if (blockPattern.test(source)) {
+  source = source.replace(blockPattern, upiCanonicalBlock);
+  changed = true;
+} else {
+  const canonicalLedgerMarker = 'const ledgerNet = credits - debits;';
+  const canonicalSourceMarker = 'canonicalSource: "payment_instruments.current_balance + cash_entries ("';
+  if (!source.includes(canonicalLedgerMarker) || !source.includes(canonicalSourceMarker)) {
+    throw new Error("UPI reconciliation structure not recognized; refusing an unsafe blind rewrite");
+  }
+  console.log("UPI reconciliation source is already canonical; legacy block repair skipped safely.");
 }
-source = source.replace(blockPattern, upiCanonicalBlock);
 
-const oldFormula = `      const calculatedBal =\n        cfg.key === "upi_qr"\n          ? openingBal + credits - debits + fees + otherMovements + setsIn - setsOut\n          : openingBal + poolEntry.movements;`;
-const newFormula = `      const calculatedBal =\n        cfg.key === "upi_qr"\n          ? openingBal + credits - debits\n          : openingBal + poolEntry.movements;`;
-if (!source.includes(oldFormula)) {
-  throw new Error("UPI reconciliation balance formula marker not found");
+// Older builds explicitly added UPI fees/settlement inference on top of the
+// instrument ledger. The current source-managed implementation already computes
+// the balance as opening + canonical ledger net, so only replace the legacy
+// formula when it is actually present.
+const oldFormula = `      const calculatedBal =
+        cfg.key === "upi_qr"
+          ? openingBal + credits - debits + fees + otherMovements + setsIn - setsOut
+          : openingBal + poolEntry.movements;`;
+const newFormula = `      const calculatedBal =
+        cfg.key === "upi_qr"
+          ? openingBal + credits - debits
+          : openingBal + poolEntry.movements;`;
+if (source.includes(oldFormula)) {
+  source = source.replace(oldFormula, newFormula);
+  changed = true;
+} else if (!source.includes(newFormula)) {
+  const canonicalCalculatedMarker = `const calculatedBal = roundMoney(openingBal + ledgerNet);`;
+  if (!source.includes(canonicalCalculatedMarker)) {
+    throw new Error("UPI reconciliation balance formula not recognized; refusing an unsafe blind rewrite");
+  }
+  console.log("UPI reconciliation balance formula is already canonical; legacy formula repair skipped safely.");
 }
-source = source.replace(oldFormula, newFormula);
 
-fs.writeFileSync(path, source);
-console.log("UPI reconciliation now uses the canonical payment-instrument ledger exactly once; transaction/fee/settlement inference is removed.");
+if (changed) fs.writeFileSync(path, source);
+console.log("UPI reconciliation build repair completed safely.");
