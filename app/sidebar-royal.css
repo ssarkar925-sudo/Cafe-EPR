@@ -1,0 +1,269 @@
+/* CafeERP — ROYAL SIDEBAR / VISUAL-ONLY
+   Scope: existing sidebar only. No navigation, routing or behavior changes. */
+
+:root{
+  --sidebar-royal-bg:#070d17;
+  --sidebar-royal-surface:#0b1422;
+  --sidebar-royal-surface-2:#101b2c;
+  --sidebar-royal-line:rgba(118,145,190,.18);
+  --sidebar-royal-text:#eef4ff;
+  --sidebar-royal-muted:#8291aa;
+  --sidebar-royal-primary:#5b7cff;
+  --sidebar-royal-cyan:#35d5e8;
+  --sidebar-royal-gold:#d7b05a;
+}
+
+/* Architectural shell */
+aside{
+  position:relative!important;
+  isolation:isolate;
+  overflow:hidden!important;
+  background:
+    radial-gradient(420px 240px at 75% -5%,rgba(91,124,255,.14),transparent 62%),
+    radial-gradient(280px 260px at -10% 52%,rgba(53,213,232,.06),transparent 66%),
+    linear-gradient(180deg,#09111d 0%,#070e18 58%,#060c15 100%)!important;
+  border-right:1px solid rgba(120,150,205,.18)!important;
+  box-shadow:18px 0 70px rgba(0,0,0,.38)!important;
+}
+
+/* Faint premium grid / light geometry */
+aside::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  opacity:.34;
+  background:
+    linear-gradient(rgba(120,150,205,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(120,150,205,.035) 1px,transparent 1px);
+  background-size:28px 28px;
+  mask-image:linear-gradient(to bottom,black 0%,rgba(0,0,0,.62) 46%,transparent 100%);
+}
+
+aside::after{
+  content:"";
+  position:absolute;
+  top:-90px;
+  right:-120px;
+  width:300px;
+  height:300px;
+  border-radius:50%;
+  pointer-events:none;
+  background:radial-gradient(circle,rgba(91,124,255,.12),transparent 68%);
+  filter:blur(6px);
+  z-index:-1;
+}
+
+/* Brand lockup */
+aside > div:first-child{
+  border-bottom:1px solid rgba(120,150,205,.14)!important;
+  background:linear-gradient(180deg,rgba(16,27,44,.74),rgba(7,14,24,.44))!important;
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)!important;
+}
+
+aside a:first-child{
+  position:relative;
+  color:var(--sidebar-royal-text)!important;
+}
+
+aside a:first-child img{
+  width:42px!important;
+  height:42px!important;
+  border-radius:13px!important;
+  object-fit:cover;
+  background:linear-gradient(145deg,#152443,#0d1730)!important;
+  border:1px solid rgba(120,150,205,.24)!important;
+  box-shadow:
+    0 0 0 1px rgba(91,124,255,.10),
+    0 8px 22px rgba(0,0,0,.35),
+    0 0 24px rgba(53,213,232,.07)!important;
+}
+
+aside a:first-child span{
+  text-shadow:0 1px 10px rgba(91,124,255,.08);
+}
+
+/* Live indicator */
+aside a:first-child .bg-emerald-500{
+  box-shadow:0 0 0 3px rgba(34,197,94,.08),0 0 12px rgba(34,197,94,.36)!important;
+}
+
+/* Search / command field */
+aside input{
+  height:44px!important;
+  border-radius:11px!important;
+  border:1px solid rgba(120,150,205,.20)!important;
+  background:linear-gradient(180deg,rgba(18,31,50,.88),rgba(12,23,38,.86))!important;
+  color:#eff5ff!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025),
+    0 8px 24px rgba(0,0,0,.10)!important;
+}
+
+aside input:focus{
+  border-color:rgba(91,124,255,.58)!important;
+  box-shadow:0 0 0 3px rgba(91,124,255,.10),0 10px 28px rgba(0,0,0,.16)!important;
+}
+
+aside input::placeholder{color:#64758f!important}
+
+/* Section labels — editorial separators */
+aside button[class*="uppercase"]{
+  position:relative;
+  min-height:26px!important;
+  padding-left:12px!important;
+  padding-right:9px!important;
+  color:#73829a!important;
+  font-size:9px!important;
+  font-weight:900!important;
+  letter-spacing:.16em!important;
+}
+
+aside button[class*="uppercase"]::before{
+  content:"";
+  width:4px;
+  height:4px;
+  margin-right:7px;
+  border-radius:50%;
+  background:var(--sidebar-royal-cyan);
+  box-shadow:0 0 8px rgba(53,213,232,.45);
+}
+
+/* Navigation links — flat by default, architectural when active */
+aside a.rounded-2xl{
+  position:relative!important;
+  min-height:42px!important;
+  height:42px!important;
+  margin:1px 0!important;
+  padding:5px 9px!important;
+  border:1px solid transparent!important;
+  border-radius:9px!important;
+  background:transparent!important;
+  color:#94a3ba!important;
+  box-shadow:none!important;
+  transform:none!important;
+  transition:background .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease!important;
+}
+
+aside a.rounded-2xl:hover{
+  background:linear-gradient(90deg,rgba(91,124,255,.075),rgba(91,124,255,.028))!important;
+  border-color:rgba(91,124,255,.12)!important;
+  color:#ecf3ff!important;
+}
+
+/* Active item: premium rail, not a blue card */
+aside a.rounded-2xl[class*="text-white"]{
+  background:
+    linear-gradient(90deg,rgba(91,124,255,.17),rgba(91,124,255,.055) 70%,transparent)!important;
+  border-color:rgba(91,124,255,.30)!important;
+  color:#f5f8ff!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 8px 22px rgba(4,12,25,.18)!important;
+  font-weight:850!important;
+}
+
+aside a.rounded-2xl[class*="text-white"]::before{
+  content:"";
+  position:absolute;
+  left:-1px;
+  top:7px;
+  bottom:7px;
+  width:3px;
+  border-radius:0 4px 4px 0;
+  background:linear-gradient(180deg,var(--sidebar-royal-cyan),var(--sidebar-royal-primary) 52%,var(--sidebar-royal-gold));
+  box-shadow:0 0 12px rgba(91,124,255,.38);
+}
+
+/* Icon wells */
+aside a.rounded-2xl > div{gap:9px!important;min-width:0}
+aside a.rounded-2xl > div > span:first-child{
+  width:31px!important;
+  height:31px!important;
+  min-width:31px!important;
+  border-radius:8px!important;
+  background:linear-gradient(145deg,#162338,#101a2b)!important;
+  border:1px solid rgba(120,150,205,.12)!important;
+  color:#8ea1bd!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025)!important;
+}
+
+aside a.rounded-2xl:hover > div > span:first-child{
+  background:linear-gradient(145deg,#17294b,#14213a)!important;
+  color:#cdd9ff!important;
+  border-color:rgba(91,124,255,.22)!important;
+}
+
+aside a.rounded-2xl[class*="text-white"] > div > span:first-child{
+  background:linear-gradient(145deg,#607fff,#3c5ee9)!important;
+  border-color:rgba(143,161,255,.38)!important;
+  color:#fff!important;
+  box-shadow:0 6px 16px rgba(51,85,220,.30),inset 0 1px 0 rgba(255,255,255,.16)!important;
+}
+
+/* Text — prevent old pill / badge selector collisions */
+aside a.rounded-2xl > div > span:last-child{
+  display:block!important;
+  min-width:0!important;
+  padding:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:inherit!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  letter-spacing:-.012em!important;
+  line-height:1.1!important;
+}
+
+/* Existing badges */
+aside a.rounded-2xl .rounded-full{
+  min-width:max-content;
+  padding:3px 8px!important;
+  border-radius:999px!important;
+  font-size:8px!important;
+  font-weight:900!important;
+  letter-spacing:.09em!important;
+  box-shadow:none!important;
+}
+
+/* Footer / user identity */
+aside > div:last-child{
+  position:relative!important;
+  background:linear-gradient(180deg,rgba(10,18,30,.88),rgba(6,12,21,.98))!important;
+  border-top:1px solid rgba(120,150,205,.14)!important;
+  box-shadow:0 -12px 32px rgba(0,0,0,.18)!important;
+  backdrop-filter:blur(16px);
+}
+
+aside > div:last-child .rounded-2xl{
+  border-radius:10px!important;
+}
+
+aside > div:last-child .h-8.w-8{
+  width:34px!important;
+  height:34px!important;
+  border-radius:10px!important;
+  box-shadow:0 5px 16px rgba(0,0,0,.28),0 0 0 1px rgba(91,124,255,.18)!important;
+}
+
+/* Desktop breathing room */
+@media(min-width:769px){
+  aside .custom-scrollbar{padding-left:7px!important;padding-right:9px!important}
+  aside .custom-scrollbar > div{margin-bottom:1px}
+}
+
+/* Mobile drawer */
+@media(max-width:768px){
+  aside{
+    box-shadow:24px 0 80px rgba(0,0,0,.54)!important;
+  }
+  aside > div:first-child{min-height:88px!important}
+  aside input{height:45px!important;font-size:.82rem!important}
+  aside a.rounded-2xl{height:44px!important;min-height:44px!important;padding:6px 10px!important}
+  aside a.rounded-2xl > div > span:first-child{width:32px!important;height:32px!important;min-width:32px!important}
+  aside a.rounded-2xl > div > span:last-child{font-size:.84rem!important}
+  aside button[class*="uppercase"]{font-size:9px!important;min-height:28px!important}
+}
+
+@media(prefers-reduced-motion:reduce),[data-motion="off"] *{
+  aside *,aside::before,aside::after{transition:none!important;animation:none!important}
+}
