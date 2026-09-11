@@ -16,8 +16,7 @@ import {
   type MotionMode,
   useTheme,
 } from "@/components/theme-provider";
-
-const QUICK_ACCESS_STORAGE_KEY = "cafe_erp_custom_quick_access";
+import QuickAccessEditor from "@/components/settings/quick-access-editor";
 
 function Swatch({ style }: { style: (typeof DESIGN_STYLES)[number] }) {
   return <div className="flex h-14 items-end gap-1.5 rounded-xl border border-slate-200/80 bg-slate-100/80 p-2 dark:border-white/10 dark:bg-white/5"><span className="h-7 flex-1 rounded-md" style={{ background: style.primary }} /><span className="h-10 flex-1 rounded-md" style={{ background: style.secondary }} /><span className="h-8 flex-1 rounded-md" style={{ background: style.accent }} /></div>;
@@ -47,11 +46,6 @@ export default function AppearancePanel({ active }: { active: boolean }) {
   function persist(key: string, value: boolean, message: string) {
     try { localStorage.setItem(key, String(value)); } catch {}
     showToast("success", message);
-  }
-
-  function clearLegacyQuickAccess() {
-    try { localStorage.removeItem(QUICK_ACCESS_STORAGE_KEY); } catch {}
-    showToast("success", "Legacy Settings Quick Access state cleared. Dashboard Quick Access remains managed by the dashboard module.");
   }
 
   const activeStyle = DESIGN_STYLES.find((style) => style.id === designStyle) ?? DESIGN_STYLES[9];
@@ -88,7 +82,7 @@ export default function AppearancePanel({ active }: { active: boolean }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]"><div><div className="text-xs font-extrabold text-slate-900 dark:text-white">Sound feedback</div><p className="text-[11px] text-slate-500 dark:text-slate-400">Play confirmation sounds for counter actions.</p></div><Toggle checked={soundFeedback} onChange={() => { const next = !soundFeedback; setSoundFeedback(next); persist("sccomm-sound-feedback", next, next ? "Audio feedback enabled" : "Audio feedback muted"); }} label="Toggle sound feedback" /></div><div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]"><div><div className="text-xs font-extrabold text-slate-900 dark:text-white">Thermal auto-print</div><p className="text-[11px] text-slate-500 dark:text-slate-400">Automatically print completed counter sales.</p></div><Toggle checked={autoPrintThermal} onChange={() => { const next = !autoPrintThermal; setAutoPrintThermal(next); persist("sccomm-autoprint-thermal", next, next ? "Instant auto-print enabled" : "Auto-print disabled"); }} label="Toggle thermal auto-print" /></div><div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]"><div><div className="text-xs font-extrabold text-slate-900 dark:text-white">High contrast</div><p className="text-[11px] text-slate-500 dark:text-slate-400">Increase contrast for accessibility.</p></div><Toggle checked={highContrast} onChange={() => { const next = !highContrast; setHighContrast(next); document.documentElement.classList.toggle("contrast-more", next); persist("sccomm-high-contrast", next, next ? "High contrast enabled" : "High contrast disabled"); }} label="Toggle high contrast" /></div></div>
       </SettingsSection>
 
-      <SettingsSection icon="M5 12h14M12 5l7 7-7 7" tone="amber" title="Quick Access Ownership" desc="Dashboard Quick Access is owned by the dashboard navigation module to prevent duplicate state and editors inside Settings."><div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-white/[0.03]"><div><div className="text-xs font-extrabold text-slate-900 dark:text-white">One canonical Quick Access editor</div><p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Open the Dashboard Quick Access editor to pin, reorder and reset shortcuts. Settings no longer maintains a second copy.</p></div><button type="button" onClick={clearLegacyQuickAccess} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">Clear legacy Settings state</button></div></SettingsSection>
+      <QuickAccessEditor />
 
       <div className="flex justify-end"><button type="button" onClick={() => { resetToDefaults(); showToast("success", "Appearance settings reset to Cafe ERP defaults."); }} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">Reset appearance defaults</button></div>
       {toastView}
