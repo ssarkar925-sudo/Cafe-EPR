@@ -31,6 +31,15 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Upload resolved lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Financial invariants
         shell: bash
         run: |
