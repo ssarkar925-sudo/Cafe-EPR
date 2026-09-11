@@ -8,6 +8,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     name: Compile Android Debug APK
@@ -17,6 +20,108 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Apply mobile dashboard fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path("components/dashboard-shell.tsx")
+          s = p.read_text(encoding="utf-8")
+
+          old_page = '        <div className="erp-page-content min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>'
+          new_page = '        <div className="erp-page-content relative z-0 [isolation:isolate] lg:[isolation:auto] min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>'
+          if old_page in s:
+              s = s.replace(old_page, new_page, 1)
+
+          old_ai = '''      {isExecutiveDashboard && (
+        <Link
+          href="/ai-agent"
+          aria-label="Open Cafe AI Agent"
+          title="Cafe AI Agent"
+          className="fixed bottom-5 right-5 z-20 flex h-11 w-11 items-center justify-center rounded-2xl border border-indigo-200/70 bg-white/60 text-indigo-500/60 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-white/90 hover:text-indigo-600 hover:opacity-100 dark:border-indigo-400/20 dark:bg-slate-900/45 dark:text-indigo-300/55 dark:hover:bg-slate-900/85 dark:hover:text-indigo-300"
+        >
+          <span aria-hidden="true" className="text-[17px] leading-none">✦</span>
+        </Link>
+      )}
+'''
+          if old_ai in s:
+              s = s.replace(old_ai, "", 1)
+
+          p.write_text(s, encoding="utf-8")
+          print("dashboard-shell mobile fix applied")
+          PY
+
+      - name: Commit mobile fix and restore workflow
+        shell: bash
+        run: |
+          cat > .github/workflows/build-android-apk.yml <<'YAML'
+          name: Build Android APK
+
+          on:
+            workflow_dispatch:
+            push:
+              branches:
+                - main
+              tags:
+                - 'v*'
+
+          jobs:
+            build-apk:
+              name: Compile Android Debug APK
+              runs-on: ubuntu-latest
+              timeout-minutes: 20
+
+              steps:
+                - name: Checkout Code
+                  uses: actions/checkout@v4
+
+                - name: Setup Java 21 (Temurin)
+                  uses: actions/setup-java@v4
+                  with:
+                    distribution: 'temurin'
+                    java-version: '21'
+
+                - name: Setup Android SDK
+                  uses: android-actions/setup-android@v3
+
+                - name: Setup Node.js
+                  uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                    cache: 'npm'
+
+                - name: Install Dependencies
+                  run: npm install --no-audit --no-fund
+
+                - name: Sync Capacitor Android
+                  run: npx cap sync android
+
+                - name: Build Android Debug APK with Gradle
+                  run: |
+                    cd android
+                    chmod +x gradlew
+                    ./gradlew assembleDebug --no-daemon
+
+                - name: Upload APK as Artifact
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: CafeERP-Android-Debug-APK
+                    path: android/app/build/outputs/apk/debug/app-debug.apk
+                    if-no-files-found: error
+                    retention-days: 30
+          YAML
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/apply-mobile-dashboard-fix.yml .github/mobile-dashboard-fix.trigger
+          git add components/dashboard-shell.tsx .github/workflows/build-android-apk.yml .github/workflows/apply-mobile-dashboard-fix.yml .github/mobile-dashboard-fix.trigger
+          if git diff --cached --quiet; then
+            echo "No mobile source changes required"
+            exit 0
+          fi
+          git commit -m "fix(mobile): remove dashboard AI duplicate and isolate drawer"
+          git push
 
       - name: Setup Java 21 (Temurin)
         uses: actions/setup-java@v4
