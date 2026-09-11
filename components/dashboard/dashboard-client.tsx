@@ -300,93 +300,6 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   const [currentDate, setCurrentDate] = useState<string>("");
   const [greeting, setGreeting] = useState<string>("Good day");
   const [hoveredPoint, setHoveredPoint] = useState<{ label: string; revenue: number; expenses: number } | null>(null);
-  const [quickActions, setQuickActions] = useState<Array<{ id: string; label: string; href: string; icon: string }>>([]);
-  const [isQuickActionsEditorOpen, setIsQuickActionsEditorOpen] = useState(false);
-
-  const defaultQuickActions = useMemo(() => [
-    { id: "new-sale", label: "New Sale", href: "/pos", icon: "new-sale" },
-    { id: "quick-sale", label: "Quick Sale", href: "/pos?mode=quick", icon: "quick-sale" },
-    { id: "customer-crm", label: "Customer CRM", href: "/customers", icon: "customer-crm" },
-    { id: "cash-book", label: "Cash Book", href: "/finance/cashbook", icon: "cash-book" },
-    { id: "aeps", label: "AEPS ATM", href: "/business/aeps", icon: "aeps" },
-    { id: "dmt", label: "Money Transfer", href: "/business/dmt", icon: "dmt" },
-    { id: "expenses", label: "Expenses", href: "/finance/expenses", icon: "expenses" },
-    { id: "day-close", label: "Day Close", href: "/finance/day-close", icon: "day-close" },
-  ], []);
-
-  const quickActionCatalog = useMemo(() => [
-    ...defaultQuickActions,
-    { id: "invoices", label: "Invoices", href: "/invoices", icon: "invoices" },
-    { id: "returns", label: "Returns", href: "/returns", icon: "returns" },
-    { id: "products", label: "Products Catalog", href: "/catalog/products", icon: "products" },
-    { id: "services", label: "Services Rate Card", href: "/catalog/services", icon: "services" },
-    { id: "purchases", label: "Purchases Entry", href: "/purchases/entry", icon: "purchases" },
-    { id: "suppliers", label: "Suppliers", href: "/suppliers", icon: "suppliers" },
-    { id: "upi", label: "UPI Collections", href: "/business/upi", icon: "upi" },
-    { id: "bill-payment", label: "Bill & Recharge", href: "/business/bill-payment", icon: "bill-payment" },
-    { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },
-    { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },
-    { id: "banks", label: "Bank Accounts", href: "/business/banks", icon: "banks" },
-    { id: "settlements", label: "Settlements", href: "/finance/settlements", icon: "settlements" },
-    { id: "pnl", label: "Profit & Loss", href: "/finance/pnl", icon: "pnl" },
-    { id: "reports", label: "Reports Hub", href: "/reports", icon: "reports" },
-    { id: "tax-prep", label: "Tax Prep / ITR", href: "/reports/tax-preparation", icon: "tax-prep" },
-    { id: "self-audit", label: "Self-Audit", href: "/ai/self-audit", icon: "self-audit" },
-    { id: "ai", label: "AI Advisor", href: "/ai", icon: "ai" },
-    { id: "settings", label: "Settings", href: "/settings", icon: "settings" },
-  ], [defaultQuickActions]);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem("cafe-erp-dashboard-quick-actions");
-      const parsed = saved ? JSON.parse(saved) : null;
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const valid = parsed.filter((item: any) =>
-          item && typeof item.id === "string" && typeof item.label === "string" &&
-          typeof item.href === "string" && typeof item.icon === "string"
-        );
-        setQuickActions(valid.length > 0 ? valid : defaultQuickActions);
-      } else {
-        setQuickActions(defaultQuickActions);
-      }
-    } catch {
-      setQuickActions(defaultQuickActions);
-    }
-  }, [defaultQuickActions]);
-
-  const saveQuickActions = (next: Array<{ id: string; label: string; href: string; icon: string }>) => {
-    setQuickActions(next);
-    try {
-      window.localStorage.setItem("cafe-erp-dashboard-quick-actions", JSON.stringify(next));
-    } catch {}
-  };
-
-  const moveQuickAction = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= quickActions.length) return;
-    const next = [...quickActions];
-    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    saveQuickActions(next);
-  };
-
-  const updateQuickAction = (id: string, patch: Partial<{ label: string; href: string; icon: string }>) => {
-    saveQuickActions(quickActions.map((action) => action.id === id ? { ...action, ...patch } : action));
-  };
-
-  const addQuickAction = (id: string) => {
-    const action = quickActionCatalog.find((item) => item.id === id);
-    if (!action || quickActions.some((item) => item.id === id)) return;
-    saveQuickActions([...quickActions, action]);
-  };
-
-  const removeQuickAction = (id: string) => {
-    if (quickActions.length <= 1) return;
-    saveQuickActions(quickActions.filter((action) => action.id !== id));
-  };
-
-  const resetQuickActions = () => {
-    saveQuickActions(defaultQuickActions);
-  };
 
   useEffect(() => {
     const updateDateTimeAndGreeting = () => {
@@ -1163,63 +1076,68 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
         </div>
 
-        {/* Quick Actions Hub */}
+        {/* Financial Control Center */}
         <div className="bento-surface p-6 lg:col-span-6 dark:bg-slate-900/90 flex flex-col justify-between">
           <div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
-                  <ActionVectorIcon icon="quick-sale" className="h-4 w-4" />
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+                  <ActionVectorIcon icon="trial-balance" className="h-4 w-4" />
                 </span>
-                <h3 className="font-bold text-slate-900 dark:text-white">Quick Action Shortcuts</h3>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">Financial Control Center</h3>
+                  <p className="text-[10px] font-medium text-slate-400">Live counter, closing &amp; integrity signals</p>
+                </div>
               </div>
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => setIsQuickActionsEditorOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30 transition"
-                >
-                  <ActionVectorIcon icon="settings" className="h-3.5 w-3.5" />
-                  <span>Customize</span>
-                </button>
-              )}
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                data.auditData.status === "PASS"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+              }`}>
+                {data.auditData.status || "CHECK"}
+              </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {quickActions.map((action, idx) => {
-                const colorThemes = [
-                  { bg: "bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white dark:bg-emerald-500/20 dark:text-emerald-400", border: "hover:border-emerald-500/40 hover:shadow-emerald-500/10", text: "group-hover:text-emerald-600 dark:group-hover:text-emerald-400" },
-                  { bg: "bg-amber-500/10 text-amber-600 group-hover:bg-amber-600 group-hover:text-white dark:bg-amber-500/20 dark:text-amber-400", border: "hover:border-amber-500/40 hover:shadow-amber-500/10", text: "group-hover:text-amber-600 dark:group-hover:text-amber-400" },
-                  { bg: "bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white dark:bg-indigo-500/20 dark:text-indigo-400", border: "hover:border-indigo-500/40 hover:shadow-indigo-500/10", text: "group-hover:text-indigo-600 dark:group-hover:text-indigo-400" },
-                  { bg: "bg-teal-500/10 text-teal-600 group-hover:bg-teal-600 group-hover:text-white dark:bg-teal-500/20 dark:text-teal-400", border: "hover:border-teal-500/40 hover:shadow-teal-500/10", text: "group-hover:text-teal-600 dark:group-hover:text-teal-400" },
-                  { bg: "bg-violet-500/10 text-violet-600 group-hover:bg-violet-600 group-hover:text-white dark:bg-violet-500/20 dark:text-violet-400", border: "hover:border-violet-500/40 hover:shadow-violet-500/10", text: "group-hover:text-violet-600 dark:group-hover:text-violet-400" },
-                  { bg: "bg-blue-500/10 text-blue-600 group-hover:bg-blue-600 group-hover:text-white dark:bg-blue-500/20 dark:text-blue-400", border: "hover:border-blue-500/40 hover:shadow-blue-500/10", text: "group-hover:text-blue-600 dark:group-hover:text-blue-400" },
-                  { bg: "bg-rose-500/10 text-rose-600 group-hover:bg-rose-600 group-hover:text-white dark:bg-rose-500/20 dark:text-rose-400", border: "hover:border-rose-500/40 hover:shadow-rose-500/10", text: "group-hover:text-rose-600 dark:group-hover:text-rose-400" },
-                  { bg: "bg-purple-500/10 text-purple-600 group-hover:bg-purple-600 group-hover:text-white dark:bg-purple-500/20 dark:text-purple-400", border: "hover:border-purple-500/40 hover:shadow-purple-500/10", text: "group-hover:text-purple-600 dark:group-hover:text-purple-400" },
-                ];
-                const theme = colorThemes[idx % colorThemes.length];
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/30 dark:bg-emerald-950/15">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Net Cash Movement</div>
+                <div className={`mt-1 text-lg font-black ${
+                  (data.todayMetrics.moneyIn - data.todayMetrics.moneyOut) >= 0
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-rose-600 dark:text-rose-400"
+                }`}>
+                  {(data.todayMetrics.moneyIn - data.todayMetrics.moneyOut) >= 0 ? "+" : "−"}{inr(Math.abs(data.todayMetrics.moneyIn - data.todayMetrics.moneyOut))}
+                </div>
+                <div className="mt-0.5 text-[10px] text-slate-400">Money in less money out</div>
+              </div>
 
-                return (
-                  <Link
-                    key={action.id}
-                    href={action.href}
-                    className={`group flex min-h-[92px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white/80 p-3 text-center transition-all duration-200 hover:-translate-y-1 hover:bg-white hover:shadow-lg active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.07] ${theme.border}`}
-                  >
-                    <span className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-xs transition-all duration-200 group-hover:scale-110 ${theme.bg}`}>
-                      <ActionVectorIcon icon={action.icon} className="h-4 w-4" />
-                    </span>
-                    <span className={`mt-2 text-xs font-bold text-slate-900 truncate w-full transition-colors dark:text-white ${theme.text}`}>
-                      {action.label}
-                    </span>
-                  </Link>
-                );
-              })}
+              <div className="rounded-2xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/30 dark:bg-blue-950/15">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Today&apos;s Transactions</div>
+                <div className="mt-1 text-lg font-black text-slate-900 dark:text-white">{data.todayMetrics.transactionCount}</div>
+                <div className="mt-0.5 text-[10px] text-slate-400">Avg ticket {inr(data.todayMetrics.avgTicketSize)}</div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200/70 bg-amber-50/40 p-3 dark:border-amber-900/30 dark:bg-amber-950/15">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Quick Sales</div>
+                <div className="mt-1 text-lg font-black text-slate-900 dark:text-white">{data.todayMetrics.quickSaleCount}</div>
+                <div className="mt-0.5 text-[10px] text-slate-400">{inr(data.todayMetrics.quickSaleAmount)} booked</div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Day Close Variance</div>
+                <div className={`mt-1 text-lg font-black ${
+                  Math.abs(data.dayCloseStatus.difference) > 0.01 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                }`}>
+                  {inr(data.dayCloseStatus.difference)}
+                </div>
+                <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.dayCloseStatus.statusLabel || data.dayCloseStatus.status || "No variance"}</div>
+              </div>
             </div>
           </div>
-          <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">
-            <span className="text-[11px] font-medium text-slate-400">
-              Instant shortcuts to authorized ERP modules
-            </span>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] dark:border-white/5">
+            <span className="text-slate-400">Internal transfers: <strong className="text-slate-600 dark:text-slate-300">{inr(data.todayMetrics.internalTransfers)}</strong></span>
+            <Link href="/finance/day-close" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Open Control Ledger →</Link>
           </div>
         </div>
       </div>
@@ -1269,64 +1187,6 @@ export default function DashboardClient({ data }: DashboardClientProps) {
         </div>
       </div>
 
-      {/* Quick Actions Customization Modal */}
-      {isQuickActionsEditorOpen && isAdmin && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="quick-actions-title">
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
-              <div>
-                <h4 id="quick-actions-title" className="font-black text-slate-900 dark:text-white">Edit Quick Actions</h4>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Customize labels, icons, destinations and order.</p>
-              </div>
-              <button type="button" onClick={() => setIsQuickActionsEditorOpen(false)} className="rounded-xl px-3 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="Close editor">✕</button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-3">
-              {quickActions.map((action, index) => (
-                <div key={action.id} className="rounded-2xl border border-slate-200 p-3 dark:border-white/10">
-                  <div className="grid grid-cols-[auto_1fr] gap-3 sm:grid-cols-[auto_1fr_auto]">
-                    <div className="flex items-start gap-1">
-                      <button type="button" disabled={index === 0} onClick={() => moveQuickAction(index, -1)} className="rounded-lg px-2 py-1 text-xs font-bold disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-white/10" aria-label={`Move ${action.label} up`}>↑</button>
-                      <button type="button" disabled={index === quickActions.length - 1} onClick={() => moveQuickAction(index, 1)} className="rounded-lg px-2 py-1 text-xs font-bold disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-white/10" aria-label={`Move ${action.label} down`}>↓</button>
-                    </div>
-                    <div className="grid grid-cols-[48px_1fr] gap-2 items-center">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        <ActionVectorIcon icon={action.icon} className="h-5 w-5" />
-                      </div>
-                      <input value={action.label} onChange={(e) => updateQuickAction(action.id, { label: e.target.value.slice(0, 32) })} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-800 dark:text-white" aria-label={`${action.label} label`} />
-                    </div>
-                    <button type="button" onClick={() => removeQuickAction(action.id)} disabled={quickActions.length <= 1} className="rounded-xl px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-30 dark:hover:bg-rose-950/20">Remove</button>
-                  </div>
-                  <div className="mt-2">
-                    <select value={action.href} onChange={(e) => updateQuickAction(action.id, { href: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200" aria-label={`${action.label} destination`}>
-                      {quickActionCatalog.map((item) => (
-                        <option key={item.id} value={item.href}>{item.label} — {item.href}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ))}
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/40">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Add a shortcut</div>
-                    <div className="text-[11px] text-slate-500">Choose from safe application destinations.</div>
-                  </div>
-                  <select defaultValue="" onChange={(e) => { if (e.target.value) { addQuickAction(e.target.value); e.currentTarget.value = ""; } }} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold dark:border-white/10 dark:bg-slate-900 dark:text-white">
-                    <option value="" disabled>Add action…</option>
-                    {quickActionCatalog.filter((item) => !quickActions.some((a) => a.id === item.id)).map((item) => (
-                      <option key={item.id} value={item.id}>{item.label} ({item.href})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-slate-800/40">
-              <button type="button" onClick={resetQuickActions} className="rounded-xl px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-white/10">↺ Restore Defaults</button>
-              <button type="button" onClick={() => setIsQuickActionsEditorOpen(false)} className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700">Done</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
