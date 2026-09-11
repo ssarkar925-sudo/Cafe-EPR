@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: cloudflare-production
@@ -22,6 +22,53 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Apply mobile dashboard UI fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path("components/dashboard-shell.tsx")
+          s = p.read_text(encoding="utf-8")
+
+          old_page = '        <div className="erp-page-content min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>'
+          new_page = '        <div className="erp-page-content relative z-0 [isolation:isolate] lg:[isolation:auto] min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>'
+          if old_page in s:
+              s = s.replace(old_page, new_page, 1)
+
+          old_ai = '''      {isExecutiveDashboard && (
+        <Link
+          href="/ai-agent"
+          aria-label="Open Cafe AI Agent"
+          title="Cafe AI Agent"
+          className="fixed bottom-5 right-5 z-20 flex h-11 w-11 items-center justify-center rounded-2xl border border-indigo-200/70 bg-white/60 text-indigo-500/60 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-white/90 hover:text-indigo-600 hover:opacity-100 dark:border-indigo-400/20 dark:bg-slate-900/45 dark:text-indigo-300/55 dark:hover:bg-slate-900/85 dark:hover:text-indigo-300"
+        >
+          <span aria-hidden="true" className="text-[17px] leading-none">✦</span>
+        </Link>
+      )}
+'''
+          if old_ai in s:
+              s = s.replace(old_ai, "", 1)
+
+          p.write_text(s, encoding="utf-8")
+          print("Mobile dashboard UI fix prepared")
+          PY
+
+      - name: Commit mobile source fix if needed
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/apply-mobile-dashboard-fix.yml 2>/dev/null || true
+          rm -f .github/mobile-dashboard-fix.trigger
+          git add components/dashboard-shell.tsx .github/workflows/apply-mobile-dashboard-fix.yml .github/mobile-dashboard-fix.trigger .github/workflows/deploy-cloudflare.yml
+          if git diff --cached --quiet; then
+            echo "No source changes needed"
+          else
+            git commit -m "fix(mobile): remove dashboard AI float and fix drawer stacking"
+            git push
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
