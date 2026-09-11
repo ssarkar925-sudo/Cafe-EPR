@@ -37,7 +37,7 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
       .order("created_at", { ascending: true }),
     supabase
       .from("invoices")
-      .select("id, invoice_number, invoice_date, total, status, created_at")
+      .select("id, invoice_number, invoice_date, total, total_taxable_value, total_cgst, total_sgst, total_igst, status, created_at")
       .neq("status", "cancelled")
       .gte("invoice_date", from)
       .lte("invoice_date", to)
@@ -62,7 +62,7 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
   const posInvoiceRows = (invoices ?? []).map((i: any) => ({
     transaction_number: i.invoice_number,
     service_type: "pos_invoice",
-    amount: Number(i.total) || 0,
+    amount: Number(i.total_taxable_value ?? i.total) || 0,
     service_fee: 0,
     portal_charge: 0,
     portal_commission: 0,

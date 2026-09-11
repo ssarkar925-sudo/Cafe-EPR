@@ -453,6 +453,7 @@ export default function DmtWorkspace({
     if (senderMobile.trim() && senderMobile.trim().replace(/\D/g, "").length !== 10) return false;
     if (paidFrom === "portal" && !selectedPortalId) return false;
     if (paidFrom === "bank" && !selectedBankInstrumentId) return false;
+    if (customerPayMethod === "due" && !selectedCustomerId) return false;
     if (customerDueAmount > 0 && !selectedCustomerId) return false;
     return true;
   }, [
@@ -466,6 +467,7 @@ export default function DmtWorkspace({
     selectedPortalId,
     selectedBankInstrumentId,
     customerPayMethod,
+    customerDueAmount,
     selectedCustomerId,
   ]);
 
@@ -983,6 +985,15 @@ export default function DmtWorkspace({
       const nowIso = new Date().toISOString();
       const dateStr = nowIso.slice(0, 10);
 
+      const baseAllocations = customerPaymentAllocations
+        .filter((row) => Number(row.amount) > 0)
+        .map((row) => ({ method: row.method, amount: Number(row.amount) }));
+      const allocations = baseAllocations.length > 0
+        ? baseAllocations
+        : customerCollectionAmount > 0 && customerPayMethod !== "due"
+          ? [{ method: customerPayMethod, amount: Number(customerCollectionAmount) }]
+          : [];
+
       const res = await supabase.rpc("create_dmt_business_txn_multi_collection", {
         p_service_type: "dmt",
         p_transaction_date: dateStr,
@@ -1010,15 +1021,11 @@ export default function DmtWorkspace({
         p_portal_commission: numComm,
         p_fee_source: null,
         p_paid_from: paidFrom,
-        p_customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
-        p_customer_collected_amount: customerCollectionAmount,
-        p_customer_due_amount: customerDueAmount,
-        p_customer_collection_method: customerPayMethod,
         p_pay_from_instrument_id: paidFrom === "bank" ? selectedBankInstrumentId || null : null,
         p_pay_from_method: paidFrom,
         p_receiver_name: receiverName.trim() || null,
         p_portal_charge: numCharge,
-        p_customer_collection_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0),
+        p_customer_collection_allocations: allocations,
       });
 
       if (res.error) throw res.error;

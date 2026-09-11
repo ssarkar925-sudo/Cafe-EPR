@@ -143,426 +143,150 @@ export default function PaymentAccountsPanel({
     debit_card: "debit_card",
   };
 
-  const refreshLiveBalances = useCallback(async () => {
+const refreshLiveBalances = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [
-        { data: insts },
-        poolResult,
-        { data: ces },
-        { data: portals },
-        { data: txs },
-        { data: sets },
-        { data: seeds },
-      ] = await Promise.all([
+      const [{ data: insts, error: instError }, poolResult, { data: ces, error: cashError }] = await Promise.all([
         supabase.from("payment_instruments").select("*").order("type").order("name"),
         supabase.rpc("get_pool_balances"),
-        supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, description").not("instrument_id", "is", null),
-        supabase.from("aeps_portals").select("id, payment_instrument_id"),
-        supabase.from("transactions").select("id, transaction_number, service_type, pool_credit, pool_out, pool_credit_type, service_fee, upi_fee, amount, status, created_at, customer_pay_method, fee_source, portal_id, instrument_id").eq("status", "success"),
-        supabase.from("settlements").select("id, source_instrument_id, dest_instrument_id, amount, status, created_at").eq("status", "success"),
-        supabase.from("opening_balances").select("*"),
+        supabase
+          .from("cash_entries")
+          .select("id, instrument_id, direction, amount, created_at, description, ref_type, ref_id")
+          .not("instrument_id", "is", null)
+          .order("created_at", { ascending: true }),
       ]);
 
+      if (instError) throw instError;
+      if (cashError) throw cashError;
       if (!insts) return;
 
-      // Parse pool balances from RPC
+      const rows = insts as InstrumentRow[];
       const pool = (poolResult.data ?? {}) as Record<string, { opening: number; movements: number; current: number }>;
-
-      // Count active instruments per type
+      const activeRows = rows.filter((i) => i.is_active);
       const countPerType: Record<string, number> = {};
-      for (const i of insts as InstrumentRow[]) {
-        if (i.is_active) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
+      for (const i of activeRows) countPerType[i.type] = (countPerType[i.type] ?? 0) + 1;
+
+      // SINGLE SOURCE OF TRUTH:
+      // cash_entries are the canonical movement ledger for each instrument and
+      // payment_instruments.current_balance is the persisted live balance. Never
+      // add transactions or settlements again here; those operations already post
+      // their corresponding cash_entries and doing so double-counts money.
+      const entriesByInstrument: Record<string, { inflow: number; outflow: number; net: number; entries: any[] }> = {};
+      for (const i of rows) entriesByInstrument[i.id] = { inflow: 0, outflow: 0, net: 0, entries: [] };
+      for (const e of (ces ?? []) as any[]) {
+        if (!e.instrument_id || !entriesByInstrument[e.instrument_id]) continue;
+        const amount = Number(e.amount) || 0;
+        const signed = e.direction === "out" ? -amount : amount;
+        const bucket = entriesByInstrument[e.instrument_id];
+        if (signed >= 0) bucket.inflow += signed;
+        else bucket.outflow += -signed;
+        bucket.net += signed;
+        bucket.entries.push({
+          id: e.id,
+          number: e.ref_type ? String(e.ref_type).replaceAll("_", " ").toUpperCase() : "CASH ENTRY",
+          type: e.direction === "out" ? "Outflow" : "Inflow",
+          amount: signed,
+          date: e.created_at,
+          desc: e.description || "Ledger movement",
+        });
       }
 
-      // Map portal_id -> payment_instrument_id
-      const portalToInst: Record<string, string> = {};
-      for (const p of (portals ?? []) as { id: string; payment_instrument_id: string | null }[]) {
-        if (p.payment_instrument_id) portalToInst[p.id] = p.payment_instrument_id;
-      }
-
-      const instDeltas: Record<string, number> = {};
-      for (const i of insts as InstrumentRow[]) instDeltas[i.id] = 0;
-
-      // 1. Tagged cash entries
-      for (const e of (ces ?? []) as { instrument_id: string | null; direction: string; amount: number | string }[]) {
-        if (!e.instrument_id) continue;
-        const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-        instDeltas[e.instrument_id] = (instDeltas[e.instrument_id] ?? 0) + delta;
-      }
-
-      // 2. Tagged business transactions (AEPS / DMT / UPI / etc.)
-      for (const t of (txs ?? []) as { portal_id: string | null; instrument_id: string | null; pool_credit: number | string; pool_out: number | string }[]) {
-        let targetInstId = t.instrument_id;
-        if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
-          targetInstId = portalToInst[t.portal_id];
-        }
-        if (targetInstId && instDeltas[targetInstId] !== undefined) {
-          const pCredit = Number(t.pool_credit) || 0;
-          const pOut = Number(t.pool_out) || 0;
-          instDeltas[targetInstId] = (instDeltas[targetInstId] ?? 0) + (pCredit - pOut);
-        }
-      }
-
-      // 3. Tagged settlements
-      for (const s of (sets ?? []) as { source_instrument_id: string | null; dest_instrument_id: string | null; amount: number | string }[]) {
-        const amt = Number(s.amount) || 0;
-        if (s.dest_instrument_id && instDeltas[s.dest_instrument_id] !== undefined) {
-          instDeltas[s.dest_instrument_id] = (instDeltas[s.dest_instrument_id] ?? 0) + amt;
-        }
-        if (s.source_instrument_id && instDeltas[s.source_instrument_id] !== undefined) {
-          instDeltas[s.source_instrument_id] = (instDeltas[s.source_instrument_id] ?? 0) - amt;
-        }
-      }
-
-      const updated = (insts as InstrumentRow[]).map((i) => {
-        const poolKey = POOL_MAP[i.type];
-        const poolEntry = poolKey ? pool[poolKey] : undefined;
-
-        // 1. Linked Debit Card: reflects its linked bank account
+      const updated = rows.map((i) => {
+        // Debit cards are mirrors of their linked bank account, never a second asset.
         if (i.type === "debit_card") {
-          const linkedBankId = i.details?.linked_bank_instrument_id || (insts.filter((b) => b.type === "bank").length === 1 ? insts.find((b) => b.type === "bank")?.id : null);
-          const linkedBank = linkedBankId ? (insts as InstrumentRow[]).find((b) => b.id === linkedBankId) : null;
-          
-          let bankBal = 0;
-          let bankOpening = 0;
-          if (linkedBank) {
-            const bankPoolKey = POOL_MAP[linkedBank.type];
-            const bankPoolEntry = bankPoolKey ? pool[bankPoolKey] : undefined;
-            if (bankPoolEntry && (countPerType["bank"] ?? 0) <= 1) {
-              bankBal = bankPoolEntry.current ?? bankPoolEntry.opening + bankPoolEntry.movements;
-              bankOpening = bankPoolEntry.opening;
-            } else {
-              bankBal = Number(linkedBank.opening_balance ?? 0) + (instDeltas[linkedBank.id] ?? 0);
-              bankOpening = Number(linkedBank.opening_balance ?? 0);
-            }
-          } else if (pool["bank"]) {
-            bankBal = pool["bank"].current ?? pool["bank"].opening + pool["bank"].movements;
-            bankOpening = pool["bank"].opening;
-          }
-
-          return {
-            ...i,
-            balance: bankBal,
-            opening_balance: bankOpening,
-          };
+          const linkedBankId = i.details?.linked_bank_instrument_id ||
+            (rows.filter((b) => b.type === "bank" && b.is_active).length === 1
+              ? rows.find((b) => b.type === "bank" && b.is_active)?.id
+              : null);
+          const linkedBank = linkedBankId ? rows.find((b) => b.id === linkedBankId) : null;
+          const bankBalance = Number((linkedBank as (InstrumentRow & { current_balance?: number }) | null)?.current_balance ?? linkedBank?.balance ?? 0);
+          return { ...i, balance: bankBalance, opening_balance: Number(linkedBank?.opening_balance ?? 0) };
         }
 
-        // 2. Credit Card: reflects available credit limit & tracks outstanding liability
+        // Credit cards display AVAILABLE CREDIT, not a cash balance.
+        // current_balance is authoritative; used credit is derived from limit - available.
         if (i.type === "credit_card") {
           const limit = Number(i.details?.credit_limit || 0);
-          const openingOutstanding = Number(i.opening_balance || 0);
-          const delta = instDeltas[i.id] ?? 0;
-          const currentOutstanding = Math.max(0, openingOutstanding + delta);
-          const availableCredit = Math.max(0, limit - currentOutstanding);
+          const available = Math.max(0, Number((i as InstrumentRow & { current_balance?: number }).current_balance ?? limit));
+          const used = Math.max(0, limit - available);
           return {
             ...i,
-            balance: availableCredit,
-            opening_balance: openingOutstanding,
+            balance: available,
+            opening_balance: Number(i.opening_balance ?? 0),
+            details: { ...(i.details ?? {}), used_limit: used },
           };
         }
 
-        // 3. Single active account for its type: authoritative pool balance
-        if (poolEntry && (countPerType[i.type] ?? 0) <= 1) {
-          const effectiveOpening = Number(i.opening_balance ?? 0) || Number(poolEntry.opening ?? 0);
-          const movements = instDeltas[i.id] !== undefined && instDeltas[i.id] !== 0
-            ? instDeltas[i.id]
-            : (poolEntry.movements ?? 0);
-          return {
-            ...i,
-            balance: effectiveOpening + movements,
-            opening_balance: effectiveOpening,
-          };
-        }
-
-        // 4. Multi-account pool: individual opening + tagged movements
-        return {
-          ...i,
-          balance: Number(i.opening_balance ?? 0) + (instDeltas[i.id] ?? 0),
-        };
+        // All normal liquidity instruments use their persisted current_balance.
+        return { ...i, balance: Number((i as InstrumentRow & { current_balance?: number }).current_balance ?? 0) };
       });
       setInstruments(updated);
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-      // =========================================================================
-      // BUILD UNIFIED RECONCILIATION OBJECTS FOR ALL ACCOUNTS
-      // =========================================================================
       const reconMap: Record<string, AccountReconDetail> = {};
 
       for (const inst of updated) {
-        const poolKey = POOL_MAP[inst.type] || "cash";
-        const poolEntry = pool[poolKey] || { opening: 0, movements: 0, current: 0 };
-        const isSingleAccount = (countPerType[inst.type] ?? 0) <= 1;
-
-        if (inst.type === "debit_card") {
-          const parentBankId = inst.details?.linked_bank_instrument_id || (updated.filter((b) => b.type === "bank").length === 1 ? updated.find((b) => b.type === "bank")?.id : null);
-          const parentBank = parentBankId ? updated.find((b) => b.id === parentBankId) : null;
-          const bankBalance = Number(parentBank?.balance ?? pool["bank"]?.current ?? 0);
-
-          reconMap[inst.id] = {
-            id: inst.id,
-            accountName: inst.name,
-            accountType: inst.type,
-            poolKey: "bank",
-            currentBalance: bankBalance,
-            openingBalance: Number(parentBank?.opening_balance ?? pool["bank"]?.opening ?? 0),
-            credits: 0,
-            debits: 0,
-            fees: 0,
-            settlements: 0,
-            otherMovements: 0,
-            calculatedBalance: bankBalance,
-            canonicalBalance: bankBalance,
-            variance: 0,
-            isReconciled: true,
-            statusLabel: "Linked to Bank",
-            statusVariant: "linked",
-            isDebitCard: true,
-            parentBankName: parentBank?.name || "Parent Bank Account",
-            parentBankBalance: bankBalance,
-            contributingTxns: [],
-            lastRefreshedAt: timeStr,
-          };
-          continue;
-        }
-
-        if (inst.type === "credit_card") {
-          const limit = Number(inst.details?.credit_limit || 0);
-          const openingOutstanding = Number(inst.opening_balance || 0);
-          const delta = instDeltas[inst.id] ?? 0;
-          const currentOutstanding = Math.max(0, openingOutstanding + delta);
-          const availableCredit = Math.max(0, limit - currentOutstanding);
-
-          reconMap[inst.id] = {
-            id: inst.id,
-            accountName: inst.name,
-            accountType: inst.type,
-            poolKey: "credit_card",
-            currentBalance: availableCredit,
-            openingBalance: openingOutstanding,
-            credits: 0,
-            debits: currentOutstanding,
-            fees: 0,
-            settlements: 0,
-            otherMovements: 0,
-            calculatedBalance: availableCredit,
-            canonicalBalance: availableCredit,
-            variance: 0,
-            isReconciled: true,
-            statusLabel: "Credit Facility",
-            statusVariant: "credit_limit",
-            isCreditCard: true,
-            creditLimit: limit,
-            usedLimit: currentOutstanding,
-            contributingTxns: [],
-            lastRefreshedAt: timeStr,
-          };
-          continue;
-        }
-
-        if (inst.type === "upi") {
-          const upiSeed = (seeds ?? []).find((s: any) => s.pool === "upi_qr" || s.pool === "upi");
-          const upiOpening = Number(upiSeed?.amount ?? 0);
-          let upiCredits = 0;
-          let upiOutflows = 0;
-          let upiFees = 0;
-          const upiTxList: any[] = [];
-
-          for (const t of (txs ?? []) as any[]) {
-            const pCredit = Number(t.pool_credit) || 0;
-            const pOut = Number(t.pool_out) || 0;
-            const uFee = Number(t.upi_fee) || 0;
-
-            if (pCredit > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-              upiCredits += pCredit;
-              upiTxList.push({
-                id: t.id,
-                number: t.transaction_number || "TXN",
-                type: "QR Credit",
-                amount: pCredit,
-                date: t.created_at,
-                desc: `Customer QR payment (${inr(t.amount || pCredit)})`,
-              });
-            }
-
-            if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-              upiOutflows += pOut;
-              upiTxList.push({
-                id: t.id,
-                number: t.transaction_number || "TXN",
-                type: "Outflow",
-                amount: -pOut,
-                date: t.created_at,
-                desc: "UPI payout / settlement",
-              });
-            }
-
-            if (uFee > 0 || (t.fee_source === "upi" && Number(t.service_fee) > 0)) {
-              const feeAmt = uFee > 0 ? uFee : Number(t.service_fee);
-              upiFees += feeAmt;
-              upiTxList.push({
-                id: `${t.id}-fee`,
-                number: t.transaction_number || "TXN",
-                type: "Fee Collection",
-                amount: feeAmt,
-                date: t.created_at,
-                desc: `Service fee collected via UPI (${t.service_type?.toUpperCase()})`,
-              });
-            }
-          }
-
-          let upiSetsIn = 0;
-          let upiSetsOut = 0;
-          for (const s of (sets ?? []) as any[]) {
-            const amt = Number(s.amount) || 0;
-            if (s.dest_instrument_id === inst.id) {
-              upiSetsIn += amt;
-              upiTxList.push({
-                id: s.id,
-                number: "SETTLEMENT",
-                type: "Settlement In",
-                amount: amt,
-                date: s.created_at,
-                desc: "Settlement received into UPI",
-              });
-            }
-            if (s.source_instrument_id === inst.id) {
-              upiSetsOut += amt;
-              upiTxList.push({
-                id: s.id,
-                number: "SETTLEMENT",
-                type: "Settlement Out",
-                amount: -amt,
-                date: s.created_at,
-                desc: "UPI sweep / transfer to bank",
-              });
-            }
-          }
-
-          let upiOther = 0;
-          for (const e of (ces ?? []) as any[]) {
-            if (e.instrument_id === inst.id) {
-              const delta = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-              upiOther += delta;
-              upiTxList.push({
-                id: e.id,
-                number: "ENTRY",
-                type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
-                amount: delta,
-                date: e.created_at,
-                desc: (e as any).description || (e as any).remarks || "Direct cashbook adjustment",
-              });
-            }
-          }
-
-          const upiCalculated = upiOpening + upiCredits - upiOutflows + upiFees + upiOther + upiSetsIn - upiSetsOut;
-          const upiCanonical = Number(pool["upi_qr"]?.current ?? ((pool["upi_qr"]?.opening ?? 0) + (pool["upi_qr"]?.movements ?? 0)));
-          const upiVariance = upiCalculated - upiCanonical;
-          const isUpiReconciled = Math.abs(upiVariance) < 0.01;
-
-          const upiDetail: AccountReconDetail = {
-            id: inst.id,
-            accountName: inst.name,
-            accountType: inst.type,
-            poolKey: "upi_qr",
-            currentBalance: upiCanonical,
-            openingBalance: upiOpening,
-            credits: upiCredits,
-            debits: upiOutflows,
-            fees: upiFees,
-            settlements: upiSetsIn - upiSetsOut,
-            otherMovements: upiOther,
-            calculatedBalance: upiCalculated,
-            canonicalBalance: upiCanonical,
-            variance: upiVariance,
-            isReconciled: isUpiReconciled,
-            statusLabel: isUpiReconciled ? "✓ Reconciled" : `⚠ Variance ${inr(upiVariance)}`,
-            statusVariant: isUpiReconciled ? "reconciled" : "variance",
-            contributingTxns: upiTxList,
-            lastRefreshedAt: timeStr,
-          };
-
-          reconMap[inst.id] = upiDetail;
-          setUpiRecon(upiDetail);
-          continue;
-        }
-
-        // Generic Accounts (Cash, Bank, AEPS Float, DMT Float, Wallet)
-        const opening = Number(inst.opening_balance ?? 0) || (isSingleAccount ? (poolEntry.opening ?? 0) : 0);
-        const delta = isSingleAccount && (instDeltas[inst.id] === undefined || instDeltas[inst.id] === 0)
-          ? (poolEntry.movements ?? 0)
-          : (instDeltas[inst.id] ?? 0);
-        const calculated = opening + delta;
-        const canonical = isSingleAccount ? (poolEntry.current ?? calculated) : calculated;
-        const variance = Math.round((calculated - canonical) * 100) / 100;
-        const isReconciled = Math.abs(variance) < 0.01;
-
-        const txList: any[] = [];
-        for (const e of (ces ?? []) as any[]) {
-          if (e.instrument_id === inst.id) {
-            const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-            txList.push({
-              id: e.id,
-              number: "CASH-ENTRY",
-              type: e.direction === "out" ? "Outflow" : "Inflow",
-              amount: amt,
-              date: e.created_at,
-              desc: (e as any).description || (e as any).remarks || "Direct cashbook posting",
-            });
-          }
-        }
-
-        for (const t of (txs ?? []) as any[]) {
-          let targetInstId = t.instrument_id;
-          if (!targetInstId && t.portal_id && portalToInst[t.portal_id]) {
-            targetInstId = portalToInst[t.portal_id];
-          }
-          if (targetInstId === inst.id) {
-            const pCredit = Number(t.pool_credit) || 0;
-            const pOut = Number(t.pool_out) || 0;
-            txList.push({
-              id: t.id,
-              number: t.transaction_number || "TXN",
-              type: t.service_type?.toUpperCase() || "Service",
-              amount: pCredit - pOut,
-              date: t.created_at,
-              desc: `Portal movement (${t.service_type})`,
-            });
-          }
-        }
+        const bucket = entriesByInstrument[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };
+        const current = inst.type === "debit_card"
+          ? Number(inst.balance ?? 0)
+          : Number((inst as InstrumentRow & { current_balance?: number }).current_balance ?? inst.balance ?? 0);
+        const opening = Number(inst.opening_balance ?? 0);
+        const isCredit = inst.type === "credit_card";
+        const isDebit = inst.type === "debit_card";
+        const limit = isCredit ? Number(inst.details?.credit_limit || 0) : undefined;
+        const used = isCredit ? Math.max(0, Number(limit) - current) : undefined;
+        const expected = isDebit ? current : isCredit ? current : opening + bucket.net;
+        const variance = isCredit || isDebit ? 0 : Math.round((expected - current) * 100) / 100;
+        const statusVariant = isDebit ? "linked" : isCredit ? "credit_limit" : Math.abs(variance) < 0.01 ? "reconciled" : "variance";
+        const statusLabel = isDebit
+          ? "Linked to Bank"
+          : isCredit
+            ? "Credit Facility"
+            : Math.abs(variance) < 0.01
+              ? "✓ Reconciled"
+              : "⚠ Variance " + inr(variance);
 
         reconMap[inst.id] = {
           id: inst.id,
           accountName: inst.name,
           accountType: inst.type,
-          poolKey,
-          currentBalance: canonical,
+          poolKey: POOL_MAP[inst.type] || "cash",
+          currentBalance: current,
           openingBalance: opening,
-          credits: delta > 0 ? delta : 0,
-          debits: delta < 0 ? -delta : 0,
+          credits: bucket.inflow,
+          debits: bucket.outflow,
           fees: 0,
           settlements: 0,
-          otherMovements: delta,
-          calculatedBalance: calculated,
-          canonicalBalance: canonical,
+          otherMovements: bucket.net,
+          calculatedBalance: expected,
+          canonicalBalance: current,
           variance,
-          isReconciled,
-          statusLabel: isReconciled ? "✓ Reconciled" : `⚠ Variance ${inr(variance)}`,
-          statusVariant: isReconciled ? "reconciled" : "variance",
-          contributingTxns: txList,
+          isReconciled: Math.abs(variance) < 0.01,
+          statusLabel,
+          statusVariant: statusVariant as AccountReconDetail["statusVariant"],
+          isDebitCard: isDebit,
+          isCreditCard: isCredit,
+          parentBankName: isDebit ? (rows.find((b) => b.id === (inst.details?.linked_bank_instrument_id || ""))?.name || "Parent Bank Account") : undefined,
+          parentBankBalance: isDebit ? current : undefined,
+          creditLimit: limit,
+          usedLimit: used,
+          contributingTxns: bucket.entries,
           lastRefreshedAt: timeStr,
         };
       }
 
       setAccountReconMap(reconMap);
+      const firstUpi = updated.find((i) => i.type === "upi");
+      if (firstUpi && reconMap[firstUpi.id]) setUpiRecon(reconMap[firstUpi.id]);
     } catch (err) {
-      console.error("Reconciliation refresh error:", err);
+      console.error("Payment account reconciliation refresh error:", err);
     } finally {
       setIsRefreshing(false);
     }
   }, [supabase]);
+
+
 
   useEffect(() => {
     refreshLiveBalances();
@@ -677,7 +401,14 @@ export default function PaymentAccountsPanel({
         return;
       }
       details.credit_limit = String(fullLimit);
-      details.used_limit = String(openingOutstanding);
+      details.used_limit = String(
+        Math.max(
+          0,
+          fullLimit - (instModal.mode === "edit" && instModal.row?.type === "credit_card"
+            ? Number((instModal.row as InstrumentRow & { current_balance?: number })?.balance ?? (instModal.row as InstrumentRow & { current_balance?: number })?.current_balance ?? fullLimit)
+            : Math.max(0, fullLimit - openingOutstanding))
+        )
+      );
       details.card_last4 = instForm.card_last4.trim().replace(/\D/g, "").slice(-4);
       details.bank_name = instForm.bank_name.trim();
     } else if (type === "aeps_portal") {

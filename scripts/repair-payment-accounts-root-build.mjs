@@ -3,6 +3,11 @@ import path from "node:path";
 
 const file = path.resolve("components/settings/payment-accounts-panel.tsx");
 const source = fs.readFileSync(file, "utf8");
+
+if (source.includes("SINGLE SOURCE OF TRUTH")) {
+  console.log("Patched payment account balance engine: already applied");
+  process.exit(0);
+}
 const start = source.indexOf("  const refreshLiveBalances = useCallback(async () => {");
 if (start < 0) throw new Error("payment-accounts-panel.tsx: refreshLiveBalances start not found");
 const endMarker = "  }, [supabase]);\n\n  useEffect(() => {\n    refreshLiveBalances();";

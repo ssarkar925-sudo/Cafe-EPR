@@ -5,8 +5,10 @@ function patch(filePath, replacements) {
   const file = path.resolve(filePath);
   let source = fs.readFileSync(file, "utf8");
   for (const [from, to] of replacements) {
-    if (!source.includes(from)) throw new Error(`${filePath}: expected source fragment not found`);
-    source = source.replace(from, to);
+    if (source.includes(to) || source.replace(/\r\n/g, "\n").includes(to)) continue;
+    const normalizedSource = source.replace(/\r\n/g, "\n");
+    if (!normalizedSource.includes(from)) throw new Error(`${filePath}: expected source fragment not found`);
+    source = normalizedSource.replace(from, to);
   }
   fs.writeFileSync(file, source);
 }

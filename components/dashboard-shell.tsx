@@ -110,8 +110,8 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
         <Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" />
       </header>
 
-      <div className={`erp-workspace ${collapsed ? "lg:pl-[88px]" : "lg:pl-[288px]"}`}>
-        <header className={`erp-desktop-header hidden lg:flex h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/80 px-6 shadow-md shadow-slate-900/5 backdrop-blur-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/80 dark:shadow-black/20 dark:ring-white/10 mb-4 transition-all duration-300 ${collapsed ? "lg:left-[88px]" : "lg:left-[288px]"}`}>
+      <div className={`erp-workspace ${collapsed ? "lg:pl-[88px]" : "lg:pl-[288px]"} transition-all duration-300`}>
+        <header className="erp-desktop-header hidden lg:flex h-16 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/80 px-6 shadow-md shadow-slate-900/5 backdrop-blur-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/80 dark:shadow-black/20 dark:ring-white/10 mb-4 transition-all duration-300">
           <div className="flex items-center gap-3 shrink-0">
             <button type="button" onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white transition cursor-pointer shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">{collapsed ? <path d="M13 5l7 7-7 7M5 5l7 7-7 7"/> : <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>}</svg>
@@ -130,7 +130,7 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
           </div>
         </header>
 
-        <div className="erp-page-content min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:p-6 pb-24 lg:pb-6">{children}</div>
+        <div className="erp-page-content min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>
       </div>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
