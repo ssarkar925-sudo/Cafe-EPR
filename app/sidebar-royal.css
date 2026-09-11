@@ -1,6 +1,7 @@
-/* CafeERP — FINAL ROYAL PREMIUM SIDEBAR
+/* CafeERP — ROYAL PREMIUM SIDEBAR
  * Existing sidebar only. Visual layer; navigation, routing, data and behavior are unchanged.
- * Design language: royal architecture + premium technology + enterprise precision.
+ * Performance-tuned: reduced blur/filter cost, simplified decorative layers,
+ * and kept all premium states within the existing sidebar stylesheet.
  */
 
 :root{
@@ -9,15 +10,15 @@
   --sb-surface-2:#f1f5fb;
   --sb-surface-3:#e9eef7;
   --sb-text:#152033;
-  --sb-muted:#718096;
-  --sb-faint:#99a6b8;
+  --sb-muted:#5f6f84;
+  --sb-faint:#8190a4;
   --sb-line:#dbe3ef;
   --sb-primary:#2850d6;
   --sb-primary-deep:#17379f;
   --sb-cyan:#0b90ac;
   --sb-gold:#ad7c24;
   --sb-success:#168353;
-  --sb-shadow:0 18px 46px rgba(21,42,78,.10),0 2px 8px rgba(21,42,78,.06);
+  --sb-shadow:0 14px 34px rgba(21,42,78,.10),0 2px 7px rgba(21,42,78,.05);
 }
 
 .dark{
@@ -26,110 +27,71 @@
   --sb-surface-2:#101b2c;
   --sb-surface-3:#152239;
   --sb-text:#edf3fb;
-  --sb-muted:#8796aa;
-  --sb-faint:#617089;
+  --sb-muted:#9ba8ba;
+  --sb-faint:#74839a;
   --sb-line:rgba(125,149,191,.16);
   --sb-primary:#587bff;
   --sb-primary-deep:#3859dc;
   --sb-cyan:#34c9df;
   --sb-gold:#d5aa50;
   --sb-success:#34c981;
-  --sb-shadow:0 22px 62px rgba(0,0,0,.40),0 3px 12px rgba(0,0,0,.24);
+  --sb-shadow:0 16px 42px rgba(0,0,0,.38),0 3px 10px rgba(0,0,0,.22);
 }
 
-/* =========================================================
-   SHELL / GRAPHIC ATMOSPHERE
-   ========================================================= */
+/* Shell / atmosphere: intentionally cheap to paint. */
 aside{
   isolation:isolate!important;
   overflow:hidden!important;
-  background:
-    radial-gradient(500px 220px at 100% -5%,rgba(40,80,214,.11),transparent 64%),
-    radial-gradient(360px 300px at -18% 60%,rgba(11,144,172,.065),transparent 66%),
-    linear-gradient(180deg,var(--sb-surface),var(--sb-bg))!important;
+  background:linear-gradient(180deg,var(--sb-surface),var(--sb-bg))!important;
   color:var(--sb-text)!important;
   border:1px solid var(--sb-line)!important;
   box-shadow:var(--sb-shadow)!important;
-  backdrop-filter:blur(24px) saturate(130%)!important;
+  backdrop-filter:blur(8px) saturate(115%)!important;
+  -webkit-backdrop-filter:blur(8px) saturate(115%)!important;
 }
 .dark aside{
-  background:
-    radial-gradient(520px 240px at 108% -2%,rgba(88,123,255,.16),transparent 65%),
-    radial-gradient(300px 320px at -10% 58%,rgba(52,201,223,.055),transparent 68%),
-    linear-gradient(180deg,#09111d 0%,#070e18 62%,#060c15 100%)!important;
+  background:linear-gradient(180deg,#09111d 0%,#070e18 62%,#060c15 100%)!important;
 }
 
 aside::before{
   content:"";
   position:absolute;
   inset:0;
-  z-index:-2;
-  pointer-events:none;
-  opacity:.55;
-  background-image:
-    linear-gradient(rgba(40,80,214,.035) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(40,80,214,.03) 1px,transparent 1px);
-  background-size:24px 24px;
-  mask-image:linear-gradient(to bottom,black 0%,rgba(0,0,0,.65) 42%,transparent 100%);
-}
-.dark aside::before{opacity:.34;background-image:linear-gradient(rgba(130,150,190,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(130,150,190,.045) 1px,transparent 1px)}
-
-aside::after{
-  content:"";
-  position:absolute;
-  width:260px;
-  height:260px;
-  right:-130px;
-  top:-90px;
-  border-radius:50%;
   z-index:-1;
   pointer-events:none;
-  background:radial-gradient(circle,rgba(40,80,214,.12),transparent 68%);
-  filter:blur(5px);
+  opacity:.32;
+  background:radial-gradient(420px 190px at 100% 0%,rgba(40,80,214,.10),transparent 68%);
 }
-
+.dark aside::before{opacity:.22;background:radial-gradient(440px 200px at 100% 0%,rgba(88,123,255,.13),transparent 70%)}
+aside::after{display:none!important}
 aside>*{position:relative;z-index:1}
 
-/* =========================================================
-   BRAND ZONE
-   ========================================================= */
+/* Brand zone */
 aside > div:first-child{
   min-height:78px!important;
   border-bottom:1px solid var(--sb-line)!important;
-  background:linear-gradient(180deg,rgba(255,255,255,.055),transparent)!important;
-  box-shadow:inset 0 -1px 0 rgba(255,255,255,.018)!important;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),transparent)!important;
+  box-shadow:none!important;
 }
-
-aside > div:first-child a{
-  position:relative!important;
-}
-
+aside > div:first-child a{position:relative!important}
 aside > div:first-child a > div:first-child{
   width:44px!important;
   height:44px!important;
   border-radius:14px!important;
   background:linear-gradient(145deg,#3764ed,#19379e)!important;
-  border:1px solid rgba(104,135,255,.40)!important;
-  box-shadow:
-    0 10px 24px rgba(38,71,184,.24),
-    0 0 0 1px rgba(255,255,255,.08),
-    inset 0 1px 0 rgba(255,255,255,.22)!important;
-  transition:transform .2s ease,box-shadow .2s ease!important;
+  border:1px solid rgba(104,135,255,.38)!important;
+  box-shadow:0 7px 16px rgba(38,71,184,.20),0 0 0 1px rgba(255,255,255,.06),inset 0 1px 0 rgba(255,255,255,.18)!important;
+  transition:transform .14s ease,box-shadow .14s ease!important;
 }
-aside > div:first-child a:hover > div:first-child{
-  transform:translateY(-1px) scale(1.02)!important;
-  box-shadow:0 12px 28px rgba(38,71,184,.30),0 0 0 1px rgba(104,135,255,.20),inset 0 1px 0 rgba(255,255,255,.24)!important;
-}
+aside > div:first-child a:hover > div:first-child{transform:translateY(-1px) scale(1.015)!important;box-shadow:0 9px 19px rgba(38,71,184,.24),0 0 0 1px rgba(104,135,255,.18),inset 0 1px 0 rgba(255,255,255,.20)!important}
 aside > div:first-child a > div:first-child img{width:32px!important;height:32px!important;border-radius:10px!important}
 aside > div:first-child a > div:nth-child(2) span:first-child{color:var(--sb-text)!important;font-size:.84rem!important;font-weight:900!important;letter-spacing:-.02em!important}
 aside > div:first-child a > div:nth-child(2) span:last-child{color:var(--sb-faint)!important;font-size:.59rem!important;font-weight:800!important;letter-spacing:.15em!important}
-aside > div:first-child a span.h-2.w-2{width:7px!important;height:7px!important;background:var(--sb-success)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sb-success) 10%,transparent),0 0 12px color-mix(in srgb,var(--sb-success) 42%,transparent)!important}
-aside > div:first-child > button{color:var(--sb-faint)!important;border-radius:9px!important;transition:all .16s ease!important}
+aside > div:first-child a span.h-2.w-2{width:7px!important;height:7px!important;background:var(--sb-success)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sb-success) 10%,transparent),0 0 8px color-mix(in srgb,var(--sb-success) 34%,transparent)!important}
+aside > div:first-child > button{color:var(--sb-faint)!important;border-radius:9px!important;transition:color .14s ease,background .14s ease!important}
 aside > div:first-child > button:hover{color:var(--sb-text)!important;background:color-mix(in srgb,var(--sb-primary) 7%,transparent)!important}
 
-/* =========================================================
-   SEARCH / COMMAND FIELD
-   ========================================================= */
+/* Search */
 aside > div:nth-child(2){padding:14px 12px 8px!important}
 aside > div:nth-child(2) input{
   height:44px!important;
@@ -139,15 +101,13 @@ aside > div:nth-child(2) input{
   border:1px solid var(--sb-line)!important;
   background:var(--sb-surface-2)!important;
   color:var(--sb-text)!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 5px 18px rgba(20,42,80,.04)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 4px 12px rgba(20,42,80,.035)!important;
 }
-.dark aside > div:nth-child(2) input{background:rgba(16,28,45,.88)!important;border-color:rgba(126,150,194,.18)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 7px 22px rgba(0,0,0,.12)!important}
+.dark aside > div:nth-child(2) input{background:rgba(16,28,45,.90)!important;border-color:rgba(126,150,194,.18)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 5px 14px rgba(0,0,0,.10)!important}
 aside > div:nth-child(2) input::placeholder{color:var(--sb-faint)!important}
-aside > div:nth-child(2) input:focus{border-color:color-mix(in srgb,var(--sb-primary) 58%,var(--sb-line))!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sb-primary) 10%,transparent),0 8px 24px rgba(20,42,80,.07)!important}
+aside > div:nth-child(2) input:focus{border-color:color-mix(in srgb,var(--sb-primary) 58%,var(--sb-line))!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--sb-primary) 10%,transparent)!important}
 
-/* =========================================================
-   SECTION HEADERS
-   ========================================================= */
+/* Section headers */
 aside > div.flex-1 > div > button{
   min-height:29px!important;
   padding:5px 8px!important;
@@ -158,21 +118,18 @@ aside > div.flex-1 > div > button{
   border-radius:7px!important;
 }
 aside > div.flex-1 > div > button:hover{color:var(--sb-text)!important;background:color-mix(in srgb,var(--sb-primary) 5%,transparent)!important}
-aside > div.flex-1 > div > button > span > span{width:4px!important;height:4px!important;background:var(--sb-primary)!important;box-shadow:0 0 8px color-mix(in srgb,var(--sb-primary) 45%,transparent)!important}
+aside > div.flex-1 > div > button > span > span{width:4px!important;height:4px!important;background:var(--sb-primary)!important;box-shadow:0 0 6px color-mix(in srgb,var(--sb-primary) 38%,transparent)!important}
 
-/* =========================================================
-   NAVIGATION — PRECISE, LIGHTWEIGHT, GRAPHICALLY RICH
-   ========================================================= */
+/* Navigation */
 aside > div.flex-1{
   min-height:0!important;
   padding:10px 9px 12px!important;
   scrollbar-width:thin!important;
-  scrollbar-color:color-mix(in srgb,var(--sb-primary) 32%,transparent) transparent!important;
+  scrollbar-color:color-mix(in srgb,var(--sb-primary) 28%,transparent) transparent!important;
 }
 aside > div.flex-1::-webkit-scrollbar{width:5px}
-aside > div.flex-1::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--sb-primary) 28%,transparent);border-radius:99px}
+aside > div.flex-1::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--sb-primary) 26%,transparent);border-radius:99px}
 aside > div.flex-1 > div{margin-bottom:7px!important}
-
 aside > div.flex-1 > div > div > a{
   position:relative!important;
   min-height:42px!important;
@@ -184,33 +141,22 @@ aside > div.flex-1 > div > div > a{
   color:var(--sb-muted)!important;
   box-shadow:none!important;
   transform:none!important;
-  transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease,box-shadow .16s ease!important;
+  transition:background .12s ease,border-color .12s ease,color .12s ease,transform .12s ease!important;
 }
 aside > div.flex-1 > div > div > a:hover{
-  background:linear-gradient(90deg,color-mix(in srgb,var(--sb-primary) 7%,transparent),transparent 88%)!important;
-  border-color:color-mix(in srgb,var(--sb-primary) 12%,var(--sb-line))!important;
+  background:color-mix(in srgb,var(--sb-primary) 7%,transparent)!important;
+  border-color:color-mix(in srgb,var(--sb-primary) 13%,var(--sb-line))!important;
   color:var(--sb-text)!important;
   transform:translateX(1px)!important;
 }
-aside > div.flex-1 > div > div > a::after{
-  content:"";
-  position:absolute;
-  inset:1px;
-  border-radius:8px;
-  pointer-events:none;
-  opacity:0;
-  background:linear-gradient(110deg,transparent 15%,rgba(255,255,255,.08) 50%,transparent 78%);
-  transition:opacity .18s ease,transform .25s ease;
-  transform:translateX(-12%);
-}
-aside > div.flex-1 > div > div > a:hover::after{opacity:.55;transform:translateX(0)}
+aside > div.flex-1 > div > div > a::after{display:none!important}
 
-/* Active state: one strong architectural treatment */
+/* Active: clear royal rail, no expensive glow */
 aside > div.flex-1 > div > div > a[class*="text-white"]{
-  background:linear-gradient(90deg,color-mix(in srgb,var(--sb-primary) 14%,transparent),color-mix(in srgb,var(--sb-primary) 4%,transparent) 72%,transparent)!important;
-  border-color:color-mix(in srgb,var(--sb-primary) 28%,var(--sb-line))!important;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--sb-primary) 14%,transparent),color-mix(in srgb,var(--sb-primary) 4%,transparent) 74%,transparent)!important;
+  border-color:color-mix(in srgb,var(--sb-primary) 26%,var(--sb-line))!important;
   color:var(--sb-text)!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 8px 22px rgba(28,56,125,.07)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035)!important;
 }
 .dark aside > div.flex-1 > div > div > a[class*="text-white"]{color:#f2f6ff!important}
 aside > div.flex-1 > div > div > a[class*="text-white"]::before{
@@ -222,125 +168,64 @@ aside > div.flex-1 > div > div > a[class*="text-white"]::before{
   width:3px;
   border-radius:0 4px 4px 0;
   background:linear-gradient(180deg,var(--sb-cyan),var(--sb-primary) 55%,var(--sb-gold));
-  box-shadow:0 0 13px color-mix(in srgb,var(--sb-primary) 38%,transparent);
+  box-shadow:0 0 8px color-mix(in srgb,var(--sb-primary) 28%,transparent);
 }
-aside > div.flex-1 > div > div > a[class*="text-white"]::after{opacity:0!important}
+aside > div.flex-1 > div > div > a[class*="text-white"]::after{display:none!important}
 
-/* =========================================================
-   ICON WELLS
-   ========================================================= */
+/* Icon wells */
 aside > div.flex-1 > div > div > a > div:first-child{gap:10px!important;min-width:0!important}
 aside > div.flex-1 > div > div > a > div:first-child > span:first-child{
   width:32px!important;
   height:32px!important;
   min-width:32px!important;
   border-radius:9px!important;
-  background:linear-gradient(145deg,var(--sb-surface-3),color-mix(in srgb,var(--sb-surface-2) 75%,#000 25%))!important;
-  border:1px solid color-mix(in srgb,var(--sb-line) 85%,transparent)!important;
+  background:linear-gradient(145deg,var(--sb-surface-3),var(--sb-surface-2))!important;
+  border:1px solid color-mix(in srgb,var(--sb-line) 90%,transparent)!important;
   color:var(--sb-muted)!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.035)!important;
-  transition:all .16s ease!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025)!important;
+  transition:color .12s ease,border-color .12s ease,background .12s ease!important;
 }
-aside > div.flex-1 > div > div > a:hover > div:first-child > span:first-child{color:var(--sb-primary)!important;border-color:color-mix(in srgb,var(--sb-primary) 25%,var(--sb-line))!important;box-shadow:0 5px 14px color-mix(in srgb,var(--sb-primary) 8%,transparent),inset 0 1px 0 rgba(255,255,255,.05)!important}
-aside > div.flex-1 > div > div > a[class*="text-white"] > div:first-child > span:first-child{
-  background:linear-gradient(145deg,#5e80ff,#3558df)!important;
-  color:#fff!important;
-  border-color:rgba(144,163,255,.42)!important;
-  box-shadow:0 7px 18px rgba(53,88,223,.27),inset 0 1px 0 rgba(255,255,255,.21)!important;
-}
+aside > div.flex-1 > div > div > a:hover > div:first-child > span:first-child{color:var(--sb-primary)!important;border-color:color-mix(in srgb,var(--sb-primary) 25%,var(--sb-line))!important}
+aside > div.flex-1 > div > div > a[class*="text-white"] > div:first-child > span:first-child{background:linear-gradient(145deg,#5e80ff,#3558df)!important;color:#fff!important;border-color:rgba(144,163,255,.42)!important;box-shadow:0 5px 13px rgba(53,88,223,.20),inset 0 1px 0 rgba(255,255,255,.18)!important}
 aside > div.flex-1 > div > div > a > div:first-child > span:first-child svg{width:15px!important;height:15px!important}
 
-/* Accent families for existing modules — purely visual. */
-aside a[href="/pos"] > div:first-child > span:first-child,
-aside a[href="/invoices"] > div:first-child > span:first-child,
-aside a[href="/customers"] > div:first-child > span:first-child,
-aside a[href="/returns"] > div:first-child > span:first-child{color:#4f74f8!important}
+/* Accent families */
+aside a[href="/pos"] > div:first-child > span:first-child,aside a[href="/invoices"] > div:first-child > span:first-child,aside a[href="/customers"] > div:first-child > span:first-child,aside a[href="/returns"] > div:first-child > span:first-child{color:#4f74f8!important}
 aside a[href^="/business/"] > div:first-child > span:first-child{color:#1a9fb6!important}
-aside a[href^="/catalog"] > div:first-child > span:first-child,
-aside a[href^="/inventory"] > div:first-child > span:first-child{color:#7b55db!important}
-aside a[href^="/purchases"] > div:first-child > span:first-child,
-aside a[href="/suppliers"] > div:first-child > span:first-child{color:#b47a20!important}
+aside a[href^="/catalog"] > div:first-child > span:first-child,aside a[href^="/inventory"] > div:first-child > span:first-child{color:#7b55db!important}
+aside a[href^="/purchases"] > div:first-child > span:first-child,aside a[href="/suppliers"] > div:first-child > span:first-child{color:#b47a20!important}
 aside a[href^="/finance"] > div:first-child > span:first-child{color:#c28b28!important}
-aside a[href^="/reports"] > div:first-child > span:first-child,
-aside a[href="/audit"] > div:first-child > span:first-child{color:#147f9d!important}
-aside a[href^="/ai"] > div:first-child > span:first-child,
-aside a[href="/ai-agent"] > div:first-child > span:first-child{color:#875edc!important}
-aside a[href^="/staff"] > div:first-child > span:first-child,
-aside a[href^="/security"] > div:first-child > span:first-child,
-aside a[href^="/settings"] > div:first-child > span:first-child{color:#66758a!important}
+aside a[href^="/reports"] > div:first-child > span:first-child,aside a[href="/audit"] > div:first-child > span:first-child{color:#147f9d!important}
+aside a[href^="/ai"] > div:first-child > span:first-child,aside a[href="/ai-agent"] > div:first-child > span:first-child{color:#875edc!important}
+aside a[href^="/staff"] > div:first-child > span:first-child,aside a[href^="/security"] > div:first-child > span:first-child,aside a[href^="/settings"] > div:first-child > span:first-child{color:#66758a!important}
 
-/* =========================================================
-   LABELS / BADGES
-   ========================================================= */
-aside > div.flex-1 > div > div > a > div:first-child > span:last-child{
-  display:block!important;
-  min-width:0!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  white-space:nowrap!important;
-  padding:0!important;
-  margin:0!important;
-  background:transparent!important;
-  box-shadow:none!important;
-  color:inherit!important;
-  font-size:.77rem!important;
-  line-height:1.1!important;
-  font-weight:780!important;
-  letter-spacing:-.01em!important;
-}
-aside > div.flex-1 > div > div > a[class*="text-white"] > div:first-child > span:last-child{font-weight:880!important;color:inherit!important}
-aside > div.flex-1 > div > div > a > span:last-child{
-  flex-shrink:0!important;
-  min-width:max-content!important;
-  padding:3px 8px!important;
-  border-radius:999px!important;
-  font-size:8px!important;
-  line-height:1!important;
-  font-weight:900!important;
-  letter-spacing:.075em!important;
-  box-shadow:none!important;
-}
+/* Labels / badges */
+aside > div.flex-1 > div > div > a > div:first-child > span:last-child{display:block!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;padding:0!important;margin:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;font-size:.77rem!important;line-height:1.1!important;font-weight:800!important;letter-spacing:-.01em!important}
+aside > div.flex-1 > div > div > a[class*="text-white"] > div:first-child > span:last-child{font-weight:900!important;color:inherit!important}
+aside > div.flex-1 > div > div > a > span:last-child{flex-shrink:0!important;min-width:max-content!important;padding:3px 8px!important;border-radius:999px!important;font-size:8px!important;line-height:1!important;font-weight:900!important;letter-spacing:.075em!important;box-shadow:none!important}
 
-/* =========================================================
-   USER / FOOTER ZONE
-   ========================================================= */
-aside > div:last-child{
-  min-height:72px!important;
-  padding:9px 10px!important;
-  border-top:1px solid var(--sb-line)!important;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--sb-surface) 96%,#000 4%),color-mix(in srgb,var(--sb-bg) 88%,#000 12%))!important;
-  box-shadow:0 -12px 30px rgba(20,40,80,.06)!important;
-}
-.dark aside > div:last-child{background:linear-gradient(180deg,rgba(10,18,30,.90),rgba(6,12,21,.98))!important;box-shadow:0 -14px 34px rgba(0,0,0,.20)!important}
+/* User footer */
+aside > div:last-child{min-height:72px!important;padding:9px 10px!important;border-top:1px solid var(--sb-line)!important;background:linear-gradient(180deg,color-mix(in srgb,var(--sb-surface) 96%,#000 4%),color-mix(in srgb,var(--sb-bg) 90%,#000 10%))!important;box-shadow:none!important}
+.dark aside > div:last-child{background:linear-gradient(180deg,rgba(10,18,30,.92),rgba(6,12,21,.98))!important}
 aside > div:last-child .group{border-radius:10px!important;padding:7px!important}
 aside > div:last-child .group:hover{background:color-mix(in srgb,var(--sb-primary) 6%,transparent)!important}
-aside > div:last-child .h-8.w-8{
-  width:34px!important;
-  height:34px!important;
-  border-radius:10px!important;
-  box-shadow:0 5px 16px rgba(20,40,80,.12),0 0 0 1px color-mix(in srgb,var(--sb-primary) 15%,transparent)!important;
-}
+aside > div:last-child .h-8.w-8{width:34px!important;height:34px!important;border-radius:10px!important;box-shadow:0 4px 11px rgba(20,40,80,.10),0 0 0 1px color-mix(in srgb,var(--sb-primary) 15%,transparent)!important}
 aside > div:last-child .h-8.w-8 img{width:34px!important;height:34px!important;border-radius:10px!important}
-aside > div:last-child .group span:first-child{color:var(--sb-text)!important;font-weight:880!important}
+aside > div:last-child .group span:first-child{color:var(--sb-text)!important;font-weight:900!important}
 aside > div:last-child .group span:last-child{color:var(--sb-faint)!important}
 aside > div:last-child button{width:32px!important;height:32px!important;border-radius:8px!important;color:var(--sb-faint)!important}
 aside > div:last-child button:hover{color:var(--sb-text)!important;background:color-mix(in srgb,var(--sb-primary) 7%,transparent)!important}
 
-/* =========================================================
-   COLLAPSED / MOBILE
-   ========================================================= */
+/* Collapsed / mobile */
 aside.w-\\[76px\\]{min-width:76px!important}
 aside.w-\\[76px\\] > div:first-child{min-height:72px!important;justify-content:center!important}
-aside.w-\\[76px\\] > div:first-child button{width:42px!important;height:42px!important;border-radius:12px!important;background:var(--sb-surface-2)!important;border:1px solid color-mix(in srgb,var(--sb-primary) 22%,var(--sb-line))!important;color:var(--sb-primary)!important;box-shadow:0 8px 20px rgba(20,40,80,.10)!important}
+aside.w-\\[76px\\] > div:first-child button{width:42px!important;height:42px!important;border-radius:12px!important;background:var(--sb-surface-2)!important;border:1px solid color-mix(in srgb,var(--sb-primary) 22%,var(--sb-line))!important;color:var(--sb-primary)!important;box-shadow:0 6px 14px rgba(20,40,80,.08)!important}
 aside.w-\\[76px\\] > div.flex-1{padding-left:7px!important;padding-right:7px!important}
 aside.w-\\[76px\\] > div.flex-1 > div > div > a{justify-content:center!important;padding-left:4px!important;padding-right:4px!important}
 aside.w-\\[76px\\] > div.flex-1 > div > div > a > div:first-child > span:first-child{width:36px!important;height:36px!important;border-radius:10px!important}
 
 @media(max-width:768px){
-  aside{
-    width:min(312px,88vw)!important;
-    box-shadow:24px 0 80px rgba(0,0,0,.44)!important;
-  }
+  aside{width:min(312px,88vw)!important;box-shadow:16px 0 42px rgba(0,0,0,.34)!important}
   aside > div:first-child{min-height:84px!important}
   aside > div:first-child a > div:first-child{width:46px!important;height:46px!important}
   aside > div:first-child a > div:first-child img{width:33px!important;height:33px!important}
