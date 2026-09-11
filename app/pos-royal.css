@@ -1,0 +1,111 @@
+/* CafeERP — FINAL ROYAL PREMIUM POS
+ * Existing POS only. Visual layer; transaction logic and controls remain unchanged.
+ */
+:root{
+  --pos-bg:#f5f7fb;--pos-surface:#fff;--pos-surface-2:#f7f9fc;--pos-surface-3:#edf2f8;
+  --pos-ink:#142033;--pos-muted:#6f7f94;--pos-line:#dbe3ee;
+  --pos-blue:#2b55d9;--pos-blue-deep:#1d3da8;--pos-cyan:#0a8aa7;--pos-gold:#ad7b25;
+  --pos-green:#158150;--pos-red:#c72c43;
+}
+.dark{--pos-bg:#070c14;--pos-surface:#0d1522;--pos-surface-2:#111b2c;--pos-surface-3:#18253a;--pos-ink:#f2f6fc;--pos-muted:#8d9bb0;--pos-line:#26354b;--pos-blue:#5679ff;--pos-blue-deep:#3f5fe0;--pos-cyan:#2ac4db;--pos-gold:#d4a44e;--pos-green:#27bd70;--pos-red:#ff6077}
+
+/* POS root */
+main > div[class*="max-w-[1600px]"]{position:relative;isolation:isolate;color:var(--pos-ink)}
+main > div[class*="max-w-[1600px]"]::before{
+  content:"";position:absolute;inset:0;z-index:-2;pointer-events:none;
+  background:radial-gradient(420px 230px at 2% 0%,color-mix(in srgb,var(--pos-blue) 6%,transparent),transparent 70%),radial-gradient(400px 220px at 100% 26%,color-mix(in srgb,var(--pos-cyan) 4%,transparent),transparent 70%);
+}
+
+/* Operational bar: command-console header */
+main > div[class*="max-w-[1600px]"] > div:first-child{
+  position:relative;overflow:hidden;border-radius:13px!important;border:1px solid var(--pos-line)!important;
+  background:linear-gradient(180deg,var(--pos-surface),var(--pos-surface-2))!important;
+  box-shadow:0 10px 28px rgba(15,23,42,.07),inset 0 1px 0 rgba(255,255,255,.06)!important;
+}
+main > div[class*="max-w-[1600px]"] > div:first-child::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:linear-gradient(180deg,var(--pos-cyan),var(--pos-blue) 54%,var(--pos-gold));
+}
+main > div[class*="max-w-[1600px]"] > div:first-child > div:first-child > div:first-child{
+  background:linear-gradient(145deg,var(--pos-blue),var(--pos-blue-deep))!important;
+  box-shadow:0 8px 18px color-mix(in srgb,var(--pos-blue) 24%,transparent),inset 0 1px 0 rgba(255,255,255,.18)!important;
+}
+
+/* Mode switcher */
+main > div[class*="max-w-[1600px]"] > div:first-child div[class*="bg-slate-100"]{background:var(--pos-surface-3)!important;border-color:var(--pos-line)!important}
+main > div[class*="max-w-[1600px]"] > div:first-child div[class*="bg-slate-100"] button{border-radius:8px!important;font-weight:850!important}
+main > div[class*="max-w-[1600px]"] > div:first-child div[class*="bg-slate-100"] button.bg-blue-600{box-shadow:0 4px 12px color-mix(in srgb,var(--pos-blue) 20%,transparent)!important}
+
+/* Keyboard chips */
+main > div[class*="max-w-[1600px]"] kbd{color:var(--pos-ink)!important}
+.dark main > div[class*="max-w-[1600px]"] kbd{color:#e7edf8!important}
+
+/* Editing banner */
+main > div[class*="max-w-[1600px]"] div[class*="bg-amber-50"]{background:color-mix(in srgb,var(--pos-gold) 7%,var(--pos-surface))!important;border-color:color-mix(in srgb,var(--pos-gold) 28%,var(--pos-line))!important}
+
+/* POS three-zone workspace */
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px]"]{align-items:start}
+
+/* Catalogue/browser region */
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(2){min-width:0}
+
+/* Toolbar/tabs */
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] input{border-radius:9px!important}
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] button{transition:transform .14s ease,box-shadow .14s ease,background .14s ease}
+
+/* Existing catalogue table */
+main > div[class*="max-w-[1600px]"] table{border:1px solid var(--pos-line)!important;border-radius:12px!important;overflow:hidden!important;background:var(--pos-surface)!important;box-shadow:0 7px 22px rgba(15,23,42,.045)!important}
+main > div[class*="max-w-[1600px]"] thead th{background:var(--pos-surface-3)!important;color:var(--pos-muted)!important;font-size:.67rem!important;letter-spacing:.09em!important}
+main > div[class*="max-w-[1600px]"] tbody tr:hover{background:color-mix(in srgb,var(--pos-blue) 4%,var(--pos-surface))!important}
+
+/* Right billing panel — premium checkout terminal */
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(3) > div{
+  border-radius:15px!important;border:1px solid var(--pos-line)!important;background:var(--pos-surface)!important;
+  box-shadow:0 14px 34px rgba(15,23,42,.08)!important;
+}
+.dark main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(3) > div{box-shadow:0 20px 44px rgba(0,0,0,.24)!important}
+
+/* Current invoice header */
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(3) > div > div:first-child{
+  min-height:62px;background:linear-gradient(180deg,var(--pos-surface),var(--pos-surface-2))!important;
+}
+
+/* Customer selector and line items */
+main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(3) [class*="rounded-xl"]{border-color:var(--pos-line)!important}
+
+/* Payment collection block */
+main > div[class*="max-w-[1600px]"] [class*="bg-slate-50"]{background:var(--pos-surface-2)!important}
+main > div[class*="max-w-[1600px]"] [class*="bg-slate-800"]{background:var(--pos-surface-3)!important}
+
+/* Payment tender grid: semantic colors, premium geometry */
+main > div[class*="max-w-[1600px]"] button[class*="rounded-xl"]{border-radius:9px!important}
+main > div[class*="max-w-[1600px]"] button[class*="bg-green"],main > div[class*="max-w-[1600px]"] button[class*="text-green"]{color:var(--pos-green)}
+main > div[class*="max-w-[1600px]"] button[class*="bg-blue-600"]{background-image:linear-gradient(180deg,var(--pos-blue),var(--pos-blue-deep))!important}
+
+/* Grand total / checkout footer */
+main > div[class*="max-w-[1600px]"] [class*="GRAND TOTAL"]{letter-spacing:.04em}
+main > div[class*="max-w-[1600px]"] .btn-3d-tactile-primary{
+  border-radius:11px!important;
+  background:linear-gradient(180deg,#b88729,#9a6b18)!important;
+  border:1px solid rgba(154,107,24,.78)!important;
+  box-shadow:0 9px 20px rgba(168,121,31,.20),inset 0 1px 0 rgba(255,255,255,.14)!important;
+  min-height:48px!important;
+  letter-spacing:.005em;
+}
+main > div[class*="max-w-[1600px]"] .btn-3d-tactile-primary:hover{transform:translateY(-1px)!important;filter:brightness(1.03)}
+
+/* Clear visual hierarchy for the custom-item action */
+main > div[class*="max-w-[1600px]"] button[class*="border-dashed"]{border-style:solid!important;background:var(--pos-surface)!important;color:var(--pos-blue)!important;border-color:color-mix(in srgb,var(--pos-blue) 36%,var(--pos-line))!important;font-weight:850!important}
+
+/* Mobile POS */
+@media(max-width:768px){
+  main > div[class*="max-w-[1600px]"]{padding-left:12px!important;padding-right:12px!important;padding-top:10px!important}
+  main > div[class*="max-w-[1600px]"] > div:first-child{margin-bottom:10px!important;padding:11px!important;border-radius:13px!important}
+  main > div[class*="max-w-[1600px]"] > div:first-child > div:last-child{gap:5px!important}
+  main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"]{gap:10px!important}
+  main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(2){order:1}
+  main > div[class*="max-w-[1600px]"] > div[class*="lg:grid-cols-[220px_minmax(0,1fr)_420px"] > div:nth-child(3){order:2}
+  main > div[class*="max-w-[1600px]"] table{border-radius:12px!important}
+  main > div[class*="max-w-[1600px]"] .btn-3d-tactile-primary{min-height:50px!important}
+  main > div[class*="max-w-[1600px]"] button{min-height:40px}
+}
