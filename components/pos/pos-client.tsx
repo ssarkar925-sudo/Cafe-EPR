@@ -37,9 +37,10 @@ import {
   Receipt,
   HelpCircle,
   X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
-  PosCategorySidebar,
   PosCategoryChips,
   PosItemToolbar,
   PosGrid,
@@ -204,13 +205,18 @@ export default function PosClient({
   const supabase = createClient();
   const router = useRouter();
 
+  const defaultInstrument = useMemo(
+    () => instruments.find((i) => i.type === "cash") ?? instruments[0] ?? ({ id: "", name: "Cash", type: "cash" } as PosInstrument),
+    [instruments]
+  );
+
   const [mode, setMode] = useState<"invoice" | "quick">(initialMode);
   const [productState, setProductState] = useState(products);
   const [serviceState, setServiceState] = useState(services);
   const [tab, setTab] = useState<PosTab>("services");
   const [view, setView] = useState<"grid" | "list">(() => {
     try {
-      return localStorage.getItem("sccomm-pos-view") === "grid" ? "grid" : "list";
+      return localStorage.getItem("sccomm-pos-view") === "list" ? "list" : "grid";
     } catch {
       return "grid";
     }
@@ -227,9 +233,9 @@ export default function PosClient({
   const [posDup, setPosDup] = useState<any>(null);
   const [addingCustomer, setAddingCustomer] = useState(false);
   const [discount, setDiscount] = useState("");
-  const [payments, setPayments] = useState<{ instrument_id: string; method: string; amount: string }[]>([
+  const [payments, setPayments] = useState<{ instrument_id: string; method: string; amount: string }[]>(() => [
     {
-      instrument_id: instruments.find((i) => i.type === "cash")?.id ?? "",
+      instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
       method: "cash",
       amount: "",
     },
@@ -245,10 +251,10 @@ export default function PosClient({
   const [collectDue, setCollectDue] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [dueAmount, setDueAmount] = useState("");
-  const [duePick, setDuePick] = useState<InstrumentPick>({
-    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? "",
+  const [duePick, setDuePick] = useState<InstrumentPick>(() => ({
+    instrument_id: instruments.find((i) => i.type === "cash")?.id ?? instruments[0]?.id ?? "",
     method: "cash",
-  });
+  }));
   const [useAdvance, setUseAdvance] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState("");
   const [busy, setBusy] = useState(false);
@@ -291,6 +297,43 @@ export default function PosClient({
   const [showEditList, setShowEditList] = useState(false);
   const [editing, setEditing] = useState<PosInvoice | null>(null);
 
+  const [opBarCollapsed, setOpBarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("pos_op_bar_collapsed") === "true";
+    }
+    return false;
+  });
+
+  const toggleOpBar = () => {
+    const next = !opBarCollapsed;
+    setOpBarCollapsed(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("pos_op_bar_collapsed", String(next));
+      } catch {}
+    }
+  };
+
+  const [highlightedCartKey, setHighlightedCartKey] = useState<string | null>(null);
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerCartHighlight = (key: string) => {
+    setHighlightedCartKey(key);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedCartKey(null);
+    }, 1200);
+
+    setTimeout(() => {
+      if (typeof document !== "undefined") {
+        const el = document.querySelector(`[data-cart-item-key="${key}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }
+    }, 50);
+  };
+
   const searchRef = useRef<HTMLInputElement>(null);
   const customerSearchRef = useRef<HTMLInputElement>(null);
 
@@ -304,15 +347,29 @@ export default function PosClient({
 
   useEffect(() => {
     function h(e: KeyboardEvent) {
-      if (e.key === "F2") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        setCustomOpen(true);
+      } else if (e.key === "F2") {
         e.preventDefault();
         setMode((m) => (m === "quick" ? "invoice" : "quick"));
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        customerSearchRef.current?.focus();
       } else if (e.key === "F4") {
         e.preventDefault();
         searchRef.current?.focus();
       } else if (e.key === "F9") {
         e.preventDefault();
         fillExact();
+      } else if (e.key === "Escape") {
+        setCustomOpen(false);
+        setShowAddCustomer(false);
+        setShowMoneyOut(false);
+        setRecallOpen(false);
       }
     }
     window.addEventListener("keydown", h);
@@ -419,7 +476,6 @@ export default function PosClient({
   const total = gstPreview.invoiceTotal;
   const itemCount = useMemo(() => cart.reduce((s, l) => s + l.qty, 0), [cart]);
   const paid = useMemo(() => payments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [payments]);
-  const defaultInstrument = instruments.find((i) => i.type === "cash") ?? ({ id: "", name: "Cash", type: "cash" } as PosInstrument);
 
   const methodList = useMemo(() => {
     const all = Object.keys(METHOD_BTN);
@@ -438,8 +494,8 @@ export default function PosClient({
     const first = types.map((t) => instruments.find((i) => i.type === t)).find(Boolean);
     const instId = first?.id ?? "";
     setPayments((prev) => {
-      const amt = prev.length === 1 ? prev[0].amount : (total > 0 ? String(total.toFixed(2)) : "");
-      return [{ instrument_id: instId, method: m, amount: amt }];
+      const amt = prev.length === 1 ? prev[0]?.amount : (total > 0 ? String(total.toFixed(2)) : "");
+      return [{ instrument_id: instId, method: m, amount: amt || "" }];
     });
   }
 
@@ -465,17 +521,17 @@ export default function PosClient({
 
   useEffect(() => {
     setPayments((prev) =>
-      prev.length === 1 && prev[0].method !== "khata" && (prev[0].amount === "" || Number(prev[0].amount) === 0)
+      prev.length === 1 && prev[0]?.method !== "khata" && (prev[0]?.amount === "" || Number(prev[0]?.amount) === 0)
         ? [
             {
-              instrument_id: prev[0].instrument_id,
-              method: prev[0].method,
+              instrument_id: prev[0]?.instrument_id ?? defaultInstrument.id,
+              method: prev[0]?.method ?? defaultInstrument.type,
               amount: Math.max(0, total - advanceUsed) > 0 ? String(Math.max(0, total - advanceUsed)) : "",
             },
           ]
         : prev
     );
-  }, [total, advanceUsed]);
+  }, [total, advanceUsed, defaultInstrument]);
 
   function nextCustCode() {
     let max = 0;
@@ -540,6 +596,7 @@ export default function PosClient({
         return;
       }
       setCart((prev) => prev.map((l) => (l.key === existing.key ? { ...l, qty: next, amount: Number((next * l.rate).toFixed(2)) } : l)));
+      triggerCartHighlight(existing.key);
     } else {
       if (isProduct && stockOf(id) <= 0) {
         setError(`${name} is out of stock`);
@@ -549,10 +606,11 @@ export default function PosClient({
       const serv = !isProduct ? serviceState.find((s) => s.id === id) : null;
       const gstRate = Number(prod?.gst_rate ?? serv?.gst_rate ?? 0);
       const hsnSac = prod?.hsn_code ?? serv?.sac_code ?? null;
+      const itemKey = `${isProduct ? "p" : "s"}-${id}`;
       setCart((prev) => [
         ...prev,
         {
-          key: `${isProduct ? "p" : "s"}-${id}`,
+          key: itemKey,
           product_id: isProduct ? id : null,
           service_id: isProduct ? null : id,
           name,
@@ -564,6 +622,7 @@ export default function PosClient({
           tax_treatment: gstRate > 0 ? "taxable" : "non_gst",
         },
       ]);
+      triggerCartHighlight(itemKey);
     }
   }
 
@@ -681,7 +740,9 @@ export default function PosClient({
       service_id = data.id;
       setServiceState((prev) => [{ ...(data as unknown as PosService) }, ...prev]);
     }
-    setCart((prev) => [...prev, { key: `c-${Date.now()}`, product_id, service_id, name, qty: 1, rate, amount: rate, cost: Math.max(0, cost) }]);
+    const customKey = `c-${Date.now()}`;
+    setCart((prev) => [...prev, { key: customKey, product_id, service_id, name, qty: 1, rate, amount: rate, cost: Math.max(0, cost) }]);
+    triggerCartHighlight(customKey);
     setCustomName("");
     setCustomRate("");
     setCustomCost("");
@@ -724,15 +785,21 @@ export default function PosClient({
   }
 
   function recallBill(b: HeldBill) {
-    setCart(b.cart);
-    setDiscount(b.discount);
-    setCustomerId(b.customerId);
-    setPayments(b.payments);
-    setDuePick(b.duePick);
-    setCollectDue(b.collectDue);
-    setDueAmount(b.dueAmount);
-    setUseAdvance(b.useAdvance);
-    setAdvanceAmount(b.advanceAmount);
+    setCart(b.cart || []);
+    setDiscount(b.discount || "");
+    setCustomerId(b.customerId || "");
+    setPayments(
+      b.payments && b.payments.length > 0
+        ? b.payments
+        : [{ instrument_id: defaultInstrument.id, method: defaultInstrument.type, amount: "" }]
+    );
+    setDuePick(
+      b.duePick || { instrument_id: defaultInstrument.id, method: defaultInstrument.type }
+    );
+    setCollectDue(Boolean(b.collectDue));
+    setDueAmount(b.dueAmount || "");
+    setUseAdvance(Boolean(b.useAdvance));
+    setAdvanceAmount(b.advanceAmount || "");
     const next = loadHeld().filter((x) => x.savedAt !== b.savedAt);
     saveHeld(next);
     setHeldBills(next);
@@ -755,7 +822,13 @@ export default function PosClient({
   }
 
   function fillExact() {
-    setPayments((prev) => [{ instrument_id: prev[0].instrument_id, method: prev[0].method, amount: Math.max(0, total - advanceUsed).toFixed(2) }]);
+    setPayments((prev) => [
+      {
+        instrument_id: prev[0]?.instrument_id ?? defaultInstrument.id,
+        method: prev[0]?.method ?? defaultInstrument.type,
+        amount: Math.max(0, total - advanceUsed).toFixed(2),
+      },
+    ]);
   }
 
   async function completeSale(print: boolean) {
@@ -849,8 +922,8 @@ export default function PosClient({
         p_payments: pmts,
         p_items: items,
         p_previous_due: Number(dueCollection.toFixed(2)),
-        p_previous_due_method: duePick.method,
-        p_previous_due_instrument_id: duePick.instrument_id || null,
+        p_previous_due_method: duePick?.method ?? defaultInstrument.type,
+        p_previous_due_instrument_id: duePick?.instrument_id || null,
         p_advance_used: Number(advanceUsed.toFixed(2)),
         p_place_of_supply: gstCalc.placeOfSupply,
         p_supply_type: gstCalc.supplyType,
@@ -974,95 +1047,112 @@ export default function PosClient({
   return (
     <div className="mx-auto max-w-[1600px] px-3 py-4 lg:px-6">
       {/* 1. Tactical Operational Bar */}
-      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-500/20">
-            <ShoppingBag className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-900 dark:text-white">
-                {salesTodayCount} Sales Today
-              </span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <div className={`mb-3.5 rounded-2xl border border-slate-200/90 bg-white transition-all dark:border-white/10 dark:bg-slate-900 shadow-xs ${
+        opBarCollapsed ? "p-2 px-3.5" : "p-3.5"
+      }`}>
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-3">
+            <div className={`flex shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-500/20 transition-all ${
+              opBarCollapsed ? "h-7 w-7" : "h-10 w-10"
+            }`}>
+              <ShoppingBag className={opBarCollapsed ? "h-3.5 w-3.5" : "h-5 w-5"} />
             </div>
-            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              {inr(salesTodayAmount)} Collected
-            </p>
-          </div>
-        </div>
-
-        {/* Center Keyboard Shortcuts Prompt */}
-        <div className="hidden items-center gap-2 xl:flex">
-          <span className="text-[11px] font-bold text-slate-400">Hotkeys:</span>
-          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-            <kbd className="font-mono">F2</kbd> Mode
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-            <kbd className="font-mono">F4</kbd> Search
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-            <kbd className="font-mono">F9</kbd> Exact Cash
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-            <kbd className="font-mono">Enter</kbd> Pay
-          </span>
-        </div>
-
-        {/* Mode Switcher & Operational Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
-            {(["invoice", "quick"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                  mode === m
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                }`}
-              >
-                {m === "invoice" ? "Standard Cart POS" : "Quick Fast-Sale"}
-              </button>
-            ))}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-900 dark:text-white">
+                  {salesTodayCount} Sales Today
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  {inr(salesTodayAmount)} Collected
+                </span>
+              </div>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setRecallOpen(true);
-              setHeldBills(loadHeld());
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-          >
-            <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
-            <span>Recall</span>
-            {heldBills.length > 0 && (
-              <span className="rounded-full bg-amber-500 px-1.5 py-0.2 text-[9px] font-black text-white">
-                {heldBills.length}
+          {/* Center Keyboard Shortcuts Prompt (hidden in collapsed mode or small screens) */}
+          {!opBarCollapsed && (
+            <div className="hidden items-center gap-2 xl:flex">
+              <span className="text-[11px] font-bold text-slate-400">Hotkeys:</span>
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                <kbd className="font-mono">Ctrl+K</kbd> / <kbd className="font-mono">F4</kbd> Search
               </span>
-            )}
-          </button>
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                <kbd className="font-mono">F2</kbd> Mode
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                <kbd className="font-mono">F9</kbd> Exact Cash
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                <kbd className="font-mono">Enter</kbd> Pay
+              </span>
+            </div>
+          )}
 
-          <button
-            type="button"
-            onClick={() => holdCurrent()}
-            disabled={!cart.length}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-          >
-            <BookmarkCheck className="h-3.5 w-3.5 text-slate-500" />
-            <span>Hold Bill</span>
-          </button>
+          {/* Mode Switcher & Operational Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
+              {(["invoice", "quick"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`touch-manipulation select-none rounded-lg px-3 py-1 text-xs font-bold transition active:scale-95 motion-reduce:transform-none ${
+                    mode === m
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  {m === "invoice" ? "Standard Cart POS" : "Quick Fast-Sale"}
+                </button>
+              ))}
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setShowMoneyOut((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300"
-          >
-            <ArrowUpRight className="h-3.5 w-3.5" />
-            <span>Money Out</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRecallOpen(true);
+                setHeldBills(loadHeld());
+              }}
+              className="touch-manipulation select-none inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 active:scale-95 motion-reduce:transform-none dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
+              <span>Recall</span>
+              {heldBills.length > 0 && (
+                <span className="rounded-full bg-amber-500 px-1.5 py-0.2 text-[9px] font-black text-white">
+                  {heldBills.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => holdCurrent()}
+              disabled={!cart.length}
+              className="touch-manipulation select-none inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 active:scale-95 motion-reduce:transform-none disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+            >
+              <BookmarkCheck className="h-3.5 w-3.5 text-slate-500" />
+              <span>Hold Bill</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowMoneyOut((v) => !v)}
+              className="touch-manipulation select-none inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100 active:scale-95 motion-reduce:transform-none dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300"
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+              <span>Money Out</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleOpBar}
+              title={opBarCollapsed ? "Expand status strip" : "Collapse status strip (reclaim vertical space)"}
+              className="touch-manipulation select-none rounded-xl border border-slate-200 bg-slate-50 p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 active:scale-95 motion-reduce:transform-none dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+            >
+              {opBarCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1092,17 +1182,8 @@ export default function PosClient({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)_420px]">
-            {/* Left Category Navigation */}
-            <PosCategorySidebar
-              categories={categories}
-              totalCount={productState.length + serviceState.length}
-              active={cat}
-              onSelect={(id) => setCat(cat === id ? "all" : id)}
-              onAddCustom={() => setCustomOpen(true)}
-            />
-
-            {/* Center Items Browser */}
+          <div className="pos-workspace-grid grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+            {/* Catalog Area (Tier 1 Toolbar + Tier 2 Chips + Catalog) */}
             <div className="min-w-0">
               <PosItemToolbar
                 tabs={[
@@ -1124,6 +1205,16 @@ export default function PosClient({
                 onSort={(v) => setSort(v as any)}
                 view={view}
                 onView={setView}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setCustomOpen(true)}
+                    className="touch-manipulation select-none inline-flex items-center gap-1.5 h-9 rounded-xl border border-dashed border-blue-400 bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95 motion-reduce:transform-none dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Custom Item</span>
+                  </button>
+                }
               />
 
               <PosCategoryChips
@@ -1131,15 +1222,6 @@ export default function PosClient({
                 totalCount={productState.length + serviceState.length}
                 active={cat}
                 onSelect={(id) => setCat(cat === id ? "all" : id)}
-                customBtn={
-                  <button
-                    type="button"
-                    onClick={() => setCustomOpen(true)}
-                    className="shrink-0 rounded-full border border-dashed border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
-                  >
-                    + Custom Item
-                  </button>
-                }
               />
 
               {view === "grid" ? (
@@ -1150,8 +1232,8 @@ export default function PosClient({
             </div>
 
             {/* Right Sticky Cart & Billing Drawer */}
-            <div className="min-w-0">
-              <div className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-[22px] border border-slate-200/90 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+            <div className="pos-billing-drawer min-w-0">
+              <div data-sticky-drawer="true" className="sticky top-4 flex max-h-[calc(100vh-5.5rem)] flex-col overflow-hidden rounded-[22px] border border-slate-200/90 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
                 {/* Cart Drawer Header */}
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-white/5">
                   <div>
@@ -1187,7 +1269,12 @@ export default function PosClient({
                     {cart.map((l) => (
                       <div
                         key={l.key}
-                        className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-slate-200 dark:border-white/5 dark:bg-white/[0.03]"
+                        data-cart-item-key={l.key}
+                        className={`rounded-xl border p-3 transition-all duration-300 ${
+                          highlightedCartKey === l.key
+                            ? "border-blue-500 bg-blue-50/90 shadow-md ring-2 ring-blue-500/50 scale-[1.01] dark:bg-blue-950/50 dark:border-blue-500"
+                            : "border-slate-100 bg-slate-50/70 hover:border-slate-200 dark:border-white/5 dark:bg-white/[0.03]"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
@@ -1196,7 +1283,7 @@ export default function PosClient({
                           <button
                             type="button"
                             onClick={() => removeLine(l.key)}
-                            className="rounded-lg p-0.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                            className="touch-manipulation select-none rounded-lg p-0.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 active:scale-95 motion-reduce:transform-none dark:hover:bg-rose-950/40"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -1206,7 +1293,7 @@ export default function PosClient({
                             <button
                               type="button"
                               onClick={() => changeQty(l.key, l.qty - 1)}
-                              className="px-2.5 py-1 text-xs font-black text-slate-600 hover:bg-slate-100 hover:text-rose-600 active:scale-90 transition-all dark:text-slate-300 dark:hover:bg-white/10"
+                              className="touch-manipulation select-none px-2.5 py-1 text-xs font-black text-slate-600 hover:bg-slate-100 hover:text-rose-600 active:scale-90 motion-reduce:transform-none transition-all dark:text-slate-300 dark:hover:bg-white/10"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
@@ -1216,7 +1303,7 @@ export default function PosClient({
                             <button
                               type="button"
                               onClick={() => changeQty(l.key, l.qty + 1)}
-                              className="px-2.5 py-1 text-xs font-black text-slate-600 hover:bg-slate-100 hover:text-emerald-600 active:scale-90 transition-all dark:text-slate-300 dark:hover:bg-white/10"
+                              className="touch-manipulation select-none px-2.5 py-1 text-xs font-black text-slate-600 hover:bg-slate-100 hover:text-emerald-600 active:scale-90 motion-reduce:transform-none transition-all dark:text-slate-300 dark:hover:bg-white/10"
                             >
                               <Plus className="h-3 w-3" />
                             </button>

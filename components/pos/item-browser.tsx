@@ -193,6 +193,7 @@ export function PosItemToolbar({
   onSort,
   view,
   onView,
+  action,
 }: {
   tabs: { value: string; label: string }[];
   activeTab: string;
@@ -205,16 +206,18 @@ export function PosItemToolbar({
   onSort: (v: string) => void;
   view: "grid" | "list";
   onView: (v: "grid" | "list") => void;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5">
-      <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
+    <div className="pos-item-toolbar flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
+      {/* Left: Tab group */}
+      <div className="flex shrink-0 rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
         {tabs.map((t) => (
           <button
             type="button"
             key={t.value}
             onClick={() => onTab(t.value)}
-            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
+            className={`touch-manipulation rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all duration-75 select-none active:scale-[0.97] motion-reduce:transform-none ${
               activeTab === t.value
                 ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -225,66 +228,71 @@ export function PosItemToolbar({
         ))}
       </div>
 
-      <div className="relative min-w-[220px] flex-1">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          ref={searchRef}
-          value={q}
-          onChange={(e) => onQ(e.target.value)}
-          placeholder={placeholder}
-          className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-10 pr-8 text-xs font-semibold text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-        />
-        {q && (
+      {/* Right: Search, Sort, View, Action */}
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+        <div className="relative min-w-[130px] flex-1 max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            ref={searchRef}
+            value={q}
+            onChange={(e) => onQ(e.target.value)}
+            placeholder={placeholder}
+            className="h-9 w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-8 text-xs font-semibold text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          />
+          {q && (
+            <button
+              type="button"
+              onClick={() => onQ("")}
+              className="touch-manipulation absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 motion-reduce:transform-none dark:hover:bg-slate-800 dark:hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="relative flex items-center shrink-0">
+          <select
+            value={sort}
+            onChange={(e) => onSort(e.target.value)}
+            aria-label="Sort catalog items"
+            className="h-9 appearance-none rounded-xl border border-slate-200/90 bg-white pl-3 pr-7 text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+          >
+            <option value="name">Name A–Z</option>
+            <option value="low">Price: Low → High</option>
+            <option value="high">Price: High → Low</option>
+            <option value="stock">Stock Level</option>
+          </select>
+          <ArrowUpDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-slate-400" />
+        </div>
+
+        <div className="flex shrink-0 rounded-xl border border-slate-200/90 bg-slate-100/90 p-0.5 dark:border-white/10 dark:bg-slate-800/80">
           <button
             type="button"
-            onClick={() => onQ("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+            onClick={() => onView("grid")}
+            title="Grid view"
+            className={`touch-manipulation flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-75 select-none active:scale-[0.97] motion-reduce:transform-none ${
+              view === "grid"
+                ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
+                : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
+            }`}
           >
-            <X className="h-3.5 w-3.5" />
+            <LayoutGrid className="h-3.5 w-3.5" />
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => onView("list")}
+            title="List view"
+            className={`touch-manipulation flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-75 select-none active:scale-[0.97] motion-reduce:transform-none ${
+              view === "list"
+                ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
+                : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
-      <div className="relative flex items-center">
-        <select
-          value={sort}
-          onChange={(e) => onSort(e.target.value)}
-          aria-label="Sort catalog items"
-          className="appearance-none rounded-xl border border-slate-200/90 bg-white pl-3 pr-8 py-2 text-xs font-bold text-slate-700 shadow-xs outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
-        >
-          <option value="name">Name A–Z</option>
-          <option value="low">Price: Low → High</option>
-          <option value="high">Price: High → Low</option>
-          <option value="stock">Stock Level</option>
-        </select>
-        <ArrowUpDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-slate-400" />
-      </div>
-
-      <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-white/10 dark:bg-slate-800/80">
-        <button
-          type="button"
-          onClick={() => onView("grid")}
-          title="Grid view"
-          className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-            view === "grid"
-              ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
-              : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
-          }`}
-        >
-          <LayoutGrid className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onView("list")}
-          title="List view"
-          className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-            view === "list"
-              ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
-              : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
-          }`}
-        >
-          <List className="h-3.5 w-3.5" />
-        </button>
+        {action && <div className="flex items-center shrink-0">{action}</div>}
       </div>
     </div>
   );
@@ -306,32 +314,32 @@ export function PosCategoryChips({
   extraChips?: ReactNode;
 }) {
   return (
-    <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="pos-category-chips mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {customBtn}
       {extraChips}
       <button
         type="button"
         onClick={() => onSelect("all")}
-        className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+        className={`touch-manipulation select-none shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
           active === "all"
-            ? "bg-blue-600 text-white shadow-sm"
+            ? "bg-blue-600 text-white shadow-xs"
             : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
         }`}
       >
-        All <span className="opacity-70">({totalCount})</span>
+        All <span className="opacity-80 font-black">({totalCount})</span>
       </button>
       {categories.map((c) => (
         <button
           type="button"
           key={c.id}
           onClick={() => onSelect(c.id)}
-          className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+          className={`touch-manipulation select-none shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
             active === c.id
-              ? "bg-blue-600 text-white shadow-sm"
+              ? "bg-blue-600 text-white shadow-xs"
               : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
           }`}
         >
-          {c.name} <span className="opacity-70">({c.count})</span>
+          {c.name} <span className="opacity-80 font-black">({c.count})</span>
         </button>
       ))}
     </div>
@@ -365,7 +373,7 @@ export function PosGrid({
             key={`${isProd ? "p" : "s"}-${x.id}`}
             onClick={() => onAdd(x.id, x.name, price, isProd)}
             disabled={out}
-            className={`pos-touch-tile-3d relative overflow-hidden group p-4 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-95 ${
+            className={`pos-touch-tile-3d touch-manipulation select-none relative overflow-hidden group p-4 text-left transition-all duration-75 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none ${
               out ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
@@ -534,7 +542,7 @@ export function PosTable({
                     type="button"
                     onClick={() => onAdd(x.id, x.name, price, isProd)}
                     disabled={out}
-                    className="inline-flex min-w-[62px] items-center justify-center rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-blue-600 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
+                    className="touch-manipulation select-none active:scale-95 inline-flex min-w-[62px] items-center justify-center rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white transition-all duration-75 hover:bg-blue-600 motion-reduce:transform-none disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
                   >
                     {out ? "Out" : "+ Add"}
                   </button>

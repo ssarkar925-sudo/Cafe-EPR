@@ -13,8 +13,8 @@ import type { ScanFields } from "@/lib/scan/extract";
 import type { PosProduct, PosService, PosCustomer, PosInstrument, CartLine } from "./pos-client";
 import { getWhatsAppConfig, sendWhatsAppMessage } from "@/lib/whatsapp";
 import InstrumentSelect, { INSTRUMENT_TYPES, METHOD_ACCOUNT_TYPES, instrumentLabel, type InstrumentPick } from "./instrument-select";
+import { Plus, ChevronDown, ChevronUp } from "lucide-react";
 import {
-  PosCategorySidebar,
   PosCategoryChips,
   PosItemToolbar,
   PosGrid,
@@ -93,7 +93,7 @@ export default function QuickSaleModule({
 
   const [todayList, setTodayList] = useState<QuickSale[]>(initialToday);
   const [instrumentList, setInstrumentList] = useState<PosInstrument[]>(instruments);
-  const [tab, setTab] = useState<"services" | "products">("services");
+  const [tab, setTab] = useState<"services" | "products" | "all" | "favorites">("services");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [sort, setSort] = useState<"name" | "low" | "high" | "stock">("name");
@@ -109,6 +109,43 @@ export default function QuickSaleModule({
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [opBarCollapsed, setOpBarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("qs_op_bar_collapsed") === "true";
+    }
+    return false;
+  });
+
+  const toggleOpBar = () => {
+    const next = !opBarCollapsed;
+    setOpBarCollapsed(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("qs_op_bar_collapsed", String(next));
+      } catch {}
+    }
+  };
+
+  const [highlightedCartKey, setHighlightedCartKey] = useState<string | null>(null);
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerCartHighlight = (key: string) => {
+    setHighlightedCartKey(key);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedCartKey(null);
+    }, 1200);
+
+    setTimeout(() => {
+      if (typeof document !== "undefined") {
+        const el = document.querySelector(`[data-quick-cart-key="${key}"], [data-cart-item-key="${key}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }
+    }, 50);
+  };
   const [scanOpen, setScanOpen] = useState(false);
   const [lastSale, setLastSale] = useState<QuickSale | null>(null);
   const [waStatus, setWaStatus] = useState<"idle" | "sending" | "sent">("idle");
@@ -133,9 +170,9 @@ export default function QuickSaleModule({
 
   const [view, setView] = useState<"grid" | "list">(() => {
     try {
-      return localStorage.getItem("sccomm-qs-view") === "grid" ? "grid" : "list";
+      return localStorage.getItem("sccomm-qs-view") === "list" ? "list" : "grid";
     } catch {
-      return "list";
+      return "grid";
     }
   });
 
@@ -190,7 +227,16 @@ export default function QuickSaleModule({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list: (PosProduct | PosService)[] = tab === "services" ? (favOnly ? favServices : services) : products;
+    let list: (PosProduct | PosService)[] = [];
+    if (tab === "services") {
+      list = favOnly ? favServices : services;
+    } else if (tab === "products") {
+      list = products;
+    } else if (tab === "favorites") {
+      list = favServices;
+    } else {
+      list = [...services, ...products];
+    }
     const out = list.filter((x: any) => {
       if (cat !== "all" && x.category_id !== cat) return false;
       if (!needle) return true;
@@ -301,15 +347,17 @@ export default function QuickSaleModule({
           l.key === existing.key ? { ...l, qty: nextQty, amount: Number((nextQty * l.rate).toFixed(2)) } : l
         )
       );
+      triggerCartHighlight(existing.key);
     } else {
       if (isProduct && stockOf(id) <= 0) {
         setError(`${name} is out of stock`);
         return;
       }
+      const itemKey = `${isProduct ? "p" : "s"}-${id}`;
       setCart((prev) => [
         ...prev,
         {
-          key: `${isProduct ? "p" : "s"}-${id}`,
+          key: itemKey,
           product_id: isProduct ? id : null,
           service_id: isProduct ? null : id,
           name,
@@ -318,6 +366,7 @@ export default function QuickSaleModule({
           amount: rate,
         },
       ]);
+      triggerCartHighlight(itemKey);
     }
   }
 
@@ -353,10 +402,11 @@ export default function QuickSaleModule({
       return;
     }
     setError(null);
+    const customKey = `c-${Date.now()}`;
     setCart((prev) => [
       ...prev,
       {
-        key: `c-${Date.now()}`,
+        key: customKey,
         product_id: null,
         service_id: null,
         name,
@@ -366,6 +416,7 @@ export default function QuickSaleModule({
         cost: Math.max(0, cost),
       },
     ]);
+    triggerCartHighlight(customKey);
     setCustomName("");
     setCustomRate("");
     setCustomCost("");
@@ -455,8 +506,8 @@ export default function QuickSaleModule({
     setPayments((prev) => {
       const next = [...prev];
       next[0] = {
-        instrument_id: next[0].instrument_id,
-        method: next[0].method,
+        instrument_id: next[0]?.instrument_id ?? defaultInstrument.id,
+        method: next[0]?.method ?? defaultInstrument.type,
         amount: total > 0 ? String(total.toFixed(2)) : "0",
       };
       return [next[0]];
@@ -537,12 +588,12 @@ export default function QuickSaleModule({
     let tendered: number | null = null;
     if (singleCash && !isPartial) {
       pmts = [
-        { method: "cash", amount: Number(Math.min(paid, total).toFixed(2)), instrument_id: payments[0].instrument_id || null },
+        { method: "cash", amount: Number(Math.min(paid, total).toFixed(2)), instrument_id: payments[0]?.instrument_id || null },
       ];
-      tendered = Number(payments[0].amount) || null;
+      tendered = Number(payments[0]?.amount) || null;
     } else {
       pmts = payments
-        .filter((p) => Number(p.amount) > 0)
+        .filter((p) => Number(p?.amount) > 0)
         .map((p) => ({ method: p.method, amount: Number(p.amount), instrument_id: p.instrument_id || null }));
       if (singleCash && isPartial) {
         tendered = paid;
@@ -880,6 +931,11 @@ export default function QuickSaleModule({
         setCustomOpen(false);
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "F1") {
         e.preventDefault();
@@ -916,55 +972,70 @@ export default function QuickSaleModule({
   return (
     <div className="mt-5">
       {/* ── Compact today stats (no dashboard cards) ─────── */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white px-4 py-2.5 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
-        <span className="font-semibold uppercase tracking-wide text-slate-400">Today</span>
-        <span>
-          {summary.count} order{summary.count === 1 ? "" : "s"}
-        </span>
-        <span className="text-slate-300">·</span>
-        <span>
-          <span className="font-semibold text-slate-700">{inr(summary.collected)}</span> collected
-        </span>
-        {canViewProfit && (
-          <>
-            <span className="text-slate-300">·</span>
-            <span>
-              <span className="font-semibold text-emerald-600">{inr(summary.profit)}</span> profit
-            </span>
-          </>
-        )}
-        <span className="text-slate-300">·</span>
-        <span>avg {inr(summary.avg)}</span>
-        {summary.byMethod.length > 0 && (
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            {summary.byMethod.map(([name, amt]) => (
-              <span key={name} className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                {name} <span className="font-semibold text-slate-800">{inr(amt)}</span>
+      <div className={`mb-3.5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white text-xs text-slate-500 shadow-sm ring-1 ring-slate-200 transition-all ${
+        opBarCollapsed ? "px-3.5 py-1.5" : "px-4 py-2.5"
+      }`}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-semibold uppercase tracking-wide text-slate-400">Today</span>
+          <span>
+            {summary.count} order{summary.count === 1 ? "" : "s"}
+          </span>
+          <span className="text-slate-300">·</span>
+          <span>
+            <span className="font-semibold text-slate-700">{inr(summary.collected)}</span> collected
+          </span>
+          {!opBarCollapsed && canViewProfit && (
+            <>
+              <span className="text-slate-300">·</span>
+              <span>
+                <span className="font-semibold text-emerald-600">{inr(summary.profit)}</span> profit
               </span>
-            ))}
-          </div>
-        )}
+            </>
+          )}
+          {!opBarCollapsed && (
+            <>
+              <span className="text-slate-300">·</span>
+              <span>avg {inr(summary.avg)}</span>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!opBarCollapsed && summary.byMethod.length > 0 && (
+            <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+              {summary.byMethod.map(([name, amt]) => (
+                <span key={name} className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                  {name} <span className="font-semibold text-slate-800">{inr(amt)}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={toggleOpBar}
+            title={opBarCollapsed ? "Expand status strip" : "Collapse status strip"}
+            className="touch-manipulation select-none rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 motion-reduce:transform-none"
+          >
+            {opBarCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[200px_minmax(0,1fr)_400px]">
-        {/* ── Categories ─────────────────────────────── */}
-        <PosCategorySidebar
-          categories={categories}
-          totalCount={products.length + services.length}
-          active={cat}
-          onSelect={(id) => setCat(cat === id ? "all" : id)}
-          onAddCustom={() => setCustomOpen(true)}
-        />
-
+      <div className="pos-workspace-grid grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* ── Catalog ────────────────────────────────── */}
         <div className="min-w-0">
           <PosItemToolbar
             tabs={[
               { value: "services", label: "Services" },
               { value: "products", label: "Products" },
+              { value: "all", label: "All Items" },
+              { value: "favorites", label: "Favorites" },
             ]}
             activeTab={tab}
-            onTab={(t) => setTab(t as typeof tab)}
+            onTab={(t) => {
+              setTab(t as any);
+              setFavOnly(t === "favorites");
+            }}
             searchRef={searchRef}
             placeholder="Search services, products…  (Ctrl+K)"
             q={q}
@@ -973,6 +1044,16 @@ export default function QuickSaleModule({
             onSort={(v) => setSort(v as typeof sort)}
             view={view}
             onView={switchView}
+            action={
+              <button
+                type="button"
+                onClick={() => setCustomOpen(true)}
+                className="touch-manipulation select-none inline-flex items-center gap-1.5 h-9 rounded-xl border border-dashed border-blue-400 bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95 motion-reduce:transform-none dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>+ Add Item</span>
+              </button>
+            }
           />
 
           <PosCategoryChips
@@ -980,32 +1061,20 @@ export default function QuickSaleModule({
             totalCount={products.length + services.length}
             active={cat}
             onSelect={(id) => setCat(cat === id ? "all" : id)}
-            customBtn={
-              <button
-                onClick={() => setCustomOpen(true)}
-                className="flex items-center gap-1 rounded-full border border-dashed border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 lg:hidden"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-3.5 w-3.5">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Custom item
-              </button>
-            }
             extraChips={
-              tab === "services" ? (
-                <button
-                  onClick={() => setFavOnly((v) => !v)}
-                  title="Show quick-sale favourites only"
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                    favOnly ? "bg-amber-500 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="mr-1 inline h-3 w-3 -translate-y-px">
-                    <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z" />
-                  </svg>
-                  Favourites
-                </button>
-              ) : null
+              <button
+                type="button"
+                onClick={() => setFavOnly((v) => !v)}
+                title="Show favourites only"
+                className={`touch-manipulation select-none shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
+                  favOnly ? "bg-amber-500 text-white" : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="mr-1 inline h-3 w-3 -translate-y-px">
+                  <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z" />
+                </svg>
+                Favourites
+              </button>
             }
           />
 
@@ -1017,8 +1086,8 @@ export default function QuickSaleModule({
         </div>
 
         {/* ── Current Sale ───────────────────────────── */}
-        <div className="min-w-0">
-          <div className="sticky top-6 flex max-h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+        <div className="pos-cart-drawer pos-billing-drawer min-w-0">
+          <div data-sticky-drawer="true" className="sticky top-4 flex max-h-[calc(100vh-5.5rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
               <div>
                 <h2 className="font-semibold text-slate-900">Current Sale</h2>
@@ -1036,6 +1105,7 @@ export default function QuickSaleModule({
                   ↻ Recent Sales
                 </button>
                 <button
+                  type="button"
                   onClick={() => setRecallOpen(true)}
                   className="rounded-lg px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                   title="Recall held sale"
@@ -1044,6 +1114,17 @@ export default function QuickSaleModule({
                 </button>
                 {cart.length > 0 && (
                   <button
+                    type="button"
+                    onClick={holdCart}
+                    className="touch-manipulation select-none rounded-lg px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 active:scale-95 motion-reduce:transform-none"
+                    title="Hold sale (F4)"
+                  >
+                    Hold Sale
+                  </button>
+                )}
+                {cart.length > 0 && (
+                  <button
+                    type="button"
                     onClick={clearCart}
                     className="rounded-lg px-2 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
                   >
@@ -1089,12 +1170,22 @@ export default function QuickSaleModule({
               ) : (
                 <div className="space-y-2.5">
                   {cart.map((l) => (
-                    <div key={l.key} className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                    <div
+                      key={l.key}
+                      data-cart-item-key={l.key}
+                      data-quick-cart-key={l.key}
+                      className={`rounded-xl p-3 ring-1 transition-all duration-300 ${
+                        highlightedCartKey === l.key
+                          ? "border-blue-500 bg-blue-50/90 shadow-md ring-2 ring-blue-500/50 scale-[1.01]"
+                          : "bg-slate-50 ring-slate-100"
+                      }`}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium text-slate-900">{l.name}</p>
                         <button
+                          type="button"
                           onClick={() => removeLine(l.key)}
-                          className="text-xs text-slate-400 transition hover:text-rose-600"
+                          className="touch-manipulation select-none text-xs text-slate-400 transition hover:text-rose-600 active:scale-95 motion-reduce:transform-none"
                           title="Remove"
                         >
                           ✕
@@ -1102,7 +1193,11 @@ export default function QuickSaleModule({
                       </div>
                       <div className="mt-2.5 flex items-center gap-2">
                         <div className="flex items-center rounded-lg bg-white ring-1 ring-slate-200">
-                          <button onClick={() => changeQty(l.key, l.qty - 1)} className="px-2 py-1 text-sm text-slate-500 transition hover:text-slate-900">
+                          <button
+                            type="button"
+                            onClick={() => changeQty(l.key, l.qty - 1)}
+                            className="touch-manipulation select-none px-2 py-1 text-sm text-slate-500 transition hover:text-slate-900 active:scale-95 motion-reduce:transform-none"
+                          >
                             −
                           </button>
                           <input
@@ -1113,7 +1208,11 @@ export default function QuickSaleModule({
                             onChange={(e) => changeQty(l.key, Number(e.target.value))}
                             className="w-12 border-x border-slate-200 bg-transparent py-1 text-center text-sm outline-none"
                           />
-                          <button onClick={() => changeQty(l.key, l.qty + 1)} className="px-2 py-1 text-sm text-slate-500 transition hover:text-slate-900">
+                          <button
+                            type="button"
+                            onClick={() => changeQty(l.key, l.qty + 1)}
+                            className="touch-manipulation select-none px-2 py-1 text-sm text-slate-500 transition hover:text-slate-900 active:scale-95 motion-reduce:transform-none"
+                          >
                             +
                           </button>
                         </div>
