@@ -5,6 +5,13 @@ import Link from "next/link";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { type VerifiedFinancialContext } from "@/lib/ai/advisor-engine";
 
+const DASHBOARD_QUICK_ACTIONS = [
+  { id: "bill-payment", label: "Bill Payment", href: "/business/bill-payment", icon: "bill-payment" },
+  { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },
+  { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },
+  { id: "whatsapp", label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },
+] as const;
+
 export type DashboardClientProps = {
   data: any;
   verifiedContext?: VerifiedFinancialContext;
@@ -1141,6 +1148,22 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
         </div>
       </div>
+
+      <section className="bento-surface p-6 dark:bg-slate-900/90">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Quick Actions</span>
+            <h3 className="text-base font-black text-slate-900 dark:text-white">Financial &amp; Service Control</h3>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {DASHBOARD_QUICK_ACTIONS.map((action) => (
+            <Link key={action.id} href={action.href} className="group rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700 transition hover:border-blue-400 hover:bg-white hover:text-blue-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:bg-white/[0.06] dark:hover:text-blue-300">
+              <span className="flex items-center gap-2"><ActionVectorIcon icon={action.icon} className="h-4 w-4" />{action.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {/* ===============================================================================
           7. RECENT TRANSACTION STREAM

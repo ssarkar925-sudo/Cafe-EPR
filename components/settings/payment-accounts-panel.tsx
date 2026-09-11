@@ -191,6 +191,9 @@ const refreshLiveBalances = useCallback(async () => {
         });
       }
 
+      // Per-instrument movement deltas are derived only from the tagged cash-entry ledger.
+      const instDeltas = entriesByInstrument;
+
       const updated = rows.map((i) => {
         // Debit cards are mirrors of their linked bank account, never a second asset.
         if (i.type === "debit_card") {
@@ -227,7 +230,7 @@ const refreshLiveBalances = useCallback(async () => {
       const reconMap: Record<string, AccountReconDetail> = {};
 
       for (const inst of updated) {
-        const bucket = entriesByInstrument[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };
+        const bucket = instDeltas[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };
         const current = inst.type === "debit_card"
           ? Number(inst.balance ?? 0)
           : Number((inst as InstrumentRow & { current_balance?: number }).current_balance ?? inst.balance ?? 0);
@@ -732,8 +735,11 @@ const refreshLiveBalances = useCallback(async () => {
               {instruments.map((row) => {
                 const label = INSTRUMENT_TYPES.find((t) => t.value === row.type)?.label ?? row.type;
                 const totalLimit = Number(row.details?.credit_limit || 0);
-                const currentOutstanding = Number(row.opening_balance || 0);
-                const currentBal = Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));
+                const currentOutstanding = row.type === "credit_card"
+                  ? Math.max(0, totalLimit - Number(row.balance ?? totalLimit))
+                  : Number(row.opening_balance || 0);
+                const availableCredit = Math.max(0, totalLimit - currentOutstanding);
+                const currentBal = row.type === "credit_card" ? availableCredit : Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));
                 const usedPercent = totalLimit > 0 ? Math.min(100, Math.round((currentOutstanding / totalLimit) * 10000) / 100) : 0;
                 const recon = accountReconMap[row.id];
 
