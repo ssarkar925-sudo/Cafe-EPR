@@ -176,8 +176,12 @@
     isolation: isolate;
   }
 
+  /* Mobile: keep Quick Access in normal document flow so the fixed
+     navigation drawer/backdrop always renders above it. */
   .cafe-quick-access {
-    top: 56px;
+    position: relative;
+    top: auto;
+    z-index: 10;
     margin-bottom: 10px;
     border-radius: 12px;
   }
