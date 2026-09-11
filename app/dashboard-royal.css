@@ -20,11 +20,16 @@ main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"]{background:
 main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"] button{border-radius:8px!important;font-weight:820!important}
 main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"] button[class*="from-indigo-600"]{background:linear-gradient(180deg,var(--db-blue),color-mix(in srgb,var(--db-blue) 82%,#000))!important;color:#fff!important;box-shadow:0 5px 13px color-mix(in srgb,var(--db-blue) 20%,transparent)!important}
 
-/* Robust active-period treatment: active tab carries text-white/scale state.
-   Keep this independent of Tailwind utility ordering so light mode can never
-   render white text on a white active-tab background. */
+/* Previous active-period treatment retained for compatibility. */
 html:not(.dark) main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"] button[class*="text-white"]{background:linear-gradient(180deg,#365fe4 0%,#2148c9 100%)!important;background-color:#2148c9!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:1px solid rgba(45,82,211,.58)!important;box-shadow:0 7px 16px rgba(39,74,190,.24),inset 0 1px 0 rgba(255,255,255,.20)!important}
 html:not(.dark) main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"] button[class*="text-white"]:hover{background:linear-gradient(180deg,#416af0 0%,#2952d5 100%)!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+
+/* Deterministic active-period treatment for the current dashboard component.
+   The selected tab currently carries Tailwind's scale-[1.02] state. Targeting
+   that explicit active class avoids depending on text/background utility order. */
+html:not(.dark) main > div.space-y-6.pb-16 > div:first-child button.scale-\[1\.02\]{background:linear-gradient(135deg,#365fe4 0%,#2148c9 100%)!important;background-color:#2148c9!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:1px solid #2b54dc!important;box-shadow:0 4px 12px rgba(43,84,220,.28)!important}
+html:not(.dark) main > div.space-y-6.pb-16 > div:first-child button.scale-\[1\.02\] *{color:#fff!important;-webkit-text-fill-color:#fff!important}
+html:not(.dark) main > div.space-y-6.pb-16 > div:first-child button.scale-\[1\.02\]:hover{background:linear-gradient(135deg,#416af0 0%,#2952d5 100%)!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
 
 /* KPI cards */
 main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-emerald,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-indigo,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-rose,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-amber,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-cyan{position:relative!important;overflow:hidden!important;min-height:178px!important;border:1px solid var(--db-line)!important;border-radius:13px!important;background:var(--db-surface)!important;box-shadow:0 8px 24px rgba(15,23,42,.055),inset 0 1px 0 rgba(255,255,255,.06)!important;transform:none!important}
