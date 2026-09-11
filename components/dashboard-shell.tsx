@@ -106,9 +106,6 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-slate-900 dark:text-white">{meta.title}</p></div>
-        {!isExecutiveDashboard && (
-          <Link href="/ai-agent" aria-label="Open Cafe AI Agent" title="Open Cafe AI Agent" className="flex h-8 w-8 items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"><span aria-hidden="true">✦</span></Link>
-        )}
         <button onClick={() => setSearchOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10" aria-label="Open search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
         <ThemeToggle />
         <Avatar name={name} avatarUrl={avatarUrl} size="h-7 w-7" />
@@ -130,28 +127,14 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
             {!isExecutiveDashboard && (
               <Link href="/pos" className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700 shrink-0"><span>+ New Bill</span><kbd className="rounded bg-blue-700 px-1 py-0.2 text-[9px] font-bold">F2</kbd></Link>
             )}
-            {!isExecutiveDashboard && (
-              <Link href="/ai-agent" aria-label="Open Cafe AI Agent" title="Open Cafe AI Agent" className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700 shadow-sm transition hover:bg-indigo-100 dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20 shrink-0"><span aria-hidden="true">✦</span><span className="hidden xl:inline">Cafe AI Agent</span><span className="xl:hidden">AI</span></Link>
-            )}
             <CloudSyncBadge /><WhatsAppStatusBadge /><ThemeToggle /><NotificationBell role={role} />
             <Link href="/settings" className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 pr-2.5 transition hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] shrink-0"><Avatar name={name} avatarUrl={avatarUrl} size="h-6 w-6"/><span className="text-xs font-bold text-slate-800 dark:text-slate-200">{name || "Admin"}</span></Link>
           </div>
         </header>
-
         <div className="erp-page-content min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>
       </div>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-      {isExecutiveDashboard && (
-        <Link
-          href="/ai-agent"
-          aria-label="Open Cafe AI Agent"
-          title="Cafe AI Agent"
-          className="fixed bottom-5 right-5 z-20 flex h-11 w-11 items-center justify-center rounded-2xl border border-indigo-200/70 bg-white/60 text-indigo-500/60 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-white/90 hover:text-indigo-600 hover:opacity-100 dark:border-indigo-400/20 dark:bg-slate-900/45 dark:text-indigo-300/55 dark:hover:bg-slate-900/85 dark:hover:text-indigo-300"
-        >
-          <span aria-hidden="true" className="text-[17px] leading-none">✦</span>
-        </Link>
-      )}
       <MobileBottomNav />
     </div>
   );
