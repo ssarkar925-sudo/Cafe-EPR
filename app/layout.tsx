@@ -5,6 +5,7 @@ import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
 import "./royal-premium.css";
 import "./sidebar-royal.css";
+import "./pos-royal.css";
 import ThemeProvider from "@/components/theme-provider";
 import { NotificationProvider } from "@/components/ui/notification-provider";
 
