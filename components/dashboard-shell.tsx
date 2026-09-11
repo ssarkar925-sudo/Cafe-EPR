@@ -33,39 +33,12 @@ const PAGE_META: Record<string, { title: string; desc: string; section?: string 
   "/business/banks": { title: "Bank Accounts", desc: "Commercial banks & treasury float", section: "2. Business Services" },
   "/business/portals": { title: "Service Portals", desc: "PayNearby, SpiceMoney, CSC portals", section: "2. Business Services" },
   "/business/merchant-qrs": { title: "Merchant QRs", desc: "Active POS counter QR profiles", section: "2. Business Services" },
-  "/finance": { title: "Finance & Accounts", desc: "Cash book, P&L, day-close & liquid float", section: "5. Finance Hub" },
-  "/finance/pnl": { title: "Profit & Loss (P&L)", desc: "Operating income, COGS & net profit", section: "5. Finance Hub" },
-  "/finance/expenses": { title: "Expense Ledger", desc: "Categorized store operating costs", section: "5. Finance Hub" },
-  "/finance/cashbook": { title: "Daily Cash Book", desc: "Continuous cash inflow/outflow audit", section: "5. Finance Hub" },
-  "/finance/journal": { title: "Double-Entry Journal", desc: "Authoritative inflow/outflow journal & postings", section: "5. Finance Hub" },
-  "/finance/trial-balance": { title: "Trial Balance", desc: "Auto-computed debits, credits & account balances", section: "5. Finance Hub" },
-  "/finance/accounts": { title: "Payment Accounts", desc: "Liquid accounts & float configuration", section: "5. Finance Hub" },
-  "/business/bill-payment": { title: "Bill & Recharge Hub", desc: "BBPS utility bill payments & mobile top-ups", section: "2. Business Services" },
-  "/finance/settlements": { title: "Settlements & Transfers", desc: "Bank-to-wallet & float transfers", section: "5. Finance Hub" },
-  "/finance/opening-balances": { title: "Opening Balances", desc: "Seed opening liquid cash & floats", section: "5. Finance Hub" },
-  "/finance/day-close": { title: "End-of-Day Close", desc: "Cash reconciliation & daily book lock", section: "5. Finance Hub" },
-  "/finance/ledger": { title: "Account Ledgers", desc: "Double-entry party ledgers", section: "5. Finance Hub" },
-  "/inventory": { title: "Inventory & Stock", desc: "Real-time stock valuation & reorder alerts", section: "3. Inventory & Catalog" },
-  "/inventory/movements": { title: "Stock Movements", desc: "Audit log of all stock movements", section: "3. Inventory & Catalog" },
-  "/purchases": { title: "Purchases", desc: "Vendor invoices & stock intake", section: "4. Purchasing" },
-  "/purchases/entry": { title: "Purchase Entry", desc: "Record supplier stock procurement", section: "4. Purchasing" },
-  "/suppliers": { title: "Suppliers", desc: "Vendor directory & accounts payable", section: "4. Purchasing" },
-  "/reports": { title: "Reports Studio", desc: "Sales, margins & activity reports", section: "6. Reports Hub" },
-  "/reports/gst": { title: "GST Reports", desc: "GSTR-1, GSTR-3B tax summaries", section: "6. Reports Hub" },
-  "/reports/tax-preparation": { title: "Tax Prep / ITR", desc: "CA-ready audited financial pack", section: "6. Reports Hub" },
-  "/staff": { title: "Staff Accounts", desc: "Team roles & security permissions", section: "8. Administration" },
-  "/audit": { title: "Security Audit Log", desc: "Immutable operational event history", section: "6. Reports Hub" },
-  "/ai": { title: "AI Control Center", desc: "Smart diagnostic & business insights", section: "7. Tools & AI" },
-  "/ai/self-audit": { title: "Financial Self-Audit", desc: "Automated 14-point invariant checks", section: "7. Tools & AI" },
-  "/security": { title: "Security & 2FA", desc: "Credentials, TOTP 2FA & terminal auto-lock", section: "8. Administration" },
-  "/settings": { title: "System Settings", desc: "Store profile, themes & automation", section: "8. Administration" },
 };
 
 function metaFor(pathname: string) {
-  const exact = PAGE_META[pathname];
-  if (exact) return exact;
-  for (const key of Object.keys(PAGE_META)) if (pathname.startsWith(key + "/")) return PAGE_META[key];
-  return { title: "Café ERP", desc: "Enterprise Cybercafe & Retail ERP", section: "System" };
+  if (PAGE_META[pathname]) return PAGE_META[pathname];
+  const match = Object.keys(PAGE_META).sort((a, b) => b.length - a.length).find((key) => pathname.startsWith(key));
+  return match ? PAGE_META[match] : { title: "Cafe ERP", desc: "Store operations workspace", section: "System" };
 }
 
 function Avatar({ name, avatarUrl, size = "h-8 w-8" }: { name: string; avatarUrl: string | null; size?: string }) {
