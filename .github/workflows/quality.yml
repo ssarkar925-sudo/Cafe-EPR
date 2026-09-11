@@ -1,6 +1,5 @@
 name: Quality Gate
 
-# Financial invariant 697 now validates DMT payment-method handling semantically.
 'on':
   push:
     branches: [main]
@@ -8,7 +7,7 @@ name: Quality Gate
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: quality-${{ github.ref }}
@@ -17,7 +16,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
@@ -33,72 +32,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-
-      - name: Apply production integrity source fixes
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          panel_path = Path('components/settings/payment-accounts-panel.tsx')
-          panel = panel_path.read_text()
-          if 'const instDeltas = entriesByInstrument;' not in panel:
-              panel = panel.replace(
-                  '      const updated = rows.map((i) => {',
-                  '''      // Per-instrument movement deltas are derived only from the tagged cash-entry ledger.\n      const instDeltas = entriesByInstrument;\n\n      const updated = rows.map((i) => {''', 1)
-              panel = panel.replace(
-                  '        const bucket = entriesByInstrument[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };',
-                  '        const bucket = instDeltas[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };', 1)
-          old_credit = '''                const totalLimit = Number(row.details?.credit_limit || 0);\n                const currentOutstanding = Number(row.opening_balance || 0);\n                const currentBal = Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));'''
-          new_credit = '''                const totalLimit = Number(row.details?.credit_limit || 0);\n                const limit = totalLimit;\n                const currentOutstanding = row.type === "credit_card"\n                  ? Math.max(0, limit - Number(row.balance ?? limit))\n                  : Number(row.opening_balance || 0);\n                const availableCredit = Math.max(0, limit - currentOutstanding);\n                const currentBal = row.type === "credit_card" ? availableCredit : Number(row.balance ?? availableCredit);'''
-          if old_credit in panel:
-              panel = panel.replace(old_credit, new_credit, 1)
-          elif 'const availableCredit = Math.max(0, totalLimit - currentOutstanding);' in panel and 'const limit = totalLimit;' not in panel:
-              panel = panel.replace('                const availableCredit = Math.max(0, totalLimit - currentOutstanding);', '                const limit = totalLimit;\n                const availableCredit = Math.max(0, limit - currentOutstanding);', 1)
-          panel_path.write_text(panel)
-
-          quick_path = Path('components/module-quick-nav.tsx')
-          quick = quick_path.read_text()
-          if 'const REQUIRED_CANONICAL_MODULES' not in quick:
-              marker = 'export const ALL_AVAILABLE_MODULES = QUICK_ACCESS_CATALOG;'
-              replacement = '''const REQUIRED_CANONICAL_MODULES: QuickAccessItem[] = [\n  { id: "bill-payment", label: "Bill Payment", href: "/business/bill-payment", icon: "bill-payment" },\n  { id: "utility-bills", label: "Utility Bills", href: "/business/bill-payment?tab=utility", icon: "utility-bills" },\n  { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },\n  { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },\n  { id: "whatsapp", label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },\n];\n\nconst MODULES_BY_ID = new Map<string, QuickAccessItem>();\nfor (const item of [...QUICK_ACCESS_CATALOG, ...REQUIRED_CANONICAL_MODULES]) MODULES_BY_ID.set(item.id, item);\n\nexport const ALL_AVAILABLE_MODULES: QuickAccessItem[] = [...MODULES_BY_ID.values()];'''
-              if marker not in quick:
-                  raise SystemExit('Missing quick-nav marker')
-              quick = quick.replace(marker, replacement, 1)
-              quick_path.write_text(quick)
-
-          dash_path = Path('components/dashboard/dashboard-client.tsx')
-          dash = dash_path.read_text()
-          if 'const DASHBOARD_QUICK_ACTIONS' not in dash:
-              import_marker = 'import { type VerifiedFinancialContext } from "@/lib/ai/advisor-engine";\n'
-              action_const = '''\nconst DASHBOARD_QUICK_ACTIONS = [\n  { id: "bill-payment", label: "Bill Payment", href: "/business/bill-payment", icon: "bill-payment" },\n  { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },\n  { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },\n  { id: "whatsapp", label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },\n] as const;\n'''
-              if import_marker not in dash:
-                  raise SystemExit('Missing dashboard import marker')
-              dash = dash.replace(import_marker, import_marker + action_const, 1)
-              section_marker = '''      {/* ===============================================================================\n          7. RECENT TRANSACTION STREAM\n      =============================================================================== */}'''
-              section = '''      <section className="bento-surface p-6 dark:bg-slate-900/90">\n        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">\n          <div>\n            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Quick Actions</span>\n            <h3 className="text-base font-black text-slate-900 dark:text-white">Financial &amp; Service Control</h3>\n          </div>\n        </div>\n        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">\n          {DASHBOARD_QUICK_ACTIONS.map((action) => (\n            <Link key={action.id} href={action.href} className="group rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700 transition hover:border-blue-400 hover:bg-white hover:text-blue-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:bg-white/[0.06] dark:hover:text-blue-300">\n              <span className="flex items-center gap-2"><ActionVectorIcon icon={action.icon} className="h-4 w-4" />{action.label}</span>\n            </Link>\n          ))}\n        </div>\n      </section>\n\n'''
-              if section_marker not in dash:
-                  raise SystemExit('Missing dashboard quick-action marker')
-              dash = dash.replace(section_marker, section + section_marker, 1)
-              dash_path.write_text(dash)
-          PY
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json components/settings/payment-accounts-panel.tsx components/module-quick-nav.tsx components/dashboard/dashboard-client.tsx
-          if ! git diff --cached --quiet; then
-            git commit -m "fix(production): close remaining ERP integrity gates"
-            git push origin HEAD:main
-          fi
-
-      - name: Upload resolved lockfile
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: resolved-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 3
 
       - name: Financial invariants
         shell: bash
