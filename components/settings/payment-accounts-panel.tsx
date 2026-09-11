@@ -738,7 +738,8 @@ const refreshLiveBalances = useCallback(async () => {
                 const currentOutstanding = row.type === "credit_card"
                   ? Math.max(0, totalLimit - Number(row.balance ?? totalLimit))
                   : Number(row.opening_balance || 0);
-                const availableCredit = Math.max(0, totalLimit - currentOutstanding);
+                const limit = totalLimit;
+                const availableCredit = Math.max(0, limit - currentOutstanding);
                 const currentBal = row.type === "credit_card" ? availableCredit : Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));
                 const usedPercent = totalLimit > 0 ? Math.min(100, Math.round((currentOutstanding / totalLimit) * 10000) / 100) : 0;
                 const recon = accountReconMap[row.id];
