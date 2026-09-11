@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import type { QuickAccessItem } from "@/components/quick-access-registry";
+import { DEFAULT_QUICK_ACCESS, type QuickAccessItem } from "@/components/quick-access-registry";
 import {
   loadQuickAccessDisplayMode,
   loadQuickAccessItems,
@@ -68,8 +68,8 @@ function matchesCurrentRoute(item: QuickAccessItem, pathname: string, searchPara
 export default function GlobalQuickAccess() {
   const pathname = usePathname() || "";
   const searchParams = useSearchParams();
-  const [items, setItems] = useState<QuickAccessItem[]>(() => loadQuickAccessItems());
-  const [displayMode, setDisplayMode] = useState<QuickAccessDisplayMode>(() => loadQuickAccessDisplayMode());
+  const [items, setItems] = useState<QuickAccessItem[]>(DEFAULT_QUICK_ACCESS);
+  const [displayMode, setDisplayMode] = useState<QuickAccessDisplayMode>("full");
 
   useEffect(() => {
     const sync = () => {
