@@ -1,5 +1,7 @@
 /* Global Quick Access
    Deliberately scoped: no page-structure selectors, no nth-child rules, no design-token overrides. */
+.erp-desktop-header { margin-bottom: 0 !important; }
+
 .cafe-quick-access {
   width: 100%;
   margin: 0 0 14px;
