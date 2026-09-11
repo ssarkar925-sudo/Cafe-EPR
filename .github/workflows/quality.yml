@@ -7,9 +7,6 @@ name: Quality Gate
   pull_request:
     branches: [main]
 
-permissions:
-  contents: write
-
 concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
@@ -24,101 +21,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Apply mobile dashboard-only cleanup
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          shell = Path("components/dashboard-shell.tsx")
-          s = shell.read_text(encoding="utf-8")
-
-          old_page = '        <div className="erp-page-content min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>'
-          new_page = '        <div className="erp-page-content relative z-0 [isolation:isolate] lg:[isolation:auto] min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6">{children}</div>'
-          if old_page in s:
-              s = s.replace(old_page, new_page, 1)
-
-          old_ai = '''      {isExecutiveDashboard && (
-        <Link
-          href="/ai-agent"
-          aria-label="Open Cafe AI Agent"
-          title="Cafe AI Agent"
-          className="fixed bottom-5 right-5 z-20 flex h-11 w-11 items-center justify-center rounded-2xl border border-indigo-200/70 bg-white/60 text-indigo-500/60 shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-white/90 hover:text-indigo-600 hover:opacity-100 dark:border-indigo-400/20 dark:bg-slate-900/45 dark:text-indigo-300/55 dark:hover:bg-slate-900/85 dark:hover:text-indigo-300"
-        >
-          <span aria-hidden="true" className="text-[17px] leading-none">✦</span>
-        </Link>
-      )}
-'''
-          if old_ai in s:
-              s = s.replace(old_ai, "", 1)
-
-          shell.write_text(s, encoding="utf-8")
-          print("mobile dashboard cleanup applied")
-          PY
-
-      - name: Commit source fix and restore workflow
-        shell: bash
-        run: |
-          cat > .github/workflows/quality.yml <<'YAML'
-          name: Quality Gate
-
-          # Financial invariant 697 now validates DMT payment-method handling semantically.
-          'on':
-            push:
-              branches: [main]
-            pull_request:
-              branches: [main]
-
-          concurrency:
-            group: quality-${{ github.ref }}
-            cancel-in-progress: true
-
-          jobs:
-            quality:
-              runs-on: ubuntu-latest
-              timeout-minutes: 15
-              env:
-                NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-                NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
-              steps:
-                - name: Checkout
-                  uses: actions/checkout@v4
-
-                - name: Setup Node
-                  uses: actions/setup-node@v4
-                  with:
-                    node-version: 24
-                    cache: npm
-
-                - name: Install dependencies
-                  run: npm install --no-audit --no-fund
-
-                - name: Financial invariants
-                  run: npm test
-
-                - name: AI browser safety
-                  run: npm run test:ai-browser
-
-                - name: AI learning control
-                  run: npm run test:ai-learning
-
-                - name: TypeScript check
-                  run: npx tsc --noEmit
-
-                - name: Production build
-                  run: npm run build
-          YAML
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f .github/workflows/apply-mobile-dashboard-fix.yml .github/mobile-dashboard-fix.trigger
-          git add components/dashboard-shell.tsx .github/workflows/quality.yml .github/workflows/apply-mobile-dashboard-fix.yml .github/mobile-dashboard-fix.trigger
-          if git diff --cached --quiet; then
-            echo "No mobile dashboard source change required"
-            exit 0
-          fi
-          git commit -m "fix(mobile): remove dashboard AI duplicate and isolate drawer"
-          git push
 
       - name: Setup Node
         uses: actions/setup-node@v4
