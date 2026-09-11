@@ -68,12 +68,8 @@ export default async function TransactionAuditPage({ searchParams }: { searchPar
   const ids = txs.map((x) => x.id);
   let gl: GL[] = [];
   if (ids.length) {
-    const { data } = await supabase
-      .from("accounting_general_ledger")
-      .select("source_id,entry_number,account_code,account_name,account_type,debit,credit,line_description")
-      .in("source_id", ids)
-      .order("entry_number")
-      .order("account_code");
+    const { data, error } = await supabase.rpc("get_transaction_gl_audit", { p_transaction_ids: ids });
+    if (error) console.error("Transaction GL audit RPC error:", error);
     gl = (data ?? []) as GL[];
   }
   const bySource = new Map<string, GL[]>();

@@ -57,7 +57,7 @@
   --depth-6-shadow: 0 32px 80px rgba(15, 23, 42, 0.16);
   --depth-7-shadow: 0 48px 100px rgba(15, 23, 42, 0.20);
 
-  --sidebar-width: 270px;
+  --sidebar-width: 288px;
   --sidebar-bg: rgba(255, 255, 255, 0.92);
   --sidebar-border: rgba(148, 163, 184, 0.22);
   --sidebar-shadow: 0 10px 36px -4px rgba(15, 23, 42, 0.08);
@@ -513,3 +513,38 @@ input:focus,select:focus,textarea:focus {
   .page-break-inside-avoid { break-inside:avoid; page-break-inside:avoid; }
   .page-break-after-always { break-after:page; page-break-after:always; }
 }
+
+/* --------------------------------------------------------------------------
+   Canonical ERP App Shell & Workspace Layout
+   Authoritative root layout geometry for sidebar, workspace, header & content.
+   -------------------------------------------------------------------------- */
+.erp-app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.erp-workspace {
+  position: relative;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .erp-workspace {
+    padding-top: 12px;
+    padding-right: 12px;
+    padding-bottom: 24px;
+  }
+}
+
+.erp-desktop-header {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+}
+
+.erp-page-content {
+  position: relative;
+  min-width: 0;
+}
+

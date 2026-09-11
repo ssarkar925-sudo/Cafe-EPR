@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
 import { renderWhatsAppTemplate, sendWhatsAppMessage, getWhatsAppConfig, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel-v2";
 
 export type CustomerRow = {
   id: string;
@@ -639,7 +640,6 @@ export default function RechargeWorkspace({
   async function handleCompleteRecharge() {
     if (submitting) return;
 
-    // Validation
     const cleanMobile = mobileNumber.replace(/\D/g, "");
     if (cleanMobile.length !== 10) {
       showToast("error", "Please enter a valid 10-digit mobile number.");
@@ -672,90 +672,79 @@ export default function RechargeWorkspace({
       const todayIso = new Date().toISOString();
       const todayDate = todayIso.slice(0, 10);
 
-      // 1. Generate Transaction Number
-      const { count } = await supabase
-        .from("transactions")
-        .select("id", { count: "exact", head: true })
-        .eq("service_type", "recharge");
-      const nextNum = "RCH-" + String((count ?? 0) + 1).padStart(4, "0");
-
-      // 2. Find Matched Operator Provider ID
-      const matchedDbProvider = providers.find(
-        (p) =>
-          p.id === selectedOperatorCode ||
-          p.name.toLowerCase().includes(selectedOperatorCode.toLowerCase())
+      const matchedDbProvider = providers.find((p) =>
+        p.id === selectedOperatorCode ||
+        p.code?.toLowerCase() === selectedOperatorCode.toLowerCase() ||
+        p.name.toLowerCase().includes(selectedOperatorCode.toLowerCase())
       );
       const operatorName = allOperators.find((o) => o.code === selectedOperatorCode)?.name || "Mobile Recharge";
 
-      // 3. Post to Canonical transactions Table
-      const { data: newTxn, error: txnErr } = await supabase
-        .from("transactions")
-        .insert({
-          transaction_number: nextNum,
-          service_type: "recharge",
-          direction: "in",
-          transaction_date: todayDate,
-          transaction_timestamp: todayIso,
-          customer_id: selectedCustomerId || null,
-          customer_mobile: cleanMobile,
-          reference: reference.trim() || null,
-          remarks: remarks.trim() || `Recharge ${cleanMobile} (${operatorName})`,
-          status: "success",
-          provider_id: matchedDbProvider?.id || null,
-          instrument_id: fundingInstId,
-          amount: rechargeAmount,
-          service_fee: custFee,
-          portal_commission: commissionEarned,
-          portal_charge: 0,
-          cash_in: customerPayMethod === "cash" ? customerCollectionAmount : 0,
-          bank_in: customerPayMethod === "bank" ? customerCollectionAmount : 0,
-          pool_out: netProviderCost,
-          pool_credit: 0,
-          pool_credit_type: "recharge",
-          customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
-          customer_collected_amount: customerCollectionAmount,
-          customer_due_amount: customerDueAmount,
-          customer_collection_method: customerPayMethod,
-          customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,
-        })
-        .select(`
-          *,
-          customers(name, phone),
-          providers:recharge_providers(name),
-          profiles(full_name)
-        `)
-        .single();
+      const allocations = customerPaymentAllocations
+        .filter((row) => Number(row.amount) > 0)
+        .map((row) => ({
+          method: row.method,
+          amount: Number(row.amount),
+          instrument_id: row.instrument_id || null,
+        }));
+
+      const idempotencyKey = `recharge:${todayIso}:${cleanMobile}:${rechargeAmount}:${crypto.randomUUID()}`;
+
+      // One RPC owns the transaction, customer collection, provider funding, commission,
+      // Khata due and audit posting so deferred accounting sees the complete money trail.
+      const { data: rpcResult, error: txnErr } = await supabase.rpc("create_recharge", {
+        p_provider_id: matchedDbProvider?.id || null,
+        p_transaction_date: todayDate,
+        p_transaction_timestamp: todayIso,
+        p_customer_id: selectedCustomerId || null,
+        p_customer_mobile: cleanMobile,
+        p_reference: reference.trim() || null,
+        p_remarks: remarks.trim() || `Recharge ${cleanMobile} (${operatorName})`,
+        p_status: "success",
+        p_amount: rechargeAmount,
+        p_service_fee: custFee,
+        p_customer_pay_method: customerPayMethod,
+        p_pay_from_instrument_id: fundingInstId,
+        p_pay_from_method: selectedFundingAccount.type,
+        p_customer_collected_amount: customerCollectionAmount,
+        p_customer_due_amount: customerDueAmount,
+        p_customer_collection_allocations: allocations,
+        p_idempotency_key: idempotencyKey,
+      });
 
       if (txnErr) {
         showToast("error", txnErr.message);
-        setSubmitting(false);
         return;
       }
 
-      // 4. Customer Collection Accounting Leg
-      const { error: collectionError } = await supabase.rpc("apply_transaction_customer_payment_split", { p_txn_id: newTxn.id, p_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0) });
-      if (collectionError) throw collectionError;
-
-      // 5. Provider Funding Leg (Debited from funding instrument)
-      if (netProviderCost > 0 && selectedFundingAccount) {
-        await supabase.from("cash_entries").insert({
-          entry_date: todayDate,
-          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : selectedFundingAccount.type === "credit_card" ? "credit_card" : selectedFundingAccount.type === "wallet" ? "wallet" : "upi",
-          direction: "out",
-          amount: netProviderCost,
-          description: `Recharge ${nextNum} settlement to ${operatorName} from ${selectedFundingAccount.name}`,
-          ref_type: "transaction",
-          ref_id: newTxn.id,
-          instrument_id: selectedFundingAccount.id,
-        });
+      const createdId = rpcResult?.id as string | undefined;
+      if (!createdId) {
+        throw new Error("Recharge was not committed: database did not return a transaction id.");
       }
 
-      // 6. Audit Trail Logging
+      const { data: persistedTxn, error: readErr } = await supabase
+        .from("transactions")
+        .select(`*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)`)
+        .eq("id", createdId)
+        .single();
+
+      if (readErr || !persistedTxn) {
+        throw readErr || new Error("Recharge committed but the transaction could not be reloaded.");
+      }
+
+      const nextNum = persistedTxn.transaction_number || rpcResult?.transaction_number || "RCH-NEW";
+      const formattedTxn: Txn = {
+        ...persistedTxn,
+        providers: { name: persistedTxn.providers?.name || operatorName },
+        customers: selectedCustomerId
+          ? { name: persistedTxn.customers?.name || customers.find((c) => c.id === selectedCustomerId)?.name || "Customer" }
+          : null,
+      };
+
       await logAudit({
         action: "create",
         entity: "transaction",
-        entity_id: newTxn.id,
-        description: `Completed Recharge ${nextNum} for ${cleanMobile} (${operatorName}) | Amount: ${inr(rechargeAmount)} | Commission: ${inr(commissionEarned)}`,
+        entity_id: createdId,
+        description: `Completed Recharge ${nextNum} for ${cleanMobile} (${operatorName}) | Amount: ${inr(rechargeAmount)} | Commission: ${inr(Number(formattedTxn.portal_commission || 0))}` ,
         details: {
           transaction_number: nextNum,
           mobile: cleanMobile,
@@ -763,26 +752,20 @@ export default function RechargeWorkspace({
           amount: rechargeAmount,
           customer_fee: custFee,
           total_customer_debit: totalCustomerDebit,
-          commission: commissionEarned,
-          provider_cost: netProviderCost,
+          commission: Number(formattedTxn.portal_commission || 0),
+          provider_cost: Number(formattedTxn.pool_out || 0),
           net_income: netOperatorIncome,
-          funding_account: selectedFundingAccount?.name || "Funding Account",
+          funding_account: selectedFundingAccount.name,
           payment_method: customerPayMethod,
+          customer_collected_amount: customerCollectionAmount,
+          customer_due_amount: customerDueAmount,
         },
       });
 
-      // 7. Update UI State & Open Celebration Receipt
-      const formattedTxn: Txn = {
-        ...newTxn,
-        providers: { name: operatorName },
-        customers: selectedCustomerId ? { name: customers.find((c) => c.id === selectedCustomerId)?.name || "Customer" } : null,
-      };
-
-      setTransactions((prev) => [formattedTxn, ...prev]);
+      setTransactions((prev) => [formattedTxn, ...prev.filter((t) => t.id !== createdId)]);
       setReceiptTxn(formattedTxn);
       showToast("success", `✓ Recharge ${nextNum} completed successfully!`);
 
-      // Reset form
       setMobileNumber("");
       setAmount("");
       setServiceFee("0");
@@ -797,7 +780,6 @@ export default function RechargeWorkspace({
       setSubmitting(false);
     }
   }
-
   // Reversal Execution
   async function handleReverse() {
     if (!reverseTxn || busyReverse) return;
@@ -1052,7 +1034,7 @@ export default function RechargeWorkspace({
       {/* 3. RECHARGE TERMINAL & ORDER SUMMARY (TWO-COLUMN WORKSPACE) */}
       <div ref={formRef} className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* LEFT: Recharge Terminal Form */}
-        <div className="space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900 lg:col-span-7">
+        <div className="space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900 lg:col-span-8">
           {/* Step Tracker */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5 text-[10px] font-black uppercase tracking-wider">
             <span className={mobileNumber ? "text-indigo-600 dark:text-indigo-400 font-black" : "text-slate-400"}>01 IDENTIFY</span>
@@ -1345,180 +1327,46 @@ export default function RechargeWorkspace({
             </div>
           </div>
 
-          {/* 04 Customer Collection Method */}
-          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
-            <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
-              4. How is Customer Paying? *
-            </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                { id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },
-                { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },
-                { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },
-                { id: "wallet" as const, label: "👛 Wallet", desc: "Wallet Account" },
-                { id: "card" as const, label: "💳 Card", desc: "Debit / Credit Card" },
-                { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },
-              ].map((m) => {
-                const isSelected = customerPayMethod === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setCustomerPayMethod(m.id)}
-                    disabled={submitting}
-                    className={`rounded-2xl border p-2.5 text-left transition duration-150 active:scale-95 ${
-                      isSelected
-                        ? "border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/50"
-                        : "border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800/40"
-                    }`}
-                  >
-                    <div className="text-xs font-black text-slate-900 dark:text-white">{m.label}</div>
-                    <div className="text-[10px] text-slate-400">{m.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">
-            <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">
-              <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />
-              Partial / Split Payment
-            </label>
-            {partialPayment && (
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <input type="number" min="0" max={totalCustomerDebit} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} placeholder="Customer pays now" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-black dark:border-white/10 dark:bg-slate-900 dark:text-white" />
-                <div className="rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-slate-900">Khata Due: <span className="text-amber-600">{inr(customerDueAmount)}</span></div>
-              </div>
-            )}
-          </div>
+                  </div>
 
+{/* RIGHT: Order Summary & Settlement Panel */}
+                {/* UNIFIED_SETTLEMENT_RENDER_V6 */}
+        <UnifiedSettlementPanel
+          serviceLabel={selectedOperatorCode ? (allOperators.find((o) => o.code === selectedOperatorCode)?.name || "Mobile") + " Recharge" : "Mobile Recharge"}
+          targetLabel="Target Mobile"
+          targetValue={mobileNumber ? "+91 " + mobileNumber : "Enter mobile number"}
+          contextLabel="Circle"
+          contextValue={selectedCircle}
+          amountLabel="Recharge Amount"
+          baseAmount={rechargeAmount}
+          customerFee={custFee}
+          customerTotal={totalCustomerDebit}
+          customerCollected={customerCollectionAmount}
+          customerDue={customerDueAmount}
+          customerPayMethod={customerPayMethod}
+          setCustomerPayMethod={setCustomerPayMethod}
+          partialPayment={partialPayment}
+          setPartialPayment={setPartialPayment}
+          customerPaidNow={customerPaidNow}
+          setCustomerPaidNow={setCustomerPaidNow}
+          customerPaymentAllocations={customerPaymentAllocations}
+          setCustomerPaymentAllocations={setCustomerPaymentAllocations}
+          customerPaymentAccount={instruments.find((i) => i.id === customerPayInstId) ?? null}
+          fundingInstId={fundingInstId}
+          setFundingInstId={setFundingInstId}
+          fundingInstruments={validFundingInstruments}
+          selectedFundingAccount={selectedFundingAccount}
+          providerCost={netProviderCost}
+          commission={commissionEarned}
+          commissionLabel={"Commission / Margin " + commissionCalculation.percent + "%"}
+          netProfit={netOperatorIncome}
+          onSubmit={handleCompleteRecharge}
+          submitting={submitting}
+          canSubmit={rechargeAmount > 0 && mobileNumber.length === 10 && !!selectedOperatorCode && !!fundingInstId}
+          submitLabel="Complete Recharge"
+          validationHint="Select operator, enter a valid target number and confirm the funding account before settlement."
+        />
 
-<MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />
-
-          {/* 05 Funding Source Account */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
-                5. Funding Source Account (Cost Debited From) *
-              </label>
-              <span className="text-[10px] text-slate-400">Where gateway funds are deducted</span>
-            </div>
-
-            <select
-              value={fundingInstId}
-              onChange={(e) => setFundingInstId(e.target.value)}
-              disabled={submitting}
-              className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
-            >
-              {validFundingInstruments.map((inst) => (
-                <option key={inst.id} value={inst.id}>
-                  {inst.type === "cash" ? "💵" : inst.type === "bank" ? "🏦" : inst.type === "upi" ? "📱" : inst.type === "credit_card" ? "💳" : "👛"} {inst.name} ({inst.type.toUpperCase()})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* RIGHT: Order Summary & Settlement Panel */}
-        <div className="card-glow-indigo space-y-5 rounded-3xl border border-slate-200/80 bg-slate-50/80 p-6 shadow-md dark:border-white/10 dark:bg-slate-900/80 lg:col-span-5">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
-            <h3 className="text-base font-black text-slate-900 dark:text-white">Recharge Settlement Breakdown</h3>
-          </div>
-
-          {/* Preview Card */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-800/80 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
-              <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400">Target Mobile</span>
-                <p className="text-sm font-black font-mono text-slate-900 dark:text-white">
-                  {mobileNumber ? `+91 ${mobileNumber}` : "Enter Mobile Number"}
-                </p>
-              </div>
-              <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 ring-1 ring-indigo-500/20">
-                {allOperators.find((o) => o.code === selectedOperatorCode)?.name || "Select Operator"}
-              </span>
-            </div>
-
-            {selectedPlan && (
-              <div className="rounded-xl bg-slate-50 p-2.5 text-xs dark:bg-white/5 space-y-0.5">
-                <div className="font-black text-slate-900 dark:text-white">{selectedPlan.validity} · {selectedPlan.data}</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">{selectedPlan.description}</div>
-              </div>
-            )}
-
-            {/* Financial Math Ledger */}
-            <div className="space-y-2 text-xs border-t border-slate-100 pt-2.5 dark:border-white/5">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Recharge Plan Amount:</span>
-                <strong className="font-mono text-slate-900 dark:text-white">{inr(rechargeAmount)}</strong>
-              </div>
-
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Customer Service Fee:</span>
-                <strong className="font-mono text-slate-900 dark:text-white">+{inr(custFee)}</strong>
-              </div>
-
-              <div className="flex justify-between font-black text-sm border-t border-slate-200 pt-2 dark:border-white/10">
-                <span className="text-emerald-700 dark:text-emerald-400">Total Customer Debit:</span>
-                <span className="font-mono text-emerald-700 dark:text-emerald-400">{inr(totalCustomerDebit)}</span>
-              </div>
-
-              <div className="flex justify-between text-[11px] text-amber-600 dark:text-amber-400 pt-1">
-                <span>Commission / Margin ({commissionCalculation.percent}%):</span>
-                <strong className="font-mono">-{inr(commissionEarned)}</strong>
-              </div>
-
-              <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span>Net Provider Cost (Debited from funding):</span>
-                <strong className="font-mono text-slate-900 dark:text-white">{inr(netProviderCost)}</strong>
-              </div>
-
-              <div className="flex justify-between text-xs font-black text-indigo-600 dark:text-indigo-400 border-t border-slate-100 pt-1.5 dark:border-white/5">
-                <span>Operator Net Income:</span>
-                <span className="font-mono">+{inr(netOperatorIncome)}</span>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-indigo-50/50 p-2.5 text-[11px] text-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
-              💳 <strong>Funding Source:</strong> {selectedFundingAccount?.name || "Funding Account"} ({selectedFundingAccount?.type?.toUpperCase()})
-            </div>
-          </div>
-
-          {/* Reference & Remarks */}
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <input
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              disabled={submitting}
-              placeholder="Operator RRN / Ref (Optional)"
-              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none font-mono focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
-            />
-            <input
-              type="text"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              disabled={submitting}
-              placeholder="Remarks / Note (Optional)"
-              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-800 dark:text-white"
-            />
-          </div>
-
-          {/* Complete Recharge Action Button */}
-          <button
-            type="button"
-            onClick={handleCompleteRecharge}
-            disabled={submitting || !mobileNumber || mobileNumber.length !== 10 || !selectedOperatorCode || rechargeAmount <= 0}
-            className="btn-3d-tactile-primary flex w-full items-center justify-center gap-2 py-4 text-sm font-black shadow-xl disabled:opacity-50"
-          >
-            {submitting ? (
-              <span>⚡ Processing Recharge...</span>
-            ) : (
-              <span>✓ Complete Recharge {rechargeAmount > 0 ? inr(totalCustomerDebit) : ""}</span>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* 4. TRANSACTION HISTORY CONSOLE */}
@@ -1589,8 +1437,8 @@ export default function RechargeWorkspace({
         </div>
 
         {/* Transactions Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-white/5">
-          <table className="w-full text-left text-xs">
+        <div className="transaction-history-table overflow-hidden rounded-2xl border border-slate-100 dark:border-white/5">
+          <table className="w-full table-fixed text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-slate-800/80 dark:text-slate-400">
                 <th className="px-4 py-3">Date &amp; Time</th>

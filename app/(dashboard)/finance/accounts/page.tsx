@@ -96,7 +96,7 @@ export default async function FinanceAccountsPage({
   ] = await Promise.all([
     supabase
       .from("payment_instruments")
-      .select("id, name, type, is_active, opening_balance, details, created_at")
+      .select("id, name, type, is_active, opening_balance, current_balance, details, created_at")
       .order("is_active", { ascending: false })
       .order("type")
       .order("name"),

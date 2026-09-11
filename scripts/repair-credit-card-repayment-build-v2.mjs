@@ -2,6 +2,12 @@ import fs from "node:fs";
 
 const path = "components/finance/settlement-form-modal.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+if (source.includes('credit_card: "Credit Card Liability"')) {
+  console.log("Patched settlement UI with safe credit-card repayment routes: already applied");
+  process.exit(0);
+}
+
 const original = source;
 function replaceOnce(needle, replacement, label) {
   if (!source.includes(needle)) throw new Error(`Credit-card repayment patch anchor missing: ${label}`);

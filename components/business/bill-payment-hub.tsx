@@ -12,12 +12,51 @@ import FloatingWindow from "@/components/ui/floating-window";
 import Modal from "@/components/ui/modal";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import CommissionEditModal from "@/components/business/commission-edit-modal";
+import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import RechargeWorkspace from "@/components/business/recharge-workspace";
 import UtilityBillWorkspace from "@/components/business/utility-bill-workspace";
 import GooglePlayWorkspace from "@/components/business/google-play-workspace";
 import { BILLER_CATEGORIES, POPULAR_BILLERS } from "@/components/business/utility-bill-workspace";
 import type { CustomerRow, PaymentInstrument, RechargeProvider, RechargeSlab, Txn } from "@/components/business/recharge-workspace";
 import type { BillCommissionConfig } from "@/lib/bill-payment/commission";
+
+function normalizeEditPaymentAllocations(txn: Txn | null): PaymentAllocation[] {
+  if (!txn) return [];
+  const raw = Array.isArray((txn as any).customer_payment_allocations)
+    ? (txn as any).customer_payment_allocations
+    : [];
+  const mapped = raw
+    .filter((item: any) => Number(item?.amount) > 0)
+    .map((item: any) => {
+      const rawMethod = String(item?.method || "cash").toLowerCase();
+      const normalizedMethod = rawMethod === "credit_card" || rawMethod === "debit_card" ? "card" : rawMethod === "qr" || rawMethod === "upi_qr" ? "upi" : rawMethod;
+      const method: PaymentAllocation["method"] = ["cash", "upi", "bank", "wallet", "card"].includes(normalizedMethod)
+        ? normalizedMethod as PaymentAllocation["method"]
+        : "cash";
+      return {
+        method,
+        amount: Number(item?.amount || 0).toFixed(2),
+        instrument_id: item?.instrument_id || null,
+      } as PaymentAllocation;
+    });
+  if (mapped.length > 0) return mapped;
+
+  const total = Math.max(0, Number(txn.amount || 0) + Number(txn.service_fee || 0));
+  const due = Math.max(0, Number((txn as any).customer_due_amount || 0));
+  if (String(txn.customer_pay_method || "").toLowerCase() === "due" && due >= total - 0.005) return [];
+  if (total <= 0) return [];
+
+  const methodRaw = String(txn.customer_pay_method || "cash").toLowerCase();
+  const normalizedMethod = methodRaw === "credit_card" || methodRaw === "debit_card" ? "card" : methodRaw === "qr" || methodRaw === "upi_qr" ? "upi" : methodRaw;
+  const method: PaymentAllocation["method"] = ["cash", "upi", "bank", "wallet", "card"].includes(normalizedMethod)
+    ? normalizedMethod as PaymentAllocation["method"]
+    : "cash";
+  return [{
+    method,
+    amount: total.toFixed(2),
+    instrument_id: (txn as any).customer_collection_instrument_id || null,
+  }];
+}
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -89,6 +128,25 @@ export function isGooglePlayTxn(t: Txn): boolean {
 
 export function isMobileRechargeTxn(t: Txn): boolean {
   return !isUtilityBillTxn(t) && !isGooglePlayTxn(t);
+}
+
+export function getEffectiveCustomerCollection(t: Txn) {
+  const raw = Array.isArray((t as any).customer_payment_allocations) ? (t as any).customer_payment_allocations : [];
+  const allocations = raw
+    .map((x: any) => ({
+      method: String(x?.method || "").toLowerCase() === "upi_qr" || String(x?.method || "").toLowerCase() === "qr" ? "upi" : String(x?.method || "").toLowerCase() === "card" ? "debit_card" : String(x?.method || "").toLowerCase(),
+      amount: Math.max(0, Number(x?.amount) || 0),
+      instrument_id: x?.instrument_id || null,
+    }))
+    .filter((x: any) => x.method && x.amount > 0);
+  if (allocations.length > 0) {
+    const collected = allocations.reduce((sum: number, x: any) => sum + x.amount, 0);
+    return { collected, due: Math.max(0, Number(t.amount || 0) + Number(t.service_fee || 0) + Number((t as any).portal_charge || 0) - collected), methods: Array.from(new Set(allocations.map((x: any) => x.method))), allocations };
+  }
+  const collected = Math.max(0, Number((t as any).customer_collected_amount) || (Number(t.cash_in || 0) + Number(t.bank_in || 0)));
+  const due = Math.max(0, Number((t as any).customer_due_amount) || (collected > 0 ? Number(t.amount || 0) + Number(t.service_fee || 0) + Number((t as any).portal_charge || 0) - collected : 0));
+  const fallbackMethod = String(t.customer_collection_method || t.customer_pay_method || (collected > 0 ? "cash" : "due")).toLowerCase();
+  return { collected, due, methods: collected > 0 ? [fallbackMethod] : ["due"], allocations: [] as any[] };
 }
 
 export default function BillPaymentHub({
@@ -173,6 +231,7 @@ export default function BillPaymentHub({
   const [editServiceFee, setEditServiceFee] = useState<string>("0");
   const [editCommission, setEditCommission] = useState<string>("0");
   const [editPayMethod, setEditPayMethod] = useState<string>("cash");
+  const [editPaymentAllocations, setEditPaymentAllocations] = useState<PaymentAllocation[]>([]);
   const [editFundingInstId, setEditFundingInstId] = useState<string>("");
   const [editRemarks, setEditRemarks] = useState<string>("");
   const [editStatus, setEditStatus] = useState<"success" | "pending" | "failed" | "reversed">("success");
@@ -194,6 +253,7 @@ export default function BillPaymentHub({
       setEditServiceFee(String(editTxn.service_fee ?? "0"));
       setEditCommission(String(editTxn.portal_commission ?? "0"));
       setEditPayMethod(editTxn.customer_pay_method || "cash");
+      setEditPaymentAllocations(normalizeEditPaymentAllocations(editTxn));
       const currentInstId = (editTxn as any).pay_from_instrument_id || editTxn.instrument_id || "";
       setEditFundingInstId(currentInstId);
       setEditRemarks(editTxn.remarks || "");
@@ -382,7 +442,8 @@ export default function BillPaymentHub({
 
     // 6. Payment Method Filter
     if (payMethodFilter !== "all") {
-      list = list.filter((t) => (t.customer_pay_method || "").toLowerCase() === payMethodFilter.toLowerCase());
+      const wanted = payMethodFilter.toLowerCase();
+      list = list.filter((t) => getEffectiveCustomerCollection(t).methods.includes(wanted));
     }
 
     // 7. Payment Account Filter
@@ -440,6 +501,22 @@ export default function BillPaymentHub({
       const parsedComm = Number(editCommission) || 0;
       const parsedProviderCost = Math.max(0, parsedAmount - parsedComm);
       const totalCustomerPaid = parsedAmount + parsedFee;
+      const allocationsForSave = editPayMethod === "due"
+        ? []
+        : (editPaymentAllocations.length > 0 ? editPaymentAllocations : normalizeEditPaymentAllocations(editTxn));
+      const collectedFromAllocations = allocationsForSave.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
+      if (editStatus === "success") {
+        if (editPayMethod !== "due" && allocationsForSave.length === 0) {
+          showToast("error", "Add at least one customer payment method or choose Khata Due.");
+          return;
+        }
+        if (editPayMethod !== "due" && Math.abs(collectedFromAllocations - totalCustomerPaid) > 0.005) {
+          const remaining = Math.max(0, totalCustomerPaid - collectedFromAllocations);
+          showToast("error", `Customer split must total ${totalCustomerPaid.toFixed(2)}. Remaining ₹${remaining.toFixed(2)}.`);
+          setEditValidationErr(`Customer payment split totals ${collectedFromAllocations.toFixed(2)}, but the customer total is ${totalCustomerPaid.toFixed(2)}.`);
+          return;
+        }
+      }
 
       const fundingInst = paymentInstruments.find((i) => i.id === editFundingInstId);
 
@@ -452,7 +529,7 @@ export default function BillPaymentHub({
         editStatus !== editTxn.status;
 
       // 1. Call atomic database RPC edit_bill_payment
-      const { data: updatedTxnData, error: rpcErr } = await supabase.rpc("edit_bill_payment", {
+      const { data: updatedTxnData, error: rpcErr } = await supabase.rpc("edit_bill_payment_with_allocations", {
         p_txn_id: editTxn.id,
         p_customer_id: editCustomerId || null,
         p_customer_mobile: editMobile.replace(/\D/g, "") || null,
@@ -460,10 +537,12 @@ export default function BillPaymentHub({
         p_amount: parsedAmount,
         p_service_fee: parsedFee,
         p_portal_commission: parsedComm,
-        p_customer_pay_method: editPayMethod,
+        p_customer_pay_method: editPayMethod === "due" ? "due" : (allocationsForSave[0]?.method || editPayMethod),
         p_funding_instrument_id: editFundingInstId || null,
         p_status: editStatus,
         p_remarks: editRemarks.trim() || null,
+        p_customer_payment_allocations: allocationsForSave,
+        p_idempotency_key: crypto.randomUUID(),
       });
 
       if (rpcErr) {
@@ -1465,21 +1544,51 @@ export default function BillPaymentHub({
                     </label>
                     <span className="text-[10px] text-slate-400">At Counter</span>
                   </div>
-                  <select
-                    value={editPayMethod}
-                    onChange={(e) => setEditPayMethod(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-semibold uppercase dark:border-white/10 dark:bg-slate-800 dark:text-white"
-                  >
-                    <option value="cash">💵 Cash Collection</option>
-                    <option value="upi">📱 UPI / QR Scan</option>
-                    <option value="bank">🏦 Bank Transfer</option>
-                    <option value="wallet">👛 Wallet Balance</option>
-                    <option value="credit_card">💳 Credit Card</option>
-                    <option value="due">📒 Khata (Customer Due)</option>
-                  </select>
-                  <span className="block text-[10px] text-slate-500">
-                    Collected: <strong>{inr((Number(editAmount) || 0) + (Number(editServiceFee) || 0))}</strong>
-                  </span>
+{/* Collection Mode: keep full Khata Due available while enabling multi-method collection. */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-blue-700 dark:text-blue-400">Customer Collection Mode</label>
+                    <select
+                      value={editPayMethod === "due" ? "due" : "split"}
+                      onChange={(e) => {
+                        if (e.target.value === "due") {
+                          setEditPayMethod("due");
+                        } else {
+                          const rows = editPaymentAllocations.length > 0
+                            ? editPaymentAllocations
+                            : normalizeEditPaymentAllocations(editTxn);
+                          const total = Math.max(0, Number(editAmount) || 0) + Math.max(0, Number(editServiceFee) || 0);
+                          const nextRows = rows.length > 0
+                            ? rows
+                            : [{ method: "cash" as PaymentAllocation["method"], amount: total.toFixed(2), instrument_id: null }];
+                          setEditPaymentAllocations(nextRows);
+                          setEditPayMethod(nextRows[0]?.method || "cash");
+                        }
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-semibold dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="split">💳 Cash / UPI / Bank / Wallet / Card</option>
+                      <option value="due">📒 Full Amount on Khata Due</option>
+                    </select>
+                  </div>
+
+                  {editPayMethod === "due" ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-300">
+                      The complete customer total of <strong>{inr((Number(editAmount) || 0) + (Number(editServiceFee) || 0))}</strong> will remain as Khata Due.
+                    </div>
+                  ) : (
+                    <MultiPaymentCollection
+                      key={editTxn.id}
+                      totalDue={(Number(editAmount) || 0) + (Number(editServiceFee) || 0)}
+                      mode="customer"
+                      initialMethod={(normalizeEditPaymentAllocations(editTxn)[0]?.method || "cash") as PaymentAllocation["method"]}
+                      initialAllocations={normalizeEditPaymentAllocations(editTxn)}
+                      onChange={(allocations) => {
+                        setEditPaymentAllocations(allocations);
+                        if (allocations[0]?.method) setEditPayMethod(allocations[0].method);
+                      }}
+                      disabled={editing}
+                    />
+                  )}
                 </div>
 
                 {/* Zone 2: Shop Funding Account */}

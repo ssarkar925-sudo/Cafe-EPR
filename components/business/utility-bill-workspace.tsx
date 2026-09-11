@@ -20,6 +20,7 @@ import type { NormalizedBillResponse, BillerConfig } from "@/lib/bill-payment/ty
 import { resolveBillCommission, type BillCommissionConfig, type CommissionResolution } from "@/lib/bill-payment/commission";
 import CommissionEditModal from "@/components/business/commission-edit-modal";
 import type { CustomerRow, PaymentInstrument, Txn } from "./recharge-workspace";
+import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel-v2";
 
 export type BillerCategory = {
   id: string;
@@ -966,7 +967,7 @@ export default function UtilityBillWorkspace({
       {/* 3. UTILITY BILL TERMINAL (TWO-COLUMN WORKSPACE) */}
       <div ref={formRef} className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* LEFT: Terminal Form */}
-        <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900 lg:col-span-7">
+        <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900 lg:col-span-8">
           {/* Step Tracker */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
             <span className={selectedCategoryId ? "text-cyan-600 dark:text-cyan-400" : ""}>01 CATEGORY</span>
@@ -1226,183 +1227,46 @@ export default function UtilityBillWorkspace({
             </div>
           </div>
 
-          {/* 05 Customer Payment Method */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
-            <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
-              5. How is Customer Paying? *
-            </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                { id: "cash" as const, label: "💵 Cash", desc: "Cash in Hand" },
-                { id: "upi" as const, label: "📱 UPI QR", desc: "Shop UPI QR" },
-                { id: "bank" as const, label: "🏦 Bank", desc: "Direct Transfer" },
-                { id: "wallet" as const, label: "👛 Wallet", desc: "Wallet Account" },
-                { id: "card" as const, label: "💳 Card", desc: "Debit / Credit Card" },
-                { id: "due" as const, label: "📋 Khata", desc: "Customer Due" },
-              ].map((m) => {
-                const isSelected = customerPayMethod === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setCustomerPayMethod(m.id)}
-                    disabled={submitting}
-                    className={`rounded-2xl border p-2.5 text-left transition ${
-                      isSelected
-                        ? "border-cyan-600 bg-cyan-50/70 shadow-xs ring-2 ring-cyan-600/20 dark:border-cyan-500 dark:bg-cyan-950/40"
-                        : "border-slate-200 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800/40"
-                    }`}
-                  >
-                    <div className="text-xs font-black text-slate-900 dark:text-white">{m.label}</div>
-                    <div className="text-[10px] text-slate-400">{m.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                  </div>
 
-<MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />
+{/* RIGHT: Order Summary & Settlement Panel */}
+                {/* UNIFIED_SETTLEMENT_RENDER_V6 */}
+        <UnifiedSettlementPanel
+          serviceLabel={selectedBiller?.shortName || selectedBiller?.name || currentCategory.name}
+          targetLabel={currentCategory.idLabel}
+          targetValue={consumerId || "Enter consumer identifier"}
+          contextLabel="Category"
+          contextValue={currentCategory.name}
+          amountLabel="Bill Amount"
+          baseAmount={billAmount}
+          customerFee={custFee}
+          customerTotal={totalCustomerDebit}
+          customerCollected={customerCollectionAmount}
+          customerDue={customerDueAmount}
+          customerPayMethod={customerPayMethod}
+          setCustomerPayMethod={setCustomerPayMethod}
+          partialPayment={partialPayment}
+          setPartialPayment={setPartialPayment}
+          customerPaidNow={customerPaidNow}
+          setCustomerPaidNow={setCustomerPaidNow}
+          customerPaymentAllocations={customerPaymentAllocations}
+          setCustomerPaymentAllocations={setCustomerPaymentAllocations}
+          customerPaymentAccount={selectedCustomerPaymentAccount}
+          fundingInstId={fundingInstId}
+          setFundingInstId={setFundingInstId}
+          fundingInstruments={validFundingInstruments}
+          selectedFundingAccount={selectedFundingAccount}
+          providerCost={netProviderCost}
+          commission={commissionEarned}
+          commissionLabel={"Commission / Margin " + commissionResolution.label}
+          netProfit={netOperatorIncome}
+          onSubmit={handleCompletePayment}
+          submitting={submitting}
+          canSubmit={billAmount > 0 && !!consumerId.trim() && (billersForCategory.length === 0 || !!selectedBillerId) && !!fundingInstId}
+          submitLabel="Pay Bill"
+          validationHint={fetchedBill ? "Verified bill " + fetchedBill.billNumber + " is ready for settlement." : "Enter the consumer identifier and verify the bill where the biller requires a fetch."}
+        />
 
-          {/* 06 Funding Source */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
-            <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-200">
-              6. Funding Source Account (Cost Debited From) *
-            </label>
-            <select
-              value={fundingInstId}
-              onChange={(e) => setFundingInstId(e.target.value)}
-              disabled={submitting}
-              className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs font-black text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-            >
-              {validFundingInstruments.map((inst) => (
-                <option key={inst.id} value={inst.id}>
-                  {inst.type === "cash" ? "💵" : inst.type === "bank" ? "🏦" : inst.type === "upi" ? "📱" : inst.type === "credit_card" ? "💳" : "👛"} {inst.name} ({inst.type.toUpperCase()})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* RIGHT: Order Summary & Settlement Panel */}
-        <div className="space-y-5 rounded-3xl border border-slate-200 bg-slate-50/60 p-6 shadow-md dark:border-white/10 dark:bg-slate-900/60 lg:col-span-5">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span>
-            <h3 className="text-base font-black text-slate-900 dark:text-white">Bill Settlement Breakdown</h3>
-          </div>
-
-          {/* Fetched Bill Verification Box */}
-          {fetchedBill && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200 space-y-1">
-              <div className="flex justify-between font-black">
-                <span>✓ Bill Verified</span>
-                <span>{fetchedBill.billNumber}</span>
-              </div>
-              <p>Consumer: <strong>{fetchedBill.customerName}</strong> · Due Date: <strong>{fmtDate(fetchedBill.dueDate)}</strong></p>
-            </div>
-          )}
-
-          {/* Preview Card */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-800/80 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5">
-              <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400">Biller / Service</span>
-                <p className="text-sm font-black text-slate-900 dark:text-white">
-                  {selectedBiller?.name || currentCategory.name}
-                </p>
-              </div>
-              <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-black text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300">
-                {currentCategory.icon} {currentCategory.name}
-              </span>
-            </div>
-
-            <div className="text-xs text-slate-600 dark:text-slate-400">
-              {currentCategory.idLabel}: <strong className="text-slate-900 dark:text-white">{consumerId.trim() || "Enter ID"}</strong>
-            </div>
-
-            {/* Financial Math Ledger */}
-            <div className="space-y-2 text-xs border-t border-slate-100 pt-2.5 dark:border-white/5">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Bill Principal Amount:</span>
-                <strong className="text-slate-900 dark:text-white">{inr(billAmount)}</strong>
-              </div>
-
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Customer Service Fee:</span>
-                <strong className="text-slate-900 dark:text-white">+{inr(custFee)}</strong>
-              </div>
-
-              <div className="flex justify-between font-black text-sm border-t border-slate-200 pt-2 dark:border-white/10">
-                <span className="text-emerald-700 dark:text-emerald-400">Total Customer Debit:</span>
-                <span className="text-emerald-700 dark:text-emerald-400">{inr(totalCustomerDebit)}</span>
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-amber-600 dark:text-amber-400 pt-1">
-                <div className="flex items-center gap-1.5">
-                  <span>Commission / Margin ({commissionResolution.label}):</span>
-                  <button
-                    type="button"
-                    onClick={() => setCommissionModalOpen(true)}
-                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50 transition"
-                  >
-                    ⚙ Edit Margin
-                  </button>
-                </div>
-                <strong>-{inr(commissionEarned)}</strong>
-              </div>
-
-              <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span>Net Provider Cost (Debited from funding):</span>
-                <strong className="text-slate-900 dark:text-white">{inr(netProviderCost)}</strong>
-              </div>
-
-              <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-emerald-500/10 border border-emerald-500/25 p-3 text-xs font-black text-slate-900 dark:text-white shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white text-[11px] font-black shadow-xs">₹</span>
-                  <span>Operator Net Profit:</span>
-                </div>
-                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">+{inr(netOperatorIncome)}</span>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-cyan-50/50 p-2.5 text-[11px] text-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200">
-              💳 <strong>Funding Source:</strong> {selectedFundingAccount?.name || "Funding Account"} ({selectedFundingAccount?.type?.toUpperCase()})
-            </div>
-          </div>
-
-          {/* Reference & Remarks */}
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <input
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              disabled={submitting}
-              placeholder="Receipt / Reference ID (Optional)"
-              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-            />
-            <input
-              type="text"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              disabled={submitting}
-              placeholder="Remarks / Note (Optional)"
-              className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-            />
-          </div>
-
-          {/* Complete Bill Payment Button */}
-          <button
-            type="button"
-            onClick={handleCompletePayment}
-            disabled={submitting || !consumerId.trim() || billAmount <= 0}
-            className="btn-3d-tactile-primary flex w-full items-center justify-center gap-2 py-3.5 text-sm font-black shadow-xl disabled:opacity-50"
-          >
-            {submitting ? (
-              <span>⚡ Processing Bill Payment...</span>
-            ) : (
-              <span>✓ Pay Bill {billAmount > 0 ? inr(totalCustomerDebit) : ""}</span>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* 4. TRANSACTION HISTORY CONSOLE */}
@@ -1457,8 +1321,8 @@ export default function UtilityBillWorkspace({
         </div>
 
         {/* Transactions Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="transaction-history-table overflow-hidden">
+          <table className="w-full table-fixed text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-black uppercase text-slate-400 dark:border-white/5 dark:bg-white/5">
                 <th className="px-4 py-2.5">Date &amp; Time</th>

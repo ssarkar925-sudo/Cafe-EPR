@@ -18,6 +18,7 @@ import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import type { CustomerRow, PaymentInstrument, Txn } from "./recharge-workspace";
 import { resolveBillCommission, type BillCommissionConfig, type CommissionResolution } from "@/lib/bill-payment/commission";
 import CommissionEditModal from "@/components/business/commission-edit-modal";
+import UnifiedSettlementPanel from "@/components/business/unified-settlement-panel-v2";
 
 export const GOOGLE_PLAY_REGIONS = [
   { code: "IN", name: "India (₹ INR)", currency: "₹", flag: "🇮🇳", min: 10, max: 5000 },
@@ -807,132 +808,43 @@ export default function GooglePlayWorkspace({
         </div>
 
         {/* Right Column: Funding & Settlement Summary */}
-        <div className="space-y-6 lg:col-span-4">
-          <div className="card-glow-indigo space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-md dark:border-white/10 dark:bg-slate-900">
-            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-              Funding &amp; Settlement
-            </h3>
+                {/* UNIFIED_SETTLEMENT_RENDER_V6 */}
+        <UnifiedSettlementPanel
+          serviceLabel="Google Play Recharge"
+          targetLabel="Customer Mobile"
+          targetValue={customerMobile ? "+91 " + customerMobile : "Enter mobile number"}
+          contextLabel="Region"
+          contextValue={activeRegion.name}
+          amountLabel="Recharge Denomination"
+          baseAmount={rechargeAmount}
+          customerFee={custFee}
+          customerTotal={totalCustomerDebit}
+          customerCollected={customerCollectionAmount}
+          customerDue={customerDueAmount}
+          customerPayMethod={customerPayMethod}
+          setCustomerPayMethod={setCustomerPayMethod}
+          partialPayment={partialPayment}
+          setPartialPayment={setPartialPayment}
+          customerPaidNow={customerPaidNow}
+          setCustomerPaidNow={setCustomerPaidNow}
+          customerPaymentAllocations={customerPaymentAllocations}
+          setCustomerPaymentAllocations={setCustomerPaymentAllocations}
+          customerPaymentAccount={instruments.find((i) => i.id === customerPayInstId) ?? null}
+          fundingInstId={fundingInstId}
+          setFundingInstId={setFundingInstId}
+          fundingInstruments={validFundingInstruments}
+          selectedFundingAccount={selectedFundingAccount}
+          providerCost={netProviderCost}
+          commission={commissionEarned}
+          commissionLabel={"Margin " + commissionResolution.label}
+          netProfit={netOperatorIncome}
+          onSubmit={handleCompleteRecharge}
+          submitting={submitting}
+          canSubmit={rechargeAmount > 0 && !!fundingInstId}
+          submitLabel="Complete Recharge"
+          validationHint="Customer collection, provider cost, funding debit and margin are reconciled before posting."
+        />
 
-            {/* Customer Payment Method */}
-            <div>
-              <label className="mb-2 block text-xs font-bold text-slate-600 dark:text-slate-300">
-                Customer Payment Received Via
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: "cash", label: "💵 Cash Till" },
-                  { id: "upi", label: "⚡ Shop UPI" },
-                  { id: "bank", label: "🏦 Bank Transfer" },
-                  { id: "due", label: "📒 Khata (Due)" },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setCustomerPayMethod(m.id as any)}
-                    className={`rounded-xl border p-2.5 text-xs font-black transition duration-150 active:scale-95 ${
-                      customerPayMethod === m.id
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/30 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-300 shadow-xs"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">
-            <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-200">
-              <input type="checkbox" checked={partialPayment} onChange={(e) => { setPartialPayment(e.target.checked); if (!e.target.checked) setCustomerPaidNow(""); }} />
-              Partial / Split Payment
-            </label>
-            {partialPayment && (
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <input type="number" min="0" max={totalCustomerDebit} step="0.01" value={customerPaidNow} onChange={(e) => setCustomerPaidNow(e.target.value)} placeholder="Customer pays now" className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-black dark:border-white/10 dark:bg-slate-900 dark:text-white" />
-                <div className="rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-slate-900">Khata Due: <span className="text-amber-600">{inr(customerDueAmount)}</span></div>
-              </div>
-            )}
-          </div>
-
-
-<MultiPaymentCollection totalDue={totalCustomerDebit} disabled={submitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />
-
-            {/* Funding Source Account (Cost Debited From) */}
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
-                Funding Account (Cost Debited From) *
-              </label>
-              <select
-                value={fundingInstId}
-                onChange={(e) => setFundingInstId(e.target.value)}
-                disabled={submitting}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-              >
-                {validFundingInstruments.map((inst) => (
-                  <option key={inst.id} value={inst.id}>
-                    {inst.type === "cash" ? "💵" : inst.type === "credit_card" ? "💳" : inst.type === "wallet" ? "👛" : "🏦"} {inst.name} ({inst.type.toUpperCase()})
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-[10px] text-slate-400">
-                Supports Cash, Bank, Digital Wallets, and Credit Cards.
-              </p>
-            </div>
-
-            {/* Economics Breakdown */}
-            <div className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-white/5 dark:bg-slate-800/40">
-              <div className="flex justify-between font-bold text-slate-600 dark:text-slate-300">
-                <span>Recharge Denomination</span>
-                <span className="font-mono">{inr(rechargeAmount)}</span>
-              </div>
-              <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                <span>Customer Service Fee</span>
-                <span className="font-mono">+{inr(custFee)}</span>
-              </div>
-              <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-bold">
-                <div className="flex items-center gap-1.5">
-                  <span>Earned Margin ({commissionResolution.label})</span>
-                  <button
-                    type="button"
-                    onClick={() => setCommissionModalOpen(true)}
-                    className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-950/60 transition"
-                  >
-                    ⚙ Edit
-                  </button>
-                </div>
-                <span className="font-mono">-{inr(commissionEarned)}</span>
-              </div>
-              <div className="border-t border-slate-200 pt-2 font-black dark:border-white/10">
-                <div className="flex justify-between text-slate-900 dark:text-white">
-                  <span>Customer Total Collection</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">{inr(totalCustomerDebit)}</span>
-                </div>
-                <div className="mt-1 flex justify-between text-[11px] text-slate-500">
-                  <span>Provider Net Cost</span>
-                  <span className="font-mono">{inr(netProviderCost)}</span>
-                </div>
-                <div className="mt-1 flex justify-between text-[11px] text-indigo-600 dark:text-indigo-400">
-                  <span>Shop Net Income</span>
-                  <span className="font-mono">+{inr(netOperatorIncome)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Provider Status Callout */}
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-3 text-[11px] text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/20 dark:text-emerald-300">
-              <span className="font-bold">⚡ Counter Fulfillment:</span> Active. Full double-entry ledger &amp; cashbook sync verified.
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="button"
-              onClick={handleCompleteRecharge}
-              disabled={submitting || rechargeAmount <= 0}
-              className="btn-3d-tactile-primary flex w-full items-center justify-center gap-2 py-3.5 text-xs font-black shadow-lg"
-            >
-              <span>{submitting ? "Processing..." : `Complete Recharge (${inr(totalCustomerDebit)}) →`}</span>
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Google Play Recharge History Section */}
@@ -987,8 +899,8 @@ export default function GooglePlayWorkspace({
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-white/5">
-          <table className="w-full text-left text-xs">
+        <div className="transaction-history-table overflow-hidden rounded-2xl border border-slate-100 dark:border-white/5">
+          <table className="w-full table-fixed text-left text-xs">
             <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:border-white/5 dark:bg-slate-800/80 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3">Date &amp; Time</th>

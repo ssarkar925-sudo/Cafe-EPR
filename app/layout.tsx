@@ -7,7 +7,6 @@ import "./royal-premium.css";
 import "./sidebar-royal.css";
 import "./pos-royal.css";
 import "./dashboard-royal.css";
-import "./erp-shell-root.css";
 import ThemeProvider from "@/components/theme-provider";
 import { NotificationProvider } from "@/components/ui/notification-provider";
 

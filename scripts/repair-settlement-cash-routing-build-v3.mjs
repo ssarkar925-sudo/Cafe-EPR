@@ -3,6 +3,11 @@ import fs from "node:fs";
 const path = "components/finance/settlement-form-modal.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
+if (source.includes("isSourceCash")) {
+  console.log("Settlement cash routing repair: already applied");
+  process.exit(0);
+}
+
 function patch(search, replacement, label) {
   if (source.includes(replacement)) return;
   if (!source.includes(search)) throw new Error(`${label}: anchor not found`);

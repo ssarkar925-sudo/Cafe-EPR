@@ -25,7 +25,8 @@ export default async function ProfitLossPage() {
   const accountIds = (accounts ?? []).map((a) => a.code);
   const { data: lines } = await supabase
     .from("journal_lines")
-    .select("debit,credit,account_id,accounting_accounts!inner(code,name,account_type)")
+    .select("debit,credit,account_id,accounting_accounts!inner(code,name,account_type),journal_entries!inner(status)")
+    .eq("journal_entries.status", "posted")
     .in("accounting_accounts.code", accountIds.length ? accountIds : ["__none__"]);
 
   const byCode = new Map<string, AccountRow>();

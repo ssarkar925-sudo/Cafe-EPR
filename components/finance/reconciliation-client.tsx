@@ -147,7 +147,7 @@ export default function ReconciliationClient({
       ] = await Promise.all([
         supabase.rpc("get_pool_balances"),
         supabase.from("payment_instruments").select("*").order("type").order("name"),
-        supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, description, method, ref_type").not("instrument_id", "is", null),
+        supabase.from("cash_entries").select("id, instrument_id, direction, amount, created_at, description, method, ref_type, ref_id, entry_date").not("instrument_id", "is", null),
         supabase.from("aeps_portals").select("id, payment_instrument_id, name"),
         supabase.from("transactions").select("id, transaction_number, service_type, pool_credit, pool_out, pool_credit_type, service_fee, upi_fee, amount, status, created_at, customer_pay_method, fee_source, portal_id, instrument_id").eq("status", "success").order("created_at", { ascending: false }).limit(200),
         supabase.from("settlements").select("id, source_instrument_id, dest_instrument_id, from_pool, to_pool, amount, status, created_at, settlement_number").eq("status", "success").order("created_at", { ascending: false }).limit(100),
@@ -212,252 +212,106 @@ function getPoolForMethod(method?: string | null): string | null {
 }
 
   // Compute detailed reconciliation for every pool
+  const roundMoney = (value: number) => Math.round(value * 100) / 100;
+  // ROOT ACCOUNTING RULE: reconciliation uses canonical instrument balances + same-day cash entries exactly once.
   const poolReconMap = useMemo(() => {
     const map: Record<string, PoolReconDetail> = {};
     if (!balances) return map;
 
     for (const cfg of POOL_CONFIGS) {
-      const poolEntry = (balances as any)[cfg.key] || { opening: 0, movements: 0, current: 0 };
-      const canonicalBal = Number(poolEntry.current ?? (poolEntry.opening + poolEntry.movements));
+      const poolEntry = (balances as any)[cfg.key] || { opening: 0, movements: 0, current: 0, seed_date: null };
+      const poolInstruments = instruments.filter((i: any) =>
+        i.is_active !== false && i.type !== "debit_card" && getPoolForInstrumentType(i.type) === cfg.key
+      );
+      const canonicalBal = poolInstruments.reduce((sum: number, i: any) => sum + Number(i.current_balance ?? i.balance ?? 0), 0);
+      const rpcCurrent = Number(poolEntry.current ?? 0);
       const openingBal = Number(poolEntry.opening ?? 0);
+      const asOf = String(poolEntry.seed_date ?? new Date().toISOString().slice(0, 10));
 
       let credits = 0;
       let debits = 0;
-      let fees = 0;
-      let setsIn = 0;
-      let setsOut = 0;
-      let otherMovements = 0;
-      const txList: any[] = [];
+      let settlementNet = 0;
+      const txList: PoolReconDetail["contributingTxns"] = [];
 
-      if (cfg.key === "upi_qr") {
-        const accountedTxnIds = new Set<string>();
-        for (const t of transactions) {
-          const pCredit = Number(t.pool_credit) || 0;
-          const pOut = Number(t.pool_out) || 0;
-          const uFee = Number(t.upi_fee) || 0;
-          let used = false;
+      for (const e of cashEntries) {
+        const inst = e.instrument_id ? instruments.find((i: any) => i.id === e.instrument_id) : undefined;
+        if (!inst || inst.type === "debit_card" || getPoolForInstrumentType(inst.type) !== cfg.key) continue;
+        if (String(e.entry_date ?? e.created_at ?? "").slice(0, 10) !== asOf) continue;
 
-          if (pCredit > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-            credits += pCredit;
-            used = true;
-            txList.push({
-              id: t.id,
-              number: t.transaction_number || "TXN",
-              type: "QR Credit",
-              amount: pCredit,
-              date: t.created_at,
-              desc: `Customer QR payment (${inr(t.amount || pCredit)})`,
-            });
-          }
-
-          if (pOut > 0 && (t.pool_credit_type === "upi_qr" || t.service_type === "upi")) {
-            debits += pOut;
-            used = true;
-            txList.push({
-              id: t.id,
-              number: t.transaction_number || "TXN",
-              type: "Outflow",
-              amount: -pOut,
-              date: t.created_at,
-              desc: "UPI payout / settlement",
-            });
-          }
-
-          if (uFee > 0 || (t.fee_source === "upi" && Number(t.service_fee) > 0)) {
-            const feeAmt = uFee > 0 ? uFee : Number(t.service_fee);
-            fees += feeAmt;
-            used = true;
-            txList.push({
-              id: `${t.id}-fee`,
-              number: t.transaction_number || "TXN",
-              type: "Fee Collection",
-              amount: feeAmt,
-              date: t.created_at,
-              desc: `Service fee collected via UPI (${t.service_type?.toUpperCase()})`,
-            });
-          }
-
-          if (used) accountedTxnIds.add(t.id);
-        }
-
-        const accountedSettlementIds = new Set<string>();
-        for (const s of settlements) {
-          const amt = Number(s.amount) || 0;
-          if (s.to_pool === "upi_qr") {
-            setsIn += amt;
-            accountedSettlementIds.add(s.id);
-            txList.push({
-              id: s.id,
-              number: s.settlement_number || "SETTLEMENT",
-              type: "Settlement In",
-              amount: amt,
-              date: s.created_at,
-              desc: "Settlement received into UPI",
-            });
-          }
-          if (s.from_pool === "upi_qr") {
-            setsOut += amt;
-            accountedSettlementIds.add(s.id);
-            txList.push({
-              id: s.id,
-              number: s.settlement_number || "SETTLEMENT",
-              type: "Settlement Out",
-              amount: -amt,
-              date: s.created_at,
-              desc: "UPI sweep / transfer to bank",
-            });
-          }
-        }
-
-        for (const e of cashEntries) {
-          const inst = e.instrument_id ? instruments.find((i) => i.id === e.instrument_id) : undefined;
-          const entryPool = getPoolForInstrumentType(inst?.type) ?? getPoolForMethod(e.method);
-
-          if (entryPool !== "upi_qr") continue;
-
-          // Guard against double-counting entries already represented in settlements or transactions
-          if (e.ref_type === "settlement" && e.ref_id && accountedSettlementIds.has(e.ref_id)) {
-            continue;
-          }
-          if (e.ref_type === "transaction" && e.ref_id && accountedTxnIds.has(e.ref_id)) {
-            continue;
-          }
-
-          const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-          otherMovements += amt;
-          txList.push({
-            id: e.id,
-            number: e.ref_type === "invoice" ? "INVOICE" : e.ref_type === "quick_sale" ? "SALE" : "ENTRY",
-            type: e.direction === "out" ? "Debit Entry" : "Credit Entry",
-            amount: amt,
-            date: e.created_at,
-            desc: (e as any).description || (e as any).remarks || "Direct cashbook adjustment",
-          });
-        }
-      } else {
-        // Generic pool movements
-        const delta = Number(poolEntry.movements ?? 0);
-        if (delta > 0) credits = delta;
-        else debits = -delta;
-        otherMovements = delta;
-
-        for (const e of cashEntries) {
-          const inst = e.instrument_id ? instruments.find((i) => i.id === e.instrument_id) : undefined;
-          const entryPool = getPoolForInstrumentType(inst?.type) ?? getPoolForMethod(e.method);
-
-          if (entryPool === cfg.key) {
-            const amt = e.direction === "out" ? -Number(e.amount) : Number(e.amount);
-            txList.push({
-              id: e.id,
-              number: e.ref_type === "invoice" ? "INVOICE" : e.ref_type === "quick_sale" ? "SALE" : "CASH-ENTRY",
-              type: e.direction === "out" ? "Outflow" : "Inflow",
-              amount: amt,
-              date: e.created_at,
-              desc: (e as any).description || (e as any).remarks || "Direct cashbook posting",
-            });
-          }
-        }
+        const amount = Math.abs(Number(e.amount) || 0);
+        if (e.direction === "out") debits += amount;
+        else credits += amount;
+        if (e.ref_type === "settlement") settlementNet += e.direction === "out" ? -amount : amount;
+        txList.push({
+          id: e.id,
+          number: e.ref_type ? String(e.ref_type).replaceAll("_", " ").toUpperCase() : "CASH-ENTRY",
+          type: e.direction === "out" ? "Outflow" : "Inflow",
+          amount: e.direction === "out" ? -amount : amount,
+          date: e.created_at,
+          desc: e.description || "Canonical ledger movement",
+        });
       }
 
-      const calculatedBal =
-        cfg.key === "upi_qr"
-          ? openingBal + credits - debits + fees + otherMovements + setsIn - setsOut
-          : openingBal + poolEntry.movements;
-      const variance = calculatedBal - canonicalBal;
-      const isReconciled = Math.abs(variance) < 0.01;
+      const ledgerNet = credits - debits;
+      const calculatedBal = roundMoney(openingBal + ledgerNet);
+      const instrumentCurrent = roundMoney(canonicalBal);
+      const aggregationVariance = roundMoney(instrumentCurrent - rpcCurrent);
+      const variance = roundMoney(calculatedBal - instrumentCurrent);
+      const isReconciled = Math.abs(variance) < 0.01 && Math.abs(aggregationVariance) < 0.01;
 
       map[cfg.key] = {
         key: cfg.key,
         label: cfg.label,
         icon: cfg.icon,
         grad: cfg.grad,
-        currentBalance: canonicalBal,
+        currentBalance: instrumentCurrent,
         openingBalance: openingBal,
-        credits,
-        debits,
-        fees,
-        settlements: setsIn - setsOut,
-        otherMovements,
+        credits: roundMoney(credits),
+        debits: roundMoney(debits),
+        fees: 0,
+        settlements: roundMoney(settlementNet),
+        otherMovements: roundMoney(ledgerNet - settlementNet),
         calculatedBalance: calculatedBal,
-        canonicalBalance: canonicalBal,
-        variance,
+        canonicalBalance: instrumentCurrent,
+        variance: roundMoney(variance),
         isReconciled,
-        canonicalSource: cfg.canonicalSource,
+        canonicalSource: "payment_instruments.current_balance + cash_entries (" + asOf + ")",
         contributingTxns: txList,
       };
     }
 
     return map;
-  }, [balances, transactions, settlements, cashEntries, instruments]);
+  }, [balances, cashEntries, instruments]);
 
-  const allReconciled = useMemo(() => {
-    return Object.values(poolReconMap).every((p) => p.isReconciled);
-  }, [poolReconMap]);
+  const allReconciled = useMemo(() => Object.values(poolReconMap).every((p) => p.isReconciled), [poolReconMap]);
 
   // ── Credit Card Facility Audit ──────────────────────────────────────────────
+  // Credit cards: OUT cash entries increase outstanding; IN entries reduce outstanding.
   const creditCardAudit = useMemo(() => {
-    const cards = instruments.filter((i) => i.type === "credit_card");
-    return cards.map((card) => {
+    const cards = instruments.filter((i: any) => i.type === "credit_card" && i.is_active !== false);
+    return cards.map((card: any) => {
       const limit = Number(card.details?.credit_limit || 0);
-      const openingOutstanding = Number(card.opening_balance || card.details?.used_limit || 0);
-
-      // Charges: pool_out via this card's instrument_id or pay_from_instrument_id
+      const openingOutstanding = Number(card.opening_balance || 0);
       let charges = 0;
       let repayments = 0;
       const txList: { id: string; ref: string; type: string; amount: number; date: string; desc: string }[] = [];
 
-      for (const tx of transactions) {
-        if (tx.status === "cancelled" || tx.status === "failed") continue;
-        const isCharge =
-          tx.funding_instrument_id === card.id ||
-          tx.pay_from_instrument_id === card.id ||
-          tx.instrument_id === card.id;
-        if (isCharge) {
-          const pOut = Number(tx.pool_out) || 0;
-          if (pOut > 0) {
-            charges += pOut;
-            txList.push({
-              id: tx.id,
-              ref: tx.transaction_number || "TXN",
-              type: "Charge",
-              amount: -pOut,
-              date: tx.created_at,
-              desc: `${(tx.service_type || "transaction").replace(/_/g, " ").toUpperCase()} — ${inr(tx.amount || pOut)}`,
-            });
-          }
+      for (const e of cashEntries) {
+        if (e.instrument_id !== card.id) continue;
+        const amount = Math.abs(Number(e.amount) || 0);
+        if (e.direction === "out") {
+          charges += amount;
+          txList.push({ id: e.id, ref: e.ref_type ? String(e.ref_type).replaceAll("_", " ").toUpperCase() : "ENTRY", type: "Charge", amount: -amount, date: e.created_at, desc: e.description || "Credit-card charge" });
+        } else {
+          repayments += amount;
+          txList.push({ id: e.id, ref: e.ref_type ? String(e.ref_type).replaceAll("_", " ").toUpperCase() : "ENTRY", type: "Repayment / Reversal", amount, date: e.created_at, desc: e.description || "Credit-card repayment or reversal" });
         }
       }
 
-      for (const s of settlements) {
-        if (s.status === "cancelled" || s.status === "failed") continue;
-        const amt = Number(s.amount) || 0;
-        if (amt <= 0) continue;
-        if (s.dest_instrument_id === card.id || s.to_pool === "credit_card") {
-          repayments += amt;
-          txList.push({
-            id: s.id,
-            ref: s.settlement_number || "SETL",
-            type: "Repayment",
-            amount: amt,
-            date: s.created_at,
-            desc: `Credit card repayment / payment — ${inr(amt)}`,
-          });
-        }
-        if (s.source_instrument_id === card.id || s.from_pool === "credit_card") {
-          charges += amt;
-          txList.push({
-            id: s.id,
-            ref: s.settlement_number || "SETL",
-            type: "Charge (Settlement)",
-            amount: -amt,
-            date: s.created_at,
-            desc: `Charged via settlement — ${inr(amt)}`,
-          });
-        }
-      }
-
-      const currentOutstanding = Math.max(0, openingOutstanding + charges - repayments);
-      const availableCredit = Math.max(0, limit - currentOutstanding);
+      const currentOutstanding = Math.max(0, roundMoney(openingOutstanding + charges - repayments));
+      const availableCredit = Math.max(0, roundMoney(limit - currentOutstanding));
+      const canonicalAvailable = Math.max(0, Number(card.current_balance ?? availableCredit));
+      const variance = roundMoney(availableCredit - canonicalAvailable);
       const utilizationPct = limit > 0 ? Math.round((currentOutstanding / limit) * 100) : 0;
 
       return {
@@ -465,15 +319,17 @@ function getPoolForMethod(method?: string | null): string | null {
         name: card.name,
         limit,
         openingOutstanding,
-        charges,
-        repayments,
+        charges: roundMoney(charges),
+        repayments: roundMoney(repayments),
         currentOutstanding,
         availableCredit,
         utilizationPct,
+        variance,
+        isReconciled: Math.abs(variance) < 0.01,
         txList,
       };
     });
-  }, [instruments, transactions, settlements]);
+  }, [instruments, cashEntries]);
 
   const ccTotalLimit = creditCardAudit.reduce((s, c) => s + c.limit, 0);
   const ccTotalOutstanding = creditCardAudit.reduce((s, c) => s + c.currentOutstanding, 0);
@@ -481,7 +337,7 @@ function getPoolForMethod(method?: string | null): string | null {
   const ccOverallUtilPct = ccTotalLimit > 0 ? Math.round((ccTotalOutstanding / ccTotalLimit) * 100) : 0;
 
   const selectedPool = poolReconMap[selectedPoolKey] || poolReconMap["upi_qr"];
-  const totalPosition = balances?.total ?? 6151;
+  const totalPosition = roundMoney((balances?.cash?.current ?? 0) + (balances?.bank?.current ?? 0) + (balances?.wallet?.current ?? 0) + (balances?.dmt?.current ?? 0) + (balances?.aeps?.current ?? 0) + (balances?.upi_qr?.current ?? 0));
 
   return (
     <div className="space-y-8 pt-6 sm:pt-8 md:pt-10">
@@ -519,7 +375,7 @@ function getPoolForMethod(method?: string | null): string | null {
             </div>
           </div>
         </div>
-        <div className="relative z-10 mt-6 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-md"><div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-300"><div><strong className="text-white">Included in Asset Aggregation:</strong> Cash (−₹5,845) + Bank (+₹9,500) + UPI (+₹9,011) + AEPS (−₹6,515) + DMT (+₹0) = <strong className="text-emerald-400 text-sm">{inr(totalPosition)}</strong> Total Position.</div><div className="flex items-center gap-3 text-[11px] text-slate-400"><span>Debit Card: <strong>Linked Mirror (Excluded)</strong></span><span>·</span><span>Credit Card: <strong>Credit Facility ({inr(15000)})</strong></span></div></div></div>
+        <div className="relative z-10 mt-6 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-md"><div className="flex flex-col gap-2.5 text-xs text-slate-300"><div><strong className="text-white">Liquid asset positions:</strong> Cash {inr(balances?.cash?.current ?? 0)} + Bank {inr(balances?.bank?.current ?? 0)} + UPI {inr(balances?.upi_qr?.current ?? 0)} + AEPS {inr(balances?.aeps?.current ?? 0)} + DMT {inr(balances?.dmt?.current ?? 0)} + Wallet {inr(balances?.wallet?.current ?? 0)} = <strong className="text-emerald-400 text-sm">{inr(totalPosition)}</strong> Total Liquid Position.</div><div className="text-[11px] text-slate-400">Debit Card: <strong>Linked Mirror (Excluded)</strong> · Credit Card: <strong>Available Credit {inr(creditCardAudit.reduce((s, c) => s + c.availableCredit, 0))}</strong></div></div></div>
       </section>
       <section className="space-y-4">
         <div className="flex items-center justify-between"><div><h2 className="text-base font-bold text-slate-900 dark:text-white">Pool Reconciliation Summary</h2><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Live double-entry comparisons for all treasury and float pools.</p></div></div>

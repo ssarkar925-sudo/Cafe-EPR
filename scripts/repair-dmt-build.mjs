@@ -3,6 +3,11 @@ import fs from "node:fs";
 const path = "components/business/dmt-workspace.tsx";
 let source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
+if (source.includes("const baseAllocations =")) {
+  console.log("DMT build repair: already applied");
+  process.exit(0);
+}
+
 const validation = /  \/\/ (?:Strict Form Validation Guard|Form Validation Guard: beneficiary bank\/account\/IFSC\/UPI are optional)[\s\S]*?\n  \/\/ Current Active Lifecycle Step/;
 const replacement = `  // Form Validation Guard: beneficiary bank/account/IFSC/UPI are optional.\n  // Amount, reference and settlement routing remain required.\n  const isFormValid = useMemo(() => {\n    if (numAmount <= 0) return false;\n    if (numCharge < 0 || numFee < 0 || numComm < 0) return false;\n    if (!reference.trim() || reference.trim().length < 6) return false;\n    if (senderMobile.trim() && senderMobile.trim().replace(/\\\\D/g, "").length !== 10) return false;\n    if (paidFrom === "portal" && !selectedPortalId) return false;\n    if (paidFrom === "bank" && !selectedBankInstrumentId) return false;\n    if (customerPayMethod === "due" && !selectedCustomerId) return false;\n    if (customerDueAmount > 0 && !selectedCustomerId) return false;\n    return true;\n  }, [\n    numAmount,\n    numCharge,\n    numFee,\n    numComm,\n    reference,\n    senderMobile,\n    paidFrom,\n    selectedPortalId,\n    selectedBankInstrumentId,\n    customerPayMethod,\n    customerDueAmount,\n    selectedCustomerId,\n  ]);\n\n  // Current Active Lifecycle Step`;
 

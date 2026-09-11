@@ -174,6 +174,11 @@ export default function BusinessFormModal({
     }
   }
 
+  const customerPaymentAllocations = Array.isArray((initial as any)?.customer_payment_allocations)
+    ? (initial as any).customer_payment_allocations.filter((x: any) => Number(x?.amount) > 0)
+    : [];
+  const hasSplitCustomerCollection = customerPaymentAllocations.length > 1;
+
   const selectedCustomer = customers.find((c) => c.id === form.customer_id);
 
   useEffect(() => {
@@ -268,6 +273,16 @@ export default function BusinessFormModal({
   }
 
   async function submit() {
+    const existingSplit = Array.isArray((initial as any)?.customer_payment_allocations)
+      ? (initial as any).customer_payment_allocations.filter((x: any) => Number(x?.amount) > 0)
+      : [];
+    if (initial && existingSplit.length > 1) {
+      const originalCollected = existingSplit.reduce((sum: number, x: any) => sum + Number(x?.amount || 0), 0);
+      const requestedCollected = Number(form.amount || 0) + Number(form.service_fee || 0);
+      if (Math.abs(originalCollected - requestedCollected) > 0.005 && form.status === "success") {
+        return setError("Split collection amount cannot be changed here. Open the payment collection editor to change Cash / UPI / Card allocations.");
+      }
+    }
     const amount = Number(form.amount);
     const fee = Number(form.service_fee || 0);
     const commission = Number(form.portal_commission || 0);
