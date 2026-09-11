@@ -1,8 +1,16 @@
 /* Global Quick Access
    Deliberately scoped: no page-structure selectors, no nth-child rules, no design-token overrides. */
-.erp-desktop-header { margin-bottom: 0 !important; }
+.erp-desktop-header {
+  margin-bottom: 0 !important;
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
 
 .cafe-quick-access {
+  position: sticky;
+  top: 64px;
+  z-index: 50;
   width: 100%;
   margin: 0 0 14px;
   border: 1px solid rgba(148, 163, 184, 0.24);
@@ -162,7 +170,11 @@
 .dark .cafe-quick-access__mode-button.is-active { background: #1e293b; color: #bfdbfe; }
 
 @media (max-width: 1023px) {
-  .cafe-quick-access { margin-bottom: 10px; border-radius: 12px; }
+  .cafe-quick-access {
+    top: 56px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+  }
   .cafe-quick-access__inner { min-height: 48px; gap: 7px; padding: 5px 7px; }
   .cafe-quick-access__label { display: none; }
   .cafe-quick-access__scroll { gap: 5px; }
