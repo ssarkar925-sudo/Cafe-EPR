@@ -142,14 +142,24 @@ source = source.replace(
 
 const staleHero = '<div className="relative z-10 mt-6 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-md"><div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-300"><div><strong className="text-white">Included in Asset Aggregation:</strong> Cash (−₹5,845) + Bank (+₹9,500) + UPI (+₹9,011) + AEPS (−₹6,515) + DMT (+₹0) = <strong className="text-emerald-400 text-sm">{inr(totalPosition)}</strong> Total Position.</div><div className="flex items-center gap-3 text-[11px] text-slate-400"><span>Debit Card: <strong>Linked Mirror (Excluded)</strong></span><span>·</span><span>Credit Card: <strong>Credit Facility ({inr(15000)})</strong></span></div></div></div>';
 const dynamicHero = '<div className="relative z-10 mt-6 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-md"><div className="flex flex-col gap-2.5 text-xs text-slate-300"><div><strong className="text-white">Liquid asset positions:</strong> Cash {inr(balances?.cash?.current ?? 0)} + Bank {inr(balances?.bank?.current ?? 0)} + UPI {inr(balances?.upi_qr?.current ?? 0)} + AEPS {inr(balances?.aeps?.current ?? 0)} + DMT {inr(balances?.dmt?.current ?? 0)} + Wallet {inr(balances?.wallet?.current ?? 0)} = <strong className="text-emerald-400 text-sm">{inr(totalPosition)}</strong> Total Liquid Position.</div><div className="text-[11px] text-slate-400">Debit Card: <strong>Linked Mirror (Excluded)</strong> · Credit Card: <strong>Available Credit {inr(creditCardAudit.reduce((s, c) => s + c.availableCredit, 0))}</strong></div></div></div>';
-if (!source.includes(staleHero)) throw new Error("reconciliation-client.tsx: stale hardcoded asset aggregation block not found");
-source = source.replace(staleHero, dynamicHero);
+if (source.includes(staleHero)) {
+  source = source.replace(staleHero, dynamicHero);
+} else if (!source.includes('Liquid asset positions:') && !source.includes('Available Credit {inr(creditCardAudit.reduce')) {
+  throw new Error("reconciliation-client.tsx: hero aggregation block not recognized; refusing unsafe blind rewrite");
+} else {
+  console.log("Reconciliation hero is already canonical; legacy hero repair skipped safely.");
+}
 
 const staleTotal = '  const totalPosition = balances?.total ?? 6151;';
 const dynamicTotal = '  const totalPosition = roundMoney((balances?.cash?.current ?? 0) + (balances?.bank?.current ?? 0) + (balances?.wallet?.current ?? 0) + (balances?.dmt?.current ?? 0) + (balances?.aeps?.current ?? 0) + (balances?.upi_qr?.current ?? 0));';
-if (!source.includes(staleTotal)) throw new Error("reconciliation-client.tsx: totalPosition line not found");
-source = source.replace(staleTotal, dynamicTotal);
+if (source.includes(staleTotal)) {
+  source = source.replace(staleTotal, dynamicTotal);
+} else if (!source.includes(dynamicTotal)) {
+  throw new Error("reconciliation-client.tsx: totalPosition line not recognized; refusing unsafe blind rewrite");
+} else {
+  console.log("Reconciliation totalPosition is already canonical; legacy total repair skipped safely.");
+}
 
 if (!source.includes("ROOT ACCOUNTING RULE")) throw new Error("reconciliation root patch did not apply");
 fs.writeFileSync(file, source);
-console.log("Reconciliation root audit engine repaired: canonical instrument ledger only, credit-card ledger included, stale hero removed.");
+console.log("Reconciliation root audit engine repaired safely: canonical instrument ledger, credit-card audit, and dynamic asset aggregation.");
