@@ -1,0 +1,69 @@
+/* CafeERP — ROOT SHELL LAYOUT GUARDRAILS
+ * Layout-only CSS. Keeps the existing sidebar, header and page content in a stable
+ * viewport architecture across every existing module.
+ */
+
+html, body { min-height: 100%; }
+body { overflow-x: hidden; }
+
+.erp-app-shell {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.erp-workspace {
+  position: relative;
+  min-height: 100vh;
+  min-width: 0;
+  padding-right: 12px;
+  padding-bottom: 24px;
+}
+
+/* The desktop shell header is deliberately viewport-anchored.
+   This prevents any ancestor layout/transform from vertically displacing it. */
+.erp-desktop-header {
+  position: fixed !important;
+  top: 12px !important;
+  left: 288px !important;
+  right: 12px !important;
+  z-index: 60 !important;
+  margin: 0 !important;
+}
+
+/* Content starts below the fixed shell header. */
+.erp-page-content {
+  position: relative;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .erp-page-content {
+    padding-top: 82px !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .erp-workspace {
+    padding-right: 0;
+    padding-bottom: 0;
+  }
+}
+
+/* Collapsed-sidebar mode is driven by the shell's existing conditional class. */
+@media (min-width: 1024px) {
+  .erp-workspace:has(+ *) { min-width: 0; }
+  .erp-desktop-header { transition: left .28s cubic-bezier(.16,1,.3,1), right .2s ease, box-shadow .2s ease, background .2s ease; }
+}
+
+/* Never let an accidental transform/filter on the shell create a new positioning context. */
+.erp-app-shell,
+.erp-workspace,
+.erp-page-content {
+  transform: none;
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce), [data-motion="off"] * {
+  .erp-desktop-header { transition-duration: .01ms !important; }
+}
