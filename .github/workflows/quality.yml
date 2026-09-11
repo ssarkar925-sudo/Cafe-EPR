@@ -32,7 +32,21 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Financial invariants
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          npm test 2>&1 | tee invariant.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload financial invariant diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: financial-invariant-diagnostics
+          path: invariant.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: AI browser safety
         run: npm run test:ai-browser
