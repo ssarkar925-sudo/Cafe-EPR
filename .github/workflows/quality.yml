@@ -50,10 +50,11 @@ jobs:
                   '        const bucket = entriesByInstrument[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };',
                   '        const bucket = instDeltas[inst.id] ?? { inflow: 0, outflow: 0, net: 0, entries: [] };', 1)
           old_credit = '''                const totalLimit = Number(row.details?.credit_limit || 0);\n                const currentOutstanding = Number(row.opening_balance || 0);\n                const currentBal = Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));'''
-          new_credit = '''                const totalLimit = Number(row.details?.credit_limit || 0);\n                const currentOutstanding = row.type === "credit_card"\n                  ? Math.max(0, totalLimit - Number(row.balance ?? totalLimit))\n                  : Number(row.opening_balance || 0);\n                const availableCredit = Math.max(0, totalLimit - currentOutstanding);\n                const currentBal = row.type === "credit_card" ? availableCredit : Number(row.balance ?? Math.max(0, totalLimit - currentOutstanding));'''
-          if old_credit not in panel:
-              raise SystemExit('Missing credit-account UI marker')
-          panel = panel.replace(old_credit, new_credit, 1)
+          new_credit = '''                const totalLimit = Number(row.details?.credit_limit || 0);\n                const limit = totalLimit;\n                const currentOutstanding = row.type === "credit_card"\n                  ? Math.max(0, limit - Number(row.balance ?? limit))\n                  : Number(row.opening_balance || 0);\n                const availableCredit = Math.max(0, limit - currentOutstanding);\n                const currentBal = row.type === "credit_card" ? availableCredit : Number(row.balance ?? availableCredit);'''
+          if old_credit in panel:
+              panel = panel.replace(old_credit, new_credit, 1)
+          elif 'const availableCredit = Math.max(0, totalLimit - currentOutstanding);' in panel and 'const limit = totalLimit;' not in panel:
+              panel = panel.replace('                const availableCredit = Math.max(0, totalLimit - currentOutstanding);', '                const limit = totalLimit;\n                const availableCredit = Math.max(0, limit - currentOutstanding);', 1)
           panel_path.write_text(panel)
 
           quick_path = Path('components/module-quick-nav.tsx')
