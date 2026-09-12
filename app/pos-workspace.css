@@ -234,3 +234,69 @@
     overflow: visible !important;
   }
 }
+
+/* Quick Sale: use the free center of the POS header for Today's Sale,
+   remove duplicate controls, and reclaim the bottom shortcut strip. */
+@media (min-width: 1024px) {
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > div[class*="mb-3.5"] {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* The old keyboard-hotkey cluster is redundant with the footer removal and shortcuts. */
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > div[class*="mb-3.5"] > div[class*="hidden"][class*="xl:flex"] {
+    display: none !important;
+  }
+
+  /* Hide the duplicate "Sales Today" text block; its icon remains as a compact mode marker. */
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > div[class*="mb-3.5"] > div:first-child > div:last-child {
+    display: none !important;
+  }
+
+  /* Recall / Hold already exist inside the Quick Sale card, so do not repeat them in the top strip. */
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > div[class*="mb-3.5"] > div:last-child > button:nth-child(2),
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > div[class*="mb-3.5"] > div:last-child > button:nth-child(3) {
+    display: none !important;
+  }
+
+  /* Move the existing dynamic Quick Sale summary into the header's former hotkey position. */
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 {
+    position: relative !important;
+    overflow: visible !important;
+  }
+
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="mb-3.5"][class*="bg-white"][class*="ring-1"] {
+    position: absolute !important;
+    top: -48px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 40 !important;
+    width: max-content !important;
+    max-width: min(48vw, 560px) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  /* Keep only the compact Today / order count / collected summary; profit + average belong in reports. */
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="mb-3.5"][class*="bg-white"][class*="ring-1"] > div:first-child > span:nth-of-type(n+5) {
+    display: none !important;
+  }
+
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="mb-3.5"][class*="bg-white"][class*="ring-1"] > div:first-child {
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+  }
+
+  .pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="mb-3.5"][class*="bg-white"][class*="ring-1"] > div:last-child {
+    display: none !important;
+  }
+}
+
+/* Explicitly remove the bottom Quick Sale shortcut bar at every breakpoint. */
+.pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="bg-[#0f172a]"] {
+  display: none !important;
+}
