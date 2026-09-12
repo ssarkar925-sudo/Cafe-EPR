@@ -14,13 +14,15 @@ function hideButton(button: HTMLButtonElement) {
 }
 
 function applyPosUx(root: HTMLElement) {
+  const quickMode = Boolean(root.querySelector(".pos-cart-drawer"));
+
   // Categories are the primary POS filter, so visually promote them above the
-  // item toolbar without changing the React component structure.
+  // item toolbar without changing the billing logic or component structure.
   root.querySelectorAll<HTMLElement>(".pos-workspace-grid > .min-w-0").forEach((catalog) => {
     catalog.classList.add("pos-ux-catalog-column");
   });
 
-  // Make List View the default every time the POS / Quick Sale browser mounts.
+  // Make List View the default for both the standard POS catalogue and Quick Sale.
   root.querySelectorAll<HTMLElement>(".pos-item-toolbar").forEach((toolbar) => {
     if (toolbar.dataset.posUxListDefault !== "1") {
       try {
@@ -31,6 +33,21 @@ function applyPosUx(root: HTMLElement) {
       if (listButton && !listButton.disabled) listButton.click();
       toolbar.dataset.posUxListDefault = "1";
     }
+
+    // Quick Sale already exposes one Favourites filter in the category row.
+    // Remove the duplicate toolbar tab only when that category-row control exists.
+    const next = toolbar.nextElementSibling;
+    if (
+      quickMode &&
+      next instanceof HTMLElement &&
+      next.classList.contains("pos-category-chips") &&
+      textOf(next).includes("Favourites")
+    ) {
+      const duplicateFav = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button")).find(
+        (button) => textOf(button) === "Favorites"
+      );
+      if (duplicateFav) hideButton(duplicateFav);
+    }
   });
 
   root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
@@ -39,32 +56,39 @@ function applyPosUx(root: HTMLElement) {
     const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
     const insideToolbar = Boolean(button.closest(".pos-item-toolbar"));
 
-    // These are duplicated elsewhere in the POS shell and add noise.
+    // Duplicated/secondary navigation controls.
     if (label === "Customers" && !insideBilling) hideButton(button);
     if (label === "Hold Bill" && !insideBilling) hideButton(button);
+    if (quickMode && label.startsWith("Recall") && !insideBilling) hideButton(button);
     if (label === "Recent Sales" && insideBilling) hideButton(button);
-
-    // Categories already provide the catch-all item filter. Keep the toolbar
-    // focused on type/search/view instead of showing a second "All Items".
     if (label === "All Items" && insideToolbar) hideButton(button);
 
-    // Save Draft remains as the single hold mechanism in the standard POS.
+    // One unified hold/draft action in the standard POS footer.
     if (label === "Save Draft" && insideBilling) {
       button.textContent = "Hold / Draft";
       button.setAttribute("aria-label", "Hold or save draft");
     }
 
-    // The primary Pay & Print action is the normal completion path; remove the
-    // competing Settle Only button from the always-visible footer.
+    // Keep one primary completion action; remove the competing Settle Only action.
     if ((label === "₹ Settle Only" || label === "Settle Only") && insideBilling) hideButton(button);
 
     if (label === "Clear all" && insideBilling) {
       button.textContent = "Clear";
     }
+
+    // Standard POS card title is clearer as Current Bill.
+    if (insideBilling && label === "Current Invoice") {
+      button.textContent = "Current Bill";
+    }
   });
 
   root.querySelectorAll<HTMLElement>(".pos-billing-drawer [data-sticky-drawer=\"true\"]").forEach((drawer) => {
     drawer.classList.add("pos-ux-billing-card");
+  });
+
+  // Current Invoice is a heading, not a button, so rename the standard checkout card here.
+  root.querySelectorAll<HTMLElement>(".pos-billing-drawer h2").forEach((heading) => {
+    if (textOf(heading) === "Current Invoice") heading.textContent = "Current Bill";
   });
 }
 
@@ -97,10 +121,6 @@ function ensureStyles() {
       margin-bottom: 6px !important;
     }
 
-    .pos-premium-root .pos-ux-catalog-column > .pos-category-chips + .pos-item-toolbar {
-      margin-top: 0 !important;
-    }
-
     .pos-premium-root .pos-ux-catalog-column > [class*="mt-4"] {
       margin-top: 5px !important;
     }
@@ -118,6 +138,7 @@ function ensureStyles() {
     .pos-premium-root .pos-ux-billing-card > :first-child {
       min-height: 52px;
       padding: 9px 12px !important;
+      background: rgba(248, 250, 252, 0.76);
     }
 
     .pos-premium-root .pos-ux-billing-card > :nth-child(2) {
@@ -126,7 +147,12 @@ function ensureStyles() {
     }
 
     .pos-premium-root .pos-ux-billing-card > :last-child {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
       padding: 9px 12px !important;
+      background: rgba(248, 250, 252, 0.96);
+      backdrop-filter: blur(10px);
     }
 
     .pos-premium-root .pos-ux-billing-card [data-cart-item-key] {
@@ -135,21 +161,30 @@ function ensureStyles() {
     }
 
     .pos-premium-root .pos-ux-billing-card [data-cart-item-key] .mt-2,
-    .pos-premium-root .pos-ux-billing-card [data-cart-item-key] .mt-2\.5 {
+    .pos-premium-root .pos-ux-billing-card [data-cart-item-key] .mt-2\\.5 {
       margin-top: 6px !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .space-y-2,
-    .pos-premium-root .pos-ux-billing-card .space-y-2\.5,
+    .pos-premium-root .pos-ux-billing-card .space-y-2\\.5,
     .pos-premium-root .pos-ux-billing-card .space-y-3 {
       row-gap: 6px !important;
     }
 
-    .pos-premium-root .pos-ux-billing-card .grid.grid-cols-2 {
+    .pos-premium-root .pos-ux-billing-card .grid.grid-cols-2,
+    .pos-premium-root .pos-ux-billing-card .grid.grid-cols-3,
+    .pos-premium-root .pos-ux-billing-card .grid.grid-cols-4 {
       gap: 6px !important;
     }
 
-    .pos-premium-root .pos-ux-billing-card .py-3\.5 {
+    .pos-premium-root .pos-ux-billing-card .grid.grid-cols-3 > button,
+    .pos-premium-root .pos-ux-billing-card .grid.grid-cols-4 > button {
+      min-height: 36px;
+      padding-top: 7px !important;
+      padding-bottom: 7px !important;
+    }
+
+    .pos-premium-root .pos-ux-billing-card .py-3\\.5 {
       padding-top: 8px !important;
       padding-bottom: 8px !important;
     }
@@ -160,11 +195,11 @@ function ensureStyles() {
     }
 
     .pos-premium-root .pos-ux-billing-card .text-xl {
-      font-size: 1.15rem !important;
+      font-size: 1.25rem !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .btn-3d-tactile-primary {
-      min-height: 44px;
+      min-height: 46px;
       padding-top: 10px !important;
       padding-bottom: 10px !important;
     }
