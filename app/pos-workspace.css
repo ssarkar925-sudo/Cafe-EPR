@@ -16,6 +16,7 @@
 
   .erp-workspace:has(.pos-premium-root) > .erp-desktop-header {
     flex: 0 0 auto !important;
+    margin-bottom: 4px !important;
   }
 
   .erp-workspace:has(.pos-premium-root) > .erp-page-content {
@@ -25,18 +26,33 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    padding-top: 0 !important;
     padding-bottom: 0 !important;
   }
 
+  /* Quick Access must participate in normal document flow; never let a sticky/top offset
+     create a gap or overlap the POS status strip. */
   .erp-page-content:has(.pos-premium-root) > .global-quick-access,
-  .erp-page-content:has(.pos-premium-root) > nav {
+  .erp-page-content:has(.pos-premium-root) > nav,
+  .erp-page-content:has(.pos-premium-root) > :not(main) {
     flex: 0 0 auto !important;
+    min-height: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 4px !important;
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    inset: auto !important;
+    transform: none !important;
   }
 
   .erp-page-content:has(.pos-premium-root) > main {
     flex: 1 1 0 !important;
     min-height: 0 !important;
     height: auto !important;
+    margin-top: 0 !important;
     overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
