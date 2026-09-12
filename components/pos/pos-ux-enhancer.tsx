@@ -20,6 +20,19 @@ function restoreButton(button: HTMLButtonElement, reason: string) {
   }
 }
 
+function syncWorkspaceHeight(root: HTMLElement) {
+  const workspaces = root.querySelectorAll<HTMLElement>(".pos-workspace-grid");
+  workspaces.forEach((workspace) => {
+    const rect = workspace.getBoundingClientRect();
+    const available = Math.max(360, Math.floor(window.innerHeight - rect.top - 10));
+    workspace.style.setProperty("--pos-workspace-height", `${available}px`);
+  });
+
+  const rootRect = root.getBoundingClientRect();
+  const rootHeight = Math.max(420, Math.floor(window.innerHeight - rootRect.top - 8));
+  root.style.setProperty("--pos-root-height", `${rootHeight}px`);
+}
+
 function applyPosUx(root: HTMLElement) {
   const quickMode = Boolean(root.querySelector(".pos-cart-drawer"));
   root.dataset.posMode = quickMode ? "quick" : "standard";
@@ -92,6 +105,8 @@ function applyPosUx(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>(".pos-billing-drawer h2").forEach((heading) => {
     if (textOf(heading) === "Current Invoice") heading.textContent = "Current Bill";
   });
+
+  syncWorkspaceHeight(root);
 }
 
 function ensureStyles() {
@@ -99,10 +114,18 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    /* Desktop POS behaves like an application workspace: page chrome stays still,
-       while only the catalogue rows are scrollable. */
+    /* Treat the POS as a viewport-filling application surface. */
+    .pos-premium-root {
+      height: var(--pos-root-height, auto) !important;
+      max-height: var(--pos-root-height, none) !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+    }
+
     .pos-premium-root .pos-workspace-grid {
       min-height: 0 !important;
+      max-height: var(--pos-workspace-height, none) !important;
+      height: var(--pos-workspace-height, auto) !important;
       overflow: hidden !important;
       align-items: stretch !important;
     }
@@ -112,6 +135,7 @@ function ensureStyles() {
       flex-direction: column;
       min-width: 0;
       min-height: 0;
+      height: 100% !important;
       overflow: hidden !important;
     }
 
@@ -125,7 +149,7 @@ function ensureStyles() {
       flex: 0 0 auto;
       margin-top: 0 !important;
       padding-top: 0 !important;
-      padding-bottom: 4px !important;
+      padding-bottom: 3px !important;
       position: sticky;
       top: 0;
       z-index: 12;
@@ -136,7 +160,7 @@ function ensureStyles() {
       order: 2;
       flex: 0 0 auto;
       margin-top: 0 !important;
-      margin-bottom: 6px !important;
+      margin-bottom: 5px !important;
       position: sticky;
       top: 0;
       z-index: 11;
@@ -148,10 +172,10 @@ function ensureStyles() {
     }
 
     .pos-premium-root .pos-ux-catalog-column > [class*="mt-4"] {
-      margin-top: 5px !important;
+      margin-top: 4px !important;
     }
 
-    /* The actual service/product/table area is the only primary scroll surface. */
+    /* Only the catalogue itself scrolls on desktop. */
     .pos-premium-root .pos-ux-catalog-column > :not(.pos-category-chips):not(.pos-item-toolbar) {
       order: 3;
       flex: 1 1 0% !important;
@@ -162,6 +186,7 @@ function ensureStyles() {
       scrollbar-width: thin;
     }
 
+    /* The checkout is a normal grid column, never a viewport-floating card. */
     .pos-premium-root .pos-billing-drawer,
     .pos-premium-root .pos-cart-drawer {
       min-width: 0 !important;
@@ -173,8 +198,6 @@ function ensureStyles() {
     .pos-premium-root .pos-ux-billing-card {
       position: relative !important;
       inset: auto !important;
-      right: auto !important;
-      top: auto !important;
       width: 100% !important;
       height: 100% !important;
       max-height: none !important;
@@ -188,12 +211,9 @@ function ensureStyles() {
       z-index: auto !important;
     }
 
-    /* Quick Sale's drawer uses its own class; give it the same non-floating shell. */
     .pos-premium-root .pos-cart-drawer {
       position: relative !important;
       inset: auto !important;
-      right: auto !important;
-      top: auto !important;
       width: 100% !important;
       height: 100% !important;
       max-height: none !important;
@@ -207,15 +227,15 @@ function ensureStyles() {
 
     .pos-premium-root .pos-ux-billing-card > :first-child,
     .pos-premium-root .pos-cart-drawer > :first-child {
-      min-height: 52px;
-      padding: 9px 12px !important;
+      min-height: 48px;
+      padding: 8px 12px !important;
       background: rgba(248, 250, 252, 0.76);
       flex: 0 0 auto;
     }
 
     .pos-premium-root .pos-ux-billing-card > :nth-child(2),
     .pos-premium-root .pos-cart-drawer > :nth-child(2) {
-      padding: 9px 12px !important;
+      padding: 8px 12px !important;
       scrollbar-width: thin;
       overflow-y: auto !important;
       min-height: 0 !important;
@@ -227,7 +247,7 @@ function ensureStyles() {
       position: sticky;
       bottom: 0;
       z-index: 5;
-      padding: 9px 12px !important;
+      padding: 8px 12px !important;
       background: rgba(248, 250, 252, 0.96);
       backdrop-filter: blur(10px);
       flex: 0 0 auto;
@@ -236,15 +256,8 @@ function ensureStyles() {
     .pos-premium-root .pos-ux-billing-card [data-cart-item-key],
     .pos-premium-root .pos-cart-drawer [data-cart-item-key],
     .pos-premium-root .pos-cart-drawer [data-quick-cart-key] {
-      padding: 8px !important;
+      padding: 7px !important;
       border-radius: 10px !important;
-    }
-
-    .pos-premium-root .pos-ux-billing-card [data-cart-item-key] .mt-2,
-    .pos-premium-root .pos-ux-billing-card [data-cart-item-key] .mt-2\\.5,
-    .pos-premium-root .pos-cart-drawer [data-quick-cart-key] .mt-2,
-    .pos-premium-root .pos-cart-drawer [data-quick-cart-key] .mt-2\\.5 {
-      margin-top: 6px !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .space-y-2,
@@ -253,7 +266,7 @@ function ensureStyles() {
     .pos-premium-root .pos-cart-drawer .space-y-2,
     .pos-premium-root .pos-cart-drawer .space-y-2\\.5,
     .pos-premium-root .pos-cart-drawer .space-y-3 {
-      row-gap: 6px !important;
+      row-gap: 5px !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .grid.grid-cols-2,
@@ -262,28 +275,24 @@ function ensureStyles() {
     .pos-premium-root .pos-cart-drawer .grid.grid-cols-2,
     .pos-premium-root .pos-cart-drawer .grid.grid-cols-3,
     .pos-premium-root .pos-cart-drawer .grid.grid-cols-4 {
-      gap: 6px !important;
+      gap: 5px !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .grid.grid-cols-3 > button,
     .pos-premium-root .pos-ux-billing-card .grid.grid-cols-4 > button,
     .pos-premium-root .pos-cart-drawer .grid.grid-cols-3 > button,
     .pos-premium-root .pos-cart-drawer .grid.grid-cols-4 > button {
-      min-height: 36px;
-      padding-top: 7px !important;
-      padding-bottom: 7px !important;
+      min-height: 34px;
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .py-3\\.5,
-    .pos-premium-root .pos-cart-drawer .py-3\\.5 {
-      padding-top: 8px !important;
-      padding-bottom: 8px !important;
-    }
-
+    .pos-premium-root .pos-cart-drawer .py-3\\.5,
     .pos-premium-root .pos-ux-billing-card .py-4,
     .pos-premium-root .pos-cart-drawer .py-4 {
-      padding-top: 9px !important;
-      padding-bottom: 9px !important;
+      padding-top: 7px !important;
+      padding-bottom: 7px !important;
     }
 
     .pos-premium-root .pos-ux-billing-card .text-xl,
@@ -294,34 +303,52 @@ function ensureStyles() {
     .pos-premium-root .pos-ux-billing-card .btn-3d-tactile-primary,
     .pos-premium-root .pos-cart-drawer .btn-3d-tactile-primary {
       min-height: 44px;
-      padding-top: 10px !important;
-      padding-bottom: 10px !important;
+      padding-top: 9px !important;
+      padding-bottom: 9px !important;
+    }
+
+    /* Compact operational bars so the catalogue gets the recovered height. */
+    .pos-premium-root .pos-ops-strip {
+      min-height: 42px !important;
+      margin-bottom: 6px !important;
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
+    }
+
+    /* The Quick Sale activity summary is useful, but should be a thin status line. */
+    .pos-premium-root [class*="rounded-xl"][class*="bg-white"][class*="ring-1"] {
+      margin-bottom: 6px !important;
     }
 
     @media (min-width: 1024px) {
-      /* One shared two-pane POS workspace: the bill occupies its grid cell,
-         never floats over the catalogue. */
       .pos-premium-root .pos-workspace-grid {
-        grid-template-columns: minmax(0, 1fr) 380px !important;
-        gap: 12px !important;
-        height: clamp(360px, calc(100dvh - 340px), 680px) !important;
+        grid-template-columns: minmax(0, 1fr) 360px !important;
+        gap: 10px !important;
       }
     }
 
     @media (max-width: 1279px) and (min-width: 1024px) {
       .pos-premium-root .pos-workspace-grid {
-        grid-template-columns: minmax(0, 1fr) 360px !important;
-        height: clamp(360px, calc(100dvh - 340px), 680px) !important;
+        grid-template-columns: minmax(0, 1fr) 340px !important;
+        gap: 9px !important;
       }
     }
 
     @media (max-width: 1023px) {
+      .pos-premium-root {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+      }
+
       .pos-premium-root .pos-workspace-grid {
         height: auto !important;
+        max-height: none !important;
         overflow: visible !important;
       }
 
       .pos-premium-root .pos-ux-catalog-column {
+        height: auto !important;
         overflow: visible !important;
       }
 
@@ -351,13 +378,24 @@ export default function PosUxEnhancer() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(".pos-premium-root");
     if (!root) return;
+
     ensureStyles();
     applyPosUx(root);
+
+    const resize = () => syncWorkspaceHeight(root);
+    window.addEventListener("resize", resize);
 
     const observer = new MutationObserver(() => applyPosUx(root));
     observer.observe(root, { childList: true, subtree: true });
 
-    return () => observer.disconnect();
+    const ro = new ResizeObserver(resize);
+    ro.observe(root);
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      observer.disconnect();
+      ro.disconnect();
+    };
   }, []);
 
   return null;
