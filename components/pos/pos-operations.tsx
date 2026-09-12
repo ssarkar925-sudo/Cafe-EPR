@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, MoreHorizontal, Pause, ReceiptText, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, ChevronDown, Clock3, MoreHorizontal, Pause, ReceiptText, RotateCcw, Trash2, X } from "lucide-react";
 
 export type PosHeldLine = {
   key: string;
@@ -89,6 +89,7 @@ export default function PosOperations({
   paymentChoice,
   cashReceived,
   splitRows,
+  instruments,
   supabase,
   onRestore,
   onReset,
@@ -101,6 +102,7 @@ export default function PosOperations({
   paymentChoice: string;
   cashReceived: string;
   splitRows: { id: string; instrumentId: string; amount: string }[];
+  instruments: { id: string; name: string; type: string }[];
   supabase: any;
   onRestore: (draft: HeldDraft) => void;
   onReset: () => void;
@@ -111,6 +113,12 @@ export default function PosOperations({
   const [todaySales, setTodaySales] = useState<TodaySale[]>([]);
   const [loadingSales, setLoadingSales] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [moneyOutOpen, setMoneyOutOpen] = useState(false);
+  const [moneyOutAmount, setMoneyOutAmount] = useState("");
+  const [moneyOutCategory, setMoneyOutCategory] = useState("general");
+  const [moneyOutNote, setMoneyOutNote] = useState("");
+  const [moneyOutSource, setMoneyOutSource] = useState("");
+  const [moneyOutSaving, setMoneyOutSaving] = useState(false);
 
   useEffect(() => {
     if (panel === "recall") setHeldBills(readHeldBills());
@@ -128,6 +136,49 @@ export default function PosOperations({
     const qty = cart.reduce((sum, line) => sum + line.qty, 0);
     return `${qty} item${qty === 1 ? "" : "s"}`;
   }, [cart]);
+
+  const moneyOutSources = useMemo(
+    () => instruments.filter((instrument) => instrument.type !== "receivable"),
+    [instruments]
+  );
+
+  function openMoneyOut() {
+    setMenuOpen(false);
+    setMoneyOutAmount("");
+    setMoneyOutCategory("general");
+    setMoneyOutNote("");
+    setMoneyOutSource("");
+    setMoneyOutOpen(true);
+  }
+
+  async function saveMoneyOut(event: React.FormEvent) {
+    event.preventDefault();
+    if (moneyOutSaving) return;
+    const amount = Number(moneyOutAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage("Enter a valid Money Out amount.");
+      return;
+    }
+
+    setMoneyOutSaving(true);
+    const { error } = await supabase.rpc("add_expense", {
+      p_expense_date: indiaToday(),
+      p_category: moneyOutCategory.trim() || "general",
+      p_amount: amount,
+      p_note: moneyOutNote.trim() || null,
+      p_instrument_id: moneyOutSource || null,
+      p_method: moneyOutSource ? null : "cash",
+    });
+    setMoneyOutSaving(false);
+
+    if (error) {
+      setMessage(error.message || "Unable to record Money Out.");
+      return;
+    }
+
+    setMoneyOutOpen(false);
+    setMessage(`Money Out recorded · ${money(amount)}`);
+  }
 
   function holdBill() {
     if (!hasCart) {
@@ -212,6 +263,7 @@ export default function PosOperations({
   function closeAll() {
     setMenuOpen(false);
     setPanel(null);
+    setMoneyOutOpen(false);
   }
 
   return (
@@ -219,22 +271,24 @@ export default function PosOperations({
       <button
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
-        aria-label="POS operations"
+        aria-label="POS actions"
         aria-expanded={menuOpen}
-        className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${menuOpen ? "border-blue-300 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"} dark:border-white/10 dark:bg-slate-800 dark:text-slate-300`}
+        className={`flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[10px] font-black transition ${menuOpen ? "border-blue-300 bg-blue-50 text-blue-700 shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50/60"} dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-white/5`}
       >
-        <MoreHorizontal className="h-4 w-4" />
+        <MoreHorizontal className="h-3.5 w-3.5" />
+        <span>Actions</span>
+        <ChevronDown className={`h-3 w-3 transition-transform ${menuOpen ? "rotate-180" : ""}`} />
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 top-[calc(100%+6px)] z-[140] w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl shadow-slate-900/10 dark:border-white/10 dark:bg-slate-900">
+        <div className="absolute right-0 top-[calc(100%+6px)] z-[140] w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl shadow-slate-900/10 dark:border-white/10 dark:bg-slate-900">
           <button
             type="button"
             onClick={holdBill}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[10px] font-black text-slate-700 hover:bg-amber-50 hover:text-amber-800 dark:text-slate-200 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[10px] font-black text-slate-700 hover:bg-amber-50 hover:text-amber-800 dark:text-slate-200 dark:hover:bg-amber-500/10 dark:hover:text-amber-200"
           >
             <Pause className="h-3.5 w-3.5" />
-            <span className="flex-1">Hold Bill</span>
+            <span className="flex-1">Save Bill (Hold)</span>
             <kbd className="text-[8px] text-slate-400">F6</kbd>
           </button>
           <button
@@ -243,26 +297,79 @@ export default function PosOperations({
               setMenuOpen(false);
               setPanel("recall");
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[10px] font-black text-slate-700 hover:bg-blue-50 hover:text-blue-800 dark:text-slate-200 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[10px] font-black text-slate-700 hover:bg-blue-50 hover:text-blue-800 dark:text-slate-200 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span className="flex-1">Recall Held Bills</span>
+            <span className="flex-1">Load Hold Bill</span>
             {heldBills.length > 0 && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[8px] dark:bg-slate-800">{heldBills.length}</span>}
           </button>
           <button
             type="button"
             onClick={() => void openTodaySales()}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[10px] font-black text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-slate-200 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[10px] font-black text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-slate-200 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200"
           >
             <ReceiptText className="h-3.5 w-3.5" />
-            <span className="flex-1">Today's Sales</span>
+            <span className="flex-1">Today's Sale</span>
+          </button>
+          <button
+            type="button"
+            onClick={openMoneyOut}
+            className="flex w-full items-center gap-2.5 rounded-xl bg-rose-50 px-3 py-2.5 text-left text-[10px] font-black text-rose-700 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/15"
+          >
+            <ArrowDownToLine className="h-3.5 w-3.5" />
+            <span className="flex-1">Money Out</span>
           </button>
         </div>
       )}
 
       {message && (
-        <div className="absolute right-0 top-[calc(100%+58px)] z-[145] min-w-52 rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 text-[9px] font-bold text-white shadow-xl dark:border-white/10">
+        <div className="absolute right-0 top-[calc(100%+58px)] z-[145] min-w-52 rounded-xl border border-slate-200 bg-slate-900 px-3 py-2 text-[9px] font-bold text-white shadow-xl dark:border-white/10">
           {message}
+        </div>
+      )}
+
+      {moneyOutOpen && (
+        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]" onMouseDown={() => setMoneyOutOpen(false)}>
+          <form
+            onSubmit={saveMoneyOut}
+            onMouseDown={(event) => event.stopPropagation()}
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-white/10">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-black"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300"><ArrowDownToLine className="h-3.5 w-3.5" /></span>Money Out</div>
+                <div className="mt-0.5 text-[9px] font-semibold text-slate-400">Record a shop cash/bank outflow</div>
+              </div>
+              <button type="button" onClick={() => setMoneyOutOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 p-4">
+              <div>
+                <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Amount *</label>
+                <input autoFocus required type="number" min="0.01" step="0.01" value={moneyOutAmount} onChange={(event) => setMoneyOutAmount(event.target.value)} placeholder="0.00" className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/40 px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100 dark:border-rose-900/50 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Category *</label>
+                  <input required value={moneyOutCategory} onChange={(event) => setMoneyOutCategory(event.target.value)} placeholder="general" className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[10px] font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Paid From</label>
+                  <select value={moneyOutSource} onChange={(event) => setMoneyOutSource(event.target.value)} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950">
+                    <option value="">Cash (till)</option>
+                    {moneyOutSources.map((instrument) => <option key={instrument.id} value={instrument.id}>{instrument.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Note</label>
+                <input value={moneyOutNote} onChange={(event) => setMoneyOutNote(event.target.value)} placeholder="e.g. electricity, stationery, courier" className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[10px] font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-950">
+              <button type="button" onClick={() => setMoneyOutOpen(false)} className="h-9 flex-1 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">Cancel</button>
+              <button type="submit" disabled={moneyOutSaving} className="h-9 flex-1 rounded-xl bg-rose-600 text-[10px] font-black text-white shadow-sm hover:bg-rose-700 disabled:opacity-50">{moneyOutSaving ? "Saving…" : "Record Money Out"}</button>
+            </div>
+          </form>
         </div>
       )}
 
