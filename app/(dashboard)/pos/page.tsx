@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import PosClient from "@/components/pos/pos-client";
-import PosOpsStrip from "@/components/pos/pos-ops-strip";
 import PosRecallBridge from "@/components/pos/pos-recall-bridge";
+import PosStandardOnlyLock from "@/components/pos/pos-standard-only-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export default async function PosPage({
 }: {
   searchParams: Promise<{ customer?: string; mode?: string; edit?: string }>;
 }) {
-  const { customer, mode, edit } = await searchParams;
+  const { customer, edit } = await searchParams;
   const role = await getUserRole();
   const canViewProfit = hasRole(role, ["admin", "manager"]);
   const supabase = await createClient();
@@ -24,7 +24,6 @@ export default async function PosPage({
     { data: instruments },
     { data: paymentMethods },
     { data: todaysInvoices },
-    { data: todaysQuick },
     editInvoiceRes,
   ] = await Promise.all([
     supabase
@@ -60,13 +59,6 @@ export default async function PosPage({
       .eq("invoice_date", today)
       .order("created_at", { ascending: false })
       .limit(500),
-    supabase
-      .from("quick_sales")
-      .select(
-        "id, sale_number, sale_date, customer_id, product_id, service_id, item_name, amount, cost, tendered, change_due, payments, status, created_at, customers(name), products(name), services(name)"
-      )
-      .eq("sale_date", today)
-      .order("created_at", { ascending: false }),
     edit
       ? supabase
           .from("invoices")
@@ -85,7 +77,7 @@ export default async function PosPage({
   const initialEditingInvoice = editInvoiceRes?.data ?? null;
 
   return (
-    <div className="pos-premium-root">
+    <div className="pos-modern-only">
       <PosClient
         products={(products ?? []) as any}
         services={(services ?? []) as any}
@@ -94,13 +86,13 @@ export default async function PosPage({
         salesTodayCount={salesTodayCount}
         salesTodayAmount={salesTodayAmount}
         initialCustomerId={customer || ""}
-        initialMode={mode === "quick" ? "quick" : "invoice"}
-        todayQuickSales={(todaysQuick ?? []) as any}
+        initialMode="invoice"
         enabledMethods={enabledMethods}
         canViewProfit={canViewProfit}
         todayInvoices={(todaysInvoices ?? []) as any}
         initialEditingInvoice={initialEditingInvoice as any}
       />
+      <PosStandardOnlyLock />
       <PosRecallBridge />
     </div>
   );
