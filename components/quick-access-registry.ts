@@ -6,8 +6,6 @@ export type QuickAccessItem = {
 };
 
 export const DEFAULT_QUICK_ACCESS: QuickAccessItem[] = [
-  { id: "new-sale", label: "New Sale", href: "/pos", icon: "new-sale" },
-  { id: "quick-sale", label: "Quick Sale", href: "/pos?mode=quick", icon: "quick-sale" },
   { id: "customer-crm", label: "Customer CRM", href: "/customers", icon: "customer-crm" },
   { id: "cash-book", label: "Cash Book", href: "/finance/cashbook", icon: "cash-book" },
   { id: "aeps", label: "AEPS ATM", href: "/business/aeps", icon: "aeps" },
@@ -53,7 +51,6 @@ export const QUICK_ACCESS_CATALOG: QuickAccessItem[] = [
 const BY_ID = new Map(QUICK_ACCESS_CATALOG.map((item) => [item.id, item]));
 
 const LEGACY_ID_MAP: Record<string, string> = {
-  pos: "new-sale",
   invoices: "invoices",
   customers: "customer-crm",
   cashbook: "cash-book",
