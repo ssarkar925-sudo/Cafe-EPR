@@ -30,6 +30,7 @@ const REPAIR_SCRIPTS = [
   "repair-bank-to-aeps-settlement-ui-build.mjs",
   "repair-unified-settlement-build.mjs",
   "repair-transaction-history-layout.mjs",
+  "repair-pos-checkout-result-type.mjs",
 ];
 
 function resolveBuildIdentity() {
