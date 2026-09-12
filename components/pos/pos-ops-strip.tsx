@@ -15,57 +15,47 @@ export default function PosOpsStrip({
   onToggleMode?: () => void;
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
-      {/* Left Metric Pill */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/20">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+    <div className="pos-ops-strip mb-3 flex min-h-12 flex-col gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2 shadow-xs dark:border-white/10 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/20">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
             <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
             <path d="M3 6h18" />
             <path d="M16 10a4 4 0 0 1-8 0" />
           </svg>
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+            <span className="truncate text-[11px] font-extrabold text-slate-900 dark:text-white">
               {count} Sales Today
             </span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+          <p className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">
             {inr(amount)} Collected
           </p>
         </div>
       </div>
 
-      {/* Center Keyboard Shortcuts Prompt */}
-      <div className="hidden items-center gap-2 lg:flex">
-        <span className="text-[11px] font-bold text-slate-400">Shortcuts:</span>
-        <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">
-          <kbd className="font-mono">F2</kbd> Mode Switch
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">
-          <kbd className="font-mono">F4</kbd> Search Catalog
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">
-          <kbd className="font-mono">F9</kbd> Exact Cash
-        </span>
+      <div className="hidden items-center gap-1.5 xl:flex">
+        <span className="text-[10px] font-bold text-slate-400">Shortcuts</span>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300"><kbd className="font-mono">F2</kbd> Mode</span>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300"><kbd className="font-mono">F4</kbd> Search</span>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300"><kbd className="font-mono">F9</kbd> Exact</span>
       </div>
 
-      {/* Right Action Tray */}
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
         <Link
           href="/invoices"
-          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
         >
-          <span>Today's Receipts</span>
-          <span>→</span>
+          Receipts →
         </Link>
         <Link
           href="/customers"
-          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
         >
-          <span>Customers</span>
+          Customers
         </Link>
       </div>
     </div>
