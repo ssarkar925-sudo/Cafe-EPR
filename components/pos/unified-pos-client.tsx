@@ -95,8 +95,8 @@ export default function UnifiedPosClient({
   const items = useMemo<Item[]>(() => {
     const f = new Set(fav);
     return [
-      ...services.map((s) => ({ id:s.id, kind:"service" as const, name:s.name, price:Number(s.sale_price)||0, categoryId:s.category_id, categoryName:catName(s.categories?.name), code:null, hsnSac:s.sac_code ?? null, gstRate:Number(s.gst_rate)||0, taxTreatment:(Number(s.gst_rate)||0)>0 ? "taxable" : "non_gst", favorite:f.has(keyOf("service",s.id)) || Boolean(s.is_quick_favorite) })),
-      ...products.map((p) => ({ id:p.id, kind:"product" as const, name:p.name, price:Number(p.sale_price)||0, stock:Number(p.stock_qty)||0, categoryId:p.category_id, categoryName:catName(p.categories?.name), code:p.code, hsnSac:p.hsn_code ?? null, gstRate:Number(p.gst_rate)||0, taxTreatment:(Number(p.gst_rate)||0)>0 ? "taxable" : "non_gst", favorite:f.has(keyOf("product",p.id)) }))
+      ...services.map((s) => ({ id:s.id, kind:"service" as const, name:s.name, price:Number(s.sale_price)||0, categoryId:s.category_id, categoryName:catName(s.categories?.name), code:null, hsnSac:s.sac_code ?? null, gstRate:Number(s.gst_rate)||0, taxTreatment:((Number(s.gst_rate)||0)>0 ? "taxable" : "non_gst") as TaxTreatment, favorite:f.has(keyOf("service",s.id)) || Boolean(s.is_quick_favorite) })),
+      ...products.map((p) => ({ id:p.id, kind:"product" as const, name:p.name, price:Number(p.sale_price)||0, stock:Number(p.stock_qty)||0, categoryId:p.category_id, categoryName:catName(p.categories?.name), code:p.code, hsnSac:p.hsn_code ?? null, gstRate:Number(p.gst_rate)||0, taxTreatment:((Number(p.gst_rate)||0)>0 ? "taxable" : "non_gst") as TaxTreatment, favorite:f.has(keyOf("product",p.id)) }))
     ];
   }, [fav, products, services]);
 
