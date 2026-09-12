@@ -1,0 +1,95 @@
+name: Apply Compact POS Layout
+
+on:
+  push:
+    branches: [ui/compact-quick-sale]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply UI patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          pos = Path('components/pos/pos-client.tsx')
+          text = pos.read_text(encoding='utf-8')
+
+          anchor = '  const payDisabled = busy || cart.length === 0;\n'
+          insert = '''  const quickToday = useMemo(() => {\n    const active = todayQuickSales.filter((sale) => sale.status === "active");\n    return {\n      count: active.length,\n      amount: active.reduce((sum, sale) => sum + (Number(sale.amount) || 0), 0),\n    };\n  }, [todayQuickSales]);\n\n'''
+          if insert.strip() not in text:
+              if anchor not in text:
+                  raise SystemExit('quickToday anchor not found')
+              text = text.replace(anchor, insert + anchor, 1)
+
+          text = text.replace(
+              '      <div className={`mb-3.5 rounded-2xl border border-slate-200/90 bg-white transition-all dark:border-white/10 dark:bg-slate-900 shadow-xs ${\n        opBarCollapsed ? "p-2 px-3.5" : "p-3.5"\n      }`}>',
+              '      <div className={`mb-2.5 rounded-2xl border border-slate-200/90 bg-white transition-all dark:border-white/10 dark:bg-slate-900 shadow-xs ${\n        opBarCollapsed ? "p-2 px-3.5" : mode === "quick" ? "p-2.5 px-3.5" : "p-3.5"\n      }`}>',
+              1,
+          )
+
+          old_left = '''              <div className="flex items-center gap-2">\n                <span className="text-xs font-black text-slate-900 dark:text-white">\n                  {salesTodayCount} Sales Today\n                </span>\n                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />\n                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">\n                  {inr(salesTodayAmount)} Collected\n                </span>\n              </div>'''
+          new_left = '''              <div className="flex items-center gap-2">\n                {mode === "quick" ? (\n                  <span className="text-xs font-black text-slate-900 dark:text-white">Quick Sale</span>\n                ) : (\n                  <>\n                    <span className="text-xs font-black text-slate-900 dark:text-white">\n                      {salesTodayCount} Sales Today\n                    </span>\n                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />\n                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">\n                      {inr(salesTodayAmount)} Collected\n                    </span>\n                  </>\n                )}\n              </div>'''
+          if old_left not in text:
+              raise SystemExit('top-left block not found')
+          text = text.replace(old_left, new_left, 1)
+
+          hotkey_pattern = re.compile(
+              r'          /\* Center Keyboard Shortcuts Prompt.*?          \{!opBarCollapsed && \(\n            <div className="hidden items-center gap-2 xl:flex">.*?          \)\}\n',
+              re.S,
+          )
+          replacement = '''          {mode === "quick" && !opBarCollapsed && (\n            <div className="hidden items-center justify-center gap-2 xl:flex">\n              <span className="text-[11px] font-black text-slate-800 dark:text-slate-100">Today’s Sale</span>\n              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">\n                {quickToday.count} orders\n              </span>\n              <span className="text-slate-300">·</span>\n              <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">\n                {inr(quickToday.amount)} collected\n              </span>\n            </div>\n          )}\n'''
+          text, n = hotkey_pattern.subn(replacement, text, count=1)
+          if n != 1:
+              raise SystemExit(f'hotkeys block not replaced: {n}')
+
+          recall_pattern = re.compile(
+              r'            <button\n              type="button"\n              onClick=\{\(\) => \{\n                setRecallOpen\(true\);.*?              </button>\n\n',
+              re.S,
+          )
+          recall_match = recall_pattern.search(text)
+          if recall_match:
+              block = recall_match.group(0)
+              text = text.replace(block, '{mode !== "quick" && (\n' + block.replace('            <button', '              <button', 1).replace('              </button>\n', '              </button>\n', 1) + '            )}\n\n', 1)
+
+          hold_pattern = re.compile(
+              r'            <button\n              type="button"\n              onClick=\{\(\) => holdCurrent\(\)\}.*?              </button>\n\n',
+              re.S,
+          )
+          hold_match = hold_pattern.search(text)
+          if hold_match:
+              block = hold_match.group(0)
+              text = text.replace(block, '{mode !== "quick" && (\n' + block.replace('            <button', '              <button', 1) + '            )}\n\n', 1)
+
+          pos.write_text(text, encoding='utf-8')
+
+          css = Path('app/pos-workspace.css')
+          ctext = css.read_text(encoding='utf-8')
+          rules = '''\n/* Compact Quick Sale: move Today's Sale into the main POS strip and remove duplicate bars. */\n.pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="mb-3.5"][class*="bg-white"][class*="ring-1"] {\n  display: none !important;\n}\n\n.pos-premium-root:has(.pos-cart-drawer) > .mx-auto > .mt-5 > div[class*="bg-[#0f172a]"] {\n  display: none !important;\n}\n'''
+          if 'Compact Quick Sale: move Today’s Sale' not in ctext:
+              css.write_text(ctext.rstrip() + rules, encoding='utf-8')
+          PY
+
+      - name: Check patch diff
+        run: |
+          git diff --check
+          git diff -- components/pos/pos-client.tsx app/pos-workspace.css
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "openai-ui-bot"
+          git config user.email "openai-ui-bot@users.noreply.github.com"
+          rm .github/workflows/ai-compact-pos.yml
+          git add components/pos/pos-client.tsx app/pos-workspace.css .github/workflows/ai-compact-pos.yml
+          git commit -m "feat: compact quick sale header and workspace"
+          git push origin HEAD
