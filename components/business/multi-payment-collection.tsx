@@ -107,11 +107,35 @@ export default function MultiPaymentCollection({
   }
 
   function addRow() {
-    if (collected >= safeTotal - 0.005) return;
+    if (safeTotal <= 0 || allocations.length >= METHODS.length) return;
     const used = new Set(allocations.map((x) => x.method));
     const nextMethod = METHODS.find((m) => !used.has(m.id))?.id || "cash";
     setSplitOpen(true);
-    setAllocations((prev) => [...prev, { method: nextMethod, amount: remaining.toFixed(2), instrument_id: null }]);
+
+    setAllocations((prev) => {
+      const collectedNow = prev.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
+      const remainingNow = Math.max(0, safeTotal - collectedNow);
+
+      if (remainingNow > 0) {
+        return [...prev, { method: nextMethod, amount: remainingNow.toFixed(2), instrument_id: null }];
+      }
+
+      // The default single-payment row is normally filled to the full total.
+      // Rebalance the last row so +Split immediately creates an editable mixed tender.
+      if (prev.length > 0) {
+        const index = prev.length - 1;
+        const current = Math.max(0, Number(prev[index].amount) || 0);
+        const first = Math.round((current / 2) * 100) / 100;
+        const second = Math.round((current - first) * 100) / 100;
+        return [
+          ...prev.slice(0, index),
+          { ...prev[index], amount: first.toFixed(2) },
+          { method: nextMethod, amount: second.toFixed(2), instrument_id: null },
+        ];
+      }
+
+      return [...prev, { method: nextMethod, amount: "0.00", instrument_id: null }];
+    });
   }
 
   function removeRow(index: number) {
@@ -139,7 +163,7 @@ export default function MultiPaymentCollection({
         <button
           type="button"
           onClick={addRow}
-          disabled={disabled || collected >= safeTotal - 0.005 || allocations.length >= METHODS.length}
+          disabled={disabled || safeTotal <= 0 || allocations.length >= METHODS.length}
           className="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white transition hover:bg-indigo-700 disabled:opacity-40"
         >
           + Split
@@ -166,6 +190,23 @@ export default function MultiPaymentCollection({
           );
         })}
       </div>
+
+      {allocations.length === 1 && !splitOpen && allocations[0] && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg bg-white/70 px-2 py-1.5 dark:bg-slate-900/60">
+          <span className="shrink-0 text-[10px] font-bold text-slate-400">Amount</span>
+          <input
+            type="number"
+            min="0"
+            max={safeTotal}
+            step="0.01"
+            value={allocations[0].amount}
+            onChange={(e) => updateRow(0, { amount: e.target.value })}
+            disabled={disabled}
+            placeholder="Amount received"
+            className="min-w-0 flex-1 bg-transparent px-1 text-right text-xs font-black font-mono text-slate-900 outline-none dark:text-white"
+          />
+        </div>
+      )}
 
       {(splitOpen || allocations.length > 1) && (
         <div className="mt-2 space-y-1.5">
