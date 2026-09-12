@@ -306,14 +306,12 @@
    duplicate inputs backed by the same payments state, so they are hidden on
    the invoice POS only. Split payment remains available from the compact
    shared control's + Split action. */
-@media (min-width: 1024px) {
-  .pos-premium-root .pos-billing-drawer .pos-standard-split-payment {
-    margin-top: 0 !important;
-    border-radius: 14px !important;
-    padding: 9px !important;
-  }
+.pos-premium-root .pos-billing-drawer .pos-standard-split-payment {
+  margin-top: 0 !important;
+  border-radius: 14px !important;
+  padding: 9px !important;
+}
 
-  .pos-premium-root .pos-billing-drawer .pos-standard-split-payment ~ div {
-    display: none !important;
-  }
+.pos-premium-root .pos-billing-drawer .pos-standard-split-payment ~ div {
+  display: none !important;
 }
