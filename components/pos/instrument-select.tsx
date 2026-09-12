@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Search, X } from "lucide-react";
 
 export const INSTRUMENT_TYPES: { value: string; label: string }[] = [
   { value: "cash", label: "Cash" },
@@ -39,13 +40,13 @@ export function instrumentLabel(method: string) {
 }
 
 export function buildInstrumentOptions(instruments: PosInstrument[], enabled?: string[]) {
-  return INSTRUMENT_TYPES.filter((t) => !enabled || enabled.includes(t.value) || (t.value === "credit_card" && enabled.includes("credit"))).map((t) => {
+  return INSTRUMENT_TYPES.filter(
+    (t) => !enabled || enabled.includes(t.value) || (t.value === "credit_card" && enabled.includes("credit"))
+  ).map((t) => {
     const acceptedTypes = t.value === "upi" ? ["upi", "upi_qr"] : [t.value];
     const named = instruments.filter((i) => acceptedTypes.includes(i.type));
-    const options = named.map((i) => ({ value: i.id, label: i.name }));
-    // Always keep a generic option. A controlled native <select> must always
-    // contain the current value or browsers silently snap it to the first option.
-    options.unshift({ value: "__gen__:" + t.value, label: `Generic ${t.label}` });
+    const options = named.map((i) => ({ value: i.id, label: i.name, method: t.value }));
+    options.unshift({ value: "__gen__:" + t.value, label: `Generic ${t.label}`, method: t.value });
     return { group: t.label, options };
   });
 }
@@ -56,10 +57,7 @@ export function selectValueOf(pick: InstrumentPick, instruments?: PosInstrument[
   return method ? "__gen__:" + method : "";
 }
 
-export function parseInstrumentValue(
-  value: string,
-  instruments: PosInstrument[]
-): InstrumentPick | null {
+export function parseInstrumentValue(value: string, instruments: PosInstrument[]): InstrumentPick | null {
   if (value === "__add__") return null;
   if (value.startsWith("__gen__:")) {
     const method = normalizeMethod(value.slice(8));
@@ -70,22 +68,20 @@ export function parseInstrumentValue(
   return { method, instrument_id: value };
 }
 
-function useResetPairedAmountWhenCartClears() {
-  const selectRef = useRef<HTMLSelectElement | null>(null);
-
+function useResetPairedAmountWhenCartClears(rootRef: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
-    const select = selectRef.current;
-    if (!select) return;
-    const cartPanel = select.closest(".sticky");
+    const root = rootRef.current;
+    if (!root) return;
+    const cartPanel = root.closest(".sticky");
     if (!cartPanel) return;
 
     const resetIfEmpty = () => {
       const header = cartPanel.querySelector("h2");
       if (!header || header.textContent?.trim() !== "Current Invoice") return;
       const itemCount = header.parentElement?.querySelector("p")?.textContent ?? "";
-      if (!/^0\s+items\b/.test(itemCount.trim())) return;
+      if (!/^0\\s+items\\b/.test(itemCount.trim())) return;
 
-      const pairedInput = select.parentElement?.querySelector<HTMLInputElement>("input");
+      const pairedInput = root.parentElement?.querySelector<HTMLInputElement>("input");
       if (!pairedInput || pairedInput.value === "") return;
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
       setter?.call(pairedInput, "");
@@ -97,9 +93,7 @@ function useResetPairedAmountWhenCartClears() {
     const observer = new MutationObserver(resetIfEmpty);
     observer.observe(cartPanel, { subtree: true, childList: true, characterData: true, attributes: true });
     return () => observer.disconnect();
-  }, []);
-
-  return selectRef;
+  }, [rootRef]);
 }
 
 export default function InstrumentSelect({
@@ -117,33 +111,118 @@ export default function InstrumentSelect({
   includeAdd?: boolean;
   enabled?: string[];
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  useResetPairedAmountWhenCartClears(rootRef);
+
   const groups = buildInstrumentOptions(instruments, enabled);
-  const selectRef = useResetPairedAmountWhenCartClears();
   const currentVal = selectValueOf(pick);
-  const optionValues = groups.flatMap((g) => g.options.map((o) => o.value));
+  const currentOption = groups.flatMap((g) => g.options).find((o) => o.value === currentVal);
+  const currentLabel = currentOption?.label ?? (pick.instrument_id ? instrumentLabel(pick.method) : instrumentLabel(pick.method || "Cash"));
+  const needle = search.trim().toLowerCase();
+
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Node && rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
+
+  function choose(value: string) {
+    onChange(parseInstrumentValue(value, instruments));
+    setOpen(false);
+  }
 
   return (
-    <select
-      ref={selectRef}
-      value={currentVal}
-      onChange={(e) => onChange(parseInstrumentValue(e.target.value, instruments))}
-      className={className}
-    >
-      {!optionValues.includes(currentVal) && currentVal && (
-        <option value={currentVal} hidden>
-          {instrumentLabel(pick.method)}
-        </option>
+    <div ref={rootRef} className="relative min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`${className ?? ""} flex w-full items-center justify-between gap-2 !bg-transparent !text-left`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="min-w-0 truncate">{currentLabel}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[120] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 dark:border-white/10 dark:bg-slate-900"
+        >
+          <div className="border-b border-slate-100 p-2 dark:border-white/5">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search account…"
+                className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 text-[10px] font-semibold outline-none focus:border-indigo-400 dark:border-white/10 dark:bg-white/[0.04]"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  aria-label="Clear account search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto p-1.5">
+            {groups.map((group) => {
+              const options = group.options.filter((o) => o.label.toLowerCase().includes(needle));
+              if (!options.length) return null;
+              return (
+                <div key={group.group} className="mb-1 last:mb-0">
+                  <div className="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    {group.group}
+                  </div>
+                  {options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={option.value === currentVal}
+                      onClick={() => choose(option.value)}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-bold transition ${
+                        option.value === currentVal
+                          ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                          : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {option.value === currentVal && <span className="ml-2 text-[9px] font-black">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+            {includeAdd && (
+              <button
+                type="button"
+                onClick={() => choose("__add__")}
+                className="mt-1 flex w-full items-center rounded-lg border-t border-slate-100 px-2.5 py-2 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 dark:border-white/5 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+              >
+                + Add card / account…
+              </button>
+            )}
+          </div>
+        </div>
       )}
-      {groups.map((g) => (
-        <optgroup key={g.group} label={g.group}>
-          {g.options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-      {includeAdd && <option value="__add__">+ Add card / account…</option>}
-    </select>
+    </div>
   );
 }
