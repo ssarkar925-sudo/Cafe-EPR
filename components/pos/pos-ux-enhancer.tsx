@@ -8,9 +8,14 @@ function textOf(el: Element) {
   return (el.textContent || "").replace(/\s+/g, " ").trim();
 }
 
-function hide(button: HTMLButtonElement, reason: string) {
-  button.dataset.posUxHidden = reason;
-  button.style.display = "none";
+function getSharedRecall(root: HTMLElement) {
+  return Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((button) => {
+    return textOf(button).startsWith("Recall") && !button.closest(".pos-billing-drawer");
+  });
+}
+
+function hideSharedRecall(root: HTMLElement) {
+  getSharedRecall(root)?.style.setProperty("display", "none", "important");
 }
 
 function syncMode(root: HTMLElement) {
@@ -23,8 +28,7 @@ function syncWorkspace(root: HTMLElement) {
   if (window.innerWidth < 1024) return;
   root.querySelectorAll<HTMLElement>(".pos-workspace-grid").forEach((workspace) => {
     const rect = workspace.getBoundingClientRect();
-    const height = Math.max(360, Math.floor(window.innerHeight - rect.top - 10));
-    workspace.style.setProperty("--pos-workspace-height", `${height}px`);
+    workspace.style.setProperty("--pos-workspace-height", `${Math.max(360, Math.floor(window.innerHeight - rect.top - 10))}px`);
   });
 }
 
@@ -37,8 +41,6 @@ function setupCatalogScroll(root: HTMLElement) {
 
     catalog.classList.add("pos-ux-catalog-column");
     Array.from(catalog.children).forEach((child) => child.classList.remove("pos-ux-catalog-scroll"));
-
-    // In both separate implementations the final direct child is the grid/table catalogue.
     const target = Array.from(catalog.children).find((child) => {
       return child instanceof HTMLElement && !child.classList.contains("pos-category-chips") && !child.classList.contains("pos-item-toolbar");
     });
@@ -50,42 +52,42 @@ function forceList(root: HTMLElement) {
   const key = root.dataset.posMode === "quick" ? "sccomm-qs-view" : "sccomm-pos-view";
   root.querySelectorAll<HTMLElement>(".pos-item-toolbar").forEach((toolbar) => {
     try { window.localStorage.setItem(key, "list"); } catch {}
-    const button = toolbar.querySelector<HTMLButtonElement>('button[title="List view"]');
-    if (button && !button.disabled) {
-      const selected = button.getAttribute("aria-pressed") === "true" || button.className.includes("bg-white");
-      if (!selected) button.click();
+    const list = toolbar.querySelector<HTMLButtonElement>('button[title="List view"]');
+    if (list && !list.disabled) {
+      const selected = list.getAttribute("aria-pressed") === "true" || list.className.includes("bg-white");
+      if (!selected) list.click();
     }
   });
 }
 
 function ensureStandardRecall(root: HTMLElement) {
-  // One Recall per transaction surface. Standard POS owns this card button.
-  if (root.querySelector('[data-pos-ux-standard-recall="1"]')) return;
+  const billing = root.querySelector<HTMLElement>(".pos-billing-drawer:not(.pos-cart-drawer)");
+  if (!billing || root.querySelector('[data-pos-ux-standard-recall="1"]')) return;
 
-  const billing = root.querySelector<HTMLElement>(".pos-billing-drawer");
-  const source = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
-    (button) => textOf(button).startsWith("Recall") && !button.closest(".pos-billing-drawer")
-  );
-  if (!billing || !source) return;
-
-  hide(source, "shared-recall");
-
-  const label = Array.from(billing.querySelectorAll<HTMLElement>("label")).find((el) => textOf(el).startsWith("Customer (F3)"));
-  const section = label?.closest(".mb-3") as HTMLElement | null;
-  if (!section) return;
+  const customerLabel = Array.from(billing.querySelectorAll<HTMLElement>("label")).find((el) => textOf(el).startsWith("Customer (F3)"));
+  const customerSection = customerLabel?.closest(".mb-3") as HTMLElement | null;
+  if (!customerSection) return;
 
   const row = document.createElement("div");
   row.dataset.posUxStandardRecall = "1";
-  row.className = "mb-2 flex justify-end";
+  row.className = "mb-2 flex items-center justify-end";
 
   const recall = document.createElement("button");
   recall.type = "button";
   recall.className = "inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-800/50 dark:bg-blue-950/40 dark:text-blue-300";
-  recall.textContent = textOf(source);
   recall.title = "Recall held bills and drafts";
-  recall.addEventListener("click", () => source.click());
+  recall.addEventListener("click", (event) => {
+    event.preventDefault();
+    getSharedRecall(root)?.click();
+  });
   row.appendChild(recall);
-  section.before(row);
+  customerSection.before(row);
+}
+
+function updateStandardRecallLabel(root: HTMLElement) {
+  const source = getSharedRecall(root);
+  const recall = root.querySelector<HTMLButtonElement>('[data-pos-ux-standard-recall="1"] button');
+  if (source && recall) recall.innerHTML = source.innerHTML;
 }
 
 function cleanupControls(root: HTMLElement) {
@@ -94,27 +96,30 @@ function cleanupControls(root: HTMLElement) {
     const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
     const insideToolbar = Boolean(button.closest(".pos-item-toolbar"));
 
-    if (label === "Customers" && !insideBilling) hide(button, "duplicate-customers");
-    if (label === "Hold Bill" && !insideBilling) hide(button, "duplicate-hold");
-    if (label === "All Items" && insideToolbar) hide(button, "duplicate-all-items");
-    if (label === "Save Draft" && insideBilling) button.textContent = "Hold / Draft";
-    if (insideBilling && (label === "₹ Settle Only" || label === "Settle Only")) hide(button, "settle-only");
+    if (label.startsWith("Recall") && !insideBilling) hideSharedRecall(root);
+    if (label === "Customers" && !insideBilling) button.style.display = "none";
+    if (label === "Hold Bill" && !insideBilling) button.style.display = "none";
+    if (label === "All Items" && insideToolbar) button.style.display = "none";
+
+    if (insideBilling && label === "Save Draft") {
+      button.textContent = "Hold / Draft";
+      button.setAttribute("aria-label", "Hold or save draft");
+    }
+
+    if (insideBilling && (label === "₹ Settle Only" || label === "Settle Only")) button.style.display = "none";
   });
 }
 
 function apply(root: HTMLElement) {
   const quick = syncMode(root);
+  hideSharedRecall(root);
 
-  // Never expose the shared top Recall. Quick Sale keeps its own native Recall;
-  // Standard POS gets a dedicated button inside Current Bill.
-  root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-    if (textOf(button).startsWith("Recall") && !button.closest(".pos-billing-drawer")) {
-      hide(button, "shared-recall");
-    }
-  });
-
-  if (!quick) ensureStandardRecall(root);
-  else root.querySelectorAll<HTMLElement>('[data-pos-ux-standard-recall="1"]').forEach((node) => node.remove());
+  if (quick) {
+    root.querySelectorAll<HTMLElement>('[data-pos-ux-standard-recall="1"]').forEach((node) => node.remove());
+  } else {
+    ensureStandardRecall(root);
+    updateStandardRecallLabel(root);
+  }
 
   cleanupControls(root);
   setupCatalogScroll(root);
@@ -128,16 +133,13 @@ function ensureStyles() {
   style.id = STYLE_ID;
   style.textContent = `
     .pos-premium-root { min-height: 0 !important; }
-
-    /* The workspace is a shell, not a scrolling card. */
     .pos-premium-root .pos-workspace-grid {
       height: var(--pos-workspace-height, auto) !important;
       min-height: 0 !important;
+      max-height: none !important;
       overflow: hidden !important;
       align-items: stretch !important;
     }
-
-    /* Standard POS and Quick Sale get the same shell but remain separate DOM surfaces. */
     .pos-premium-root .pos-ux-catalog-column {
       display: flex !important;
       flex-direction: column !important;
@@ -145,15 +147,12 @@ function ensureStyles() {
       min-height: 0 !important;
       overflow: hidden !important;
     }
-
     .pos-premium-root .pos-ux-catalog-column > .pos-category-chips,
     .pos-premium-root .pos-ux-catalog-column > .pos-item-toolbar {
       flex: 0 0 auto !important;
       min-height: 0 !important;
       position: relative !important;
     }
-
-    /* ONLY service/product catalogue content scrolls. */
     .pos-premium-root .pos-ux-catalog-scroll {
       flex: 1 1 0 !important;
       min-height: 0 !important;
@@ -162,8 +161,6 @@ function ensureStyles() {
       overscroll-behavior: contain;
       scrollbar-width: thin;
     }
-
-    /* Current Bill / Current Sale stay inside their panes; no viewport-fixed overlap. */
     .pos-premium-root .pos-workspace-grid > .pos-billing-drawer,
     .pos-premium-root .pos-workspace-grid > .pos-cart-drawer {
       min-width: 0 !important;
@@ -172,7 +169,6 @@ function ensureStyles() {
       position: relative !important;
       overflow: hidden !important;
     }
-
     .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"],
     .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] {
       position: relative !important;
@@ -186,14 +182,10 @@ function ensureStyles() {
       overflow: hidden !important;
       box-sizing: border-box !important;
     }
-
     .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :first-child,
     .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :first-child,
     .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :last-child,
-    .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :last-child {
-      flex: 0 0 auto !important;
-    }
-
+    .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :last-child { flex: 0 0 auto !important; }
     .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
     .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) {
       flex: 1 1 auto !important;
@@ -201,7 +193,12 @@ function ensureStyles() {
       overflow-y: auto !important;
       overflow-x: hidden !important;
     }
-
+    @media (min-width: 1280px) {
+      .pos-premium-root .pos-workspace-grid { grid-template-columns: minmax(0,1fr) 380px !important; gap: 10px !important; }
+    }
+    @media (max-width: 1279px) and (min-width: 1024px) {
+      .pos-premium-root .pos-workspace-grid { grid-template-columns: minmax(0,1fr) 350px !important; gap: 8px !important; }
+    }
     @media (max-width: 1023px) {
       .pos-premium-root .pos-workspace-grid,
       .pos-premium-root .pos-ux-catalog-column,
@@ -214,13 +211,9 @@ function ensureStyles() {
         max-height: none !important;
         overflow: visible !important;
       }
-      .pos-premium-root .pos-ux-catalog-scroll {
-        flex: none !important;
-      }
+      .pos-premium-root .pos-ux-catalog-scroll { flex: none !important; }
       .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
-      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) {
-        overflow: visible !important;
-      }
+      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) { overflow: visible !important; }
     }
   `;
   document.head.appendChild(style);
@@ -242,7 +235,6 @@ export default function PosUxEnhancer() {
         if (root.isConnected) apply(root);
       });
     };
-
     window.addEventListener("resize", schedule);
     const observer = new MutationObserver(schedule);
     observer.observe(root, { childList: true, subtree: true });
