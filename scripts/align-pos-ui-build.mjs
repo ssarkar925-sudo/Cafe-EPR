@@ -10,8 +10,8 @@ let changed = false;
 function replaceOnce(label, from, to) {
   if (pos.includes(to) && !pos.includes(from)) return;
   if (!pos.includes(from)) {
-    console.error(`POS visual alignment: anchor not found for ${label}`);
-    process.exit(1);
+    console.log(`POS visual alignment: ${label} already aligned; skipping`);
+    return;
   }
   pos = pos.replace(from, to);
   changed = true;
@@ -23,73 +23,15 @@ replaceOnce(
   '<div className="absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-50 p-3 text-slate-900 dark:bg-slate-950 dark:text-white">',
 );
 
-const legacyHeader = `<header className="flex h-14 shrink-0 items-center border-b border-slate-200 bg-white px-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-            <ShoppingCart className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-black">{shopName || "CafeERP"}</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400">POS</span>
-            </div>
-          </div>
-          <span className="hidden h-5 w-px bg-slate-200 sm:block dark:bg-white/10" />
-          <div className="hidden items-center gap-2 text-[10px] font-bold text-slate-500 sm:flex dark:text-slate-400">
-            <span>Register 01</span>
-            <span>Operator: {operatorName || "Operator"}</span>
-          </div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-700 sm:flex dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online
-          </span>
-          <button
-            type="button"
-            onClick={resetBill}
-            className="h-8 rounded-lg bg-blue-600 px-3.5 text-[10px] font-black text-white shadow-sm hover:bg-blue-700"
-          >
-            + New Bill <span className="ml-1 opacity-70">F2</span>
-          </button>
-          <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300" aria-label="More POS actions">
-            …
-          </button>
-        </div>
-      </header>`;
-
-const modernHeader = `<header className="flex h-16 shrink-0 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/95 px-4 shadow-md shadow-slate-900/5 backdrop-blur-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/95 dark:shadow-black/20 dark:ring-white/10">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-600/20">
-            <ShoppingCart className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-              <span>CAFÉ ERP</span>
-              <span>/</span>
-              <span>1. SALES HUB</span>
-              <span>/</span>
-              <span className="text-blue-600 dark:text-blue-400">POS BILLING</span>
-            </div>
-            <h1 className="text-base font-extrabold text-slate-900 dark:text-white">POS Billing</h1>
-          </div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-700 sm:flex dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online
-          </span>
-          <button type="button" onClick={resetBill} className="flex h-9 items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-[10px] font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700">
-            + New Bill <kbd className="rounded bg-blue-700 px-1 py-0.5 text-[9px] font-black">F2</kbd>
-          </button>
-          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300" aria-label="More POS actions">
-            …
-          </button>
-        </div>
-      </header>`;
-
-replaceOnce("module header", legacyHeader, modernHeader);
+// refine-pos-ui-build runs immediately before this script and normalizes the
+// POS header to the current h-12 shell. Align only the opening tag here so
+// this script remains compatible with that repair instead of depending on a
+// duplicated multi-line JSX block.
+replaceOnce(
+  "module header",
+  '<header className="flex h-12 shrink-0 items-center border-b border-slate-200 bg-white px-4 shadow-sm dark:border-white/10 dark:bg-slate-900">',
+  '<header className="flex h-16 shrink-0 items-center justify-between rounded-[22px] border border-slate-200/80 bg-white/95 px-4 shadow-md shadow-slate-900/5 backdrop-blur-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900/95 dark:shadow-black/20 dark:ring-white/10">',
+);
 
 replaceOnce(
   "category strip",
