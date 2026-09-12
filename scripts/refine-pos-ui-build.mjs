@@ -2,82 +2,52 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = process.cwd();
-const file = path.join(ROOT, "components", "pos", "pos-shell.tsx");
-const source = fs.readFileSync(file, "utf8");
+const posFile = path.join(ROOT, "components", "pos", "pos-shell.tsx");
+const shellFile = path.join(ROOT, "components", "dashboard-shell.tsx");
 
-const importAnchor = 'import { createClient } from "@/lib/supabase/client";\n';
-const importLine = 'import styles from "./pos-refinements.module.css";\n';
-const operationsImport = 'import PosOperations from "./pos-operations";\n';
-const legacyRoot = '<div className="fixed inset-0 z-[100] flex h-[100dvh] min-h-0 w-screen flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-white">';
-const styledRoot = '<div className={`${styles.root} fixed inset-0 z-[100] flex h-[100dvh] min-h-0 w-screen flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-white`}>'.replace('`};', '');
-const legacyButton = '<button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300" aria-label="More POS actions">\n            …\n          </button>';
-const operationsButton = `<PosOperations
-            cart={cart}
-            total={total}
-            discount={discount}
-            customerId={customerId}
-            customerName={selectedCustomer?.name ?? "Walk-in Customer"}
-            paymentChoice={paymentChoice}
-            cashReceived={cashReceived}
-            splitRows={splitRows}
-            supabase={supabase}
-            onRestore={(draft) => {
-              setCart(draft.cart);
-              setCustomerId(draft.customerId);
-              setCustomerSearch("");
-              setCustomerOpen(false);
-              setDiscount(draft.discount);
-              setPaymentChoice(draft.paymentChoice as PaymentChoice);
-              setCashReceived(draft.cashReceived);
-              setSplitRows(draft.splitRows);
-              setError(null);
-              setSuccess(null);
-            }}
-            onReset={resetBill}
-          />`;
-
-let next = source;
+let pos = fs.readFileSync(posFile, "utf8");
+let shell = fs.readFileSync(shellFile, "utf8");
 let changed = false;
 
-if (!next.includes(importLine)) {
-  if (!next.includes(importAnchor)) {
-    console.error("POS refinement: import anchor not found; refusing unsafe patch");
-    process.exit(1);
-  }
-  next = next.replace(importAnchor, `${importAnchor}${importLine}`);
-  changed = true;
+const fixedRoot = '<div className={`${styles.root} fixed inset-0 z-[100] flex h-[100dvh] min-h-0 w-screen flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-white`}>'.replace('`};', '');
+const containedRoot = '<div className={`${styles.root} absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-white`}>'.replace('`};', '');
+
+if (!pos.includes("<PosOperations")) {
+  console.error("POS containment: expected operations integration is missing; refusing unsafe patch");
+  process.exit(1);
 }
 
-if (!next.includes("styles.root")) {
-  if (!next.includes(legacyRoot)) {
-    console.error("POS refinement: root anchor not found; refusing unsafe patch");
+if (pos.includes(fixedRoot)) {
+  pos = pos.replace(fixedRoot, containedRoot);
+  changed = true;
+} else if (pos.includes(containedRoot)) {
+  // already contained
+} else {
+  const generic = '<div className={`${styles.root} fixed inset-0 z-[100]';
+  if (pos.includes(generic)) {
+    pos = pos.replace('fixed inset-0 z-[100]', 'absolute inset-0 z-[100]').replace('w-screen', 'w-full');
+    changed = true;
+  } else if (!pos.includes('absolute inset-0 z-[100]')) {
+    console.error("POS containment: root anchor not found; refusing unsafe patch");
     process.exit(1);
   }
-  next = next.replace(legacyRoot, styledRoot);
-  changed = true;
 }
 
-if (!next.includes(operationsImport)) {
-  if (!next.includes(importAnchor)) {
-    console.error("POS operations: import anchor not found; refusing unsafe patch");
-    process.exit(1);
-  }
-  next = next.replace(importAnchor, `${importAnchor}${operationsImport}`);
-  changed = true;
-}
+const legacyPosContent = '<div className={`erp-page-content ${isPos ? "h-[100dvh] min-h-0 p-0 overflow-hidden" : "min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6"}`}>';
+const containedPosContent = '<div className={`erp-page-content ${isPos ? "relative h-[100dvh] min-h-0 p-0 overflow-hidden" : "min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6"}`}>';
 
-if (!next.includes("<PosOperations")) {
-  if (!next.includes(legacyButton)) {
-    console.error("POS operations: header button anchor not found; refusing unsafe patch");
-    process.exit(1);
-  }
-  next = next.replace(legacyButton, operationsButton);
+if (shell.includes(legacyPosContent)) {
+  shell = shell.replace(legacyPosContent, containedPosContent);
   changed = true;
+} else if (!shell.includes(containedPosContent)) {
+  console.error("POS containment: dashboard POS content anchor not found; refusing unsafe patch");
+  process.exit(1);
 }
 
 if (changed) {
-  fs.writeFileSync(file, next, "utf8");
-  console.log("POS refinement + operations integration: applied");
+  fs.writeFileSync(posFile, pos, "utf8");
+  fs.writeFileSync(shellFile, shell, "utf8");
+  console.log("POS containment: applied");
 } else {
-  console.log("POS refinement + operations integration: already applied");
+  console.log("POS containment: already applied");
 }
