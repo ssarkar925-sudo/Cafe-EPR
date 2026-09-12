@@ -23,10 +23,6 @@ replaceOnce(
   '<div className="absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-50 p-3 text-slate-900 dark:bg-slate-950 dark:text-white">',
 );
 
-// refine-pos-ui-build runs immediately before this script and normalizes the
-// POS header to the current h-12 shell. Align only the opening tag here so
-// this script remains compatible with that repair instead of depending on a
-// duplicated multi-line JSX block.
 replaceOnce(
   "module header",
   '<header className="flex h-12 shrink-0 items-center border-b border-slate-200 bg-white px-4 shadow-sm dark:border-white/10 dark:bg-slate-900">',
@@ -117,9 +113,39 @@ replaceOnce(
   'className="mt-2 flex h-10 w-full items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black uppercase tracking-wide text-white shadow-md shadow-blue-500/15 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-45"',
 );
 
+// Put the operational actions beside Current Bill instead of hiding them
+// behind the old three-dot header control. The existing PosOperations
+// component owns hold/recall/today's sale plus the financial Money Out flow.
+if (!pos.includes('import PosOperations from "./pos-operations";')) {
+  const importAnchor = 'import { createClient } from "@/lib/supabase/client";';
+  if (!pos.includes(importAnchor)) {
+    console.error("POS actions: Supabase import anchor not found; refusing unsafe patch");
+    process.exit(1);
+  }
+  pos = pos.replace(importAnchor, `${importAnchor}\nimport PosOperations from "./pos-operations";`);
+  changed = true;
+}
+
+const oldHeaderMore = '<button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300" aria-label="More POS actions">\n            …\n          </button>';
+if (pos.includes(oldHeaderMore)) {
+  pos = pos.replace(oldHeaderMore, "");
+  changed = true;
+}
+
+const clearButton = '<button type="button" onClick={resetBill} className="rounded-md px-2 py-1 text-[9px] font-black text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">Clear</button>';
+const operationsBlock = `<PosOperations\n                cart={cart}\n                total={total}\n                discount={discount}\n                customerId={customerId}\n                customerName={selectedCustomer?.name ?? ""}\n                paymentChoice={paymentChoice}\n                cashReceived={cashReceived}\n                splitRows={splitRows}\n                instruments={instruments}\n                supabase={supabase}\n                onRestore={(draft) => {\n                  setCart(draft.cart);\n                  setDiscount(draft.discount);\n                  setCustomerId(draft.customerId);\n                  setCustomerSearch("");\n                  setCustomerOpen(false);\n                  setPaymentChoice(draft.paymentChoice as PaymentChoice);\n                  setCashReceived(draft.cashReceived);\n                  setSplitRows(draft.splitRows);\n                  setError(null);\n                  setSuccess(null);\n                }}\n                onReset={resetBill}\n              />`;
+if (!pos.includes("<PosOperations")) {
+  if (!pos.includes(clearButton)) {
+    console.error("POS actions: Current Bill clear button anchor not found; refusing unsafe patch");
+    process.exit(1);
+  }
+  pos = pos.replace(clearButton, `${operationsBlock}\n              ${clearButton}`);
+  changed = true;
+}
+
 if (changed) {
   fs.writeFileSync(posFile, pos, "utf8");
-  console.log("POS visual alignment: applied");
+  console.log("POS visual alignment/actions: applied");
 } else {
-  console.log("POS visual alignment: already applied");
+  console.log("POS visual alignment/actions: already applied");
 }
