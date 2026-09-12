@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "cafeerp",
-  "main": ".open-next/worker.js",
+  "main": "./custom-worker.ts",
   "compatibility_date": "2026-09-10",
   "compatibility_flags": [
     "nodejs_compat",
@@ -11,6 +11,11 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  "triggers": {
+    "crons": [
+      "30 2 * * *"
+    ]
   },
   "observability": {
     "enabled": true
