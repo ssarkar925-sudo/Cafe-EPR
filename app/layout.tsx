@@ -4,9 +4,6 @@ import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
 import "./quick-access.css";
-import "./pos-workspace.css";
-import "./pos-modern-billing.css";
-import "./pos-standard-only.css";
 import ThemeProvider from "@/components/theme-provider";
 import { NotificationProvider } from "@/components/ui/notification-provider";
 
