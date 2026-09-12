@@ -33,56 +33,41 @@ function syncWorkspaceHeight(root: HTMLElement) {
   root.style.setProperty("--pos-root-height", `${rootHeight}px`);
 }
 
-function moveStandardRecallAboveCustomer(root: HTMLElement, quickMode: boolean) {
-  const marker = root.querySelector<HTMLElement>("[data-pos-ux-recall-clone=\"1\"]");
-  const externalRecall = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
-    (button) => textOf(button).startsWith("Recall") && !button.closest(".pos-billing-drawer") && !button.hasAttribute("data-pos-ux-recall-button")
-  );
+function syncRecallVisibility(root: HTMLElement, quickMode: boolean) {
+  // Remove any legacy clone created by the earlier "above customer" layout.
+  root.querySelectorAll<HTMLElement>('[data-pos-ux-recall-clone="1"]').forEach((node) => node.remove());
 
-  if (quickMode) {
-    marker?.remove();
-    if (externalRecall) restoreButton(externalRecall, "standard-recall-location");
-    return;
-  }
+  // Standard POS keeps Recall in its normal top operational bar.
+  root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+    const label = textOf(button);
+    if (!label.startsWith("Recall")) return;
 
-  if (!externalRecall) return;
-  const billing = root.querySelector<HTMLElement>(".pos-billing-drawer");
-  if (!billing) return;
+    const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
+    const isLegacyClone = button.hasAttribute("data-pos-ux-recall-button");
 
-  hideButton(externalRecall, "standard-recall-location");
-  if (marker) return;
+    if (isLegacyClone) {
+      button.remove();
+      return;
+    }
 
-  const customerLabel = Array.from(billing.querySelectorAll<HTMLElement>("label")).find(
-    (label) => textOf(label).startsWith("Customer (F3)")
-  );
-  const customerSection = customerLabel?.closest(".mb-3") as HTMLElement | null;
-  if (!customerSection) return;
+    if (insideBilling) {
+      // Quick Sale should not show a duplicate Recall beside Recent Sales.
+      if (quickMode) hideButton(button, "quick-billing-recall");
+      else restoreButton(button, "quick-billing-recall");
+      return;
+    }
 
-  const row = document.createElement("div");
-  row.dataset.posUxRecallClone = "1";
-  row.className = "mb-2 flex items-center justify-end";
-
-  const clone = externalRecall.cloneNode(true) as HTMLButtonElement;
-  clone.dataset.posUxRecallButton = "1";
-  clone.removeAttribute("data-pos-ux-hidden");
-  clone.style.removeProperty("display");
-  clone.className =
-    "touch-manipulation select-none inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95 motion-reduce:transform-none dark:border-blue-800/50 dark:bg-blue-950/40 dark:text-blue-300";
-  clone.title = "Recall held bills and drafts";
-  clone.addEventListener("click", (event) => {
-    event.preventDefault();
-    externalRecall.click();
+    // Keep the single normal top-bar Recall for both modes.
+    restoreButton(button, "standard-recall-location");
+    restoreButton(button, "quick-recall");
   });
-
-  row.appendChild(clone);
-  customerSection.before(row);
 }
 
 function applyPosUx(root: HTMLElement) {
   const quickMode = Boolean(root.querySelector(".pos-cart-drawer"));
   root.dataset.posMode = quickMode ? "quick" : "standard";
 
-  moveStandardRecallAboveCustomer(root, quickMode);
+  syncRecallVisibility(root, quickMode);
 
   root.querySelectorAll<HTMLElement>(".pos-workspace-grid > .min-w-0").forEach((catalog) => {
     catalog.classList.add("pos-ux-catalog-column");
@@ -116,7 +101,13 @@ function applyPosUx(root: HTMLElement) {
 
   root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
     const hiddenReason = button.getAttribute("data-pos-ux-hidden");
-    if (hiddenReason && hiddenReason !== "quick-recall" && hiddenReason !== "quick-favourites" && hiddenReason !== "standard-recall-location") return;
+    if (
+      hiddenReason &&
+      hiddenReason !== "quick-recall" &&
+      hiddenReason !== "quick-favourites" &&
+      hiddenReason !== "standard-recall-location" &&
+      hiddenReason !== "quick-billing-recall"
+    ) return;
 
     const label = textOf(button);
     const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
@@ -125,9 +116,9 @@ function applyPosUx(root: HTMLElement) {
     if (label === "Customers" && !insideBilling) hideButton(button);
     if (label === "Hold Bill" && !insideBilling) hideButton(button);
 
-    if (label.startsWith("Recall") && !insideBilling && !button.hasAttribute("data-pos-ux-recall-button")) {
-      if (quickMode) restoreButton(button, "quick-recall");
-      else hideButton(button, "standard-recall-location");
+    if (label.startsWith("Recall") && insideBilling) {
+      if (quickMode) hideButton(button, "quick-billing-recall");
+      else restoreButton(button, "quick-billing-recall");
     }
 
     if (label === "Recent Sales" && insideBilling) hideButton(button);
@@ -261,15 +252,6 @@ function ensureStyles() {
       box-sizing: border-box !important;
       overflow: hidden !important;
       z-index: auto !important;
-    }
-
-    .pos-premium-root .pos-ux-recall-row[data-pos-ux-recall-clone="1"] {
-      position: relative;
-      z-index: 2;
-    }
-
-    .pos-premium-root button[data-pos-ux-recall-button="1"] {
-      display: inline-flex !important;
     }
 
     .pos-premium-root .pos-ux-billing-card > :first-child,
