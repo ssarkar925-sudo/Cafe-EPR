@@ -21,8 +21,7 @@ function restoreButton(button: HTMLButtonElement, reason: string) {
 }
 
 function syncWorkspaceHeight(root: HTMLElement) {
-  const workspaces = root.querySelectorAll<HTMLElement>(".pos-workspace-grid");
-  workspaces.forEach((workspace) => {
+  root.querySelectorAll<HTMLElement>(".pos-workspace-grid").forEach((workspace) => {
     const rect = workspace.getBoundingClientRect();
     const available = Math.max(360, Math.floor(window.innerHeight - rect.top - 10));
     workspace.style.setProperty("--pos-workspace-height", `${available}px`);
@@ -37,27 +36,26 @@ function syncRecallVisibility(root: HTMLElement, quickMode: boolean) {
   // Remove any legacy clone created by the earlier "above customer" layout.
   root.querySelectorAll<HTMLElement>('[data-pos-ux-recall-clone="1"]').forEach((node) => node.remove());
 
-  // Standard POS keeps Recall in its normal top operational bar.
   root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
     const label = textOf(button);
     if (!label.startsWith("Recall")) return;
 
     const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
-    const isLegacyClone = button.hasAttribute("data-pos-ux-recall-button");
+    const legacyClone = button.hasAttribute("data-pos-ux-recall-button");
 
-    if (isLegacyClone) {
+    if (legacyClone) {
       button.remove();
       return;
     }
 
+    // Quick Sale must not show a second Recall beside Recent Sales.
     if (insideBilling) {
-      // Quick Sale should not show a duplicate Recall beside Recent Sales.
       if (quickMode) hideButton(button, "quick-billing-recall");
       else restoreButton(button, "quick-billing-recall");
       return;
     }
 
-    // Keep the single normal top-bar Recall for both modes.
+    // One Recall only: the existing top operational bar.
     restoreButton(button, "standard-recall-location");
     restoreButton(button, "quick-recall");
   });
@@ -69,8 +67,21 @@ function applyPosUx(root: HTMLElement) {
 
   syncRecallVisibility(root, quickMode);
 
-  root.querySelectorAll<HTMLElement>(".pos-workspace-grid > .min-w-0").forEach((catalog) => {
+  // IMPORTANT: only the actual catalog column may receive catalog flex/scroll rules.
+  // Billing/cart panes also have min-w-0, so using only `> .min-w-0` would incorrectly
+  // turn the entire checkout card into a scrolling catalog container.
+  const catalogColumns = root.querySelectorAll<HTMLElement>(
+    ".pos-workspace-grid > .min-w-0:not(.pos-billing-drawer):not(.pos-cart-drawer)"
+  );
+  catalogColumns.forEach((catalog) => {
     catalog.classList.add("pos-ux-catalog-column");
+  });
+
+  // Defensive cleanup in case an older build added this class to a billing pane.
+  root.querySelectorAll<HTMLElement>(
+    ".pos-workspace-grid > .pos-billing-drawer.pos-ux-catalog-column, .pos-workspace-grid > .pos-cart-drawer.pos-ux-catalog-column"
+  ).forEach((drawer) => {
+    drawer.classList.remove("pos-ux-catalog-column");
   });
 
   root.querySelectorAll<HTMLElement>(".pos-item-toolbar").forEach((toolbar) => {
@@ -79,6 +90,7 @@ function applyPosUx(root: HTMLElement) {
         window.localStorage.setItem("sccomm-pos-view", "list");
         window.localStorage.setItem("sccomm-qs-view", "list");
       } catch {}
+
       const listButton = toolbar.querySelector<HTMLButtonElement>("button[title=\"List view\"]");
       if (listButton && !listButton.disabled) listButton.click();
       toolbar.dataset.posUxListDefault = "1";
@@ -90,9 +102,11 @@ function applyPosUx(root: HTMLElement) {
       next instanceof HTMLElement &&
       next.classList.contains("pos-category-chips") &&
       textOf(next).includes("Favourites");
+
     const duplicateFav = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button")).find(
       (button) => textOf(button) === "Favorites"
     );
+
     if (duplicateFav) {
       if (quickFavouriteRow) hideButton(duplicateFav, "quick-favourites");
       else restoreButton(duplicateFav, "quick-favourites");
@@ -131,9 +145,7 @@ function applyPosUx(root: HTMLElement) {
 
     if ((label === "₹ Settle Only" || label === "Settle Only") && insideBilling) hideButton(button);
 
-    if (label === "Clear all" && insideBilling) {
-      button.textContent = "Clear";
-    }
+    if (label === "Clear all" && insideBilling) button.textContent = "Clear";
   });
 
   root.querySelectorAll<HTMLElement>(".pos-billing-drawer [data-sticky-drawer=\"true\"]").forEach((drawer) => {
@@ -149,6 +161,7 @@ function applyPosUx(root: HTMLElement) {
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
+
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
@@ -198,10 +211,7 @@ function ensureStyles() {
       margin-top: 0 !important;
     }
 
-    .pos-premium-root .pos-ux-catalog-column > [class*="mt-4"] {
-      margin-top: 4px !important;
-    }
-
+    /* The ONLY vertical scrolling surface for the catalog. */
     .pos-premium-root .pos-ux-catalog-column > :not(.pos-category-chips):not(.pos-item-toolbar) {
       order: 3;
       flex: 1 1 0% !important;
@@ -218,6 +228,7 @@ function ensureStyles() {
       min-height: 0 !important;
       height: 100% !important;
       position: relative !important;
+      overflow: visible !important;
     }
 
     .pos-premium-root .pos-ux-billing-card {
@@ -239,19 +250,9 @@ function ensureStyles() {
     }
 
     .pos-premium-root .pos-cart-drawer {
-      position: relative !important;
-      inset: auto !important;
-      right: auto !important;
-      top: auto !important;
-      width: 100% !important;
-      height: 100% !important;
-      max-height: none !important;
       display: flex !important;
       flex-direction: column !important;
-      min-height: 0 !important;
       box-sizing: border-box !important;
-      overflow: hidden !important;
-      z-index: auto !important;
     }
 
     .pos-premium-root .pos-ux-billing-card > :first-child,
@@ -262,11 +263,13 @@ function ensureStyles() {
       flex: 0 0 auto;
     }
 
+    /* Billing body is the ONLY scrollable area inside checkout. */
     .pos-premium-root .pos-ux-billing-card > :nth-child(2),
     .pos-premium-root .pos-cart-drawer > :nth-child(2) {
       padding: 8px 12px !important;
       scrollbar-width: thin;
       overflow-y: auto !important;
+      overflow-x: hidden !important;
       min-height: 0 !important;
       flex: 1 1 auto !important;
     }
@@ -395,6 +398,7 @@ function ensureStyles() {
       .pos-premium-root .pos-ux-billing-card > :nth-child(2),
       .pos-premium-root .pos-cart-drawer > :nth-child(2) {
         overflow-y: visible !important;
+        overflow-x: visible !important;
       }
     }
   `;
