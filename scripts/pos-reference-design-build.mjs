@@ -7,8 +7,8 @@ const opsFile = path.join(ROOT, "components", "pos", "pos-operations.tsx");
 
 let pos = fs.readFileSync(posFile, "utf8");
 let ops = fs.readFileSync(opsFile, "utf8");
-let posChanged = false;
-let opsChanged = false;
+const originalPos = pos;
+const originalOps = ops;
 
 function replaceOnce(source, label, from, to) {
   if (source.includes(to) && !source.includes(from)) return source;
@@ -20,9 +20,6 @@ function replaceOnce(source, label, from, to) {
   return source.replace(from, to);
 }
 
-// The reference uses the existing ERP sidebar, with POS occupying only the
-// workspace to its right. Keep the workspace flush and let the sidebar define
-// the left edge rather than creating another nested page frame.
 pos = replaceOnce(
   pos,
   "root",
@@ -30,17 +27,12 @@ pos = replaceOnce(
   'className="cafeerp-pos-reference absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white"',
 );
 
-// Add the catalog search to the top POS header, matching the reference.
 if (!pos.includes('data-pos-header-search="reference"')) {
   const anchor = '        <div className="ml-auto flex items-center gap-2">';
-  const search = `        <div data-pos-header-search="reference" className="mx-5 hidden min-w-0 flex-1 max-w-[520px] lg:flex">\n          <div className="relative w-full">\n            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />\n            <input\n              value={search}\n              onChange={(event) => setSearch(event.target.value)}\n              onFocus={() => setCategory("all")}\n              placeholder="Search / Scan barcode"\n              className="h-10 w-full rounded-xl border border-slate-200/90 bg-slate-50 pl-10 pr-14 text-xs font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:focus:bg-slate-900"\n            />\n            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white px-2 py-1 text-[9px] font-black text-slate-500 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">F4</kbd>\n          </div>\n        </div>\n\n${anchor}`;
-  if (pos.includes(anchor)) {
-    pos = pos.replace(anchor, search);
-    posChanged = true;
-  }
+  const search = `        <div data-pos-header-search="reference" className="mx-5 hidden min-w-0 flex-1 max-w-[520px] lg:flex">\n          <div className="relative w-full">\n            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />\n            <input\n              value={search}\n              onChange={(event) => setSearch(event.target.value)}\n              placeholder="Search / Scan barcode"\n              className="h-10 w-full rounded-xl border border-slate-200/90 bg-slate-50 pl-10 pr-14 text-xs font-semibold text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:focus:bg-slate-900"\n            />\n            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white px-2 py-1 text-[9px] font-black text-slate-500 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">F4</kbd>\n          </div>\n        </div>\n\n${anchor}`;
+  if (pos.includes(anchor)) pos = pos.replace(anchor, search);
 }
 
-// Reference proportions: wide catalog, narrower but substantial checkout panel.
 pos = replaceOnce(
   pos,
   "workspace columns",
@@ -48,48 +40,33 @@ pos = replaceOnce(
   '[grid-template-columns:minmax(0,1fr)_430px] max-[1200px]:[grid-template-columns:minmax(0,1fr)_390px] max-[1000px]:[grid-template-columns:minmax(0,1fr)_350px] max-[860px]:[grid-template-columns:minmax(0,1fr)_320px]',
 );
 
-// Put a visible customer selector and New Bill beside Actions in Current Bill.
 if (!pos.includes('data-pos-customer-action="reference"')) {
   const anchor = '              <PosOperations';
   const controls = `              <div data-pos-customer-action="reference" className="flex items-center gap-1.5">\n                <button type="button" onClick={() => { setCustomerOpen(true); window.setTimeout(() => customerSearchRef.current?.focus(), 0); }} className="flex h-9 items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 text-[10px] font-black text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-500/10 dark:text-blue-300">\n                  <CircleUserRound className="h-3.5 w-3.5" />\n                  <span className="hidden xl:inline">{selectedCustomer ? selectedCustomer.name : "Select Customer"}</span>\n                </button>\n                <button type="button" onClick={resetBill} className="flex h-9 items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 text-[10px] font-black text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-500/10 dark:text-blue-300">\n                  <Plus className="h-3.5 w-3.5" />\n                  <span>New</span>\n                </button>\n              </div>\n${anchor}`;
-  if (pos.includes(anchor)) {
-    pos = pos.replace(anchor, controls);
-    posChanged = true;
-  }
+  if (pos.includes(anchor)) pos = pos.replace(anchor, controls);
 }
 
-// Reference has a full-width Money Out action immediately above Complete Sale.
 if (!pos.includes('data-pos-money-out="reference"')) {
   const anchor = '              <button\n                type="button"\n                disabled={!cart.length || busy}\n                onClick={() => void completeSale()}';
   const moneyOut = `              <button\n                type="button"\n                data-pos-money-out="reference"\n                onClick={() => window.dispatchEvent(new CustomEvent("cafeerp:open-money-out"))}\n                className="mt-1.5 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 text-[10px] font-black uppercase tracking-wide text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"\n              >\n                <span className="text-sm">↘</span>\n                Money Out\n              </button>\n\n${anchor}`;
-  if (pos.includes(anchor)) {
-    pos = pos.replace(anchor, moneyOut);
-    posChanged = true;
-  }
+  if (pos.includes(anchor)) pos = pos.replace(anchor, moneyOut);
 }
 
-// The Actions component owns the Money Out modal. Let the prominent checkout
-// button open that same modal without duplicating the accounting implementation.
 if (!ops.includes('cafeerp:open-money-out')) {
   const anchor = '  useEffect(() => {\n    if (!message) return;';
   const listener = `  useEffect(() => {\n    function openFromCheckout() {\n      setMenuOpen(false);\n      setMoneyOutAmount("");\n      setMoneyOutCategory("general");\n      setMoneyOutNote("");\n      setMoneyOutSource("");\n      setMoneyOutOpen(true);\n    }\n    window.addEventListener("cafeerp:open-money-out", openFromCheckout);\n    return () => window.removeEventListener("cafeerp:open-money-out", openFromCheckout);\n  }, []);\n\n${anchor}`;
-  if (ops.includes(anchor)) {
-    ops = ops.replace(anchor, listener);
-    opsChanged = true;
-  }
+  if (ops.includes(anchor)) ops = ops.replace(anchor, listener);
 }
 
-// Final visual layer: deliberately scoped so this cannot restyle other ERP pages.
-const styleMarker = '/* CafeERP POS reference design */';
+const styleMarker = "/* CafeERP POS reference design */";
 if (!pos.includes(styleMarker)) {
-  const rootAnchor = '      {success && (';
-  const styles = `      <style dangerouslySetInnerHTML={{ __html: \`\n        ${styleMarker}\n        .cafeerp-pos-reference { padding: 0 !important; gap: 0 !important; }\n        .cafeerp-pos-reference > header { height: 74px !important; min-height: 74px !important; border-radius: 0 !important; border-width: 0 0 1px !important; padding-left: 18px !important; padding-right: 18px !important; box-shadow: 0 1px 10px rgba(15,23,42,.04) !important; }\n        .cafeerp-pos-reference > nav { margin-top: 10px !important; margin-left: 14px !important; margin-right: 14px !important; height: 48px !important; border-radius: 16px !important; border: 1px solid rgba(226,232,240,.9) !important; box-shadow: 0 2px 10px rgba(15,23,42,.04) !important; }\n        .cafeerp-pos-reference > main { margin: 10px 14px 14px !important; gap: 10px !important; }\n        .cafeerp-pos-reference > main > section, .cafeerp-pos-reference > main > aside { border-radius: 18px !important; border: 1px solid rgba(226,232,240,.9) !important; box-shadow: 0 2px 12px rgba(15,23,42,.05) !important; }\n        .cafeerp-pos-reference > main > section > div:first-child { height: 52px !important; padding-left: 12px !important; padding-right: 12px !important; }\n        .cafeerp-pos-reference > main > section > div:nth-child(2) { height: 38px !important; }\n        .cafeerp-pos-reference > main > section > div:nth-child(3) > div { min-height: 48px !important; }\n        .cafeerp-pos-reference [data-pos-header-search=\"reference\"] input { font-size: 12px !important; }\n        .cafeerp-pos-reference [data-pos-customer-action=\"reference\"] { margin-left: auto; }\n        .cafeerp-pos-reference [data-pos-money-out=\"reference\"] { flex-shrink: 0; }\n        .cafeerp-pos-reference .cafeerp-pos-reference-action-placeholder { display: none; }\n      \` }} />\n\n${rootAnchor}`;
-  if (pos.includes(rootAnchor)) {
-    pos = pos.replace(rootAnchor, styles);
-    posChanged = true;
-  }
+  const rootAnchor = "      {success && (";
+  const styles = `      <style dangerouslySetInnerHTML={{ __html: \`\n        ${styleMarker}\n        .cafeerp-pos-reference { padding: 0 !important; gap: 0 !important; }\n        .cafeerp-pos-reference > header { height: 74px !important; min-height: 74px !important; border-radius: 0 !important; border-width: 0 0 1px !important; padding-left: 18px !important; padding-right: 18px !important; box-shadow: 0 1px 10px rgba(15,23,42,.04) !important; }\n        .cafeerp-pos-reference > nav { margin-top: 10px !important; margin-left: 14px !important; margin-right: 14px !important; height: 48px !important; border-radius: 16px !important; border: 1px solid rgba(226,232,240,.9) !important; box-shadow: 0 2px 10px rgba(15,23,42,.04) !important; }\n        .cafeerp-pos-reference > main { margin: 10px 14px 14px !important; gap: 10px !important; }\n        .cafeerp-pos-reference > main > section, .cafeerp-pos-reference > main > aside { border-radius: 18px !important; border: 1px solid rgba(226,232,240,.9) !important; box-shadow: 0 2px 12px rgba(15,23,42,.05) !important; }\n        .cafeerp-pos-reference > main > section > div:first-child { height: 52px !important; padding-left: 12px !important; padding-right: 12px !important; }\n        .cafeerp-pos-reference > main > section > div:nth-child(2) { height: 38px !important; }\n        .cafeerp-pos-reference > main > section > div:nth-child(3) > div { min-height: 48px !important; }\n        .cafeerp-pos-reference [data-pos-header-search=\"reference\"] input { font-size: 12px !important; }\n        .cafeerp-pos-reference [data-pos-customer-action=\"reference\"] { margin-left: auto; }\n        .cafeerp-pos-reference [data-pos-money-out=\"reference\"] { flex-shrink: 0; }\n      \` }} />\n\n${rootAnchor}`;
+  if (pos.includes(rootAnchor)) pos = pos.replace(rootAnchor, styles);
 }
 
+const posChanged = pos !== originalPos;
+const opsChanged = ops !== originalOps;
 if (posChanged) fs.writeFileSync(posFile, pos, "utf8");
 if (opsChanged) fs.writeFileSync(opsFile, ops, "utf8");
 
