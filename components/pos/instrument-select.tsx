@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 
 export const INSTRUMENT_TYPES: { value: string; label: string }[] = [
@@ -68,7 +69,7 @@ export function parseInstrumentValue(value: string, instruments: PosInstrument[]
   return { method, instrument_id: value };
 }
 
-function useResetPairedAmountWhenCartClears(rootRef: React.RefObject<HTMLDivElement | null>) {
+function useResetPairedAmountWhenCartClears(rootRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
