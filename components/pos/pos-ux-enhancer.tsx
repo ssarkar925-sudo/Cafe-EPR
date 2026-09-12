@@ -85,9 +85,15 @@ function cleanupControls(root: HTMLElement) {
     if (label.startsWith("Recall") && !insideBilling && !isStandardRecall) {
       button.style.setProperty("display", "none", "important");
     }
-    if (label === "Customers" && !insideBilling) button.style.setProperty("display", "none", "important");
-    if (label === "Hold Bill" && !insideBilling) button.style.setProperty("display", "none", "important");
-    if (label === "All Items" && insideToolbar) button.style.setProperty("display", "none", "important");
+    if (label === "Customers" && !insideBilling) {
+      button.style.setProperty("display", "none", "important");
+    }
+    if (label === "Hold Bill" && !insideBilling) {
+      button.style.setProperty("display", "none", "important");
+    }
+    if (label === "All Items" && insideToolbar) {
+      button.style.setProperty("display", "none", "important");
+    }
 
     if (insideBilling && label === "Save Draft") {
       button.textContent = "Hold / Draft";
@@ -97,6 +103,35 @@ function cleanupControls(root: HTMLElement) {
     if (insideBilling && (label === "₹ Settle Only" || label === "Settle Only")) {
       button.style.setProperty("display", "none", "important");
     }
+  });
+}
+
+function setupCatalogScroll(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(".pos-workspace-grid").forEach((workspace) => {
+    const catalog = Array.from(workspace.children).find((el): el is HTMLElement => {
+      return (
+        el instanceof HTMLElement &&
+        !el.classList.contains("pos-billing-drawer") &&
+        !el.classList.contains("pos-cart-drawer")
+      );
+    });
+    if (!catalog) return;
+
+    catalog.classList.add("pos-ux-catalog-column");
+
+    Array.from(catalog.children).forEach((child) => {
+      child.classList.remove("pos-ux-catalog-scroll");
+    });
+
+    const target = Array.from(catalog.children).find((child) => {
+      return (
+        child instanceof HTMLElement &&
+        !child.classList.contains("pos-category-chips") &&
+        !child.classList.contains("pos-item-toolbar")
+      );
+    });
+
+    target?.classList.add("pos-ux-catalog-scroll");
   });
 }
 
@@ -111,6 +146,7 @@ function apply(root: HTMLElement) {
   }
 
   cleanupControls(root);
+  setupCatalogScroll(root);
   syncViewportHeight(root);
 }
 
@@ -178,11 +214,7 @@ function ensureStyles() {
         padding-bottom: 4px !important;
       }
 
-      .pos-premium-root > .mb-3\\.5 {
-        flex: 0 0 auto !important;
-        margin-bottom: 6px !important;
-      }
-
+      .pos-premium-root > .mb-3\\.5,
       .pos-premium-root > .mb-4 {
         flex: 0 0 auto !important;
         margin-bottom: 6px !important;
@@ -253,6 +285,7 @@ function ensureStyles() {
         gap: 8px !important;
       }
 
+      /* Left catalog is the only workspace area that follows the scroll wheel. */
       .pos-premium-root .pos-ux-catalog-column {
         display: flex !important;
         flex-direction: column !important;
@@ -285,6 +318,7 @@ function ensureStyles() {
         scrollbar-width: thin;
       }
 
+      /* The entire Current Invoice / Current Sale panel stays in the right column. */
       .pos-premium-root .pos-workspace-grid > .pos-billing-drawer,
       .pos-premium-root .pos-workspace-grid > .pos-cart-drawer {
         min-width: 0 !important;
@@ -292,7 +326,9 @@ function ensureStyles() {
         width: 100% !important;
         max-width: 100% !important;
         height: 100% !important;
-        position: relative !important;
+        position: sticky !important;
+        top: 0 !important;
+        align-self: stretch !important;
         overflow: hidden !important;
       }
 
@@ -317,6 +353,8 @@ function ensureStyles() {
         flex: 0 0 auto !important;
       }
 
+      /* The right panel may scroll internally when its complete details exceed the viewport,
+         but its card itself never moves with the left catalog. */
       .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
       .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) {
         flex: 1 1 0 !important;
@@ -374,6 +412,7 @@ function ensureStyles() {
         height: auto !important;
         max-height: none !important;
         overflow: visible !important;
+        position: static !important;
       }
     }
   `;
@@ -386,19 +425,23 @@ export default function PosUxEnhancer() {
     if (!root) return;
 
     ensureStyles();
+
     let lastMode: "standard" | "quick" | null = null;
     let restoreScrollLock: (() => void) | null = null;
 
     const applyNow = () => {
       const quick = syncMode(root);
       apply(root);
+
       if (window.innerWidth >= 1024 && !restoreScrollLock) {
         restoreScrollLock = lockScrollContainers(root);
       }
+
       if (window.innerWidth < 1024 && restoreScrollLock) {
         restoreScrollLock();
         restoreScrollLock = null;
       }
+
       lastMode = quick ? "quick" : "standard";
     };
 
