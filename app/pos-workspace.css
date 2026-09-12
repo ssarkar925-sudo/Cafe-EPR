@@ -1,0 +1,179 @@
+/* POS workspace: the page stays fixed; the catalogue is the primary scroll surface. */
+@media (min-width: 1024px) {
+  html:has(.pos-premium-root),
+  body:has(.pos-premium-root) {
+    overflow: hidden !important;
+    height: 100% !important;
+  }
+
+  .erp-workspace:has(.pos-premium-root) {
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .erp-workspace:has(.pos-premium-root) > main {
+    height: calc(100dvh - 150px) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .pos-premium-root {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .pos-premium-root > .mx-auto {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-top: 4px !important;
+    padding-bottom: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Standard POS: operational/status areas consume only their intrinsic height. */
+  .pos-premium-root > .mx-auto > .mb-3\\.5,
+  .pos-premium-root > .mx-auto > .mb-4 {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+  }
+
+  /* Standard POS working area fills the remaining viewport. */
+  .pos-premium-root > .mx-auto > .pos-workspace-grid {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Quick Sale has its own status strip; it and its workspace fill the remaining space. */
+  .pos-premium-root > .mx-auto > .mt-5 {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin-top: 4px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .pos-premium-root > .mx-auto > .mt-5 > .mb-3\\.5 {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    margin-bottom: 4px !important;
+  }
+
+  .pos-premium-root > .mx-auto > .mt-5 > .pos-workspace-grid {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Two-pane workspace. */
+  .pos-premium-root .pos-workspace-grid {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    grid-template-columns: minmax(0, 1fr) 380px !important;
+    gap: 8px !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+  }
+
+  /* Left side: toolbar/category stay put; only the item catalogue scrolls. */
+  .pos-premium-root .pos-workspace-grid > :first-child:not(.pos-billing-drawer):not(.pos-cart-drawer) {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .pos-premium-root .pos-workspace-grid > :first-child:not(.pos-billing-drawer):not(.pos-cart-drawer) > .pos-item-toolbar,
+  .pos-premium-root .pos-workspace-grid > :first-child:not(.pos-billing-drawer):not(.pos-cart-drawer) > .pos-category-chips {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+  }
+
+  .pos-premium-root .pos-workspace-grid > :first-child:not(.pos-billing-drawer):not(.pos-cart-drawer) > :not(.pos-item-toolbar):not(.pos-category-chips) {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+    scrollbar-width: thin;
+  }
+
+  /* Right side: Current Invoice / Current Sale never moves with the catalogue. */
+  .pos-premium-root .pos-workspace-grid > .pos-billing-drawer,
+  .pos-premium-root .pos-workspace-grid > .pos-cart-drawer {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    position: relative !important;
+    top: auto !important;
+    inset: auto !important;
+    align-self: stretch !important;
+    overflow: hidden !important;
+  }
+
+  .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"],
+  .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] {
+    position: relative !important;
+    top: auto !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :first-child,
+  .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :first-child {
+    flex: 0 0 auto !important;
+  }
+
+  /* Internal details can scroll only when genuinely longer than the fixed right card. */
+  .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
+  .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+    scrollbar-width: thin;
+  }
+
+  .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :last-child,
+  .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :last-child {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    position: relative !important;
+    inset: auto !important;
+    bottom: auto !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .pos-premium-root {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}
