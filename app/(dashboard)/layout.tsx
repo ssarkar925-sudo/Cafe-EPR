@@ -46,6 +46,7 @@ export default async function DashboardLayout({
   return (
     <>
       <SessionGuard />
+      <style>{`@media (min-width: 1024px) { header.erp-desktop-header a[href="/pos"] { display: none !important; } }`}</style>
       <DashboardShell
         name={profile?.full_name || user.email || ""}
         email={user.email || ""}
