@@ -61,8 +61,6 @@ export default async function PosPage({
     code: null,
     sale_price: item.sale_price,
     cost_price: item.cost_price,
-    stock_qty: null,
-    reorder_level: null,
     unit: "service",
     category_id: item.category_id,
     category_name: item.categories?.name ?? null,
