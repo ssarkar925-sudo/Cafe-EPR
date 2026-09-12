@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import PosClient from "@/components/pos/pos-client";
 import PosOpsStrip from "@/components/pos/pos-ops-strip";
+import PosUxEnhancer from "@/components/pos/pos-ux-enhancer";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,7 @@ export default async function PosPage({
         todayInvoices={(todaysInvoices ?? []) as any}
         initialEditingInvoice={initialEditingInvoice as any}
       />
+      <PosUxEnhancer />
     </div>
   );
 }
