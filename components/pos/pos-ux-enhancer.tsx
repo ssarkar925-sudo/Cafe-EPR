@@ -36,7 +36,7 @@ function syncWorkspaceHeight(root: HTMLElement) {
 function moveStandardRecallAboveCustomer(root: HTMLElement, quickMode: boolean) {
   const marker = root.querySelector<HTMLElement>("[data-pos-ux-recall-clone=\"1\"]");
   const externalRecall = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
-    (button) => textOf(button).startsWith("Recall") && !button.closest(".pos-billing-drawer")
+    (button) => textOf(button).startsWith("Recall") && !button.closest(".pos-billing-drawer") && !button.hasAttribute("data-pos-ux-recall-button")
   );
 
   if (quickMode) {
@@ -63,6 +63,7 @@ function moveStandardRecallAboveCustomer(root: HTMLElement, quickMode: boolean) 
   row.className = "mb-2 flex items-center justify-end";
 
   const clone = externalRecall.cloneNode(true) as HTMLButtonElement;
+  clone.dataset.posUxRecallButton = "1";
   clone.removeAttribute("data-pos-ux-hidden");
   clone.style.removeProperty("display");
   clone.className =
@@ -124,7 +125,7 @@ function applyPosUx(root: HTMLElement) {
     if (label === "Customers" && !insideBilling) hideButton(button);
     if (label === "Hold Bill" && !insideBilling) hideButton(button);
 
-    if (label.startsWith("Recall") && !insideBilling) {
+    if (label.startsWith("Recall") && !insideBilling && !button.hasAttribute("data-pos-ux-recall-button")) {
       if (quickMode) restoreButton(button, "quick-recall");
       else hideButton(button, "standard-recall-location");
     }
@@ -160,18 +161,8 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    /* Treat the POS as a viewport-filling application surface. */
-    .pos-premium-root {
-      height: var(--pos-root-height, auto) !important;
-      max-height: var(--pos-root-height, none) !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
-    }
-
     .pos-premium-root .pos-workspace-grid {
       min-height: 0 !important;
-      max-height: var(--pos-workspace-height, none) !important;
-      height: var(--pos-workspace-height, auto) !important;
       overflow: hidden !important;
       align-items: stretch !important;
     }
@@ -181,7 +172,6 @@ function ensureStyles() {
       flex-direction: column;
       min-width: 0;
       min-height: 0;
-      height: 100% !important;
       overflow: hidden !important;
     }
 
@@ -195,7 +185,7 @@ function ensureStyles() {
       flex: 0 0 auto;
       margin-top: 0 !important;
       padding-top: 0 !important;
-      padding-bottom: 3px !important;
+      padding-bottom: 4px !important;
       position: sticky;
       top: 0;
       z-index: 12;
@@ -221,7 +211,6 @@ function ensureStyles() {
       margin-top: 4px !important;
     }
 
-    /* Only the catalogue itself scrolls on desktop. */
     .pos-premium-root .pos-ux-catalog-column > :not(.pos-category-chips):not(.pos-item-toolbar) {
       order: 3;
       flex: 1 1 0% !important;
@@ -232,7 +221,6 @@ function ensureStyles() {
       scrollbar-width: thin;
     }
 
-    /* The checkout is a normal grid column, never a viewport-floating card. */
     .pos-premium-root .pos-billing-drawer,
     .pos-premium-root .pos-cart-drawer {
       min-width: 0 !important;
@@ -244,6 +232,8 @@ function ensureStyles() {
     .pos-premium-root .pos-ux-billing-card {
       position: relative !important;
       inset: auto !important;
+      right: auto !important;
+      top: auto !important;
       width: 100% !important;
       height: 100% !important;
       max-height: none !important;
@@ -260,6 +250,8 @@ function ensureStyles() {
     .pos-premium-root .pos-cart-drawer {
       position: relative !important;
       inset: auto !important;
+      right: auto !important;
+      top: auto !important;
       width: 100% !important;
       height: 100% !important;
       max-height: none !important;
@@ -269,6 +261,15 @@ function ensureStyles() {
       box-sizing: border-box !important;
       overflow: hidden !important;
       z-index: auto !important;
+    }
+
+    .pos-premium-root .pos-ux-recall-row[data-pos-ux-recall-clone="1"] {
+      position: relative;
+      z-index: 2;
+    }
+
+    .pos-premium-root button[data-pos-ux-recall-button="1"] {
+      display: inline-flex !important;
     }
 
     .pos-premium-root .pos-ux-billing-card > :first-child,
@@ -353,7 +354,6 @@ function ensureStyles() {
       padding-bottom: 9px !important;
     }
 
-    /* Compact operational bars so the catalogue gets the recovered height. */
     .pos-premium-root .pos-ops-strip {
       min-height: 42px !important;
       margin-bottom: 6px !important;
@@ -361,7 +361,6 @@ function ensureStyles() {
       padding-bottom: 6px !important;
     }
 
-    /* The Quick Sale activity summary is useful, but should be a thin status line. */
     .pos-premium-root [class*="rounded-xl"][class*="bg-white"][class*="ring-1"] {
       margin-bottom: 6px !important;
     }
