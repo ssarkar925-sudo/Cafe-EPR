@@ -1,19 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
-import { getUserRole, hasRole } from "@/lib/authz";
-import PosClient from "@/components/pos/pos-client";
-import PosOpsStrip from "@/components/pos/pos-ops-strip";
-import PosRecallBridge from "@/components/pos/pos-recall-bridge";
+import { getUserRole } from "@/lib/authz";
+import ModernPosClient from "@/components/pos/modern-pos-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function PosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string; mode?: string; edit?: string }>;
+  searchParams: Promise<{ customer?: string }>;
 }) {
-  const { customer, mode, edit } = await searchParams;
+  const { customer } = await searchParams;
   const role = await getUserRole();
-  const canViewProfit = hasRole(role, ["admin", "manager"]);
+  const canUsePos = role === "admin" || role === "manager" || role === "staff";
+  if (!canUsePos) return null;
+
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -22,10 +22,7 @@ export default async function PosPage({
     { data: services },
     { data: customers },
     { data: instruments },
-    { data: paymentMethods },
     { data: todaysInvoices },
-    { data: todaysQuick },
-    editInvoiceRes,
   ] = await Promise.all([
     supabase
       .from("products")
@@ -51,57 +48,24 @@ export default async function PosPage({
       .eq("is_active", true)
       .order("type")
       .order("name"),
-    supabase.from("payment_methods").select("method").eq("is_active", true),
     supabase
       .from("invoices")
-      .select(
-        "id, invoice_number, invoice_date, customer_id, discount, total, status, customers(name), invoice_items(product_id, service_id, description, qty, rate, amount), payments(method, instrument_id, amount)"
-      )
+      .select("id, invoice_number, total, status")
       .eq("invoice_date", today)
       .order("created_at", { ascending: false })
       .limit(500),
-    supabase
-      .from("quick_sales")
-      .select(
-        "id, sale_number, sale_date, customer_id, product_id, service_id, item_name, amount, cost, tendered, change_due, payments, status, created_at, customers(name), products(name), services(name)"
-      )
-      .eq("sale_date", today)
-      .order("created_at", { ascending: false }),
-    edit
-      ? supabase
-          .from("invoices")
-          .select(
-            "id, invoice_number, invoice_date, customer_id, discount, total, status, customers(name), invoice_items(product_id, service_id, description, qty, rate, amount), payments(method, instrument_id, amount)"
-          )
-          .eq("id", edit)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
   ]);
 
-  const activeInvoices = (todaysInvoices ?? []).filter((i: any) => i.status !== "cancelled");
-  const salesTodayCount = activeInvoices.length;
-  const salesTodayAmount = activeInvoices.reduce((s: number, i: any) => s + Number(i.total), 0);
-  const enabledMethods = (paymentMethods ?? []).map((p: any) => p.method);
-  const initialEditingInvoice = editInvoiceRes?.data ?? null;
-
   return (
-    <div className="pos-premium-root">
-      <PosClient
+    <div className="pos-modern-root">
+      <ModernPosClient
         products={(products ?? []) as any}
         services={(services ?? []) as any}
         customers={(customers ?? []) as any}
         instruments={(instruments ?? []) as any}
-        salesTodayCount={salesTodayCount}
-        salesTodayAmount={salesTodayAmount}
-        initialCustomerId={customer || ""}
-        initialMode={mode === "quick" ? "quick" : "invoice"}
-        todayQuickSales={(todaysQuick ?? []) as any}
-        enabledMethods={enabledMethods}
-        canViewProfit={canViewProfit}
         todayInvoices={(todaysInvoices ?? []) as any}
-        initialEditingInvoice={initialEditingInvoice as any}
+        initialCustomerId={customer || ""}
       />
-      <PosRecallBridge />
     </div>
   );
 }
