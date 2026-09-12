@@ -22,6 +22,7 @@ function restoreButton(button: HTMLButtonElement, reason: string) {
 
 function applyPosUx(root: HTMLElement) {
   const quickMode = Boolean(root.querySelector(".pos-cart-drawer"));
+  root.dataset.posMode = quickMode ? "quick" : "standard";
 
   // Categories are the primary POS filter, so visually promote them above the
   // item toolbar without changing the billing logic or component structure.
@@ -142,23 +143,32 @@ function ensureStyles() {
 
     .pos-premium-root .pos-billing-drawer {
       min-height: 0;
+      min-width: 0;
     }
 
     .pos-premium-root .pos-ux-billing-card {
-      max-height: calc(100vh - 7.25rem) !important;
       border-radius: 16px !important;
       box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      min-height: 0 !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
     }
 
     .pos-premium-root .pos-ux-billing-card > :first-child {
       min-height: 52px;
       padding: 9px 12px !important;
       background: rgba(248, 250, 252, 0.76);
+      flex: 0 0 auto;
     }
 
     .pos-premium-root .pos-ux-billing-card > :nth-child(2) {
       padding: 9px 12px !important;
       scrollbar-width: thin;
+      overflow-y: auto !important;
+      min-height: 0 !important;
+      flex: 1 1 auto !important;
     }
 
     .pos-premium-root .pos-ux-billing-card > :last-child {
@@ -168,6 +178,7 @@ function ensureStyles() {
       padding: 9px 12px !important;
       background: rgba(248, 250, 252, 0.96);
       backdrop-filter: blur(10px);
+      flex: 0 0 auto;
     }
 
     .pos-premium-root .pos-ux-billing-card [data-cart-item-key] {
@@ -224,17 +235,43 @@ function ensureStyles() {
         grid-template-columns: minmax(0, 1fr) 380px !important;
         gap: 12px !important;
       }
+
+      .pos-premium-root .pos-ux-billing-card {
+        position: fixed !important;
+        right: clamp(18px, 4.25vw, 68px) !important;
+        top: 177px !important;
+        width: 380px !important;
+        height: calc(100dvh - 189px) !important;
+        max-height: none !important;
+        z-index: 50 !important;
+      }
+
+      .pos-premium-root[data-pos-mode="standard"] .pos-ux-billing-card {
+        top: 225px !important;
+        height: calc(100dvh - 237px) !important;
+      }
     }
 
     @media (max-width: 1279px) and (min-width: 1024px) {
       .pos-premium-root .pos-workspace-grid {
         grid-template-columns: minmax(0, 1fr) 360px !important;
       }
+
+      .pos-premium-root .pos-ux-billing-card {
+        width: 360px !important;
+      }
     }
 
     @media (max-width: 1023px) {
       .pos-premium-root .pos-ux-billing-card {
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
         max-height: none !important;
+      }
+
+      .pos-premium-root .pos-ux-billing-card > :nth-child(2) {
+        overflow-y: visible !important;
       }
     }
   `;
