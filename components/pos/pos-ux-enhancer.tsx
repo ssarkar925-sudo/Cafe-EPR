@@ -33,32 +33,58 @@ function syncWorkspaceHeight(root: HTMLElement) {
 }
 
 function syncRecallVisibility(root: HTMLElement, quickMode: boolean) {
-  // Remove any legacy clone created by the earlier "above customer" layout.
+  // Remove any legacy clone from the earlier "above customer" implementation.
   root.querySelectorAll<HTMLElement>('[data-pos-ux-recall-clone="1"]').forEach((node) => node.remove());
 
-  root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-    const label = textOf(button);
-    if (!label.startsWith("Recall")) return;
+  const billing = root.querySelector<HTMLElement>(".pos-billing-drawer");
+  const topRecall = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
+    (button) =>
+      textOf(button).startsWith("Recall") &&
+      !button.closest(".pos-billing-drawer") &&
+      !button.hasAttribute("data-pos-ux-recall-button")
+  );
 
-    const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
-    const legacyClone = button.hasAttribute("data-pos-ux-recall-button");
+  // Recall is owned by the active transaction card, not the shared POS/Quick Sale mode bar.
+  if (topRecall) hideButton(topRecall, "modebar-recall");
+  if (!billing) return;
 
-    if (legacyClone) {
-      button.remove();
-      return;
-    }
+  const billingRecall = Array.from(billing.querySelectorAll<HTMLButtonElement>("button")).find(
+    (button) => textOf(button).startsWith("Recall") && !button.hasAttribute("data-pos-ux-recall-button")
+  );
 
-    // Quick Sale must not show a second Recall beside Recent Sales.
-    if (insideBilling) {
-      if (quickMode) hideButton(button, "quick-billing-recall");
-      else restoreButton(button, "quick-billing-recall");
-      return;
-    }
+  // Quick Sale already renders its own Recall inside Current Sale. Keep that button there.
+  if (quickMode) {
+    if (billingRecall) restoreButton(billingRecall, "quick-billing-recall");
+    return;
+  }
 
-    // One Recall only: the existing top operational bar.
-    restoreButton(button, "standard-recall-location");
-    restoreButton(button, "quick-recall");
+  // Standard POS gets its own Recall inside Current Bill.
+  if (billingRecall || !topRecall) return;
+
+  const customerLabel = Array.from(billing.querySelectorAll<HTMLElement>("label")).find(
+    (label) => textOf(label).startsWith("Customer (F3)")
+  );
+  const customerSection = customerLabel?.closest(".mb-3") as HTMLElement | null;
+  if (!customerSection) return;
+
+  const row = document.createElement("div");
+  row.dataset.posUxRecallClone = "1";
+  row.className = "mb-2 flex items-center justify-end";
+
+  const clone = topRecall.cloneNode(true) as HTMLButtonElement;
+  clone.dataset.posUxRecallButton = "1";
+  clone.removeAttribute("data-pos-ux-hidden");
+  clone.style.removeProperty("display");
+  clone.className =
+    "touch-manipulation select-none inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95 motion-reduce:transform-none dark:border-blue-800/50 dark:bg-blue-950/40 dark:text-blue-300";
+  clone.title = "Recall held bills and drafts";
+  clone.addEventListener("click", (event) => {
+    event.preventDefault();
+    topRecall.click();
   });
+
+  row.appendChild(clone);
+  customerSection.before(row);
 }
 
 function applyPosUx(root: HTMLElement) {
@@ -120,7 +146,8 @@ function applyPosUx(root: HTMLElement) {
       hiddenReason !== "quick-recall" &&
       hiddenReason !== "quick-favourites" &&
       hiddenReason !== "standard-recall-location" &&
-      hiddenReason !== "quick-billing-recall"
+      hiddenReason !== "quick-billing-recall" &&
+      hiddenReason !== "modebar-recall"
     ) return;
 
     const label = textOf(button);
@@ -130,9 +157,9 @@ function applyPosUx(root: HTMLElement) {
     if (label === "Customers" && !insideBilling) hideButton(button);
     if (label === "Hold Bill" && !insideBilling) hideButton(button);
 
+    // Recall placement is handled exclusively by syncRecallVisibility above.
     if (label.startsWith("Recall") && insideBilling) {
-      if (quickMode) hideButton(button, "quick-billing-recall");
-      else restoreButton(button, "quick-billing-recall");
+      restoreButton(button, "quick-billing-recall");
     }
 
     if (label === "Recent Sales" && insideBilling) hideButton(button);
