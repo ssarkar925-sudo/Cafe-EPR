@@ -4,6 +4,13 @@ import { useEffect } from "react";
 
 const STYLE_ID = "pos-ux-enhancer-style";
 
+type RestoreStyle = {
+  el: HTMLElement;
+  overflow: string;
+  overflowX: string;
+  overflowY: string;
+};
+
 function textOf(el: Element) {
   return (el.textContent || "").replace(/\s+/g, " ").trim();
 }
@@ -19,58 +26,20 @@ function hideSharedRecall(root: HTMLElement) {
 }
 
 function syncMode(root: HTMLElement) {
-  const quick = Boolean(root.querySelector(".pos-cart-drawer"));
-  root.dataset.posMode = quick ? "quick" : "standard";
-  return quick;
+  const mode = root.querySelector(".pos-cart-drawer") ? "quick" : "standard";
+  if (root.dataset.posMode !== mode) root.dataset.posMode = mode;
+  return mode === "quick";
 }
 
-function syncWorkspace(root: HTMLElement) {
-  if (window.innerWidth < 1024) return;
-  root.querySelectorAll<HTMLElement>(".pos-workspace-grid").forEach((workspace) => {
-    const rect = workspace.getBoundingClientRect();
-    workspace.style.setProperty(
-      "--pos-workspace-height",
-      `${Math.max(360, Math.floor(window.innerHeight - rect.top - 8))}px`
-    );
-  });
-}
+function syncViewportHeight(root: HTMLElement) {
+  if (window.innerWidth < 1024) {
+    root.style.removeProperty("--pos-root-height");
+    return;
+  }
 
-function setupCatalogScroll(root: HTMLElement) {
-  root.querySelectorAll<HTMLElement>(".pos-workspace-grid").forEach((workspace) => {
-    const catalog = Array.from(workspace.children).find((el): el is HTMLElement => {
-      return (
-        el instanceof HTMLElement &&
-        !el.classList.contains("pos-billing-drawer") &&
-        !el.classList.contains("pos-cart-drawer")
-      );
-    });
-    if (!catalog) return;
-
-    catalog.classList.add("pos-ux-catalog-column");
-    Array.from(catalog.children).forEach((child) => child.classList.remove("pos-ux-catalog-scroll"));
-    const target = Array.from(catalog.children).find((child) => {
-      return (
-        child instanceof HTMLElement &&
-        !child.classList.contains("pos-category-chips") &&
-        !child.classList.contains("pos-item-toolbar")
-      );
-    });
-    target?.classList.add("pos-ux-catalog-scroll");
-  });
-}
-
-function forceList(root: HTMLElement) {
-  const key = root.dataset.posMode === "quick" ? "sccomm-qs-view" : "sccomm-pos-view";
-  root.querySelectorAll<HTMLElement>(".pos-item-toolbar").forEach((toolbar) => {
-    try {
-      window.localStorage.setItem(key, "list");
-    } catch {}
-    const list = toolbar.querySelector<HTMLButtonElement>('button[title="List view"]');
-    if (list && !list.disabled) {
-      const selected = list.getAttribute("aria-pressed") === "true" || list.className.includes("bg-white");
-      if (!selected) list.click();
-    }
-  });
+  const top = Math.max(0, root.getBoundingClientRect().top);
+  const height = Math.max(420, Math.floor(window.innerHeight - top - 8));
+  root.style.setProperty("--pos-root-height", `${height}px`);
 }
 
 function ensureStandardRecall(root: HTMLElement) {
@@ -116,9 +85,9 @@ function cleanupControls(root: HTMLElement) {
     if (label.startsWith("Recall") && !insideBilling && !isStandardRecall) {
       button.style.setProperty("display", "none", "important");
     }
-    if (label === "Customers" && !insideBilling) button.style.display = "none";
-    if (label === "Hold Bill" && !insideBilling) button.style.display = "none";
-    if (label === "All Items" && insideToolbar) button.style.display = "none";
+    if (label === "Customers" && !insideBilling) button.style.setProperty("display", "none", "important");
+    if (label === "Hold Bill" && !insideBilling) button.style.setProperty("display", "none", "important");
+    if (label === "All Items" && insideToolbar) button.style.setProperty("display", "none", "important");
 
     if (insideBilling && label === "Save Draft") {
       button.textContent = "Hold / Draft";
@@ -126,7 +95,7 @@ function cleanupControls(root: HTMLElement) {
     }
 
     if (insideBilling && (label === "₹ Settle Only" || label === "Settle Only")) {
-      button.style.display = "none";
+      button.style.setProperty("display", "none", "important");
     }
   });
 }
@@ -142,156 +111,259 @@ function apply(root: HTMLElement) {
   }
 
   cleanupControls(root);
-  setupCatalogScroll(root);
-  forceList(root);
-  syncWorkspace(root);
+  syncViewportHeight(root);
+}
+
+function lockScrollContainers(root: HTMLElement) {
+  const candidates: HTMLElement[] = [document.documentElement, document.body];
+  let parent = root.parentElement;
+
+  while (parent && parent !== document.body) {
+    const style = getComputedStyle(parent);
+    const scrollY = style.overflowY === "auto" || style.overflowY === "scroll";
+    const scrollX = style.overflowX === "auto" || style.overflowX === "scroll";
+    if (scrollY || scrollX) candidates.push(parent);
+    parent = parent.parentElement;
+  }
+
+  const seen = new Set<HTMLElement>();
+  const restores: RestoreStyle[] = [];
+
+  for (const el of candidates) {
+    if (seen.has(el)) continue;
+    seen.add(el);
+    restores.push({
+      el,
+      overflow: el.style.overflow,
+      overflowX: el.style.overflowX,
+      overflowY: el.style.overflowY,
+    });
+    el.style.setProperty("overflow", "hidden", "important");
+    el.style.setProperty("overflow-x", "hidden", "important");
+    el.style.setProperty("overflow-y", "hidden", "important");
+  }
+
+  return () => {
+    for (const item of restores.reverse()) {
+      item.el.style.overflow = item.overflow;
+      item.el.style.overflowX = item.overflowX;
+      item.el.style.overflowY = item.overflowY;
+    }
+  };
 }
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
+
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
     .pos-premium-root {
-      min-height: 0 !important;
-      padding-top: 8px !important;
-      padding-bottom: 8px !important;
-    }
-
-    /* Tighten the space between the shared POS header/status bar and the workspace. */
-    .pos-premium-root > .mb-3\\.5 {
-      margin-bottom: 8px !important;
-    }
-
-    /* Quick Sale has its own wrapper margin; it does not need another 20px top gap. */
-    .pos-premium-root[data-pos-mode="quick"] > .mt-5 {
-      margin-top: 0 !important;
-    }
-
-    .pos-premium-root[data-pos-mode="quick"] > .mt-5 > .mb-3\\.5 {
-      margin-bottom: 8px !important;
-    }
-
-    .pos-premium-root .pos-workspace-grid {
-      height: var(--pos-workspace-height, auto) !important;
-      min-height: 0 !important;
-      max-height: none !important;
-      overflow: hidden !important;
-      align-items: stretch !important;
-      gap: 8px !important;
-      margin-top: 0 !important;
-    }
-
-    .pos-premium-root .pos-ux-catalog-column {
-      display: flex !important;
-      flex-direction: column !important;
-      min-width: 0 !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
-    }
-
-    .pos-premium-root .pos-ux-catalog-column > .pos-category-chips,
-    .pos-premium-root .pos-ux-catalog-column > .pos-item-toolbar {
-      flex: 0 0 auto !important;
-      min-height: 0 !important;
-      position: relative !important;
-      margin-top: 0 !important;
-    }
-
-    .pos-premium-root .pos-ux-catalog-scroll {
-      flex: 1 1 0 !important;
-      min-height: 0 !important;
-      overflow-y: auto !important;
-      overflow-x: auto !important;
-      overscroll-behavior: contain;
-      scrollbar-width: thin;
-    }
-
-    .pos-premium-root .pos-workspace-grid > .pos-billing-drawer,
-    .pos-premium-root .pos-workspace-grid > .pos-cart-drawer {
-      min-width: 0 !important;
-      min-height: 0 !important;
-      height: 100% !important;
-      position: relative !important;
-      overflow: hidden !important;
-    }
-
-    .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"],
-    .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] {
-      position: relative !important;
-      inset: auto !important;
-      width: 100% !important;
-      height: 100% !important;
-      max-height: none !important;
-      display: flex !important;
-      flex-direction: column !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
       box-sizing: border-box !important;
-    }
-
-    .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :first-child,
-    .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :first-child {
-      flex: 0 0 auto !important;
-    }
-
-    /* Make the native Standard POS header behave like Quick Sale: left title + compact actions on the right. */
-    .pos-premium-root[data-pos-mode="standard"] [data-pos-ux-standard-header] {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      gap: 8px !important;
-    }
-    .pos-premium-root[data-pos-mode="standard"] [data-pos-ux-standard-header] > :first-child {
-      flex: 1 1 auto !important;
       min-width: 0 !important;
-    }
-    .pos-premium-root [data-pos-ux-standard-recall="1"] {
-      flex: 0 0 auto !important;
-      white-space: nowrap !important;
-    }
-
-    .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
-    .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) {
-      flex: 1 1 auto !important;
       min-height: 0 !important;
-      overflow-y: auto !important;
+      width: 100% !important;
       overflow-x: hidden !important;
+      overscroll-behavior: none !important;
     }
 
-    .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :last-child,
-    .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :last-child {
-      flex: 0 0 auto !important;
-      position: relative !important;
-      bottom: auto !important;
-    }
+    @media (min-width: 1024px) {
+      .pos-premium-root {
+        height: var(--pos-root-height, calc(100vh - 120px)) !important;
+        max-height: var(--pos-root-height, calc(100vh - 120px)) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+      }
 
-    /* Trim the extra vertical padding at the top/bottom of both workspaces. */
-    .pos-premium-root[data-pos-mode="quick"] .pos-cart-drawer > [data-sticky-drawer="true"] > :first-child,
-    .pos-premium-root[data-pos-mode="standard"] .pos-billing-drawer > [data-sticky-drawer="true"] > :first-child {
-      padding-top: 8px !important;
-      padding-bottom: 8px !important;
-    }
+      .pos-premium-root > .mb-3\\.5 {
+        flex: 0 0 auto !important;
+        margin-bottom: 6px !important;
+      }
 
-    @media (min-width: 1280px) {
+      .pos-premium-root > .mb-4 {
+        flex: 0 0 auto !important;
+        margin-bottom: 6px !important;
+      }
+
+      .pos-premium-root[data-pos-mode="standard"] > .pos-workspace-grid {
+        flex: 1 1 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+      }
+
+      .pos-premium-root[data-pos-mode="standard"] > .mt-4.rounded-2xl {
+        flex: 0 0 auto !important;
+        max-height: 34% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        margin-top: 6px !important;
+        margin-bottom: 0 !important;
+      }
+
+      .pos-premium-root[data-pos-mode="quick"] > .mt-5 {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        margin-top: 0 !important;
+      }
+
+      .pos-premium-root[data-pos-mode="quick"] > .mt-5 > .mb-3\\.5 {
+        flex: 0 0 auto !important;
+        margin-bottom: 6px !important;
+      }
+
+      .pos-premium-root[data-pos-mode="quick"] > .mt-5 > .pos-workspace-grid {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+      }
+
+      .pos-premium-root[data-pos-mode="quick"] > .mt-5 > .mt-4.rounded-2xl {
+        flex: 0 0 auto !important;
+        max-height: 34% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        margin-top: 6px !important;
+      }
+
+      .pos-premium-root[data-pos-mode="quick"] > .mt-5 > [data-pos-ux-shortcuts="1"] {
+        flex: 0 0 auto !important;
+        margin-top: 6px !important;
+      }
+
       .pos-premium-root .pos-workspace-grid {
-        grid-template-columns: minmax(0,1fr) 380px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        position: relative !important;
+        overflow: hidden !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+      }
+
+      .pos-premium-root .pos-ux-catalog-column {
+        display: flex !important;
+        flex-direction: column !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+      }
+
+      .pos-premium-root .pos-ux-catalog-column > .pos-category-chips,
+      .pos-premium-root .pos-ux-catalog-column > .pos-item-toolbar {
+        flex: 0 0 auto !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-top: 0 !important;
+      }
+
+      .pos-premium-root .pos-ux-catalog-scroll {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain !important;
+        scrollbar-width: thin;
+      }
+
+      .pos-premium-root .pos-workspace-grid > .pos-billing-drawer,
+      .pos-premium-root .pos-workspace-grid > .pos-cart-drawer {
+        min-width: 0 !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        position: relative !important;
+        overflow: hidden !important;
+      }
+
+      .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"],
+      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] {
+        position: relative !important;
+        inset: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        max-height: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+      }
+
+      .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :first-child,
+      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :first-child {
+        flex: 0 0 auto !important;
+      }
+
+      .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
+      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain !important;
+      }
+
+      .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :last-child,
+      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :last-child {
+        flex: 0 0 auto !important;
+        position: relative !important;
+        inset: auto !important;
+        bottom: auto !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+
+      .pos-premium-root[data-pos-mode="standard"] [data-pos-ux-standard-header] {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+      }
+
+      .pos-premium-root[data-pos-mode="standard"] [data-pos-ux-standard-header] > :first-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+      }
+
+      .pos-premium-root [data-pos-ux-standard-recall="1"] {
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
       }
     }
-    @media (max-width: 1279px) and (min-width: 1024px) {
-      .pos-premium-root .pos-workspace-grid {
-        grid-template-columns: minmax(0,1fr) 350px !important;
-      }
-    }
+
     @media (max-width: 1023px) {
       .pos-premium-root {
         height: auto !important;
-        min-height: 0 !important;
         max-height: none !important;
         overflow: visible !important;
         padding-top: 6px !important;
         padding-bottom: 6px !important;
       }
+
       .pos-premium-root .pos-workspace-grid,
       .pos-premium-root .pos-ux-catalog-column,
       .pos-premium-root .pos-ux-catalog-scroll,
@@ -303,9 +375,6 @@ function ensureStyles() {
         max-height: none !important;
         overflow: visible !important;
       }
-      .pos-premium-root .pos-ux-catalog-scroll { flex: none !important; }
-      .pos-premium-root .pos-billing-drawer > [data-sticky-drawer="true"] > :nth-child(2),
-      .pos-premium-root .pos-cart-drawer > [data-sticky-drawer="true"] > :nth-child(2) { overflow: visible !important; }
     }
   `;
   document.head.appendChild(style);
@@ -315,24 +384,39 @@ export default function PosUxEnhancer() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(".pos-premium-root");
     if (!root) return;
-    ensureStyles();
-    apply(root);
 
-    let queued = false;
-    const schedule = () => {
-      if (queued) return;
-      queued = true;
-      queueMicrotask(() => {
-        queued = false;
-        if (root.isConnected) apply(root);
-      });
+    ensureStyles();
+    let lastMode: "standard" | "quick" | null = null;
+    let restoreScrollLock: (() => void) | null = null;
+
+    const applyNow = () => {
+      const quick = syncMode(root);
+      apply(root);
+      if (window.innerWidth >= 1024 && !restoreScrollLock) {
+        restoreScrollLock = lockScrollContainers(root);
+      }
+      if (window.innerWidth < 1024 && restoreScrollLock) {
+        restoreScrollLock();
+        restoreScrollLock = null;
+      }
+      lastMode = quick ? "quick" : "standard";
     };
-    window.addEventListener("resize", schedule);
-    const observer = new MutationObserver(schedule);
-    observer.observe(root, { childList: true, subtree: true });
+
+    applyNow();
+
+    const onResize = () => applyNow();
+    window.addEventListener("resize", onResize);
+
+    const observer = new MutationObserver(() => {
+      const mode = root.querySelector(".pos-cart-drawer") ? "quick" : "standard";
+      if (mode !== lastMode) applyNow();
+    });
+    observer.observe(root, { childList: true });
+
     return () => {
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", onResize);
       observer.disconnect();
+      restoreScrollLock?.();
     };
   }, []);
 
