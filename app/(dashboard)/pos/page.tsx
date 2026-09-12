@@ -4,12 +4,7 @@ import ModernPosClient from "@/components/pos/modern-pos-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function PosPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ customer?: string }>;
-}) {
-  const { customer } = await searchParams;
+export default async function PosPage() {
   const role = await getUserRole();
   const canUsePos = role === "admin" || role === "manager" || role === "staff";
   if (!canUsePos) return null;
@@ -64,7 +59,6 @@ export default async function PosPage({
         customers={(customers ?? []) as any}
         instruments={(instruments ?? []) as any}
         todayInvoices={(todaysInvoices ?? []) as any}
-        initialCustomerId={customer || ""}
       />
     </div>
   );
