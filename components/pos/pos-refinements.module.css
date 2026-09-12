@@ -1,0 +1,98 @@
+.root {
+  --pos-bill-width: 410px;
+  isolation: isolate;
+}
+
+.root :global(main) {
+  grid-template-columns: minmax(0, 1fr) var(--pos-bill-width) !important;
+}
+
+.root :global(main > section) {
+  border-right: 0 !important;
+}
+
+.root :global(main > aside) {
+  isolation: isolate;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: -10px 0 28px rgba(15, 23, 42, 0.06);
+}
+
+.root :global(main > section > div:last-child) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+
+.root :global(main > section > div:last-child)::-webkit-scrollbar {
+  width: 6px;
+}
+
+.root :global(main > section > div:last-child)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.root :global(main > section > div:last-child)::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.28);
+  border-radius: 999px;
+}
+
+.root :global(main > section > div:last-child)::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.45);
+}
+
+.root :global(main > section > div:nth-child(2)) {
+  min-height: 34px !important;
+}
+
+.root :global(main > section > div:last-child > div) {
+  min-height: 44px !important;
+}
+
+.root :global(main > aside > div > div:first-child) {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 1), rgba(248, 250, 252, 0.96));
+}
+
+.root :global(main > aside > div > div:nth-child(2)) {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.root :global(main > aside > div > div:nth-child(3) > div:nth-child(2)) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+}
+
+.root :global(main > aside > div > div:nth-child(3) > div:nth-child(2))::-webkit-scrollbar {
+  width: 5px;
+}
+
+.root :global(main > aside > div > div:nth-child(3) > div:nth-child(2))::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.root :global(main > aside > div > div:nth-child(3) > div:nth-child(2))::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 999px;
+}
+
+.root :global(main > aside > div > div:nth-child(3) > div:nth-child(2) > div) {
+  min-height: 44px !important;
+}
+
+.root :global(main > aside > div > div:last-child) {
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.04);
+}
+
+.root :global(main > aside > div > div:last-child > div:nth-child(3)) {
+  margin-top: 7px;
+}
+
+@media (max-width: 1100px) {
+  .root {
+    --pos-bill-width: 370px;
+  }
+}
+
+@media (max-width: 900px) {
+  .root {
+    --pos-bill-width: 340px;
+  }
+}
