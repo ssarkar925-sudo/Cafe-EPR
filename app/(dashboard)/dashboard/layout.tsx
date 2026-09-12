@@ -59,6 +59,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         .dashboard-page-shell > .space-y-6.pb-16 > :nth-child(7) {
           order: 8;
         }
+
+        /* Hard-stop any later utility/order rule from pulling Recent Activity
+           back above the executive content. It must remain the final section. */
+        .dashboard-page-shell > .space-y-6.pb-16 > :last-child {
+          order: 999 !important;
+        }
       `}</style>
     </div>
   );
