@@ -7,8 +7,60 @@ main > div.space-y-6.pb-16 > div:first-child{position:relative;overflow:hidden;b
 main > div.space-y-6.pb-16 > div:first-child::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--db-cyan),var(--db-blue) 52%,var(--db-gold))}
 main > div.space-y-6.pb-16 > div:first-child .rounded-full{box-shadow:none!important}
 main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"]{background:var(--db-surface-2)!important;border-color:var(--db-line)!important}
-main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"] button{border-radius:8px!important;font-weight:820!important}
-main > div.space-y-6.pb-16 > div:first-child [class*="bg-slate-100"] button[class*="from-indigo-600"]{background:linear-gradient(180deg,var(--db-blue),color-mix(in srgb,var(--db-blue) 82%,#000))!important;box-shadow:0 5px 13px color-mix(in srgb,var(--db-blue) 20%,transparent)!important}
+/* Canonical Dashboard Period Tabs */
+.erp-dashboard-period-tab {
+    color: #172033;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font-weight: 750;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+html:not(.dark) .erp-dashboard-period-tab[data-active="true"] {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: linear-gradient(135deg, #365fe4 0%, #2148c9 100%) !important;
+    border-color: #2b54dc !important;
+    box-shadow: 0 4px 12px rgba(43, 84, 220, 0.28) !important;
+}
+
+html:not(.dark) .erp-dashboard-period-tab[data-active="true"] * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+html:not(.dark) .erp-dashboard-period-tab[data-active="false"] {
+    color: #172033 !important;
+}
+
+html:not(.dark) .erp-dashboard-period-tab[data-active="false"]:hover {
+    background: rgba(15, 23, 42, 0.05) !important;
+    color: #0f172a !important;
+}
+
+.dark .erp-dashboard-period-tab {
+    color: var(--db-muted, #8f9cb0);
+}
+
+.dark .erp-dashboard-period-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+.dark .erp-dashboard-period-tab[data-active="true"] {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+    border-color: rgba(88, 123, 255, 0.45) !important;
+    box-shadow: 0 5px 14px rgba(56, 89, 220, 0.35) !important;
+}
+
+.dark .erp-dashboard-period-tab[data-active="true"] * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
 main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-emerald,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-indigo,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-rose,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-amber,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-cyan{position:relative!important;overflow:hidden!important;min-height:178px!important;border:1px solid var(--db-line)!important;border-radius:13px!important;background:var(--db-surface)!important;box-shadow:0 8px 24px rgba(15,23,42,.055),inset 0 1px 0 rgba(255,255,255,.06)!important;transform:none!important}
 main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-emerald::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-indigo::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-rose::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-amber::before,main > div.space-y-6.pb-16 .bento-surface-interactive.card-glow-cyan::before{content:"";position:absolute;left:0;right:0;top:0;height:3px}
 main > div.space-y-6.pb-16 .card-glow-emerald::before{background:linear-gradient(90deg,var(--db-green),transparent 75%)}

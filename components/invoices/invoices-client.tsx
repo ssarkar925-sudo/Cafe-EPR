@@ -64,6 +64,23 @@ export type QuickSaleRow = {
   item_name?: string | null;
 };
 
+export type UnifiedSaleRow = {
+  id: string;
+  sourceType: "invoice" | "quick_sale";
+  refNumber: string;
+  date: string;
+  createdAt: string;
+  customerName: string;
+  customerPhone: string;
+  itemSummary: string;
+  total: number;
+  paid: number;
+  due: number;
+  status: string;
+  invoiceRaw?: InvoiceRow;
+  quickRaw?: QuickSaleRow;
+};
+
 const STATUSES = ["all", "paid", "partial", "unpaid", "cancelled"] as const;
 const METHODS = ["cash", "upi", "bank", "wallet", "card"] as const;
 const COLLECT_TIMEOUT = 5000;
@@ -135,7 +152,7 @@ export default function InvoicesClient({
   const initialQParam = searchParams?.get("q") || "";
   const [invoices, setInvoices] = useState<InvoiceRow[]>(initialInvoices);
   const [quickSales, setQuickSales] = useState<QuickSaleRow[]>(initialQuickSales);
-  const [tab, setTab] = useState<"invoices" | "quick">("invoices");
+  const [tab, setTab] = useState<"all" | "invoices" | "quick">("all");
   const [q, setQ] = useState(initialQParam);
   const [status, setStatus] = useState<(typeof STATUSES)[number]>(
     initialStatusParam && (STATUSES as readonly string[]).includes(initialStatusParam)
@@ -420,6 +437,75 @@ export default function InvoicesClient({
     return list;
   }, [filteredQuick, sort]);
 
+  const allUnifiedSales = useMemo<UnifiedSaleRow[]>(() => {
+    const invs: UnifiedSaleRow[] = invoices.map((i) => ({
+      id: i.id,
+      sourceType: "invoice",
+      refNumber: i.invoice_number,
+      date: i.invoice_date,
+      createdAt: i.created_at || i.invoice_date,
+      customerName: i.customers?.name || "Walk-in",
+      customerPhone: i.customers?.phone || "",
+      itemSummary: "POS Invoice",
+      total: Number(i.total) || 0,
+      paid: Number(i.paid) || 0,
+      due: Number(i.due) || 0,
+      status: i.status,
+      invoiceRaw: i,
+    }));
+    const qs: UnifiedSaleRow[] = quickSales.map((q) => ({
+      id: q.id,
+      sourceType: "quick_sale",
+      refNumber: q.sale_number,
+      date: q.sale_date,
+      createdAt: q.created_at || q.sale_date,
+      customerName: q.customers?.name || "Walk-in",
+      customerPhone: q.customers?.phone || "",
+      itemSummary: q.item_name || q.products?.name || q.services?.name || "Quick sale",
+      total: Number(q.amount) || 0,
+      paid: Number(q.amount) || 0,
+      due: 0,
+      status: q.status,
+      quickRaw: q,
+    }));
+    return [...invs, ...qs];
+  }, [invoices, quickSales]);
+
+  const filteredAll = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return allUnifiedSales.filter((s) => {
+      if (status !== "all" && s.status !== status) return false;
+      if (!needle) return true;
+      return (
+        s.refNumber.toLowerCase().includes(needle) ||
+        s.customerName.toLowerCase().includes(needle) ||
+        s.customerPhone.toLowerCase().includes(needle) ||
+        s.itemSummary.toLowerCase().includes(needle)
+      );
+    });
+  }, [allUnifiedSales, q, status]);
+
+  const sortedAll = useMemo(() => {
+    const list = [...filteredAll];
+    switch (sort) {
+      case "oldest":
+        list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        break;
+      case "amount-desc":
+        list.sort((a, b) => b.total - a.total);
+        break;
+      case "amount-asc":
+        list.sort((a, b) => a.total - b.total);
+        break;
+      case "customer":
+        list.sort((a, b) => a.customerName.localeCompare(b.customerName));
+        break;
+      default:
+        list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+    return list;
+  }, [filteredAll, sort]);
+
   function handleChanged(row: InvoiceRow) {
     setInvoices((prev) => prev.map((x) => (x.id === row.id ? { ...x, ...row } : x)));
   }
@@ -464,7 +550,36 @@ export default function InvoicesClient({
   async function exportCsv() {
     setExporting(true);
     try {
-      if (tab === "invoices") {
+      if (tab === "all") {
+        const rows = sortedAll.map((r) => ({
+          source: r.sourceType === "invoice" ? "Standard Invoice" : "Legacy Quick Sale",
+          ref: r.refNumber,
+          date: r.date,
+          customer: r.customerName,
+          mobile: r.customerPhone,
+          items: r.itemSummary,
+          total: Number(r.total),
+          paid: Number(r.paid),
+          due: Number(r.due),
+          status: r.status,
+        }));
+        const headers = ["Source", "Reference #", "Date", "Customer", "Mobile", "Items", "Total", "Paid", "Due", "Status"];
+        const csv = (v: string | number) => {
+          const s = String(v).replace(/"/g, '""');
+          return /[",\n]/.test(s) ? `"${s}"` : s;
+        };
+        const lines = [
+          headers.join(","),
+          ...rows.map((r) => [r.source, r.ref, r.date, r.customer, r.mobile, r.items, r.total, r.paid, r.due, r.status].map(csv).join(",")),
+        ];
+        const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `all-sales-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        flash("success", `${rows.length} sales exported`);
+      } else if (tab === "invoices") {
         const rows = sorted.map((r) => ({
           invoice: r.invoice_number,
           date: r.invoice_date,
@@ -634,37 +749,113 @@ export default function InvoicesClient({
     },
   ];
 
+  const UNIFIED_KPI_CARDS = [
+    {
+      label: "Total Sales",
+      value: inr(stats.total + quickStats.collected),
+      sub: `${stats.count + quickStats.count} total transactions`,
+      icon: <FileText className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-indigo border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-white to-white dark:border-indigo-500/30 dark:from-indigo-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400",
+      textClass: "text-slate-950 dark:text-white",
+      labelClass: "text-indigo-600 dark:text-indigo-400",
+      barGrad: "from-indigo-500 to-blue-500",
+      progress: false,
+    },
+    {
+      label: "Collected",
+      value: inr(stats.paid + quickStats.collected),
+      sub: `${stats.total + quickStats.collected > 0 ? Math.round(((stats.paid + quickStats.collected) / (stats.total + quickStats.collected)) * 100) : 100}% collection rate`,
+      icon: <CheckCircle2 className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-emerald border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-white to-white dark:border-emerald-500/30 dark:from-emerald-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+      textClass: "text-emerald-700 dark:text-emerald-400",
+      labelClass: "text-emerald-600 dark:text-emerald-400",
+      barGrad: "from-emerald-500 to-teal-500",
+      progress: false,
+    },
+    {
+      label: "Outstanding Due",
+      value: inr(stats.due),
+      sub: `${counts.unpaid ?? 0} unpaid · ${counts.partial ?? 0} partial`,
+      icon: <Clock className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-amber border-amber-500/20 bg-gradient-to-br from-amber-500/[0.06] via-white to-white dark:border-amber-500/30 dark:from-amber-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
+      textClass: "text-amber-700 dark:text-amber-400",
+      labelClass: "text-amber-600 dark:text-amber-400",
+      barGrad: "from-amber-500 to-orange-500",
+      progress: false,
+    },
+    {
+      label: "Legacy Quick Sales",
+      value: inr(quickStats.collected),
+      sub: `${quickStats.count} historical cash sale${quickStats.count === 1 ? "" : "s"}`,
+      icon: <Zap className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-cyan border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-white to-white dark:border-cyan-500/30 dark:from-cyan-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400",
+      textClass: "text-cyan-700 dark:text-cyan-400",
+      labelClass: "text-cyan-600 dark:text-cyan-400",
+      barGrad: "from-cyan-500 to-blue-500",
+      progress: false,
+    },
+    {
+      label: "Invoices Billed",
+      value: inr(stats.total),
+      sub: `${stats.count} canonical invoice${stats.count === 1 ? "" : "s"}`,
+      icon: <FileText className="h-4.5 w-4.5" />,
+      glowClass: "card-glow-rose border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] via-white to-white dark:border-rose-500/30 dark:from-rose-950/25 dark:via-slate-900 dark:to-slate-900",
+      iconBoxClass: "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400",
+      textClass: "text-rose-700 dark:text-rose-400",
+      labelClass: "text-rose-600 dark:text-rose-400",
+      barGrad: "from-rose-500 to-pink-500",
+      progress: false,
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {tab === "invoices" ? "Invoices" : "Quick Sales"}
+            {tab === "all" ? "Sales & Invoices" : tab === "invoices" ? "Standard Invoices" : "Legacy Quick Sales"}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {tab === "invoices"
+            {tab === "all"
+              ? "Unified sales ledger — all counter sales, invoices, and historical records."
+              : tab === "invoices"
               ? "Track sales, payments and returns — every bill, every rupee."
-              : "Fast walk-in counter sales — cash-register style."}
+              : "Historical walk-in counter sales (pre-unification archive)."}
           </p>
         </div>
         <a
-          href={tab === "invoices" ? "/pos" : "/pos?mode=quick"}
+          href="/pos"
           className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
         >
           <Plus className="h-4 w-4" />
-          <span>New {tab === "invoices" ? "Sale" : "Quick Sale"}</span>
+          <span>New POS Sale</span>
         </a>
       </div>
 
       {/* Tabs */}
       <div className="mt-5 flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 text-sm dark:border-white/10 dark:bg-slate-800/80">
         <button
+          onClick={() => setTab("all")}
+          className={`flex-1 rounded-lg px-4 py-2 font-bold transition-all duration-200 ${
+            tab === "all" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+          }`}
+        >
+          All Sales (Unified)
+          <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "all" ? "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300" : "bg-white/60 dark:bg-white/5"}`}>
+            {invoices.length + quickSales.length}
+          </span>
+        </button>
+        <button
           onClick={() => setTab("invoices")}
           className={`flex-1 rounded-lg px-4 py-2 font-bold transition-all duration-200 ${
             tab === "invoices" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           }`}
         >
-          Invoices
+          Standard Invoices
           <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "invoices" ? "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300" : "bg-white/60 dark:bg-white/5"}`}>
             {invoices.length}
           </span>
@@ -675,7 +866,7 @@ export default function InvoicesClient({
             tab === "quick" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           }`}
         >
-          Quick Sales
+          Legacy Quick Sales
           <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${tab === "quick" ? "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300" : "bg-white/60 dark:bg-white/5"}`}>
             {quickSales.length}
           </span>
@@ -684,7 +875,7 @@ export default function InvoicesClient({
 
       {/* KPI cards */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        {(tab === "invoices" ? KPI_CARDS : QUICK_KPI_CARDS).map((c) => (
+        {(tab === "all" ? UNIFIED_KPI_CARDS : tab === "invoices" ? KPI_CARDS : QUICK_KPI_CARDS).map((c) => (
           <div
             key={c.label}
             className={`group relative overflow-hidden rounded-2xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${c.glowClass}`}
@@ -713,7 +904,13 @@ export default function InvoicesClient({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={tab === "invoices" ? "Search invoice no, customer or mobile…" : "Search sale no, item, customer or mobile…"}
+            placeholder={
+              tab === "all"
+                ? "Search invoice / sale #, customer, item, or mobile…"
+                : tab === "invoices"
+                ? "Search invoice no, customer or mobile…"
+                : "Search sale no, item, customer or mobile…"
+            }
             className="w-full rounded-xl border border-slate-200/90 bg-white py-2 pl-9 pr-3 text-xs font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white"
           />
         </div>
@@ -738,7 +935,7 @@ export default function InvoicesClient({
               <List className="h-3.5 w-3.5" />
             </button>
           </div>
-          {tab === "invoices" ? (
+          {tab !== "quick" ? (
           <div className="flex rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 text-xs dark:border-white/10 dark:bg-slate-800/80">
             {STATUSES.map((s) => (
               <button
@@ -783,14 +980,16 @@ export default function InvoicesClient({
           </select>
           <button
             onClick={exportCsv}
-            disabled={exporting || (tab === "invoices" ? sorted.length === 0 : sortedQuick.length === 0)}
+            disabled={exporting || (tab === "all" ? sortedAll.length === 0 : tab === "invoices" ? sorted.length === 0 : sortedQuick.length === 0)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
           >
             <Download className="h-3.5 w-3.5" />
             <span>{exporting ? "Exporting…" : "Export CSV"}</span>
           </button>
           <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
-            {tab === "invoices"
+            {tab === "all"
+              ? `${sortedAll.length} sale${sortedAll.length === 1 ? "" : "s"}`
+              : tab === "invoices"
               ? `${sorted.length} invoice${sorted.length === 1 ? "" : "s"}`
               : `${sortedQuick.length} quick sale${sortedQuick.length === 1 ? "" : "s"}`}
           </span>
@@ -799,6 +998,298 @@ export default function InvoicesClient({
       </div>
 
       {/* Cards / List */}
+      {tab === "all" && (
+        <>
+          {view === "cards" ? (
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {sortedAll.map((s) => {
+                const isInv = s.sourceType === "invoice";
+                const customer = s.customerName;
+                const cancelled = s.status === "cancelled";
+                return (
+                  <div
+                    key={`${s.sourceType}-${s.id}`}
+                    onClick={() => (isInv ? setViewId(s.id) : setQuickViewId(s.id))}
+                    className={`bento-surface-interactive group relative flex cursor-pointer flex-col overflow-hidden p-5 dark:bg-slate-900/90 ${
+                      cancelled ? "opacity-60" : ""
+                    }`}
+                  >
+                    <div
+                      className={`absolute inset-x-0 top-0 h-1.5 ${
+                        isInv
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600"
+                          : "bg-gradient-to-r from-amber-500 to-orange-500"
+                      }`}
+                    />
+                    <div className="flex flex-1 flex-col pt-1">
+                      {/* Header with Source Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div
+                            className={`icon-box-3d h-11 w-11 shrink-0 bg-gradient-to-br ${gradient(customer)} text-sm font-black text-white shadow-sm`}
+                          >
+                            {customer.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                                {s.refNumber}
+                              </p>
+                              {isInv ? (
+                                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-300">
+                                  Invoice
+                                </span>
+                              ) : (
+                                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300">
+                                  Legacy Quick Sale
+                                </span>
+                              )}
+                            </div>
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-400 font-medium">
+                              {customer}
+                            </p>
+                            {s.customerPhone && (
+                              <p className="truncate text-[11px] text-slate-400">
+                                {s.customerPhone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {statusBadge(s.status)}
+                      </div>
+
+                      {/* Amounts */}
+                      <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-white/5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Total
+                          </p>
+                          <p className="mt-0.5 truncate text-sm font-bold text-slate-900 dark:text-white">
+                            {inr(s.total)}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Paid
+                          </p>
+                          <p className="mt-0.5 truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                            {inr(s.paid)}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            Due
+                          </p>
+                          <p className={`mt-0.5 truncate text-sm font-bold ${s.due > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-400"}`}>
+                            {inr(s.due)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span className="truncate max-w-[180px] text-[11px]">
+                          {s.itemSummary}
+                        </span>
+                        <span className="shrink-0 text-[11px]">{fmtDate(s.date)}</span>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 dark:border-white/5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyNumber(s.refNumber);
+                          }}
+                          title="Copy number"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                        <a
+                          href={isInv ? `/receipt/${s.id}/a4` : `/receipt/quick/${s.id}`}
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          title={isInv ? "Print A4 Invoice" : "Print 80mm Receipt"}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInv && s.invoiceRaw) handleSendInvoiceWhatsApp(s.invoiceRaw);
+                            else if (!isInv && s.quickRaw) handleSendQuickSaleWhatsApp(s.quickRaw);
+                          }}
+                          title="Send on WhatsApp"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInv) setViewId(s.id);
+                            else setQuickViewId(s.id);
+                          }}
+                          className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">
+              <div className="overflow-x-auto">
+                <table className={`w-full min-w-[960px] text-left text-sm ${compact ? "rows-compact" : ""}`}>
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:border-white/10 dark:bg-slate-800/80">
+                      <th className="px-5 py-3">Source & Reference</th>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Item / Summary</th>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3 text-right">Total</th>
+                      <th className="px-4 py-3 text-right">Paid</th>
+                      <th className="px-4 py-3 text-right">Due</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-5 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {sortedAll.map((s) => {
+                      const isInv = s.sourceType === "invoice";
+                      const customer = s.customerName;
+                      return (
+                        <tr
+                          key={`${s.sourceType}-${s.id}`}
+                          onClick={() => (isInv ? setViewId(s.id) : setQuickViewId(s.id))}
+                          className="cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        >
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-slate-900 dark:text-white">
+                                {s.refNumber}
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyNumber(s.refNumber);
+                                }}
+                                title="Copy number"
+                                className="text-slate-300 transition hover:text-slate-600 dark:hover:text-slate-200"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                              {isInv ? (
+                                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300">
+                                  Invoice
+                                </span>
+                              ) : (
+                                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300">
+                                  Legacy QS
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(customer)} text-[11px] font-bold text-white`}
+                              >
+                                {customer.slice(0, 1).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="max-w-[140px] truncate block font-medium text-slate-700 dark:text-slate-200">
+                                  {customer}
+                                </span>
+                                {s.customerPhone && (
+                                  <span className="text-[11px] text-slate-400">
+                                    {s.customerPhone}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="max-w-[180px] truncate px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+                            {s.itemSummary}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+                            {fmtDate(s.date)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
+                            {inr(s.total)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">
+                            {inr(s.paid)}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-medium ${s.due > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-400"}`}>
+                            {inr(s.due)}
+                          </td>
+                          <td className="px-4 py-3">{statusBadge(s.status)}</td>
+                          <td className="px-5 py-3">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <a
+                                href={isInv ? `/receipt/${s.id}/a4` : `/receipt/quick/${s.id}`}
+                                target="_blank"
+                                onClick={(e) => e.stopPropagation()}
+                                title={isInv ? "Print A4 Invoice" : "Print 80mm Receipt"}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isInv && s.invoiceRaw) handleSendInvoiceWhatsApp(s.invoiceRaw);
+                                  else if (!isInv && s.quickRaw) handleSendQuickSaleWhatsApp(s.quickRaw);
+                                }}
+                                title="Send on WhatsApp"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isInv) setViewId(s.id);
+                                  else setQuickViewId(s.id);
+                                }}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-200"
+                              >
+                                View
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {sortedAll.length === 0 && (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-200 py-16 text-center dark:border-white/10">
+              <FileText className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
+              <p className="mt-3 text-sm font-medium text-slate-600 dark:text-slate-400">
+                No sales found
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {q || status !== "all"
+                  ? "Try a different search or status filter."
+                  : "Create your first sale in the POS billing counter."}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
       {tab === "invoices" && (
       <>
       {view === "cards" ? (

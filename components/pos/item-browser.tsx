@@ -18,7 +18,8 @@ import {
   ArrowUpDown,
   Tag,
   PackageCheck,
-  ShoppingBag
+  ShoppingBag,
+  Star
 } from "lucide-react";
 
 export type BrowserItem = {
@@ -33,6 +34,7 @@ export type BrowserItem = {
   category_id?: string | null;
   categories?: { name: string } | null;
   is_quick_favorite?: boolean;
+  favorite?: boolean;
 };
 
 export type PosCustomer = {
@@ -305,6 +307,7 @@ export function PosCategoryChips({
   onSelect,
   customBtn,
   extraChips,
+  favCount,
 }: {
   categories: Category[];
   totalCount: number;
@@ -312,34 +315,52 @@ export function PosCategoryChips({
   onSelect: (id: string) => void;
   customBtn?: ReactNode;
   extraChips?: ReactNode;
+  favCount?: number;
 }) {
   return (
-    <div className="pos-category-chips mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="pos-category-chips flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {customBtn}
       {extraChips}
       <button
         type="button"
         onClick={() => onSelect("all")}
-        className={`touch-manipulation select-none shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
+        className={`touch-manipulation select-none shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
           active === "all"
-            ? "bg-blue-600 text-white shadow-xs"
+            ? "bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900 font-black"
             : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
         }`}
       >
-        All <span className="opacity-80 font-black">({totalCount})</span>
+        All <span className="opacity-70 font-black">({totalCount})</span>
       </button>
+
+      {favCount !== undefined && favCount >= 0 && (
+        <button
+          type="button"
+          onClick={() => onSelect("favorites")}
+          className={`touch-manipulation select-none shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
+            active === "favorites"
+              ? "bg-amber-500 text-white shadow-xs font-black"
+              : "border border-amber-200 bg-amber-50/70 text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+          }`}
+        >
+          <Star className="h-3.5 w-3.5 fill-current" />
+          <span>Favorites</span>
+          <span className="opacity-80 font-black">({favCount})</span>
+        </button>
+      )}
+
       {categories.map((c) => (
         <button
           type="button"
           key={c.id}
           onClick={() => onSelect(c.id)}
-          className={`touch-manipulation select-none shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
+          className={`touch-manipulation select-none shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all duration-75 active:scale-95 motion-reduce:transform-none ${
             active === c.id
-              ? "bg-blue-600 text-white shadow-xs"
+              ? "bg-blue-600 text-white shadow-xs font-black"
               : "border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
           }`}
         >
-          {c.name} <span className="opacity-80 font-black">({c.count})</span>
+          {c.name} <span className="opacity-70 font-black">({c.count})</span>
         </button>
       ))}
     </div>
@@ -350,15 +371,17 @@ export function PosGrid({
   items,
   isProduct,
   onAdd,
+  onToggleFavorite,
   emptyText = "No items match your search.",
 }: {
   items: BrowserItem[];
   isProduct?: boolean;
   onAdd: (id: string, name: string, price: number, isProduct: boolean) => void;
+  onToggleFavorite?: (id: string, isProduct: boolean) => void;
   emptyText?: string;
 }) {
   return (
-    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {items.map((x) => {
         const isProd = x.item_type ? x.item_type === "product" : Boolean(isProduct || x.stock_qty !== undefined);
         const stock = isProd ? Number(x.stock_qty ?? 0) : Infinity;
@@ -368,78 +391,81 @@ export function PosGrid({
         const price = Number(x.sale_price);
 
         return (
-          <button
-            type="button"
+          <div
             key={`${isProd ? "p" : "s"}-${x.id}`}
-            onClick={() => onAdd(x.id, x.name, price, isProd)}
-            disabled={out}
-            className={`pos-touch-tile-3d touch-manipulation select-none relative overflow-hidden group p-4 text-left transition-all duration-75 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none ${
-              out ? "cursor-not-allowed opacity-50" : ""
+            className={`pos-touch-tile-3d touch-manipulation select-none relative overflow-hidden group p-3.5 rounded-2xl border border-slate-200/90 bg-white dark:border-white/10 dark:bg-slate-900 transition-all duration-75 hover:shadow-md ${
+              out ? "opacity-50" : ""
             }`}
           >
-            <div
-              className={`absolute -right-4 -top-4 w-20 h-20 rounded-full blur-xl pointer-events-none transition-transform duration-300 group-hover:scale-150 ${
-                isProd ? "bg-purple-500/10 dark:bg-purple-500/15" : "bg-cyan-500/10 dark:bg-cyan-500/15"
-              }`}
-            />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between gap-2">
-                <div
-                  className={`icon-box-3d h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-br ${gradient(
-                    x.name
-                  )} text-base font-black text-white shadow-md shadow-indigo-500/15 transition-transform group-hover:scale-105`}
+            <div className="flex items-start justify-between gap-1.5">
+              <button
+                type="button"
+                onClick={() => onToggleFavorite?.(x.id, isProd)}
+                title={x.favorite ? "Remove from Favorites" : "Add to Favorites"}
+                className="rounded-lg p-1 text-slate-300 hover:text-amber-500 dark:text-slate-600 dark:hover:text-amber-400"
+              >
+                <Star className={`h-4 w-4 ${x.favorite ? "fill-amber-400 text-amber-400" : ""}`} />
+              </button>
+              <div className="flex flex-col items-end gap-1">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                    isProd
+                      ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/50"
+                      : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200/50"
+                  }`}
                 >
-                  {x.name.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="flex flex-col items-end gap-1">
+                  {isProd ? "Product" : "Service"}
+                </span>
+                {isProd ? (
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
-                      isProd
-                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/50"
-                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200/50"
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                      out
+                        ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                        : low
+                        ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                     }`}
                   >
-                    {isProd ? "PRODUCT" : "SERVICE"}
+                    {out ? "Out" : low ? `Low (${stock})` : `${stock}`}
                   </span>
-                  {isProd ? (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                        out
-                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
-                          : low
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-                      }`}
-                    >
-                      {out ? "OUT OF STOCK" : low ? `Low (${stock})` : `Stock ${stock}`}
-                    </span>
-                  ) : (
-                    <span className="max-w-[85px] truncate text-[10px] font-bold text-slate-400">
-                      {x.categories?.name ?? "Service"}
-                    </span>
-                  )}
-                </div>
+                ) : (
+                  <span className="max-w-[85px] truncate text-[10px] font-bold text-slate-400">
+                    {x.categories?.name ?? "Service"}
+                  </span>
+                )}
               </div>
-              <p className="mt-3 line-clamp-2 text-xs font-black leading-snug text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {x.name}
-              </p>
             </div>
 
-            <div className="relative z-10 mt-4 flex items-center justify-between border-t border-slate-100/80 pt-3 dark:border-white/5">
-              <p className="text-base font-extrabold text-blue-600 dark:text-blue-400">
+            <button
+              type="button"
+              onClick={() => onAdd(x.id, x.name, price, isProd)}
+              disabled={out}
+              className="w-full text-left mt-2 disabled:cursor-not-allowed"
+            >
+              <p className="line-clamp-2 text-xs font-black leading-snug text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors min-h-[32px]">
+                {x.name}
+              </p>
+              {x.code && <p className="font-mono text-[10px] text-slate-400 mt-0.5">{x.code}</p>}
+            </button>
+
+            <div className="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2.5 dark:border-white/5">
+              <p className="text-sm font-black text-slate-900 dark:text-white">
                 {inr(price)}
               </p>
-              <span
-                className={`rounded-xl px-3 py-1 text-[11px] font-black transition ${
+              <button
+                type="button"
+                onClick={() => onAdd(x.id, x.name, price, isProd)}
+                disabled={out}
+                className={`rounded-xl px-3 py-1 text-xs font-black transition ${
                   out
-                    ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
-                    : "btn-3d-tactile-primary group-hover:scale-105"
+                    ? "bg-slate-200 text-slate-500 cursor-not-allowed dark:bg-white/10 dark:text-slate-400"
+                    : "bg-slate-900 text-white hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
                 }`}
               >
                 {out ? "Out" : "+ Add"}
-              </span>
+              </button>
             </div>
-          </button>
+          </div>
         );
       })}
 
@@ -456,24 +482,27 @@ export function PosTable({
   items,
   isProduct,
   onAdd,
+  onToggleFavorite,
   emptyText = "No items match your search.",
 }: {
   items: BrowserItem[];
   isProduct?: boolean;
   onAdd: (id: string, name: string, price: number, isProduct: boolean) => void;
+  onToggleFavorite?: (id: string, isProduct: boolean) => void;
   emptyText?: string;
 }) {
   return (
-    <div className="relative mt-4 overflow-x-auto rounded-[20px] border border-slate-200/90 bg-white dark:border-white/10 dark:bg-slate-900">
-      <table className="w-full min-w-[760px] text-left text-xs">
-        <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black uppercase text-slate-400 dark:border-white/5 dark:bg-white/[0.02]">
+    <div className="relative mt-3 overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs dark:border-white/10 dark:bg-slate-900">
+      <table className="w-full min-w-[650px] text-left text-xs">
+        <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/[0.02]">
           <tr>
-            <th className="px-4 py-3">Type</th>
-            <th className="px-4 py-3">Name &amp; Code</th>
-            <th className="px-4 py-3">Category</th>
-            <th className="px-4 py-3">Price</th>
-            <th className="px-4 py-3">Stock Status</th>
-            <th className="sticky right-0 z-20 bg-slate-50/95 px-4 py-3 text-right shadow-[-8px_0_16px_-14px_rgba(15,23,42,0.55)] backdrop-blur-sm dark:bg-slate-900/95 dark:shadow-[-8px_0_16px_-14px_rgba(0,0,0,0.7)]">Action</th>
+            <th className="w-9 px-2.5 py-2.5 text-center">Fav</th>
+            <th className="w-16 px-2.5 py-2.5">Type</th>
+            <th className="px-3 py-2.5">Item Name &amp; Code</th>
+            <th className="px-3 py-2.5">Category</th>
+            <th className="w-24 px-3 py-2.5 text-right">Price</th>
+            <th className="w-28 px-3 py-2.5">Stock</th>
+            <th className="sticky right-0 z-20 w-20 bg-slate-50/95 px-3 py-2.5 text-right shadow-[-8px_0_16px_-14px_rgba(15,23,42,0.55)] backdrop-blur-sm dark:bg-slate-900/95">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -482,67 +511,78 @@ export function PosTable({
             const stock = isProd ? Number(x.stock_qty ?? 0) : Infinity;
             const reorder = isProd ? Number(x.reorder_level ?? 0) : 0;
             const out = isProd && stock <= 0;
+            const low = isProd && !out && stock <= reorder;
             const price = Number(x.sale_price);
 
             return (
-              <tr key={`${isProd ? "p" : "s"}-${x.id}`} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
-                <td className="px-4 py-2.5">
+              <tr key={`${isProd ? "p" : "s"}-${x.id}`} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition-colors">
+                <td className="px-2.5 py-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => onToggleFavorite?.(x.id, isProd)}
+                    title={x.favorite ? "Remove from Favorites" : "Add to Favorites"}
+                    className="rounded-lg p-1 text-slate-300 hover:text-amber-500 dark:text-slate-600 dark:hover:text-amber-400"
+                  >
+                    <Star className={`h-4 w-4 ${x.favorite ? "fill-amber-400 text-amber-400" : ""}`} />
+                  </button>
+                </td>
+                <td className="px-2.5 py-2">
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
                       isProd
-                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
-                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/50"
+                        : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200/50"
                     }`}
                   >
-                    {isProd ? "PROD" : "SERV"}
+                    {isProd ? "Prod" : "Serv"}
                   </span>
                 </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2.5">
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
                     <span
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient(
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${gradient(
                         x.name
-                      )} text-xs font-black text-white`}
+                      )} text-[10px] font-black text-white`}
                     >
                       {x.name.slice(0, 1).toUpperCase()}
                     </span>
                     <div className="min-w-0">
-                      <span className="block truncate font-extrabold text-slate-900 dark:text-white">
+                      <span className="block truncate font-bold text-slate-900 dark:text-white">
                         {x.name}
                       </span>
                       {x.code && <span className="font-mono text-[10px] text-slate-400">{x.code}</span>}
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-2.5 font-medium text-slate-500 dark:text-slate-400">
+                <td className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">
                   {x.categories?.name ?? "—"}
                 </td>
-                <td className="px-4 py-2.5 font-black text-blue-600 dark:text-blue-400">
+                <td className="px-3 py-2 text-right font-black text-blue-600 dark:text-blue-400">
                   {inr(price)}
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="px-3 py-2">
                   {isProd ? (
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                         out
-                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
-                          : stock <= reorder
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                          : low
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                       }`}
                     >
-                      {out ? "OUT OF STOCK" : `${x.stock_qty} in stock`}
+                      {out ? "Out of Stock" : low ? `Low (${stock})` : `${stock} in stock`}
                     </span>
                   ) : (
-                    <span className="text-slate-400">Digital / Service</span>
+                    <span className="text-[10px] font-medium text-slate-400">Digital / Service</span>
                   )}
                 </td>
-                <td className="sticky right-0 z-10 bg-white px-4 py-2.5 text-right shadow-[-8px_0_16px_-14px_rgba(15,23,42,0.45)] dark:bg-slate-900 dark:shadow-[-8px_0_16px_-14px_rgba(0,0,0,0.7)]">
+                <td className="sticky right-0 z-10 bg-white px-3 py-2 text-right shadow-[-8px_0_16px_-14px_rgba(15,23,42,0.45)] dark:bg-slate-900">
                   <button
                     type="button"
                     onClick={() => onAdd(x.id, x.name, price, isProd)}
                     disabled={out}
-                    className="touch-manipulation select-none active:scale-95 inline-flex min-w-[62px] items-center justify-center rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white transition-all duration-75 hover:bg-blue-600 motion-reduce:transform-none disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
+                    className="touch-manipulation select-none active:scale-95 inline-flex min-w-[58px] items-center justify-center rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-black text-white transition-all hover:bg-blue-600 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-600 dark:hover:text-white"
                   >
                     {out ? "Out" : "+ Add"}
                   </button>
@@ -552,7 +592,7 @@ export function PosTable({
           })}
           {items.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-12 text-center text-xs text-slate-400">
+              <td colSpan={7} className="py-12 text-center text-xs text-slate-400">
                 {emptyText}
               </td>
             </tr>

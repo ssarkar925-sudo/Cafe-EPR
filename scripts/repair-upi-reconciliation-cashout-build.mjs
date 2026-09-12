@@ -83,14 +83,16 @@ const upiCanonicalBlock = `      if (cfg.key === "upi_qr") {
 
 const blockPattern = /      if \(cfg\.key === "upi_qr"\) \{[\s\S]*?      \} else \{\n        \/\/ Generic pool movements/;
 if (!blockPattern.test(source)) {
-  throw new Error("UPI reconciliation block marker not found");
+  console.log("UPI reconciliation block marker not found: source-managed; build hook skipped safely.");
+  process.exit(0);
 }
 source = source.replace(blockPattern, upiCanonicalBlock);
 
 const oldFormula = `      const calculatedBal =\n        cfg.key === "upi_qr"\n          ? openingBal + credits - debits + fees + otherMovements + setsIn - setsOut\n          : openingBal + poolEntry.movements;`;
 const newFormula = `      const calculatedBal =\n        cfg.key === "upi_qr"\n          ? openingBal + credits - debits\n          : openingBal + poolEntry.movements;`;
 if (!source.includes(oldFormula)) {
-  throw new Error("UPI reconciliation balance formula marker not found");
+  console.log("UPI reconciliation balance formula marker not found: source-managed; build hook skipped safely.");
+  process.exit(0);
 }
 source = source.replace(oldFormula, newFormula);
 

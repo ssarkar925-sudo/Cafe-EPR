@@ -1,0 +1,67 @@
+{
+  "components\\pdf\\a4-actions.tsx -> ./business-pdf": {
+    "id": 53748,
+    "files": [
+      "static/chunks/ff804112.054e22aa82036647.js",
+      "static/chunks/d78ee677.668b6e829a4a3e91.js",
+      "static/chunks/11390db7.c4623af4129e334b.js",
+      "static/chunks/864b0550.09fa19657f4075d0.js",
+      "static/chunks/6537-563f49aa0ea0ce76.js",
+      "static/chunks/5430.56ab67a85e1c278c.js",
+      "static/chunks/3748.e046e019018e448e.js"
+    ]
+  },
+  "components\\pdf\\a4-actions.tsx -> ./day-close-pdf": {
+    "id": 65917,
+    "files": [
+      "static/chunks/ff804112.054e22aa82036647.js",
+      "static/chunks/d78ee677.668b6e829a4a3e91.js",
+      "static/chunks/11390db7.c4623af4129e334b.js",
+      "static/chunks/864b0550.09fa19657f4075d0.js",
+      "static/chunks/6537-563f49aa0ea0ce76.js",
+      "static/chunks/5430.56ab67a85e1c278c.js",
+      "static/chunks/5917.647ed2723b089b1a.js"
+    ]
+  },
+  "components\\pdf\\a4-actions.tsx -> ./invoice-pdf": {
+    "id": 65661,
+    "files": [
+      "static/chunks/ff804112.054e22aa82036647.js",
+      "static/chunks/d78ee677.668b6e829a4a3e91.js",
+      "static/chunks/11390db7.c4623af4129e334b.js",
+      "static/chunks/864b0550.09fa19657f4075d0.js",
+      "static/chunks/6537-563f49aa0ea0ce76.js",
+      "static/chunks/5430.56ab67a85e1c278c.js",
+      "static/chunks/5661.019637a72b0f1582.js"
+    ]
+  },
+  "components\\pdf\\a4-actions.tsx -> @react-pdf/renderer": {
+    "id": 33531,
+    "files": [
+      "static/chunks/ff804112.054e22aa82036647.js",
+      "static/chunks/d78ee677.668b6e829a4a3e91.js",
+      "static/chunks/11390db7.c4623af4129e334b.js",
+      "static/chunks/864b0550.09fa19657f4075d0.js",
+      "static/chunks/6537-563f49aa0ea0ce76.js",
+      "static/chunks/5430.56ab67a85e1c278c.js"
+    ]
+  },
+  "lib\\scan\\ocr.ts -> tesseract.js": {
+    "id": 59013,
+    "files": [
+      "static/chunks/9013.92dbe8e41e8812da.js"
+    ]
+  },
+  "node_modules\\next\\dist\\client\\index.js -> ../pages/_app": {
+    "id": 45139,
+    "files": [
+      "static/chunks/5139.bab70807d9ac195a.js"
+    ]
+  },
+  "node_modules\\next\\dist\\client\\index.js -> ../pages/_error": {
+    "id": 31646,
+    "files": [
+      "static/chunks/1646.f9222787e8cf193b.js"
+    ]
+  }
+}

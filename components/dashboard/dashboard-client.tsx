@@ -547,19 +547,20 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               { id: "week", label: "This Week" },
               { id: "month", label: "This Month" },
               { id: "ytd", label: "FY YTD" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setSelectedPeriod(tab.id as any)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
-                  selectedPeriod === tab.id
-                    ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-500/25 scale-[1.02]"
-                    : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-xs dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            ].map((tab) => {
+              const isActive = selectedPeriod === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  data-active={isActive ? "true" : "false"}
+                  onClick={() => setSelectedPeriod(tab.id as any)}
+                  className="erp-dashboard-period-tab px-3 py-1.5 text-xs font-bold transition-all duration-200"
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

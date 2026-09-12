@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/ai/extract": {
+      "maxDuration": 30
+    },
+    "/api/whatsapp/invoice/[id]": {},
+    "/api/whatsapp/send-invoice": {}
+  }
+}

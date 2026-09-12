@@ -39,22 +39,18 @@ export default function LoginPage() {
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
-  const [attempts, setAttempts] = useState(() => {
-    try {
-      return Number(sessionStorage.getItem(LOCK_KEY) || "0");
-    } catch {
-      return 0;
-    }
-  });
-  const [locked, setLocked] = useState(() => {
-    try {
-      const until = Number(sessionStorage.getItem(LOCK_KEY + "-until") || "0");
-      return Date.now() < until;
-    } catch {
-      return false;
-    }
-  });
+  const [attempts, setAttempts] = useState(0);
+  const [locked, setLocked] = useState(false);
   const [lockLeft, setLockLeft] = useState(0);
+
+  useEffect(() => {
+    try {
+      const a = Number(sessionStorage.getItem(LOCK_KEY) || "0");
+      setAttempts(a);
+      const until = Number(sessionStorage.getItem(LOCK_KEY + "-until") || "0");
+      setLocked(Date.now() < until);
+    } catch {}
+  }, []);
   const [mfaStep, setMfaStep] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);

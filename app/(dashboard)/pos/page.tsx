@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import PosClient from "@/components/pos/pos-client";
-import PosOpsStrip from "@/components/pos/pos-ops-strip";
 
 export const dynamic = "force-dynamic";
 
