@@ -266,7 +266,7 @@ export default function PosStandardOnlyLock() {
       const grid = grids.find((el) => el.querySelectorAll(":scope > button").length >= 8);
       if (grid) {
         const buttons = Array.from(grid.querySelectorAll(":scope > button"));
-        const splitButton = buttons[2];
+        const splitButton = buttons[2] as HTMLButtonElement | undefined;
         if (splitButton && !splitButton.dataset.posSplitCard) {
           splitButton.dataset.posSplitCard = "true";
           splitButton.setAttribute("aria-label", "Split payment");
