@@ -33,6 +33,7 @@ const REPAIR_SCRIPTS = [
   "repair-pos-checkout-result-type.mjs",
   "refine-pos-ui-build.mjs",
   "align-pos-ui-build.mjs",
+  "pos-reference-design-build.mjs",
 ];
 
 function resolveBuildIdentity() {
