@@ -239,7 +239,7 @@ function ensureStyles() {
         margin-top: 6px !important;
       }
 
-      .pos-premium-root[data-pos-mode="quick"] > .mt-5 > [data-pos-ux-shortcuts="1"] {
+      .pos-premium-root[data-pos-mode="quick"] > .mt-5 > [class*="bg-[#0f172a]"] {
         flex: 0 0 auto !important;
         margin-top: 6px !important;
       }
