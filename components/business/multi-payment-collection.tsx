@@ -19,11 +19,11 @@ type Props = {
 };
 
 const METHODS: { id: PaymentAllocation["method"]; label: string }[] = [
-  { id: "cash", label: "💵 Cash" },
-  { id: "upi", label: "📱 UPI" },
-  { id: "bank", label: "🏦 Bank" },
-  { id: "wallet", label: "👛 Wallet" },
-  { id: "card", label: "💳 Card" },
+  { id: "cash", label: "Cash" },
+  { id: "upi", label: "UPI" },
+  { id: "bank", label: "Bank" },
+  { id: "wallet", label: "Wallet" },
+  { id: "card", label: "Card" },
 ];
 
 function normalizeInitialAllocations(
@@ -59,6 +59,7 @@ export default function MultiPaymentCollection({
   const [allocations, setAllocations] = useState<PaymentAllocation[]>(() =>
     normalizeInitialAllocations(safeTotal, initialMethod, initialAllocations)
   );
+  const [splitOpen, setSplitOpen] = useState(false);
   const previousTotalRef = useRef(safeTotal);
   const onChangeRef = useRef(onChange);
   const lastEmittedRef = useRef("");
@@ -109,6 +110,7 @@ export default function MultiPaymentCollection({
     if (collected >= safeTotal - 0.005) return;
     const used = new Set(allocations.map((x) => x.method));
     const nextMethod = METHODS.find((m) => !used.has(m.id))?.id || "cash";
+    setSplitOpen(true);
     setAllocations((prev) => [...prev, { method: nextMethod, amount: remaining.toFixed(2), instrument_id: null }]);
   }
 
@@ -116,32 +118,93 @@ export default function MultiPaymentCollection({
     setAllocations((prev) => prev.filter((_, i) => i !== index));
   }
 
+  const rootClass = [
+    "rounded-xl border border-indigo-200 bg-indigo-50/50 p-2.5 dark:border-indigo-500/20 dark:bg-indigo-950/20",
+    mode === "invoice" ? "pos-standard-split-payment" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-500/20 dark:bg-indigo-950/20">
+    <div className={rootClass}>
       <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-black text-slate-800 dark:text-slate-100">Partial + Multiple Payment Collection</div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400">Collect one receipt using Cash, UPI, Bank, Wallet and/or Card. Any remainder becomes Khata Due.</div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment</span>
+          <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black">
+            <span className="rounded-md bg-white px-1.5 py-1 text-slate-700 dark:bg-slate-900 dark:text-slate-200">₹{safeTotal.toFixed(2)}</span>
+            <span className="rounded-md bg-white px-1.5 py-1 text-emerald-600 dark:bg-slate-900">₹{collected.toFixed(2)} paid</span>
+            <span className={`rounded-md bg-white px-1.5 py-1 dark:bg-slate-900 ${remaining > 0 ? "text-amber-600" : "text-slate-500"}`}>
+              ₹{remaining.toFixed(2)} {mode === "customer" ? "due" : mode === "invoice" ? "balance" : "left"}
+            </span>
+          </div>
         </div>
-        <button type="button" onClick={addRow} disabled={disabled || collected >= safeTotal - 0.005 || allocations.length >= METHODS.length} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white disabled:opacity-40">
-          + Add Payment
+        <button
+          type="button"
+          onClick={addRow}
+          disabled={disabled || collected >= safeTotal - 0.005 || allocations.length >= METHODS.length}
+          className="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-black text-white transition hover:bg-indigo-700 disabled:opacity-40"
+        >
+          + Split
         </button>
       </div>
-      <div className="mt-2 space-y-2">
-        {allocations.map((row, index) => (
-          <div key={`${index}-${row.method}`} className="grid grid-cols-[1fr_110px_auto] items-center gap-2">
-            <select value={row.method} onChange={(e) => updateRow(index, { method: e.target.value as PaymentAllocation["method"] })} disabled={disabled} className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white">
-              {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
-            <input type="number" min="0" max={safeTotal} step="0.01" value={row.amount} onChange={(e) => updateRow(index, { amount: e.target.value })} disabled={disabled} className="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-black font-mono text-right outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white" />
-            <button type="button" onClick={() => removeRow(index)} disabled={disabled || allocations.length <= 1} className="h-8 w-8 rounded-lg border border-rose-200 bg-white text-rose-600 disabled:opacity-30 dark:border-rose-900/40 dark:bg-slate-900" title="Remove payment">×</button>
-          </div>
-        ))}
+
+      <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {METHODS.map((m) => {
+          const active = allocations.length === 1 && allocations[0]?.method === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              disabled={disabled}
+              onClick={() => updateRow(0, { method: m.id })}
+              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-black transition ${
+                active
+                  ? "bg-white text-indigo-700 ring-1 ring-indigo-200 shadow-xs dark:bg-slate-900 dark:text-indigo-300"
+                  : "text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white"
+              } disabled:opacity-45`}
+            >
+              {m.label}
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-black">
-        <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">Total</span><div>₹{safeTotal.toFixed(2)}</div></div>
-        <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">Collected</span><div className="text-emerald-600">₹{collected.toFixed(2)}</div></div>
-        <div className="rounded-xl bg-white px-2.5 py-2 dark:bg-slate-900"><span className="text-slate-400">{mode === "customer" ? "Khata Due" : mode === "invoice" ? "Balance Due" : "Remaining"}</span><div className="text-amber-600">₹{remaining.toFixed(2)}</div></div>
+
+      {(splitOpen || allocations.length > 1) && (
+        <div className="mt-2 space-y-1.5">
+          {allocations.map((row, index) => (
+            <div key={`${index}-${row.method}`} className="grid grid-cols-[minmax(0,1fr)_96px_auto] items-center gap-1.5">
+              <select
+                value={row.method}
+                onChange={(e) => updateRow(index, { method: e.target.value as PaymentAllocation["method"] })}
+                disabled={disabled}
+                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
+              >
+                {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+              <input
+                type="number"
+                min="0"
+                max={safeTotal}
+                step="0.01"
+                value={row.amount}
+                onChange={(e) => updateRow(index, { amount: e.target.value })}
+                disabled={disabled}
+                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-[10px] font-black font-mono outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
+              />
+              <button
+                type="button"
+                onClick={() => removeRow(index)}
+                disabled={disabled || allocations.length <= 1}
+                className="h-7 w-7 rounded-lg border border-rose-200 bg-white text-xs font-black text-rose-600 disabled:opacity-30 dark:border-rose-900/40 dark:bg-slate-900"
+                title="Remove payment"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-1.5 flex items-center justify-end text-[9px] font-bold text-slate-400">
+        {allocations.length > 1 ? "Split collection active" : "Single payment • + Split for mixed tender"}
       </div>
     </div>
   );
