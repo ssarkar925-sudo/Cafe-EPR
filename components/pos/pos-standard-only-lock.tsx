@@ -11,28 +11,38 @@ import { useEffect } from "react";
  */
 export default function PosStandardOnlyLock() {
   useEffect(() => {
-    const STYLE_ID = "pos-invoice-cashier-ux-v2";
+    const STYLE_ID = "pos-invoice-cashier-ux-v3";
     const normalizeText = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 
     const styleText = `
-      /* --- Current Invoice / Cashier panel --- */
+      /* --- Current Invoice: fixed, isolated cashier panel --- */
       .pos-modern-only .pos-billing-drawer {
+        position: sticky !important;
+        top: 10px !important;
+        align-self: start !important;
+        z-index: 30 !important;
         width: 100% !important;
         min-width: 0 !important;
+        max-height: calc(100vh - 20px) !important;
         border-radius: 16px !important;
         border: 1px solid var(--pos-modern-line, #e4e8ed) !important;
         background: var(--pos-modern-surface, #fff) !important;
         box-shadow: 0 10px 28px rgba(15, 23, 42, .07) !important;
-        overflow: hidden !important;
       }
 
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] {
+        position: relative !important;
+        height: calc(100vh - 20px) !important;
+        max-height: calc(100vh - 20px) !important;
         border-radius: 16px !important;
         overflow: hidden !important;
+        isolation: isolate !important;
       }
 
-      /* Invoice title strip */
+      /* Invoice title strip stays above the scrollable billing body. */
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:first-child {
+        position: relative !important;
+        z-index: 4 !important;
         min-height: 58px !important;
         padding: 10px 14px !important;
         border-bottom: 1px solid var(--pos-modern-line, #e4e8ed) !important;
@@ -51,13 +61,21 @@ export default function PosStandardOnlyLock() {
         color: var(--pos-modern-muted, #667085) !important;
       }
 
-      /* Main invoice body */
+      /* Keep the body below the title and above the totals footer. */
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(2) {
+        position: relative !important;
+        z-index: 2 !important;
+        min-height: 0 !important;
         padding: 10px 12px !important;
         background: var(--pos-modern-surface, #fff) !important;
       }
 
-      /* Customer block: single strong field rather than nested boxes */
+      /* Customer selector: contained and never visually above the invoice header. */
+      .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(2) > * {
+        position: relative !important;
+        z-index: 1 !important;
+      }
+
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(2) input,
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(2) select {
         min-height: 36px !important;
@@ -79,10 +97,6 @@ export default function PosStandardOnlyLock() {
         box-shadow: none !important;
       }
 
-      .pos-modern-only .pos-billing-drawer [data-cart-item-key] > div:first-child {
-        min-width: 0 !important;
-      }
-
       .pos-modern-only .pos-billing-drawer [data-cart-item-key] input[type="number"] {
         min-height: 28px !important;
         background: transparent !important;
@@ -98,7 +112,7 @@ export default function PosStandardOnlyLock() {
         border-radius: 8px !important;
       }
 
-      /* Payment area: four-card control */
+      /* Payment area: exactly four cashier choices. */
       .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) {
         display: grid !important;
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -109,7 +123,7 @@ export default function PosStandardOnlyLock() {
       .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) > button {
         order: 20 !important;
         min-height: 52px !important;
-        padding: 8px 8px !important;
+        padding: 8px !important;
         border-radius: 11px !important;
         border: 1px solid var(--pos-modern-line, #e4e8ed) !important;
         background: var(--pos-modern-soft, #f7f8fa) !important;
@@ -117,13 +131,6 @@ export default function PosStandardOnlyLock() {
         box-shadow: none !important;
         font-size: 11px !important;
         font-weight: 900 !important;
-        letter-spacing: -.01em !important;
-        transition: transform .12s ease, border-color .12s ease, background .12s ease !important;
-      }
-
-      .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) > button:hover {
-        transform: translateY(-1px) !important;
-        border-color: color-mix(in srgb, var(--pos-modern-primary, #2563eb) 38%, var(--pos-modern-line, #e4e8ed)) !important;
       }
 
       .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) > button:nth-child(1) {
@@ -155,7 +162,7 @@ export default function PosStandardOnlyLock() {
         background: #f5f2ff !important;
       }
 
-      /* Never display the old payment methods: Bank / Wallet / Debit / Credit */
+      /* Bank / Wallet / Debit / Credit remain available inside Split only. */
       .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) > button:nth-child(4),
       .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) > button:nth-child(5),
       .pos-modern-only .pos-billing-drawer div.grid-cols-3:has(> button:nth-child(8)) > button:nth-child(6),
@@ -163,9 +170,9 @@ export default function PosStandardOnlyLock() {
         display: none !important;
       }
 
-      /* Old split widget becomes a hidden state engine; show only its split editor. */
+      /* Split editor is compact and stays inside the billing body. */
       .pos-modern-only .pos-standard-split-payment {
-        margin: 2px 0 4px !important;
+        margin: 3px 0 4px !important;
         padding: 0 !important;
         border: 0 !important;
         background: transparent !important;
@@ -179,7 +186,7 @@ export default function PosStandardOnlyLock() {
       }
 
       .pos-modern-only .pos-standard-split-payment > div:nth-child(4) {
-        display: none !important;
+        display: block !important;
         margin-top: 8px !important;
         padding: 9px !important;
         border: 1px solid #d7cffd !important;
@@ -187,8 +194,33 @@ export default function PosStandardOnlyLock() {
         background: #f8f6ff !important;
       }
 
-      .pos-modern-only .pos-standard-split-payment:has(> div:nth-child(4)) > div:nth-child(4) {
-        display: block !important;
+      /* Explicit split-row remove control — always visible once split has 2+ rows. */
+      .pos-modern-only .pos-standard-split-payment > div:nth-child(4) > div {
+        position: relative !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 94px 30px !important;
+        align-items: center !important;
+        gap: 6px !important;
+      }
+
+      .pos-modern-only .pos-standard-split-payment > div:nth-child(4) > div > button:last-child {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0 !important;
+        border: 1px solid #efb6c0 !important;
+        border-radius: 8px !important;
+        background: #fff7f8 !important;
+        color: #c3274f !important;
+        font-size: 16px !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
       }
 
       .pos-modern-only .pos-standard-split-payment > div:nth-child(4) select,
@@ -200,13 +232,10 @@ export default function PosStandardOnlyLock() {
         font-size: 10px !important;
       }
 
-      /* Discount + total controls */
-      .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(2) .border-t {
-        border-top-color: var(--pos-modern-line, #e4e8ed) !important;
-      }
-
-      /* Billing footer: always reads as the final checkout zone */
+      /* Totals footer stays anchored below the invoice body. */
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(3) {
+        position: relative !important;
+        z-index: 5 !important;
         padding: 10px 12px 12px !important;
         border-top: 1px solid var(--pos-modern-line, #e4e8ed) !important;
         background: var(--pos-modern-soft, #f7f8fa) !important;
@@ -229,29 +258,28 @@ export default function PosStandardOnlyLock() {
         font-size: 11px !important;
       }
 
-      /* Reduce duplicate visual containers in footer */
       .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] > div:nth-child(3) .grid-cols-2 button {
         min-height: 34px !important;
         font-size: 10px !important;
       }
 
-      /* Split card uses the existing Card action internally, but never presents
-         the word Card to the cashier. */
-      .pos-modern-only [data-pos-split-card] {
-        color: #4a35b6 !important;
-        border-color: #d7cffd !important;
-        background: #f5f2ff !important;
-      }
+      @media (max-width: 1023px) {
+        .pos-modern-only .pos-billing-drawer {
+          position: relative !important;
+          top: auto !important;
+          max-height: none !important;
+        }
 
-      @media (min-width: 1280px) {
         .pos-modern-only .pos-billing-drawer > [data-sticky-drawer="true"] {
-          max-height: calc(100vh - 5.25rem) !important;
+          height: auto !important;
+          max-height: none !important;
         }
       }
     `;
 
     const installStyles = () => {
-      if (document.getElementById(STYLE_ID)) return;
+      const existing = document.getElementById(STYLE_ID);
+      if (existing) return;
       const style = document.createElement("style");
       style.id = STYLE_ID;
       style.textContent = styleText;
@@ -261,14 +289,13 @@ export default function PosStandardOnlyLock() {
     const markPaymentCards = () => {
       const root = document.querySelector(".pos-modern-only");
       if (!root) return;
-
       const grids = Array.from(root.querySelectorAll("div.grid-cols-3"));
       const grid = grids.find((el) => el.querySelectorAll(":scope > button").length >= 8);
       if (grid) {
         const buttons = Array.from(grid.querySelectorAll(":scope > button"));
         const splitButton = buttons[2] as HTMLButtonElement | undefined;
-        if (splitButton && !splitButton.dataset.posSplitCard) {
-          splitButton.dataset.posSplitCard = "true";
+        if (splitButton) {
+          if (!splitButton.dataset.posSplitCard) splitButton.dataset.posSplitCard = "true";
           splitButton.setAttribute("aria-label", "Split payment");
           splitButton.setAttribute("title", "Split payment");
           splitButton.textContent = "Split";
@@ -288,7 +315,6 @@ export default function PosStandardOnlyLock() {
     const blockLegacyAndSplit = (event: MouseEvent) => {
       const element = event.target instanceof Element ? event.target.closest("button") : null;
       if (!element) return;
-
       if (element.dataset.posSplitCard === "true") {
         event.preventDefault();
         event.stopImmediatePropagation();
