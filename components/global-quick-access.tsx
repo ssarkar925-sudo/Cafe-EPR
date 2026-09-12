@@ -13,8 +13,6 @@ import {
 
 const ICONS: Record<string, string> = {
   dashboard: "⌂",
-  "new-sale": "▣",
-  "quick-sale": "⚡",
   "customer-crm": "♙",
   "cash-book": "▤",
   aeps: "▥",
