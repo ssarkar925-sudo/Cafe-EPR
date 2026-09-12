@@ -8,9 +8,16 @@ function textOf(el: Element) {
   return (el.textContent || "").replace(/\s+/g, " ").trim();
 }
 
-function hideButton(button: HTMLButtonElement) {
-  button.setAttribute("data-pos-ux-hidden", "true");
+function hideButton(button: HTMLButtonElement, reason = "default") {
+  button.setAttribute("data-pos-ux-hidden", reason);
   button.style.display = "none";
+}
+
+function restoreButton(button: HTMLButtonElement, reason: string) {
+  if (button.getAttribute("data-pos-ux-hidden") === reason) {
+    button.removeAttribute("data-pos-ux-hidden");
+    button.style.removeProperty("display");
+  }
 }
 
 function applyPosUx(root: HTMLElement) {
@@ -34,24 +41,27 @@ function applyPosUx(root: HTMLElement) {
       toolbar.dataset.posUxListDefault = "1";
     }
 
-    // Quick Sale already exposes one Favourites filter in the category row.
-    // Remove the duplicate toolbar tab only when that category-row control exists.
+    // Quick Sale has a Favourites chip in the category row, so do not show a
+    // second Favourites tab in its toolbar. Restore it when returning to normal POS.
     const next = toolbar.nextElementSibling;
-    if (
+    const quickFavouriteRow =
       quickMode &&
       next instanceof HTMLElement &&
       next.classList.contains("pos-category-chips") &&
-      textOf(next).includes("Favourites")
-    ) {
-      const duplicateFav = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button")).find(
-        (button) => textOf(button) === "Favorites"
-      );
-      if (duplicateFav) hideButton(duplicateFav);
+      textOf(next).includes("Favourites");
+    const duplicateFav = Array.from(toolbar.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => textOf(button) === "Favorites"
+    );
+    if (duplicateFav) {
+      if (quickFavouriteRow) hideButton(duplicateFav, "quick-favourites");
+      else restoreButton(duplicateFav, "quick-favourites");
     }
   });
 
   root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-    if (button.dataset.posUxHidden === "true") return;
+    const hiddenReason = button.getAttribute("data-pos-ux-hidden");
+    if (hiddenReason && hiddenReason !== "quick-recall" && hiddenReason !== "quick-favourites") return;
+
     const label = textOf(button);
     const insideBilling = Boolean(button.closest(".pos-billing-drawer"));
     const insideToolbar = Boolean(button.closest(".pos-item-toolbar"));
@@ -59,7 +69,13 @@ function applyPosUx(root: HTMLElement) {
     // Duplicated/secondary navigation controls.
     if (label === "Customers" && !insideBilling) hideButton(button);
     if (label === "Hold Bill" && !insideBilling) hideButton(button);
-    if (quickMode && label.startsWith("Recall") && !insideBilling) hideButton(button);
+
+    // Quick Sale already has its own Recall control inside the checkout card.
+    if (label.startsWith("Recall") && !insideBilling) {
+      if (quickMode) hideButton(button, "quick-recall");
+      else restoreButton(button, "quick-recall");
+    }
+
     if (label === "Recent Sales" && insideBilling) hideButton(button);
     if (label === "All Items" && insideToolbar) hideButton(button);
 
@@ -75,18 +91,13 @@ function applyPosUx(root: HTMLElement) {
     if (label === "Clear all" && insideBilling) {
       button.textContent = "Clear";
     }
-
-    // Standard POS card title is clearer as Current Bill.
-    if (insideBilling && label === "Current Invoice") {
-      button.textContent = "Current Bill";
-    }
   });
 
   root.querySelectorAll<HTMLElement>(".pos-billing-drawer [data-sticky-drawer=\"true\"]").forEach((drawer) => {
     drawer.classList.add("pos-ux-billing-card");
   });
 
-  // Current Invoice is a heading, not a button, so rename the standard checkout card here.
+  // Standard POS checkout heading is clearer as Current Bill.
   root.querySelectorAll<HTMLElement>(".pos-billing-drawer h2").forEach((heading) => {
     if (textOf(heading) === "Current Invoice") heading.textContent = "Current Bill";
   });
@@ -119,6 +130,10 @@ function ensureStyles() {
       order: 2;
       margin-top: 0 !important;
       margin-bottom: 6px !important;
+    }
+
+    .pos-premium-root .pos-ux-catalog-column > .pos-category-chips + .pos-item-toolbar {
+      margin-top: 0 !important;
     }
 
     .pos-premium-root .pos-ux-catalog-column > [class*="mt-4"] {
