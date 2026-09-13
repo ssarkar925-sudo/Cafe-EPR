@@ -36,19 +36,22 @@ import {
   X,
 } from "lucide-react";
 import PosNewCustomerModal from "./pos-new-customer-modal";
+import PosCustomItemModal from "./pos-custom-item-modal";
 import { playPosSound } from "./pos-sound";
 import type {
   CartLine,
   OrderTab,
   PaymentChoice,
   PosCatalogItem,
+  PosCategory,
   PosCustomer,
   PosInstrument,
+  PosMerchantQr,
   SplitRow,
   SuccessState,
 } from "./pos-types";
 
-export type { PosCatalogItem, PosCustomer, PosInstrument };
+export type { PosCatalogItem, PosCustomer, PosInstrument, PosMerchantQr, PosCategory };
 
 function money(value: number) {
   return inr(Math.round((value + Number.EPSILON) * 100) / 100);
@@ -115,10 +118,12 @@ function createInitialTab(index = 1, initialCustomerId = ""): OrderTab {
 export default function PosShell({
   shopName,
   operatorName,
-  products,
-  services,
+  products: initialProducts,
+  services: initialServices,
   customers: initialCustomers,
   instruments,
+  merchantQrs = [],
+  categories: storeCategories = [],
   initialCustomerId = "",
   defaultUpiId = "",
   shopPhone = "",
@@ -129,6 +134,8 @@ export default function PosShell({
   services: PosCatalogItem[];
   customers: PosCustomer[];
   instruments: PosInstrument[];
+  merchantQrs?: PosMerchantQr[];
+  categories?: PosCategory[];
   initialCustomerId?: string;
   defaultUpiId?: string;
   shopPhone?: string;
@@ -136,6 +143,16 @@ export default function PosShell({
   const supabase = createClient();
   const itemSearchRef = useRef<HTMLInputElement | null>(null);
   const customerSearchRef = useRef<HTMLInputElement | null>(null);
+
+  // Dynamic Catalog state (so custom ad-hoc added items appear instantly)
+  const [products, setProducts] = useState<PosCatalogItem[]>(initialProducts);
+  const [services, setServices] = useState<PosCatalogItem[]>(initialServices);
+  const [customItemOpen, setCustomItemOpen] = useState(false);
+
+  // Merchant QR state
+  const [selectedMerchantQrId, setSelectedMerchantQrId] = useState<string>(
+    merchantQrs?.[0]?.id || ""
+  );
 
   // Dynamic Customer state (so newly added customers appear instantly)
   const [customers, setCustomers] = useState<PosCustomer[]>(initialCustomers);
@@ -315,11 +332,28 @@ export default function PosShell({
     [instruments]
   );
   const splitInstrumentOptions = useMemo(
-    () => instruments.map((instrument) => ({ value: instrument.id, label: instrument.name })),
+    () =>
+      instruments.map((instrument) => {
+        const typeLabel = instrument.type ? instrument.type.toUpperCase().replace("_", " ") : "ACCOUNT";
+        return {
+          value: instrument.id,
+          label: `${instrument.name} (${typeLabel})`,
+        };
+      }),
     [instruments]
   );
 
-  const resolvedUpiId = defaultUpiId || upiInstrument?.account_number || "";
+  const activeMerchantQr = useMemo(
+    () => merchantQrs?.find((q) => q.id === selectedMerchantQrId) ?? merchantQrs?.[0],
+    [merchantQrs, selectedMerchantQrId]
+  );
+
+  const resolvedUpiId =
+    activeMerchantQr?.upi_id ||
+    defaultUpiId ||
+    upiInstrument?.account_number ||
+    (upiInstrument?.details as any)?.upi_id ||
+    "";
 
   // Dynamic QR Generation when UPI is selected
   useEffect(() => {
@@ -329,12 +363,12 @@ export default function PosShell({
     }
     const upiStr = generateUpiString({
       upiId: resolvedUpiId,
-      name: shopName || "Shop",
+      name: activeMerchantQr?.display_name || shopName || "Shop",
       amount: total,
       note: `POS ${currentTab.title}`,
     });
     void generateQrDataUrl(upiStr, { width: 220, margin: 1 }).then(setQrDataUrl);
-  }, [currentTab.paymentChoice, total, resolvedUpiId, shopName, currentTab.title]);
+  }, [currentTab.paymentChoice, total, resolvedUpiId, activeMerchantQr?.display_name, shopName, currentTab.title]);
 
   // Sync cash received default
   useEffect(() => {
@@ -342,6 +376,16 @@ export default function PosShell({
       updateCurrentTab({ cashReceived: total.toFixed(2) });
     }
   }, [currentTab.paymentChoice, total, currentTab.cashReceived, updateCurrentTab]);
+
+  function handleCustomItemCreated(item: PosCatalogItem) {
+    if (item.kind === "service") {
+      setServices((prev) => [item, ...prev]);
+    } else {
+      setProducts((prev) => [item, ...prev]);
+    }
+    addItem(item);
+    playPosSound("add", soundEnabled);
+  }
 
   // Keyboard Shortcuts Handler
   useEffect(() => {
@@ -357,6 +401,9 @@ export default function PosShell({
         e.preventDefault();
         itemSearchRef.current?.focus();
         itemSearchRef.current?.select();
+      } else if (e.key === "F7") {
+        e.preventDefault();
+        setCustomItemOpen(true);
       } else if (e.key === "F8") {
         e.preventDefault();
         const choices: PaymentChoice[] = ["cash", "upi", "khata", "split"];
@@ -503,7 +550,7 @@ export default function PosShell({
     setError(null);
     let patch: Partial<OrderTab> = { paymentChoice: choice };
     if (choice === "split" && currentTab.splitRows.length === 0) {
-      const firstId = cashInstrument?.id ?? instruments[0]?.id ?? "";
+      const firstId = instruments[0]?.id ?? cashInstrument?.id ?? "";
       patch.splitRows = [{ id: makeId(), instrumentId: firstId, amount: total > 0 ? total.toFixed(2) : "" }];
     }
     if (choice === "cash") {
@@ -538,7 +585,7 @@ export default function PosShell({
     updateCurrentTab({
       splitRows: [
         ...currentTab.splitRows,
-        { id: makeId(), instrumentId: nextInst?.id ?? "", amount: remaining > 0 ? remaining.toFixed(2) : "" },
+        { id: makeId(), instrumentId: nextInst?.id ?? instruments[0]?.id ?? "", amount: remaining > 0 ? remaining.toFixed(2) : "" },
       ],
     });
     playPosSound("click", soundEnabled);
@@ -829,7 +876,7 @@ export default function PosShell({
   const cashChange = Math.max(0, (Number(currentTab.cashReceived) || 0) - total);
 
   return (
-    <div className="absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-900 text-slate-100 antialiased select-none font-sans">
+    <div className="cafeerp-pos-reference absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-50 text-slate-900 antialiased select-none font-sans dark:bg-slate-950 dark:text-slate-100">
       {/* CafeERP POS reference design */}
       <div className="hidden" data-pos-money-out="reference">
         <PosOperations
@@ -848,21 +895,21 @@ export default function PosShell({
         />
       </div>
       {/* 1. TOP COMMAND BAR */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-3.5 shadow-md">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white px-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {/* Brand & Register */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/25">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
             <ShoppingCart className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs font-black tracking-tight text-white">
+            <div className="flex items-center gap-1.5 text-xs font-black tracking-tight text-slate-900 dark:text-white">
               <span className="truncate">{shopName || "CafeERP"}</span>
-              <span className="text-slate-600">/</span>
-              <span className="text-cyan-400 font-extrabold uppercase">POS 2.0</span>
+              <span className="text-slate-300 dark:text-slate-600">/</span>
+              <span className="text-blue-600 dark:text-blue-400 font-extrabold uppercase">POS Terminal</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-400">
-              <span className="inline-flex items-center gap-1 text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+            <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
               </span>
               <span>•</span>
               <span className="truncate">{operatorName}</span>
@@ -872,7 +919,7 @@ export default function PosShell({
 
         {/* Multi-Cart Order Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto max-w-[42vw] px-2 [scrollbar-width:none]">
-          {tabs.map((tab, idx) => {
+          {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             const tabGross = tab.cart.reduce((s, l) => s + l.rate * l.qty, 0);
             return (
@@ -882,15 +929,15 @@ export default function PosShell({
                 onClick={() => switchTab(tab.id)}
                 className={`group flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition-all ${
                   isActive
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400/40"
-                    : "bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/25 ring-1 ring-blue-500/30"
+                    : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 }`}
               >
                 <span>{tab.title}</span>
                 {tabGross > 0 && (
                   <span
                     className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
-                      isActive ? "bg-blue-900/60 text-blue-200" : "bg-slate-700 text-slate-300"
+                      isActive ? "bg-blue-800 text-blue-100" : "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
                     {money(tabGross)}
@@ -898,6 +945,7 @@ export default function PosShell({
                 )}
                 {tabs.length > 1 && (
                   <span
+                    role="button"
                     onClick={(e) => closeTab(tab.id, e)}
                     className="flex h-4 w-4 items-center justify-center rounded hover:bg-black/20 text-white/60 hover:text-white"
                   >
@@ -912,7 +960,7 @@ export default function PosShell({
               type="button"
               onClick={addNewTab}
               title="Add New Cart Tab (F2)"
-              className="flex h-9 items-center gap-1 rounded-xl border border-dashed border-slate-700 px-2.5 text-[10px] font-black text-slate-400 hover:border-blue-500 hover:text-blue-400 transition"
+              className="flex h-9 items-center gap-1 rounded-xl border border-dashed border-slate-300 px-2.5 text-[10px] font-black text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-blue-500 transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Tab</span>
@@ -929,20 +977,20 @@ export default function PosShell({
             title={soundEnabled ? "Sound ON (Click to mute)" : "Sound MUTED (Click to unmute)"}
             className={`flex h-8 w-8 items-center justify-center rounded-xl border transition ${
               soundEnabled
-                ? "border-slate-700 bg-slate-800/80 text-cyan-400"
-                : "border-slate-800 bg-slate-900 text-slate-600"
+                ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400"
+                : "border-slate-200 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600"
             }`}
           >
             {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
 
           {/* View mode toggle */}
-          <div className="flex h-8 rounded-xl border border-slate-700 bg-slate-800/80 p-0.5">
+          <div className="flex h-8 rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-800/80">
             <button
               type="button"
               onClick={() => toggleViewMode("grid")}
               className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-                viewMode === "grid" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                viewMode === "grid" ? "bg-white text-blue-600 shadow-sm dark:bg-blue-600 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
               title="Visual Card Grid"
             >
@@ -952,7 +1000,7 @@ export default function PosShell({
               type="button"
               onClick={() => toggleViewMode("list")}
               className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-                viewMode === "list" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                viewMode === "list" ? "bg-white text-blue-600 shadow-sm dark:bg-blue-600 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
               title="High-Density Fast List"
             >
@@ -960,15 +1008,15 @@ export default function PosShell({
             </button>
           </div>
 
-          <span className="h-5 w-px bg-slate-800 mx-0.5" />
+          <span className="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
 
           {/* Money Out */}
           <button
             type="button"
             onClick={() => setOperationsPanel("money-out")}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-rose-900/60 bg-rose-950/40 px-2.5 text-[10px] font-black text-rose-300 hover:bg-rose-900/40 transition"
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 text-[10px] font-black text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40 transition"
           >
-            <ArrowDownToLine className="h-3.5 w-3.5 text-rose-400" />
+            <ArrowDownToLine className="h-3.5 w-3.5 text-rose-500" />
             <span className="hidden sm:inline">Money Out</span>
           </button>
 
@@ -976,9 +1024,9 @@ export default function PosShell({
           <button
             type="button"
             onClick={() => void openTodaySales()}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-2.5 text-[10px] font-black text-slate-300 hover:bg-slate-700 transition"
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-sm"
           >
-            <ReceiptText className="h-3.5 w-3.5 text-blue-400" />
+            <ReceiptText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
             <span className="hidden sm:inline">Today's Sales</span>
           </button>
 
@@ -992,9 +1040,9 @@ export default function PosShell({
               } catch {}
               setOperationsPanel("held");
             }}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-2.5 text-[10px] font-black text-slate-300 hover:bg-slate-700 transition"
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-sm"
           >
-            <Pause className="h-3.5 w-3.5 text-amber-400" />
+            <Pause className="h-3.5 w-3.5 text-amber-500" />
             <span className="hidden sm:inline">Held</span>
           </button>
         </div>
@@ -1003,35 +1051,49 @@ export default function PosShell({
       {/* 2. MAIN WORKSPACE: Dual Column Layout */}
       <main className="grid min-h-0 flex-1 [grid-template-columns:minmax(0,1fr)_420px] max-[1100px]:[grid-template-columns:minmax(0,1fr)_370px] max-[880px]:[grid-template-columns:minmax(0,1fr)_330px]">
         {/* LEFT COLUMN: Catalog Explorer */}
-        <section className="flex min-h-0 flex-col border-r border-slate-800 bg-slate-900/60">
+        <section className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/50">
           {/* Search & Scope Ribbon */}
-          <div className="flex flex-col gap-2 border-b border-slate-800 bg-slate-950 p-3">
+          <div className="flex flex-col gap-2 border-b border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-1.5">
               <div data-pos-header-search="reference" className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   ref={itemSearchRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search item, scan barcode (F4)..."
-                  className="h-10 w-full rounded-xl border border-slate-800 bg-slate-900 pl-9 pr-14 text-xs font-bold text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-14 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-900 dark:focus:ring-blue-900/30"
                 />
                 {search ? (
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                    className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
                   >
                     ×
                   </button>
                 ) : null}
-                <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[9px] font-black text-slate-400">
+                <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-400 dark:border-slate-700 dark:bg-slate-800">
                   F4
                 </kbd>
               </div>
 
+              {/* Add Custom Item Button */}
+              <button
+                type="button"
+                onClick={() => setCustomItemOpen(true)}
+                title="Register Custom Item on the fly (F7)"
+                className="flex h-10 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="whitespace-nowrap">+ Custom Item</span>
+                <kbd className="hidden sm:inline rounded bg-blue-100/80 px-1 py-0.2 text-[9px] font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-200">
+                  F7
+                </kbd>
+              </button>
+
               {/* Scope Toggles */}
-              <div className="flex h-10 rounded-xl border border-slate-800 bg-slate-900 p-1">
+              <div className="flex h-10 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-950">
                 {[
                   { id: "all", label: "ALL" },
                   { id: "services", label: "SERVICES" },
@@ -1046,8 +1108,8 @@ export default function PosShell({
                     }}
                     className={`rounded-lg px-2.5 text-[10px] font-black transition ${
                       scope === s.id
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-white text-blue-700 shadow-sm dark:bg-blue-600 dark:text-white"
+                        : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                     }`}
                   >
                     {s.label}
@@ -1061,10 +1123,10 @@ export default function PosShell({
               <button
                 type="button"
                 onClick={() => setCategory("all")}
-                className={`shrink-0 rounded-lg px-2.5 py-1 text-[10px] font-black transition ${
+                className={`shrink-0 rounded-xl px-3 py-1 text-[10px] font-black transition ${
                   category === "all"
-                    ? "bg-cyan-500 text-slate-950 shadow-sm"
-                    : "bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
                 }`}
               >
                 All Categories ({catalog.length})
@@ -1074,10 +1136,10 @@ export default function PosShell({
                   key={cat.id}
                   type="button"
                   onClick={() => setCategory(cat.id)}
-                  className={`shrink-0 rounded-lg px-2.5 py-1 text-[10px] font-black transition ${
+                  className={`shrink-0 rounded-xl px-3 py-1 text-[10px] font-black transition ${
                     category === cat.id
-                      ? "bg-cyan-500 text-slate-950 shadow-sm"
-                      : "bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
                   }`}
                 >
                   {cat.name} ({cat.count})
@@ -1104,10 +1166,10 @@ export default function PosShell({
                       onClick={() => addItem(item)}
                       className={`group relative flex flex-col justify-between rounded-2xl border p-3.5 text-left transition-all active:scale-[0.98] ${
                         isOutOfStock
-                          ? "border-slate-800/80 bg-slate-950/40 opacity-40 cursor-not-allowed"
+                          ? "border-slate-200 bg-slate-100/60 opacity-40 cursor-not-allowed dark:border-slate-800/80 dark:bg-slate-950/40"
                           : inCartQty > 0
-                          ? "border-blue-500/80 bg-slate-800/90 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/30"
-                          : "border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-800/60"
+                          ? "border-blue-500 bg-blue-50/60 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/30 dark:border-blue-500/80 dark:bg-slate-800/90"
+                          : "border-slate-200/90 bg-white shadow-sm hover:border-blue-400 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
                       }`}
                     >
                       {/* Top ribbon: kind & category */}
@@ -1115,8 +1177,8 @@ export default function PosShell({
                         <span
                           className={`rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${
                             item.kind === "service"
-                              ? "bg-cyan-500/15 text-cyan-400"
-                              : "bg-amber-500/15 text-amber-400"
+                              ? "bg-blue-100 text-blue-700 dark:bg-cyan-500/15 dark:text-cyan-400"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
                           }`}
                         >
                           {item.kind}
@@ -1130,28 +1192,28 @@ export default function PosShell({
 
                       {/* Item Name */}
                       <div className="min-w-0 mb-3">
-                        <h4 className="line-clamp-2 text-xs font-black text-white group-hover:text-cyan-400 transition">
+                        <h4 className="line-clamp-2 text-xs font-black text-slate-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-cyan-400 transition">
                           {item.name}
                         </h4>
-                        <p className="mt-0.5 truncate text-[10px] text-slate-400 font-semibold">
+                        <p className="mt-0.5 truncate text-[10px] text-slate-500 font-semibold dark:text-slate-400">
                           {item.category_name || "General"}
                         </p>
                       </div>
 
                       {/* Price & Stock footer */}
-                      <div className="flex items-end justify-between border-t border-slate-800/80 pt-2">
+                      <div className="flex items-end justify-between border-t border-slate-100 pt-2 dark:border-slate-800/80">
                         <div>
-                          <div className="text-[9px] text-slate-500 font-bold uppercase">Price</div>
-                          <div className="text-sm font-black text-cyan-400">{money(Number(item.sale_price) || 0)}</div>
+                          <div className="text-[9px] text-slate-400 font-bold uppercase">Price</div>
+                          <div className="text-sm font-black text-blue-600 dark:text-cyan-400">{money(Number(item.sale_price) || 0)}</div>
                         </div>
                         <div className="text-right">
                           <span
                             className={`text-[9px] font-bold ${
                               stock === null
-                                ? "text-slate-500"
+                                ? "text-slate-400"
                                 : stock <= 3
-                                ? "text-rose-400"
-                                : "text-slate-400"
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "text-slate-500 dark:text-slate-400"
                             }`}
                           >
                             {stock === null ? "Service" : stock <= 0 ? "Out" : `${stock} left`}
@@ -1164,9 +1226,9 @@ export default function PosShell({
               </div>
             ) : (
               /* HIGH-DENSITY FAST TABLE */
-              <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
                 <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-800 bg-slate-900/90 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-400">
                     <tr>
                       <th className="px-3 py-2.5">Type</th>
                       <th className="px-3 py-2.5">Item Name</th>
@@ -1176,7 +1238,7 @@ export default function PosShell({
                       <th className="px-3 py-2.5 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-900">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-900">
                     {filteredItems.map((item) => {
                       const stock = item.kind === "product" ? Number(item.stock_qty ?? 0) : null;
                       const inCartQty = currentTab.cart.find((l) => l.key === `${item.kind}:${item.id}`)?.qty ?? 0;
@@ -1185,20 +1247,20 @@ export default function PosShell({
                       return (
                         <tr
                           key={`${item.kind}:${item.id}`}
-                          className={`hover:bg-slate-800/50 transition ${isOutOfStock ? "opacity-40" : ""}`}
+                          className={`hover:bg-blue-50/40 transition dark:hover:bg-slate-800/50 ${isOutOfStock ? "opacity-40" : ""}`}
                         >
                           <td className="px-3 py-2.5">
                             <span
                               className={`rounded px-1.5 py-0.5 text-[8px] font-black uppercase ${
                                 item.kind === "service"
-                                  ? "bg-cyan-500/20 text-cyan-300"
-                                  : "bg-amber-500/20 text-amber-300"
+                                  ? "bg-blue-100 text-blue-700 dark:bg-cyan-500/20 dark:text-cyan-300"
+                                  : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
                               }`}
                             >
                               {item.kind === "service" ? "S" : "P"}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 font-bold text-white">
+                          <td className="px-3 py-2.5 font-bold text-slate-900 dark:text-white">
                             <div className="flex items-center gap-1.5">
                               <span>{item.name}</span>
                               {inCartQty > 0 && (
@@ -1208,11 +1270,11 @@ export default function PosShell({
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-slate-400 font-semibold">{item.category_name || "—"}</td>
-                          <td className="px-3 py-2.5 text-slate-400 font-mono">
+                          <td className="px-3 py-2.5 text-slate-500 font-semibold dark:text-slate-400">{item.category_name || "—"}</td>
+                          <td className="px-3 py-2.5 text-slate-500 font-mono dark:text-slate-400">
                             {stock === null ? "—" : stock}
                           </td>
-                          <td className="px-3 py-2.5 text-right font-black text-cyan-400">
+                          <td className="px-3 py-2.5 text-right font-black text-blue-600 dark:text-cyan-400">
                             {money(Number(item.sale_price) || 0)}
                           </td>
                           <td className="px-3 py-2.5 text-right">
@@ -1220,7 +1282,7 @@ export default function PosShell({
                               type="button"
                               disabled={isOutOfStock}
                               onClick={() => addItem(item)}
-                              className="inline-flex h-7 items-center justify-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[10px] font-black text-white hover:bg-blue-500 disabled:opacity-40 shadow-sm"
+                              className="inline-flex h-7 items-center justify-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[10px] font-black text-white hover:bg-blue-700 disabled:opacity-40 shadow-sm"
                             >
                               <Plus className="h-3 w-3" /> Add
                             </button>
@@ -1235,23 +1297,23 @@ export default function PosShell({
 
             {!filteredItems.length && (
               <div className="flex h-56 flex-col items-center justify-center text-center">
-                <Search className="h-8 w-8 text-slate-700" />
-                <p className="mt-3 text-xs font-black text-slate-400">No matching items</p>
-                <p className="text-[10px] text-slate-600">Try changing your search term or category filter.</p>
+                <Search className="h-8 w-8 text-slate-300 dark:text-slate-700" />
+                <p className="mt-3 text-xs font-black text-slate-500 dark:text-slate-400">No matching items</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-600">Try changing your search term or category filter.</p>
               </div>
             )}
           </div>
         </section>
 
         {/* RIGHT COLUMN: Active Order Slip & Tender Pad */}
-        <aside className="flex min-h-0 flex-col bg-slate-950 border-l border-slate-800">
+        <aside className="flex min-h-0 flex-col bg-white border-l border-slate-200 dark:bg-slate-950 dark:border-slate-800">
           {/* Order Header */}
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-800 px-4 bg-slate-900/60">
+          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 px-4 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60">
             <div>
-              <div className="text-xs font-black uppercase tracking-wider text-white">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
                 {currentTab.title} Slip
               </div>
-              <div className="text-[10px] text-slate-400 font-semibold">
+              <div className="text-[10px] text-slate-500 font-semibold dark:text-slate-400">
                 {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items · {money(total)}
               </div>
             </div>
@@ -1260,14 +1322,14 @@ export default function PosShell({
                 type="button"
                 onClick={holdCurrentBill}
                 title="Park this bill to finish later"
-                className="flex h-7 items-center gap-1 rounded-lg border border-amber-900/50 bg-amber-950/30 px-2 text-[10px] font-black text-amber-300 hover:bg-amber-900/40"
+                className="flex h-7 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 text-[10px] font-black text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
               >
                 <Pause className="h-3 w-3" /> Hold
               </button>
               <button
                 type="button"
                 onClick={clearActiveCart}
-                className="rounded-lg px-2 py-1 text-[10px] font-black text-rose-400 hover:bg-rose-950/40"
+                className="rounded-lg px-2 py-1 text-[10px] font-black text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
               >
                 Clear
               </button>
@@ -1275,14 +1337,14 @@ export default function PosShell({
           </div>
 
           {/* Customer Banner & Selector */}
-          <div className="shrink-0 border-b border-slate-800 bg-slate-900/40 px-3.5 py-2.5">
+          <div className="shrink-0 border-b border-slate-200 bg-slate-50/50 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-900/40">
             <div data-pos-customer-action="reference" className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Customer</span>
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Customer</span>
               {selectedCustomer ? (
                 <button
                   type="button"
                   onClick={() => updateCurrentTab({ customerId: "" })}
-                  className="text-[9px] font-black text-cyan-400 hover:underline"
+                  className="text-[9px] font-black text-blue-600 hover:underline dark:text-cyan-400"
                 >
                   Change
                 </button>
@@ -1290,7 +1352,7 @@ export default function PosShell({
                 <button
                   type="button"
                   onClick={() => setNewCustomerOpen(true)}
-                  className="flex items-center gap-1 text-[9px] font-black text-cyan-400 hover:underline"
+                  className="flex items-center gap-1 text-[9px] font-black text-blue-600 hover:underline dark:text-cyan-400"
                 >
                   <UserPlus className="h-3 w-3" /> + New Customer
                 </button>
@@ -1299,7 +1361,7 @@ export default function PosShell({
 
             {/* Customer Search input */}
             <div className="relative">
-              <CircleUserRound className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <CircleUserRound className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 ref={customerSearchRef}
                 value={selectedCustomer ? selectedCustomer.name : currentTab.customerSearch}
@@ -1310,11 +1372,11 @@ export default function PosShell({
                 }}
                 onFocus={() => setCustomerOpen(true)}
                 placeholder="Walk-in Customer / Search Name & Phone..."
-                className="h-8 w-full rounded-xl border border-slate-800 bg-slate-950 pl-8 pr-3 text-xs font-bold text-white outline-none focus:border-cyan-500"
+                className="h-8 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
               />
 
               {customerOpen && !selectedCustomer && (
-                <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+                <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                   <div className="max-h-48 overflow-y-auto p-1.5">
                     <button
                       type="button"
@@ -1322,7 +1384,7 @@ export default function PosShell({
                         updateCurrentTab({ customerId: "", customerSearch: "" });
                         setCustomerOpen(false);
                       }}
-                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-300 hover:bg-slate-800"
+                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       Walk-in Customer (Guest)
                     </button>
@@ -1335,16 +1397,16 @@ export default function PosShell({
                           setCustomerOpen(false);
                           playPosSound("click", soundEnabled);
                         }}
-                        className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-blue-600/20"
+                        className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left hover:bg-blue-50 dark:hover:bg-blue-600/20"
                       >
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-bold text-white">{cust.name}</div>
-                          <div className="text-[9px] text-slate-400">{cust.phone || cust.code || "No Phone"}</div>
+                          <div className="truncate text-xs font-bold text-slate-900 dark:text-white">{cust.name}</div>
+                          <div className="text-[9px] text-slate-500 dark:text-slate-400">{cust.phone || cust.code || "No Phone"}</div>
                         </div>
                         {Number(cust.balance ?? 0) !== 0 && (
                           <span
                             className={`text-[9px] font-black font-mono ${
-                              Number(cust.balance) > 0 ? "text-rose-400" : "text-emerald-400"
+                              Number(cust.balance) > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                             }`}
                           >
                             {Number(cust.balance) > 0 ? `Due ${money(Number(cust.balance))}` : `Adv ${money(Math.abs(Number(cust.balance)))}`}
@@ -1359,15 +1421,15 @@ export default function PosShell({
 
             {/* Selected Customer Balances & Actions */}
             {selectedCustomer && (
-              <div className="mt-2 space-y-1 rounded-xl border border-slate-800 bg-slate-950/70 p-2 text-[10px]">
+              <div className="mt-2 space-y-1 rounded-xl border border-slate-200 bg-white p-2 text-[10px] shadow-sm dark:border-slate-800 dark:bg-slate-950/70">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400 font-semibold">{selectedCustomer.phone || "Account Attached"}</span>
+                  <span className="text-slate-600 font-semibold dark:text-slate-400">{selectedCustomer.phone || "Account Attached"}</span>
                   <span
                     className={`font-black ${
                       customerBalance > 0
-                        ? "text-rose-400"
+                        ? "text-rose-600 dark:text-rose-400"
                         : customerBalance < 0
-                        ? "text-emerald-400"
+                        ? "text-emerald-600 dark:text-emerald-400"
                         : "text-slate-500"
                     }`}
                   >
@@ -1381,12 +1443,12 @@ export default function PosShell({
 
                 {/* Due collection toggle */}
                 {customerHasDue && (
-                  <label className="flex items-center gap-2 pt-1 border-t border-slate-800 cursor-pointer text-amber-300">
+                  <label className="flex items-center gap-2 pt-1 border-t border-slate-100 cursor-pointer text-amber-800 dark:border-slate-800 dark:text-amber-300">
                     <input
                       type="checkbox"
                       checked={currentTab.collectPreviousDue}
                       onChange={(e) => updateCurrentTab({ collectPreviousDue: e.target.checked })}
-                      className="rounded border-slate-700 bg-slate-800 text-cyan-500"
+                      className="rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-cyan-500"
                     />
                     <span className="font-bold text-[9px]">Collect Previous Due ({money(customerBalance)}) with this bill</span>
                   </label>
@@ -1394,12 +1456,12 @@ export default function PosShell({
 
                 {/* Advance deduction toggle */}
                 {customerHasAdvance && (
-                  <label className="flex items-center gap-2 pt-1 border-t border-slate-800 cursor-pointer text-emerald-300">
+                  <label className="flex items-center gap-2 pt-1 border-t border-slate-100 cursor-pointer text-emerald-800 dark:border-slate-800 dark:text-emerald-300">
                     <input
                       type="checkbox"
                       checked={currentTab.useAdvance}
                       onChange={(e) => updateCurrentTab({ useAdvance: e.target.checked })}
-                      className="rounded border-slate-700 bg-slate-800 text-cyan-500"
+                      className="rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-cyan-500"
                     />
                     <span className="font-bold text-[9px]">
                       Use Advance Credit ({money(Math.min(totals.invoiceTotal, Math.abs(customerBalance)))})
@@ -1415,36 +1477,36 @@ export default function PosShell({
             {currentTab.cart.map((line) => (
               <div
                 key={line.key}
-                className="flex items-center gap-2 border-b border-slate-800/80 py-2 text-xs"
+                className="flex items-center gap-2 border-b border-slate-100 py-2 text-xs dark:border-slate-800/80"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-black text-white">{line.name}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">
+                  <div className="truncate font-black text-slate-900 dark:text-white">{line.name}</div>
+                  <div className="text-[10px] text-slate-500 font-mono dark:text-slate-400">
                     {money(line.rate)} · {line.unit}
                   </div>
                 </div>
 
                 {/* Large 38px Touch Steppers */}
-                <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900">
+                <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
                   <button
                     type="button"
                     onClick={() => updateQty(line.key, line.qty - 1)}
-                    className="flex h-8 w-8 items-center justify-center text-slate-400 hover:text-white"
+                    className="flex h-8 w-8 items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="w-7 text-center font-mono font-black text-white">{line.qty}</span>
+                  <span className="w-7 text-center font-mono font-black text-slate-900 dark:text-white">{line.qty}</span>
                   <button
                     type="button"
                     onClick={() => updateQty(line.key, line.qty + 1)}
-                    className="flex h-8 w-8 items-center justify-center text-slate-400 hover:text-white"
+                    className="flex h-8 w-8 items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
                 {/* Amount */}
-                <div className="w-18 text-right font-black font-mono text-cyan-400">
+                <div className="w-18 text-right font-black font-mono text-blue-600 dark:text-cyan-400">
                   {money(line.qty * line.rate)}
                 </div>
 
@@ -1452,7 +1514,7 @@ export default function PosShell({
                 <button
                   type="button"
                   onClick={() => removeLine(line.key)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-rose-950/40 hover:text-rose-400"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-500 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -1461,18 +1523,18 @@ export default function PosShell({
 
             {!currentTab.cart.length && (
               <div className="flex h-44 flex-col items-center justify-center text-center">
-                <ShoppingCart className="h-7 w-7 text-slate-700" />
-                <p className="mt-2 text-xs font-black text-slate-400">Cart is empty</p>
-                <p className="text-[10px] text-slate-600">Scan barcode or tap an item on the left.</p>
+                <ShoppingCart className="h-7 w-7 text-slate-300 dark:text-slate-700" />
+                <p className="mt-2 text-xs font-black text-slate-600 dark:text-slate-400">Cart is empty</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-600">Scan barcode or tap an item on the left.</p>
               </div>
             )}
           </div>
 
           {/* Financial Summary & Totalizer */}
-          <div className="shrink-0 border-t border-slate-800 bg-slate-900/60 p-3 space-y-2">
+          <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-900/60">
             {/* Discount row with quick chips */}
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Discount</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Discount</span>
               <div className="flex items-center gap-1">
                 {["5%", "10%", "20", "50"].map((chip) => (
                   <button
@@ -1486,7 +1548,7 @@ export default function PosShell({
                       }
                       playPosSound("click", soundEnabled);
                     }}
-                    className="rounded-lg border border-slate-800 bg-slate-950 px-2 py-0.5 text-[9px] font-bold text-slate-400 hover:border-slate-700 hover:text-white"
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-white"
                   >
                     {chip.includes("%") ? chip : `₹${chip}`}
                   </button>
@@ -1495,35 +1557,35 @@ export default function PosShell({
                   value={currentTab.discount}
                   onChange={(e) => updateCurrentTab({ discount: e.target.value })}
                   placeholder="0.00"
-                  className="h-7 w-18 rounded-lg border border-slate-800 bg-slate-950 px-2 text-right text-xs font-black font-mono text-white outline-none focus:border-cyan-500"
+                  className="h-7 w-18 rounded-lg border border-slate-200 bg-white px-2 text-right text-xs font-black font-mono text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
                 />
               </div>
             </div>
 
             {/* Financial Ledger lines */}
-            <div className="space-y-1 text-[10px] font-semibold text-slate-400">
+            <div className="space-y-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span className="font-mono text-slate-200">{money(subtotal)}</span>
+                <span className="font-mono text-slate-900 dark:text-slate-200">{money(subtotal)}</span>
               </div>
               {discountValue > 0 && (
-                <div className="flex justify-between text-rose-400 font-bold">
+                <div className="flex justify-between text-rose-600 dark:text-rose-400 font-bold">
                   <span>Discount</span>
                   <span className="font-mono">- {money(discountValue)}</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span>GST Tax</span>
-                <span className="font-mono text-slate-200">{money(totalTax)}</span>
+                <span className="font-mono text-slate-900 dark:text-slate-200">{money(totalTax)}</span>
               </div>
               {dueToCollect > 0 && (
-                <div className="flex justify-between text-amber-400 font-bold">
+                <div className="flex justify-between text-amber-700 dark:text-amber-400 font-bold">
                   <span>+ Previous Due Collected</span>
                   <span className="font-mono">+{money(dueToCollect)}</span>
                 </div>
               )}
               {advanceToUse > 0 && (
-                <div className="flex justify-between text-emerald-400 font-bold">
+                <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold">
                   <span>- Advance Credit Used</span>
                   <span className="font-mono">-{money(advanceToUse)}</span>
                 </div>
@@ -1531,9 +1593,9 @@ export default function PosShell({
             </div>
 
             {/* OLED GRAND TOTAL DISPLAY */}
-            <div className="flex items-center justify-between rounded-xl bg-slate-950 border border-slate-800 p-2.5 shadow-inner">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Payable</span>
-              <span className="text-2xl font-black font-mono tracking-tight text-cyan-400">
+            <div className="flex items-center justify-between rounded-xl bg-slate-100/90 border border-slate-200 p-2.5 shadow-inner dark:bg-slate-950 dark:border-slate-800">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Total Payable</span>
+              <span className="text-2xl font-black font-mono tracking-tight text-blue-600 dark:text-cyan-400">
                 {money(total)}
               </span>
             </div>
@@ -1554,8 +1616,8 @@ export default function PosShell({
                     onClick={() => selectPayment(p.id as any)}
                     className={`h-9 rounded-xl text-[10px] font-black uppercase tracking-wide transition ${
                       isSelected
-                        ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 font-extrabold"
-                        : "bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-extrabold dark:bg-cyan-500 dark:text-slate-950 dark:shadow-cyan-500/20"
+                        : "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/60"
                     }`}
                   >
                     {p.label}
@@ -1566,19 +1628,19 @@ export default function PosShell({
 
             {/* CASH TENDER CONTROLS */}
             {currentTab.paymentChoice === "cash" && currentTab.cart.length > 0 && (
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-2.5 space-y-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-2.5 space-y-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
                   <button
                     type="button"
                     onClick={setCashTenderExact}
-                    className="shrink-0 rounded-lg bg-emerald-950/60 border border-emerald-800/60 px-2 py-1 text-[9px] font-black text-emerald-300 hover:bg-emerald-900/60"
+                    className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[9px] font-black text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:border-emerald-800/60 dark:text-emerald-300"
                   >
                     Exact
                   </button>
                   <button
                     type="button"
                     onClick={roundCashNext50}
-                    className="shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2 py-1 text-[9px] font-bold text-slate-300 hover:bg-slate-800"
+                    className="shrink-0 rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[9px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Next ₹50
                   </button>
@@ -1587,7 +1649,7 @@ export default function PosShell({
                       key={note}
                       type="button"
                       onClick={() => addCashNote(note)}
-                      className="shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2 py-1 text-[9px] font-bold text-slate-300 hover:bg-slate-800"
+                      className="shrink-0 rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[9px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       +₹{note}
                     </button>
@@ -1595,17 +1657,17 @@ export default function PosShell({
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-black uppercase text-slate-400">Cash Received</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Cash Received</span>
                   <input
                     value={currentTab.cashReceived}
                     onChange={(e) => updateCurrentTab({ cashReceived: e.target.value })}
                     placeholder="0.00"
-                    className="h-8 w-28 rounded-lg border border-slate-800 bg-slate-900 px-2 text-right font-mono font-black text-sm text-white outline-none focus:border-cyan-500"
+                    className="h-8 w-28 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right font-mono font-black text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-cyan-500"
                   />
                 </div>
 
                 {cashChange > 0 && (
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-950/40 border border-emerald-900/60 px-2.5 py-1.5 text-emerald-300 font-bold text-xs">
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-emerald-800 font-bold text-xs dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-300">
                     <span>Change to return:</span>
                     <span className="font-black font-mono text-sm">{money(cashChange)}</span>
                   </div>
@@ -1615,33 +1677,86 @@ export default function PosShell({
 
             {/* UPI ON-SCREEN DYNAMIC QR CODE */}
             {currentTab.paymentChoice === "upi" && currentTab.cart.length > 0 && (
-              <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-cyan-900/60 bg-slate-950">
-                <div className="p-2 bg-white rounded-xl shadow-lg">
+              <div className="flex flex-col items-center justify-center p-3.5 rounded-2xl border border-slate-200 bg-slate-50/60 dark:border-cyan-900/60 dark:bg-slate-950">
+                {/* Multi Merchant QR selector if more than 1 QR configured */}
+                {merchantQrs.length > 1 && (
+                  <div className="w-full flex items-center gap-1.5 mb-2.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+                    <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 shrink-0">QR Account:</span>
+                    {merchantQrs.map((mqr) => {
+                      const isCurrent = activeMerchantQr?.id === mqr.id;
+                      return (
+                        <button
+                          key={mqr.id}
+                          type="button"
+                          onClick={() => setSelectedMerchantQrId(mqr.id)}
+                          className={`shrink-0 rounded-lg px-2 py-0.5 text-[9px] font-bold border transition ${
+                            isCurrent
+                              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800"
+                          }`}
+                        >
+                          {mqr.display_name || mqr.qr_name || mqr.upi_id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 dark:shadow-lg">
                   {qrDataUrl ? (
-                    <img src={qrDataUrl} alt="UPI Dynamic QR" className="h-32 w-32 object-contain" />
+                    <img src={qrDataUrl} alt="UPI Dynamic QR" className="h-36 w-36 object-contain" />
+                  ) : resolvedUpiId ? (
+                    <div className="h-36 w-36 flex flex-col items-center justify-center text-[10px] text-slate-400 gap-1">
+                      <span className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent" />
+                      <span>Generating QR...</span>
+                    </div>
                   ) : (
-                    <div className="h-32 w-32 flex items-center justify-center text-[10px] text-slate-400">
-                      Generating QR...
+                    <div className="h-36 w-36 flex flex-col items-center justify-center text-center p-2 text-[10px] text-amber-600 dark:text-amber-400">
+                      <AlertCircle className="h-6 w-6 mb-1 text-amber-500" />
+                      <span className="font-bold">No UPI ID Found</span>
+                      <span className="text-[8px] text-slate-500 mt-1">Configure in Settings → Payments</span>
                     </div>
                   )}
                 </div>
-                <div className="mt-2 text-center">
-                  <p className="text-xs font-black text-white">
-                    Scan with PhonePe / GPay / Paytm: <span className="text-cyan-400">{money(total)}</span>
+
+                <div className="mt-2.5 text-center">
+                  <p className="text-xs font-black text-slate-900 dark:text-white">
+                    Scan with PhonePe / GPay / Paytm: <span className="text-blue-600 dark:text-cyan-400">{money(total)}</span>
                   </p>
-                  <p className="text-[10px] font-mono text-slate-400 mt-0.5">{resolvedUpiId || "Shop UPI Account"}</p>
+                  {resolvedUpiId ? (
+                    <div className="mt-1 flex items-center justify-center gap-1">
+                      <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                        {resolvedUpiId}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(resolvedUpiId);
+                          setCopiedUpi(true);
+                          setTimeout(() => setCopiedUpi(false), 2000);
+                        }}
+                        className="rounded px-1.5 py-0.5 text-[8px] font-bold text-blue-600 hover:bg-blue-50 dark:text-cyan-400 dark:hover:bg-slate-800"
+                        title="Copy UPI ID"
+                      >
+                        {copiedUpi ? "Copied! ✓" : "Copy"}
+                      </button>
+                    </div>
+                  ) : null}
+                  {(activeMerchantQr?.display_name || activeMerchantQr?.qr_name) && (
+                    <p className="text-[9px] text-slate-400 font-semibold">{activeMerchantQr.display_name || activeMerchantQr.qr_name}</p>
+                  )}
                 </div>
               </div>
             )}
 
             {/* KHATA DUE SUMMARY */}
             {currentTab.paymentChoice === "khata" && currentTab.cart.length > 0 && (
-              <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-2.5 text-[10px] space-y-1">
-                <div className="text-amber-300 font-bold flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5" />
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[10px] space-y-1 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <div className="text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                   <span>Customer Ledger Invoice (Unpaid Credit)</span>
                 </div>
-                <p className="text-slate-400">
+                <p className="text-slate-600 dark:text-slate-400">
                   Total of {money(total)} will be debited to {selectedCustomer?.name || "the selected customer's"} khata ledger.
                 </p>
               </div>
@@ -1649,57 +1764,63 @@ export default function PosShell({
 
             {/* SPLIT PAYMENT ROWS */}
             {currentTab.paymentChoice === "split" && currentTab.cart.length > 0 && (
-              <div className="rounded-xl border border-violet-900/50 bg-slate-950 p-2.5 space-y-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-2.5 space-y-2 dark:border-violet-900/50 dark:bg-slate-950">
                 <div className="flex items-center justify-between text-[10px] font-bold">
-                  <span className="text-violet-300">Multi-Account Split</span>
+                  <span className="text-slate-700 dark:text-violet-300">Multi-Account Split</span>
                   <span
                     className={
                       Math.abs(remainingSplit) < 0.01
-                        ? "text-emerald-400 font-black"
+                        ? "text-emerald-600 dark:text-emerald-400 font-black"
                         : remainingSplit < 0
-                        ? "text-rose-400 font-black"
-                        : "text-amber-400 font-black"
+                        ? "text-rose-600 dark:text-rose-400 font-black"
+                        : "text-amber-600 dark:text-amber-400 font-black"
                     }
                   >
-                    {Math.abs(remainingSplit) < 0.01 ? "Balanced" : `Remaining: ${money(remainingSplit)}`}
+                    {Math.abs(remainingSplit) < 0.01 ? "Balanced ✓" : `Remaining: ${money(remainingSplit)}`}
                   </span>
                 </div>
 
-                <div className="space-y-1.5">
-                  {currentTab.splitRows.map((row) => (
-                    <div key={row.id} className="flex items-center gap-1.5">
-                      <select
-                        value={row.instrumentId}
-                        onChange={(e) => updateSplitRow(row.id, { instrumentId: e.target.value })}
-                        className="h-8 flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 text-[10px] font-bold text-white outline-none"
-                      >
-                        {splitInstrumentOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={row.amount}
-                        onChange={(e) => updateSplitRow(row.id, { amount: e.target.value })}
-                        placeholder="0.00"
-                        className="h-8 w-24 rounded-lg border border-slate-800 bg-slate-900 px-2 text-right font-mono font-bold text-xs text-white outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSplitRow(row.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-400 hover:bg-rose-950/40"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                {splitInstrumentOptions.length === 0 ? (
+                  <div className="p-2 text-center text-[10px] text-amber-700 bg-amber-50 rounded-lg border border-amber-200">
+                    No payment accounts active. Please check Settings → Payment Accounts.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {currentTab.splitRows.map((row) => (
+                      <div key={row.id} className="flex items-center gap-1.5">
+                        <select
+                          value={row.instrumentId}
+                          onChange={(e) => updateSplitRow(row.id, { instrumentId: e.target.value })}
+                          className="h-8 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                        >
+                          {splitInstrumentOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={row.amount}
+                          onChange={(e) => updateSplitRow(row.id, { amount: e.target.value })}
+                          placeholder="0.00"
+                          className="h-8 w-24 rounded-lg border border-slate-200 bg-slate-50 px-2 text-right font-mono font-bold text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSplitRow(row.id)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <button
                   type="button"
                   onClick={addSplitRow}
-                  className="text-[9px] font-black text-violet-400 hover:text-violet-300"
+                  className="text-[9px] font-black text-blue-600 hover:text-blue-700 dark:text-violet-400 dark:hover:text-violet-300"
                 >
                   + Add Split Row
                 </button>
@@ -1708,7 +1829,7 @@ export default function PosShell({
 
             {/* Errors */}
             {error && (
-              <div className="rounded-xl border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-[10px] font-bold text-rose-300">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
                 {error}
               </div>
             )}
@@ -1718,7 +1839,7 @@ export default function PosShell({
               type="button"
               disabled={!currentTab.cart.length || busy}
               onClick={() => void completeSale()}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/30 hover:from-blue-500 hover:to-cyan-400 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               {busy ? (
                 <span>Recording Sale...</span>
@@ -1735,34 +1856,34 @@ export default function PosShell({
 
       {/* 3. POST-SALE ACTION HUB (SUCCESS MODAL) */}
       {success && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-center dark:border-slate-800 dark:bg-slate-900">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:ring-emerald-500/40">
               <Check className="h-7 w-7" />
             </div>
 
-            <h2 className="mt-4 text-xl font-black text-white">Sale Completed!</h2>
-            <p className="mt-1 font-mono text-sm font-bold text-cyan-400">{success.invoiceNumber}</p>
+            <h2 className="mt-4 text-xl font-black text-slate-900 dark:text-white">Sale Completed!</h2>
+            <p className="mt-1 font-mono text-sm font-bold text-blue-600 dark:text-cyan-400">{success.invoiceNumber}</p>
 
-            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-left space-y-2 text-xs">
-              <div className="flex justify-between text-slate-400">
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left space-y-2 text-xs dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Total Amount:</span>
-                <strong className="text-white font-mono">{money(success.total)}</strong>
+                <strong className="text-slate-900 font-mono dark:text-white">{money(success.total)}</strong>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Amount Paid:</span>
-                <strong className="text-emerald-400 font-mono">{money(success.paid)}</strong>
+                <strong className="text-emerald-600 font-mono dark:text-emerald-400">{money(success.paid)}</strong>
               </div>
               {success.due > 0 && (
-                <div className="flex justify-between text-rose-400">
+                <div className="flex justify-between text-rose-600 dark:text-rose-400">
                   <span>Balance Due (Khata):</span>
                   <strong className="font-mono">{money(success.due)}</strong>
                 </div>
               )}
               {success.customerName && (
-                <div className="flex justify-between text-slate-400 pt-1 border-t border-slate-800">
+                <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-200 dark:text-slate-400 dark:border-slate-800">
                   <span>Customer:</span>
-                  <span className="font-bold text-white">{success.customerName}</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{success.customerName}</span>
                 </div>
               )}
             </div>
@@ -1773,9 +1894,9 @@ export default function PosShell({
                 href={`/receipt/${success.invoiceId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 text-xs font-black text-white hover:bg-slate-700 transition shadow-sm"
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black text-slate-800 hover:bg-slate-200 transition shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
               >
-                <Printer className="h-4 w-4 text-cyan-400" />
+                <Printer className="h-4 w-4 text-blue-600 dark:text-cyan-400" />
                 <span>Print 80mm</span>
               </a>
 
@@ -1784,7 +1905,7 @@ export default function PosShell({
                   type="button"
                   onClick={() => void sendWhatsAppInvoice()}
                   disabled={whatsappStatus === "sending" || whatsappStatus === "sent"}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/50 text-xs font-black text-emerald-300 hover:bg-emerald-900/50 transition disabled:opacity-50"
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
                 >
                   <MessageSquare className="h-4 w-4" />
                   <span>
@@ -1800,9 +1921,9 @@ export default function PosShell({
                   href={`/receipt/${success.invoiceId}/a4`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 text-xs font-black text-white hover:bg-slate-700 transition"
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black text-slate-800 hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                 >
-                  <ExternalLink className="h-4 w-4 text-blue-400" />
+                  <ExternalLink className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   <span>A4 Invoice</span>
                 </a>
               )}
@@ -1811,7 +1932,7 @@ export default function PosShell({
             {whatsappMsg && (
               <p
                 className={`mt-2 text-[10px] font-bold ${
-                  whatsappStatus === "sent" ? "text-emerald-400" : "text-rose-400"
+                  whatsappStatus === "sent" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                 }`}
               >
                 {whatsappMsg}
@@ -1822,7 +1943,7 @@ export default function PosShell({
               type="button"
               autoFocus
               onClick={handleResetAfterSale}
-              className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white hover:bg-blue-500 transition shadow-lg shadow-blue-600/30"
+              className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white hover:bg-blue-700 transition shadow-lg shadow-blue-600/25"
             >
               Start Next Bill (Enter)
             </button>
@@ -1832,20 +1953,20 @@ export default function PosShell({
 
       {/* 4. DRAWER: RECALL HELD BILLS */}
       {operationsPanel === "held" && (
-        <div className="fixed inset-0 z-[160] bg-slate-950/60 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
+        <div className="fixed inset-0 z-[160] bg-slate-950/40 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
           <aside
-            className="absolute right-0 top-0 flex h-full w-[min(440px,100vw)] flex-col border-l border-slate-800 bg-slate-900 shadow-2xl"
+            className="absolute right-0 top-0 flex h-full w-[min(440px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-5">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5 dark:border-slate-800">
               <div>
-                <h3 className="text-sm font-black text-white">Parked / Held Bills</h3>
-                <p className="text-[10px] text-slate-400 font-semibold">Local terminal drafts</p>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Parked / Held Bills</h3>
+                <p className="text-[10px] text-slate-500 font-semibold dark:text-slate-400">Local terminal drafts</p>
               </div>
               <button
                 type="button"
                 onClick={() => setOperationsPanel(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1854,40 +1975,40 @@ export default function PosShell({
             <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-2.5">
               {!heldBills.length ? (
                 <div className="flex h-52 flex-col items-center justify-center text-center">
-                  <Pause className="h-8 w-8 text-slate-700" />
-                  <p className="mt-2 text-xs font-black text-slate-400">No held bills</p>
-                  <p className="text-[10px] text-slate-600">Click Hold on an active bill to park it here.</p>
+                  <Pause className="h-8 w-8 text-slate-300 dark:text-slate-700" />
+                  <p className="mt-2 text-xs font-black text-slate-600 dark:text-slate-400">No held bills</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-600">Click Hold on an active bill to park it here.</p>
                 </div>
               ) : (
                 heldBills.map((draft, idx) => (
                   <div
                     key={draft.id}
-                    className="rounded-2xl border border-slate-800 bg-slate-950 p-4 space-y-3"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3 dark:border-slate-800 dark:bg-slate-950"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs font-black text-white">
+                        <div className="text-xs font-black text-slate-900 dark:text-white">
                           Draft #{heldBills.length - idx} • {draft.customerName}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
                           {draft.itemCount} items · {new Date(draft.heldAt).toLocaleTimeString()}
                         </div>
                       </div>
-                      <div className="text-sm font-black text-cyan-400 font-mono">{money(draft.total)}</div>
+                      <div className="text-sm font-black text-blue-600 font-mono dark:text-cyan-400">{money(draft.total)}</div>
                     </div>
 
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => recallHeldDraft(draft)}
-                        className="flex-1 h-8 rounded-xl bg-blue-600 text-[10px] font-black uppercase text-white hover:bg-blue-500 shadow-sm"
+                        className="flex-1 h-8 rounded-xl bg-blue-600 text-[10px] font-black uppercase text-white hover:bg-blue-700 shadow-sm"
                       >
                         Recall to Active Bill
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteHeldDraft(draft.id)}
-                        className="h-8 w-8 flex items-center justify-center rounded-xl border border-rose-900/60 bg-rose-950/40 text-rose-400 hover:bg-rose-900/60"
+                        className="h-8 w-8 flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1902,47 +2023,47 @@ export default function PosShell({
 
       {/* 5. DRAWER: TODAY'S SALES */}
       {operationsPanel === "today" && (
-        <div className="fixed inset-0 z-[160] bg-slate-950/60 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
+        <div className="fixed inset-0 z-[160] bg-slate-950/40 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
           <aside
-            className="absolute right-0 top-0 flex h-full w-[min(480px,100vw)] flex-col border-l border-slate-800 bg-slate-900 shadow-2xl"
+            className="absolute right-0 top-0 flex h-full w-[min(480px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-5">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5 dark:border-slate-800">
               <div>
-                <h3 className="text-sm font-black text-white">Today's Sales Registry</h3>
-                <p className="text-[10px] text-slate-400 font-semibold">{indiaToday()} invoices</p>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Today's Sales Registry</h3>
+                <p className="text-[10px] text-slate-500 font-semibold dark:text-slate-400">{indiaToday()} invoices</p>
               </div>
               <button
                 type="button"
                 onClick={() => setOperationsPanel(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-800">
+            <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
               {loadingSales ? (
-                <div className="flex h-44 items-center justify-center text-xs font-bold text-slate-400">
+                <div className="flex h-44 items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-400">
                   Loading sales registry...
                 </div>
               ) : !todaySales.length ? (
                 <div className="flex h-44 flex-col items-center justify-center text-center">
-                  <ReceiptText className="h-8 w-8 text-slate-700" />
-                  <p className="mt-2 text-xs font-black text-slate-400">No sales recorded today</p>
+                  <ReceiptText className="h-8 w-8 text-slate-300 dark:text-slate-700" />
+                  <p className="mt-2 text-xs font-black text-slate-600 dark:text-slate-400">No sales recorded today</p>
                 </div>
               ) : (
                 todaySales.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between p-4 hover:bg-slate-800/50">
+                  <div key={sale.id} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <div>
-                      <div className="font-mono text-xs font-black text-white">{sale.invoice_number}</div>
-                      <div className="text-[10px] text-slate-400">{sale.customers?.name || "Walk-in Customer"}</div>
+                      <div className="font-mono text-xs font-black text-slate-900 dark:text-white">{sale.invoice_number}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">{sale.customers?.name || "Walk-in Customer"}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs font-black font-mono text-cyan-400">{money(Number(sale.total))}</div>
+                      <div className="text-xs font-black font-mono text-blue-600 dark:text-cyan-400">{money(Number(sale.total))}</div>
                       <div
                         className={`text-[9px] font-bold ${
-                          Number(sale.due) > 0 ? "text-rose-400" : "text-emerald-400"
+                          Number(sale.due) > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                         }`}
                       >
                         {Number(sale.due) > 0 ? `Due ${money(Number(sale.due))}` : "Paid"}
@@ -1958,26 +2079,26 @@ export default function PosShell({
 
       {/* 6. MODAL: MONEY OUT (EXPENSE RECORDING) */}
       {operationsPanel === "money-out" && (
-        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
+        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
           <form
             onSubmit={handleMoneyOut}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
               <div className="flex items-center gap-1.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
                   <ArrowDownToLine className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white">Record Money Out</h3>
-                  <p className="text-[10px] text-slate-400">Petty cash / register outflow</p>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Record Money Out</h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Petty cash / register outflow</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setOperationsPanel(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1985,7 +2106,7 @@ export default function PosShell({
 
             <div className="space-y-3.5 p-5">
               <div>
-                <label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Amount *</label>
+                <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Amount *</label>
                 <input
                   autoFocus
                   required
@@ -1995,27 +2116,27 @@ export default function PosShell({
                   value={moneyOutAmount}
                   onChange={(e) => setMoneyOutAmount(e.target.value)}
                   placeholder="0.00"
-                  className="h-10 w-full rounded-xl border border-rose-900/60 bg-rose-950/30 px-3 text-right font-mono text-lg font-black text-white outline-none focus:border-rose-500"
+                  className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/50 px-3 text-right font-mono text-lg font-black text-slate-900 outline-none focus:border-rose-500 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Category *</label>
+                  <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Category *</label>
                   <input
                     required
                     value={moneyOutCategory}
                     onChange={(e) => setMoneyOutCategory(e.target.value)}
                     placeholder="tea, snacks, milk"
-                    className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-xs font-bold text-white outline-none focus:border-cyan-500"
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Paid From</label>
+                  <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Paid From</label>
                   <select
                     value={moneyOutSource}
                     onChange={(e) => setMoneyOutSource(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2 text-xs font-bold text-white outline-none"
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
                   >
                     <option value="">Cash (Till)</option>
                     {instruments
@@ -2030,28 +2151,28 @@ export default function PosShell({
               </div>
 
               <div>
-                <label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Note / Reason</label>
+                <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Note / Reason</label>
                 <input
                   value={moneyOutNote}
                   onChange={(e) => setMoneyOutNote(e.target.value)}
                   placeholder="e.g. bought stationary"
-                  className="h-9 w-full rounded-xl border border-slate-800 bg-slate-950 px-2.5 text-xs font-bold text-white outline-none focus:border-cyan-500"
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
                 />
               </div>
             </div>
 
-            <div className="flex gap-2 border-t border-slate-800 bg-slate-950 px-5 py-3.5">
+            <div className="flex gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-950">
               <button
                 type="button"
                 onClick={() => setOperationsPanel(null)}
-                className="h-9 flex-1 rounded-xl border border-slate-700 bg-slate-900 text-xs font-black text-slate-300 hover:bg-slate-800"
+                className="h-9 flex-1 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={moneyOutSaving}
-                className="h-9 flex-1 rounded-xl bg-rose-600 text-xs font-black text-white hover:bg-rose-500 disabled:opacity-50 shadow-md shadow-rose-600/30"
+                className="h-9 flex-1 rounded-xl bg-rose-600 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-50 shadow-md shadow-rose-600/30"
               >
                 {moneyOutSaving ? "Recording..." : "Save Expense"}
               </button>
@@ -2070,6 +2191,14 @@ export default function PosShell({
           updateCurrentTab({ customerId: newCust.id, customerSearch: "" });
           playPosSound("success", soundEnabled);
         }}
+      />
+
+      {/* 8. QUICK ADD CUSTOM REGISTERED ITEM (SERVICE / PRODUCT) */}
+      <PosCustomItemModal
+        open={customItemOpen}
+        onClose={() => setCustomItemOpen(false)}
+        categories={storeCategories}
+        onItemCreated={handleCustomItemCreated}
       />
     </div>
   );

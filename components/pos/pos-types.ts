@@ -29,6 +29,22 @@ export type PosInstrument = {
   name: string;
   type: string;
   account_number?: string | null;
+  current_balance?: number | string | null;
+  details?: any;
+};
+
+export type PosMerchantQr = {
+  id: string;
+  display_name: string;
+  qr_name?: string | null;
+  upi_id: string;
+  is_active: boolean;
+  payment_instrument_id?: string | null;
+};
+
+export type PosCategory = {
+  id: string;
+  name: string;
 };
 
 export type CartLine = {

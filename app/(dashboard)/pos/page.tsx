@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import PosShell, { type PosCatalogItem, type PosCustomer, type PosInstrument } from "@/components/pos/pos-shell";
+import PosShell, {
+  type PosCatalogItem,
+  type PosCustomer,
+  type PosInstrument,
+  type PosMerchantQr,
+  type PosCategory,
+} from "@/components/pos/pos-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +17,16 @@ export default async function PosPage({
   const { customer: initialCustomerId } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: products }, { data: services }, { data: customers }, { data: instruments }, { data: profile }, { data: settings }] = await Promise.all([
+  const [
+    { data: products },
+    { data: services },
+    { data: customers },
+    { data: instruments },
+    { data: merchantQrs },
+    { data: categories },
+    { data: profile },
+    { data: settings },
+  ] = await Promise.all([
     supabase
       .from("products")
       .select("id, code, name, sale_price, cost_price, stock_qty, reorder_level, unit, category_id, hsn_code, gst_rate, categories(name)")
@@ -30,9 +45,19 @@ export default async function PosPage({
       .limit(500),
     supabase
       .from("payment_instruments")
-      .select("id, name, type, account_number")
+      .select("id, name, type, details, is_active, current_balance, opening_balance")
       .eq("is_active", true)
       .order("type")
+      .order("name"),
+    supabase
+      .from("upi_merchant_qrs")
+      .select("id, display_name, upi_id, is_active, payment_instrument_id")
+      .eq("is_active", true)
+      .order("display_name"),
+    supabase
+      .from("categories")
+      .select("id, name")
+      .eq("is_active", true)
       .order("name"),
     supabase.from("profiles").select("full_name").eq("id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle(),
     supabase.from("settings").select("shop_name, upi_id, phone, address, currency_symbol").maybeSingle(),
@@ -82,12 +107,29 @@ export default async function PosPage({
     id: item.id,
     name: item.name,
     type: item.type,
-    account_number: item.account_number,
+    account_number: item.details?.account_number || item.details?.upi_id || null,
+    current_balance: item.current_balance,
+    details: item.details,
+  }));
+
+  const safeMerchantQrs: PosMerchantQr[] = (merchantQrs ?? []).map((q: any) => ({
+    id: q.id,
+    display_name: q.display_name,
+    upi_id: q.upi_id,
+    is_active: q.is_active,
+    payment_instrument_id: q.payment_instrument_id,
+  }));
+
+  const safeCategories: PosCategory[] = (categories ?? []).map((c: any) => ({
+    id: c.id,
+    name: c.name,
   }));
 
   const defaultUpiId =
+    safeMerchantQrs[0]?.upi_id ||
     (settings as any)?.upi_id ||
-    instruments?.find((i: any) => i.type === "upi" || i.type === "upi_qr")?.account_number ||
+    instruments?.find((i: any) => i.type === "upi" || i.type === "upi_qr")?.details?.upi_id ||
+    instruments?.find((i: any) => i.type === "upi" || i.type === "upi_qr")?.details?.account_number ||
     "";
 
   return (
@@ -98,6 +140,8 @@ export default async function PosPage({
       services={catalogServices}
       customers={safeCustomers}
       instruments={safeInstruments}
+      merchantQrs={safeMerchantQrs}
+      categories={safeCategories}
       initialCustomerId={initialCustomerId || ""}
       defaultUpiId={defaultUpiId}
       shopPhone={(settings as any)?.phone || ""}

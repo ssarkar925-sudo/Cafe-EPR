@@ -4745,8 +4745,8 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes("handleNewCashOut"), "612. Reset Invariant: Explicit New Cash Out reset handler present");
 
   // Test 11: AEPS Receipt & Invoice Customer/Internal Financial Privacy Logic (Tests 613-630)
-  const receipt80mmFile = fs.readFileSync("./app/business/receipt/[id]/page.tsx", "utf8");
-  const receiptA4File = fs.readFileSync("./app/business/receipt/[id]/a4/page.tsx", "utf8");
+  const receipt80mmFile = fs.readFileSync("./app/business/receipt/[id]/page.tsx", "utf8").replace(/\r\n/g, "\n");
+  const receiptA4File = fs.readFileSync("./app/business/receipt/[id]/a4/page.tsx", "utf8").replace(/\r\n/g, "\n");
   const businessPdfFile = fs.readFileSync("./components/pdf/business-pdf.tsx", "utf8");
 
   assert(receipt80mmFile.includes("const showCustomerFeeDetails = isDetailed;"), "613. 80mm Receipt: Centralized showCustomerFeeDetails display policy defined");
@@ -5201,7 +5201,7 @@ assert(
   // Test 20: PAYMENT ACCOUNTS CRUD & SCHEMA INTEGRITY (Tests 806-835)
   // ==============================================================================
   const paymentAccountsPanelPath = "./components/settings/payment-accounts-panel.tsx";
-  const paymentAccountsPanelFile = fs.readFileSync(paymentAccountsPanelPath, "utf8");
+  const paymentAccountsPanelFile = fs.readFileSync(paymentAccountsPanelPath, "utf8").replace(/\r\n/g, "\n");
 
   // 1. Schema Accuracy & Nonexistent Column Elimination
   assert(paymentAccountsPanelFile.includes(".insert({\n          name,\n          type,\n          details,\n          opening_balance: openingBal,\n          is_active: true,\n        })"), "806. Schema Invariant: Clean payment_instruments insert payload with zero nonexistent columns");
