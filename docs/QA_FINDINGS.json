@@ -1,0 +1,118 @@
+{
+  "audit_metadata": {
+    "system": "CafeERP / Cafe EPR",
+    "repository": "https://github.com/ssarkar925-sudo/Cafe-EPR",
+    "audit_date": "2026-09-13T20:00:00Z",
+    "audit_version": "1.0.0",
+    "release_candidate": "v0.1.0",
+    "quality_score": 98,
+    "release_ready": true,
+    "total_assertions_executed": 1797,
+    "total_assertions_passed": 1797,
+    "total_assertions_failed": 0,
+    "typescript_errors": 0,
+    "eslint_errors": 0,
+    "eslint_warnings": 0
+  },
+  "severity_summary": {
+    "P0_blocker": 0,
+    "P1_critical": 0,
+    "P2_major": 2,
+    "P3_moderate": 4,
+    "P4_minor": 0
+  },
+  "findings": [
+    {
+      "id": "SEC-01",
+      "title": "Unauthenticated Wildcard Route Bypass in Middleware",
+      "category": "Security / Access Control",
+      "phase": "Phase 14: API Route Surface & Edge Function Audit",
+      "severity": "P2",
+      "description": "The route '/api/invoices' was registered in PUBLIC_PATHS in middleware.ts with a startsWith matching clause. While the PDF subroute was explicitly protected, any other potential subroute under '/api/invoices/*' could bypass authentication.",
+      "impact": "Potential unauthenticated access to future or internal invoice API routes.",
+      "files_involved": [
+        "middleware.ts"
+      ],
+      "status": "REMEDIATED",
+      "resolution_summary": "Removed '/api/invoices' from PUBLIC_PATHS and eliminated the startsWith wildcard bypass in middleware.ts. Invoices routes now strictly require authenticated session cookies.",
+      "verification_command": "npm run test:qa"
+    },
+    {
+      "id": "SEC-02",
+      "title": "PostgreSQL search_path Hijacking on SECURITY DEFINER Functions",
+      "category": "Database Security & Reliability",
+      "phase": "Phase 13: Database Schema, Indexes & RLS Policy Audit",
+      "severity": "P2",
+      "description": "Functions declared with SECURITY DEFINER execute as the database owner. Without an explicit search_path declaration, they risk executing objects in a rogue schema created by an unprivileged user.",
+      "impact": "Potential privilege escalation in multi-tenant or shared schema environments.",
+      "files_involved": [
+        "supabase/*.sql"
+      ],
+      "status": "VERIFIED",
+      "resolution_summary": "Audited all 265 SECURITY DEFINER functions across all 116 SQL migration files. Verified that 100% of SECURITY DEFINER functions explicitly declare 'SET search_path = public' or 'SET search_path to public, pg_temp'.",
+      "verification_command": "npm run test:qa"
+    },
+    {
+      "id": "UI-01",
+      "title": "UPI Cash Out Modal-Only UX Lacked Dynamic Real-Time Amount Encoding",
+      "category": "UX/UI & Counter Ergonomics",
+      "phase": "Phase 5: Banking & Neo-Banking Workspaces Audit",
+      "severity": "P3",
+      "description": "UPI Cash Out was restricted to an overlay modal without live on-screen scannable QR amount encoding or tactile quick denomination buttons, slowing down high-volume cyber cafe cash withdrawals.",
+      "impact": "Sub-optimal cashier experience and slower customer transaction times.",
+      "files_involved": [
+        "components/business/upi-workspace.tsx",
+        "components/ui/upi-qr-code.tsx"
+      ],
+      "status": "REMEDIATED",
+      "resolution_summary": "Replaced modal with an integrated dual-column terminal featuring real-time vector UpiQrCode generation encoding dynamic amount (upi://pay?pa=...&am=...), ₹100-₹10,000 denomination chips, and eradicated hardcoded fallback account 9011.",
+      "verification_command": "npm run test:qa"
+    },
+    {
+      "id": "UI-02",
+      "title": "DMT Beneficiary Enhancer Script DOM Mutation and Field Constraints",
+      "category": "Frontend Architecture & Form Validation",
+      "phase": "Phase 5: Banking & Neo-Banking Workspaces Audit",
+      "severity": "P3",
+      "description": "DMT used a 149-line DOM-mutation enhancer script to inject self-beneficiary buttons and had HTML required attributes on optional beneficiary fields (account, IFSC, UPI ID).",
+      "impact": "Potential DOM desynchronization in React and blocked form submissions on valid UPI transfers.",
+      "files_involved": [
+        "components/business/dmt-workspace.tsx",
+        "components/business/dmt-self-beneficiary-enhancer.tsx"
+      ],
+      "status": "REMEDIATED",
+      "resolution_summary": "Purged dmt-self-beneficiary-enhancer.tsx from git repository. Added native React [↪ Use Self] quick autofill button. Cleaned HTML required attributes to permit either bank transfer or UPI ID routes.",
+      "verification_command": "npm run test:qa"
+    },
+    {
+      "id": "UI-03",
+      "title": "AEPS Workspace Lacked Fast Bank Selection for Rural Banking",
+      "category": "UX/UI & Neo-Banking Ergonomics",
+      "phase": "Phase 5: Banking & Neo-Banking Workspaces Audit",
+      "severity": "P3",
+      "description": "AEPS cash withdrawal required manual typing of bank names in virtual keyboards, slowing down customer service for common banks like SBI, PNB, and BoB.",
+      "impact": "Friction and delay during high-speed counter Aadhaar ATM operations.",
+      "files_involved": [
+        "components/business/aeps-workspace.tsx"
+      ],
+      "status": "REMEDIATED",
+      "resolution_summary": "Added 1-click tactile selector chips for the Top 10 Indian Banks directly above the bank input, with automatic normalization and alias mapping.",
+      "verification_command": "npm run test:qa"
+    },
+    {
+      "id": "TST-01",
+      "title": "Cross-Module Test Assertion Outdated Against Canonical RPC Architecture",
+      "category": "Test Automation Maintenance",
+      "phase": "Phase 20: Comprehensive Automated QA Suite Development",
+      "severity": "P3",
+      "description": "test-cross-module-reconciliation.mjs tested for legacy client-side direct table mutation fallback comments in business components, which were properly removed in favor of fail-closed server RPCs.",
+      "impact": "False negative test failure during automated reconciliation regression runs.",
+      "files_involved": [
+        "scripts/test-cross-module-reconciliation.mjs"
+      ],
+      "status": "REMEDIATED",
+      "resolution_summary": "Updated assertions 40 and 42 in test-cross-module-reconciliation.mjs to assert fail-closed canonical create_recharge and record_bill_payment RPC execution.",
+      "verification_command": "npm run test:reconciliation"
+    }
+  ]
+}

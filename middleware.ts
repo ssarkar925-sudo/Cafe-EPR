@@ -13,13 +13,11 @@ const PUBLIC_PATHS = [
   "/api/recharge/operator-circle",
   "/api/bill-payment/fetch",
   "/api/whatsapp/webhook",
-  "/api/invoices",
 ];
 
 const FINANCE_MODULES = new Set(["cashbook","journal","settlements","trial-balance","expenses","pnl","ledger","reconciliation","opening-balances","accounts","day-close"]);
 
 function isPublic(pathname: string) {
-  if (/^\/api\/invoices\/[^/]+\/pdf\/?$/.test(pathname)) return false;
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 function hasAuthCookie(request: NextRequest): boolean { return request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")); }
@@ -64,7 +62,7 @@ export async function middleware(request: NextRequest) {
 
   // Keep explicitly public endpoints public. Receipts and invoice PDFs do
   // not return here; they must pass the authenticated session/RLS checks.
-  if ((pathname.startsWith("/api/invoices") && !invoicePdfMatch) || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
+  if (pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
 
   const hasCookie = hasAuthCookie(request);
   if (pathname === "/login" && !hasCookie) return applySecurityHeaders(NextResponse.next());

@@ -511,13 +511,13 @@ console.log("\n--- Module 5: Frontend Workspace Synchronization Audit ---");
 {
   const bizClient = fs.readFileSync("./components/business/business-client.tsx", "utf8");
   assert(bizClient.includes("p_pay_from_instrument_id:") && bizClient.includes("p_pay_from_method:"), "39. Frontend Business Client: Funding account instrument explicitly passed to create_business_txn");
-  assert(bizClient.includes("Recharge") && bizClient.includes("Provider Outflow Leg") && bizClient.includes("direction: \"out\""), "40. Frontend Business Client: Recharge fallback records provider outflow leg with instrument_id");
+  assert(bizClient.includes("create_recharge") && bizClient.includes("Financial writes are fail-closed"), "40. Frontend Business Client: Recharge enforces canonical fail-closed create_recharge RPC");
 
   const upiClient = fs.readFileSync("./components/business/upi-workspace.tsx", "utf8");
   assert(upiClient.includes("existingLegs") && upiClient.includes("ref_type: \"transaction\""), "41. Frontend UPI Workspace: Idempotent cashbook sync guards against duplicate entries");
 
   const utilClient = fs.readFileSync("./components/business/utility-bill-workspace.tsx", "utf8");
-  assert(utilClient.includes("Provider Funding Leg") && utilClient.includes("direction: \"out\""), "42. Frontend Utility Workspace: Provider funding outflow leg verified");
+  assert(utilClient.includes("record_bill_payment") && utilClient.includes("p_customer_payment_allocations"), "42. Frontend Utility Workspace: Posts via canonical record_bill_payment with multi-payment allocations");
 }
 
 console.log("\n================================================================================");
