@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole } from "@/lib/authz";
 import DashboardShell from "@/components/dashboard-shell";
-import GlobalQuickAccess from "@/components/global-quick-access";
 import SessionGuard from "@/components/session-guard";
 import RechargeCommissionManager from "@/components/business/recharge-commission-manager";
 
@@ -56,7 +55,6 @@ export default async function DashboardLayout({
         avatarUrl={profile?.avatar_url || null}
         userId={user.id}
       >
-        <GlobalQuickAccess />
         <main className="min-w-0">{children}</main>
       </DashboardShell>
       <RechargeCommissionManager />
