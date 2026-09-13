@@ -9,8 +9,6 @@ const PUBLIC_PATHS = [
   "/auth/confirm-reset",
   "/auth/reset-password",
   "/logout",
-  "/receipt",
-  "/business/receipt",
   "/manifest.webmanifest",
   "/api/recharge/operator-circle",
   "/api/bill-payment/fetch",
@@ -31,8 +29,10 @@ function applySecurityHeaders(res: NextResponse): NextResponse { res.headers.set
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public receipts use opaque invoice UUIDs only. Sequential invoice numbers
-  // must not be usable as an unauthenticated enumeration key.
+  // Receipts and invoice PDFs are authenticated financial documents. UUID
+  // validation prevents sequential-ID enumeration, while the normal session
+  // check below ensures the authenticated Supabase server client receives the
+  // user's session and can read the invoice under RLS.
   const receiptMatch = pathname.match(/^\/(?:business\/)?receipt\/(?:quick\/)?([^/]+)(?:\/a4)?\/?$/);
   if (receiptMatch) {
     const receiptId = receiptMatch[1];
@@ -59,7 +59,10 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone(); loginUrl.pathname = "/login"; loginUrl.searchParams.set("next", pathname); return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  if (pathname.startsWith("/receipt") || pathname.startsWith("/business/receipt") || pathname.startsWith("/api/invoices") || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
+  // Keep the explicitly public endpoints public. Receipts and invoice PDF
+  // intentionally do NOT return here; they must pass the authenticated
+  // session/RLS checks below.
+  if (pathname.startsWith("/api/invoices") && !invoicePdfMatch || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
 
   const hasCookie = hasAuthCookie(request);
   if (pathname === "/login" && !hasCookie) return applySecurityHeaders(NextResponse.next());
@@ -107,7 +110,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api")) return finalizeResponse(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), response);
     const loginUrl = request.nextUrl.clone(); loginUrl.pathname = "/login"; loginUrl.searchParams.set("next", pathname); return finalizeResponse(NextResponse.redirect(loginUrl), response);
   }
-  if (user && !aal1SessionWithMfa && pathname === "/login") { const url = request.nextUrl.clone(); url.pathname = "/dashboard"; return finalizeResponse(NextResponse.redirect(url), response); }
+  if (user && !aal1SessionWithMfa && pathname === "/login") { const url = request.nextUrl.clone(); url.pathname = "/dashboard"; return finalizeResponse(NextResponse.redirect(url, response)); }
   if (user && !aal1SessionWithMfa && financeModule) { const rewriteUrl = request.nextUrl.clone(); rewriteUrl.pathname = "/finance"; rewriteUrl.searchParams.set("module", financeModule); return finalizeResponse(NextResponse.rewrite(rewriteUrl, { request }), response); }
   return response;
 }
