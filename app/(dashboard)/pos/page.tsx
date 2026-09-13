@@ -30,12 +30,12 @@ export default async function PosPage({
       .limit(500),
     supabase
       .from("payment_instruments")
-      .select("id, name, type")
+      .select("id, name, type, account_number")
       .eq("is_active", true)
       .order("type")
       .order("name"),
     supabase.from("profiles").select("full_name").eq("id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle(),
-    supabase.from("settings").select("shop_name").maybeSingle(),
+    supabase.from("settings").select("shop_name, upi_id, phone, address, currency_symbol").maybeSingle(),
   ]);
 
   const catalogProducts: PosCatalogItem[] = (products ?? []).map((item: any) => ({
@@ -82,7 +82,13 @@ export default async function PosPage({
     id: item.id,
     name: item.name,
     type: item.type,
+    account_number: item.account_number,
   }));
+
+  const defaultUpiId =
+    (settings as any)?.upi_id ||
+    instruments?.find((i: any) => i.type === "upi" || i.type === "upi_qr")?.account_number ||
+    "";
 
   return (
     <PosShell
@@ -93,6 +99,8 @@ export default async function PosPage({
       customers={safeCustomers}
       instruments={safeInstruments}
       initialCustomerId={initialCustomerId || ""}
+      defaultUpiId={defaultUpiId}
+      shopPhone={(settings as any)?.phone || ""}
     />
   );
 }
