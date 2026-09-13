@@ -379,6 +379,16 @@ export default function PosShell({
     }
   }, [currentTab.paymentChoice, total, currentTab.cashReceived, updateCurrentTab]);
 
+  function handleAddCustomItem(item: Omit<CartLine, "key">) {
+    const key = `custom:${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newCartLine: CartLine = {
+      ...item,
+      key,
+    };
+    updateCurrentTab({ cart: [...currentTab.cart, newCartLine] });
+    playPosSound("add", soundEnabled);
+  }
+
   function handleCustomItemCreated(item: PosCatalogItem) {
     if (item.kind === "service") {
       setServices((prev) => [item, ...prev]);
@@ -772,13 +782,13 @@ export default function PosShell({
     const itemPayload = totals.lines.map((taxLine, idx) => {
       const cLine = currentTab.cart[idx];
       return {
-        product_id: cLine.kind === "product" ? cLine.id : null,
-        service_id: cLine.kind === "service" ? cLine.id : null,
+        product_id: (!cLine.isCustom && cLine.kind === "product") ? cLine.id : null,
+        service_id: (!cLine.isCustom && cLine.kind === "service") ? cLine.id : null,
         description: cLine.name,
         qty: cLine.qty,
         rate: cLine.rate,
         amount: taxLine.grossAmount,
-        cost_price: cLine.costPrice,
+        cost_price: cLine.costPrice || 0,
         hsn_sac: taxLine.hsnSac,
         taxable_value: taxLine.taxableValue,
         gst_rate: taxLine.gstRate,
@@ -1482,7 +1492,14 @@ export default function PosShell({
                 className="flex items-center gap-2 border-b border-slate-100 py-2 text-xs dark:border-slate-800/80"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-black text-slate-900 dark:text-white">{line.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate font-black text-slate-900 dark:text-white">{line.name}</span>
+                    {line.isCustom && (
+                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.2 text-[9px] font-black text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                        Temp
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10px] text-slate-500 font-mono dark:text-slate-400">
                     {money(line.rate)} · {line.unit}
                   </div>
@@ -2218,12 +2235,11 @@ export default function PosShell({
         }}
       />
 
-      {/* 8. QUICK ADD CUSTOM REGISTERED ITEM (SERVICE / PRODUCT) */}
+      {/* 8. QUICK ADD CUSTOM ITEM (TEMPORARY CART-ONLY) */}
       <PosCustomItemModal
         open={customItemOpen}
         onClose={() => setCustomItemOpen(false)}
-        categories={storeCategories}
-        onItemCreated={handleCustomItemCreated}
+        onAddCustomItem={handleAddCustomItem}
       />
     </div>
   );

@@ -50,7 +50,7 @@ export type PosCategory = {
 export type CartLine = {
   key: string;
   id: string;
-  kind: "product" | "service";
+  kind: "product" | "service" | "custom";
   name: string;
   code?: string | null;
   rate: number;
@@ -62,6 +62,7 @@ export type CartLine = {
   stockQty: number | null;
   unit: string;
   note?: string;
+  isCustom?: boolean;
 };
 
 export type PaymentChoice = "cash" | "upi" | "khata" | "split";
