@@ -4,5 +4,5 @@ import { defineConfig, globalIgnores } from "eslint/config";
 // established application, while this repository does not require the optional
 // eslint-config-next package just to produce a production build.
 export default defineConfig([
-  globalIgnores([".next/**", "node_modules/**", "scripts/**", "dist/**"]),
+  globalIgnores([".next/**", ".open-next/**", "node_modules/**", "scripts/**", "dist/**"]),
 ]);
