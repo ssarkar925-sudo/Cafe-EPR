@@ -34,12 +34,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!isQuick) {
       const { data: inv } = await db
         .from("invoices")
-        .select("*, customers(name, phone, address, code)")
+        .select("*")
         .eq("id", id)
         .maybeSingle();
 
       if (inv) {
         invoice = inv;
+        if (inv.customer_id) {
+          const { data: customer } = await db
+            .from("customers")
+            .select("name, phone, address, code")
+            .eq("id", inv.customer_id)
+            .maybeSingle();
+          invoice.customers = customer || null;
+        }
         const [{ data: itRows }, { data: pRows }] = await Promise.all([
           db
             .from("invoice_items")
@@ -62,7 +70,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (isQuick && !invoice) {
       const { data: qs } = await db
         .from("quick_sales")
-        .select("*, customers(name, phone, address)")
+        .select("*")
         .eq("id", id)
         .maybeSingle();
 
@@ -70,10 +78,27 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         return new NextResponse("Invoice not found.", { status: 404 });
       }
 
-      const { data: qsItems } = await db
-        .from("quick_sale_items")
-        .select("*, products(name, unit), services(name)")
-        .eq("quick_sale_id", id);
+      let quickCustomer: any = null;
+      if (qs.customer_id) {
+        const { data: customer } = await db
+          .from("customers")
+          .select("name, phone, address, code")
+          .eq("id", qs.customer_id)
+          .maybeSingle();
+        quickCustomer = customer || null;
+      }
+
+      const [{ data: qsItems }, { data: qsPayments }] = await Promise.all([
+        db
+          .from("quick_sale_items")
+          .select("*, products(name, unit), services(name)")
+          .eq("quick_sale_id", id),
+        db
+          .from("payments")
+          .select("id, method, amount, received_at")
+          .eq("invoice_id", id)
+          .order("received_at", { ascending: true }),
+      ]);
 
       invoice = {
         id: qs.id,
@@ -85,7 +110,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         paid: qs.amount,
         due: 0,
         status: "paid",
-        customers: qs.customers,
+        customers: quickCustomer,
       };
 
       items =
@@ -101,8 +126,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             ];
 
       payments =
-        qs.payments && qs.payments.length > 0
-          ? qs.payments
+        qsPayments && qsPayments.length > 0
+          ? qsPayments
           : [{ method: qs.payment_method || "cash", amount: qs.amount }];
     }
 
