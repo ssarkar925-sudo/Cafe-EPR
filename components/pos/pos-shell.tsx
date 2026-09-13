@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import Link from "next/link";
 import { inr } from "@/lib/format";
 import { calculateGstInvoice, type GstInvoiceCalculation } from "@/lib/gst";
 import { generateQrDataUrl, generateUpiString } from "@/lib/qr";
 import { createClient } from "@/lib/supabase/client";
 import PosOperations from "./pos-operations";
+import { useDashboardShell } from "@/components/dashboard-shell-context";
+import ThemeToggle from "@/components/theme-toggle";
+import CloudSyncBadge from "@/components/cloud-sync-badge";
+import WhatsAppStatusBadge from "@/components/whatsapp/whatsapp-status-badge";
 import {
   AlertCircle,
   ArrowDownToLine,
+  ArrowLeft,
   Check,
   ChevronDown,
   CircleUserRound,
@@ -20,6 +26,7 @@ import {
   FileText,
   LayoutGrid,
   List,
+  Menu,
   MessageSquare,
   Minus,
   Pause,
@@ -143,6 +150,7 @@ export default function PosShell({
   shopPhone?: string;
 }) {
   const supabase = createClient();
+  const { collapsed, toggleSidebar, setMobileOpen } = useDashboardShell();
   const itemSearchRef = useRef<HTMLInputElement | null>(null);
   const customerSearchRef = useRef<HTMLInputElement | null>(null);
 
@@ -888,7 +896,7 @@ export default function PosShell({
   const cashChange = Math.max(0, (Number(currentTab.cashReceived) || 0) - total);
 
   return (
-    <div className="cafeerp-pos-reference absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-50 text-slate-900 antialiased select-none font-sans dark:bg-slate-950 dark:text-slate-100">
+    <div className="cafeerp-pos-reference absolute inset-0 z-10 flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-50 text-slate-900 antialiased select-none font-sans dark:bg-slate-950 dark:text-slate-100">
       {/* CafeERP POS reference design */}
       <div className="hidden" data-pos-money-out="reference">
         <PosOperations
@@ -907,30 +915,58 @@ export default function PosShell({
         />
       </div>
       {/* 1. TOP COMMAND BAR */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white px-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        {/* Brand & Register */}
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
-            <ShoppingCart className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs font-black tracking-tight text-slate-900 dark:text-white">
-              <span className="truncate">{shopName || "CafeERP"}</span>
-              <span className="text-slate-300 dark:text-slate-600">/</span>
-              <span className="text-blue-600 dark:text-blue-400 font-extrabold uppercase">POS Terminal</span>
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 transition-all">
+        {/* Left: Sidebar Toggle, Mobile Hamburger, Brand & Breadcrumbs */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Mobile Hamburger Toggle (< lg) */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation menu"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white transition lg:hidden shrink-0"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+
+          {/* Desktop Sidebar Collapse / Expand Toggle (lg+) */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden lg:flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white transition cursor-pointer shrink-0"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+              {collapsed ? <path d="M13 5l7 7-7 7M5 5l7 7-7 7"/> : <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>}
+            </svg>
+          </button>
+
+          {/* Brand Icon & Location / Breadcrumbs */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-md shadow-indigo-500/20">
+              <ShoppingCart className="h-4 w-4" />
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
-              </span>
-              <span>•</span>
-              <span className="truncate">{operatorName}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                <span className="hidden sm:inline">Café ERP</span>
+                <span className="hidden sm:inline">/</span>
+                <span className="hidden sm:inline">1. Sales Hub</span>
+                <span className="hidden sm:inline">/</span>
+                <span className="text-blue-600 dark:text-blue-400 font-black">POS</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-black tracking-tight text-slate-900 dark:text-white">
+                <span className="truncate">{shopName || "CafeERP"}</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+                <span className="text-[10px] font-medium text-slate-400 hidden xl:inline">• {operatorName}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Multi-Cart Order Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-[42vw] px-2 [scrollbar-width:none]">
+        {/* Center: Multi-Cart Order Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-[36vw] px-2 [scrollbar-width:none]">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             const tabGross = tab.cart.reduce((s, l) => s + l.rate * l.qty, 0);
@@ -939,17 +975,17 @@ export default function PosShell({
                 key={tab.id}
                 type="button"
                 onClick={() => switchTab(tab.id)}
-                className={`group flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition-all ${
+                className={`group flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition-all ${
                   isActive
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/25 ring-1 ring-blue-500/30"
-                    : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 ring-1 ring-blue-400/30 scale-[1.02]"
+                    : "border border-slate-200/80 bg-slate-100/80 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700/80 dark:hover:text-white"
                 }`}
               >
                 <span>{tab.title}</span>
                 {tabGross > 0 && (
                   <span
                     className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
-                      isActive ? "bg-blue-800 text-blue-100" : "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200"
+                      isActive ? "bg-white/20 text-white backdrop-blur-xs" : "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
                     {money(tabGross)}
@@ -959,7 +995,7 @@ export default function PosShell({
                   <span
                     role="button"
                     onClick={(e) => closeTab(tab.id, e)}
-                    className="flex h-4 w-4 items-center justify-center rounded hover:bg-black/20 text-white/60 hover:text-white"
+                    className="flex h-4 w-4 items-center justify-center rounded-md hover:bg-black/20 text-white/70 hover:text-white transition"
                   >
                     ×
                   </span>
@@ -972,16 +1008,17 @@ export default function PosShell({
               type="button"
               onClick={addNewTab}
               title="Add New Cart Tab (F2)"
-              className="flex h-9 items-center gap-1 rounded-xl border border-dashed border-slate-300 px-2.5 text-[10px] font-black text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-blue-500 transition"
+              className="flex h-8 items-center gap-1 rounded-xl border border-dashed border-slate-300 px-2.5 text-[10px] font-black text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-blue-400 transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Tab</span>
+              <kbd className="rounded bg-slate-200 dark:bg-slate-800 px-1 py-0.2 text-[8px] font-bold text-slate-500">F2</kbd>
             </button>
           )}
         </div>
 
-        {/* Global Action Toolbar */}
-        <div className="flex items-center gap-2">
+        {/* Right: Global Toolbar + Badges */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* Audio toggle */}
           <button
             type="button"
@@ -1020,7 +1057,7 @@ export default function PosShell({
             </button>
           </div>
 
-          <span className="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
+          <span className="hidden sm:block h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
 
           {/* Money Out */}
           <button
@@ -1029,17 +1066,17 @@ export default function PosShell({
             className="flex h-8 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 text-[10px] font-black text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40 transition"
           >
             <ArrowDownToLine className="h-3.5 w-3.5 text-rose-500" />
-            <span className="hidden sm:inline">Money Out</span>
+            <span className="hidden md:inline">Money Out</span>
           </button>
 
           {/* Today's Sales */}
           <button
             type="button"
             onClick={() => void openTodaySales()}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-sm"
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-xs"
           >
             <ReceiptText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="hidden sm:inline">Today's Sales</span>
+            <span className="hidden md:inline">Sales</span>
           </button>
 
           {/* Held Bills */}
@@ -1052,13 +1089,33 @@ export default function PosShell({
               } catch {}
               setOperationsPanel("held");
             }}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-sm"
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-xs"
           >
             <Pause className="h-3.5 w-3.5 text-amber-500" />
-            <span className="hidden sm:inline">Held</span>
+            <span className="hidden md:inline">Held</span>
           </button>
+
+          <span className="hidden lg:block h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
+
+          {/* Global Telemetry Badges */}
+          <div className="hidden lg:flex items-center gap-1.5">
+            <CloudSyncBadge />
+            <WhatsAppStatusBadge />
+            <ThemeToggle />
+          </div>
+
+          {/* Back / Exit link for mobile */}
+          <Link
+            href="/dashboard"
+            title="Exit POS to Dashboard"
+            className="flex lg:hidden h-8 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 px-2.5 text-[10px] font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Exit</span>
+          </Link>
         </div>
       </header>
+
 
       {/* 2. MAIN WORKSPACE: Dual Column Layout */}
       <main className="grid min-h-0 flex-1 [grid-template-columns:minmax(0,1fr)_420px] max-[1100px]:[grid-template-columns:minmax(0,1fr)_370px] max-[880px]:[grid-template-columns:minmax(0,1fr)_330px]">
@@ -1633,10 +1690,10 @@ export default function PosShell({
                     key={p.id}
                     type="button"
                     onClick={() => selectPayment(p.id as any)}
-                    className={`h-9 rounded-xl text-[10px] font-black uppercase tracking-wide transition ${
+                    className={`h-9 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all ${
                       isSelected
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-extrabold dark:bg-cyan-500 dark:text-slate-950 dark:shadow-cyan-500/20"
-                        : "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/60"
+                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 font-extrabold ring-1 ring-blue-400/30 scale-[1.02]"
+                        : "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:bg-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/60"
                     }`}
                   >
                     {p.label}
@@ -1858,7 +1915,7 @@ export default function PosShell({
               type="button"
               disabled={!currentTab.cart.length || busy}
               onClick={() => void completeSale()}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               {busy ? (
                 <span>Recording Sale...</span>
