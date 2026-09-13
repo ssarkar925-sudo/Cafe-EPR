@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole, hasRole } from "@/lib/authz";
 import TrialBalanceClient from "@/components/finance/trial-balance-client";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,9 @@ type JournalLine = {
 };
 
 export default async function TrialBalancePage() {
+  const role = await getUserRole();
+  if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
