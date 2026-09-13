@@ -15,9 +15,13 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   let items: any[] = [];
   let payments: any[] = [];
 
-  const { data: invoiceRow } = await supabase.from("invoices").select("*, customers(name, phone, address, code)").eq("id", id).maybeSingle();
+  const { data: invoiceRow } = await supabase.from("invoices").select("*").eq("id", id).maybeSingle();
   if (invoiceRow) {
     invoice = invoiceRow;
+    if (invoiceRow.customer_id) {
+      const { data: customer } = await supabase.from("customers").select("name, phone, address, code").eq("id", invoiceRow.customer_id).maybeSingle();
+      invoice.customers = customer || null;
+    }
     const [{ data: itemRows }, { data: paymentRows }] = await Promise.all([
       supabase.from("invoice_items").select("*, products(name, code), services(name)").eq("invoice_id", id).order("created_at", { ascending: true }),
       supabase.from("payments").select("method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
@@ -25,13 +29,18 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     items = itemRows || [];
     payments = paymentRows || [];
   } else {
-    const { data: quickSale } = await supabase.from("quick_sales").select("*, customers(name, phone, address)").eq("id", id).maybeSingle();
+    const { data: quickSale } = await supabase.from("quick_sales").select("*").eq("id", id).maybeSingle();
     if (!quickSale) notFound();
+    let quickCustomer: any = null;
+    if (quickSale.customer_id) {
+      const { data: customer } = await supabase.from("customers").select("name, phone, address, code").eq("id", quickSale.customer_id).maybeSingle();
+      quickCustomer = customer || null;
+    }
     const [{ data: quickItems }, { data: quickPayments }] = await Promise.all([
       supabase.from("quick_sale_items").select("*, products(name, code), services(name)").eq("quick_sale_id", id),
       supabase.from("payments").select("method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
     ]);
-    invoice = { id: quickSale.id, invoice_number: quickSale.sale_number, invoice_date: quickSale.sale_date, subtotal: quickSale.amount, discount: 0, total: quickSale.amount, paid: quickSale.amount, due: 0, status: "paid", customers: quickSale.customers };
+    invoice = { id: quickSale.id, invoice_number: quickSale.sale_number, invoice_date: quickSale.sale_date, subtotal: quickSale.amount, discount: 0, total: quickSale.amount, paid: quickSale.amount, due: 0, status: "paid", customers: quickCustomer };
     items = quickItems && quickItems.length ? quickItems : [{ description: quickSale.item_name || "Quick Sale", qty: 1, rate: quickSale.amount, amount: quickSale.amount }];
     payments = quickPayments && quickPayments.length ? quickPayments : [{ method: quickSale.payment_method || "cash", amount: quickSale.amount }];
   }
