@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import BillPaymentHub from "@/components/business/bill-payment-hub";
-import UtilityBillWorkspace from "@/components/business/utility-bill-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -88,16 +87,6 @@ export default async function BillPaymentPage({
   }
   const routedPaymentInstruments = orderInstruments((paymentInstruments ?? []) as any[], routingIds);
 
-  if (tab === "utility") {
-    return (
-      <UtilityBillWorkspace
-        initialTransactions={(transactions ?? []) as any}
-        initialCustomers={(customers ?? []) as any}
-        initialPaymentInstruments={routedPaymentInstruments as any}
-      />
-    );
-  }
-
   return (
     <BillPaymentHub
       initialTransactions={(transactions ?? []) as any}
@@ -106,7 +95,7 @@ export default async function BillPaymentPage({
       initialRechargeSlabs={(rechargeSlabs ?? []) as any}
       initialPaymentInstruments={routedPaymentInstruments as any}
       initialBillCommissions={(billCommissions ?? []) as any}
-      initialTab={tab || "overview"}
+      initialTab={tab || "utility"}
       initialCategory={category}
       initialProvider={provider}
     />

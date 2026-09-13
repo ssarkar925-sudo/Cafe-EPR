@@ -519,89 +519,83 @@ export default function GooglePlayWorkspace({
       />
       {toastView}
 
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-slate-900 via-teal-950/80 to-slate-900 p-6 text-white shadow-2xl">
-        <div className="absolute right-0 top-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+      {/* 1. EXECUTIVE GOOGLE PLAY BANNER */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 shadow-xs">
+            <span className="text-xl">🎮</span>
+          </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-black tracking-wide text-emerald-300 ring-1 ring-emerald-500/40">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                GOOGLE PLAY RECHARGE ONLINE
-              </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-slate-300">
-                Instant Voucher Generation
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
+                Google Play Recharge Terminal
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Instant Code Delivery
               </span>
             </div>
-            <h1 className="mt-2.5 text-2xl font-black tracking-tight sm:text-3xl">
-              Google Play Recharge Terminal
-            </h1>
-            <p className="mt-1 text-xs text-slate-300 max-w-xl">
-              Sell Google Play redeem codes, game top-ups, and balance recharges with real-time margin calculation, double-entry ledger, and WhatsApp receipt delivery.
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Issue Google Play redeem codes and vouchers with instant WhatsApp receipt delivery and automated margin accounting.
             </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
-              className="btn-3d-tactile-primary flex items-center gap-2 px-3.5 py-2 text-xs font-black shadow-lg"
-            >
-              <span>▶️ New Recharge</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setScanModalOpen(true)}
-              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
-            >
-              <span>📷 Scan Code</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCommissionModalOpen(true)}
-              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
-            >
-              <span>⚙ Commission / Margin</span>
-            </button>
-            <Link
-              href="/business/bill-payment"
-              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
-            >
-              <span>← Bill Payment Hub</span>
-            </Link>
           </div>
         </div>
 
-        {/* 5-Card KPI Bento Grid */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-          <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Today&apos;s Codes</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-white">{todayStats.count} <span className="text-xs font-normal text-slate-300 font-sans">issued</span></div>
-            <p className="mt-0.5 text-[11px] text-slate-400 font-mono">{inr(todayStats.volume)} volume</p>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScanModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <span>📷</span>
+            <span>Scan Code</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCommissionModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <span>⚙️</span>
+            <span>Margins</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <span>📥</span>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
 
-          <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Customer Collection</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-emerald-400">{inr(todayStats.collections)}</div>
-            <p className="mt-0.5 text-[11px] text-slate-400">Total customer receipts</p>
+      {/* 2. RECONCILIATION SUMMARY */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 dark:border-white/10 dark:bg-slate-900 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300 font-black text-xs">
+            ⚡
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black tracking-wide text-slate-900 dark:text-white">GOOGLE PLAY VOUCHER SETTLEMENT</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                ✓ 100% Balanced
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Customer Collections ({inr(todayStats.collections)}) = Net Provider Cost ({inr(todayStats.providerCost)}) + Net Margin ({inr(todayStats.netIncome)})
+            </p>
           </div>
+        </div>
 
-          <div className="card-glow-amber relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">Earned Margin</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-amber-400">{inr(todayStats.commission)}</div>
-            <p className="mt-0.5 text-[11px] text-slate-400">{commissionResolution.label} rate</p>
+        <div className="flex items-center gap-4 text-xs">
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Today Issued</span>
+            <p className="font-black text-slate-900 dark:text-white">{todayStats.count} codes · {inr(todayStats.volume)}</p>
           </div>
-
-          <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">Net Provider Cost</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-cyan-400">{inr(todayStats.providerCost)}</div>
-            <p className="mt-0.5 text-[11px] text-slate-400">Debited from funding</p>
-          </div>
-
-          <div className="card-glow-purple relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-300">Success Rate</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-purple-300">{todayStats.successRate}%</div>
-            <p className="mt-0.5 text-[11px] font-mono text-emerald-400 font-bold">Net: {inr(todayStats.netIncome)}</p>
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Net Margin</span>
+            <p className="font-black text-emerald-600 dark:text-emerald-400">+{inr(todayStats.netIncome)}</p>
           </div>
         </div>
       </div>

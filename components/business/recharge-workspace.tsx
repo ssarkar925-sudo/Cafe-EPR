@@ -916,115 +916,102 @@ export default function RechargeWorkspace({
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 1. EXECUTIVE HERO COMMAND CENTER */}
-      <div className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-900 p-6 text-white shadow-2xl">
-        <div className="absolute right-0 top-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+      {/* 1. EXECUTIVE RECHARGE BANNER */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs dark:border-white/10 dark:bg-slate-900">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/40 shadow-xs">
+            <span className="text-xl">📱</span>
+          </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-black tracking-wide text-emerald-300 ring-1 ring-emerald-500/40">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
+                Mobile Recharge Command Center
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 RECHARGE SYSTEM ONLINE
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-slate-300">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
                 {allOperators.length} Active Operators
               </span>
             </div>
-            <h1 className="mt-2.5 text-2xl font-black tracking-tight sm:text-3xl">
-              Mobile Recharge Command Center
-            </h1>
-            <p className="mt-1 text-xs text-slate-300 max-w-xl">
-              Mobile, prepaid and supported telecom recharge with transparent customer collection, provider funding and commission tracking.
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Prepaid mobile, DTH, and data top-ups with transparent customer collection, provider funding and commission tracking.
             </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
-              className="btn-3d-tactile-primary flex items-center gap-2 px-4 py-2 text-xs font-black shadow-lg"
-            >
-              <span>📱 New Recharge</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setScanModalOpen(true)}
-              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
-            >
-              <span>📷 Scan &amp; Fill</span>
-            </button>
-            <Link
-              href="/settings?tab=business-setup&section=recharge"
-              className="btn-3d-tactile-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-bold"
-            >
-              <span>⚙️ Provider Slabs</span>
-            </Link>
           </div>
         </div>
 
-        {/* Hero 5-Card KPI Grid */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-          <div className="card-glow-indigo relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300">Today&apos;s Recharges</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-white">{todayStats.count} <span className="text-xs font-normal text-slate-300 font-sans">txns</span></div>
-            <p className="mt-0.5 text-[11px] font-mono text-slate-400">{inr(todayStats.volume)} volume</p>
-          </div>
-
-          <div className="card-glow-emerald relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Customer Collection</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-emerald-400">{inr(todayStats.collections)}</div>
-            <p className="mt-0.5 text-[11px] text-slate-400">Total funds collected</p>
-          </div>
-
-          <div className="card-glow-amber relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">Commission Earned</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-amber-400">{inr(todayStats.commission)}</div>
-            <p className="mt-0.5 text-[11px] text-slate-400">Operator discount/margin</p>
-          </div>
-
-          <div className="card-glow-cyan relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">Provider Net Cost</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-cyan-400">{inr(todayStats.providerCost)}</div>
-            <p className="mt-0.5 text-[11px] text-slate-400">Debited from funding account</p>
-          </div>
-
-          <div className="card-glow-purple relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md transition hover:scale-[1.02] duration-150">
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-300">Success Rate</span>
-            <div className="mt-1 text-2xl font-black font-mono tracking-tight text-purple-300">{todayStats.successRate}%</div>
-            <p className="mt-0.5 text-[11px] font-mono text-emerald-400 font-bold">Net: {inr(todayStats.netIncome)}</p>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScanModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <span>📷</span>
+            <span>Scan &amp; Fill</span>
+          </button>
+          <Link
+            href="/settings?tab=business-setup&section=recharge"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <span>⚙️</span>
+            <span>Commission Slabs</span>
+          </Link>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+          >
+            <span>📥</span>
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 
       {/* 2. RECONCILIATION & POSITION STRIP */}
-      <div className="card-glow-indigo flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-slate-900 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 dark:border-white/10 dark:bg-slate-900 shadow-xs">
         <div className="flex items-center gap-3">
-          <span className="icon-box-3d flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 shadow-sm">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300 font-black text-xs">
             ⚡
           </span>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-black tracking-wide text-slate-900 dark:text-white">RECHARGE RECONCILIATION</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-500/30 dark:text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                 ✓ 100% Balanced
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Customer Collections (<span className="font-mono">{inr(todayStats.collections)}</span>) = Net Provider Cost (<span className="font-mono">{inr(todayStats.providerCost)}</span>) + Net Income (<span className="font-mono">{inr(todayStats.netIncome)}</span>)
+              Customer Collections ({inr(todayStats.collections)}) = Net Provider Cost ({inr(todayStats.providerCost)}) + Net Income ({inr(todayStats.netIncome)})
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 text-xs">
+        <div className="flex items-center gap-4 text-xs">
           <div className="text-right">
-            <span className="text-[10px] font-bold uppercase text-slate-400">Variance</span>
-            <p className="font-black font-mono text-emerald-600 dark:text-emerald-400">{inr(todayStats.variance)}</p>
+            <span className="text-[10px] font-bold uppercase text-slate-400">Today&apos;s Recharges</span>
+            <p className="font-black text-slate-900 dark:text-white">{todayStats.count} txns · {inr(todayStats.volume)}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Customer Collection</span>
+            <p className="font-black text-emerald-600 dark:text-emerald-400">{inr(todayStats.collections)}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Commission Earned</span>
+            <p className="font-black text-amber-600 dark:text-amber-400">{inr(todayStats.commission)}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Provider Net Cost</span>
+            <p className="font-black text-slate-900 dark:text-white">{inr(todayStats.providerCost)}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold uppercase text-slate-400">Success Rate</span>
+            <p className="font-black text-purple-600 dark:text-purple-400">{todayStats.successRate}%</p>
           </div>
           <button
             type="button"
             onClick={() => setAddCustomerModal(true)}
-            className="btn-3d-tactile-secondary px-3 py-1.5 text-xs font-bold"
+            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
           >
             + Add Customer
           </button>
