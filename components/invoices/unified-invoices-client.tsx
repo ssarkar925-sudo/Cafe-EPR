@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { FileText, Search, Plus, Printer, Eye, MessageSquare, CreditCard, MoreVertical, Pencil } from "lucide-react";
 import InvoiceViewModal from "./invoice-view-modal";
+import InvoiceEditModal from "./invoice-edit-modal";
 import QuickSaleViewModal from "./quick-sale-view-modal";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
@@ -64,6 +65,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [viewId, setViewId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [collectId, setCollectId] = useState<string | null>(null);
@@ -140,6 +142,19 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
     if (row.source === "pos") setViewId(row.id); else setQuickViewId(row.id);
   }
 
+  function edit(row: UnifiedInvoiceRow) {
+    setMenuKey(null);
+    if (row.source === "pos" && row.status !== "cancelled") setEditId(row.id);
+  }
+
+  function handleEdited() {
+    setEditId(null);
+    setViewId(null);
+    setMessage("Invoice edited successfully. The original invoice remains in the audit trail.");
+    void refresh();
+    window.setTimeout(() => setMessage(null), 3500);
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -180,7 +195,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                   <button title="View / Edit options" onClick={() => setMenuKey(menuKey === `${row.source}:${row.id}` ? null : `${row.source}:${row.id}`)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10"><MoreVertical className="h-3.5 w-3.5" /></button>
                   {menuKey === `${row.source}:${row.id}` && <div className="absolute right-0 top-10 z-50 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
                     <button type="button" onClick={() => open(row)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-3.5 w-3.5" /> View invoice</button>
-                    {row.source === "pos" && row.status !== "cancelled" && <button type="button" onClick={() => open(row)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/30"><Pencil className="h-3.5 w-3.5" /> Edit invoice</button>}
+                    {row.source === "pos" && row.status !== "cancelled" && <button type="button" onClick={() => edit(row)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/30"><Pencil className="h-3.5 w-3.5" /> Edit invoice</button>}
                   </div>}
                   <a title="Print" target="_blank" href={row.source === "pos" ? `/receipt/${row.id}/a4` : `/receipt/quick/${row.id}`} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10"><Printer className="h-3.5 w-3.5" /></a>
                   <button title="WhatsApp" onClick={() => void sendWhatsApp(row)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600"><MessageSquare className="h-3.5 w-3.5" /></button>
@@ -195,7 +210,8 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
       {collectId && <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/40 p-4 sm:items-center"><div className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"><div className="flex items-center justify-between"><div><h2 className="text-base font-black dark:text-white">Collect Invoice Payment</h2><p className="text-xs text-slate-400">Record the remaining amount against this invoice.</p></div><button onClick={() => setCollectId(null)} className="text-slate-400">×</button></div><div className="mt-4"><MultiPaymentCollection totalDue={rows.find((r) => r.id === collectId && r.source === "pos")?.due ?? 0} mode="invoice" onChange={setAllocations} /></div><div className="mt-4 flex justify-end gap-2"><button onClick={() => setCollectId(null)} className="rounded-lg border px-3 py-2 text-xs font-bold">Cancel</button><button disabled={busy} onClick={() => void collect()} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{busy ? "Recording…" : "Confirm Payment"}</button></div></div></div>}
 
-      {viewId && <InvoiceViewModal invoiceId={viewId} onClose={() => setViewId(null)} onChanged={(row) => { setInvoices((current) => current.map((x) => x.id === row.id ? { ...x, ...row } : x)); }} />}
+      {viewId && <InvoiceViewModal invoiceId={viewId} onClose={() => setViewId(null)} onEdit={() => { setViewId(null); setEditId(viewId); }} onChanged={(row) => { setInvoices((current) => current.map((x) => x.id === row.id ? { ...x, ...row } : x)); }} />}
+      {editId && <InvoiceEditModal invoiceId={editId} onClose={() => setEditId(null)} onSaved={handleEdited} />}
       {quickViewId && <QuickSaleViewModal saleId={quickViewId} onClose={() => setQuickViewId(null)} onCancelled={(id) => { setQuickSales((current) => current.map((x) => x.id === id ? { ...x, status: "cancelled" } : x)); }} />}
     </div>
   );
