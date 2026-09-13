@@ -18,7 +18,10 @@ const PUBLIC_PATHS = [
 
 const FINANCE_MODULES = new Set(["cashbook","journal","settlements","trial-balance","expenses","pnl","ledger","reconciliation","opening-balances","accounts","day-close"]);
 
-function isPublic(pathname: string) { return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")); }
+function isPublic(pathname: string) {
+  if (/^\/api\/invoices\/[^/]+\/pdf\/?$/.test(pathname)) return false;
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 function hasAuthCookie(request: NextRequest): boolean { return request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token")); }
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 15;
@@ -59,9 +62,8 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone(); loginUrl.pathname = "/login"; loginUrl.searchParams.set("next", pathname); return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Keep the explicitly public endpoints public. Receipts and invoice PDF
-  // intentionally do NOT return here; they must pass the authenticated
-  // session/RLS checks below.
+  // Keep explicitly public endpoints public. Receipts and invoice PDFs do
+  // not return here; they must pass the authenticated session/RLS checks.
   if ((pathname.startsWith("/api/invoices") && !invoicePdfMatch) || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
 
   const hasCookie = hasAuthCookie(request);
