@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import Modal from "@/components/ui/modal";
+import SearchableSelect from "@/components/ui/searchable-select";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
@@ -48,6 +49,7 @@ export default function UpiWorkspace({
 }) {
   const supabase = createClient();
   const { showToast, toastView } = useToast();
+  const terminalFormRef = useRef<HTMLDivElement>(null);
 
   useRealtime(["transactions", "upi_merchant_qrs", "customers", "cash_entries", "payment_instruments", "settlements"]);
 
@@ -68,7 +70,7 @@ export default function UpiWorkspace({
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
-  // Modals
+  // Modals & UI Lifecycle
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -76,6 +78,18 @@ export default function UpiWorkspace({
   const [deleteTarget, setDeleteTarget] = useState<Txn | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [isVoiding, setIsVoiding] = useState(false);
+  const [successTxn, setSuccessTxn] = useState<Txn | null>(null);
+
+  // Add Customer Modal
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustAddress, setNewCustAddress] = useState("");
+  const [custCreateError, setCustCreateError] = useState("");
+  const [custCreateSubmitting, setCustCreateSubmitting] = useState(false);
+
+  // WhatsApp Modal State
   const [waModal, setWaModal] = useState<{ open: boolean; phone: string; name: string; msg: string; refNum: string; refId: string }>({
     open: false,
     phone: "",
@@ -85,19 +99,18 @@ export default function UpiWorkspace({
     refId: "",
   });
 
-  // Form State for Record Cash Out
+  // Form State for Terminal / Record Cash Out
   const [formAmount, setFormAmount] = useState<string>("");
   const [formFee, setFormFee] = useState<string>("0");
   const [formCustomerId, setFormCustomerId] = useState<string>("");
   const [formCustomerMobile, setFormCustomerMobile] = useState<string>("");
   const [formReference, setFormReference] = useState<string>("");
   const [formRemarks, setFormRemarks] = useState<string>("");
-  const [formQrId, setFormQrId] = useState<string>(qrs[0]?.id || "");
-  const [formFeeSource, setFormFeeSource] = useState<"cut_from_withdrawal" | "cut_from_payment" | "customer_paid_extra">("cut_from_withdrawal");
+  const [selectedQrId, setSelectedQrId] = useState<string>(initialQrs[0]?.id || "");
+  const [formFeeSource, setFormFeeSource] = useState<"cut_from_withdrawal" | "customer_paid_extra">("cut_from_withdrawal");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedQrId, setSelectedQrId] = useState<string>("");
 
-  // Edit UPI Transaction Modal State (Full Financial & Operational)
+  // Edit UPI Transaction Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Txn | null>(null);
   const [editAmount, setEditAmount] = useState<string>("");
@@ -110,6 +123,7 @@ export default function UpiWorkspace({
   const [editRemarks, setEditRemarks] = useState<string>("");
   const [editSubmitting, setEditSubmitting] = useState(false);
 
+  // Active Merchant QR object
   const activeQr = useMemo(() => {
     if (selectedQrId) {
       const found = qrs.find((q) => q.id === selectedQrId);
@@ -117,6 +131,13 @@ export default function UpiWorkspace({
     }
     return qrs[0] || null;
   }, [qrs, selectedQrId]);
+
+  // When customer changes, auto-fill phone
+  useEffect(() => {
+    if (!formCustomerId) return;
+    const c = customers.find((x) => x.id === formCustomerId);
+    if (c?.phone) setFormCustomerMobile(c.phone);
+  }, [formCustomerId, customers]);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
@@ -149,11 +170,25 @@ export default function UpiWorkspace({
     }
   }, [supabase]);
 
-  // Realtime balance calculations
+  // Realtime balance calculations (Safe fallback to 0)
   const upiCurrentBalance = useMemo(() => {
-    if (!livePool) return 9011;
+    if (!livePool) return 0;
     return Number(livePool.current ?? (Number(livePool.opening || 0) + Number(livePool.movements || 0)));
   }, [livePool]);
+
+  // Calculations for current form values
+  const numFormAmt = parseFloat(formAmount) || 0;
+  const numFormFee = parseFloat(formFee) || 0;
+  const cashHanded = formFeeSource === "customer_paid_extra" ? numFormAmt : Math.max(0, numFormAmt - numFormFee);
+  const upiAmountToCollect = formFeeSource === "customer_paid_extra" ? numFormAmt + numFormFee : numFormAmt;
+
+  // Validation rules
+  const isFormValid = useMemo(() => {
+    if (numFormAmt <= 0) return false;
+    if (numFormFee < 0) return false;
+    if (!activeQr?.id) return false;
+    return true;
+  }, [numFormAmt, numFormFee, activeQr]);
 
   // Filtered transactions
   const filteredTxns = useMemo(() => {
@@ -215,7 +250,20 @@ export default function UpiWorkspace({
     };
   }, [filteredTxns]);
 
-  // Reset form when opening create modal
+  // Reset form completely for clean new cash out
+  const handleNewCashOut = useCallback(() => {
+    setFormAmount("");
+    setFormFee("0");
+    setFormCustomerId("");
+    setFormCustomerMobile("");
+    setFormReference("");
+    setFormRemarks("");
+    setFormFeeSource("cut_from_withdrawal");
+    setSuccessTxn(null);
+    terminalFormRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  // Open modal workflow (Preserved for compatibility and quick shortcuts)
   const openCreateModal = () => {
     setFormAmount("");
     setFormFee("0");
@@ -227,12 +275,78 @@ export default function UpiWorkspace({
     setCreateModalOpen(true);
   };
 
-  // Submit Record Cash Out
-  const handleRecordCashOut = async (e: React.FormEvent) => {
+  // Scan & Fill extraction handler
+  const handleScanApply = (fields: ScanFields) => {
+    if (fields.amount) setFormAmount(fields.amount);
+    if (fields.reference) setFormReference(fields.reference);
+    const rawMobile = fields.customer_mobile || fields.sender_mobile || "";
+    if (rawMobile) setFormCustomerMobile(rawMobile.replace(/\D/g, "").slice(-10));
+    setScanModalOpen(false);
+    showToast("success", "Extracted details applied to UPI terminal.");
+  };
+
+  // Add new customer handler
+  const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
+    const name = newCustName.trim();
+    const phone = newCustPhone.trim().replace(/\D/g, "");
+    if (!name) {
+      setCustCreateError("Please enter a valid customer name.");
+      return;
+    }
+    if (phone && phone.length !== 10) {
+      setCustCreateError("Mobile number must be exactly 10 digits.");
+      return;
+    }
+
+    setCustCreateSubmitting(true);
+    setCustCreateError("");
+
+    try {
+      const { data: newCust, error: insertError } = await supabase
+        .from("customers")
+        .insert({
+          name,
+          phone: phone || null,
+          email: newCustEmail.trim() || null,
+          address: newCustAddress.trim() || null,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      await logAudit({
+        action: "create",
+        entity: "customer",
+        entity_id: (newCust as any).id,
+        description: `Created customer "${name}" from UPI terminal`,
+      });
+
+      setCustomers((prev) => [...prev, newCust as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
+      setFormCustomerId((newCust as any).id);
+      if (phone) setFormCustomerMobile(phone);
+      setAddCustomerOpen(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustEmail("");
+      setNewCustAddress("");
+      showToast("success", `Customer "${name}" created and assigned.`);
+    } catch (err: any) {
+      console.error("Customer creation error:", err);
+      setCustCreateError(err.message || "Failed to create customer.");
+    } finally {
+      setCustCreateSubmitting(false);
+    }
+  };
+
+  // Submit UPI Cash Out (Execution)
+  const handleRecordCashOut = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const amt = parseFloat(formAmount);
     if (isNaN(amt) || amt <= 0) {
-      showToast("error", "Please enter a valid amount.");
+      showToast("error", "Please enter a valid amount greater than ₹0.");
       return;
     }
     const fee = parseFloat(formFee) || 0;
@@ -241,23 +355,29 @@ export default function UpiWorkspace({
       return;
     }
 
+    const qrToUse = selectedQrId || qrs[0]?.id || "";
+    if (!qrToUse) {
+      showToast("error", "Please configure or select a Merchant QR.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const timestamp = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      const today = nowIso.slice(0, 10);
 
       const rpcPayload = {
         p_service_type: "upi",
         p_transaction_date: today,
-        p_transaction_timestamp: timestamp,
+        p_transaction_timestamp: nowIso,
         p_customer_id: formCustomerId || null,
-        p_customer_mobile: formCustomerMobile || null,
-        p_reference: formReference || null,
-        p_remarks: formRemarks || null,
+        p_customer_mobile: formCustomerMobile.trim() || null,
+        p_reference: formReference.trim() || null,
+        p_remarks: formRemarks.trim() || null,
         p_status: "success",
         p_bank_id: null,
         p_portal_id: null,
-        p_merchant_qr_id: formQrId || null,
+        p_merchant_qr_id: qrToUse,
         p_aadhaar_last4: null,
         p_transfer_method: null,
         p_sender_name: null,
@@ -275,8 +395,8 @@ export default function UpiWorkspace({
         p_fee_source: formFeeSource,
         p_paid_from: null,
         p_customer_pay_method: "cash",
-        p_pay_from_instrument_id: qrs.find((q) => q.id === formQrId)?.payment_instrument_id || null,
-        p_pay_from_method: liveInstruments.find((i) => i.id === (qrs.find((q) => q.id === formQrId)?.payment_instrument_id || ""))?.type || "upi_qr",
+        p_pay_from_instrument_id: qrs.find((q) => q.id === qrToUse)?.payment_instrument_id || null,
+        p_pay_from_method: liveInstruments.find((i) => i.id === (qrs.find((q) => q.id === qrToUse)?.payment_instrument_id || ""))?.type || "upi_qr",
         p_portal_charge: 0,
       };
 
@@ -292,9 +412,9 @@ export default function UpiWorkspace({
       }
 
       const d = res.data as any;
-      const cashHanded = formFeeSource === "customer_paid_extra" ? amt : Math.max(0, amt - fee);
+      const netCashHandout = formFeeSource === "customer_paid_extra" ? amt : Math.max(0, amt - fee);
 
-      // Synchronize Cashbook Entries (Guard against duplicate inserts if DB RPC already recorded legs)
+      // Synchronize Cashbook Entries (Guard against duplicate inserts)
       const { data: existingLegs } = await supabase
         .from("cash_entries")
         .select("id")
@@ -303,14 +423,14 @@ export default function UpiWorkspace({
 
       if (!existingLegs || existingLegs.length === 0) {
         const defaultCash = liveInstruments.find((i) => i.type === "cash" && i.is_active) || liveInstruments.find((i) => i.type === "cash");
-        const selectedQr = qrs.find((q) => q.id === formQrId);
+        const selectedQr = qrs.find((q) => q.id === qrToUse);
         const defaultUpi = (selectedQr?.payment_instrument_id
           ? liveInstruments.find((i) => i.id === selectedQr.payment_instrument_id)
           : null) ||
           liveInstruments.find((i) => (i.type === "upi" || i.type === "upi_qr") && i.is_active) ||
           liveInstruments.find((i) => i.type === "upi" || i.type === "upi_qr");
 
-        // Inflow into UPI
+        // Inflow into UPI Pool
         await supabase.from("cash_entries").insert({
           entry_date: today,
           method: "upi",
@@ -327,7 +447,7 @@ export default function UpiWorkspace({
           entry_date: today,
           method: "cash",
           direction: "out",
-          amount: cashHanded,
+          amount: netCashHandout,
           description: `UPI ${d.transaction_number} cash payout`,
           ref_type: "transaction",
           ref_id: d.id,
@@ -342,8 +462,58 @@ export default function UpiWorkspace({
         description: `Recorded UPI Cash Out ${d.transaction_number}: ${inr(amt)} with fee ${inr(fee)}`,
       });
 
-      showToast("success", `UPI Cash Out recorded — ${d.transaction_number}`);
+      const completedRecord: Txn = {
+        id: d.id,
+        transaction_number: d.transaction_number,
+        service_type: "upi",
+        direction: "out",
+        transaction_date: today,
+        transaction_timestamp: nowIso,
+        customer_id: formCustomerId || null,
+        customer_mobile: formCustomerMobile.trim() || null,
+        reference: formReference.trim() || null,
+        remarks: formRemarks.trim() || null,
+        status: "success",
+        bank_id: null,
+        portal_id: null,
+        merchant_qr_id: qrToUse,
+        provider_id: null,
+        aadhaar_last4: null,
+        transfer_method: null,
+        sender_name: null,
+        sender_mobile: null,
+        beneficiary_name: null,
+        beneficiary_mobile: null,
+        beneficiary_bank: null,
+        beneficiary_ifsc: null,
+        beneficiary_account: null,
+        upi_id: null,
+        amount: amt,
+        service_fee: fee,
+        portal_commission: 0,
+        fee_source: formFeeSource,
+        paid_from: null,
+        customer_pay_method: "cash",
+        customers: customers.find((c) => c.id === formCustomerId) || null,
+        banks: null,
+        portals: null,
+        providers: null,
+        merchant_qrs: (qrs.find((q) => q.id === qrToUse) as any) || null,
+        profiles: null,
+      };
+
+      setSuccessTxn(completedRecord);
+      showToast("success", `✓ UPI Cash Out recorded — #${d.transaction_number}. Hand cash: ${inr(netCashHandout)}`);
       setCreateModalOpen(false);
+
+      // Clean inputs
+      setFormAmount("");
+      setFormFee("0");
+      setFormCustomerId("");
+      setFormCustomerMobile("");
+      setFormReference("");
+      setFormRemarks("");
+
       await refreshData();
     } catch (err: any) {
       console.error("Submission error:", err);
@@ -353,7 +523,7 @@ export default function UpiWorkspace({
     }
   };
 
-  // WhatsApp receipt handler
+  // WhatsApp receipt modal trigger
   const handleOpenWhatsApp = (t: Txn) => {
     const rawPhone = t.customer_mobile || t.customers?.phone || "";
     const appUrl = typeof window !== "undefined" ? window.location.origin : "";
@@ -384,7 +554,7 @@ export default function UpiWorkspace({
     });
   };
 
-  // Handle Open Edit
+  // Handle Open Edit Modal
   const handleOpenEdit = (t: Txn) => {
     setEditingTxn(t);
     setEditAmount(String(t.amount ?? ""));
@@ -415,7 +585,6 @@ export default function UpiWorkspace({
     }
 
     setEditSubmitting(true);
-
     try {
       const res = await supabase.rpc("update_business_txn", {
         p_txn_id: editingTxn.id,
@@ -454,7 +623,7 @@ export default function UpiWorkspace({
       // Re-fetch updated row with relations
       const { data: updatedTxn } = await supabase
         .from("transactions")
-        .select("*, customers(name, phone), upi_merchant_qrs(display_name, upi_id), profiles(full_name)")
+        .select("*, customers(name, phone), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)")
         .eq("id", editingTxn.id)
         .single();
 
@@ -475,7 +644,7 @@ export default function UpiWorkspace({
                   reference: editReference.trim() || null,
                   remarks: editRemarks.trim() || null,
                   customers: customers.find((c) => c.id === editCustomerId) || t.customers,
-                  upi_merchant_qrs: qrs.find((q) => q.id === editQrId) || (t as any).upi_merchant_qrs,
+                  merchant_qrs: qrs.find((q) => q.id === editQrId) || (t as any).merchant_qrs,
                 }
               : t
           )
@@ -494,6 +663,33 @@ export default function UpiWorkspace({
       showToast("error", err.message || "Failed to update UPI transaction.");
     } finally {
       setEditSubmitting(false);
+    }
+  };
+
+  // Void / Reversal handler
+  const handleConfirmVoid = async () => {
+    if (!deleteTarget) return;
+    setIsVoiding(true);
+    try {
+      const res = await supabase.rpc("reverse_business_txn", {
+        p_txn_id: deleteTarget.id,
+        p_reason: voidReason.trim() || "Operational reversal from UPI console",
+      });
+
+      if (res.error) throw res.error;
+
+      setTransactions((prev) =>
+        prev.map((t) => (t.id === deleteTarget.id ? { ...t, status: "failed", remarks: `Voided: ${voidReason}` } : t))
+      );
+      setDeleteTarget(null);
+      setVoidReason("");
+      showToast("success", `Transaction #${deleteTarget.transaction_number} voided & ledger reversed.`);
+      await refreshData();
+    } catch (err: any) {
+      console.error("Void error:", err);
+      showToast("error", err.message || "Failed to void transaction.");
+    } finally {
+      setIsVoiding(false);
     }
   };
 
@@ -527,7 +723,7 @@ export default function UpiWorkspace({
       {toastView}
 
       {/* ========================================================================= */}
-      {/* 1. EXECUTIVE HERO HEADER: UPI Collections (Matches AEPS & DMT DNA) */}
+      {/* 1. EXECUTIVE HERO HEADER: UPI Collections */}
       {/* ========================================================================= */}
       <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
@@ -541,14 +737,14 @@ export default function UpiWorkspace({
                 ● LIVE UPI RAIL ONLINE
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">
-                UPI / QR GATEWAY ACTIVE
+                DYNAMIC QR TERMINAL ACTIVE
               </span>
             </div>
             <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">
-              UPI Collections
+              UPI Collections &amp; Cash Out
             </h1>
             <p className="text-xs text-indigo-200/80 sm:text-sm">
-              QR payments, merchant collections &amp; customer cash-out operations.
+              Instant customer cash withdrawal, live dynamic QR generator and double-entry till settlement.
             </p>
           </div>
 
@@ -573,12 +769,12 @@ export default function UpiWorkspace({
       </section>
 
       {/* ========================================================================= */}
-      {/* 2. UPI FINANCIAL POSITION STRIP (CONNECTED FINTECH METRICS RAIL) */}
+      {/* 2. UPI FINANCIAL POSITION STRIP */}
       {/* ========================================================================= */}
       <section className="card-glow-indigo relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-4.5 sm:p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
         <div className="flex flex-col gap-3.5">
           <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-3 dark:border-white/10">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
                 UPI POSITION
               </span>
@@ -587,7 +783,7 @@ export default function UpiWorkspace({
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                RECONCILED
+                ✓ RECONCILED
               </span>
             </div>
 
@@ -608,17 +804,17 @@ export default function UpiWorkspace({
             <div className="card-glow-emerald rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
               <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">COLLECTIONS</p>
               <p className="mt-0.5 text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">{inr(metrics.totalCredits)}</p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">QR Credits</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">QR Credits Inflow</p>
             </div>
             <div className="card-glow-indigo rounded-xl border border-slate-200/60 bg-slate-50/80 p-3 dark:border-white/5 dark:bg-white/5">
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">CASH OUT</p>
               <p className="mt-0.5 text-lg font-black font-mono text-slate-900 dark:text-white">{inr(metrics.totalCashOut)}</p>
-              <p className="text-[10px] text-slate-400">Cash Disbursed</p>
+              <p className="text-[10px] text-slate-400">Till Cash Disbursed</p>
             </div>
             <div className="card-glow-cyan rounded-xl border border-cyan-500/20 bg-cyan-50/30 p-3 dark:border-cyan-500/20 dark:bg-cyan-950/20">
               <p className="text-[10px] font-black uppercase tracking-wider text-cyan-700 dark:text-cyan-400">FEES</p>
               <p className="mt-0.5 text-lg font-black font-mono text-cyan-600 dark:text-cyan-400">+{inr(metrics.totalFees)}</p>
-              <p className="text-[10px] text-cyan-600/80 dark:text-cyan-400/80">Income</p>
+              <p className="text-[10px] text-cyan-600/80 dark:text-cyan-400/80">Net Shop Earnings</p>
             </div>
             <div className="card-glow-emerald rounded-xl border border-emerald-500/20 bg-emerald-50/40 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20">
               <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">VARIANCE</p>
@@ -630,7 +826,7 @@ export default function UpiWorkspace({
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. PRIMARY SERVICE OPERATIONS (QUICK OPERATIONS) */}
+      {/* 3. PRIMARY QUICK OPERATIONS TILES */}
       {/* ========================================================================= */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -669,30 +865,25 @@ export default function UpiWorkspace({
                   📱
                 </div>
                 <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 ring-1 ring-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800/40">
-                  Merchant QR
+                  {qrs.length} Active QRs
                 </span>
               </div>
               <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">QR COLLECTION</h3>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Receive customer payment via dynamic merchant QR
+                Receive customer payment via dynamic merchant QR code
               </p>
               <p className="mt-2 font-mono text-[11px] text-slate-400">
-                Handle: <strong className="text-slate-700 dark:text-slate-300">{activeQr?.upi_id || "No QR configured"}</strong>
+                Active: <strong className="text-slate-700 dark:text-slate-300">{activeQr?.display_name || "Default QR"}</strong> ({activeQr?.upi_id || "No UPI configured"})
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-medium">{activeQr?.display_name || "Merchant QR"}</span>
+              <span className="text-xs text-slate-400 font-medium">Real Scannable QR</span>
               <button
                 type="button"
-                onClick={() => {
-                  if (qrs.length > 0 && !selectedQrId) {
-                    setSelectedQrId(qrs[0].id);
-                  }
-                  setQrModalOpen(true);
-                }}
+                onClick={() => setQrModalOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 active:scale-95 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-sm"
               >
-                <span>View QR Code</span>
+                <span>View Fullscreen QR</span>
                 <span>→</span>
               </button>
             </div>
@@ -706,7 +897,7 @@ export default function UpiWorkspace({
                   💸
                 </div>
                 <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40">
-                  Cash Disbursement
+                  Instant Cash Disbursement
                 </span>
               </div>
               <h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">UPI CASH OUT</h3>
@@ -714,18 +905,18 @@ export default function UpiWorkspace({
                 Customer cash withdrawal against confirmed UPI receipt
               </p>
               <p className="mt-2 text-[11px] text-slate-400">
-                Hand cash against confirmed UPI payment · Instant cashbook sync
+                Dynamic QR on-screen · Automatic fee deduction · Double-entry cashbook
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-medium">Till synchronization</span>
+              <span className="text-xs text-slate-400 font-medium">Till Cashout Ready</span>
               <button
                 type="button"
-                onClick={openCreateModal}
+                onClick={() => terminalFormRef.current?.scrollIntoView({ behavior: "smooth" })}
                 className="btn-3d-tactile-emerald inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-md transition hover:brightness-110 active:scale-[0.98]"
               >
-                <span>Record Cash Out</span>
-                <span>→</span>
+                <span>Record UPI Cash Out</span>
+                <span>↓</span>
               </button>
             </div>
           </div>
@@ -733,39 +924,431 @@ export default function UpiWorkspace({
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. LIVE SERVICE STATUS / OPERATIONAL CONTEXT RAIL */}
+      {/* 4. INTEGRATED DUAL-MODE LIVE TERMINAL + DYNAMIC QR DISPLAY */}
       {/* ========================================================================= */}
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-emerald-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">UPI RAIL</span>
-          <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            ONLINE
-          </p>
+      <div ref={terminalFormRef} className="space-y-4">
+        {/* Success Confirmation Card */}
+        {successTxn && (
+          <div className="relative overflow-hidden rounded-[24px] border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-900/40 p-5 sm:p-6 backdrop-blur-md dark:border-emerald-500/30 shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-500/20 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-xl text-white shadow-md shadow-emerald-500/30">
+                  ✓
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-emerald-900 dark:text-emerald-300">
+                    UPI CASH OUT COMPLETED SUCCESSFULLY
+                  </h3>
+                  <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                    Cash drawer till debited and UPI pool float credited cleanly.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleNewCashOut}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-md hover:bg-emerald-700 transition"
+              >
+                <span>+ New Cash Out</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 rounded-2xl bg-white/70 p-4 dark:bg-white/5 border border-emerald-500/10 text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">TXN NUMBER:</span>
+                <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">{successTxn.transaction_number}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">CUSTOMER:</span>
+                <p className="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{successTxn.customers?.name || "Walk-in"}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">QR TERMINAL:</span>
+                <p className="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{successTxn.merchant_qrs?.display_name || "Merchant QR"}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">UPI RECEIVED:</span>
+                <p className="font-black text-slate-900 dark:text-white mt-0.5">{inr(successTxn.amount)}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">CASH HANDED:</span>
+                <p className="font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {inr(successTxn.fee_source === "customer_paid_extra" ? successTxn.amount : Math.max(0, Number(successTxn.amount) - Number(successTxn.service_fee || 0)))}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold text-[10px]">NET FEE EARNED:</span>
+                <p className="font-black text-teal-600 dark:text-teal-400 mt-0.5">+{inr(Number(successTxn.service_fee || 0))}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/business/receipt/${successTxn.id}`}
+                  target="_blank"
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 dark:bg-teal-600"
+                >
+                  🖨️ Thermal Receipt
+                </Link>
+                <Link
+                  href={`/business/receipt/${successTxn.id}/a4`}
+                  target="_blank"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  📄 A4 Invoice
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleOpenWhatsApp(successTxn)}
+                  className="rounded-xl bg-emerald-100 px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300"
+                >
+                  💬 Send WhatsApp
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleNewCashOut}
+                className="text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* The Dual Column Terminal */}
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+          {/* Left Column: Fast Operation Console (8 Cols) */}
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-7 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                  Step-by-Step Counter Workflow
+                </span>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  UPI Cash Out Terminal
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setScanModalOpen(true)}
+                  className="btn-3d-tactile-primary inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold shadow-xs"
+                >
+                  <span>📷 Scan Receipt / SMS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddCustomerOpen(true)}
+                  className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                >
+                  + Add Customer
+                </button>
+              </div>
+            </div>
+
+            {/* Merchant QR Switcher Tabs */}
+            {qrs.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Active Merchant QR
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100 p-1 text-xs dark:bg-white/5">
+                  {qrs.map((qr) => {
+                    const isSelected = selectedQrId === qr.id || (!selectedQrId && qrs[0]?.id === qr.id);
+                    return (
+                      <button
+                        key={qr.id}
+                        type="button"
+                        onClick={() => setSelectedQrId(qr.id)}
+                        className={`rounded-xl px-3 py-1.5 font-bold transition ${
+                          isSelected
+                            ? "bg-white text-slate-900 shadow-xs dark:bg-cyan-600 dark:text-white"
+                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                        }`}
+                      >
+                        {qr.display_name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Customer Selector */}
+              <div className="space-y-1 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Customer (Optional CRM Profile)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAddCustomerOpen(true)}
+                    className="text-[11px] font-bold text-cyan-600 hover:underline dark:text-cyan-400"
+                  >
+                    + New Customer
+                  </button>
+                </div>
+                <SearchableSelect
+                  value={formCustomerId}
+                  onChange={setFormCustomerId}
+                  minSearchLength={2}
+                  minSearchPrompt="Type customer name or mobile…"
+                  options={[
+                    { value: "", label: "-- Walk-in Customer --" },
+                    ...customers.map((c) => ({
+                      value: c.id,
+                      label: `${c.name} ${c.phone ? `(${c.phone})` : c.code ? `(${c.code})` : ""}`,
+                    })),
+                  ]}
+                  placeholder="Search saved customer directory or select Walk-in…"
+                />
+              </div>
+
+              {/* Mobile Number */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  value={formCustomerMobile}
+                  onChange={(e) => setFormCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="10-digit mobile number"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900"
+                />
+              </div>
+
+              {/* UTR / Reference */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Bank UTR / Auth Reference Number
+                </label>
+                <input
+                  type="text"
+                  value={formReference}
+                  onChange={(e) => setFormReference(e.target.value)}
+                  placeholder="12-digit UTR from customer app"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-mono font-bold outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-white/5"
+                />
+              </div>
+
+              {/* Amount Input with Quick Chips */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    UPI Amount (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] font-bold text-slate-400">
+                    Dynamic QR updates in real-time
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-400">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formAmount}
+                    onChange={(e) => setFormAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3 pl-11 pr-4 text-2xl font-black text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900"
+                  />
+                </div>
+
+                {/* Quick Amount Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  {["100", "200", "500", "1000", "2000", "3000", "5000", "10000"].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setFormAmount(v)}
+                      className={`rounded-xl border px-3 py-1 text-xs font-black transition ${
+                        formAmount === v
+                          ? "border-cyan-600 bg-cyan-600 text-white shadow-xs"
+                          : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                      }`}
+                    >
+                      ₹{Number(v).toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Service Fee & Treatment Model */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Customer Service Fee (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={formFee}
+                  onChange={(e) => setFormFee(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-white/5"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Fee Treatment Model
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormFeeSource("cut_from_withdrawal")}
+                    className={`rounded-xl border p-2 text-left transition ${
+                      formFeeSource === "cut_from_withdrawal"
+                        ? "border-cyan-600 bg-cyan-50/80 font-bold text-cyan-900 dark:border-cyan-500 dark:bg-cyan-950/40 dark:text-cyan-200 shadow-xs"
+                        : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold">✂️ Cut Payout</div>
+                    <div className="text-[9.5px] text-slate-500 dark:text-slate-400">Deduct from cash</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormFeeSource("customer_paid_extra")}
+                    className={`rounded-xl border p-2 text-left transition ${
+                      formFeeSource === "customer_paid_extra"
+                        ? "border-cyan-600 bg-cyan-50/80 font-bold text-cyan-900 dark:border-cyan-500 dark:bg-cyan-950/40 dark:text-cyan-200 shadow-xs"
+                        : "border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold">💵 Added to QR</div>
+                    <div className="text-[9.5px] text-slate-500 dark:text-slate-400">Customer pays fee</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Optional Notes / Remarks
+                </label>
+                <input
+                  type="text"
+                  value={formRemarks}
+                  onChange={(e) => setFormRemarks(e.target.value)}
+                  placeholder="e.g. Customer requested small denomination notes"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-white/5"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Real-Time Dynamic QR Display & Settlement HUD (5 Cols) */}
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-5 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
+            <div className="border-b border-slate-100 pb-2.5 dark:border-white/5 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Customer Scan Screen
+                </span>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Dynamic UPI QR
+                </h3>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                Live Amount Encoded
+              </span>
+            </div>
+
+            {/* Embedded Dynamic Scannable QR Code */}
+            <div className="flex flex-col items-center justify-center p-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 dark:border-white/10 dark:bg-white/5 space-y-3">
+              <UpiQrCode
+                upiId={activeQr?.upi_id}
+                merchantName={activeQr?.display_name}
+                amount={upiAmountToCollect > 0 ? upiAmountToCollect : undefined}
+                size={200}
+                onCopy={() => showToast("success", "UPI ID copied to clipboard.")}
+              />
+
+              {upiAmountToCollect > 0 ? (
+                <div className="text-center">
+                  <span className="inline-block rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-black text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    Scan &amp; Pay {inr(upiAmountToCollect)}
+                  </span>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Amount is pre-filled when customer scans this QR
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[11px] font-medium text-slate-400 text-center">
+                  Enter amount above to generate pre-filled payment QR
+                </p>
+              )}
+            </div>
+
+            {/* Settlement Breakdown HUD */}
+            <div className="space-y-2 text-xs border-t border-slate-100 pt-3 dark:border-white/5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Merchant QR Inflow:</span>
+                <strong className="text-slate-900 dark:text-white font-mono font-bold">
+                  {inr(numFormAmt)}
+                </strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Shop Service Fee:</span>
+                <strong className="text-cyan-600 dark:text-cyan-400 font-mono font-bold">
+                  +{inr(numFormFee)}
+                </strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Fee Source:</span>
+                <span className="rounded-md bg-slate-100 px-2 py-0.2 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                  {formFeeSource === "cut_from_withdrawal" ? "✂️ Deducted from Payout" : "💵 Added to QR Amount"}
+                </span>
+              </div>
+
+              {/* Huge Cash Handout Callout */}
+              <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-900/10 p-3.5 text-xs border border-emerald-500/20 dark:bg-emerald-950/20">
+                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
+                  PHYSICAL CASH TO HAND TO CUSTOMER:
+                </div>
+                <div className="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  {inr(cashHanded)}
+                </div>
+                <p className="mt-0.5 text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                  Till outflow strictly equals ₹{cashHanded.toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+
+            {/* Primary Action Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => handleRecordCashOut()}
+                disabled={!isFormValid || isSubmitting}
+                className={`w-full rounded-2xl py-3 text-sm font-black transition ${
+                  isFormValid && !isSubmitting
+                    ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-[0.98]"
+                    : "cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200 dark:border-white/5 dark:bg-white/5 dark:text-slate-500"
+                }`}
+              >
+                {isSubmitting ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    Processing Disbursement…
+                  </span>
+                ) : isFormValid ? (
+                  `✓ Confirm Payout & Hand ${inr(cashHanded)}`
+                ) : (
+                  "Enter Amount to Confirm Payout"
+                )}
+              </button>
+              <p className="mt-1.5 text-center text-[10px] text-slate-400">
+                Deterministic double-entry cashbook synchronization
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-indigo-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">MERCHANT QR</span>
-          <p className="mt-0.5 text-xs font-black text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-            ACTIVE
-          </p>
-        </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-emerald-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">CASH DRAWER</span>
-          <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            READY
-          </p>
-        </div>
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-3 text-center ring-1 ring-emerald-500/10 dark:border-white/5 dark:bg-slate-900 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">RECONCILIATION</span>
-          <p className="mt-0.5 text-xs font-black text-emerald-600 dark:text-emerald-400">✓ MATCHED</p>
-        </div>
-        <div className="col-span-2 sm:col-span-1 rounded-2xl border border-slate-200/70 bg-white p-3 text-center dark:border-white/5 dark:bg-slate-900 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LAST SYNC</span>
-          <p className="mt-0.5 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">{lastRefreshedAt}</p>
-        </div>
-      </section>
+      </div>
 
       {/* ========================================================================= */}
       {/* 5. LIVE ACTIVITY FEED */}
@@ -792,7 +1375,7 @@ export default function UpiWorkspace({
                   </span>
                   <span className="text-xs text-slate-400">·</span>
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Customer: {recentTxn.customers?.name || "Tumpa Das"}
+                    Customer: {recentTxn.customers?.name || "Walk-in"}
                   </span>
                   <span className="text-xs text-slate-400">·</span>
                   <strong className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
@@ -804,7 +1387,7 @@ export default function UpiWorkspace({
                   </span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-400">
-                  {fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· UTR: ${recentTxn.reference}` : ""}
+                  {fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· UTR: ${recentTxn.reference}` : ""} {recentTxn.merchant_qrs?.display_name ? `· QR: ${recentTxn.merchant_qrs.display_name}` : ""}
                 </p>
               </div>
             </div>
@@ -817,6 +1400,14 @@ export default function UpiWorkspace({
               >
                 View
               </button>
+              <Link
+                href={`/business/receipt/${recentTxn.id}`}
+                target="_blank"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                title="Print thermal receipt"
+              >
+                🖨️ Receipt
+              </Link>
               <button
                 type="button"
                 onClick={() => handleOpenWhatsApp(recentTxn)}
@@ -875,7 +1466,7 @@ export default function UpiWorkspace({
                 placeholder="Search transaction ID, customer, UTR reference..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
               />
             </div>
 
@@ -883,7 +1474,7 @@ export default function UpiWorkspace({
               <select
                 value={customerFilter}
                 onChange={(e) => setCustomerFilter(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
               >
                 <option value="">All Customers</option>
                 {customers.map((c) => (
@@ -915,7 +1506,7 @@ export default function UpiWorkspace({
               {filteredTxns.map((t) => {
                 const amt = Number(t.amount) || 0;
                 const fee = Number(t.service_fee) || Number((t as any).upi_fee) || 0;
-                const cashHanded = t.fee_source === "customer_paid_extra" ? amt : Math.max(0, amt - fee);
+                const netHandout = t.fee_source === "customer_paid_extra" ? amt : Math.max(0, amt - fee);
 
                 return (
                   <tr
@@ -952,7 +1543,7 @@ export default function UpiWorkspace({
                     </td>
 
                     <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-white">
-                      {inr(cashHanded)}
+                      {inr(netHandout)}
                     </td>
 
                     <td className="px-4 py-3.5 text-right font-mono font-bold text-cyan-600 dark:text-cyan-400">
@@ -1054,7 +1645,7 @@ export default function UpiWorkspace({
       </section>
 
       {/* ========================================================================= */}
-      {/* RECORD CASH OUT MODAL */}
+      {/* RECORD CASH OUT MODAL (Preserved for compatibility and direct triggers) */}
       {/* ========================================================================= */}
       {createModalOpen && (
         <Modal
@@ -1110,7 +1701,6 @@ export default function UpiWorkspace({
                   className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="cut_from_withdrawal">Cut from payout</option>
-                  <option value="cut_from_payment">Cut from payment</option>
                   <option value="customer_paid_extra">Customer pays extra</option>
                 </select>
               </div>
@@ -1121,17 +1711,13 @@ export default function UpiWorkspace({
               <div className="flex justify-between">
                 <span className="text-slate-400">Cash to Hand Over:</span>
                 <strong className="text-slate-900 dark:text-white">
-                  {inr(
-                    formFeeSource === "customer_paid_extra"
-                      ? parseFloat(formAmount) || 0
-                      : Math.max(0, (parseFloat(formAmount) || 0) - (parseFloat(formFee) || 0))
-                  )}
+                  {inr(cashHanded)}
                 </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Shop Fee Earnings:</span>
                 <strong className="text-emerald-600 dark:text-emerald-400">
-                  +{inr(parseFloat(formFee) || 0)}
+                  +{inr(numFormFee)}
                 </strong>
               </div>
             </div>
@@ -1221,7 +1807,7 @@ export default function UpiWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* SHOW MERCHANT QR CODE MODAL */}
+      {/* SHOW FULLSCREEN MERCHANT QR MODAL */}
       {/* ========================================================================= */}
       {qrModalOpen && (
         <Modal
@@ -1229,11 +1815,10 @@ export default function UpiWorkspace({
           onClose={() => setQrModalOpen(false)}
         >
           <div className="p-4 space-y-4">
-            {/* Multiple QR Selector Tabs (When shop has multiple merchant QRs configured) */}
             {qrs.length > 1 && (
               <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-slate-100 p-1 text-xs dark:bg-white/5">
                 {qrs.map((qr) => {
-                  const isSelected = selectedQrId ? selectedQrId === qr.id : qrs[0]?.id === qr.id;
+                  const isSelected = selectedQrId === qr.id || (!selectedQrId && qrs[0]?.id === qr.id);
                   return (
                     <button
                       key={qr.id}
@@ -1255,7 +1840,7 @@ export default function UpiWorkspace({
             <UpiQrCode
               upiId={activeQr?.upi_id}
               merchantName={activeQr?.display_name}
-              size={220}
+              size={240}
               onCopy={() => showToast("success", "UPI ID copied to clipboard.")}
             />
           </div>
@@ -1349,9 +1934,9 @@ export default function UpiWorkspace({
                     setDetailTxn(null);
                     handleOpenEdit(t);
                   }}
-                  className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-1.5 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+                  className="rounded-xl bg-blue-50 px-3.5 py-1.5 font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
                 >
-                  ✏️ Edit Transaction
+                  Edit Transaction
                 </button>
               )}
             </div>
@@ -1360,86 +1945,15 @@ export default function UpiWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* SCAN & FILL MODAL */}
-      {/* ========================================================================= */}
-      {scanModalOpen && (
-        <ScanFillModal
-          open={scanModalOpen}
-          mode="upi"
-          onClose={() => setScanModalOpen(false)}
-          onApply={(fields: ScanFields) => {
-            if (fields.amount) setFormAmount(String(fields.amount));
-            if (fields.reference) setFormReference(fields.reference);
-            if (fields.mobile) setFormCustomerMobile(fields.mobile);
-            setScanModalOpen(false);
-            setCreateModalOpen(true);
-            showToast("success", "Screenshot data applied into Cash Out form.");
-          }}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* WHATSAPP SEND MODAL */}
-      {/* ========================================================================= */}
-      {waModal.open && (
-        <WhatsAppSendModal
-          open={waModal.open}
-          onClose={() => setWaModal((prev) => ({ ...prev, open: false }))}
-          phone={waModal.phone}
-          initialMessage={waModal.msg}
-          recipientName={waModal.name}
-          messageType="banking_txn"
-          refId={waModal.refId}
-          refNumber={waModal.refNum}
-          onSent={() => showToast("success", "WhatsApp receipt dispatched.")}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* VOID / DELETE REASON MODAL */}
-      {/* ========================================================================= */}
-      {deleteTarget && (
-        <ReasonModal
-          title={`Void Transaction ${deleteTarget.transaction_number}`}
-          note="This will mark the UPI transaction as cancelled and remove linked cashbook entries."
-          confirmLabel="Void Transaction"
-          busy={isVoiding}
-          reason={voidReason}
-          setReason={setVoidReason}
-          onClose={() => {
-            setDeleteTarget(null);
-            setVoidReason("");
-          }}
-          onConfirm={async () => {
-            setIsVoiding(true);
-            const { error } = await supabase.from("transactions").update({ status: "cancelled", remarks: `Voided: ${voidReason}` }).eq("id", deleteTarget.id);
-            setIsVoiding(false);
-            if (error) {
-              showToast("error", error.message);
-              return;
-            }
-            await supabase.from("cash_entries").delete().eq("ref_id", deleteTarget.id);
-            logAudit({
-              action: "delete",
-              entity: "transaction",
-              entity_id: deleteTarget.id,
-              description: `Voided UPI transaction ${deleteTarget.transaction_number}: ${voidReason}`,
-            });
-            showToast("success", `Transaction ${deleteTarget.transaction_number} voided.`);
-            setDeleteTarget(null);
-            setVoidReason("");
-            await refreshData();
-          }}
-        />
-      )}
-
-      {/* ========================================================================= */}
       {/* EDIT UPI TRANSACTION MODAL */}
       {/* ========================================================================= */}
       {editModalOpen && editingTxn && (
         <Modal
-          title={`Edit UPI Cash Out #${editingTxn.transaction_number}`}
-          onClose={() => setEditModalOpen(false)}
+          title={`Edit UPI Transaction — ${editingTxn.transaction_number}`}
+          onClose={() => {
+            setEditModalOpen(false);
+            setEditingTxn(null);
+          }}
         >
           {(() => {
             const editNumAmt = parseFloat(editAmount) || 0;
@@ -1657,6 +2171,137 @@ export default function UpiWorkspace({
             );
           })()}
         </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ADD CUSTOMER MODAL */}
+      {/* ========================================================================= */}
+      {addCustomerOpen && (
+        <Modal
+          title="Add New Customer"
+          onClose={() => setAddCustomerOpen(false)}
+        >
+          <form onSubmit={handleCreateCustomer} className="space-y-4 text-xs">
+            {custCreateError && (
+              <div className="rounded-xl bg-rose-50 p-3 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 font-bold">
+                {custCreateError}
+              </div>
+            )}
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Full Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={newCustName}
+                onChange={(e) => setNewCustName(e.target.value)}
+                placeholder="e.g. Rahul Sharma"
+                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-bold text-slate-900 outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Mobile Number (10 Digits)
+              </label>
+              <input
+                type="tel"
+                maxLength={10}
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="e.g. 9876543210"
+                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-bold text-slate-900 outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Email (Optional)
+                </label>
+                <input
+                  type="email"
+                  value={newCustEmail}
+                  onChange={(e) => setNewCustEmail(e.target.value)}
+                  placeholder="name@domain.com"
+                  className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Address / City
+                </label>
+                <input
+                  type="text"
+                  value={newCustAddress}
+                  onChange={(e) => setNewCustAddress(e.target.value)}
+                  placeholder="e.g. Kolkata"
+                  className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-cyan-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+              <button
+                type="button"
+                onClick={() => setAddCustomerOpen(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 active:scale-95 transition dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={custCreateSubmitting}
+                className="btn-3d-tactile-primary rounded-xl px-5 py-2 text-xs font-bold text-white shadow-md active:scale-95 transition disabled:opacity-50"
+              >
+                {custCreateSubmitting ? "Creating..." : "Save Customer"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCAN & FILL MODAL */}
+      {/* ========================================================================= */}
+      {scanModalOpen && (
+        <ScanFillModal
+          open={scanModalOpen}
+          mode="upi"
+          onClose={() => setScanModalOpen(false)}
+          onApply={handleScanApply}
+        />
+      )}
+
+      {/* ========================================================================= */}
+      {/* VOID / DELETE REASON MODAL */}
+      {/* ========================================================================= */}
+      {deleteTarget && (
+        <ReasonModal
+          title={`Void Transaction #${deleteTarget.transaction_number}`}
+          note="This action reverses ledger entries and cannot be undone."
+          confirmLabel="Void & Reverse Ledger"
+          busy={isVoiding}
+          reason={voidReason}
+          setReason={setVoidReason}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmVoid}
+        />
+      )}
+
+      {/* ========================================================================= */}
+      {/* WHATSAPP MODAL */}
+      {/* ========================================================================= */}
+      {waModal.open && (
+        <WhatsAppSendModal
+          open={waModal.open}
+          onClose={() => setWaModal((prev) => ({ ...prev, open: false }))}
+          phone={waModal.phone}
+          initialMessage={waModal.msg}
+          recipientName={waModal.name}
+          messageType="banking_txn"
+          refId={waModal.refId}
+          refNumber={waModal.refNum}
+          onSent={() => showToast("success", "WhatsApp receipt dispatched.")}
+        />
       )}
     </div>
   );

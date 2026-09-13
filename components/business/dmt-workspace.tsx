@@ -1726,6 +1726,32 @@ export default function DmtWorkspace({
               )}
 
               {/* 2. Beneficiary Section */}
+              <div className="flex items-center justify-between sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Beneficiary Details
+                </span>
+                <button
+                  type="button"
+                  data-dmt-self-beneficiary="true"
+                  onClick={() => {
+                    const nameToUse = senderName.trim();
+                    const phoneToUse = senderMobile.trim().replace(/\D/g, "").slice(-10);
+                    if (nameToUse) {
+                      setBeneficiaryName(nameToUse);
+                      setReceiverName(nameToUse);
+                    }
+                    if (phoneToUse) {
+                      setBeneficiaryMobile(phoneToUse);
+                    }
+                    showToast("info", "Copied sender info to beneficiary (Transfer to Self).");
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800/50 dark:bg-indigo-950/30 dark:text-indigo-300 active:scale-95"
+                  title="Copy sender name and mobile to beneficiary"
+                >
+                  <span>↪ Use Self</span>
+                </button>
+              </div>
+
               {transferMethod === "bank_account" ? (
                 <>
                   <div className="space-y-1">
@@ -1785,7 +1811,6 @@ export default function DmtWorkspace({
                     </label>
                     <input
                       type="text"
-                      required
                       value={beneficiaryAccount}
                       onChange={(e) => setBeneficiaryAccount(e.target.value.replace(/\s+/g, ""))}
                       placeholder="Enter account number"
@@ -1799,7 +1824,6 @@ export default function DmtWorkspace({
                     </label>
                     <input
                       type="text"
-                      required
                       maxLength={11}
                       value={beneficiaryIfsc}
                       onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
@@ -1820,7 +1844,6 @@ export default function DmtWorkspace({
                     </label>
                     <input
                       type="text"
-                      required
                       value={upiId}
                       onChange={(e) => setUpiId(e.target.value.trim().toLowerCase())}
                       placeholder="e.g. username@oksbi or 9876543210@paytm"

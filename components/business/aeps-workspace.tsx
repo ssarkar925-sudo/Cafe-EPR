@@ -41,6 +41,19 @@ const BANK_ALIASES: Record<string, string> = {
   "indian bank": "indian bank",
 };
 
+export const TOP_INDIAN_BANKS = [
+  { code: "SBI", label: "SBI", match: ["sbi", "state bank of india"] },
+  { code: "PNB", label: "PNB", match: ["pnb", "punjab national bank"] },
+  { code: "BOB", label: "BoB", match: ["bob", "bank of baroda"] },
+  { code: "CANARA", label: "Canara", match: ["canara", "canara bank"] },
+  { code: "UBI", label: "UBI", match: ["ubi", "union bank"] },
+  { code: "HDFC", label: "HDFC", match: ["hdfc"] },
+  { code: "ICICI", label: "ICICI", match: ["icici"] },
+  { code: "AXIS", label: "Axis", match: ["axis"] },
+  { code: "KOTAK", label: "Kotak", match: ["kotak"] },
+  { code: "INDIAN", label: "Indian", match: ["indian bank"] },
+];
+
 export function normalizeBankName(raw: string): string {
   let s = (raw || "").toLowerCase().trim();
   s = s.replace(/[,.\\/#!$%^&*;:{}=\\-_~()]/g, " ");
@@ -892,10 +905,60 @@ export default function AepsWorkspace({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer (CRM Profile) <span className="text-rose-500">*</span></label><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400">+ Add New Customer</button></div><div className="flex gap-2"><div className="flex-1"><SearchableSelect value={selectedCustomerId} onChange={setSelectedCustomerId} minSearchLength={2} minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…" options={[{ value: "", label: "-- Walk-in Customer --" }, ...customers.map((c) => ({ value: c.id, label: `${c.name} (${maskMobile(c.phone) || c.code})` }))]} placeholder="Search customer (min 2 chars) or select Walk-in…" /></div><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Add new customer to CRM">+ Add</button></div></div>
               <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Mobile Number <span className="text-rose-500">*</span></label><input type="tel" value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit mobile number" className={`w-full rounded-2xl border bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none transition focus:bg-white dark:bg-white/5 dark:focus:bg-slate-900 ${cleanMobile && cleanMobile.length !== 10 ? "border-amber-400 focus:border-amber-500" : "border-slate-200 focus:border-teal-500 dark:border-white/10"}`} /></div>
-              <div className="space-y-1"><div className="flex items-center justify-between"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer's Bank <span className="text-rose-500">*</span></label>{selectedBank && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">✓ {selectedBank.name}</span>}</div><div className="flex gap-2"><div className="flex-1"><SearchableSelect value={selectedBankId} onChange={setSelectedBankId} options={[{ value: "", label: "-- Select Bank --" }, ...banks.map((b) => ({ value: b.id, label: b.name }))]} placeholder="Search bank name…" /></div><button type="button" onClick={() => setAddBankWindowOpen(true)} className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Add new bank to Master List">+ Add</button></div></div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Customer's Bank <span className="text-rose-500">*</span>
+                  </label>
+                  {selectedBank && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
+                      ✓ {selectedBank.name}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <SearchableSelect
+                      value={selectedBankId}
+                      onChange={setSelectedBankId}
+                      options={[{ value: "", label: "-- Select Bank --" }, ...banks.map((b) => ({ value: b.id, label: b.name }))]}
+                      placeholder="Search bank name…"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAddBankWindowOpen(true)}
+                    className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                    title="Add new bank to Master List"
+                  >
+                    + Add
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {TOP_INDIAN_BANKS.map((tb) => {
+                    const found = banks.find((b) => tb.match.some((m) => b.name?.toLowerCase().includes(m) || b.code?.toLowerCase() === m));
+                    const isSelected = selectedBankId && found?.id === selectedBankId;
+                    return (
+                      <button
+                        key={tb.code}
+                        type="button"
+                        disabled={!found}
+                        onClick={() => found && setSelectedBankId(found.id)}
+                        className={`rounded-lg px-2 py-0.5 text-[10px] font-black transition ${
+                          isSelected
+                            ? "bg-teal-600 text-white shadow-xs ring-1 ring-teal-500"
+                            : "border border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:bg-teal-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                        } disabled:opacity-30`}
+                      >
+                        {tb.code}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">XXXX - XXXX -</span><input type="text" maxLength={4} value={aadhaarLast4} onChange={(e) => { const digits = e.target.value.replace(/\D/g, "").slice(0, 4); setAadhaarLast4(digits); }} placeholder="3619" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900" /></div></div>
               <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">AEPS Service Portal <span className="text-rose-500">*</span></label><select value={selectedPortalId} onChange={(e) => setSelectedPortalId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900">{portals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-              {operation === "withdrawal" && <div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Withdrawal Amount (₹) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900" /></div><div className="flex flex-wrap items-center gap-1.5 pt-0.5">{["500", "1000", "2000", "3000", "5000", "10000"].map((v) => <button key={v} type="button" onClick={() => setAmount(v)} className={`rounded-xl border px-3 py-1 text-xs font-black transition ${amount === v ? "border-teal-600 bg-teal-600 text-white shadow-xs" : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"}`}>₹{Number(v).toLocaleString("en-IN")}</button>)}</div></div>}
+              {operation === "withdrawal" && <div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Withdrawal Amount (₹) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900" /></div><div className="flex flex-wrap items-center gap-1.5 pt-0.5">{["100", "500", "1000", "2000", "3000", "5000", "10000"].map((v) => <button key={v} type="button" onClick={() => setAmount(v)} className={`rounded-xl border px-3 py-1 text-xs font-black transition ${amount === v ? "border-teal-600 bg-teal-600 text-white shadow-xs" : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"}`}>₹{Number(v).toLocaleString("en-IN")}</button>)}</div></div>}
               {operation === "withdrawal" && <><div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Service Fee (₹)</label><input type="number" value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" placeholder="0.00" /></div><div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Portal Commission (₹)</label><input type="number" value={portalCommission} onChange={(e) => setPortalCommission(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" placeholder="0.00" /></div><div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fee Treatment Model <span className="text-rose-500">*</span></label><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><button type="button" onClick={() => setFeeTreatment("separate")} className={`rounded-2xl border p-2.5 text-left transition ${feeTreatment === "separate" ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30" : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"}`}><div className="text-xs font-black text-slate-900 dark:text-white">💵 Collect Fee Separately</div><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Customer receives full <strong>{inr(numAmount)}</strong> withdrawal cash; pays <strong>{inr(numFee)}</strong> fee separately.</p></button><button type="button" onClick={() => setFeeTreatment("deduct")} className={`rounded-2xl border p-2.5 text-left transition ${feeTreatment === "deduct" ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30" : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"}`}><div className="text-xs font-black text-slate-900 dark:text-white">✂️ Deduct from Payout</div><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Fee deducted directly. Customer receives net <strong>{inr(Math.max(0, numAmount - numFee))}</strong> cash handout.</p></button></div></div>{feeTreatment === "separate" && <div className="space-y-1 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fee Collection Instrument <span className="text-rose-500">*</span></label><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[{ id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" }, { id: "upi", label: "📱 UPI / QR Float", desc: "Merchant QR" }, { id: "bank", label: "🏦 Bank Account", desc: "Direct deposit" }, { id: "due", label: "📋 Customer Khata", desc: "Post to due" }].map((m) => <button key={m.id} type="button" onClick={() => setCustomerPayMethod(m.id as any)} className={`rounded-xl border p-2 text-center transition ${customerPayMethod === m.id ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"}`}><div className="text-xs font-bold">{m.label}</div><div className="text-[10px] text-slate-400">{m.desc}</div></button>)}</div></div>}</>}
               <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank RRN / Terminal Reference Number</label><input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="12-digit RRN / Auth Reference" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div>
             </div>
