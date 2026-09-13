@@ -169,20 +169,26 @@
 .dark .cafe-quick-access__mode-button { color: #94a3b8; }
 .dark .cafe-quick-access__mode-button.is-active { background: #1e293b; color: #bfdbfe; }
 
-/* POS uses a full-viewport reference shell. Keep the existing POS header
-   first, then place Quick Access directly underneath it without changing
-   any POS controls or component layout. */
-body:has(.cafeerp-pos-reference) .erp-page-content > .cafe-quick-access {
+/* POS uses a full-viewport reference shell. The command bar is part of that
+   shell, while Quick Access is a sibling in the dashboard page wrapper. */
+body:has(.cafeerp-pos-reference) .erp-workspace.is-pos {
+  position: relative;
+}
+
+body:has(.cafeerp-pos-reference) .erp-workspace.is-pos .erp-page-content > .cafe-quick-access {
   position: absolute;
-  top: 54px;
+  top: 56px;
   left: 0;
   right: 0;
   z-index: 200;
   margin: 0;
 }
 
-body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header:first-of-type {
-  margin-top: 0;
+/* The POS reference shell is absolute and covers the workspace. Its first
+   real command bar is 56px tall. Move only the billing workspace below the
+   new Quick Access strip; do not alter any POS controls. */
+body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header + div {
+  margin-top: 52px;
 }
 
 @media (max-width: 1023px) {
@@ -192,8 +198,6 @@ body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header:first-of-type {
     isolation: isolate;
   }
 
-  /* Mobile: keep Quick Access in normal document flow so the fixed
-     navigation drawer/backdrop always renders above it. */
   .cafe-quick-access {
     position: relative;
     top: auto;
@@ -206,6 +210,20 @@ body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header:first-of-type {
   .cafe-quick-access__scroll { gap: 5px; }
   .cafe-quick-access__item { min-height: 36px; padding-inline: 10px; }
   .cafe-quick-access__mode-button span:last-child { display: none; }
+
+  /* POS is full-screen on mobile too: apply the same header -> Quick Access
+     -> billing order without exposing the dashboard mobile header. */
+  body:has(.cafeerp-pos-reference) .erp-workspace.is-pos .cafe-quick-access {
+    position: absolute;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    margin: 0;
+  }
+  body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header + div {
+    margin-top: 52px;
+  }
 
   /* Executive Dashboard already has Cafe AI in the fixed bottom navigation. */
   a[aria-label="Open Cafe AI Agent"][title="Cafe AI Agent"] { display: none !important; }
