@@ -5,8 +5,8 @@ const ROOT = process.cwd();
 const file = path.join(ROOT, "components", "pos", "pos-shell.tsx");
 const source = fs.readFileSync(file, "utf8");
 
-const legacy = '      const result = (data ?? {}) as Partial<SuccessState>;\n';
-const fixed = '      const result = (data ?? {}) as Partial<SuccessState> & { invoice_number?: string | null };\n';
+const legacy = '      const result = (data ?? {}) as Partial<SuccessState>;';
+const fixed = '      const result = (data ?? {}) as Partial<SuccessState> & { invoice_number?: string | null };';
 
 if (source.includes(fixed)) {
   console.log("POS checkout result typing: already repaired");

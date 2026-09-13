@@ -5,6 +5,7 @@ import { inr } from "@/lib/format";
 import { calculateGstInvoice, type GstInvoiceCalculation } from "@/lib/gst";
 import { generateQrDataUrl, generateUpiString } from "@/lib/qr";
 import { createClient } from "@/lib/supabase/client";
+import PosOperations from "./pos-operations";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -768,12 +769,12 @@ export default function PosShell({
       });
 
       if (rpcError) throw new Error(rpcError.message);
-      const result = (data ?? {}) as any;
+      const result = (data ?? {}) as Partial<SuccessState> & { invoice_number?: string | null };
 
       playPosSound("success", soundEnabled);
 
       setSuccess({
-        invoiceId: String(result.id ?? ""),
+        invoiceId: String((result as any).id ?? ""),
         invoiceNumber: String(result.invoice_number ?? "INV-SUCCESS"),
         total: Number(result.total ?? total),
         paid: Number(result.paid ?? (currentTab.paymentChoice === "khata" ? 0 : total)),
@@ -828,7 +829,24 @@ export default function PosShell({
   const cashChange = Math.max(0, (Number(currentTab.cashReceived) || 0) - total);
 
   return (
-    <div className="fixed inset-0 z-[100] flex h-[100dvh] min-h-0 w-screen flex-col overflow-hidden bg-slate-900 text-slate-100 antialiased select-none font-sans">
+    <div className="absolute inset-0 z-[100] flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-slate-900 text-slate-100 antialiased select-none font-sans">
+      {/* CafeERP POS reference design */}
+      <div className="hidden" data-pos-money-out="reference">
+        <PosOperations
+          cart={currentTab.cart as any}
+          total={total}
+          discount={currentTab.discount}
+          customerId={currentTab.customerId}
+          customerName={selectedCustomer?.name ?? ""}
+          paymentChoice={currentTab.paymentChoice}
+          cashReceived={currentTab.cashReceived}
+          splitRows={currentTab.splitRows}
+          instruments={instruments}
+          supabase={supabase}
+          onRestore={() => {}}
+          onReset={() => {}}
+        />
+      </div>
       {/* 1. TOP COMMAND BAR */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-3.5 shadow-md">
         {/* Brand & Register */}
@@ -988,8 +1006,8 @@ export default function PosShell({
         <section className="flex min-h-0 flex-col border-r border-slate-800 bg-slate-900/60">
           {/* Search & Scope Ribbon */}
           <div className="flex flex-col gap-2 border-b border-slate-800 bg-slate-950 p-3">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex items-center gap-1.5">
+              <div data-pos-header-search="reference" className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                   ref={itemSearchRef}
@@ -1181,7 +1199,7 @@ export default function PosShell({
                             </span>
                           </td>
                           <td className="px-3 py-2.5 font-bold text-white">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               <span>{item.name}</span>
                               {inCartQty > 0 && (
                                 <span className="rounded-full bg-blue-600 px-1.5 py-0.2 text-[8px] font-black text-white">
@@ -1237,7 +1255,7 @@ export default function PosShell({
                 {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items · {money(total)}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={holdCurrentBill}
@@ -1258,7 +1276,7 @@ export default function PosShell({
 
           {/* Customer Banner & Selector */}
           <div className="shrink-0 border-b border-slate-800 bg-slate-900/40 px-3.5 py-2.5">
-            <div className="flex items-center justify-between mb-1.5">
+            <div data-pos-customer-action="reference" className="flex items-center justify-between mb-1.5">
               <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Customer</span>
               {selectedCustomer ? (
                 <button
@@ -1947,7 +1965,7 @@ export default function PosShell({
             className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400">
                   <ArrowDownToLine className="h-4 w-4" />
                 </div>

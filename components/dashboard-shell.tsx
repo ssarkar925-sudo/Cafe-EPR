@@ -141,23 +141,13 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
             </div>
           </header>
         )}
-        <div className={`erp-page-content ${isPos ? "h-[100dvh] min-h-0 p-0 overflow-hidden" : "min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6"}`}>
+        <div className={`erp-page-content ${isPos ? "relative h-[100dvh] min-h-0 p-0 overflow-hidden" : "min-h-[calc(100vh-4rem)] p-4 sm:p-5 lg:px-6 lg:pt-0 pb-24 lg:pb-6"}`}>
           {children}
         </div>
       </div>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       {!isPos && <MobileBottomNav />}
-      {isPos && (
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media (min-width: 1024px) {
-            .erp-workspace.is-pos .erp-page-content > * {
-              left: var(--erp-sidebar-offset) !important;
-              right: 0 !important;
-            }
-          }
-        ` }} />
-      )}
     </div>
   );
 }
