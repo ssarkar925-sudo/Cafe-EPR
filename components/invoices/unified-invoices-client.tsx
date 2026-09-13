@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
-import { FileText, Search, Plus, Printer, Eye, MessageSquare, RotateCcw, CreditCard } from "lucide-react";
+import { FileText, Search, Plus, Printer, Eye, MessageSquare, CreditCard, MoreVertical, Pencil } from "lucide-react";
 import InvoiceViewModal from "./invoice-view-modal";
 import QuickSaleViewModal from "./quick-sale-view-modal";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
-import { logAudit } from "@/lib/audit";
+
+type Props = {
+  initialInvoices: any[];
+  initialQuickSales: any[];
+};
 
 export type UnifiedInvoiceRow = {
   id: string;
@@ -24,35 +28,18 @@ export type UnifiedInvoiceRow = {
   cost?: number;
 };
 
-type Props = {
-  initialInvoices: any[];
-  initialQuickSales: any[];
-};
-
 function normalize(invoices: any[], quickSales: any[]): UnifiedInvoiceRow[] {
   const pos = invoices.map((row) => ({
-    id: String(row.id),
-    number: String(row.invoice_number ?? ""),
-    date: String(row.invoice_date ?? ""),
-    total: Number(row.total ?? 0),
-    paid: Number(row.paid ?? 0),
-    due: Number(row.due ?? 0),
-    status: String(row.status ?? "unpaid"),
-    customer: Array.isArray(row.customers) ? row.customers[0] ?? null : row.customers ?? null,
+    id: String(row.id), number: String(row.invoice_number ?? ""), date: String(row.invoice_date ?? ""),
+    total: Number(row.total ?? 0), paid: Number(row.paid ?? 0), due: Number(row.due ?? 0),
+    status: String(row.status ?? "unpaid"), customer: Array.isArray(row.customers) ? row.customers[0] ?? null : row.customers ?? null,
     source: "pos" as const,
   }));
   const quick = quickSales.map((row) => ({
-    id: String(row.id),
-    number: String(row.sale_number ?? ""),
-    date: String(row.sale_date ?? ""),
-    total: Number(row.amount ?? 0),
-    paid: Number(row.amount ?? 0),
-    due: 0,
-    status: String(row.status ?? "paid"),
+    id: String(row.id), number: String(row.sale_number ?? ""), date: String(row.sale_date ?? ""),
+    total: Number(row.amount ?? 0), paid: Number(row.amount ?? 0), due: 0, status: String(row.status ?? "paid"),
     customer: Array.isArray(row.customers) ? row.customers[0] ?? null : row.customers ?? null,
-    source: "quick" as const,
-    item: row.item_name ?? row.products?.name ?? row.services?.name ?? "Quick Sale",
-    cost: Number(row.cost ?? 0),
+    source: "quick" as const, item: row.item_name ?? row.products?.name ?? row.services?.name ?? "Quick Sale", cost: Number(row.cost ?? 0),
   }));
   return [...pos, ...quick].sort((a, b) => `${b.date}-${b.id}`.localeCompare(`${a.date}-${a.id}`));
 }
@@ -75,10 +62,10 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   const [invoices, setInvoices] = useState(initialInvoices);
   const [quickSales, setQuickSales] = useState(initialQuickSales);
   const [q, setQ] = useState("");
-  const [source, setSource] = useState<"all" | "pos" | "quick">("all");
   const [status, setStatus] = useState("all");
   const [viewId, setViewId] = useState<string | null>(null);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
+  const [menuKey, setMenuKey] = useState<string | null>(null);
   const [collectId, setCollectId] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<PaymentAllocation[]>([]);
   const [busy, setBusy] = useState(false);
@@ -88,12 +75,11 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((row) => {
-      if (source !== "all" && row.source !== source) return false;
       if (status !== "all" && row.status !== status) return false;
       if (!needle) return true;
       return [row.number, row.customer?.name, row.customer?.phone, row.item].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle));
     });
-  }, [rows, q, source, status]);
+  }, [rows, q, status]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");
@@ -102,8 +88,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
       total: active.reduce((s, r) => s + r.total, 0),
       paid: active.reduce((s, r) => s + r.paid, 0),
       due: active.reduce((s, r) => s + r.due, 0),
-      pos: rows.filter((r) => r.source === "pos").length,
-      quick: rows.filter((r) => r.source === "quick").length,
     };
   }, [rows]);
 
@@ -135,9 +119,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
     if (error) { setMessage(error.message); return; }
     const result = data as { paid: number; due: number; status: string };
     setInvoices((current) => current.map((row) => row.id === collectId ? { ...row, paid: result.paid, due: result.due, status: result.status } : row));
-    setCollectId(null);
-    setAllocations([]);
-    setMessage("Payment collected successfully.");
+    setCollectId(null); setAllocations([]); setMessage("Payment collected successfully.");
     setTimeout(() => setMessage(null), 2500);
   }
 
@@ -154,6 +136,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   }
 
   function open(row: UnifiedInvoiceRow) {
+    setMenuKey(null);
     if (row.source === "pos") setViewId(row.id); else setQuickViewId(row.id);
   }
 
@@ -161,30 +144,18 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white">Invoices</h1>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">ONE LEDGER</span>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">POS bills and Quick Sales are shown together in one invoice register.</p>
+          <div className="flex items-center gap-2"><FileText className="h-5 w-5 text-blue-600" /><h1 className="text-2xl font-black text-slate-900 dark:text-white">Invoices</h1><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">ONE LEDGER</span></div>
+          <p className="text-sm text-slate-500 dark:text-slate-400">All POS bills and Quick Sales are shown together in one invoice register.</p>
         </div>
         <a href="/pos" className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700"><Plus className="h-4 w-4" /> New Invoice</a>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          ["Active", String(stats.count), "Invoices"],
-          ["Billed", inr(stats.total), "POS + Quick"],
-          ["Collected", inr(stats.paid), "Received"],
-          ["Due", inr(stats.due), "Outstanding"],
-        ].map(([label, value, sub]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p><p className="text-[10px] font-medium text-slate-400">{sub}</p></div>)}
+        {[["Active", String(stats.count), "Invoices"], ["Billed", inr(stats.total), "POS + Quick"], ["Collected", inr(stats.paid), "Received"], ["Due", inr(stats.due), "Outstanding"]].map(([label, value, sub]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p><p className="text-[10px] font-medium text-slate-400">{sub}</p></div>)}
       </div>
 
       <div className="mt-5 flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search invoice number, customer, mobile or item…" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-900 dark:text-white" /></div>
-        <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-white/10 dark:bg-slate-800">
-          {(["all", "pos", "quick"] as const).map((value) => <button key={value} onClick={() => setSource(value)} className={`rounded-lg px-3 py-1.5 text-[11px] font-bold ${source === value ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500"}`}>{value === "all" ? `All (${rows.length})` : value === "pos" ? `POS (${stats.pos})` : `Quick Sale (${stats.quick})`}</button>)}
-        </div>
         <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold dark:border-white/10 dark:bg-slate-900 dark:text-white"><option value="all">All status</option><option value="paid">Paid</option><option value="partial">Partial</option><option value="unpaid">Unpaid</option><option value="cancelled">Cancelled</option></select>
       </div>
 
@@ -204,8 +175,13 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                 <td className="px-4 py-3 text-right font-bold text-emerald-600">{inr(row.paid)}</td>
                 <td className="px-4 py-3 text-right font-bold text-rose-600">{inr(row.due)}</td>
                 <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ring-1 ${statusClass(row.status)}`}>{row.status}</span></td>
-                <td className="px-4 py-3"><div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <td className="px-4 py-3"><div className="relative flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                   <button title="View" onClick={() => open(row)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10"><Eye className="h-3.5 w-3.5" /></button>
+                  <button title="View / Edit options" onClick={() => setMenuKey(menuKey === `${row.source}:${row.id}` ? null : `${row.source}:${row.id}`)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10"><MoreVertical className="h-3.5 w-3.5" /></button>
+                  {menuKey === `${row.source}:${row.id}` && <div className="absolute right-0 top-10 z-50 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
+                    <button type="button" onClick={() => open(row)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-3.5 w-3.5" /> View invoice</button>
+                    {row.source === "pos" && row.status !== "cancelled" && <button type="button" onClick={() => open(row)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/30"><Pencil className="h-3.5 w-3.5" /> Edit invoice</button>}
+                  </div>}
                   <a title="Print" target="_blank" href={row.source === "pos" ? `/receipt/${row.id}/a4` : `/receipt/quick/${row.id}`} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10"><Printer className="h-3.5 w-3.5" /></a>
                   <button title="WhatsApp" onClick={() => void sendWhatsApp(row)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600"><MessageSquare className="h-3.5 w-3.5" /></button>
                   {row.source === "pos" && row.due > 0 && row.status !== "cancelled" && <button title="Collect" onClick={() => { setCollectId(row.id); setAllocations([{ method: "cash", amount: row.due.toFixed(2) }]); }} className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white"><CreditCard className="h-3.5 w-3.5" /></button>}
