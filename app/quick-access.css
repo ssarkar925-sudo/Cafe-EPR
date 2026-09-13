@@ -169,6 +169,21 @@
 .dark .cafe-quick-access__mode-button { color: #94a3b8; }
 .dark .cafe-quick-access__mode-button.is-active { background: #1e293b; color: #bfdbfe; }
 
+/* POS uses a full-viewport reference shell, so Quick Access needs to sit
+   above that shell without changing any POS controls or component layout. */
+body:has(.cafeerp-pos-reference) .erp-page-content > .cafe-quick-access {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  margin: 0;
+}
+
+body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header:first-of-type {
+  margin-top: 54px;
+}
+
 @media (max-width: 1023px) {
   .erp-page-content {
     position: relative;
