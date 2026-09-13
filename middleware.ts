@@ -62,7 +62,7 @@ export async function middleware(request: NextRequest) {
   // Keep the explicitly public endpoints public. Receipts and invoice PDF
   // intentionally do NOT return here; they must pass the authenticated
   // session/RLS checks below.
-  if (pathname.startsWith("/api/invoices") && !invoicePdfMatch || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
+  if ((pathname.startsWith("/api/invoices") && !invoicePdfMatch) || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
 
   const hasCookie = hasAuthCookie(request);
   if (pathname === "/login" && !hasCookie) return applySecurityHeaders(NextResponse.next());
@@ -110,7 +110,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api")) return finalizeResponse(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), response);
     const loginUrl = request.nextUrl.clone(); loginUrl.pathname = "/login"; loginUrl.searchParams.set("next", pathname); return finalizeResponse(NextResponse.redirect(loginUrl), response);
   }
-  if (user && !aal1SessionWithMfa && pathname === "/login") { const url = request.nextUrl.clone(); url.pathname = "/dashboard"; return finalizeResponse(NextResponse.redirect(url, response)); }
+  if (user && !aal1SessionWithMfa && pathname === "/login") { const url = request.nextUrl.clone(); url.pathname = "/dashboard"; return finalizeResponse(NextResponse.redirect(url), response); }
   if (user && !aal1SessionWithMfa && financeModule) { const rewriteUrl = request.nextUrl.clone(); rewriteUrl.pathname = "/finance"; rewriteUrl.searchParams.set("module", financeModule); return finalizeResponse(NextResponse.rewrite(rewriteUrl, { request }), response); }
   return response;
 }
