@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { DEFAULT_QUICK_ACCESS, type QuickAccessItem } from "@/components/quick-access-registry";
@@ -78,8 +79,10 @@ function matchesCurrentRoute(item: QuickAccessItem, pathname: string, searchPara
 export default function GlobalQuickAccess() {
   const pathname = usePathname() || "";
   const searchParams = useSearchParams();
+  const isPos = pathname === "/pos";
   const [items, setItems] = useState<QuickAccessItem[]>(DEFAULT_QUICK_ACCESS);
   const [displayMode, setDisplayMode] = useState<QuickAccessDisplayMode>("full");
+  const [posPortalTarget, setPosPortalTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -90,8 +93,52 @@ export default function GlobalQuickAccess() {
     return subscribeQuickAccess(sync);
   }, []);
 
-  return (
-    <nav className="cafe-quick-access" aria-label="Quick Access">
+  useEffect(() => {
+    if (!isPos) {
+      setPosPortalTarget(null);
+      return;
+    }
+
+    const posRoot = document.querySelector<HTMLElement>(".cafeerp-pos-reference");
+    if (!posRoot) return;
+
+    const existingSlot = posRoot.querySelector<HTMLElement>("[data-pos-quick-access-slot]");
+    const slot = existingSlot ?? document.createElement("div");
+    slot.setAttribute("data-pos-quick-access-slot", "true");
+    slot.style.flex = "0 0 52px";
+    slot.style.height = "52px";
+    slot.style.minHeight = "52px";
+    slot.style.width = "100%";
+    slot.style.overflow = "hidden";
+
+    if (!existingSlot) {
+      const posMain = Array.from(posRoot.children).find((child) => child.tagName === "MAIN");
+      if (posMain) posRoot.insertBefore(slot, posMain);
+      else posRoot.appendChild(slot);
+    }
+
+    setPosPortalTarget(slot);
+
+    return () => {
+      setPosPortalTarget(null);
+      if (!existingSlot) slot.remove();
+    };
+  }, [isPos]);
+
+  const nav = (
+    <nav
+      className="cafe-quick-access"
+      aria-label="Quick Access"
+      style={isPos ? {
+        position: "relative",
+        top: "auto",
+        left: "auto",
+        right: "auto",
+        width: "100%",
+        margin: 0,
+        zIndex: 20,
+      } : undefined}
+    >
       <div className="cafe-quick-access__inner">
         <div className="cafe-quick-access__label" aria-hidden="true">
           <span className="cafe-quick-access__label-icon">⌁</span>
@@ -119,4 +166,10 @@ export default function GlobalQuickAccess() {
       </div>
     </nav>
   );
+
+  if (isPos) {
+    return posPortalTarget ? createPortal(nav, posPortalTarget) : null;
+  }
+
+  return nav;
 }
