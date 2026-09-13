@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { inr } from "@/lib/format";
 import { ChevronRight, TrendingUp, Receipt, Layers, Percent, Download, FileSpreadsheet, CalendarRange } from "lucide-react";
@@ -73,9 +74,7 @@ export default async function ProfitLossPage({ searchParams }: { searchParams?: 
     if (!row) return 0;
     if (override === "credit") return row.credit - row.debit;
     if (override === "debit") return row.debit - row.credit;
-    return row.account_type === "income"
-      ? row.credit - row.debit
-      : row.debit - row.credit;
+    return row.account_type === "income" ? row.credit - row.debit : row.debit - row.credit;
   };
 
   const productSales = balance("PRODUCT_SALES");
@@ -153,7 +152,6 @@ export default async function ProfitLossPage({ searchParams }: { searchParams?: 
       ) : (
         <>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">Statement period: {fromDate} → {toDate} · Posted journals only</div>
-
           <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
             <Kpi label="Total Revenue" value={inr(totalRevenue)} icon={<TrendingUp className="h-4 w-4" />} note="Posted income accounts" />
             <Kpi label="Gross Profit" value={inr(grossProfit)} icon={<Layers className="h-4 w-4" />} note="After returns, COGS & adjustments" />
@@ -186,7 +184,7 @@ export default async function ProfitLossPage({ searchParams }: { searchParams?: 
   );
 }
 
-function Kpi({ label, value, icon, note, negative = false }: { label: string; value: string; icon: React.ReactNode; note: string; negative?: boolean }) {
+function Kpi({ label, value, icon, note, negative = false }: { label: string; value: string; icon: ReactNode; note: string; negative?: boolean }) {
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-slate-900">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className={`rounded-xl p-2 ${negative ? "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400" : "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400"}`}>{icon}</span><span className="text-xs font-black text-slate-500 dark:text-slate-400">{label}</span></div></div>
