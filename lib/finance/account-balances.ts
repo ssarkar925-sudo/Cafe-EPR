@@ -1,12 +1,12 @@
 /**
  * Canonical Payment Account Balance Engine.
  *
- * current_balance remains authoritative when it is populated. When
- * there is no persisted current balance, the engine reconstructs the
- * position from opening balance plus successful ledger movements.
+ * The ledger reconstruction is the calculation source of truth. A persisted
+ * current_balance is treated only as a cached checkpoint and is reconciled
+ * against the reconstructed balance instead of silently replacing it.
  * Operational records are attributed to the instrument that actually
- * receives/pays the money; customer collection and provider funding
- * are intentionally separate zones.
+ * receives/pays the money; customer collection and provider funding remain
+ * separate zones.
  */
 export type InstrumentType =
   | "cash" | "bank" | "upi" | "upi_qr" | "wallet" | "debit_card"
@@ -39,10 +39,18 @@ export interface ReconciledAccountBalance {
   totalInflows: number;
   totalOutflows: number;
   netMovement: number;
+  /** Reconstructed balance from the operational ledger. */
   calculatedBalance: number;
+  /** Balance presented to the UI; always the reconstructed ledger balance. */
   displayedBalance: number;
+  /** Stored checkpoint minus reconstructed ledger balance. */
   variance: number;
+  /** True when there is no checkpoint or the checkpoint matches the ledger. */
   isReconciled: boolean;
+  /** Whether current_balance was present and therefore reconciled. */
+  hasStoredBalance: boolean;
+  storedBalance?: number;
+  balanceSource: "ledger" | "ledger_reconciled" | "ledger_variance";
   isCreditCard: boolean;
   creditLimit: number;
   usedLimit: number;
@@ -150,8 +158,7 @@ export function calculateAccountBalances({
   for (const transaction of transactions ?? []) {
     if (!isSuccess(transaction)) continue;
 
-    // Customer collection leg: this credits the actual customer payment
-    // instrument and must never leak into the provider funding account.
+    // Customer collection leg: credit the actual customer payment instrument.
     addDelta(
       inflows,
       outflows,
@@ -160,7 +167,7 @@ export function calculateAccountBalances({
       transaction.total_amount ?? transaction.customer_amount,
     );
 
-    // Provider/payout leg: one and only one funding account is charged.
+    // Provider/payout leg: exactly one funding account is charged.
     let fundingId =
       transaction.funding_instrument_id ??
       transaction.pay_from_instrument_id ??
@@ -186,11 +193,7 @@ export function calculateAccountBalances({
     addDelta(inflows, outflows, purchase.payment_instrument_id ?? purchase.instrument_id, "out", purchase.paid_amount ?? purchase.amount);
   }
 
-  const timeStr = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const timeStr = new Date().toISOString();
 
   const preliminary = safeInsts.map((inst): ReconciledAccountBalance => {
     const opening = money(inst.opening_balance);
@@ -209,8 +212,14 @@ export function calculateAccountBalances({
       ? money(creditLimit + netMovement)
       : money(opening + netMovement);
 
-    const calculatedBalance = storedCurrent == null ? reconstructedBalance : storedCurrent;
-    const availableCredit = isCreditCard ? Math.max(0, calculatedBalance) : 0;
+    const variance = storedCurrent == null ? 0 : money(storedCurrent - reconstructedBalance);
+    const isReconciled = storedCurrent == null || Math.abs(variance) < 0.005;
+    const balanceSource = storedCurrent == null
+      ? "ledger"
+      : isReconciled
+        ? "ledger_reconciled"
+        : "ledger_variance";
+    const availableCredit = isCreditCard ? Math.max(0, reconstructedBalance) : 0;
     const usedLimit = isCreditCard ? Math.max(0, money(creditLimit - availableCredit)) : 0;
 
     return {
@@ -223,10 +232,13 @@ export function calculateAccountBalances({
       totalInflows,
       totalOutflows,
       netMovement,
-      calculatedBalance,
-      displayedBalance: calculatedBalance,
-      variance: 0,
-      isReconciled: true,
+      calculatedBalance: reconstructedBalance,
+      displayedBalance: reconstructedBalance,
+      variance,
+      isReconciled,
+      hasStoredBalance: storedCurrent !== null,
+      ...(storedCurrent === null ? {} : { storedBalance: storedCurrent }),
+      balanceSource,
       isCreditCard,
       creditLimit,
       usedLimit,
@@ -234,8 +246,14 @@ export function calculateAccountBalances({
       isDebitCard,
       statusLabel: isCreditCard
         ? `Available: ₹${availableCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-        : "✓ Reconciled",
-      statusVariant: isCreditCard ? "credit_limit" : "reconciled",
+        : !isReconciled
+          ? `⚠ Variance: ₹${Math.abs(variance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+          : "✓ Reconciled",
+      statusVariant: isCreditCard
+        ? "credit_limit"
+        : !isReconciled
+          ? "variance"
+          : "reconciled",
       details: (inst.details ?? {}) as Record<string, any>,
       lastRefreshedAt: timeStr,
     };
@@ -259,13 +277,16 @@ export function calculateAccountBalances({
       ...account,
       calculatedBalance: parent.calculatedBalance,
       displayedBalance: parent.calculatedBalance,
-      variance: 0,
-      isReconciled: true,
+      variance: parent.variance,
+      isReconciled: parent.isReconciled,
+      hasStoredBalance: parent.hasStoredBalance,
+      ...(parent.storedBalance === undefined ? {} : { storedBalance: parent.storedBalance }),
+      balanceSource: parent.balanceSource,
       parentBankId: parent.id,
       parentBankName: parent.name,
       parentBankBalance: parent.calculatedBalance,
-      statusLabel: `Linked to ${parent.name}`,
-      statusVariant: "linked" as const,
+      statusLabel: parent.isReconciled ? `Linked to ${parent.name}` : `⚠ Linked to ${parent.name} — variance`,
+      statusVariant: parent.isReconciled ? "linked" as const : "variance" as const,
     };
   });
 }
