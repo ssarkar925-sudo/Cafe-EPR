@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import PrintButton from "@/components/receipt/print-button";
+import AutoPrint from "@/components/receipt/auto-print";
 import { generateUpiString, generateQrDataUrl } from "@/lib/qr";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export default async function ReceiptPage({
 
   const { data: upiInstrument } = await supabase
     .from("payment_instruments")
-    .select("account_number")
+    .select("name, details")
     .eq("type", "upi")
     .eq("is_active", true)
     .limit(1)
@@ -60,7 +61,7 @@ export default async function ReceiptPage({
 
   const itemsRows = (items ?? []) as any[];
   const paymentsRows = (payments ?? []) as any[];
-  const upiId = (settings as any)?.upi_id || defaultMerchantQr?.upi_id || upiInstrument?.account_number || "";
+  const upiId = (settings as any)?.upi_id || defaultMerchantQr?.upi_id || (upiInstrument?.details as any)?.upi_id || "";
   const isDue = Number(invoice.due || 0) > 0 && invoice.status !== "cancelled";
   const targetAmount = Number(invoice.due || 0);
   const upiString = isDue && upiId
@@ -70,11 +71,16 @@ export default async function ReceiptPage({
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 print:bg-white print:p-0">
+      <AutoPrint />
       <style>{`@page { size: 80mm auto; margin: 3mm; } @media print { body { background: #fff !important; color: #000 !important; } .print\\:hidden { display: none !important; } }`}</style>
       <div className="mx-auto max-w-[340px] rounded-2xl border border-slate-200 bg-white p-5 shadow-lg print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
         <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 print:hidden">
           <div><h1 className="text-sm font-bold text-slate-900">Receipt (80mm)</h1><p className="text-[11px] text-slate-500">#{invoice.invoice_number}</p></div>
-          <div className="flex items-center gap-2"><a href={`/receipt/${id}/a4`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100">📄 Invoice (A4)</a><PrintButton /></div>
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <a href={`/receipt/${id}/a4`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 shadow-xs">📄 A4</a>
+            <a href={`/api/invoices/${id}/pdf`} download={`Invoice-${invoice.invoice_number}.pdf`} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 shadow-xs">📥 PDF</a>
+            <PrintButton label="Print" />
+          </div>
         </div>
 
         <div className="font-mono text-xs leading-relaxed text-slate-900">

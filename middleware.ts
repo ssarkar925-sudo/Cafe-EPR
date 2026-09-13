@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/api/recharge/operator-circle",
   "/api/bill-payment/fetch",
   "/api/whatsapp/webhook",
+  "/api/invoices",
 ];
 
 const FINANCE_MODULES = new Set(["cashbook","journal","settlements","trial-balance","expenses","pnl","ledger","reconciliation","opening-balances","accounts","day-close"]);
@@ -32,10 +33,17 @@ export async function middleware(request: NextRequest) {
 
   // Public receipts use opaque invoice UUIDs only. Sequential invoice numbers
   // must not be usable as an unauthenticated enumeration key.
-  const receiptMatch = pathname.match(/^\/(?:business\/)?receipt\/([^/]+)(?:\/a4)?\/?$/);
+  const receiptMatch = pathname.match(/^\/(?:business\/)?receipt\/(?:quick\/)?([^/]+)(?:\/a4)?\/?$/);
   if (receiptMatch) {
     const receiptId = receiptMatch[1];
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receiptId);
+    if (!isUuid) return applySecurityHeaders(new NextResponse("Not Found", { status: 404 }));
+  }
+
+  const invoicePdfMatch = pathname.match(/^\/api\/invoices\/([^/]+)\/pdf\/?$/);
+  if (invoicePdfMatch) {
+    const invId = invoicePdfMatch[1];
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invId);
     if (!isUuid) return applySecurityHeaders(new NextResponse("Not Found", { status: 404 }));
   }
 
@@ -51,7 +59,7 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone(); loginUrl.pathname = "/login"; loginUrl.searchParams.set("next", pathname); return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
-  if (pathname.startsWith("/receipt") || pathname.startsWith("/business/receipt") || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
+  if (pathname.startsWith("/receipt") || pathname.startsWith("/business/receipt") || pathname.startsWith("/api/invoices") || pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
 
   const hasCookie = hasAuthCookie(request);
   if (pathname === "/login" && !hasCookie) return applySecurityHeaders(NextResponse.next());

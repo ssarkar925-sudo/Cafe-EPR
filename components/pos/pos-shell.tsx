@@ -15,7 +15,9 @@ import {
   Clock,
   Copy,
   CreditCard,
+  Download,
   ExternalLink,
+  FileText,
   LayoutGrid,
   List,
   MessageSquare,
@@ -821,7 +823,7 @@ export default function PosShell({
       playPosSound("success", soundEnabled);
 
       setSuccess({
-        invoiceId: String((result as any).id ?? ""),
+        invoiceId: String((result as any).id || (result as any).invoice_id || ""),
         invoiceNumber: String(result.invoice_number ?? "INV-SUCCESS"),
         total: Number(result.total ?? total),
         paid: Number(result.paid ?? (currentTab.paymentChoice === "khata" ? 0 : total)),
@@ -1888,16 +1890,35 @@ export default function PosShell({
               )}
             </div>
 
-            {/* Instant Action Grid */}
+            {/* Instant Action Grid: All 4 Operations Available */}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <a
-                href={`/receipt/${success.invoiceId}`}
+                href={`/receipt/${success.invoiceId}?print=true`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black text-slate-800 hover:bg-slate-200 transition shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100 transition shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
               >
                 <Printer className="h-4 w-4 text-blue-600 dark:text-cyan-400" />
                 <span>Print 80mm</span>
+              </a>
+
+              <a
+                href={`/receipt/${success.invoiceId}/a4?print=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100 transition shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+              >
+                <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Print A4</span>
+              </a>
+
+              <a
+                href={`/api/invoices/${success.invoiceId}/pdf`}
+                download={`Invoice-${success.invoiceNumber}.pdf`}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-black text-blue-700 hover:bg-blue-100 transition shadow-xs dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+              >
+                <Download className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span>Download PDF</span>
               </a>
 
               {success.customerPhone ? (
@@ -1905,7 +1926,7 @@ export default function PosShell({
                   type="button"
                   onClick={() => void sendWhatsAppInvoice()}
                   disabled={whatsappStatus === "sending" || whatsappStatus === "sent"}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50 shadow-xs"
                 >
                   <MessageSquare className="h-4 w-4" />
                   <span>
@@ -1917,15 +1938,19 @@ export default function PosShell({
                   </span>
                 </button>
               ) : (
-                <a
-                  href={`/receipt/${success.invoiceId}/a4`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black text-slate-800 hover:bg-slate-200 transition dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                <button
+                  type="button"
+                  onClick={() => {
+                    const phone = window.prompt("Enter customer 10-digit WhatsApp phone number:");
+                    if (phone && phone.trim()) {
+                      setSuccess((prev) => (prev ? { ...prev, customerPhone: phone.trim() } : null));
+                    }
+                  }}
+                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 shadow-xs"
                 >
-                  <ExternalLink className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span>A4 Invoice</span>
-                </a>
+                  <MessageSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>WhatsApp</span>
+                </button>
               )}
             </div>
 

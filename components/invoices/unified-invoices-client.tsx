@@ -11,6 +11,7 @@ import {
   Eye,
   MessageSquare,
   CreditCard,
+  Download,
   MoreVertical,
   Pencil,
   ArrowUpDown,
@@ -799,10 +800,20 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                           title="Print A4 / Slip"
                           target="_blank"
                           rel="noreferrer"
-                          href={isPos ? `/receipt/${row.id}/a4` : `/receipt/quick/${row.id}`}
+                          href={isPos ? `/receipt/${row.id}/a4?print=true` : `/receipt/quick/${row.id}?print=true`}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:hover:bg-white/5"
                         >
                           <Printer className="h-3.5 w-3.5" />
+                        </a>
+
+                        {/* Download PDF Button */}
+                        <a
+                          title="Download PDF Invoice"
+                          href={`/api/invoices/${row.id}/pdf${row.source === "quick" ? "?source=quick" : ""}`}
+                          download={`Invoice-${row.number}.pdf`}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                        >
+                          <Download className="h-3.5 w-3.5" />
                         </a>
 
                         {/* WhatsApp Button */}
@@ -842,22 +853,51 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
                         {/* Dropdown Menu */}
                         {menuKey === `${row.source}:${row.id}` && (
-                          <div className="absolute right-0 top-9 z-50 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
+                          <div className="absolute right-0 top-9 z-50 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
                             <button
                               type="button"
                               onClick={() => open(row)}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
                             >
                               <Eye className="h-3.5 w-3.5 text-blue-500" />
-                              <span>View invoice</span>
+                              <span>View details</span>
                             </button>
+                            <a
+                              href={isPos ? `/receipt/${row.id}/a4?print=true` : `/receipt/quick/${row.id}/a4?print=true`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => setMenuKey(null)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                            >
+                              <Printer className="h-3.5 w-3.5 text-indigo-500" />
+                              <span>Print A4 Invoice</span>
+                            </a>
+                            <a
+                              href={isPos ? `/receipt/${row.id}?print=true` : `/receipt/quick/${row.id}?print=true`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => setMenuKey(null)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                            >
+                              <Printer className="h-3.5 w-3.5 text-slate-500" />
+                              <span>Print 80mm Slip</span>
+                            </a>
+                            <a
+                              href={`/api/invoices/${row.id}/pdf${row.source === "quick" ? "?source=quick" : ""}`}
+                              download={`Invoice-${row.number}.pdf`}
+                              onClick={() => setMenuKey(null)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-white/10"
+                            >
+                              <Download className="h-3.5 w-3.5 text-blue-600" />
+                              <span>Download PDF</span>
+                            </a>
                             {isPos && row.status !== "cancelled" && (
                               <button
                                 type="button"
                                 onClick={() => edit(row)}
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
                               >
-                                <Pencil className="h-3.5 w-3.5 text-indigo-500" />
+                                <Pencil className="h-3.5 w-3.5 text-amber-500" />
                                 <span>Edit invoice</span>
                               </button>
                             )}

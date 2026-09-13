@@ -1,12 +1,26 @@
 "use client";
 
-export default function PrintButton() {
+import { Printer } from "lucide-react";
+
+export default function PrintButton({ label = "Print" }: { label?: string }) {
+  const handlePrint = () => {
+    if (typeof window !== "undefined") {
+      if ((window as any).electronAPI?.printThermal) {
+        (window as any).electronAPI.printThermal().catch(() => window.print());
+      } else {
+        window.print();
+      }
+    }
+  };
+
   return (
     <button
-      onClick={() => window.print()}
-      className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1e293b] print:hidden"
+      type="button"
+      onClick={handlePrint}
+      className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 print:hidden"
     >
-      Print
+      <Printer className="h-3.5 w-3.5" />
+      <span>{label}</span>
     </button>
   );
 }

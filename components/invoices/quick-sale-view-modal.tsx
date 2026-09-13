@@ -292,7 +292,7 @@ export default function QuickSaleViewModal({
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
             <div className="flex items-center gap-2">
               <a
-                href={`/receipt/quick/${detail.id}`}
+                href={`/receipt/quick/${detail.id}?print=true`}
                 target="_blank"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
@@ -300,6 +300,20 @@ export default function QuickSaleViewModal({
                   <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" />
                 </svg>
                 Print 80mm Receipt
+              </a>
+              <a
+                href={`/receipt/quick/${detail.id}/a4?print=true`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                📄 Print A4 Invoice
+              </a>
+              <a
+                href={`/api/invoices/${detail.id}/pdf?source=quick`}
+                download={`Invoice-${detail.sale_number}.pdf`}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100"
+              >
+                📥 Download PDF
               </a>
               <button
                 type="button"

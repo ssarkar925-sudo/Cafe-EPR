@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownToLine, ChevronDown, Clock3, MoreHorizontal, Pause, ReceiptText, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, ChevronDown, Clock3, Download, FileText, MoreHorizontal, Pause, Printer, ReceiptText, RotateCcw, Trash2, X } from "lucide-react";
 
 export type PosHeldLine = {
   key: string;
@@ -451,6 +451,34 @@ export default function PosOperations({
                       <div className="text-right">
                         <div className="text-[10px] font-black text-blue-600">{money(sale.total)}</div>
                         <div className={`text-[8px] font-bold ${sale.due > 0 ? "text-rose-600" : "text-emerald-600"}`}>{sale.due > 0 ? `Due ${money(sale.due)}` : "Paid"}</div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <a
+                          href={`/receipt/${sale.id}?print=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Print 80mm Thermal Receipt"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-blue-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </a>
+                        <a
+                          href={`/receipt/${sale.id}/a4?print=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Print A4 Invoice"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </a>
+                        <a
+                          href={`/api/invoices/${sale.id}/pdf`}
+                          download={`Invoice-${sale.invoice_number}.pdf`}
+                          title="Download PDF Invoice"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </a>
                       </div>
                     </div>
                   ))}

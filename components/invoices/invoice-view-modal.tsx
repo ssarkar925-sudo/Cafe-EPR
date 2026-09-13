@@ -272,8 +272,9 @@ export default function InvoiceViewModal({
             </svg>
             WhatsApp
           </button>
-          <a href={`/receipt/${invoiceId}/a4`} target="_blank" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700">📄 Invoice (A4)</a>
-          <a href={`/receipt/${invoiceId}`} target="_blank" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">🧾 Receipt (80mm)</a>
+          <a href={`/receipt/${invoiceId}/a4?print=true`} target="_blank" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700">🖨️ Print A4</a>
+          <a href={`/receipt/${invoiceId}?print=true`} target="_blank" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">🧾 Print 80mm</a>
+          <a href={`/api/invoices/${invoiceId}/pdf`} download={`Invoice-${detail?.invoice_number || invoiceId}.pdf`} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">📥 PDF</a>
         </div>
       }
       footer={
