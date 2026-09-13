@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { inr } from "@/lib/format";
 import { calculateGstInvoice, type GstInvoiceCalculation } from "@/lib/gst";
@@ -11,6 +12,7 @@ import { useDashboardShell } from "@/components/dashboard-shell-context";
 import ThemeToggle from "@/components/theme-toggle";
 import CloudSyncBadge from "@/components/cloud-sync-badge";
 import WhatsAppStatusBadge from "@/components/whatsapp/whatsapp-status-badge";
+import Modal, { useBodyScrollLock } from "@/components/ui/modal";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -232,6 +234,7 @@ export default function PosShell({
   const [whatsappMsg, setWhatsappMsg] = useState("");
 
   // Operations drawers (Money Out, Today's Sales, Held Bills)
+  const [mounted, setMounted] = useState(false);
   const [operationsPanel, setOperationsPanel] = useState<"held" | "today" | "money-out" | null>(null);
   const [heldBills, setHeldBills] = useState<HeldDraft[]>([]);
   const [todaySales, setTodaySales] = useState<any[]>([]);
@@ -241,6 +244,12 @@ export default function PosShell({
   const [moneyOutNote, setMoneyOutNote] = useState("");
   const [moneyOutSource, setMoneyOutSource] = useState("");
   const [moneyOutSaving, setMoneyOutSaving] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useBodyScrollLock(Boolean(success || operationsPanel) && mounted);
 
   // Catalog preparation
   const catalog = useMemo(() => {
@@ -1931,9 +1940,9 @@ export default function PosShell({
       </main>
 
       {/* 3. POST-SALE ACTION HUB (SUCCESS MODAL) */}
-      {success && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-center dark:border-slate-800 dark:bg-slate-900">
+      {success && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-fade-in dark:bg-black/80">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-center dark:border-slate-800 dark:bg-slate-900 animate-modal-panel">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:ring-emerald-500/40">
               <Check className="h-7 w-7" />
             </div>
@@ -2049,14 +2058,15 @@ export default function PosShell({
               Start Next Bill (Enter)
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 4. DRAWER: RECALL HELD BILLS */}
-      {operationsPanel === "held" && (
-        <div className="fixed inset-0 z-[160] bg-slate-950/40 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
+      {operationsPanel === "held" && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md transition-opacity animate-fade-in dark:bg-black/80" onMouseDown={() => setOperationsPanel(null)}>
           <aside
-            className="absolute right-0 top-0 flex h-full w-[min(440px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            className="absolute right-0 top-0 flex h-full w-[min(440px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 animate-drawer-right"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5 dark:border-slate-800">
@@ -2119,14 +2129,15 @@ export default function PosShell({
               )}
             </div>
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 5. DRAWER: TODAY'S SALES */}
-      {operationsPanel === "today" && (
-        <div className="fixed inset-0 z-[160] bg-slate-950/40 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
+      {operationsPanel === "today" && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md transition-opacity animate-fade-in dark:bg-black/80" onMouseDown={() => setOperationsPanel(null)}>
           <aside
-            className="absolute right-0 top-0 flex h-full w-[min(480px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            className="absolute right-0 top-0 flex h-full w-[min(480px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 animate-drawer-right"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5 dark:border-slate-800">
@@ -2175,94 +2186,23 @@ export default function PosShell({
               )}
             </div>
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 6. MODAL: MONEY OUT (EXPENSE RECORDING) */}
       {operationsPanel === "money-out" && (
-        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onMouseDown={() => setOperationsPanel(null)}>
-          <form
-            onSubmit={handleMoneyOut}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
-                  <ArrowDownToLine className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Record Money Out</h3>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Petty cash / register outflow</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOperationsPanel(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5 p-5">
-              <div>
-                <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Amount *</label>
-                <input
-                  autoFocus
-                  required
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={moneyOutAmount}
-                  onChange={(e) => setMoneyOutAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/50 px-3 text-right font-mono text-lg font-black text-slate-900 outline-none focus:border-rose-500 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Category *</label>
-                  <input
-                    required
-                    value={moneyOutCategory}
-                    onChange={(e) => setMoneyOutCategory(e.target.value)}
-                    placeholder="tea, snacks, milk"
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Paid From</label>
-                  <select
-                    value={moneyOutSource}
-                    onChange={(e) => setMoneyOutSource(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                  >
-                    <option value="">Cash (Till)</option>
-                    {instruments
-                      .filter((i) => i.type !== "receivable")
-                      .map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Note / Reason</label>
-                <input
-                  value={moneyOutNote}
-                  onChange={(e) => setMoneyOutNote(e.target.value)}
-                  placeholder="e.g. bought stationary"
-                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-950">
+        <Modal
+          as="form"
+          onSubmit={handleMoneyOut}
+          onClose={() => setOperationsPanel(null)}
+          title="Record Money Out"
+          subtitle="Petty cash / register outflow"
+          icon="ArrowDownToLine"
+          accent="rose"
+          size="sm"
+          footer={
+            <div className="flex w-full gap-2">
               <button
                 type="button"
                 onClick={() => setOperationsPanel(null)}
@@ -2278,8 +2218,65 @@ export default function PosShell({
                 {moneyOutSaving ? "Recording..." : "Save Expense"}
               </button>
             </div>
-          </form>
-        </div>
+          }
+        >
+          <div className="space-y-3.5">
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Amount *</label>
+              <input
+                autoFocus
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={moneyOutAmount}
+                onChange={(e) => setMoneyOutAmount(e.target.value)}
+                placeholder="0.00"
+                className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/50 px-3 text-right font-mono text-lg font-black text-slate-900 outline-none focus:border-rose-500 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Category *</label>
+                <input
+                  required
+                  value={moneyOutCategory}
+                  onChange={(e) => setMoneyOutCategory(e.target.value)}
+                  placeholder="tea, snacks, milk"
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Paid From</label>
+                <select
+                  value={moneyOutSource}
+                  onChange={(e) => setMoneyOutSource(e.target.value)}
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                >
+                  <option value="">Cash (Till)</option>
+                  {instruments
+                    .filter((i) => i.type !== "receivable")
+                    .map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Note / Reason</label>
+              <input
+                value={moneyOutNote}
+                onChange={(e) => setMoneyOutNote(e.target.value)}
+                placeholder="e.g. bought stationary"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-cyan-500"
+              />
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* 7. QUICK ADD CUSTOMER MODAL */}

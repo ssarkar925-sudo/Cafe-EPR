@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowDownToLine, ChevronDown, Clock3, Download, FileText, MoreHorizontal, Pause, Printer, ReceiptText, RotateCcw, Trash2, X } from "lucide-react";
+import Modal, { useBodyScrollLock } from "@/components/ui/modal";
 
 export type PosHeldLine = {
   key: string;
@@ -107,6 +109,7 @@ export default function PosOperations({
   onRestore: (draft: HeldDraft) => void;
   onReset: () => void;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [panel, setPanel] = useState<"recall" | "today" | null>(null);
   const [heldBills, setHeldBills] = useState<HeldDraft[]>([]);
@@ -119,6 +122,12 @@ export default function PosOperations({
   const [moneyOutNote, setMoneyOutNote] = useState("");
   const [moneyOutSource, setMoneyOutSource] = useState("");
   const [moneyOutSaving, setMoneyOutSaving] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useBodyScrollLock(Boolean(panel) && mounted);
 
   useEffect(() => {
     if (panel === "recall") setHeldBills(readHeldBills());
@@ -329,86 +338,123 @@ export default function PosOperations({
       )}
 
       {moneyOutOpen && (
-        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]" onMouseDown={() => setMoneyOutOpen(false)}>
-          <form
-            onSubmit={saveMoneyOut}
-            onMouseDown={(event) => event.stopPropagation()}
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900"
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-white/10">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-black"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300"><ArrowDownToLine className="h-3.5 w-3.5" /></span>Money Out</div>
-                <div className="mt-0.5 text-[9px] font-semibold text-slate-400">Record a shop cash/bank outflow</div>
-              </div>
-              <button type="button" onClick={() => setMoneyOutOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"><X className="h-4 w-4" /></button>
+        <Modal
+          as="form"
+          onSubmit={saveMoneyOut}
+          onClose={() => setMoneyOutOpen(false)}
+          title="Money Out"
+          subtitle="Record a shop cash/bank outflow"
+          icon="ArrowDownToLine"
+          accent="rose"
+          size="sm"
+          footer={
+            <div className="flex w-full gap-2">
+              <button
+                type="button"
+                onClick={() => setMoneyOutOpen(false)}
+                className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={moneyOutSaving}
+                className="h-10 flex-1 rounded-xl bg-rose-600 text-xs font-black text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+              >
+                {moneyOutSaving ? "Saving…" : "Record Money Out"}
+              </button>
             </div>
-            <div className="space-y-3 p-4">
+          }
+        >
+          <div className="space-y-3.5">
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">Amount *</label>
+              <input
+                autoFocus
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={moneyOutAmount}
+                onChange={(event) => setMoneyOutAmount(event.target.value)}
+                placeholder="0.00"
+                className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/40 px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100 dark:border-rose-900/50 dark:bg-slate-950 dark:text-white"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Amount *</label>
-                <input autoFocus required type="number" min="0.01" step="0.01" value={moneyOutAmount} onChange={(event) => setMoneyOutAmount(event.target.value)} placeholder="0.00" className="h-10 w-full rounded-xl border border-rose-200 bg-rose-50/40 px-3 text-right text-lg font-black text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100 dark:border-rose-900/50 dark:bg-slate-950 dark:text-white" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Category *</label>
-                  <input required value={moneyOutCategory} onChange={(event) => setMoneyOutCategory(event.target.value)} placeholder="general" className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[10px] font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Paid From</label>
-                  <select value={moneyOutSource} onChange={(event) => setMoneyOutSource(event.target.value)} className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950">
-                    <option value="">Cash (till)</option>
-                    {moneyOutSources.map((instrument) => <option key={instrument.id} value={instrument.id}>{instrument.name}</option>)}
-                  </select>
-                </div>
+                <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">Category *</label>
+                <input
+                  required
+                  value={moneyOutCategory}
+                  onChange={(event) => setMoneyOutCategory(event.target.value)}
+                  placeholder="general"
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950"
+                />
               </div>
               <div>
-                <label className="mb-1 block text-[9px] font-black uppercase tracking-wider text-slate-500">Note</label>
-                <input value={moneyOutNote} onChange={(event) => setMoneyOutNote(event.target.value)} placeholder="e.g. electricity, stationery, courier" className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[10px] font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950" />
+                <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">Paid From</label>
+                <select
+                  value={moneyOutSource}
+                  onChange={(event) => setMoneyOutSource(event.target.value)}
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-bold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950"
+                >
+                  <option value="">Cash (till)</option>
+                  {moneyOutSources.map((instrument) => (
+                    <option key={instrument.id} value={instrument.id}>{instrument.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
-            <div className="flex gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-950">
-              <button type="button" onClick={() => setMoneyOutOpen(false)} className="h-9 flex-1 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">Cancel</button>
-              <button type="submit" disabled={moneyOutSaving} className="h-9 flex-1 rounded-xl bg-rose-600 text-[10px] font-black text-white shadow-sm hover:bg-rose-700 disabled:opacity-50">{moneyOutSaving ? "Saving…" : "Record Money Out"}</button>
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">Note</label>
+              <input
+                value={moneyOutNote}
+                onChange={(event) => setMoneyOutNote(event.target.value)}
+                placeholder="e.g. electricity, stationery, courier"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold outline-none focus:border-blue-500 dark:border-white/10 dark:bg-slate-950"
+              />
             </div>
-          </form>
-        </div>
+          </div>
+        </Modal>
       )}
 
-      {panel === "recall" && (
-        <div className="fixed inset-0 z-[160] bg-slate-950/35" onMouseDown={closeAll}>
-          <aside className="absolute right-0 top-0 flex h-full w-[min(420px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-4 dark:border-white/10">
+      {panel === "recall" && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md transition-opacity animate-fade-in dark:bg-black/80" onMouseDown={closeAll}>
+          <aside className="absolute right-0 top-0 flex h-full w-[min(440px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900 animate-drawer-right" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5 dark:border-white/10">
               <div>
-                <div className="text-sm font-black">Recall Held Bills</div>
-                <div className="text-[9px] font-semibold text-slate-400">Saved on this billing terminal</div>
+                <div className="text-sm font-black text-slate-900 dark:text-white">Recall Held Bills</div>
+                <div className="text-[10px] font-semibold text-slate-400">Saved on this billing terminal</div>
               </div>
               <button type="button" onClick={closeAll} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"><X className="h-4 w-4" /></button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {!heldBills.length ? (
                 <div className="flex h-full min-h-52 items-center justify-center text-center">
                   <div>
-                    <Pause className="mx-auto h-6 w-6 text-slate-300" />
+                    <Pause className="mx-auto h-7 w-7 text-slate-300 dark:text-slate-600" />
                     <p className="mt-2 text-xs font-black text-slate-500">No held bills</p>
-                    <p className="mt-1 text-[9px] text-slate-400">Hold a bill from the POS menu to see it here.</p>
+                    <p className="mt-1 text-[10px] text-slate-400">Hold a bill from the POS menu to see it here.</p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {heldBills.map((draft, index) => (
-                    <div key={draft.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-950">
+                    <div key={draft.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-white/10 dark:bg-slate-950">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-[11px] font-black">Hold #{heldBills.length - index}</div>
-                          <div className="mt-0.5 text-[9px] font-semibold text-slate-500">{draft.customerName} · {draft.itemCount} lines · {draft.totalQty} qty</div>
+                          <div className="text-xs font-black text-slate-900 dark:text-white">Hold #{heldBills.length - index}</div>
+                          <div className="mt-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">{draft.customerName} · {draft.itemCount} lines · {draft.totalQty} qty</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-black text-blue-600">{money(draft.total)}</div>
-                          <div className="mt-0.5 flex items-center justify-end gap-1 text-[8px] font-semibold text-slate-400"><Clock3 className="h-3 w-3" />{new Date(draft.heldAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                          <div className="text-sm font-black text-blue-600 dark:text-cyan-400">{money(draft.total)}</div>
+                          <div className="mt-0.5 flex items-center justify-end gap-1 text-[9px] font-semibold text-slate-400"><Clock3 className="h-3 w-3" />{new Date(draft.heldAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                         </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-[1fr_34px] gap-2">
-                        <button type="button" onClick={() => recallBill(draft)} className="h-8 rounded-lg bg-blue-600 text-[9px] font-black uppercase tracking-wide text-white hover:bg-blue-700">Recall Bill</button>
-                        <button type="button" onClick={() => deleteHeldBill(draft.id)} className="flex h-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-slate-900" aria-label="Delete held bill"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <div className="mt-3 grid grid-cols-[1fr_36px] gap-2">
+                        <button type="button" onClick={() => recallBill(draft)} className="h-8 rounded-xl bg-blue-600 text-[10px] font-black uppercase tracking-wide text-white hover:bg-blue-700 shadow-xs">Recall Bill</button>
+                        <button type="button" onClick={() => deleteHeldBill(draft.id)} className="flex h-8 items-center justify-center rounded-xl border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-slate-900" aria-label="Delete held bill"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
                   ))}
@@ -416,43 +462,44 @@ export default function PosOperations({
               )}
             </div>
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {panel === "today" && (
-        <div className="fixed inset-0 z-[160] bg-slate-950/35" onMouseDown={closeAll}>
-          <aside className="absolute right-0 top-0 flex h-full w-[min(500px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-4 dark:border-white/10">
+      {panel === "today" && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md transition-opacity animate-fade-in dark:bg-black/80" onMouseDown={closeAll}>
+          <aside className="absolute right-0 top-0 flex h-full w-[min(520px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900 animate-drawer-right" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5 dark:border-white/10">
               <div>
-                <div className="text-sm font-black">Today's Sales</div>
-                <div className="text-[9px] font-semibold text-slate-400">Latest 50 invoices for today</div>
+                <div className="text-sm font-black text-slate-900 dark:text-white">Today's Sales</div>
+                <div className="text-[10px] font-semibold text-slate-400">Latest 50 invoices for today</div>
               </div>
               <button type="button" onClick={closeAll} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {loadingSales ? (
-                <div className="flex h-40 items-center justify-center text-[10px] font-bold text-slate-400">Loading today's sales…</div>
+                <div className="flex h-40 items-center justify-center text-xs font-bold text-slate-400">Loading today's sales…</div>
               ) : !todaySales.length ? (
                 <div className="flex h-48 items-center justify-center text-center">
                   <div>
-                    <ReceiptText className="mx-auto h-6 w-6 text-slate-300" />
+                    <ReceiptText className="mx-auto h-7 w-7 text-slate-300 dark:text-slate-600" />
                     <p className="mt-2 text-xs font-black text-slate-500">No sales recorded today</p>
                   </div>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-white/5">
                   {todaySales.map((sale) => (
-                    <div key={sale.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/[0.025]">
+                    <div key={sale.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-white/[0.025]">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"><ReceiptText className="h-4 w-4" /></div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[10px] font-black">{sale.invoice_number || "Invoice"}</div>
-                        <div className="truncate text-[8px] font-semibold text-slate-400">{customerName(sale.customer)}</div>
+                        <div className="truncate text-xs font-black text-slate-900 dark:text-white">{sale.invoice_number || "Invoice"}</div>
+                        <div className="truncate text-[10px] font-semibold text-slate-400">{customerName(sale.customer)}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-black text-blue-600">{money(sale.total)}</div>
-                        <div className={`text-[8px] font-bold ${sale.due > 0 ? "text-rose-600" : "text-emerald-600"}`}>{sale.due > 0 ? `Due ${money(sale.due)}` : "Paid"}</div>
+                        <div className="text-xs font-black text-blue-600 dark:text-cyan-400">{money(sale.total)}</div>
+                        <div className={`text-[9px] font-bold ${sale.due > 0 ? "text-rose-600" : "text-emerald-600"}`}>{sale.due > 0 ? `Due ${money(sale.due)}` : "Paid"}</div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <a
                           href={`/receipt/${sale.id}?print=true`}
                           target="_blank"
@@ -488,7 +535,8 @@ export default function PosOperations({
               )}
             </div>
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

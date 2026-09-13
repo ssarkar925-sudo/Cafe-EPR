@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "@/components/ui/modal";
 
 export type WindowSize = "sm" | "md" | "lg" | "xl" | "fullscreen";
 
@@ -39,6 +40,8 @@ export default function FloatingWindow({
   const [mounted, setMounted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(size === "fullscreen");
 
+  useBodyScrollLock(isOpen && mounted);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -55,11 +58,11 @@ export default function FloatingWindow({
   if (!mounted || !isOpen) return null;
 
   const windowNode = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] animate-fade-in">
       {/* Frosted Spatial Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity"
+        className="fixed inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity dark:bg-black/80"
         aria-hidden="true"
       />
 

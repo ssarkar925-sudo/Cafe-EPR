@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
+import { createPortal } from "react-dom";
 import CustomerFormModal from "./customer-form-modal";
 import CustomerPhotoModal from "./customer-photo-modal";
 import AdvanceModal from "./advance-modal";
+import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
 import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate } from "@/lib/whatsapp";
@@ -130,6 +132,20 @@ export default function CustomersClient({
   const [detailTab, setDetailTab] = useState<DetailTab>("invoices");
   const [photoCustomer, setPhotoCustomer] = useState<Customer | null>(null);
   const [advanceModal, setAdvanceModal] = useState<{ mode: "record" | "return" } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !viewing) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = orig;
+    };
+  }, [mounted, viewing]);
   const [detail, setDetail] = useState<{
     invoices: any[];
     ledger: any[];
@@ -784,57 +800,60 @@ export default function CustomersClient({
       )}
 
       {dupWarning && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900">
-            <h3 className="text-base font-black text-slate-900 dark:text-white">
-              Customer with this mobile number already exists
-            </h3>
-            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-              A customer record for <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{dupWarning.dup.phone}</span> is
-              already present in your directory:
-            </p>
-            <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-white/5 dark:bg-white/[0.03]">
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{dupWarning.dup.name}</p>
-              <p className="font-mono text-xs text-slate-400">
-                {dupWarning.dup.code ?? ""} · {dupWarning.dup.phone ?? ""}
-              </p>
-            </div>
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Modal
+          onClose={() => setDupWarning(null)}
+          title="Customer already exists"
+          subtitle={`A customer record with mobile ${dupWarning.dup.phone} is already present.`}
+          icon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z"
+          accent="amber"
+          size="sm"
+          footer={
+            <div className="flex flex-wrap justify-end gap-2">
               <button
+                type="button"
+                onClick={() => setDupWarning(null)}
+                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-400"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   router.push(`/customers/${dupWarning.dup.id}`);
                   setDupWarning(null);
                   setModal(null);
                 }}
-                className="btn-3d-tactile-secondary rounded-xl px-3 py-2 text-xs font-bold"
+                className="btn-3d-tactile-secondary rounded-xl px-3.5 py-2 text-xs font-bold"
               >
                 View Customer
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setModal({ mode: "edit", customer: dupWarning.dup });
                   setDupWarning(null);
                 }}
-                className="btn-3d-tactile-primary rounded-xl px-3.5 py-2 text-xs font-bold text-white shadow-sm"
+                className="btn-3d-tactile-primary rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm"
               >
                 Use Existing
               </button>
-              <button
-                onClick={() => setDupWarning(null)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-slate-400"
-              >
-                Keep editing
-              </button>
             </div>
+          }
+        >
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-white/[0.03]">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{dupWarning.dup.name}</p>
+            <p className="font-mono text-xs text-slate-400 mt-1">
+              {dupWarning.dup.code ?? ""} · {dupWarning.dup.phone ?? ""}
+            </p>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* =========================================================================
           SLIDE-OVER CUSTOMER DETAIL DRAWER (Modern Bento Surface & Live Ledger)
       ========================================================================= */}
-      {viewing && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewing(null)}>
+      {viewing && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md transition-opacity animate-fade-in dark:bg-black/80" onClick={() => setViewing(null)}>
           <div
             className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col bg-white shadow-2xl dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
@@ -1146,7 +1165,8 @@ export default function CustomersClient({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {photoCustomer && (

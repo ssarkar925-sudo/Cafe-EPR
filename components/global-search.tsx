@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
@@ -63,6 +64,21 @@ export default function GlobalSearch({
   const supabase = createClient();
 
   const supabaseRef = useMemo(() => supabase, [supabase]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll while search is open
+  useEffect(() => {
+    if (!mounted || !open) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mounted, open]);
 
   useEffect(() => {
     if (open) {
@@ -225,18 +241,18 @@ export default function GlobalSearch({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, results, selected]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  const searchNode = (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 p-4 pt-20 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-950/75 p-4 pt-16 sm:pt-24 backdrop-blur-md animate-fade-in dark:bg-black/85"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#0f172a] text-white shadow-2xl"
+        className="w-full max-w-xl overflow-hidden rounded-2xl sm:rounded-3xl border border-white/15 bg-slate-900 text-white shadow-2xl ring-1 ring-white/10 animate-modal-panel"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-5 sm:py-3.5 bg-slate-950/40">
           <svg
             className="h-5 w-5 text-slate-400"
             viewBox="0 0 24 24"
@@ -276,7 +292,7 @@ export default function GlobalSearch({
                     onClick={() => go(idx)}
                     onMouseEnter={() => setSelected(idx)}
                     className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition ${
-                      active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/5"
+                      active ? "bg-blue-600 text-white shadow-sm" : "text-slate-300 hover:bg-white/5"
                     }`}
                   >
                     <div className="min-w-0 flex-1">
@@ -313,8 +329,8 @@ export default function GlobalSearch({
             No matching modules, customers, or products found for &ldquo;{q}&rdquo;.
           </div>
         ) : (
-          <div className="p-4 text-xs text-slate-400">
-            <p className="font-bold uppercase tracking-wider text-[10px] text-slate-500 mb-2">
+          <div className="p-4 sm:p-5 text-xs text-slate-400">
+            <p className="font-bold uppercase tracking-wider text-[10px] text-slate-500 mb-2.5">
               Popular Quick Jumps
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-slate-300">
@@ -342,4 +358,6 @@ export default function GlobalSearch({
       </div>
     </div>
   );
+
+  return createPortal(searchNode, document.body);
 }

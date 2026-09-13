@@ -32,6 +32,7 @@ import InvoiceViewModal from "./invoice-view-modal";
 import InvoiceEditModal from "./invoice-edit-modal";
 import QuickSaleViewModal from "./quick-sale-view-modal";
 import ReturnModal from "./return-modal";
+import Modal from "@/components/ui/modal";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
 
@@ -968,36 +969,19 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
       {/* Collect Invoice Payment Modal */}
       {collectId && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-xs sm:items-center">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-black text-slate-900 dark:text-white">
-                  Collect Invoice Payment
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Record split or single payment against this invoice.
-                </p>
-              </div>
-              <button
-                onClick={() => setCollectId(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-4">
-              <MultiPaymentCollection
-                totalDue={rows.find((r) => r.id === collectId && r.source === "pos")?.due ?? 0}
-                mode="invoice"
-                onChange={setAllocations}
-              />
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
+        <Modal
+          onClose={() => setCollectId(null)}
+          title="Collect Invoice Payment"
+          subtitle="Record split or single payment against this invoice."
+          icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+          accent="emerald"
+          size="md"
+          footer={
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCollectId(null)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 transition"
               >
                 Cancel
               </button>
@@ -1005,13 +989,19 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                 type="button"
                 disabled={busy}
                 onClick={() => void collect()}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition"
               >
                 {busy ? "Recording…" : "Confirm Payment"}
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <MultiPaymentCollection
+            totalDue={rows.find((r) => r.id === collectId && r.source === "pos")?.due ?? 0}
+            mode="invoice"
+            onChange={setAllocations}
+          />
+        </Modal>
       )}
 
       {/* View Modal */}

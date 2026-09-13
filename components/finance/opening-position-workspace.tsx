@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import FloatingWindow from "@/components/ui/floating-window";
+import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -2301,65 +2302,19 @@ export default function OpeningPositionWorkspace({
 
       {/* Review Modal */}
       {reviewOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <div
-            onClick={() => setReviewOpen(false)}
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm"
-          />
-          <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/10">
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                Opening Balance Sheet Review
-              </h3>
+        <Modal
+          onClose={() => setReviewOpen(false)}
+          title="Opening Balance Sheet Review"
+          subtitle="Assets, liabilities and computed opening capital summary"
+          icon="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          accent="emerald"
+          size="lg"
+          footer={
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setReviewOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-3 dark:bg-emerald-950/20">
-                  <strong className="text-emerald-700 dark:text-emerald-400">ASSETS</strong>
-                  <div className="flex justify-between"><span>Cash Accounts ({cashAccounts.length}):</span><span>{inr(totalCash)}</span></div>
-                  <div className="flex justify-between"><span>Bank Accounts ({bankAccounts.length}):</span><span>{inr(totalBanks)}</span></div>
-                  <div className="flex justify-between"><span>UPI Accounts ({digitalAccounts.length}):</span><span>{inr(totalDigital)}</span></div>
-                  <div className="flex justify-between"><span>Wallets ({walletAccounts.length}):</span><span>{inr(totalWallets)}</span></div>
-                  <div className="flex justify-between"><span>AEPS Floats ({aepsProviderAccounts.length}):</span><span>{inr(totalAeps)}</span></div>
-                  <div className="flex justify-between"><span>DMT Wallets ({dmtProviderAccounts.length}):</span><span>{inr(totalDmt)}</span></div>
-                  <div className="flex justify-between"><span>Inventory Valuation ({inventory.length}):</span><span>{inr(totalInventory)}</span></div>
-                  <div className="flex justify-between"><span>Customer Receivables ({receivables.length}):</span><span>{inr(totalReceivables)}</span></div>
-                  <div className="flex justify-between font-black border-t border-emerald-500/20 pt-1">
-                    <span>Total Assets:</span>
-                    <span>{inr(totalAssets)}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 rounded-xl border border-rose-500/20 bg-rose-50/30 p-3 dark:bg-rose-950/20">
-                  <strong className="text-rose-700 dark:text-rose-400">LIABILITIES &amp; EQUITY</strong>
-                  <div className="flex justify-between"><span>Supplier Payables ({payables.length}):</span><span>{inr(totalPayables)}</span></div>
-                  <div className="flex justify-between"><span>Credit Facility Debt ({creditAccounts.length}):</span><span className={totalCreditLiabilities > 0 ? "text-rose-600 font-bold" : ""}>{inr(totalCreditLiabilities)}</span></div>
-                  <div className="flex justify-between"><span>Other Liabilities ({otherLiab.length}):</span><span>{inr(totalOtherLiabilities)}</span></div>
-                  <div className="flex justify-between font-black border-t border-rose-500/20 pt-1">
-                    <span>Total Liabilities:</span>
-                    <span>{inr(totalLiabilities)}</span>
-                  </div>
-                  <div className="flex justify-between font-black text-purple-700 dark:text-purple-400 border-t border-rose-500/20 pt-1">
-                    <span>Opening Capital (Equity):</span>
-                    <span>{inr(openingCapital)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
-              <button
-                type="button"
-                onClick={() => setReviewOpen(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 dark:border-white/10 dark:text-slate-300"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 transition"
               >
                 Close
               </button>
@@ -2370,67 +2325,67 @@ export default function OpeningPositionWorkspace({
                     setReviewOpen(false);
                     setConfirmOpen(true);
                   }}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-sm"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-sm transition"
                 >
                   Proceed to Finalize
                 </button>
               )}
             </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-50/30 p-3.5 dark:bg-emerald-950/20">
+                <strong className="text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-wider text-[11px]">ASSETS</strong>
+                <div className="flex justify-between"><span>Cash Accounts ({cashAccounts.length}):</span><span>{inr(totalCash)}</span></div>
+                <div className="flex justify-between"><span>Bank Accounts ({bankAccounts.length}):</span><span>{inr(totalBanks)}</span></div>
+                <div className="flex justify-between"><span>UPI Accounts ({digitalAccounts.length}):</span><span>{inr(totalDigital)}</span></div>
+                <div className="flex justify-between"><span>Wallets ({walletAccounts.length}):</span><span>{inr(totalWallets)}</span></div>
+                <div className="flex justify-between"><span>AEPS Floats ({aepsProviderAccounts.length}):</span><span>{inr(totalAeps)}</span></div>
+                <div className="flex justify-between"><span>DMT Wallets ({dmtProviderAccounts.length}):</span><span>{inr(totalDmt)}</span></div>
+                <div className="flex justify-between"><span>Inventory Valuation ({inventory.length}):</span><span>{inr(totalInventory)}</span></div>
+                <div className="flex justify-between"><span>Customer Receivables ({receivables.length}):</span><span>{inr(totalReceivables)}</span></div>
+                <div className="flex justify-between font-black border-t border-emerald-500/20 pt-1.5 text-emerald-800 dark:text-emerald-300">
+                  <span>Total Assets:</span>
+                  <span>{inr(totalAssets)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-rose-500/20 bg-rose-50/30 p-3.5 dark:bg-rose-950/20">
+                <strong className="text-rose-700 dark:text-rose-400 font-bold uppercase tracking-wider text-[11px]">LIABILITIES &amp; EQUITY</strong>
+                <div className="flex justify-between"><span>Supplier Payables ({payables.length}):</span><span>{inr(totalPayables)}</span></div>
+                <div className="flex justify-between"><span>Credit Facility Debt ({creditAccounts.length}):</span><span className={totalCreditLiabilities > 0 ? "text-rose-600 font-bold" : ""}>{inr(totalCreditLiabilities)}</span></div>
+                <div className="flex justify-between"><span>Other Liabilities ({otherLiab.length}):</span><span>{inr(totalOtherLiabilities)}</span></div>
+                <div className="flex justify-between font-black border-t border-rose-500/20 pt-1.5 text-rose-800 dark:text-rose-300">
+                  <span>Total Liabilities:</span>
+                  <span>{inr(totalLiabilities)}</span>
+                </div>
+                <div className="flex justify-between font-black text-purple-700 dark:text-purple-400 border-t border-purple-500/20 pt-1.5 text-sm">
+                  <span>Opening Capital (Equity):</span>
+                  <span>{inr(openingCapital)}</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Finalize Confirmation Modal */}
       {confirmOpen && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-fade-in">
-          <div
-            onClick={() => !submitting && setConfirmOpen(false)}
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm"
-          />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-purple-300 bg-white p-6 shadow-2xl dark:border-purple-900/60 dark:bg-slate-900">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                🏛️
-              </span>
-              <div>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  Finalize Opening Position?
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  This establishes the authoritative financial baseline for this ERP.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3.5 text-xs text-slate-700 dark:border-white/5 dark:bg-white/5 dark:text-slate-300">
-              <div className="flex justify-between py-0.5">
-                <span>Opening Date:</span>
-                <strong>{openingDate}</strong>
-              </div>
-              <div className="flex justify-between py-0.5">
-                <span>Total Assets:</span>
-                <strong className="text-emerald-600">{inr(totalAssets)}</strong>
-              </div>
-              <div className="flex justify-between py-0.5">
-                <span>Total Liabilities:</span>
-                <strong className="text-rose-600">{inr(totalLiabilities)}</strong>
-              </div>
-              <div className="flex justify-between py-0.5 font-bold">
-                <span>Opening Capital:</span>
-                <strong className="text-purple-600">{inr(openingCapital)}</strong>
-              </div>
-            </div>
-
-            <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-              ⚡ This will post starting cash accounts, bank balances, digital accounts, wallet floats, AEPS &amp; DMT provider floats, credit facility starting debt, customer ledger debit seeds, supplier credits, and inventory starting stock atomically.
-            </p>
-
-            <div className="mt-5 flex justify-end gap-2">
+        <Modal
+          onClose={() => !submitting && setConfirmOpen(false)}
+          title="Finalize Opening Position?"
+          subtitle="Establishes the authoritative financial baseline for this ERP"
+          icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+          accent="violet"
+          size="sm"
+          footer={
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
                 disabled={submitting}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 transition"
               >
                 Cancel
               </button>
@@ -2438,13 +2393,38 @@ export default function OpeningPositionWorkspace({
                 type="button"
                 onClick={handleFinalize}
                 disabled={submitting}
-                className="rounded-xl bg-purple-600 px-4 py-2 text-xs font-black text-white hover:bg-purple-700 shadow-md disabled:opacity-50"
+                className="rounded-xl bg-purple-600 px-4 py-2 text-xs font-black text-white hover:bg-purple-700 shadow-md disabled:opacity-50 transition"
               >
                 {submitting ? "Posting..." : "Confirm & Finalize"}
               </button>
             </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 text-xs text-slate-700 dark:border-white/5 dark:bg-white/5 dark:text-slate-300 space-y-1.5">
+              <div className="flex justify-between">
+                <span>Opening Date:</span>
+                <strong>{openingDate}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Assets:</span>
+                <strong className="text-emerald-600">{inr(totalAssets)}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Liabilities:</span>
+                <strong className="text-rose-600">{inr(totalLiabilities)}</strong>
+              </div>
+              <div className="flex justify-between border-t border-slate-200/60 dark:border-white/10 pt-1.5 font-bold">
+                <span>Opening Capital:</span>
+                <strong className="text-purple-600">{inr(openingCapital)}</strong>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              ⚡ This will post starting cash accounts, bank balances, digital accounts, wallet floats, AEPS &amp; DMT provider floats, credit facility starting debt, customer ledger debit seeds, supplier credits, and inventory starting stock atomically.
+            </p>
           </div>
-        </div>
+        </Modal>
       )}
 
       {toastView}

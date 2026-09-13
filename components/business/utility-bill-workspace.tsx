@@ -10,6 +10,7 @@ import { logAudit } from "@/lib/audit";
 import SearchableSelect from "@/components/ui/searchable-select";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import FloatingWindow from "@/components/ui/floating-window";
+import Modal from "@/components/ui/modal";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import { useToast } from "@/components/ui/use-toast";
@@ -1567,33 +1568,20 @@ export default function UtilityBillWorkspace({
 
       {/* 7. REVERSAL MODAL */}
       {reverseTxn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div onClick={() => !busyReverse && setReverseTxn(null)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-rose-300 bg-white p-6 shadow-2xl dark:border-rose-900/60 dark:bg-slate-900">
-            <h3 className="text-sm font-black text-rose-600 dark:text-rose-400">
-              Reverse Bill Payment {reverseTxn.transaction_number}?
-            </h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              This will refund the funding account and reverse customer collections in double-entry books.
-            </p>
-
-            <div className="mt-3">
-              <label className="text-[11px] font-bold text-slate-500">Reversal Reason *</label>
-              <input
-                type="text"
-                value={reverseReason}
-                onChange={(e) => setReverseReason(e.target.value)}
-                placeholder="e.g. Biller transaction failed / wrong consumer ID"
-                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-
-            <div className="mt-4 flex justify-end gap-2">
+        <Modal
+          onClose={() => !busyReverse && setReverseTxn(null)}
+          title={`Reverse Bill Payment ${reverseTxn.transaction_number}?`}
+          subtitle="This will refund the funding account and reverse customer collections in double-entry books."
+          icon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z"
+          accent="rose"
+          size="sm"
+          footer={
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setReverseTxn(null)}
                 disabled={busyReverse}
-                className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-white/10 dark:text-slate-300"
+                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 transition"
               >
                 Cancel
               </button>
@@ -1601,21 +1589,56 @@ export default function UtilityBillWorkspace({
                 type="button"
                 onClick={handleReverse}
                 disabled={busyReverse}
-                className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-black text-white hover:bg-rose-700 shadow-md"
+                className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-md transition"
               >
                 {busyReverse ? "Reversing..." : "Confirm Reversal"}
               </button>
             </div>
+          }
+        >
+          <div>
+            <label className="text-[11px] font-bold text-slate-500">Reversal Reason *</label>
+            <input
+              type="text"
+              value={reverseReason}
+              onChange={(e) => setReverseReason(e.target.value)}
+              placeholder="e.g. Biller transaction failed / wrong consumer ID"
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
+            />
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* 8. QUICK ADD CUSTOMER MODAL */}
       {addCustomerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div onClick={() => !addingCustomer && setAddCustomerModal(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900 space-y-3">
-            <h3 className="text-sm font-black text-slate-900 dark:text-white">Add New Customer</h3>
+        <Modal
+          onClose={() => !addingCustomer && setAddCustomerModal(false)}
+          title="Add New Customer"
+          subtitle="Quickly register customer and attach to active bill"
+          icon="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+          accent="teal"
+          size="sm"
+          footer={
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAddCustomerModal(false)}
+                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddCustomer}
+                disabled={addingCustomer}
+                className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white hover:bg-cyan-700 shadow-md transition"
+              >
+                {addingCustomer ? "Saving..." : "Save Customer"}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
             <div>
               <label className="text-[11px] font-bold text-slate-500">Full Name *</label>
               <input
@@ -1637,25 +1660,8 @@ export default function UtilityBillWorkspace({
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs outline-none dark:border-white/10 dark:bg-slate-800 dark:text-white"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setAddCustomerModal(false)}
-                className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-white/10 dark:text-slate-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAddCustomer}
-                disabled={addingCustomer}
-                className="rounded-xl bg-cyan-600 px-4 py-1.5 text-xs font-black text-white hover:bg-cyan-700 shadow-md"
-              >
-                {addingCustomer ? "Saving..." : "Save Customer"}
-              </button>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* 9. SCAN & FILL MODAL */}

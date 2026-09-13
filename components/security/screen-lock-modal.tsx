@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/use-toast";
+import { useBodyScrollLock } from "@/components/ui/modal";
 
 export default function ScreenLockModal({
   enabled = false,
@@ -14,10 +16,17 @@ export default function ScreenLockModal({
   correctPin?: string;
   userName?: string;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [locked, setLocked] = useState(false);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const { showToast, toastView } = useToast();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useBodyScrollLock(locked && mounted);
 
   useEffect(() => {
     if (!enabled) return;
@@ -75,12 +84,12 @@ export default function ScreenLockModal({
     }
   };
 
-  if (!locked) return null;
+  if (!locked || !mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl p-4 animate-fade-in">
       {toastView}
-      <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900/90 p-6 text-center text-white shadow-2xl backdrop-blur-2xl">
+      <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900/90 p-6 text-center text-white shadow-2xl backdrop-blur-2xl animate-modal-panel">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-2xl shadow-inner">
           🔒
         </div>
@@ -141,6 +150,7 @@ export default function ScreenLockModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

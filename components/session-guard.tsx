@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { createClient, clearClientAuthCookies } from "@/lib/supabase/client";
 import { fetchCloudWhatsAppConfig } from "@/lib/whatsapp";
 import ScreenLockModal from "@/components/security/screen-lock-modal";
+import Modal from "@/components/ui/modal";
 
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
 const WARN_MS = 60 * 1000;
@@ -136,37 +137,42 @@ export default function SessionGuard() {
         userName="Operator"
       />
       {showWarn && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-                <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
-              </svg>
-            </div>
-            <h3 className="mt-4 text-base font-bold text-slate-900">Session expiring</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              You've been inactive. Auto sign-out in{" "}
-              <span className="font-semibold text-slate-900">{countdown}s</span> to protect your account.
-            </p>
-            <div className="mt-5 flex gap-2">
+        <Modal
+          size="sm"
+          accent="amber"
+          title="Session Expiring"
+          subtitle="Inactivity auto sign-out warning"
+          onClose={() => {
+            lastActivity.current = Date.now();
+            setShowWarn(false);
+          }}
+          footer={
+            <div className="flex w-full gap-2.5">
               <button
+                type="button"
                 onClick={doSignOut}
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
               >
                 Sign out now
               </button>
               <button
+                type="button"
                 onClick={() => {
                   lastActivity.current = Date.now();
                   setShowWarn(false);
                 }}
-                className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                className="flex-1 rounded-xl bg-amber-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-700"
               >
                 Keep working
               </button>
             </div>
+          }
+        >
+          <div className="py-2 text-sm text-slate-600 dark:text-slate-300">
+            You've been inactive. Auto sign-out in{" "}
+            <span className="font-mono font-bold text-slate-900 dark:text-white">{countdown}s</span> to protect your account.
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

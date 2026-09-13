@@ -110,158 +110,143 @@ function StockAdjustmentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4 dark:border-white/10">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
-                <Scale className="h-4 w-4" />
-              </div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">Audited Stock Adjustment</h2>
-            </div>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              {product.name} {product.code ? <span className="font-mono text-slate-400 font-semibold">({product.code})</span> : null}
-            </p>
-          </div>
+    <Modal
+      as="form"
+      onSubmit={handleApply}
+      onClose={onClose}
+      title="Audited Stock Adjustment"
+      subtitle={`${product.name} ${product.code ? `(${product.code})` : ""}`}
+      icon="M20 7 12 3 4 7v10l8 4 8-4V7ZM12 3v18M4 7l8 4 8-4M4 17l8-4 8 4"
+      accent="amber"
+      size="sm"
+      footer={
+        <div className="flex justify-end gap-3">
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
           >
-            <X className="h-4 w-4" />
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving || isNaN(targetStock) || targetStock < 0 || !reason.trim()}
+            className="btn-3d-tactile-primary rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-5 py-2 text-sm font-black text-white shadow-md shadow-amber-600/20 hover:brightness-110 active:scale-95 disabled:opacity-60"
+          >
+            {saving ? "Posting to Journal..." : "Apply Adjustment"}
           </button>
         </div>
-
-        {/* Body */}
-        <form onSubmit={handleApply} className="px-6 py-5 space-y-4">
-          {/* Current Stock */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Current Physical Stock (Ledger)
-            </label>
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm dark:border-white/10 dark:bg-slate-800/60">
-              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                <Package className="h-4 w-4 text-slate-400" />
-                <span className="font-bold text-slate-900 dark:text-white">{currentStock}</span>
-                <span className="text-xs text-slate-400">{product.unit}</span>
-              </div>
-              <span className="text-xs font-medium text-slate-400">Unit Cost: {inr(product.cost_price)}</span>
+      }
+    >
+      <div className="space-y-4">
+        {/* Current Stock */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Current Physical Stock (Ledger)
+          </label>
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm dark:border-white/10 dark:bg-slate-800/60">
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+              <Package className="h-4 w-4 text-slate-400" />
+              <span className="font-bold text-slate-900 dark:text-white">{currentStock}</span>
+              <span className="text-xs text-slate-400">{product.unit}</span>
             </div>
+            <span className="text-xs font-medium text-slate-400">Unit Cost: {inr(product.cost_price)}</span>
           </div>
+        </div>
 
-          {/* Verified Count */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Actual Verified Physical Stock Count *
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="any"
-                min="0"
-                required
-                value={newStock}
-                onChange={(e) => setNewStock(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-black outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-                placeholder="Enter verified physical count"
-              />
-              <div className="flex items-center gap-1 shrink-0">
-                {[-5, -1, 1, 5].map((delta) => (
-                  <button
-                    key={delta}
-                    type="button"
-                    onClick={() => {
-                      const base = isNaN(targetStock) ? currentStock : targetStock;
-                      const updated = Math.max(0, base + delta);
-                      setNewStock(String(updated));
-                    }}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700 hover:bg-slate-100 active:scale-90 transition-all dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
-                  >
-                    {delta > 0 ? `+${delta}` : delta}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {!isNaN(targetStock) && targetStock !== currentStock && (
-              <div className={`mt-2 flex items-center gap-1.5 text-xs font-bold ${diff > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                {diff > 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                <span>
-                  {diff > 0 ? "Inventory IN" : "Inventory OUT"}: {Math.abs(diff)} {product.unit} ({diff > 0 ? "+" : ""}{diff})
-                </span>
-                <span className="text-slate-400 font-normal">
-                  — Valuation impact: {inr(Math.abs(diff) * Number(product.cost_price ?? 0))}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Reason & Quick Chips */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Mandatory Audit Reason *
-            </label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {[
-                "Physical Audit Count",
-                "Damaged / Broken",
-                "Expired Goods",
-                "Supplier Return",
-                "Surplus Found",
-              ].map((chip) => (
+        {/* Verified Count */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Actual Verified Physical Stock Count *
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="any"
+              min="0"
+              required
+              value={newStock}
+              onChange={(e) => setNewStock(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-black outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+              placeholder="Enter verified physical count"
+            />
+            <div className="flex items-center gap-1 shrink-0">
+              {[-5, -1, 1, 5].map((delta) => (
                 <button
-                  key={chip}
+                  key={delta}
                   type="button"
-                  onClick={() => setReason(chip)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95 ${
-                    reason === chip
-                      ? "bg-amber-600 text-white shadow-xs font-black"
-                      : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                  }`}
+                  onClick={() => {
+                    const base = isNaN(targetStock) ? currentStock : targetStock;
+                    const updated = Math.max(0, base + delta);
+                    setNewStock(String(updated));
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-700 hover:bg-slate-100 active:scale-90 transition-all dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
                 >
-                  {chip}
+                  {delta > 0 ? `+${delta}` : delta}
                 </button>
               ))}
             </div>
-            <textarea
-              required
-              rows={2}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Select preset above or type specific audit explanation..."
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              This adjustment will be permanently logged in the Immutable Stock Movements Journal.
-            </p>
           </div>
-
-          {error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400">
-              {error}
+          {!isNaN(targetStock) && targetStock !== currentStock && (
+            <div className={`mt-2 flex items-center gap-1.5 text-xs font-bold ${diff > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              {diff > 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+              <span>
+                {diff > 0 ? "Inventory IN" : "Inventory OUT"}: {Math.abs(diff)} {product.unit} ({diff > 0 ? "+" : ""}{diff})
+              </span>
+              <span className="text-slate-400 font-normal">
+                — Valuation impact: {inr(Math.abs(diff) * Number(product.cost_price ?? 0))}
+              </span>
             </div>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving || isNaN(targetStock) || targetStock < 0 || !reason.trim()}
-              className="btn-3d-tactile-primary rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-5 py-2 text-sm font-black text-white shadow-md shadow-amber-600/20 hover:brightness-110 active:scale-95 disabled:opacity-60"
-            >
-              {saving ? "Posting to Journal..." : "Apply Adjustment"}
-            </button>
+        {/* Reason & Quick Chips */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Mandatory Audit Reason *
+          </label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {[
+              "Physical Audit Count",
+              "Damaged / Broken",
+              "Expired Goods",
+              "Supplier Return",
+              "Surplus Found",
+            ].map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => setReason(chip)}
+                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95 ${
+                  reason === chip
+                    ? "bg-amber-600 text-white shadow-xs font-black"
+                    : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                }`}
+              >
+                {chip}
+              </button>
+            ))}
           </div>
-        </form>
+          <textarea
+            required
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Select preset above or type specific audit explanation..."
+            className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            This adjustment will be permanently logged in the Immutable Stock Movements Journal.
+          </p>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400">
+            {error}
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 

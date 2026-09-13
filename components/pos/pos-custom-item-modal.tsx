@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { type CartLine, type PosCatalogItem, type PosCategory } from "./pos-types";
 import { X, Sparkles, AlertCircle, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react";
+import { useBodyScrollLock } from "@/components/ui/modal";
 
 const GST_RATES = [
   { label: "0% (Exempt / Nil)", value: 0 },
@@ -28,6 +30,7 @@ export default function PosCustomItemModal({
   onItemCreated?: (item: PosCatalogItem) => void;
   onAddCustomItem?: (item: Omit<CartLine, "key">) => void;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("");
   const [qty, setQty] = useState("1");
@@ -39,7 +42,13 @@ export default function PosCustomItemModal({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!open) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useBodyScrollLock(open && mounted);
+
+  if (!open || !mounted) return null;
 
   function resetForm() {
     setName("");
@@ -116,9 +125,9 @@ export default function PosCustomItemModal({
     onClose();
   }
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs antialiased font-sans">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md antialiased font-sans animate-fade-in dark:bg-black/80">
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-modal-panel dark:border-slate-800 dark:bg-slate-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-950">
           <div className="flex items-center gap-2.5">
@@ -358,6 +367,7 @@ export default function PosCustomItemModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

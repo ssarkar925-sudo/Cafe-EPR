@@ -1,55 +1,56 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type Accent = "blue" | "indigo" | "rose" | "emerald" | "amber" | "violet" | "teal" | "slate";
 type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 const ACCENTS: Record<Accent, { bar: string; icon: string; glow: string; soft: string }> = {
   blue: {
-    bar: "from-blue-500 to-indigo-600",
+    bar: "from-blue-500 via-indigo-500 to-blue-600",
     icon: "from-blue-600 to-indigo-600",
     glow: "shadow-blue-500/25",
     soft: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
   },
   indigo: {
-    bar: "from-indigo-500 to-purple-600",
+    bar: "from-indigo-500 via-purple-500 to-indigo-600",
     icon: "from-indigo-600 to-purple-600",
     glow: "shadow-indigo-500/25",
     soft: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300",
   },
   rose: {
-    bar: "from-rose-500 to-red-600",
+    bar: "from-rose-500 via-pink-500 to-red-600",
     icon: "from-rose-600 to-red-600",
     glow: "shadow-rose-500/25",
     soft: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
   },
   emerald: {
-    bar: "from-emerald-500 to-teal-600",
+    bar: "from-emerald-500 via-teal-500 to-emerald-600",
     icon: "from-emerald-600 to-teal-600",
     glow: "shadow-emerald-500/25",
     soft: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
   },
   amber: {
-    bar: "from-amber-400 to-orange-500",
+    bar: "from-amber-400 via-orange-400 to-amber-500",
     icon: "from-amber-500 to-orange-600",
     glow: "shadow-amber-500/25",
     soft: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
   },
   violet: {
-    bar: "from-violet-500 to-purple-600",
+    bar: "from-violet-500 via-purple-500 to-violet-600",
     icon: "from-violet-600 to-purple-600",
     glow: "shadow-violet-500/25",
     soft: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
   },
   teal: {
-    bar: "from-teal-500 to-emerald-600",
+    bar: "from-teal-500 via-cyan-500 to-emerald-600",
     icon: "from-teal-600 to-emerald-600",
     glow: "shadow-teal-500/25",
     soft: "bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300",
   },
   slate: {
-    bar: "from-slate-600 to-slate-800",
+    bar: "from-slate-600 via-slate-700 to-slate-800",
     icon: "from-slate-700 to-slate-900",
     glow: "shadow-slate-500/25",
     soft: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -58,11 +59,31 @@ const ACCENTS: Record<Accent, { bar: string; icon: string; glow: string; soft: s
 
 const SIZES: Record<ModalSize, string> = {
   sm: "sm:max-w-[440px]",
-  md: "sm:max-w-[560px]",
-  lg: "sm:max-w-[740px]",
-  xl: "sm:max-w-[940px]",
-  "2xl": "sm:max-w-[1140px]",
+  md: "sm:max-w-[580px]",
+  lg: "sm:max-w-[760px]",
+  xl: "sm:max-w-[960px]",
+  "2xl": "sm:max-w-[1160px]",
 };
+
+export function useBodyScrollLock(active: boolean = true) {
+  useEffect(() => {
+    if (!active || typeof document === "undefined") return;
+    const originalOverflow = document.body.style.overflow;
+    const currentCount = Number(document.body.getAttribute("data-modal-count") || "0");
+    document.body.setAttribute("data-modal-count", String(currentCount + 1));
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      const remaining = Math.max(0, Number(document.body.getAttribute("data-modal-count") || "1") - 1);
+      if (remaining === 0) {
+        document.body.removeAttribute("data-modal-count");
+        document.body.style.overflow = originalOverflow;
+      } else {
+        document.body.setAttribute("data-modal-count", String(remaining));
+      }
+    };
+  }, [active]);
+}
 
 export default function Modal({
   onClose,
@@ -95,8 +116,15 @@ export default function Modal({
   bodyClassName?: string;
   children?: ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
   const a = ACCENTS[accent];
   const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useBodyScrollLock(mounted);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -152,15 +180,15 @@ export default function Modal({
   const panel = (
     <>
       {/* Top Accent Rim */}
-      <div className={`h-1 w-full shrink-0 bg-gradient-to-r ${a.bar}`} />
+      <div className={`h-1.5 w-full shrink-0 bg-gradient-to-r ${a.bar}`} />
 
       {/* Header */}
       {!noHeader && (
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-50/90 px-4 py-3 sm:px-6 sm:py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-50/95 px-5 py-3.5 sm:px-6 sm:py-4 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/95">
           {header !== undefined ? (
             header
           ) : (
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
+            <div className="flex items-center gap-3 min-w-0 pr-2">
               {icon && (
                 <div
                   className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${a.icon} text-white shadow-md ${a.glow}`}
@@ -183,7 +211,7 @@ export default function Modal({
                   {title}
                 </h2>
                 {subtitle && (
-                  <p className="truncate mt-0.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
+                  <p className="truncate mt-0.5 text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
                     {subtitle}
                   </p>
                 )}
@@ -196,10 +224,11 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+              className="group flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-200/60 bg-white/60 text-slate-400 shadow-2xs transition-all hover:border-slate-300 hover:bg-white hover:text-slate-700 hover:shadow-xs active:scale-95 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20 dark:hover:bg-white/10 dark:hover:text-white"
               title="Close (Esc)"
+              aria-label="Close dialog"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 transition-transform group-hover:scale-110">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
@@ -210,7 +239,7 @@ export default function Modal({
       {/* Body */}
       <div
         ref={bodyRef}
-        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-4 dark:bg-slate-900 sm:p-6 ${
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white p-5 dark:bg-slate-900 sm:p-6 sm:p-7 ${
           bodyClassName ?? ""
         }`}
       >
@@ -219,21 +248,22 @@ export default function Modal({
 
       {/* Footer */}
       {footer !== undefined && (
-        <div className="shrink-0 border-t border-slate-200/80 bg-slate-50/90 px-4 py-3 sm:px-6 sm:py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/90">
+        <div className="shrink-0 border-t border-slate-200/80 bg-slate-50/95 px-5 py-3.5 sm:px-6 sm:py-4 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/95">
           {footer}
         </div>
       )}
     </>
   );
 
-  const panelClass = `relative z-10 my-auto flex max-h-[92dvh] sm:max-h-[90vh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-2xl sm:rounded-[24px] border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-900/5 dark:border-white/10 dark:bg-slate-900 dark:ring-white/10 animate-modal-panel`;
+  const panelClass = `relative z-10 my-auto flex max-h-[92dvh] sm:max-h-[88vh] w-full ${SIZES[size]} flex-col overflow-hidden rounded-2xl sm:rounded-[26px] border border-slate-200/90 bg-white shadow-2xl shadow-slate-950/25 ring-1 ring-black/5 dark:border-white/10 dark:bg-slate-900 dark:shadow-black/60 dark:ring-white/10 animate-modal-panel`;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-2 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
-      {/* Frosted Backdrop */}
+  const modalNode = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-3 sm:p-6 md:p-8 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+      {/* Frosted Obsidian Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity animate-modal-backdrop"
+        className="fixed inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity animate-modal-backdrop dark:bg-black/80"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {as === "form" ? (
@@ -258,4 +288,7 @@ export default function Modal({
       )}
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(modalNode, document.body);
 }

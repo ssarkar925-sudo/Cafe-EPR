@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { logAudit } from "@/lib/audit";
 import ProductFormModal from "./product-form-modal";
+import Modal from "@/components/ui/modal";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
 
@@ -72,119 +73,100 @@ function AdjustStockModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-900">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4 dark:border-white/10">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                  <path d="M20 7 12 3 4 7v10l8 4 8-4V7ZM12 3v18M4 7l8 4 8-4M4 17l8-4 8 4" />
-                </svg>
-              </div>
-              <h2 className="text-sm font-black text-slate-900 dark:text-white">Adjust Stock</h2>
-            </div>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              {product.name} <span className="font-mono text-slate-400">{product.code ?? ""}</span>
-            </p>
-          </div>
+    <Modal
+      as="form"
+      onSubmit={handleApply}
+      onClose={onClose}
+      title="Adjust Stock"
+      subtitle={`${product.name} ${product.code ? `(${product.code})` : ""}`}
+      icon="M20 7 12 3 4 7v10l8 4 8-4V7ZM12 3v18M4 7l8 4 8-4M4 17l8-4 8 4"
+      accent="amber"
+      size="sm"
+      footer={
+        <div className="flex justify-end gap-3">
           <button
+            type="button"
             onClick={onClose}
-            className="ml-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white transition"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 w-4">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving || isNaN(targetStock) || targetStock < 0 || !reason.trim()}
+            className="rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-60"
+          >
+            {saving ? "Adjusting…" : "Apply Adjustment"}
           </button>
         </div>
-
-        {/* Body */}
-        <form onSubmit={handleApply} className="px-6 py-5 space-y-4">
-          {/* Current Stock (read-only display) */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Current Stock
-            </label>
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 shrink-0 text-slate-400">
-                <path d="M20 7 12 3 4 7v10l8 4 8-4V7Z" />
-              </svg>
-              <span className="font-black text-slate-800 dark:text-white">{currentStock}</span>
-              <span className="text-slate-400">{product.unit}</span>
-            </div>
+      }
+    >
+      <div className="space-y-4">
+        {/* Current Stock (read-only display) */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Current Stock
+          </label>
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 shrink-0 text-slate-400">
+              <path d="M20 7 12 3 4 7v10l8 4 8-4V7Z" />
+            </svg>
+            <span className="font-black text-slate-800 dark:text-white">{currentStock}</span>
+            <span className="text-slate-400">{product.unit}</span>
           </div>
+        </div>
 
-          {/* New Stock */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              New Stock *
-            </label>
-            <input
-              type="number"
-              step="1"
-              min="0"
-              required
-              value={newStock}
-              onChange={(e) => setNewStock(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-              placeholder="Enter new stock quantity"
-            />
-            {!isNaN(targetStock) && targetStock !== currentStock && (
-              <p className={`mt-1 text-xs font-bold ${diff > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                {diff > 0 ? "▲ Stock IN" : "▼ Stock OUT"}: {Math.abs(diff)} {product.unit}
-                {diff > 0 ? " will be added" : " will be removed"}
-              </p>
-            )}
-            {!isNaN(targetStock) && targetStock === currentStock && (
-              <p className="mt-1 text-xs text-slate-400">No change — quantity is same as current stock.</p>
-            )}
-          </div>
-
-          {/* Reason */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Reason *
-            </label>
-            <textarea
-              required
-              rows={2}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Physical count correction, Damaged goods removal, Opening stock seed…"
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              Every adjustment is permanently recorded in the Inventory Journal.
+        {/* New Stock */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            New Stock *
+          </label>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            required
+            value={newStock}
+            onChange={(e) => setNewStock(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+            placeholder="Enter new stock quantity"
+          />
+          {!isNaN(targetStock) && targetStock !== currentStock && (
+            <p className={`mt-1 text-xs font-bold ${diff > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              {diff > 0 ? "▲ Stock IN" : "▼ Stock OUT"}: {Math.abs(diff)} {product.unit}
+              {diff > 0 ? " will be added" : " will be removed"}
             </p>
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400">
-              {error}
-            </div>
           )}
+          {!isNaN(targetStock) && targetStock === currentStock && (
+            <p className="mt-1 text-xs text-slate-400">No change — quantity is same as current stock.</p>
+          )}
+        </div>
 
-          {/* Footer actions */}
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving || isNaN(targetStock) || targetStock < 0 || !reason.trim()}
-              className="rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-60"
-            >
-              {saving ? "Adjusting…" : "Apply Adjustment"}
-            </button>
+        {/* Reason */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Reason *
+          </label>
+          <textarea
+            required
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Physical count correction, Damaged goods removal, Opening stock seed…"
+            className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            Every adjustment is permanently recorded in the Inventory Journal.
+          </p>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400">
+            {error}
           </div>
-        </form>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
