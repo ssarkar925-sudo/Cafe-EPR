@@ -432,7 +432,7 @@ export default function InvoicePdf({
 
           {items.map((it, idx) => {
             const isAlt = idx % 2 === 1;
-            const itemName = it.products?.name || it.services?.name || it.description || "Item";
+            const itemName = it.products?.name || it.services?.name || it.description || (it as any).item_name || "Item";
             return (
               <View key={it.id || idx} style={isAlt ? styles.tableRowAlt : styles.tableRow}>
                 <Text style={{ ...styles.td, width: 25, textAlign: "center", color: "#64748b" }}>

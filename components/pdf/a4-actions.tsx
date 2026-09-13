@@ -27,15 +27,24 @@ export default function A4Actions({
     try {
       const targetId = invoiceId || (data as any)?.invoice?.id;
       if (variant === "invoice" && targetId) {
-        // Direct server download for 100% reliable PDF stream across all browsers and devices
-        const a = document.createElement("a");
-        a.href = `/api/invoices/${targetId}/pdf`;
-        a.download = filename || `Invoice-${targetId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setBusy(false);
-        return;
+        try {
+          const res = await fetch(`/api/invoices/${targetId}/pdf`);
+          if (res.ok && (res.headers.get("content-type") || "").includes("pdf")) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename || `Invoice-${targetId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            setBusy(false);
+            return;
+          }
+        } catch (serverErr) {
+          console.warn("Server PDF fetch failed, falling back to client renderer:", serverErr);
+        }
       }
 
       const [{ pdf }, { default: InvoicePdf }, { default: BusinessPdf }, { default: DayClosePdf }] =

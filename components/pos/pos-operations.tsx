@@ -473,6 +473,8 @@ export default function PosOperations({
                         </a>
                         <a
                           href={`/api/invoices/${sale.id}/pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           download={`Invoice-${sale.invoice_number}.pdf`}
                           title="Download PDF Invoice"
                           className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"

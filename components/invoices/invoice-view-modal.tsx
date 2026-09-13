@@ -101,7 +101,7 @@ export default function InvoiceViewModal({
         .order("received_at", { ascending: true }),
       supabase.from("settings").select("*").single(),
       supabase.from("upi_merchant_qrs").select("upi_id").eq("is_active", true).limit(1).maybeSingle(),
-      supabase.from("payment_instruments").select("account_number").eq("type", "upi").eq("is_active", true).limit(1).maybeSingle(),
+      supabase.from("payment_instruments").select("name, details").eq("type", "upi").eq("is_active", true).limit(1).maybeSingle(),
     ]);
     if (inv.data) setDetail(inv.data as Detail);
     setItems((its.data ?? []) as Item[]);
@@ -110,7 +110,8 @@ export default function InvoiceViewModal({
     const computedUpi =
       (sets.data as any)?.upi_id ||
       defaultQr.data?.upi_id ||
-      upiInst.data?.account_number ||
+      (upiInst.data?.details as any)?.upi_id ||
+      (upiInst.data?.details as any)?.account_number ||
       "";
     setUpiId(computedUpi);
 
@@ -272,9 +273,9 @@ export default function InvoiceViewModal({
             </svg>
             WhatsApp
           </button>
-          <a href={`/receipt/${invoiceId}/a4?print=true`} target="_blank" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700">🖨️ Print A4</a>
-          <a href={`/receipt/${invoiceId}?print=true`} target="_blank" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">🧾 Print 80mm</a>
-          <a href={`/api/invoices/${invoiceId}/pdf`} download={`Invoice-${detail?.invoice_number || invoiceId}.pdf`} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">📥 PDF</a>
+          <a href={`/receipt/${invoiceId}/a4?print=true`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700">🖨️ Print A4</a>
+          <a href={`/receipt/${invoiceId}?print=true`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">🧾 Print 80mm</a>
+          <a href={`/api/invoices/${invoiceId}/pdf`} target="_blank" rel="noopener noreferrer" download={`Invoice-${detail?.invoice_number || invoiceId}.pdf`} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">📥 PDF</a>
         </div>
       }
       footer={

@@ -1931,6 +1931,8 @@ export default function PosShell({
 
               <a
                 href={`/api/invoices/${success.invoiceId}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
                 download={`Invoice-${success.invoiceNumber}.pdf`}
                 className="flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-black text-blue-700 hover:bg-blue-100 transition shadow-xs dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
               >

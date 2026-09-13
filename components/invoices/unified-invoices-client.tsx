@@ -809,6 +809,8 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                         {/* Download PDF Button */}
                         <a
                           title="Download PDF Invoice"
+                          target="_blank"
+                          rel="noreferrer"
                           href={`/api/invoices/${row.id}/pdf${row.source === "quick" ? "?source=quick" : ""}`}
                           download={`Invoice-${row.number}.pdf`}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
@@ -884,6 +886,8 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                             </a>
                             <a
                               href={`/api/invoices/${row.id}/pdf${row.source === "quick" ? "?source=quick" : ""}`}
+                              target="_blank"
+                              rel="noreferrer"
                               download={`Invoice-${row.number}.pdf`}
                               onClick={() => setMenuKey(null)}
                               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-white/10"

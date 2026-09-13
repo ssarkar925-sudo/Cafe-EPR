@@ -32,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           if (!customerError) invoice.customers = customer || null;
         }
         const [{ data: itRows, error: itemError }, { data: pRows, error: paymentError }] = await Promise.all([
-          db.from("invoice_items").select("id, description, qty, rate, amount, product_id, service_id").eq("invoice_id", id).order("created_at", { ascending: true }),
+          db.from("invoice_items").select("id, description, qty, rate, amount, product_id, service_id").eq("invoice_id", id).order("id", { ascending: true }),
           db.from("payments").select("id, method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
         ]);
         if (itemError) throw itemError;
@@ -53,13 +53,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         if (!customerError) quickCustomer = customer || null;
       }
       const [{ data: qsItems, error: itemError }, { data: qsPayments, error: paymentError }] = await Promise.all([
-        db.from("quick_sale_items").select("id, description, qty, rate, amount, product_id, service_id").eq("quick_sale_id", id),
+        db.from("quick_sale_items").select("id, item_name, qty, rate, amount, product_id, service_id").eq("quick_sale_id", id),
         db.from("payments").select("id, method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
       ]);
       if (itemError) throw itemError;
       if (paymentError) throw paymentError;
       invoice = { id: qs.id, invoice_number: qs.sale_number, invoice_date: qs.sale_date, subtotal: qs.amount, discount: 0, total: qs.amount, paid: qs.amount, due: 0, status: "paid", customers: quickCustomer };
-      items = qsItems?.length ? qsItems : [{ description: qs.item_name || "Quick Sale", qty: 1, rate: qs.amount, amount: qs.amount }];
+      items = qsItems?.length
+        ? qsItems.map((q: any) => ({ ...q, description: q.item_name || "Quick Sale" }))
+        : [{ description: qs.item_name || "Quick Sale", qty: 1, rate: qs.amount, amount: qs.amount }];
       payments = qsPayments?.length ? qsPayments : [{ method: qs.payment_method || "cash", amount: qs.amount }];
     }
 

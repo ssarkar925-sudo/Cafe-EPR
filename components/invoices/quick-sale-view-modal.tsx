@@ -70,7 +70,7 @@ export default function QuickSaleViewModal({
           .eq("quick_sale_id", saleId),
         supabase.from("settings").select("*").single(),
         supabase.from("upi_merchant_qrs").select("upi_id").eq("is_active", true).limit(1).maybeSingle(),
-        supabase.from("payment_instruments").select("account_number").eq("type", "upi").eq("is_active", true).limit(1).maybeSingle(),
+        supabase.from("payment_instruments").select("name, details").eq("type", "upi").eq("is_active", true).limit(1).maybeSingle(),
       ]);
 
       if (sRes.error) {
@@ -88,7 +88,8 @@ export default function QuickSaleViewModal({
         const computedUpi =
           (setsRes.data as any)?.upi_id ||
           defaultQrRes.data?.upi_id ||
-          upiInstRes.data?.account_number ||
+          (upiInstRes.data?.details as any)?.upi_id ||
+          (upiInstRes.data?.details as any)?.account_number ||
           "";
         setUpiId(computedUpi);
 
@@ -310,6 +311,8 @@ export default function QuickSaleViewModal({
               </a>
               <a
                 href={`/api/invoices/${detail.id}/pdf?source=quick`}
+                target="_blank"
+                rel="noopener noreferrer"
                 download={`Invoice-${detail.sale_number}.pdf`}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100"
               >

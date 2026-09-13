@@ -45,7 +45,7 @@ export async function POST(req: Request) {
         .from("invoice_items")
         .select("*, products(name, code), services(name)")
         .eq("invoice_id", invoiceId)
-        .order("created_at", { ascending: true }),
+        .order("id", { ascending: true }),
       db
         .from("payments")
         .select("id, method, amount, received_at")

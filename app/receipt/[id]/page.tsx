@@ -26,7 +26,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       if (!customerResult.error) invoice.customers = customerResult.data || null;
     }
     const [itemsResult, paymentsResult] = await Promise.all([
-      supabase.from("invoice_items").select("id, description, qty, rate, amount, product_id, service_id").eq("invoice_id", id).order("created_at", { ascending: true }),
+      supabase.from("invoice_items").select("id, description, qty, rate, amount, product_id, service_id").eq("invoice_id", id).order("id", { ascending: true }),
       supabase.from("payments").select("method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
     ]);
     if (itemsResult.error) throw new Error(`Receipt item lookup failed: ${itemsResult.error.message}`);
@@ -44,13 +44,15 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       if (!customerResult.error) customer = customerResult.data || null;
     }
     const [itemsResult, paymentsResult] = await Promise.all([
-      supabase.from("quick_sale_items").select("id, description, qty, rate, amount, product_id, service_id").eq("quick_sale_id", id),
+      supabase.from("quick_sale_items").select("id, item_name, qty, rate, amount, product_id, service_id").eq("quick_sale_id", id),
       supabase.from("payments").select("method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
     ]);
     if (itemsResult.error) throw new Error(`Historical receipt item lookup failed: ${itemsResult.error.message}`);
     if (paymentsResult.error) throw new Error(`Historical receipt payment lookup failed: ${paymentsResult.error.message}`);
     invoice = { id: qs.id, invoice_number: qs.sale_number, invoice_date: qs.sale_date, subtotal: qs.amount, discount: 0, total: qs.amount, paid: qs.amount, due: 0, status: "paid", customers: customer };
-    items = itemsResult.data?.length ? itemsResult.data : [{ description: qs.item_name || "Quick Sale", qty: 1, rate: qs.amount, amount: qs.amount }];
+    items = itemsResult.data?.length
+      ? itemsResult.data.map((q: any) => ({ ...q, description: q.item_name || "Quick Sale" }))
+      : [{ description: qs.item_name || "Quick Sale", qty: 1, rate: qs.amount, amount: qs.amount }];
     payments = paymentsResult.data?.length ? paymentsResult.data : [{ method: qs.payment_method || "cash", amount: qs.amount }];
   }
 
@@ -73,15 +75,67 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       <AutoPrint />
       <style>{`@page { size: 80mm auto; margin: 3mm; } @media print { body { background:#fff !important; color:#000 !important; } .print\\:hidden { display:none !important; } }`}</style>
       <section className="mx-auto max-w-[340px] rounded-2xl border border-slate-200 bg-white p-5 shadow-lg print:max-w-none print:rounded-none print:border-none print:p-0 print:shadow-none">
-        <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-200 pb-2 print:hidden"><div><b className="text-xs">Receipt (80mm)</b><p className="text-[10px] text-slate-500">#{invoice.invoice_number}</p></div><div className="flex flex-wrap gap-1"><a href={`/receipt/${id}/a4`} target="_blank" className="rounded border px-2 py-1 text-[10px] font-bold">A4</a><a href={`/api/invoices/${id}/pdf`} download className="rounded border px-2 py-1 text-[10px] font-bold">PDF</a><PrintButton label="Print" /></div></div>
+        <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-200 pb-2 print:hidden">
+          <div>
+            <b className="text-xs text-slate-900">Receipt (80mm)</b>
+            <p className="text-[10px] text-slate-500">#{invoice.invoice_number}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <a href={`/receipt/${id}/a4`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 shadow-xs">📄 A4</a>
+            <a href={`/api/invoices/${id}/pdf`} target="_blank" rel="noopener noreferrer" download={`Invoice-${invoice.invoice_number}.pdf`} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-xs">📥 PDF</a>
+            <PrintButton label="Print" />
+          </div>
+        </div>
         <div className="font-mono text-xs leading-relaxed text-slate-900">
-          <div className="text-center"><p className="text-base font-black">{settings.shop_name || "Sarkar Communication"}</p>{settings.address && <p className="text-[10px]">{settings.address}</p>}<p className="text-[10px]">{settings.phone || ""}{settings.email ? ` · ${settings.email}` : ""}</p>{(settings.gstin || settings.tax_id) && <p className="text-[10px] font-bold">GSTIN: {settings.gstin || settings.tax_id}</p>}</div>
-          <div className="my-2 border-t-2 border-dashed border-slate-400" /><div className="flex justify-between text-[10px] font-bold"><span>RECEIPT / BILL</span><span>#{invoice.invoice_number}</span></div><div className="flex justify-between text-[10px]"><span>Date</span><span>{invoice.invoice_date}</span></div><div className="flex justify-between text-[10px]"><span>Customer</span><span className="font-bold">{invoice.customers?.name || "Walk-in Customer"}</span></div>
-          <div className="my-2 border-t border-dashed border-slate-300" />{items.map((it, idx) => <div key={it.id || idx} className="mb-1 text-[10px]"><div className="font-bold">{it.description || "Item"}</div><div className="flex justify-between pl-2 text-slate-600"><span>{Number(it.qty)} x {money(it.rate)}</span><b className="text-slate-900">{money(it.amount)}</b></div></div>)}
-          <div className="my-2 border-t-2 border-dashed border-slate-400" /><div className="space-y-0.5 text-[10px]"><div className="flex justify-between"><span>Subtotal</span><span>{money(invoice.subtotal)}</span></div>{Number(invoice.discount || 0) > 0 && <div className="flex justify-between"><span>Discount</span><span>- {money(invoice.discount)}</span></div>}<div className="flex justify-between border-t border-slate-300 pt-1 text-sm font-black"><span>TOTAL</span><span>{money(invoice.total)}</span></div><div className="flex justify-between"><span>Paid</span><span>{money(invoice.paid)}</span></div>{due > 0 && <div className="flex justify-between font-bold text-amber-700"><span>Due</span><span>{money(due)}</span></div>}</div>
-          {payments.length > 0 && <div className="mt-2 border-t border-dashed border-slate-300 pt-1 text-[9px]"><b>TENDERED</b>{payments.map((p, idx) => <div key={idx} className="flex justify-between pl-2"><span>{String(p.method).toUpperCase()}</span><span>{money(p.amount)}</span></div>)}</div>}
-          {qrDataUrl && <div className="mt-2 border-t-2 border-dashed border-slate-400 pt-2 text-center"><img src={qrDataUrl} alt="UPI payment QR" className="mx-auto h-24 w-24" /><p className="font-black text-[10px]">SCAN & PAY VIA UPI</p><p className="text-[9px]">{upiId}</p><p className="text-[9px] font-bold">Amount: {money(due)}</p></div>}
-          <div className="mt-2 border-t border-dashed border-slate-300 pt-2 text-center text-[9px] whitespace-pre-line">{settings.receipt_footer || "Thank you for your business."}</div><p className="mt-2 text-center text-[9px] text-slate-400">*** Thank You! Visit Again ***</p>
+          <div className="text-center">
+            <p className="text-base font-black">{settings.shop_name || "Sarkar Communication"}</p>
+            {settings.address && <p className="text-[10px] text-slate-600">{settings.address}</p>}
+            <p className="text-[10px] text-slate-600">{settings.phone || ""}{settings.phone && settings.email ? " · " : ""}{settings.email || ""}</p>
+            {(settings.gstin || settings.tax_id) && <p className="text-[10px] font-bold">GSTIN: {settings.gstin || settings.tax_id}</p>}
+          </div>
+          <div className="my-2 border-t-2 border-dashed border-slate-400" />
+          <div className="flex justify-between text-[10px] font-bold"><span>RECEIPT / BILL</span><span>#{invoice.invoice_number}</span></div>
+          <div className="flex justify-between text-[10px]"><span className="text-slate-600">Date</span><span>{invoice.invoice_date}</span></div>
+          <div className="flex justify-between text-[10px]"><span className="text-slate-600">Customer</span><span className="font-bold">{invoice.customers?.name || "Walk-in Customer"}</span></div>
+          <div className="my-2 border-t border-dashed border-slate-300" />
+          {items.map((it, idx) => {
+            const name = it.description || it.item_name || it.products?.name || it.services?.name || "Item";
+            return (
+              <div key={it.id || idx} className="mb-1 text-[10px]">
+                <div className="font-bold">{name}</div>
+                <div className="flex justify-between pl-2 text-slate-600"><span>{Number(it.qty)} x {money(it.rate)}</span><b className="text-slate-900">{money(it.amount)}</b></div>
+              </div>
+            );
+          })}
+          <div className="my-2 border-t-2 border-dashed border-slate-400" />
+          <div className="space-y-0.5 text-[10px]">
+            <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{money(invoice.subtotal)}</span></div>
+            {Number(invoice.discount || 0) > 0 && <div className="flex justify-between text-emerald-700 font-bold"><span>Discount</span><span>- {money(invoice.discount)}</span></div>}
+            <div className="flex justify-between border-t border-slate-300 pt-1 text-sm font-black"><span>TOTAL</span><span>{money(invoice.total)}</span></div>
+            <div className="flex justify-between text-slate-600"><span>Paid</span><span className="font-semibold text-emerald-700">{money(invoice.paid)}</span></div>
+            {due > 0 && <div className="flex justify-between font-bold text-amber-700"><span>Due</span><span>{money(due)}</span></div>}
+          </div>
+          {payments.length > 0 && (
+            <div className="mt-2 border-t border-dashed border-slate-300 pt-1 text-[9px]">
+              <b>TENDERED:</b>
+              {payments.map((p, idx) => (
+                <div key={idx} className="flex justify-between pl-2">
+                  <span>• {String(p.method).toUpperCase()}</span>
+                  <span>{money(p.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {qrDataUrl && (
+            <div className="mt-2.5 border-t-2 border-dashed border-slate-400 pt-2 text-center bg-slate-50/70 rounded-xl p-2">
+              <img src={qrDataUrl} alt="UPI payment QR" className="mx-auto h-24 w-24 rounded-lg border border-slate-300 bg-white p-1" />
+              <p className="font-black text-[10px] mt-1">SCAN &amp; PAY VIA UPI</p>
+              {upiId && <p className="text-[9px] font-mono text-slate-600">{upiId}</p>}
+              <p className="text-[9px] font-bold text-emerald-800">Amount: {money(due)}</p>
+            </div>
+          )}
+          <div className="mt-2 border-t border-dashed border-slate-300 pt-2 text-center text-[9px] text-slate-600 whitespace-pre-line">{settings.receipt_footer || "Thank you for your business."}</div>
+          <p className="mt-2 text-center text-[9px] text-slate-400">*** Thank You! Visit Again ***</p>
         </div>
       </section>
     </main>

@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (error || !invoice) return new NextResponse("Invoice not found.", { status: 404 });
 
     const [{ data: items }, { data: payments }, { data: settings }] = await Promise.all([
-      db.from("invoice_items").select("*, products(name, code), services(name)").eq("invoice_id", id).order("created_at", { ascending: true }),
+      db.from("invoice_items").select("*, products(name, code), services(name)").eq("invoice_id", id).order("id", { ascending: true }),
       db.from("payments").select("id, method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
       db.from("settings").select("*").single(),
     ]);

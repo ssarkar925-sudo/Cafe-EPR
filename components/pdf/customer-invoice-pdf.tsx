@@ -73,7 +73,7 @@ export default function CustomerInvoicePdf({ invoice, items, payments, settings 
             <Text style={{ ...styles.amt, paddingVertical: 5 }}>Amount</Text>
           </View>
           {(items || []).map((it: any, index: number) => {
-            const name = it.products?.name || it.services?.name || it.description || "Item";
+            const name = it.products?.name || it.services?.name || it.description || it.item_name || "Item";
             return <View key={it.id || index} style={styles.line}><Text style={styles.no}>{index + 1}</Text><Text style={styles.desc}>{name}</Text><Text style={styles.qty}>{Number(it.qty || 0)}</Text><Text style={styles.rate}>{money(it.rate)}</Text><Text style={{ ...styles.amt, fontWeight: "bold" }}>{money(it.amount)}</Text></View>;
           })}
         </View>
