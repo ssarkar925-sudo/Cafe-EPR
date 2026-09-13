@@ -18,14 +18,24 @@ export default async function ReceiptA4Page({ params }: { params: Promise<{ id: 
   let items: any[] = [];
   let payments: any[] = [];
 
+  // Do not embed customer data in the invoice lookup. A stale PostgREST
+  // relationship/schema cache must never turn a valid invoice into a 404.
   const { data: invoiceRow } = await supabase
     .from("invoices")
-    .select("*, customers(name, phone, address, code)")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
 
   if (invoiceRow) {
     invoice = invoiceRow;
+    if (invoiceRow.customer_id) {
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("name, phone, address, code")
+        .eq("id", invoiceRow.customer_id)
+        .maybeSingle();
+      invoice.customers = customer || null;
+    }
     const [{ data: itemRows }, { data: paymentRows }] = await Promise.all([
       supabase.from("invoice_items").select("*, products(name, code), services(name)").eq("invoice_id", id).order("created_at", { ascending: true }),
       supabase.from("payments").select("method, amount, received_at").eq("invoice_id", id).order("received_at", { ascending: true }),
@@ -37,10 +47,20 @@ export default async function ReceiptA4Page({ params }: { params: Promise<{ id: 
     // their print/download path working without exposing a separate UI mode.
     const { data: quickSale } = await supabase
       .from("quick_sales")
-      .select("*, customers(name, phone, address)")
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     if (!quickSale) notFound();
+
+    let quickCustomer: any = null;
+    if (quickSale.customer_id) {
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("name, phone, address, code")
+        .eq("id", quickSale.customer_id)
+        .maybeSingle();
+      quickCustomer = customer || null;
+    }
 
     const [{ data: quickItems }, { data: quickPayments }] = await Promise.all([
       supabase.from("quick_sale_items").select("*, products(name, code, unit), services(name)").eq("quick_sale_id", id),
@@ -61,7 +81,7 @@ export default async function ReceiptA4Page({ params }: { params: Promise<{ id: 
       paid: quickSale.amount,
       due: 0,
       status: "paid",
-      customers: quickSale.customers,
+      customers: quickCustomer,
       customer_gstin: null,
     };
     items = quickItems && quickItems.length > 0 ? quickItems : [{ description: quickSale.item_name || "Quick Sale", qty: 1, rate: quickSale.amount, amount: quickSale.amount }];
