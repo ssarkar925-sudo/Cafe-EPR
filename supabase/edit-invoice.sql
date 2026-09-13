@@ -1,9 +1,0 @@
--- LEGACY FILE RETIRED.
--- Do not run the old invoice editor from this file. It used an older create_sale signature
--- and marked edited invoices as returned, which could distort return reporting.
---
--- Canonical implementation:
---   supabase/migrations/20260913_invoice_edit_atomic.sql
---   supabase/migrations/20260913_invoice_edit_gst_stock_hardening.sql
---
--- Apply those migrations to the production Supabase database before using Edit Invoice.
