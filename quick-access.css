@@ -169,25 +169,30 @@
 .dark .cafe-quick-access__mode-button { color: #94a3b8; }
 .dark .cafe-quick-access__mode-button.is-active { background: #1e293b; color: #bfdbfe; }
 
-/* POS uses a full-viewport reference shell. The command bar is part of that
-   shell, while Quick Access is a sibling in the dashboard page wrapper. */
-body:has(.cafeerp-pos-reference) .erp-workspace.is-pos {
+/* POS order: command bar (inside the POS shell) → Quick Access → billing workspace. */
+.erp-workspace.is-pos {
   position: relative;
 }
 
-body:has(.cafeerp-pos-reference) .erp-workspace.is-pos .erp-page-content > .cafe-quick-access {
+.erp-workspace.is-pos .erp-page-content {
+  position: relative;
+  overflow: hidden;
+}
+
+.erp-workspace.is-pos .erp-page-content > .cafe-quick-access {
   position: absolute;
-  top: 56px;
+  top: 56px !important;
   left: 0;
   right: 0;
   z-index: 200;
-  margin: 0;
+  width: 100%;
+  margin: 0 !important;
 }
 
-/* The POS reference shell is absolute and covers the workspace. Its first
-   real command bar is 56px tall. Move only the billing workspace below the
-   new Quick Access strip; do not alter any POS controls. */
-body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header + div {
+/* The POS shell itself is full viewport and its first header is 56px. The
+   Quick Access strip is 52px tall, so the existing billing grid starts
+   immediately underneath it without changing any controls or panel design. */
+.cafeerp-pos-reference > main {
   margin-top: 52px;
 }
 
@@ -211,18 +216,17 @@ body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header + div {
   .cafe-quick-access__item { min-height: 36px; padding-inline: 10px; }
   .cafe-quick-access__mode-button span:last-child { display: none; }
 
-  /* POS is full-screen on mobile too: apply the same header -> Quick Access
-     -> billing order without exposing the dashboard mobile header. */
-  body:has(.cafeerp-pos-reference) .erp-workspace.is-pos .cafe-quick-access {
+  /* POS remains command bar → Quick Access → billing on smaller screens. */
+  .erp-workspace.is-pos .erp-page-content > .cafe-quick-access {
     position: absolute;
-    top: 56px;
+    top: 56px !important;
     left: 0;
     right: 0;
     z-index: 200;
-    margin: 0;
+    margin: 0 !important;
   }
-  body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header + div {
-    margin-top: 52px;
+  .cafeerp-pos-reference > main {
+    margin-top: 48px;
   }
 
   /* Executive Dashboard already has Cafe AI in the fixed bottom navigation. */
