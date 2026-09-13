@@ -1,7 +1,8 @@
 name: Deploy CafeERP to Cloudflare Workers
 
-# Production deployment workflow. Keep this file on the default branch so every
-# production push deploys the exact main-branch build to Cloudflare Workers.
+# Single production deployment path. Runtime public Supabase configuration is
+# explicitly injected so authenticated server-side receipt rendering never
+# depends on a build-only environment variable.
 on:
   push:
     branches: [main]
@@ -58,4 +59,7 @@ jobs:
         run: npm run build
 
       - name: Deploy to Cloudflare Workers
-        run: npx --yes wrangler@latest deploy --keep-vars
+        run: >-
+          npx --yes wrangler@latest deploy --keep-vars
+          --var "NEXT_PUBLIC_SUPABASE_URL:${NEXT_PUBLIC_SUPABASE_URL}"
+          --var "NEXT_PUBLIC_SUPABASE_ANON_KEY:${NEXT_PUBLIC_SUPABASE_ANON_KEY}"

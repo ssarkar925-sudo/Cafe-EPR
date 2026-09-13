@@ -1,11 +1,23 @@
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 function getSupabaseConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  let runtimeEnv: Record<string, unknown> = {};
+  try {
+    runtimeEnv = (getCloudflareContext().env as Record<string, unknown>) || {};
+  } catch {
+    // Local Next.js tooling can run without a Cloudflare request context.
+  }
+
+  const url = String(process.env.NEXT_PUBLIC_SUPABASE_URL || runtimeEnv.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const key = String(
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      runtimeEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      runtimeEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      ""
+  ).trim();
 
   if (!url || !key) {
     throw new Error("Supabase environment is not configured");
@@ -51,4 +63,3 @@ export async function getSafeUser(supabaseClient?: Awaited<ReturnType<typeof cre
     return null;
   }
 }
-
