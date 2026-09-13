@@ -1,5 +1,7 @@
 name: Deploy CafeERP to Cloudflare Workers
 
+# Production deployment workflow. Keep this file on the default branch so every
+# production push deploys the exact main-branch build to Cloudflare Workers.
 on:
   push:
     branches: [main]
