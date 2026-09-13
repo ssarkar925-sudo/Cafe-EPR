@@ -13,6 +13,7 @@ import ThemeToggle from "@/components/theme-toggle";
 import CloudSyncBadge from "@/components/cloud-sync-badge";
 import WhatsAppStatusBadge from "@/components/whatsapp/whatsapp-status-badge";
 import Modal, { useBodyScrollLock } from "@/components/ui/modal";
+import GlobalQuickAccess from "@/components/global-quick-access";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -1125,8 +1126,12 @@ export default function PosShell({
         </div>
       </header>
 
+      {/* 2. QUICK ACCESS STRIP */}
+      <div className="pos-quick-access-strip shrink-0 border-b border-slate-200/80 bg-white/90 px-2 sm:px-3 py-0.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/90 transition-all">
+        <GlobalQuickAccess />
+      </div>
 
-      {/* 2. MAIN WORKSPACE: Dual Column Layout */}
+      {/* 3. MAIN WORKSPACE: Dual Column Layout */}
       <main className="grid min-h-0 flex-1 [grid-template-columns:minmax(0,1fr)_420px] max-[1100px]:[grid-template-columns:minmax(0,1fr)_370px] max-[880px]:[grid-template-columns:minmax(0,1fr)_330px]">
         {/* LEFT COLUMN: Catalog Explorer */}
         <section className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/50">

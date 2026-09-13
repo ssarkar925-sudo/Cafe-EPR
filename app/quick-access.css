@@ -169,19 +169,41 @@
 .dark .cafe-quick-access__mode-button { color: #94a3b8; }
 .dark .cafe-quick-access__mode-button.is-active { background: #1e293b; color: #bfdbfe; }
 
-/* POS uses a full-viewport reference shell, so Quick Access needs to sit
-   above that shell without changing any POS controls or component layout. */
-body:has(.cafeerp-pos-reference) .erp-page-content > .cafe-quick-access {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 200;
-  margin: 0;
+/* POS Layout: POS Command Bar -> Quick Access Strip -> POS Workspace.
+   Quick Access is embedded directly within pos-shell between <header> and <main>.
+   Reset positioning, margins, and card chrome so it seamlessly blends as a sleek strip. */
+.pos-quick-access-strip {
+  position: relative;
+  z-index: 20;
+  width: 100%;
 }
 
-body:has(.cafeerp-pos-reference) .cafeerp-pos-reference > header:first-of-type {
-  margin-top: 54px;
+.pos-quick-access-strip .cafe-quick-access {
+  position: static !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  width: 100% !important;
+}
+
+.pos-quick-access-strip .cafe-quick-access__inner {
+  min-height: 38px !important;
+  padding: 1px 2px !important;
+  gap: 8px !important;
+}
+
+.pos-quick-access-strip .cafe-quick-access__label {
+  padding: 5px 8px !important;
+  font-size: 9.5px !important;
+}
+
+.pos-quick-access-strip .cafe-quick-access__item {
+  min-height: 32px !important;
+  padding: 4px 9px !important;
+  font-size: 10.5px !important;
 }
 
 @media (max-width: 1023px) {
