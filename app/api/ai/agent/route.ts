@@ -126,15 +126,29 @@ export async function POST(request: Request) {
       }
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: "Cafe AI Agent is not connected yet. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
+    const apiKey = process.env.GEMINI_API_KEY || "";
 
-    const { data: memories } = await supabase.from("ai_memories").select("category,memory_key,memory_value,confidence").eq("user_id", auth.user.id).eq("active", true).order("updated_at", { ascending: false }).limit(100);
-    const memoryContext = (memories || []).map((m: any) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)} (confidence ${m.confidence})`).join("\n") || "No owner memory has been stored yet.";
-    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner memory:\n${memoryContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nOperational rule: use live read-only tools whenever the question concerns current Cafe-EPR data. Do not claim a write, deletion, payment, transaction, invoice, or configuration change unless a dedicated approved execution endpoint has actually confirmed it. For consequential actions, prepare the action and request explicit owner approval rather than pretending it was executed. If the owner explicitly teaches a durable workflow, explain that it can be saved through the Learning Control Center.`;
+    const [{ data: memories }, { data: workflows }] = await Promise.all([
+      supabase.from("ai_memories").select("category,memory_key,memory_value,confidence").eq("user_id", auth.user.id).eq("active", true).order("updated_at", { ascending: false }).limit(100),
+      supabase.from("ai_workflow_versions").select("workflow_key,name,instruction").eq("user_id", auth.user.id).eq("status", "active").limit(25),
+    ]);
+
+    const memoryContext = (memories || []).map((m: any) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)}`).join("\n") || "No owner memory has been stored yet.";
+    const workflowContext = (workflows || []).map((w: any) => `- [Workflow ${w.workflow_key}] ${w.name}: ${w.instruction}`).join("\n") || "No learned workflows active.";
+
+    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nOperational rules:\n1. Prefer verified live tools for facts (catalog, customers, P&L, inventory, transactions).\n2. When the user teaches a rule, preference, or fact, ALWAYS call save_memory so it is permanently learned.\n3. For sales or billing requests, prepare the sale with prepare_quick_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.`;
 
     const result = await runIntelligentAgent({ apiKey, message, history: normalizeHistory(body?.history), systemInstruction, supabase, userId: auth.user.id });
-    return NextResponse.json({ message: result.message, mode: "agentic", canExecute: false, approvalRequired: false, toolsUsed: result.usedTools, rounds: result.rounds, finishReason: result.finishReason });
+    return NextResponse.json({
+      message: result.message,
+      mode: "agentic",
+      canExecute: false,
+      approvalRequired: Boolean((result as any).approval),
+      approval: (result as any).approval || null,
+      toolsUsed: result.usedTools,
+      rounds: result.rounds,
+      finishReason: result.finishReason,
+    });
   } catch (error) {
     console.error("Cafe AI agent failed", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Cafe AI Agent failed" }, { status: 502 });

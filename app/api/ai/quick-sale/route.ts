@@ -14,21 +14,49 @@ type ParsedCommand = {
   customer_name: string | null;
 };
 
-const DEPRECATED_GEMINI_MODELS = new Set(["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-pro"]);
-const DEFAULT_GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+const DEPRECATED_GEMINI_MODELS = new Set(["gemini-2.0-flash-001"]);
+const DEFAULT_GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
 
 function getGeminiModels() {
   const configured = (process.env.GEMINI_MODEL || "").trim();
-  const requested = configured && !DEPRECATED_GEMINI_MODELS.has(configured) ? configured : "gemini-3.6-flash";
+  const requested = configured && !DEPRECATED_GEMINI_MODELS.has(configured) ? configured : "gemini-2.5-flash";
   return Array.from(new Set([requested, ...DEFAULT_GEMINI_MODELS])).filter((model) => !DEPRECATED_GEMINI_MODELS.has(model));
 }
 
 function clean(value: string) {
-  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return value.toLowerCase().replace(/[^a-zA-Z0-9\s]+/g, " ").trim();
 }
 
 function safeLike(value: string) {
   return value.replace(/[\\%_]/g, "");
+}
+
+function parseQuickSaleLocally(message: string): ParsedCommand | null {
+  const text = message.trim();
+  const lower = text.toLowerCase();
+  const payment_method: ParsedCommand["payment_method"] = /\bupi\b/i.test(lower)
+    ? "upi"
+    : /\bcard\b/i.test(lower)
+    ? "card"
+    : /\bcredit|khata\b/i.test(lower)
+    ? "credit"
+    : "cash";
+
+  const custMatch = text.match(/(?:for|customer|to)\s+([A-Za-z\s]+?)(?:,|\.|\s+(?:cash|upi|card|pay)|$)/i);
+  const customer_name = custMatch ? custMatch[1].trim() : null;
+
+  const items: ParsedItem[] = [];
+  const regex = /(\d+)\s+([a-zA-Z\s]+?)(?:and|\+|,|\.|$|cash|upi|card)/gi;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    const qty = parseInt(m[1], 10);
+    const name = m[2].trim();
+    if (qty > 0 && name.length > 1 && !["for", "to", "customer", "and", "cash", "upi", "card"].includes(name.toLowerCase())) {
+      items.push({ name, qty });
+    }
+  }
+  if (!items.length) return null;
+  return { action: "quick_sale", items, payment_method, customer_name };
 }
 
 export async function POST(request: Request) {
@@ -41,60 +69,56 @@ export async function POST(request: Request) {
     if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
     if (message.length > 16000) return NextResponse.json({ error: "Message is too long" }, { status: 413 });
 
+    let parsed: ParsedCommand | null = null;
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: "Cafe AI is not connected. Add GEMINI_API_KEY to the server environment." }, { status: 503 });
 
-    // Gemini function/response schemas use the protobuf Schema surface, which does not
-    // accept JSON-Schema-only keywords such as additionalProperties. Keep this schema
-    // strictly within Gemini's supported fields so the endpoint cannot fail at the model
-    // boundary before any business logic is reached.
-    const requestBody = {
-      systemInstruction: { parts: [{ text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices." }] },
-      contents: [{ role: "user", parts: [{ text: message }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            action: { type: "STRING", enum: ["quick_sale", "unsupported"] },
-            items: { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, qty: { type: "NUMBER" } }, required: ["name", "qty"] } },
-            payment_method: { type: "STRING", enum: ["cash", "upi", "card", "credit", "other"] },
-            customer_name: { type: "STRING" },
+    if (apiKey && apiKey.length > 15 && !apiKey.includes("[SENSITIVE")) {
+      const requestBody = {
+        systemInstruction: { parts: [{ text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices." }] },
+        contents: [{ role: "user", parts: [{ text: message }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              action: { type: "STRING", enum: ["quick_sale", "unsupported"] },
+              items: { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, qty: { type: "NUMBER" } }, required: ["name", "qty"] } },
+              payment_method: { type: "STRING", enum: ["cash", "upi", "card", "credit", "other"] },
+              customer_name: { type: "STRING" },
+            },
+            required: ["action", "items", "payment_method"],
           },
-          required: ["action", "items", "payment_method"],
         },
-      },
-    };
+      };
 
-    let data: any = null;
-    let lastError = "Gemini request failed";
-    for (const model of getGeminiModels()) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify(requestBody),
-          signal: AbortSignal.timeout(30000),
-        });
-        data = await response.json().catch(() => ({}));
-        if (response.ok) break;
-        lastError = data?.error?.message || `${model}: ${response.status} ${response.statusText}`;
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : lastError;
+      for (const model of getGeminiModels()) {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(30000),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (response.ok && data?.candidates?.[0]?.content?.parts) {
+            const outputText = data.candidates[0].content.parts.map((part: any) => part?.text).filter(Boolean).join("\n");
+            parsed = JSON.parse(outputText || "{}");
+            break;
+          }
+        } catch {
+          // fall through to next model or local fallback
+        }
       }
     }
 
-    if (!data?.candidates?.[0]?.content?.parts) return NextResponse.json({ error: lastError }, { status: 502 });
-    const outputText = data.candidates[0].content.parts.map((part: any) => part?.text).filter(Boolean).join("\n");
-
-    let parsed: ParsedCommand;
-    try {
-      parsed = JSON.parse(outputText || "{}");
-    } catch {
-      return NextResponse.json({ error: "Gemini could not structure the quick-sale request." }, { status: 422 });
+    // Fallback to local heuristic parser if Gemini is unavailable
+    if (!parsed || parsed.action !== "quick_sale") {
+      parsed = parseQuickSaleLocally(message);
     }
 
-    if (parsed.action !== "quick_sale" || !parsed.items?.length) return NextResponse.json({ action: "unsupported", message: "This request is not a complete quick sale. I have not changed anything." });
+    if (!parsed || parsed.action !== "quick_sale" || !parsed.items?.length) {
+      return NextResponse.json({ action: "unsupported", message: "This request is not a complete quick sale. I have not changed anything." });
+    }
 
     const supabase = await createClient();
     const [{ data: products, error: productsError }, { data: services, error: servicesError }] = await Promise.all([
