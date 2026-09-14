@@ -60,6 +60,80 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ approval: executed ?? { ...claimed, status: "executed" }, mode: "self-healed", executed: true, repair: { changed: true, message: "WhatsApp was repaired and the connection was verified successfully." } });
     }
 
+    if (approval.action === "record_customer_payment") {
+      const claimed = await claimApprovedAction(id);
+      const payload = claimed.request_payload as any;
+      const supabase = await createClient();
+      const customerId = payload?.customer_id;
+      const amount = Number(payload?.amount || 0);
+      const method = payload?.payment_method || "upi";
+      const description = payload?.description || `Collected via SMS (Ref: ${payload?.reference || "N/A"})`;
+      const entryDate = new Date().toISOString().slice(0, 10);
+
+      if (!customerId || amount <= 0) throw new Error("Customer ID and positive amount are required.");
+
+      const { data: paymentResult, error: paymentError } = await supabase.rpc("record_customer_payment_atomic", {
+        p_customer_id: customerId,
+        p_entry_date: entryDate,
+        p_amount: amount,
+        p_method: method,
+        p_description: description,
+      });
+      if (paymentError) throw new Error(paymentError.message);
+
+      const executed = await markExecuted(id, `payment:${customerId}:${amount}`);
+      return NextResponse.json({
+        approval: executed ?? { ...claimed, status: "executed" },
+        mode: "customer-payment-recorded",
+        executed: true,
+        payment: paymentResult,
+        message: `✓ Recorded payment of ₹${amount.toFixed(2)} for ${payload?.customer_name || "customer"} via ${method.toUpperCase()}. Khata balance updated.`,
+      });
+    }
+
+    if (approval.action === "import_portal_transactions") {
+      const claimed = await claimApprovedAction(id);
+      const payload = claimed.request_payload as any;
+      const supabase = await createClient();
+      const { data: authUser } = await supabase.auth.getUser();
+      const userId = authUser.user?.id;
+      const txns = Array.isArray(payload?.transactions) ? payload.transactions : [];
+      let stagedCount = 0;
+
+      for (const t of txns) {
+        const pName = (t.portalName || payload?.portal_name || "Online Service Portal").trim();
+        const extId = String(t.externalTransactionId || `PORTAL-${Date.now()}`).trim();
+        const fingerprint = `${pName.toLowerCase()}|${extId.toUpperCase().replace(/\s+/g, "")}`;
+        const { error: insErr } = await supabase.from("ai_transaction_imports").insert({
+          created_by: userId,
+          provider_name: pName,
+          source_type: "other",
+          external_transaction_id: extId,
+          status: t.status || "completed",
+          transaction_type: t.transactionType || "Portal Transaction",
+          amount: Number(t.amount || 0),
+          fee: t.fee ? Number(t.fee) : null,
+          commission: t.commission ? Number(t.commission) : null,
+          customer_name: t.customerName || null,
+          customer_mobile: t.customerMobile || null,
+          occurred_at: t.occurredAt || new Date().toISOString().slice(0, 10),
+          raw_data: t,
+          fingerprint,
+          state: "pending",
+        });
+        if (!insErr) stagedCount++;
+      }
+
+      const executed = await markExecuted(id, `portal-import:${stagedCount}`);
+      return NextResponse.json({
+        approval: executed ?? { ...claimed, status: "executed" },
+        mode: "portal-transactions-staged",
+        executed: true,
+        stagedCount,
+        message: `✓ Successfully staged ${stagedCount} portal transaction(s) into Cafe-EPR reconciliation inbox.`,
+      });
+    }
+
     if (approval.action !== "create_sale") return NextResponse.json({ approval, mode: "approved", executed: false });
     const claimed = await claimApprovedAction(id);
     const payload = claimed.request_payload as any;

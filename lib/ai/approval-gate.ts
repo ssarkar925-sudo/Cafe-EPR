@@ -4,7 +4,17 @@ import { OWNER_APPROVAL_REQUIRED, type AgentAction } from "@/lib/ai/agent-policy
 
 export type ApprovalRequest = { id: string; action: AgentAction; status: "pending" | "approved" | "rejected" | "expired" | "executed" | "cancelled"; request_payload: Record<string, unknown>; created_at: string; expires_at: string; };
 
-const EXECUTABLE_ACTIONS = new Set<AgentAction>(["create_sale", "create_invoice", "write_transaction", "delete_record", "change_rule", "repair_whatsapp", "repair_code"]);
+const EXECUTABLE_ACTIONS = new Set<AgentAction>([
+  "create_sale",
+  "create_invoice",
+  "write_transaction",
+  "record_customer_payment",
+  "import_portal_transactions",
+  "delete_record",
+  "change_rule",
+  "repair_whatsapp",
+  "repair_code",
+]);
 
 export function isApprovalRequired(action: AgentAction) { return OWNER_APPROVAL_REQUIRED.has(action); }
 export function isExecutableAction(action: AgentAction) { return EXECUTABLE_ACTIONS.has(action); }

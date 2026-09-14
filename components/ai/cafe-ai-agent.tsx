@@ -5,20 +5,26 @@ import Link from "next/link";
 
 const quickCommands = [
   { label: "⚡ Quick Sale", query: "Create a quick sale for 2 coffee and 1 sandwich, UPI.", category: "Billing" },
+  { label: "📱 Bank SMS", query: "Collect data from this SMS: Dear SBI User, Rs 2,500.00 credited to A/c ending 4589 on 14-Sep-26 by UPI/425819283748/Rahul Kumar. Avail Bal: Rs 14,200.00", category: "SMS" },
+  { label: "🧾 Portal Data", query: "Collect data from portal: CSC DigiPay AEPS Cash Withdrawal Successful. Amount: Rs 3000.00. RRN: 987654321012. Bank: PNB. Commission: Rs 6.00.", category: "Portal" },
+  { label: "🌐 Web Scrape", query: "Collect data from https://httpbin.org/json", category: "Web" },
   { label: "💼 P&L This Month", query: "Calculate profit and loss for this month", category: "Finance" },
   { label: "👥 Khata Dues", query: "Show customer Khata dues summary", category: "Khata" },
   { label: "📦 Low Stock", query: "Check low stock items and reorder alerts", category: "Inventory" },
   { label: "🧠 Teach Rule", query: "Remember that Xerox is 3 rupees per page", category: "Learning" },
-  { label: "💬 WhatsApp Health", query: "Is WhatsApp gateway connected?", category: "System" },
-  { label: "📄 Recent Orders", query: "Show recent transactions", category: "Operations" },
 ];
 
 type ApprovalSummary = {
   approval_id: string;
-  customer: string;
-  payment_method: string;
-  total: number;
-  items: { name: string; qty: number; rate: number; amount: number }[];
+  action?: string;
+  customer?: string;
+  payment_method?: string;
+  total?: number;
+  items?: { name: string; qty: number; rate: number; amount: number }[];
+  portal?: string;
+  count?: number;
+  reference?: string;
+  amount?: number;
 };
 
 type MemoryItem = {
@@ -152,7 +158,7 @@ export default function CafeAIAgent() {
         : await translateText(value, "en", inputLanguage);
 
       // Fast-path quick-sale intent
-      if (/\b(?:sell|create\s+(?:a\s+)?(?:quick\s+)?sale|bill|invoice)\b/i.test(canonicalValue)) {
+      if (/\b(?:sell|create\s+(?:a\s+)?(?:quick\s+)?sale|bill|invoice)\b/i.test(canonicalValue) && !/sms|portal|http/i.test(canonicalValue)) {
         const quick = await fetch("/api/ai/quick-sale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,7 +166,7 @@ export default function CafeAIAgent() {
         });
         const quickData = await quick.json();
         if (quick.ok && quickData?.action === "approval_required") {
-          setApproval({ approval_id: quickData.approval_id, ...quickData.summary });
+          setApproval({ approval_id: quickData.approval_id, action: "create_sale", ...quickData.summary });
           const approvalMessage = await localizeOutput(quickData.message || "I prepared the sale. Please review and approve it.");
           setReply(approvalMessage);
           if (readAloud) speak(approvalMessage);
@@ -174,7 +180,7 @@ export default function CafeAIAgent() {
         }
       }
 
-      // Main Agent endpoint
+      // Main Agent endpoint (handles SMS, Portals, Websites, Memory, Finance)
       const res = await fetch("/api/ai/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -186,15 +192,22 @@ export default function CafeAIAgent() {
       if (data.approvalRequired && data.approval) {
         setApproval({
           approval_id: data.approval.id,
-          customer: data.approval.customer || data.approval.customer_name || "Walk-in customer",
-          payment_method: data.approval.paymentMethod || data.approval.payment_method || "cash",
-          total: Number(data.approval.rawTotal || data.approval.total || 0),
-          items: (data.approval.items || []).map((it: any) => ({
-            name: it.name,
-            qty: Number(it.qty || 1),
-            rate: typeof it.rate === "number" ? it.rate : parseFloat(String(it.rate).replace(/[^\d.]/g, "")) || 0,
-            amount: typeof it.amount === "number" ? it.amount : parseFloat(String(it.amount).replace(/[^\d.]/g, "")) || 0,
-          })),
+          action: data.approval.action || (data.approval.items ? "create_sale" : data.approval.portal ? "import_portal_transactions" : "record_customer_payment"),
+          customer: data.approval.customer || data.approval.customer_name || "Customer",
+          payment_method: data.approval.paymentMethod || data.approval.payment_method || "upi",
+          total: Number(data.approval.rawTotal || data.approval.total || data.approval.amount || 0),
+          amount: Number(data.approval.amount || data.approval.total || 0),
+          reference: data.approval.reference || null,
+          portal: data.approval.portal || null,
+          count: data.approval.count || null,
+          items: Array.isArray(data.approval.items)
+            ? data.approval.items.map((it: any) => ({
+                name: it.name,
+                qty: Number(it.qty || 1),
+                rate: typeof it.rate === "number" ? it.rate : parseFloat(String(it.rate).replace(/[^\d.]/g, "")) || 0,
+                amount: typeof it.amount === "number" ? it.amount : parseFloat(String(it.amount).replace(/[^\d.]/g, "")) || 0,
+              }))
+            : undefined,
         });
       }
 
@@ -254,7 +267,7 @@ export default function CafeAIAgent() {
     else startListening();
   }
 
-  async function approveQuickSale() {
+  async function approveCurrentAction() {
     if (!approval || busy) return;
     setBusy(true);
     setError("");
@@ -262,16 +275,21 @@ export default function CafeAIAgent() {
       const res = await fetch(`/api/ai/agent/approval/${approval.approval_id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "Owner approved quick sale from Cafe AI." }),
+        body: JSON.stringify({ note: "Owner approved action from Cafe AI." }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Approval failed");
-      if (!data.executed) throw new Error("Approval was recorded but the sale was not executed.");
-      const invoice = data.sale?.invoice_number || data.sale?.invoice_id || "created";
-      const completionMessage = await localizeOutput(`Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`);
-      setReply(`✓ ${completionMessage}`);
+      if (!data.executed) throw new Error("Approval was recorded but the action was not executed.");
+
+      let completionMessage = data.message || "Action completed successfully.";
+      if (data.mode === "executed") {
+        const invoice = data.sale?.invoice_number || data.sale?.invoice_id || "created";
+        completionMessage = `Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`;
+      }
+      const localized = await localizeOutput(completionMessage);
+      setReply(`✓ ${localized}`);
       setApproval(null);
-      speak(completionMessage);
+      speak(localized);
     } catch (e) {
       const messageText = e instanceof Error ? e.message : "Approval failed";
       setError(messageText);
@@ -321,11 +339,11 @@ export default function CafeAIAgent() {
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300 backdrop-blur-xs">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-              Autonomous Shop Assistant & Self-Learner
+              Universal Data Collector & Autonomous Assistant
             </div>
             <h1 className="text-3xl font-black tracking-tight sm:text-4xl text-white">Cafe AI Agent</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              High-efficiency ERP assistant with voice & multilingual intelligence. Autonomously learns shop rules, drafts quick invoices with stock & GST verification, monitors Khata dues, and manages daily operations.
+              Collect data from <strong>Phone SMS</strong>, <strong>Service Portals</strong> (DigiPay, Spice Money), and <strong>Websites</strong>. Autonomously learns shop rules, drafts GST invoices, updates customer Khata, and monitors business pulse.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -372,8 +390,8 @@ export default function CafeAIAgent() {
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-black text-slate-900 dark:text-white">Command Console</h2>
-              <p className="text-xs text-slate-500">Voice or text · English · हिन्दी · বাংলা · Mixed Language</p>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">Command & Data Collector Console</h2>
+              <p className="text-xs text-slate-500">Paste Bank SMS · Paste Portal Receipts · Enter Web URL · Voice / Text</p>
             </div>
             <div className="flex items-center gap-2">
               <label className="text-[11px] font-bold text-slate-500" htmlFor="ai-language">Language</label>
@@ -424,7 +442,7 @@ export default function CafeAIAgent() {
                 <span className="text-3xl mb-2">⚡</span>
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">How can I assist your shop today?</p>
                 <p className="text-xs text-slate-400 max-w-md mt-1">
-                  Try &quot;Sell 2 coffee cash&quot;, &quot;Show P&L this month&quot;, &quot;Who owes money?&quot;, or teach me a rule: &quot;Remember Xerox is ₹3/page&quot;.
+                  Paste a bank SMS, portal receipt, or web URL. Or say &quot;Sell 2 coffee cash&quot;, &quot;Show P&L this month&quot;, &quot;Who owes money?&quot;.
                 </p>
               </div>
             )}
@@ -436,41 +454,96 @@ export default function CafeAIAgent() {
                   <div>
                     <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-amber-900 dark:text-amber-200">
                       <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
-                      Owner Approval Required
+                      {approval.action === "record_customer_payment"
+                        ? "Record Customer Khata Payment"
+                        : approval.action === "import_portal_transactions"
+                        ? "Stage Portal Transactions"
+                        : "Owner Approval Required"}
                     </div>
                     <div className="text-xs text-amber-800 dark:text-amber-300">
-                      Verified catalog prices & stock checked. No database write has occurred yet.
+                      {approval.action === "record_customer_payment"
+                        ? "Verify customer payment details extracted from SMS before updating Khata ledger."
+                        : approval.action === "import_portal_transactions"
+                        ? "Stage parsed portal records for Cafe-EPR reconciliation."
+                        : "Verified catalog prices & stock checked. No database write has occurred yet."}
                     </div>
                   </div>
                   <div className="text-2xl font-black text-amber-900 dark:text-amber-100">
-                    ₹{approval.total.toFixed(2)}
+                    ₹{((approval.amount || approval.total || 0)).toFixed(2)}
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2 text-xs text-slate-800 dark:text-slate-200">
-                  <div className="font-bold text-slate-600 dark:text-slate-400">Order Items:</div>
-                  <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 p-3 space-y-1.5 border border-amber-200/60 dark:border-amber-500/20">
-                    {approval.items.map((item) => (
-                      <div key={`${item.name}-${item.qty}`} className="flex justify-between font-medium">
-                        <span>{item.qty} × {item.name}</span>
-                        <span className="font-bold">₹{item.amount.toFixed(2)}</span>
+                {/* Body depending on Action */}
+                {approval.action === "record_customer_payment" ? (
+                  <div className="mt-4 space-y-2 text-xs text-slate-800 dark:text-slate-200">
+                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 p-3 space-y-1.5 border border-amber-200/60 dark:border-amber-500/20">
+                      <div className="flex justify-between font-medium">
+                        <span>Customer to Credit:</span>
+                        <span className="font-bold text-slate-900 dark:text-white">{approval.customer}</span>
                       </div>
-                    ))}
+                      <div className="flex justify-between font-medium">
+                        <span>Payment Amount:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{((approval.amount || approval.total || 0)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Reference / UTR:</span>
+                        <span className="font-mono text-[11px]">{approval.reference || "N/A"}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Payment Channel:</span>
+                        <span className="uppercase font-bold text-indigo-600 dark:text-indigo-400">{approval.payment_method || "UPI"}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between pt-1 font-bold text-[11px] text-slate-600 dark:text-slate-300">
-                    <span>Payment Method: <span className="uppercase text-indigo-600 dark:text-indigo-400">{approval.payment_method}</span></span>
-                    <span>Customer: <span className="text-slate-900 dark:text-white">{approval.customer}</span></span>
+                ) : approval.action === "import_portal_transactions" ? (
+                  <div className="mt-4 space-y-2 text-xs text-slate-800 dark:text-slate-200">
+                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 p-3 space-y-1.5 border border-amber-200/60 dark:border-amber-500/20">
+                      <div className="flex justify-between font-medium">
+                        <span>Service Portal:</span>
+                        <span className="font-bold text-slate-900 dark:text-white">{approval.portal}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Transactions Detected:</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">{approval.count} records</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Total Volume:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{((approval.total || 0)).toFixed(2)}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="mt-4 space-y-2 text-xs text-slate-800 dark:text-slate-200">
+                    <div className="font-bold text-slate-600 dark:text-slate-400">Order Items:</div>
+                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 p-3 space-y-1.5 border border-amber-200/60 dark:border-amber-500/20">
+                      {(approval.items || []).map((item) => (
+                        <div key={`${item.name}-${item.qty}`} className="flex justify-between font-medium">
+                          <span>{item.qty} × {item.name}</span>
+                          <span className="font-bold">₹{item.amount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between pt-1 font-bold text-[11px] text-slate-600 dark:text-slate-300">
+                      <span>Payment Method: <span className="uppercase text-indigo-600 dark:text-indigo-400">{approval.payment_method}</span></span>
+                      <span>Customer: <span className="text-slate-900 dark:text-white">{approval.customer}</span></span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-5 flex gap-3">
                   <button
                     type="button"
-                    onClick={approveQuickSale}
+                    onClick={approveCurrentAction}
                     disabled={busy}
                     className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-emerald-600/20 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
                   >
-                    {busy ? "Executing Sale…" : "✓ Approve & Generate Invoice"}
+                    {busy
+                      ? "Executing…"
+                      : approval.action === "record_customer_payment"
+                      ? "✓ Approve & Credit Customer Khata"
+                      : approval.action === "import_portal_transactions"
+                      ? "✓ Approve & Stage for Reconciliation"
+                      : "✓ Approve & Generate Invoice"}
                   </button>
                   <button
                     type="button"
@@ -499,7 +572,7 @@ export default function CafeAIAgent() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") void ask();
               }}
-              placeholder="e.g. Sell 2 coffee and 1 sandwich UPI, or: Remember John gets 10% off"
+              placeholder="Paste Bank SMS, Portal Receipt, URL (https://...), or command..."
               className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-white"
             />
             <button
@@ -512,29 +585,46 @@ export default function CafeAIAgent() {
           </div>
         </div>
 
-        {/* Side Panel: System Pulse & Self-Learner Capabilities */}
+        {/* Side Panel: Universal Data Collector Capabilities */}
         <div className="space-y-6">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white mb-2">📱 Universal Data Sources</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              Cafe AI can collect and structure data from any channel:
+            </p>
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">1. Phone Bank SMS</div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Paste bank SMS (`Rs 1500 credited by UPI...`). Agent matches customer & prepares Khata credit.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">2. Portals (DigiPay, CSC, Spice)</div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Paste receipts or copied transaction tables. Agent extracts commissions & stages them into ERP.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">3. Websites & Live URLs</div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Provide any `https://...` link. Agent fetches, cleans, and extracts facts or price tables.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-black text-slate-900 dark:text-white">🧠 Self-Learner Engine</h2>
               <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                {memories.length} Active Rules
+                {memories.length} Rules
               </span>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Teach the agent custom shop rules, customer habits, or price guidelines in natural language:
+              Teach custom shop rules or pricing guidelines:
             </p>
             <div className="space-y-2">
-              <button
-                onClick={() => {
-                  const cmd = "Remember that customer Ramesh gets 5% discount";
-                  setMessage(cmd);
-                  void ask(cmd, true, "auto");
-                }}
-                className="w-full text-left rounded-xl border border-purple-200 bg-purple-50/50 p-2.5 text-xs text-purple-900 hover:bg-purple-100/70 dark:border-purple-500/20 dark:bg-purple-950/20 dark:text-purple-200 transition"
-              >
-                &ldquo;Remember customer Ramesh gets 5% discount&rdquo;
-              </button>
               <button
                 onClick={() => {
                   const cmd = "Remember that Xerox is 3 rupees per page";
@@ -546,16 +636,6 @@ export default function CafeAIAgent() {
                 &ldquo;Remember that Xerox is 3 rupees per page&rdquo;
               </button>
             </div>
-          </div>
-
-          <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-5 dark:border-amber-500/20 dark:bg-amber-950/20">
-            <h2 className="text-sm font-black text-amber-900 dark:text-amber-200">Security & Operational Safety</h2>
-            <ul className="mt-3 space-y-2 text-xs leading-5 text-amber-800 dark:text-amber-300">
-              <li>✓ <strong>Owner-in-the-Loop</strong>: Consequential changes (sales, invoices) require 1-click owner approval.</li>
-              <li>✓ <strong>Catalog Verification</strong>: Real-time price and inventory checks prevent over-selling.</li>
-              <li>✓ <strong>Privacy Safe</strong>: Passwords, OTPs, and private keys are never accessed or stored.</li>
-              <li>✓ <strong>Offline Core</strong>: Heuristic intelligence operates seamlessly even when external LLMs are unreachable.</li>
-            </ul>
           </div>
         </div>
       </section>

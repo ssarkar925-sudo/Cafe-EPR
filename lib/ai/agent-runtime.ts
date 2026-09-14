@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkWhatsAppHealth } from "@/lib/whatsapp-health";
 import { calculateGstInvoice } from "@/lib/gst";
+import { parsePhoneSms, parsePortalData, fetchWebsiteData } from "@/lib/ai/data-collector";
 
 const MAX_TOOL_ROUNDS = 4;
 const MAX_HISTORY = 10;
@@ -125,6 +126,39 @@ const TOOL_DECLARATIONS = [
         customer_query: { type: "string", description: "Optional customer name or phone" },
       },
       required: ["items"],
+    },
+  },
+  {
+    name: "collect_from_sms",
+    description: "Collect and extract structured financial data from a phone SMS or bank alert (credited/debited amount, bank name, UTR/RRN reference, account last 4, sender/beneficiary, available balance). Automatically matches customer Khata accounts and prepares 1-click ledger payment recording.",
+    parameters: {
+      type: "object",
+      properties: { sms_text: { type: "string", description: "The full text of the SMS message" } },
+      required: ["sms_text"],
+    },
+  },
+  {
+    name: "collect_from_portal",
+    description: "Collect and parse transaction data from service portals (CSC DigiPay, Spice Money, Paymonk, electricity/utility portals, or copied tables/receipts). Extracts amounts, commissions, fees, and stages them for ERP reconciliation.",
+    parameters: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "The copied text, table, or receipt from the portal" },
+        portal_name: { type: "string", description: "Optional name of the portal (e.g. 'CSC DigiPay')" },
+      },
+      required: ["content"],
+    },
+  },
+  {
+    name: "collect_from_website",
+    description: "Collect, scrape, and extract text and tables from any public website URL. Extracts key data to answer owner questions or monitor external information.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The public HTTP/HTTPS URL to fetch and scrape" },
+        query: { type: "string", description: "Optional question or data to look for on the page" },
+      },
+      required: ["url"],
     },
   },
 ];
@@ -589,6 +623,134 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
       };
     }
 
+    case "collect_from_sms": {
+      const smsText = String(call.args.sms_text || "").trim();
+      if (!smsText) return { error: "No SMS text provided." };
+      const parsed = parsePhoneSms(smsText);
+      if (!parsed.isSms || !parsed.amount) {
+        return {
+          isSms: false,
+          message: "The provided text could not be parsed as a financial bank or UPI alert. Please check the message and try again.",
+        };
+      }
+
+      let matchedCustomer: any = null;
+      if (parsed.senderOrBeneficiary) {
+        const safe = escapeIlike(parsed.senderOrBeneficiary);
+        const { data: custs } = await supabase
+          .from("customers")
+          .select("id, name, phone, balance")
+          .eq("is_active", true)
+          .ilike("name", `%${safe}%`)
+          .limit(1);
+        if (custs && custs.length > 0) matchedCustomer = custs[0];
+      }
+
+      let approval: any = null;
+      if (parsed.direction === "credit" && matchedCustomer && safeNumber(matchedCustomer.balance) > 0) {
+        const { data: appData } = await supabase
+          .from("ai_action_approvals")
+          .insert({
+            requested_by: userId,
+            action: "record_customer_payment",
+            status: "pending",
+            request_payload: {
+              source: "cafe-ai-sms-collector",
+              customer_id: matchedCustomer.id,
+              customer_name: matchedCustomer.name,
+              amount: parsed.amount,
+              payment_method: "upi",
+              reference: parsed.reference,
+              bank: parsed.bank,
+              description: `Collected via SMS: ${parsed.rawText.slice(0, 100)}`,
+            },
+          })
+          .select("id, action, status, request_payload, created_at, expires_at")
+          .single();
+
+        approval = appData;
+      }
+
+      return {
+        parsed,
+        matchedCustomer: matchedCustomer
+          ? {
+              id: matchedCustomer.id,
+              name: matchedCustomer.name,
+              currentBalanceDue: money(matchedCustomer.balance),
+            }
+          : null,
+        approvalRequired: Boolean(approval),
+        approvalId: approval?.id ?? null,
+        approval: approval ? { id: approval.id, customer: matchedCustomer.name, amount: parsed.amount, payment_method: "upi", reference: parsed.reference } : null,
+        message: parsed.direction === "credit"
+          ? `📱 **Bank Credit Alert Detected**\n\n- **Bank**: ${parsed.bank || "Bank"}\n- **Amount**: ${money(parsed.amount)}\n- **UTR/RRN**: ${parsed.reference || "N/A"}\n- **A/c Ending**: ${parsed.accountLast4 ? `...${parsed.accountLast4}` : "N/A"}\n- **Sender**: ${parsed.senderOrBeneficiary || "Unknown"}\n${matchedCustomer ? `- **Matched Customer**: ${matchedCustomer.name} (Current Due: ${money(matchedCustomer.balance)})\n\n*Click "Approve & Credit Khata" below to update customer ledger.*` : "\n*No matching customer with balance due was found. You can credit this payment manually.*"}`
+          : `📱 **Bank Debit Alert Detected**\n\n- **Bank**: ${parsed.bank || "Bank"}\n- **Amount**: -${money(parsed.amount)}\n- **Ref**: ${parsed.reference || "N/A"}\n- **A/c**: ${parsed.accountLast4 || "N/A"}\n- **Beneficiary**: ${parsed.senderOrBeneficiary || "N/A"}`,
+      };
+    }
+
+    case "collect_from_portal": {
+      const content = String(call.args.content || "").trim();
+      const pName = typeof call.args.portal_name === "string" ? call.args.portal_name : undefined;
+      if (!content) return { error: "No portal content provided." };
+      const parsed = parsePortalData(content, pName);
+
+      if (parsed.transactionCount === 0) {
+        return {
+          error: "Could not detect valid completed transaction records in the supplied portal text.",
+        };
+      }
+
+      const { data: approval } = await supabase
+        .from("ai_action_approvals")
+        .insert({
+          requested_by: userId,
+          action: "import_portal_transactions",
+          status: "pending",
+          request_payload: {
+            source: "cafe-ai-portal-collector",
+            portal_name: parsed.portalName,
+            transactions: parsed.transactions,
+            total_amount: parsed.totalAmount,
+            total_commission: parsed.totalCommission,
+          },
+        })
+        .select("id, action, status, request_payload, created_at, expires_at")
+        .single();
+
+      return {
+        portalName: parsed.portalName,
+        transactionCount: parsed.transactionCount,
+        totalAmount: money(parsed.totalAmount),
+        totalCommission: money(parsed.totalCommission),
+        preview: parsed.transactions.slice(0, 5).map((t) => ({
+          ref: t.externalTransactionId,
+          type: t.transactionType,
+          amount: money(t.amount),
+          commission: t.commission ? money(t.commission) : null,
+          status: t.status,
+          aadhaar: t.aadhaarLast4 ? `...${t.aadhaarLast4}` : null,
+        })),
+        approvalRequired: Boolean(approval),
+        approvalId: approval?.id ?? null,
+        approval: approval ? { id: approval.id, portal: parsed.portalName, count: parsed.transactionCount, total: parsed.totalAmount } : null,
+        message: `🧾 **Collected from ${parsed.portalName}**\n\nFound **${parsed.transactionCount}** transaction(s) totaling **${money(parsed.totalAmount)}** (Commissions: ${money(parsed.totalCommission)}).\n\n*Click "Approve & Stage" below to add them to Cafe-EPR reconciliation.*`,
+      };
+    }
+
+    case "collect_from_website": {
+      const url = String(call.args.url || "").trim();
+      if (!url) return { error: "URL is required." };
+      const res = await fetchWebsiteData(url);
+      if (!res.success) return { error: res.error || "Failed to fetch website." };
+      return {
+        url: res.url,
+        title: res.title,
+        contentPreview: res.content?.slice(0, 2000),
+        message: `🌐 **Data Collected from ${res.title || res.url}**\n\n${res.content?.slice(0, 1500)}...`,
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${call.name}` };
   }
@@ -636,7 +798,52 @@ export async function runIntelligentHeuristicAgent({
   const text = message.trim();
   const lower = text.toLowerCase();
 
-  // 1. Check for Memory Teaching / Learning Commands
+  // 1. Phone SMS / Bank Alert Detection
+  const hasSmsIndicators =
+    /\b(?:credited|debited|a\/c\s*(?:ending|no|x+)?|avail(?:able)?\s*bal|sms\s*:|from\s+sms|parse\s+sms|collect\s+(?:data\s+)?from\s+sms)\b/i.test(lower) ||
+    /\b(?:Dear\s+(?:SBI|HDFC|ICICI|Axis|PNB|Customer)|credited\s+by\s+Rs|debited\s+by\s+Rs|UPI\/[0-9]{12})\b/i.test(text);
+
+  if (hasSmsIndicators) {
+    const res = await executeTool({ name: "collect_from_sms", args: { sms_text: text } }, { supabase, userId });
+    if ((res as any).isSms !== false && !(res as any).error) {
+      return {
+        message: (res as any).message,
+        usedTools: ["collect_from_sms"],
+        rounds: 1,
+        finishReason: "STOP",
+        approval: (res as any).approval || null,
+      };
+    }
+  }
+
+  // 2. Service Portal Receipt / Table Detection
+  if (/\b(?:digipay|spicemoney|spice\s*money|paymonk|portal\s*receipt|csc\s*receipt|parse\s*portal|collect\s*(?:data\s*)?from\s*portal)\b/i.test(lower)) {
+    const res = await executeTool({ name: "collect_from_portal", args: { content: text } }, { supabase, userId });
+    if (!(res as any).error) {
+      return {
+        message: (res as any).message,
+        usedTools: ["collect_from_portal"],
+        rounds: 1,
+        finishReason: "STOP",
+        approval: (res as any).approval || null,
+      };
+    }
+  }
+
+  // 3. Website Scraping / URL Detection
+  const urlMatch = text.match(/(?:collect|scrape|fetch|read|extract|get\s*data)(?:\s+data)?(?:\s+from)?\s+(https?:\/\/[^\s]+)/i) || text.match(/^(https?:\/\/[^\s]+)$/i);
+  if (urlMatch) {
+    const targetUrl = urlMatch[1];
+    const res = await executeTool({ name: "collect_from_website", args: { url: targetUrl } }, { supabase, userId });
+    return {
+      message: (res as any).message || (res as any).error || "Could not extract website data.",
+      usedTools: ["collect_from_website"],
+      rounds: 1,
+      finishReason: "STOP",
+    };
+  }
+
+  // 4. Check for Memory Teaching / Learning Commands
   const learnMatch = text.match(/^(?:remember(?:\s+that)?|note\s+down|memorize|save\s+rule|keep\s+in\s+mind|teach)\s*:?\s*(.+)$/i);
   if (learnMatch) {
     const rawInstruction = learnMatch[1].trim();
@@ -660,7 +867,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 2. Check for Memory Forgetting Commands
+  // 5. Check for Memory Forgetting Commands
   const forgetMatch = text.match(/^(?:forget(?:\s+about)?|delete\s+memory|remove\s+rule)\s*:?\s*(.+)$/i);
   if (forgetMatch) {
     const key = forgetMatch[1].trim();
@@ -673,7 +880,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 3. Check for Quick Sale / Billing
+  // 6. Check for Quick Sale / Billing
   if (/\b(?:sell|bill|quick\s*sale|invoice\s*for|create\s*(?:a\s*)?sale)\b/i.test(lower)) {
     const paymentMethod = /\bupi\b/i.test(lower) ? "upi" : /\bcard\b/i.test(lower) ? "card" : /\bcredit|khata\b/i.test(lower) ? "credit" : "cash";
     const customerMatch = text.match(/(?:for|customer|to)\s+([A-Za-z\s]+?)(?:,|\.|\s+(?:cash|upi|card|pay)|$)/i);
@@ -720,7 +927,7 @@ export async function runIntelligentHeuristicAgent({
     }
   }
 
-  // 4. Check for Customer Ledger / Khata Dues
+  // 7. Check for Customer Ledger / Khata Dues
   if (/\b(?:khata|due|dues|receivable|who\s*owes|customer\s*balance)\b/i.test(lower)) {
     const custSearchMatch = text.match(/(?:due\s+for|dues\s+of|balance\s+of|ledger\s+of|customer)\s+([A-Za-z0-9\s]+)/i);
     if (custSearchMatch) {
@@ -755,7 +962,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 5. Check for Low Stock / Inventory
+  // 8. Check for Low Stock / Inventory
   if (/\b(?:stock|inventory|reorder|out\s*of\s*stock|low\s*stock)\b/i.test(lower)) {
     const { data: products } = await supabase
       .from("products")
@@ -788,7 +995,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 6. Check for P&L / Financial Summary
+  // 9. Check for P&L / Financial Summary
   if (/\b(?:p&l|p\/l|profit|loss|revenue|financial|monthly\s*report|business\s*report)\b/i.test(lower)) {
     const snap = await executeTool({ name: "get_business_snapshot", args: {} }, { supabase, userId });
     const fin = (snap as any).financials;
@@ -802,7 +1009,7 @@ export async function runIntelligentHeuristicAgent({
     }
   }
 
-  // 7. Check for WhatsApp / Gateway Health
+  // 10. Check for WhatsApp / Gateway Health
   if (/\b(?:whatsapp|gateway|message|messaging)\b/i.test(lower)) {
     const status = await executeTool({ name: "get_whatsapp_status", args: {} }, { supabase, userId });
     return {
@@ -813,7 +1020,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 8. Check for Recent Transactions
+  // 11. Check for Recent Transactions
   if (/\b(?:recent\s*transactions?|latest\s*transactions?|recent\s*orders?)\b/i.test(lower)) {
     const res = await executeTool({ name: "get_recent_transactions", args: { limit: 8 } }, { supabase, userId });
     const txns = (res as any).transactions || [];
@@ -826,7 +1033,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 9. Check Catalog Price / Stock Search
+  // 12. Check Catalog Price / Stock Search
   if (/\b(?:price|rate|cost|how\s*much|do\s*we\s*have)\b/i.test(lower)) {
     const query = lower.replace(/\b(?:price|rate|cost|how\s*much|do\s*we\s*have|of|for|is|what|a)\b/gi, "").trim();
     if (query) {
@@ -844,7 +1051,7 @@ export async function runIntelligentHeuristicAgent({
     }
   }
 
-  // 10. Check learned memories for any matching knowledge
+  // 13. Check learned memories for any matching knowledge
   const { data: storedMemories } = await supabase
     .from("ai_memories")
     .select("memory_key,memory_value,category")
@@ -868,7 +1075,7 @@ export async function runIntelligentHeuristicAgent({
 
   // Default Assistant Guidance Response
   return {
-    message: `🤖 **Cafe AI Agent Ready**\n\nI am your shop assistant. Here is what I can do for you right now:\n\n- ⚡ **Quick Billing**: Say *"Sell 2 coffee and 1 sandwich UPI"* or *"Bill 5 xerox cash"* to prepare a 1-click GST invoice.\n- 🧠 **Self-Learning**: Say *"Remember that Xerox is 3 rupees per page"* or *"Remember Rahul gets 10% discount"* to teach me rules.\n- 📊 **Financials**: Ask *"Profit and loss this month"* or *"Today's sales report"*.\n- 👥 **Khata Dues**: Ask *"Who owes money?"* or *"Customer balance for Amit"*.\n- 📦 **Inventory**: Ask *"Check low stock items"* or *"What is the price of A4 paper?"*.\n- 💬 **WhatsApp & Health**: Ask *"Is WhatsApp connected?"* or *"Check system health"*.\n\nHow can I help your shop right now?`,
+    message: `🤖 **Cafe AI Agent Ready**\n\nI am your shop assistant. Here is what I can do for you right now:\n\n- 📱 **Collect from Phone SMS**: Paste any bank/UPI SMS (e.g. *"Rs. 1500 credited via UPI from Rahul"*) to auto-extract and update Customer Khata with 1 click.\n- 🧾 **Collect from Portals**: Paste receipts or tables from CSC DigiPay, Spice Money, or utility portals to stage them for reconciliation.\n- 🌐 **Collect from Websites**: Tell me *"Collect data from https://..."* to read web pages, bills, or price lists.\n- ⚡ **Quick Billing**: Say *"Sell 2 coffee and 1 sandwich UPI"* to prepare a 1-click GST invoice.\n- 🧠 **Self-Learning**: Say *"Remember that Xerox is 3 rupees per page"* to teach me rules.\n- 📊 **Financials & Khata**: Ask *"Profit and loss this month"* or *"Who owes money?"*.\n\nHow can I help your shop right now?`,
     usedTools: [],
     rounds: 1,
     finishReason: "STOP",
@@ -906,7 +1113,7 @@ export async function runIntelligentAgent({
     systemInstruction: {
       parts: [
         {
-          text: `${systemInstruction}\n\nYou are an agent, not just a chatbot. Prefer verified Cafe-EPR tools for live facts. Use the minimum tools necessary. You may call multiple independent tools in one turn. When the user teaches a rule or preference, ALWAYS call save_memory so you remember it permanently. If the user asks to prepare a sale or bill, call prepare_quick_sale. Give concise evidence/reasoning. If a tool returns an error, say that clearly. Never invent missing values.\n\nCurrent India date: ${indiaDate()}.`,
+          text: `${systemInstruction}\n\nYou are an agent, not just a chatbot. Prefer verified Cafe-EPR tools for live facts. Use the minimum tools necessary. You may call multiple independent tools in one turn. When the user pastes an SMS, bank alert, or UPI notification, call collect_from_sms. When the user pastes portal receipts or tables, call collect_from_portal. When the user provides a URL or asks to scrape/read a website, call collect_from_website. When the user teaches a rule or preference, ALWAYS call save_memory. Never invent missing values.\n\nCurrent India date: ${indiaDate()}.`,
         },
       ],
     },

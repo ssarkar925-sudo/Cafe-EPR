@@ -31,6 +31,8 @@ export type AgentAction =
   | "prepare_dmt_record"
   | "prepare_upi_record"
   | "import_external_transaction"
+  | "record_customer_payment"
+  | "import_portal_transactions"
   | "create_sale"
   | "create_invoice"
   | "write_transaction"
@@ -47,6 +49,8 @@ export const DEFAULT_AGENT_PERMISSIONS: Record<AgentAction, boolean> = {
   prepare_dmt_record: true,
   prepare_upi_record: true,
   import_external_transaction: true,
+  record_customer_payment: false,
+  import_portal_transactions: false,
   create_sale: false,
   create_invoice: false,
   write_transaction: false,
@@ -60,6 +64,8 @@ export const OWNER_APPROVAL_REQUIRED = new Set<AgentAction>([
   "create_sale",
   "create_invoice",
   "write_transaction",
+  "record_customer_payment",
+  "import_portal_transactions",
   "delete_record",
   "change_rule",
   "repair_whatsapp",
