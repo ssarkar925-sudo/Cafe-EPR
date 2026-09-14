@@ -360,8 +360,9 @@ async function initWhatsApp() {
       }
     });
   } catch (err) {
-    lastStatus = "Baileys not initialized";
-    console.log("⚠️ Baileys library error:", err.message);
+    lastStatus = `Baileys error: ${err?.message || err}`;
+    console.log("⚠️ Baileys library error:", err?.stack || err?.message || err);
+    setTimeout(initWhatsApp, 5000);
   }
 }
 
@@ -609,6 +610,7 @@ const server = http.createServer(async (req, res) => {
       JSON.stringify({
         status: isConnected ? "connected" : "waiting_for_qr",
         connected: isConnected,
+        lastStatus,
         service: "sccomm-whatsapp-gateway",
         port: PORT,
         userPhone,
