@@ -94,7 +94,20 @@ export default function CafeAIAgent() {
   }
 
   useEffect(() => {
+    // Restore persisted language preference
+    try {
+      const saved = localStorage.getItem("cafeerp_ai_lang") as LanguageKey | null;
+      if (saved && LANGUAGE_OPTIONS.some((l) => l.key === saved)) setLanguage(saved);
+    } catch { /* ignore */ }
+
     void loadMemories();
+
+    // Preload voices so speak() can select a native voice immediately
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.getVoices(); // trigger initial load
+      window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+    }
+
     return () => {
       recognitionRef.current?.stop();
       if (typeof window !== "undefined") window.speechSynthesis?.cancel();
@@ -128,21 +141,50 @@ export default function CafeAIAgent() {
   function speak(text: string) {
     if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return;
     window.speechSynthesis.cancel();
-    const cleanText = text.replace(/[*#`_>]/g, "").replace(/\n+/g, " ");
+
+    // Sanitize text for natural TTS delivery
+    const currencyWord = language === "hi" ? "रुपये" : language === "bn" ? "টাকা" : "rupees";
+    const cleanText = text
+      .replace(/₹\s*([\d,]+(?:\.\d+)?)/g, `$1 ${currencyWord}`)
+      .replace(/Rs\.?\s*([\d,]+(?:\.\d+)?)/g, `$1 ${currencyWord}`)
+      .replace(/https?:\/\/[^\s]+/g, "")           // strip URLs
+      .replace(/\*\*(.+?)\*\*/g, "$1")              // strip **bold**
+      .replace(/[*#`_>|~]/g, "")                   // strip other markdown
+      .replace(/!\[.*?\]\(.*?\)/g, "")             // strip images
+      .replace(/\[(.+?)\]\(.*?\)/g, "$1")          // strip links, keep label
+      .replace(/\n{2,}/g, ". ")
+      .replace(/\n/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (!cleanText) return;
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = selectedLanguage.speechLang;
-    utterance.rate = 1.0;
+    utterance.rate = 0.95;
     utterance.pitch = 1.0;
+
+    // Select the best available system voice for this language
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find((v) => v.lang === selectedLanguage.speechLang && !v.localService === false) ||
+      voices.find((v) => v.lang.startsWith(selectedLanguage.speechLang.split("-")[0]));
+    if (preferred) utterance.voice = preferred;
+
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
   }
 
-  function changeLanguage(nextLanguage: LanguageKey) {
+  function stopSpeaking() {
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setSpeaking(false);
+  }
+
+  function changeLanguage(nextLanguage: LanguageKey) {
+    stopSpeaking();
     setLanguage(nextLanguage);
+    // Persist language preference
+    try { localStorage.setItem("cafeerp_ai_lang", nextLanguage); } catch { /* ignore */ }
   }
 
   async function ask(text = message, readAloud = true, inputLanguage = "auto") {
@@ -153,12 +195,14 @@ export default function CafeAIAgent() {
     setReply("");
     setApproval(null);
     try {
+      // Translate non-English input to English for the backend agent
       const canonicalValue = language === "en"
         ? value
         : await translateText(value, "en", inputLanguage);
 
-      // Fast-path quick-sale intent
-      if (/\b(?:sell|create\s+(?:a\s+)?(?:quick\s+)?sale|bill|invoice)\b/i.test(canonicalValue) && !/sms|portal|http/i.test(canonicalValue)) {
+      // Fast-path quick-sale intent (EN, HI, BN, Hinglish, Banglish)
+      const quickSalePattern = /\b(?:sell|create\s+(?:a\s+)?(?:quick\s+)?sale|bill|invoice|becho|bechna|bikriy?|বিক্রি\s+করো|বিল\s+বানাও|बिल\s+बनाओ|क्विक\s+सेल)\b/i;
+      if (quickSalePattern.test(canonicalValue) && !/sms|portal|http/i.test(canonicalValue)) {
         const quick = await fetch("/api/ai/quick-sale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -180,11 +224,11 @@ export default function CafeAIAgent() {
         }
       }
 
-      // Main Agent endpoint (handles SMS, Portals, Websites, Memory, Finance)
+      // Main Agent endpoint — pass language so backend applies multilingual policy
       const res = await fetch("/api/ai/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: canonicalValue }),
+        body: JSON.stringify({ message: canonicalValue, language }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Cafe AI is unavailable");
@@ -211,12 +255,14 @@ export default function CafeAIAgent() {
         });
       }
 
-      const responseMessage = await localizeOutput(data.message || "No response");
+      // Response comes from backend already in the requested language (when Gemini is available).
+      // When heuristic fallback runs, output is also already localized. No double-translation needed.
+      const responseMessage = data.message || "No response";
       setReply(responseMessage);
       if (readAloud) speak(responseMessage);
 
-      // If memory was saved/taught, refresh memories list
-      if (data.toolsUsed?.includes("save_memory") || data.toolsUsed?.includes("forget_memory") || /learned/i.test(data.message)) {
+      // Refresh memories if any were saved/forgotten
+      if (data.toolsUsed?.includes("save_memory") || data.toolsUsed?.includes("forget_memory") || /learned|सीख|শিখ/i.test(data.message)) {
         void loadMemories();
       }
     } catch (e) {
@@ -233,22 +279,39 @@ export default function CafeAIAgent() {
     const speechWindow = window as SpeechWindow;
     const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
     if (!Recognition) {
-      setError("Voice input is not supported by this browser. Use Chrome or Edge and allow microphone access.");
+      setError(language === "hi"
+        ? "आवाज़ इनपुट इस ब्राउज़र में समर्थित नहीं है। Chrome या Edge का उपयोग करें।"
+        : language === "bn"
+        ? "এই ব্রাউজারে ভয়েস ইনপুট সমর্থিত নয়। Chrome বা Edge ব্যবহার করুন।"
+        : "Voice input is not supported by this browser. Use Chrome or Edge and allow microphone access."
+      );
       return;
     }
     recognitionRef.current?.stop();
     const recognition = new Recognition();
     recognition.lang = selectedLanguage.speechLang;
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.onresult = (event) => {
       const transcript = event.results[event.resultIndex]?.[0]?.transcript?.trim() ?? "";
-      setMessage(transcript);
-      if (transcript) void ask(transcript, true, language);
+      if (transcript) {
+        setMessage(transcript);
+        // Only submit on final result (not interim)
+        if (event.results[event.resultIndex]?.[0] && (event.results[event.resultIndex] as any).isFinal !== false) {
+          void ask(transcript, true, language);
+        }
+      }
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       setListening(false);
-      setError("I could not hear that clearly. Check microphone permission and try again.");
+      const errCode = (event as any).error;
+      if (errCode === "no-speech" || errCode === "aborted") return; // silent — user just stopped speaking
+      setError(language === "hi"
+        ? "माइक्रोफोन से आवाज़ नहीं मिली। अनुमति जाँचें और फिर कोशिश करें।"
+        : language === "bn"
+        ? "মাইক্রোফোন থেকে কোনো শব্দ পাওয়া যায়নি। অনুমতি পরীক্ষা করুন।"
+        : "I could not hear that clearly. Check microphone permission and try again."
+      );
     };
     recognition.onend = () => setListening(false);
     recognitionRef.current = recognition;

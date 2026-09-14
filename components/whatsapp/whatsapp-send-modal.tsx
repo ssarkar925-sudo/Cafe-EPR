@@ -31,18 +31,42 @@ export default function WhatsAppSendModal({
   const [message, setMessage] = useState(initialMessage);
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [translatingMsg, setTranslatingMsg] = useState(false);
+  const [originalMessage, setOriginalMessage] = useState(initialMessage);
   const invoiceOnly = messageType === "pos_invoice" && Boolean(refId);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPhone(initialPhone);
     setMessage(initialMessage);
+    setOriginalMessage(initialMessage);
     setStatus("idle");
     setErrorMsg("");
   }, [open, initialPhone, initialMessage]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!open) return null;
+
+  async function translateMessage(targetLanguage: "hi" | "bn" | "en") {
+    setTranslatingMsg(true);
+    setErrorMsg("");
+    try {
+      const source = targetLanguage === "en" ? originalMessage : message;
+      const res = await fetch("/api/ai/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: source, targetLanguage, sourceLanguage: targetLanguage === "en" ? "auto" : "en" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Translation failed");
+      const translated = typeof data?.translatedText === "string" ? data.translatedText.trim() : "";
+      if (translated) setMessage(translated);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Translation failed. Please try again.");
+    } finally {
+      setTranslatingMsg(false);
+    }
+  }
 
   async function handleSend() {
     if (!phone.trim()) {
@@ -127,6 +151,23 @@ export default function WhatsAppSendModal({
             <div className="mb-1 flex items-center justify-between">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Message Content (Editable)</label>
               <span className="text-[11px] text-slate-400 font-mono">{message.length} chars</span>
+            </div>
+            {/* 1-click Customer Language Translation Buttons */}
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase text-slate-400">Translate for customer:</span>
+              <button type="button" disabled={translatingMsg} onClick={() => translateMessage("bn")}
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
+                🇧🇩 বাংলা
+              </button>
+              <button type="button" disabled={translatingMsg} onClick={() => translateMessage("hi")}
+                className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-700 transition hover:bg-orange-100 disabled:opacity-50 dark:border-orange-900/40 dark:bg-orange-950/20 dark:text-orange-300">
+                🇮🇳 हिन्दी
+              </button>
+              <button type="button" disabled={translatingMsg} onClick={() => translateMessage("en")}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/50 dark:text-slate-300">
+                🇬🇧 English
+              </button>
+              {translatingMsg && <span className="text-[10px] text-slate-400 animate-pulse">Translating…</span>}
             </div>
             <textarea rows={9} value={message} onChange={(e) => setMessage(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" placeholder="Type or customize your WhatsApp message..." />
             <p className="mt-1 text-[11px] text-slate-400">💡 Markdown formatting supported: <strong>*bold*</strong>, <em>_italic_</em>, ~strike~, `code`.</p>

@@ -6,9 +6,9 @@ import { runIntelligentAgent, type AgentHistoryItem } from "@/lib/ai/agent-runti
 
 export const dynamic = "force-dynamic";
 
-const LIVE_REPORT_PATTERN = /(?:profit(?:\s*(?:and|&|\/)\s*loss)?|p&l|p\/l|net\s+profit|revenue|expenses?|business\s+report|monthly\s+report|this\s+month|current\s+month|net\s+margin|gross\s+margin)/i;
-const STOCK_ALERT_PATTERN = /(?:low\s+stock|out\s+of\s+stock|reorder|inventory\s+alert|stock\s+level)/i;
-const DUES_PATTERN = /(?:customer\s+due|khata\s+due|who\s+owes|unpaid\s+balance|receivables)/i;
+const LIVE_REPORT_PATTERN = /(?:profit(?:\s*(?:and|&|\/)\s*loss)?|p&l|p\/l|net\s+profit|revenue|expenses?|business\s+report|monthly\s+report|this\s+month|current\s+month|net\s+margin|gross\s+margin|मुनाफा|लाभ|हानि|बिक्री\s+रिपोर्ट|मासिक\s+रिपोर्ट|আজকের\s+সেল|লাভ|ক্ষতি|বিক্রি\s+রিপোর্ট|মাসিক\s+রিপোর্ট|aaj\s+ka\s+munafa|is\s+mahine\s+ka\s+profit)/i;
+const STOCK_ALERT_PATTERN = /(?:low\s+stock|out\s+of\s+stock|reorder|inventory\s+alert|stock\s+level|स्टॉक\s+कम|माल\s+खत्म|स्टॉक\s+जाँचो|স্টক\s+কম|মাল\s+শেষ|স্টক\s+দেখো|stock\s+kitna|maal\s+kitna)/i;
+const DUES_PATTERN = /(?:customer\s+due|khata\s+due|who\s+owes|unpaid\s+balance|receivables|खाता\s+बाकी|उधारी|कितना\s+बकाया|খাতা\s+বাকি|বকেয়া|কার\s+কত\s+বাকি|khata\s+baki|udhari\s+kitni)/i;
 const MAX_MESSAGE_LENGTH = 16_000;
 const MAX_HISTORY_ITEMS = 10;
 
@@ -74,6 +74,7 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const message = typeof body?.message === "string" ? body.message.trim() : "";
+    const language: string = typeof body?.language === "string" && ["hi", "bn", "en"].includes(body.language) ? body.language : "en";
     if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
     if (message.length > MAX_MESSAGE_LENGTH) return NextResponse.json({ error: "Message is too long" }, { status: 413 });
 
@@ -136,9 +137,15 @@ export async function POST(request: Request) {
     const memoryContext = (memories || []).map((m: any) => `- [${m.category}] ${m.memory_key}: ${JSON.stringify(m.memory_value)}`).join("\n") || "No owner memory has been stored yet.";
     const workflowContext = (workflows || []).map((w: any) => `- [Workflow ${w.workflow_key}] ${w.name}: ${w.instruction}`).join("\n") || "No learned workflows active.";
 
-    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\nOperational rules:\n1. Prefer verified live tools for facts (catalog, customers, P&L, inventory, transactions).\n2. When the user teaches a rule, preference, or fact, ALWAYS call save_memory so it is permanently learned.\n3. For sales or billing requests, prepare the sale with prepare_quick_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.`;
+    const languageInstruction = language === "hi"
+      ? "LANGUAGE: Always respond in natural Hindi (Devanagari script). Use common business terms in Hindi but keep technical identifiers like UPI, PDF, GSTIN as-is."
+      : language === "bn"
+      ? "LANGUAGE: Always respond in natural Bengali (Bangla script). Use common business terms in Bengali but keep technical identifiers like UPI, PDF, GSTIN as-is."
+      : "LANGUAGE: Respond in English.";
 
-    const result = await runIntelligentAgent({ apiKey, message, history: normalizeHistory(body?.history), systemInstruction, supabase, userId: auth.user.id });
+    const systemInstruction = `${CAFE_AI_SYSTEM_INSTRUCTIONS}\n\nOwner learned memory:\n${memoryContext}\n\nLearned shop workflows:\n${workflowContext}\n\nCurrent application permission profile:\n${JSON.stringify(DEFAULT_AGENT_PERMISSIONS)}\n\n${languageInstruction}\n\nOperational rules:\n1. Prefer verified live tools for facts (catalog, customers, P&L, inventory, transactions).\n2. When the user teaches a rule, preference, or fact, ALWAYS call save_memory so it is permanently learned.\n3. For sales or billing requests, prepare the sale with prepare_quick_sale and submit for owner approval.\n4. Never claim a financial record was created or modified unless confirmed by a tool.`;
+
+    const result = await runIntelligentAgent({ apiKey, message, history: normalizeHistory(body?.history), systemInstruction, supabase, userId: auth.user.id, language });
     return NextResponse.json({
       message: result.message,
       mode: "agentic",

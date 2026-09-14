@@ -790,17 +790,46 @@ export async function runIntelligentHeuristicAgent({
   message,
   supabase,
   userId,
+  language = "en",
 }: {
   message: string;
   supabase: SupabaseClient<any, any, any>;
   userId: string;
+  language?: string;
 }) {
   const text = message.trim();
   const lower = text.toLowerCase();
 
+  // Localized labels for heuristic output
+  const L = {
+    learned: language === "hi" ? "🧠 **AI मेमोरी में सहेजा गया**" : language === "bn" ? "🧠 **AI মেমোরিতে সংরক্ষিত হয়েছে**" : "🧠 **Learned & Stored in AI Memory**",
+    forgotten: language === "hi" ? "✓ भूल गया:" : language === "bn" ? "✓ ভুলে গেছি:" : "✓ Forgotten:",
+    learnedNote: language === "hi" ? "मैंने इसे याद कर लिया है और भविष्य में लागू करूँगा।" : language === "bn" ? "আমি এটি মনে রেখেছি এবং ভবিষ্যতে প্রয়োগ করব।" : "I will remember and apply this in all future operations.",
+    noSms: language === "hi" ? "यह टेक्स्ट बैंकिंग SMS की तरह नहीं लगता। कृपया पूरा SMS पेस्ट करें।" : language === "bn" ? "এই টেক্সটটি ব্যাংকিং SMS মনে হচ্ছে না। দয়া করে পুরো SMS পেস্ট করুন।" : "The provided text could not be parsed as a financial bank or UPI alert. Please check the message and try again.",
+    noStock: language === "hi" ? "✓ सभी सक्रिय उत्पाद रीऑर्डर सीमा से ऊपर हैं।" : language === "bn" ? "✓ সমস্ত সক্রিয় পণ্য রি-অর্ডার সীমার উপরে আছে।" : "✓ All catalog products are currently healthy and above their reorder thresholds.",
+    noDues: language === "hi" ? "✓ कोई ग्राहक खाता बकाया नहीं है।" : language === "bn" ? "✓ কোনো গ্রাহক খাতা বকেয়া নেই।" : "✓ No customer Khata receivables are currently outstanding.",
+    customer: language === "hi" ? "ग्राहक" : language === "bn" ? "গ্রাহক" : "Customer",
+    phone: language === "hi" ? "फोन" : language === "bn" ? "ফোন" : "Phone",
+    balance: language === "hi" ? "वर्तमान बकाया" : language === "bn" ? "বর্তমান বকেয়া" : "Current Balance Due",
+    creditLimit: language === "hi" ? "क्रेडिट सीमा" : language === "bn" ? "ক্রেডিট লিমিট" : "Credit Limit",
+    saleReady: language === "hi" ? "⚡ **त्वरित बिक्री तैयार (अनुमोदन लंबित)**" : language === "bn" ? "⚡ **কুইক সেল প্রস্তুত (অনুমোদনের অপেক্ষায়)**" : "⚡ **Quick Sale Prepared (Pending Approval)**",
+    saleApprove: language === "hi" ? "नीचे \"अनुमोदित करें\" बटन दबाएं।" : language === "bn" ? "নিচে \"অনুমোদন করুন\" বোতাম চাপুন।" : "Click \"Approve & Execute\" below to finalize and generate the GST invoice.",
+    payment: language === "hi" ? "भुगतान" : language === "bn" ? "পেমেন্ট" : "Payment",
+    items: language === "hi" ? "सामान" : language === "bn" ? "আইটেম" : "Items",
+    total: language === "hi" ? "कुल" : language === "bn" ? "মোট" : "Total",
+    topAccounts: language === "hi" ? "शीर्ष खाते" : language === "bn" ? "শীর্ষ অ্যাকাউন্ট" : "Top Accounts",
+    khataTitle: language === "hi" ? "📋 **ग्राहक खाता बकाया सारांश**" : language === "bn" ? "📋 **গ্রাহক খাতা বকেয়া সারসংক্ষেপ**" : "📋 **Customer Khata Receivables Summary**",
+    totalOutstanding: language === "hi" ? "कुल बकाया" : language === "bn" ? "মোট বকেয়া" : "Total Outstanding",
+    khataDetail: language === "hi" ? "👤 **ग्राहक खाता विवरण:**" : language === "bn" ? "👤 **গ্রাহক খাতা বিবরণ:**" : "👤 **Customer Khata Details:**",
+    stockTitle: language === "hi" ? "⚠️ आइटम कम स्टॉक में:" : language === "bn" ? "⚠️ কম স্টক আইটেম:" : "⚠️ items need attention:",
+    notRecorded: language === "hi" ? "दर्ज नहीं" : language === "bn" ? "রেকর্ড নেই" : "Not recorded",
+    noPhone: language === "hi" ? "फोन नहीं" : language === "bn" ? "ফোন নেই" : "No phone",
+    unknown: language === "hi" ? "मैं इस प्रश्न को समझ नहीं सका। कृपया अधिक विवरण दें।" : language === "bn" ? "আমি এই প্রশ্নটি বুঝতে পারিনি। আরও বিস্তারিত দিন।" : "I couldn't understand that. Please provide more detail or ask about sales, inventory, customer dues, or shop operations.",
+  };
+
   // 1. Phone SMS / Bank Alert Detection
   const hasSmsIndicators =
-    /\b(?:credited|debited|a\/c\s*(?:ending|no|x+)?|avail(?:able)?\s*bal|sms\s*:|from\s+sms|parse\s+sms|collect\s+(?:data\s+)?from\s+sms)\b/i.test(lower) ||
+    /\b(?:credited|debited|a\/c\s*(?:ending|no|x+)?|avail(?:able)?\s*bal|sms\s*:|from\s+sms|parse\s+sms|collect\s+(?:data\s+)?from\s+sms|SMS\s+parse\s+karo|SMS\s+se\s+data|SMS\s+থেকে\s+ডেটা|এসএমএস\s+পার্স)\b/i.test(lower) ||
     /\b(?:Dear\s+(?:SBI|HDFC|ICICI|Axis|PNB|Customer)|credited\s+by\s+Rs|debited\s+by\s+Rs|UPI\/[0-9]{12})\b/i.test(text);
 
   if (hasSmsIndicators) {
@@ -817,7 +846,7 @@ export async function runIntelligentHeuristicAgent({
   }
 
   // 2. Service Portal Receipt / Table Detection
-  if (/\b(?:digipay|spicemoney|spice\s*money|paymonk|portal\s*receipt|csc\s*receipt|parse\s*portal|collect\s*(?:data\s*)?from\s*portal)\b/i.test(lower)) {
+  if (/\b(?:digipay|spicemoney|spice\s*money|paymonk|portal\s*receipt|csc\s*receipt|parse\s*portal|collect\s*(?:data\s*)?from\s*portal|portal\s+se\s+data|পোর্টাল\s+ডেটা)\b/i.test(lower)) {
     const res = await executeTool({ name: "collect_from_portal", args: { content: text } }, { supabase, userId });
     if (!(res as any).error) {
       return {
@@ -830,8 +859,10 @@ export async function runIntelligentHeuristicAgent({
     }
   }
 
-  // 3. Website Scraping / URL Detection
-  const urlMatch = text.match(/(?:collect|scrape|fetch|read|extract|get\s*data)(?:\s+data)?(?:\s+from)?\s+(https?:\/\/[^\s]+)/i) || text.match(/^(https?:\/\/[^\s]+)$/i);
+  // 3. Website Scraping / URL Detection (English + Hinglish + Banglish)
+  const urlMatch =
+    text.match(/(?:collect|scrape|fetch|read|extract|get\s*data|website\s+se\s+data|ওয়েবসাইট\s+থেকে)(?:\s+data)?(?:\s+from)?\s+(https?:\/\/[^\s]+)/i) ||
+    text.match(/^(https?:\/\/[^\s]+)$/i);
   if (urlMatch) {
     const targetUrl = urlMatch[1];
     const res = await executeTool({ name: "collect_from_website", args: { url: targetUrl } }, { supabase, userId });
@@ -843,11 +874,11 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 4. Check for Memory Teaching / Learning Commands
-  const learnMatch = text.match(/^(?:remember(?:\s+that)?|note\s+down|memorize|save\s+rule|keep\s+in\s+mind|teach)\s*:?\s*(.+)$/i);
+  // 4. Check for Memory Teaching / Learning Commands (EN + HI + BN + Hinglish + Banglish)
+  const learnMatch = text.match(/^(?:remember(?:\s+that)?|note\s+down|memorize|save\s+rule|keep\s+in\s+mind|teach|yaad\s+rakho|yaad\s+kar\s+lo|note\s+karo|mone\s+rakho|মনে\s+রাখো|याद\s+रखो|नोट\s+करो)\s*:?\s*(.+)$/i);
   if (learnMatch) {
     const rawInstruction = learnMatch[1].trim();
-    const parts = rawInstruction.split(/[:=\-–—]| is | gets | costs | should /i);
+    const parts = rawInstruction.split(/[:=\-–—]| is | gets | costs | should | hai | hain | আছে /i);
     const key = (parts[0] || rawInstruction.slice(0, 30)).trim().toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, "_");
     const value = rawInstruction;
 
@@ -860,20 +891,20 @@ export async function runIntelligentHeuristicAgent({
     );
 
     return {
-      message: `🧠 **Learned & Stored in AI Memory**\n\nI have committed this to memory under rule \`${key}\`:\n> "${value}"\n\nI will remember and apply this in all future operations.`,
+      message: `${L.learned}\n\n\`${key}\` नियम / নিয়ম के तहत / হিসেবে:\n> "${value}"\n\n${L.learnedNote}`,
       usedTools: ["save_memory"],
       rounds: 1,
       finishReason: "STOP",
     };
   }
 
-  // 5. Check for Memory Forgetting Commands
-  const forgetMatch = text.match(/^(?:forget(?:\s+about)?|delete\s+memory|remove\s+rule)\s*:?\s*(.+)$/i);
+  // 5. Check for Memory Forgetting Commands (EN + HI + BN)
+  const forgetMatch = text.match(/^(?:forget(?:\s+about)?|delete\s+memory|remove\s+rule|bhul\s+jao|bhool\s+jao|ভুলে\s+যাও|भूल\s+जाओ|मिटाओ)\s*:?\s*(.+)$/i);
   if (forgetMatch) {
     const key = forgetMatch[1].trim();
     await executeTool({ name: "forget_memory", args: { memory_key: key } }, { supabase, userId });
     return {
-      message: `✓ Forgotten: I have deactivated any learned rule matching "${key}".`,
+      message: `${L.forgotten} "${key}" से संबंधित / সম্পর্কিত सीखे हुए नियम को निष्क्रिय कर दिया।`,
       usedTools: ["forget_memory"],
       rounds: 1,
       finishReason: "STOP",
@@ -1089,6 +1120,7 @@ export async function runIntelligentAgent({
   systemInstruction,
   supabase,
   userId,
+  language = "en",
 }: {
   apiKey: string;
   message: string;
@@ -1096,9 +1128,10 @@ export async function runIntelligentAgent({
   systemInstruction: string;
   supabase: SupabaseClient<any, any, any>;
   userId: string;
+  language?: string;
 }) {
   if (!apiKey || apiKey.length < 15 || apiKey.includes("[SENSITIVE")) {
-    return runIntelligentHeuristicAgent({ message, supabase, userId });
+    return runIntelligentHeuristicAgent({ message, supabase, userId, language });
   }
 
   const safeHistory = normalizeHistory(history).filter((item) => item.content !== message.trim());
@@ -1139,7 +1172,7 @@ export async function runIntelligentAgent({
 
     if (!result?.ok) {
       console.warn("Gemini API call failed, engaging intelligent heuristic core:", lastError);
-      return runIntelligentHeuristicAgent({ message, supabase, userId });
+      return runIntelligentHeuristicAgent({ message, supabase, userId, language });
     }
 
     finalData = result.data;
