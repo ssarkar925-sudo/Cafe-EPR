@@ -130,6 +130,18 @@ function createInitialTab(index = 1, initialCustomerId = ""): OrderTab {
   };
 }
 
+function normalizeTabs(tabList: OrderTab[]): OrderTab[] {
+  if (!Array.isArray(tabList) || tabList.length === 0) {
+    return [createInitialTab(1)];
+  }
+  return tabList.map((tab, idx) => {
+    if (!tab.title || /^Order #\d+$/i.test(tab.title)) {
+      return { ...tab, title: `Order #${idx + 1}` };
+    }
+    return tab;
+  });
+}
+
 export default function PosShell({
   shopName,
   operatorName,
@@ -252,12 +264,13 @@ export default function PosShell({
         const parsed = JSON.parse(savedTabs);
         if (Array.isArray(parsed) && parsed.length > 0) {
           isRemoteSyncRef.current = true;
-          setTabs(parsed);
+          const normalized = normalizeTabs(parsed);
+          setTabs(normalized);
           const savedActiveTab = localStorage.getItem(`cafeerp_pos_active_tab_${userId || "shared"}`);
-          if (savedActiveTab && parsed.some((t: OrderTab) => t.id === savedActiveTab)) {
+          if (savedActiveTab && normalized.some((t: OrderTab) => t.id === savedActiveTab)) {
             setActiveTabId(savedActiveTab);
           } else {
-            setActiveTabId(parsed[0].id);
+            setActiveTabId(normalized[0].id);
           }
         }
       }
@@ -677,7 +690,7 @@ export default function PosShell({
     }
     const newIdx = tabs.length + 1;
     const newTab = createInitialTab(newIdx);
-    setTabs((curr) => [...curr, newTab]);
+    setTabs((curr) => normalizeTabs([...curr, newTab]));
     setActiveTabId(newTab.id);
     playPosSound("tab", soundEnabled);
     setError(null);
@@ -695,6 +708,7 @@ export default function PosShell({
     if (tabs.length <= 1) {
       // Reset only remaining tab
       updateCurrentTab({
+        title: "Order #1",
         cart: [],
         discount: "",
         customerId: "",
@@ -707,7 +721,7 @@ export default function PosShell({
       playPosSound("delete", soundEnabled);
       return;
     }
-    const filtered = tabs.filter((t) => t.id !== id);
+    const filtered = normalizeTabs(tabs.filter((t) => t.id !== id));
     setTabs(filtered);
     if (activeTabId === id) {
       setActiveTabId(filtered[0].id);
@@ -1747,9 +1761,10 @@ export default function PosShell({
               </button>
 
               {/* Order Tabs */}
-              {tabs.map((tab) => {
+              {tabs.map((tab, idx) => {
                 const isActive = tab.id === activeTabId;
                 const tabItemCount = tab.cart.reduce((s, l) => s + l.qty, 0);
+                const displayTitle = tab.title && !/^Order #\d+$/i.test(tab.title) ? tab.title : `Order #${idx + 1}`;
                 return (
                   <button
                     key={tab.id}
@@ -1761,7 +1776,7 @@ export default function PosShell({
                         : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
                     }`}
                   >
-                    <span>{tab.title}</span>
+                    <span>{displayTitle}</span>
                     {tabItemCount > 0 && (
                       <span className={`text-[9px] font-bold ${isActive ? "text-blue-100" : "text-slate-400"}`}>
                         ({tabItemCount})
