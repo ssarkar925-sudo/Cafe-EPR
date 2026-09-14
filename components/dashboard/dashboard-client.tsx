@@ -72,6 +72,13 @@ const OPERATIONAL_LAUNCHPAD = [
   },
 ] as const;
 
+const DASHBOARD_QUICK_ACTIONS = [
+  { id: "bill-payment", label: "Bill Payment", href: "/business/bill-payment", icon: "bill-payment" },
+  { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },
+  { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },
+  { id: "whatsapp", label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },
+] as const;
+
 export type DashboardClientProps = {
   data: any;
   verifiedContext?: VerifiedFinancialContext;
@@ -1563,10 +1570,18 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           )}
         </div>
 
-        <div className="mt-4 border-t border-slate-100 pt-3 text-center dark:border-white/5">
-          <Link href="/invoices" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
+        <div className="mt-4 border-t border-slate-100 pt-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-bold dark:border-white/5">
+          <Link href="/invoices" className="text-blue-600 hover:underline dark:text-blue-400">
             View Complete Invoices &amp; Activity History →
           </Link>
+          <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400">
+            <Link href="/finance/journal" className="hover:text-blue-600 hover:underline dark:hover:text-blue-400">
+              Journal Entries →
+            </Link>
+            <Link href="/finance/trial-balance" className="hover:text-blue-600 hover:underline dark:hover:text-blue-400">
+              Trial Balance →
+            </Link>
+          </div>
         </div>
       </div>
 

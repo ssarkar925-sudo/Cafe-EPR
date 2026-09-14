@@ -298,6 +298,29 @@ export default function GooglePlayWorkspace({
         .in("service_type", ["google_play_recharge", "google_play", "recharge"]);
       const nextNum = "GPL-" + String((count ?? 0) + 1).padStart(4, "0");
 
+      const resolvedCollectionInstrument = customerPayInstId
+        ? instruments.find((i) => i.id === customerPayInstId)
+        : instruments.find((i) => i.is_active && (
+            customerPayMethod === "cash" ? i.type === "cash" :
+            customerPayMethod === "upi" ? ["upi", "upi_qr"].includes(i.type) :
+            customerPayMethod === "bank" ? i.type === "bank" :
+            customerPayMethod === "wallet" ? i.type === "wallet" :
+            customerPayMethod === "card" ? ["debit_card", "credit_card"].includes(i.type) : false
+          ));
+
+      const effectiveCollectionInstId = customerCollectionAmount > 0 ? (resolvedCollectionInstrument?.id || null) : null;
+      const fundingMethodType = selectedFundingAccount?.type === "cash"
+        ? "cash"
+        : selectedFundingAccount?.type === "bank"
+        ? "bank"
+        : selectedFundingAccount?.type === "credit_card"
+        ? "credit_card"
+        : selectedFundingAccount?.type === "wallet"
+        ? "wallet"
+        : "upi";
+
+      const validAllocations = customerPaymentAllocations.filter((row) => Number(row.amount) > 0);
+
       const insertPayload = {
         transaction_number: nextNum,
         service_type: "google_play_recharge",
@@ -309,7 +332,9 @@ export default function GooglePlayWorkspace({
         reference: voucherCode.trim() || reference.trim() || null,
         remarks: remarks.trim() || `Google Play Recharge ${activeRegion.currency}${rechargeAmount} (${activeRegion.name})`,
         status: "success",
-        instrument_id: fundingInstId,
+        instrument_id: effectiveCollectionInstId,
+        pay_from_instrument_id: fundingInstId,
+        pay_from_method: fundingMethodType,
         amount: rechargeAmount,
         service_fee: custFee,
         portal_commission: commissionEarned,
@@ -320,10 +345,11 @@ export default function GooglePlayWorkspace({
         pool_credit: 0,
         pool_credit_type: "recharge",
         customer_pay_method: customerCollectionAmount > 0 ? customerPayMethod : "due",
-          customer_collected_amount: customerCollectionAmount,
-          customer_due_amount: customerDueAmount,
-          customer_collection_method: customerPayMethod,
-          customer_collection_instrument_id: customerCollectionAmount > 0 ? (customerPayInstId || null) : null,
+        customer_collected_amount: customerCollectionAmount,
+        customer_due_amount: customerDueAmount,
+        customer_collection_method: customerPayMethod,
+        customer_collection_instrument_id: effectiveCollectionInstId,
+        customer_payment_allocations: validAllocations,
       };
 
       let newTxn: any = null;
@@ -365,22 +391,15 @@ export default function GooglePlayWorkspace({
         newTxn = primaryTxn;
       }
 
-      // Customer Collection Leg
-      const { error: collectionError } = await supabase.rpc("apply_transaction_customer_payment_split", { p_txn_id: newTxn.id, p_allocations: customerPaymentAllocations.filter((row) => Number(row.amount) > 0) });
-      if (collectionError) throw collectionError;
-
-      // Provider Funding Leg
-      if (netProviderCost > 0 && selectedFundingAccount) {
-        await supabase.from("cash_entries").insert({
-          entry_date: todayDate,
-          method: selectedFundingAccount.type === "cash" ? "cash" : selectedFundingAccount.type === "bank" ? "bank" : selectedFundingAccount.type === "credit_card" ? "credit_card" : selectedFundingAccount.type === "wallet" ? "wallet" : "upi",
-          direction: "out",
-          amount: netProviderCost,
-          description: `Google Play ${nextNum} provider debit (${selectedFundingAccount.name})`,
-          ref_type: "transaction",
-          ref_id: newTxn.id,
-          instrument_id: selectedFundingAccount.id,
+      // Customer Collection Leg: Only invoke split RPC if explicit multiple payment allocations exist
+      if (validAllocations.length > 1) {
+        const { error: collectionError } = await supabase.rpc("apply_transaction_customer_payment_split", {
+          p_txn_id: newTxn.id,
+          p_allocations: validAllocations,
         });
+        if (collectionError) {
+          console.warn("Split collection adjustment notice:", collectionError.message);
+        }
       }
 
       const formattedTxn: Txn = {
