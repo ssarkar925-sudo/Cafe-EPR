@@ -18,6 +18,7 @@ import {
   AlertCircle,
   ArrowDownToLine,
   ArrowLeft,
+  ArrowRight,
   Check,
   ChevronDown,
   CircleUserRound,
@@ -248,11 +249,14 @@ export default function PosShell({
   const [moneyOutSource, setMoneyOutSource] = useState("");
   const [moneyOutSaving, setMoneyOutSaving] = useState(false);
 
+  // Mobile responsive cart drawer state
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useBodyScrollLock(Boolean(success || operationsPanel) && mounted);
+  useBodyScrollLock(Boolean(success || operationsPanel || (mobileCartOpen && mounted)) && mounted);
 
   // Catalog preparation
   const catalog = useMemo(() => {
@@ -861,6 +865,7 @@ export default function PosShell({
         customerName: selectedCustomer?.name,
         customerPhone: selectedCustomer?.phone ?? undefined,
       });
+      setMobileCartOpen(false);
     } catch (err: any) {
       playPosSound("warning", soundEnabled);
       setError(err?.message || "Failed to complete transaction.");
@@ -1007,9 +1012,9 @@ export default function PosShell({
         />
       </div>
       {/* 1. TOP COMMAND BAR */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 transition-all">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-2.5 sm:px-3.5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95 transition-all">
         {/* Left: Sidebar Toggle, Mobile Hamburger, Brand & Breadcrumbs */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           {/* Mobile Hamburger Toggle (< lg) */}
           <button
             type="button"
@@ -1034,22 +1039,23 @@ export default function PosShell({
           </button>
 
           {/* Brand Icon & Location / Breadcrumbs */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-md shadow-indigo-500/20">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-md shadow-indigo-500/20">
               <ShoppingCart className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                <span className="hidden sm:inline">Café ERP</span>
-                <span className="hidden sm:inline">/</span>
-                <span className="hidden sm:inline">1. Sales Hub</span>
-                <span className="hidden sm:inline">/</span>
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                <span>Café ERP</span>
+                <span>/</span>
+                <span>1. Sales Hub</span>
+                <span>/</span>
                 <span className="text-blue-600 dark:text-blue-400 font-black">POS</span>
               </div>
-              <div className="flex items-center gap-2 text-xs font-black tracking-tight text-slate-900 dark:text-white">
-                <span className="truncate">{shopName || "CafeERP"}</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+              <div className="flex items-center gap-1.5 text-xs font-black tracking-tight text-slate-900 dark:text-white">
+                <span className="truncate max-w-[100px] sm:max-w-[150px]">{shopName || "CafeERP"}</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden xs:inline">Live</span>
                 </span>
                 <span className="text-[10px] font-medium text-slate-400 hidden xl:inline">• {operatorName}</span>
               </div>
@@ -1057,8 +1063,8 @@ export default function PosShell({
           </div>
         </div>
 
-        {/* Center: Multi-Cart Order Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-[36vw] px-2 [scrollbar-width:none]">
+        {/* Center: Multi-Cart Order Tabs (Desktop / Tablet >= md) */}
+        <div className="hidden md:flex items-center gap-1.5 overflow-x-auto max-w-[36vw] px-2 [scrollbar-width:none]">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             const tabGross = tab.cart.reduce((s, l) => s + l.rate * l.qty, 0);
@@ -1110,20 +1116,36 @@ export default function PosShell({
         </div>
 
         {/* Right: Global Toolbar + Badges */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Audio toggle */}
-          <button
-            type="button"
-            onClick={toggleSound}
-            title={soundEnabled ? "Sound ON (Click to mute)" : "Sound MUTED (Click to unmute)"}
-            className={`flex h-8 w-8 items-center justify-center rounded-xl border transition ${
-              soundEnabled
-                ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400"
-                : "border-slate-200 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600"
-            }`}
-          >
-            {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-          </button>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile Tab Switcher Chip (< md) */}
+          <div className="flex md:hidden items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                if (tabs.length > 1) {
+                  const currIdx = tabs.findIndex((t) => t.id === activeTabId);
+                  const nextIdx = (currIdx + 1) % tabs.length;
+                  switchTab(tabs[nextIdx].id);
+                } else {
+                  addNewTab();
+                }
+              }}
+              className="flex h-8 items-center gap-1 rounded-xl bg-blue-50 border border-blue-200 px-2 text-[10px] font-black text-blue-700 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-300 active:scale-95 transition"
+            >
+              <span>{currentTab.title}</span>
+              {tabs.length > 1 && <span className="text-[9px] opacity-70">({tabs.length})</span>}
+            </button>
+            {tabs.length < 5 && (
+              <button
+                type="button"
+                onClick={addNewTab}
+                title="Add New Cart Tab"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-dashed border-slate-300 text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
 
           {/* View mode toggle */}
           <div className="flex h-8 rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-800/80">
@@ -1149,29 +1171,7 @@ export default function PosShell({
             </button>
           </div>
 
-          <span className="hidden sm:block h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
-
-          {/* Money Out */}
-          <button
-            type="button"
-            onClick={() => setOperationsPanel("money-out")}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 text-[10px] font-black text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40 transition"
-          >
-            <ArrowDownToLine className="h-3.5 w-3.5 text-rose-500" />
-            <span className="hidden md:inline">Money Out</span>
-          </button>
-
-          {/* Today's Sales */}
-          <button
-            type="button"
-            onClick={() => void openTodaySales()}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-xs"
-          >
-            <ReceiptText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="hidden md:inline">Sales</span>
-          </button>
-
-          {/* Held Bills */}
+          {/* Held Bills button */}
           <button
             type="button"
             onClick={() => {
@@ -1181,64 +1181,121 @@ export default function PosShell({
               } catch {}
               setOperationsPanel("held");
             }}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-xs"
+            title="Parked / Held Bills"
+            className="relative flex h-8 w-8 sm:w-auto sm:px-2.5 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-xs"
           >
             <Pause className="h-3.5 w-3.5 text-amber-500" />
-            <span className="hidden md:inline">Held</span>
+            <span className="hidden sm:inline">Held</span>
+            {heldBills.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[8px] font-black text-white">
+                {heldBills.length}
+              </span>
+            )}
+          </button>
+
+          {/* Today's Sales */}
+          <button
+            type="button"
+            onClick={() => void openTodaySales()}
+            title="Today's Sales Registry"
+            className="flex h-8 w-8 sm:w-auto sm:px-2.5 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 transition shadow-xs"
+          >
+            <ReceiptText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Sales</span>
+          </button>
+
+          {/* Audio toggle (desktop & tablet) */}
+          <button
+            type="button"
+            onClick={toggleSound}
+            title={soundEnabled ? "Sound ON (Click to mute)" : "Sound MUTED (Click to unmute)"}
+            className={`hidden sm:flex h-8 w-8 items-center justify-center rounded-xl border transition ${
+              soundEnabled
+                ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400"
+                : "border-slate-200 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600"
+            }`}
+          >
+            {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </button>
+
+          {/* Money Out (desktop & tablet) */}
+          <button
+            type="button"
+            onClick={() => setOperationsPanel("money-out")}
+            className="hidden sm:flex h-8 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 text-[10px] font-black text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40 transition"
+          >
+            <ArrowDownToLine className="h-3.5 w-3.5 text-rose-500" />
+            <span className="hidden md:inline">Money Out</span>
+          </button>
+
+          {/* Mobile Cart Button in Header (< lg) */}
+          <button
+            type="button"
+            onClick={() => setMobileCartOpen(true)}
+            className="flex lg:hidden h-8 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-2.5 text-white shadow-md shadow-blue-500/20 active:scale-95 transition"
+            aria-label="Open Cart"
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            <span className="font-mono font-black text-[11px]">{money(total)}</span>
+            {currentTab.cart.reduce((s, l) => s + l.qty, 0) > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[8px] font-black text-white">
+                {currentTab.cart.reduce((s, l) => s + l.qty, 0)}
+              </span>
+            )}
           </button>
 
           <span className="hidden lg:block h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
 
-          {/* Global Telemetry Badges */}
+          {/* Global Telemetry Badges (desktop only) */}
           <div className="hidden lg:flex items-center gap-1.5">
             <CloudSyncBadge />
             <WhatsAppStatusBadge />
             <ThemeToggle />
           </div>
 
-          {/* Back / Exit link for mobile */}
+          {/* Back / Exit link */}
           <Link
             href="/dashboard"
             title="Exit POS to Dashboard"
-            className="flex lg:hidden h-8 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 px-2.5 text-[10px] font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="hidden sm:flex h-8 items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 px-2.5 text-[10px] font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Exit</span>
+            <span className="hidden md:inline">Exit</span>
           </Link>
         </div>
       </header>
 
-      {/* 2. QUICK ACCESS STRIP */}
-      <div className="pos-quick-access-strip shrink-0 border-b border-slate-200/80 bg-white/90 px-2 sm:px-3 py-0.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/90 transition-all">
+      {/* 2. QUICK ACCESS STRIP (hidden on mobile to maximize catalog height) */}
+      <div className="pos-quick-access-strip shrink-0 border-b border-slate-200/80 bg-white/90 px-2 sm:px-3 py-0.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/90 transition-all hidden md:block">
         <GlobalQuickAccess />
       </div>
 
-      {/* 3. MAIN WORKSPACE: Dual Column Layout */}
-      <main className="grid min-h-0 flex-1 [grid-template-columns:minmax(0,1fr)_420px] max-[1100px]:[grid-template-columns:minmax(0,1fr)_370px] max-[880px]:[grid-template-columns:minmax(0,1fr)_330px]">
+      {/* 3. MAIN WORKSPACE: Adaptive Dual Column Layout (Mobile Sheet + Desktop Split) */}
+      <main className="flex min-h-0 flex-1 relative overflow-hidden lg:grid lg:[grid-template-columns:minmax(0,1fr)_420px] max-[1100px]:lg:[grid-template-columns:minmax(0,1fr)_370px]">
         {/* LEFT COLUMN: Catalog Explorer */}
-        <section className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/50">
+        <section className="flex min-h-0 flex-1 flex-col w-full border-r border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/50">
           {/* Search & Scope Ribbon */}
-          <div className="flex flex-col gap-2 border-b border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-1.5">
-              <div data-pos-header-search="reference" className="relative flex-1">
+          <div className="flex flex-col gap-2 border-b border-slate-200 bg-white p-2.5 sm:p-3 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div data-pos-header-search="reference" className="relative flex-1 min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   ref={itemSearchRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search item, scan barcode (F4)..."
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-14 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-900 dark:focus:ring-blue-900/30"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-10 sm:pr-14 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-900 dark:focus:ring-blue-900/30"
                 />
                 {search ? (
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
+                    className="absolute right-3 sm:right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs p-1"
                   >
                     ×
                   </button>
                 ) : null}
-                <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-400 dark:border-slate-700 dark:bg-slate-800">
+                <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-400 dark:border-slate-700 dark:bg-slate-800 hidden sm:inline-block">
                   F4
                 </kbd>
               </div>
@@ -1248,17 +1305,18 @@ export default function PosShell({
                 type="button"
                 onClick={() => setCustomItemOpen(true)}
                 title="Register Custom Item on the fly (F7)"
-                className="flex h-10 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                className="flex h-10 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2.5 sm:px-3 text-xs font-black text-blue-700 shadow-xs transition hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 shrink-0"
               >
                 <Sparkles className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span className="whitespace-nowrap">+ Custom Item</span>
-                <kbd className="hidden sm:inline rounded bg-blue-100/80 px-1 py-0.2 text-[9px] font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-200">
+                <span className="hidden sm:inline">+ Custom Item</span>
+                <span className="sm:hidden">+ Item</span>
+                <kbd className="hidden md:inline rounded bg-blue-100/80 px-1 py-0.2 text-[9px] font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-200">
                   F7
                 </kbd>
               </button>
 
-              {/* Scope Toggles */}
-              <div className="flex h-10 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-950">
+              {/* Scope Toggles (Desktop & Tablet >= sm) */}
+              <div className="hidden sm:flex h-10 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-950 shrink-0">
                 {[
                   { id: "all", label: "ALL" },
                   { id: "services", label: "SERVICES" },
@@ -1283,12 +1341,39 @@ export default function PosShell({
               </div>
             </div>
 
+            {/* Mobile Scope Bar (< sm) */}
+            <div className="flex sm:hidden items-center justify-between gap-1 pt-0.5">
+              <div className="flex h-8.5 flex-1 rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-950">
+                {[
+                  { id: "all", label: "ALL ITEMS" },
+                  { id: "services", label: "SERVICES" },
+                  { id: "products", label: "PRODUCTS" },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setScope(s.id as any);
+                      setCategory("all");
+                    }}
+                    className={`flex-1 rounded-lg text-[10px] font-black transition ${
+                      scope === s.id
+                        ? "bg-white text-blue-700 shadow-xs dark:bg-blue-600 dark:text-white"
+                        : "text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Category Ribbon */}
-            <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-1 [-webkit-overflow-scrolling:touch]">
               <button
                 type="button"
                 onClick={() => setCategory("all")}
-                className={`shrink-0 rounded-xl px-3 py-1 text-[10px] font-black transition ${
+                className={`shrink-0 rounded-xl px-3 py-1.5 text-[10px] font-black transition active:scale-95 ${
                   category === "all"
                     ? "bg-blue-600 text-white shadow-sm"
                     : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -1468,21 +1553,78 @@ export default function PosShell({
               </div>
             )}
           </div>
+
+          {/* MOBILE FLOATING CART DOCK (Visible only on < lg) */}
+          <div className="lg:hidden shrink-0 border-t border-slate-200/90 bg-white/95 backdrop-blur-xl px-3.5 py-2.5 shadow-2xl dark:border-slate-800/90 dark:bg-slate-900/95 pb-[calc(0.6rem+env(safe-area-inset-bottom))]">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(true)}
+                className="flex items-center gap-2.5 min-w-0 text-left flex-1"
+              >
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
+                  <ShoppingCart className="h-5 w-5" />
+                  {currentTab.cart.reduce((s, l) => s + l.qty, 0) > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white ring-2 ring-white dark:ring-slate-900">
+                      {currentTab.cart.reduce((s, l) => s + l.qty, 0)}
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+                    {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items in {currentTab.title}
+                  </div>
+                  <div className="text-base font-black font-mono text-blue-600 dark:text-cyan-400 truncate">
+                    {money(total)}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(true)}
+                className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-4 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/25 active:scale-95 transition shrink-0"
+              >
+                <span>View Cart & Pay</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </section>
 
-        {/* RIGHT COLUMN: Active Order Slip & Tender Pad */}
-        <aside className="flex min-h-0 flex-col bg-white border-l border-slate-200 dark:bg-slate-950 dark:border-slate-800">
-          {/* Order Header */}
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 px-4 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60">
-            <div>
-              <div className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                {currentTab.title} Slip
-              </div>
-              <div className="text-[10px] text-slate-500 font-semibold dark:text-slate-400">
-                {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items · {money(total)}
+        {/* RIGHT COLUMN: Active Order Slip & Tender Pad (Slide-Over Sheet on Mobile, Fixed Column on Desktop) */}
+        <aside
+          className={`
+            flex min-h-0 flex-col bg-white border-slate-200 dark:bg-slate-950 dark:border-slate-800
+            lg:relative lg:flex lg:border-l lg:translate-y-0
+            fixed inset-0 z-50 transition-transform duration-300 ease-out
+            ${mobileCartOpen ? "translate-y-0" : "translate-y-full lg:translate-y-0"}
+          `}
+        >
+          {/* Order Header / Mobile Close Bar */}
+          <div className="flex h-13 shrink-0 items-center justify-between border-b border-slate-200 px-3.5 bg-slate-50/90 dark:border-slate-800 dark:bg-slate-900/80">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Mobile Back button */}
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(false)}
+                className="flex lg:hidden h-8 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-xs active:scale-95 transition"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 text-blue-600 dark:text-cyan-400" />
+                <span>Catalog</span>
+              </button>
+
+              <div className="min-w-0">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white truncate">
+                  {currentTab.title} Slip
+                </div>
+                <div className="text-[10px] text-slate-500 font-semibold dark:text-slate-400">
+                  {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items · {money(total)}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
+
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={holdCurrentBill}
@@ -1497,6 +1639,15 @@ export default function PosShell({
                 className="rounded-lg px-2 py-1 text-[10px] font-black text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
               >
                 Clear
+              </button>
+              {/* Close 'X' button on Mobile */}
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(false)}
+                className="flex lg:hidden h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+                aria-label="Close cart drawer"
+              >
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -1658,20 +1809,20 @@ export default function PosShell({
                   </div>
                 </div>
 
-                {/* Large 38px Touch Steppers */}
+                {/* Touch Steppers */}
                 <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
                   <button
                     type="button"
                     onClick={() => updateQty(line.key, line.qty - 1)}
-                    className="flex h-8 w-8 items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    className="flex h-9 w-9 items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white active:scale-90 transition"
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="w-7 text-center font-mono font-black text-slate-900 dark:text-white">{line.qty}</span>
+                  <span className="w-8 text-center font-mono font-black text-slate-900 dark:text-white">{line.qty}</span>
                   <button
                     type="button"
                     onClick={() => updateQty(line.key, line.qty + 1)}
-                    className="flex h-8 w-8 items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    className="flex h-9 w-9 items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white active:scale-90 transition"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -1686,9 +1837,9 @@ export default function PosShell({
                 <button
                   type="button"
                   onClick={() => removeLine(line.key)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-500 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-500 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 active:scale-90 transition"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             ))}
@@ -1703,7 +1854,7 @@ export default function PosShell({
           </div>
 
           {/* Financial Summary & Totalizer */}
-          <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-900/60">
+          <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 p-3 sm:p-3.5 space-y-2 dark:border-slate-800 dark:bg-slate-900/60 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {/* Discount row with quick chips */}
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Discount</span>
@@ -1720,7 +1871,7 @@ export default function PosShell({
                       }
                       playPosSound("click", soundEnabled);
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-white"
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-white active:scale-95"
                   >
                     {chip.includes("%") ? chip : `₹${chip}`}
                   </button>
@@ -1773,7 +1924,7 @@ export default function PosShell({
             </div>
 
             {/* Payment Tender Selector */}
-            <div className="grid grid-cols-4 gap-1 pt-1">
+            <div className="grid grid-cols-4 gap-1.5 pt-1">
               {[
                 { id: "cash", label: "Cash" },
                 { id: "upi", label: "UPI QR" },
@@ -1786,7 +1937,7 @@ export default function PosShell({
                     key={p.id}
                     type="button"
                     onClick={() => selectPayment(p.id as any)}
-                    className={`h-9 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all ${
+                    className={`h-10 sm:h-9 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all active:scale-95 ${
                       isSelected
                         ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 font-extrabold ring-1 ring-blue-400/30 scale-[1.02]"
                         : "bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:bg-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/60"
@@ -2011,7 +2162,7 @@ export default function PosShell({
               type="button"
               disabled={!currentTab.cart.length || busy}
               onClick={() => void completeSale()}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="flex h-12 sm:h-13 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
             >
               {busy ? (
                 <span>Recording Sale...</span>
@@ -2028,16 +2179,16 @@ export default function PosShell({
 
       {/* 3. POST-SALE ACTION HUB (SUCCESS MODAL) */}
       {success && mounted && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-fade-in dark:bg-black/80">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl text-center dark:border-slate-800 dark:bg-slate-900 animate-modal-panel">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:ring-emerald-500/40">
-              <Check className="h-7 w-7" />
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-3 sm:p-4 backdrop-blur-md animate-fade-in dark:bg-black/80">
+          <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xl text-center dark:border-slate-800 dark:bg-slate-900 animate-modal-panel">
+            <div className="mx-auto flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:ring-emerald-500/40">
+              <Check className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
 
-            <h2 className="mt-4 text-xl font-black text-slate-900 dark:text-white">Sale Completed!</h2>
-            <p className="mt-1 font-mono text-sm font-bold text-blue-600 dark:text-cyan-400">{success.invoiceNumber}</p>
+            <h2 className="mt-3 text-lg sm:text-xl font-black text-slate-900 dark:text-white">Sale Completed!</h2>
+            <p className="mt-0.5 font-mono text-xs sm:text-sm font-bold text-blue-600 dark:text-cyan-400">{success.invoiceNumber}</p>
 
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left space-y-2 text-xs dark:border-slate-800 dark:bg-slate-950">
+            <div className="mt-3 sm:mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 text-left space-y-1.5 text-xs dark:border-slate-800 dark:bg-slate-950">
               <div className="flex justify-between text-slate-500 dark:text-slate-400">
                 <span>Total Amount:</span>
                 <strong className="text-slate-900 font-mono dark:text-white">{money(success.total)}</strong>
@@ -2055,18 +2206,18 @@ export default function PosShell({
               {success.customerName && (
                 <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-200 dark:text-slate-400 dark:border-slate-800">
                   <span>Customer:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{success.customerName}</span>
+                  <span className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">{success.customerName}</span>
                 </div>
               )}
             </div>
 
-            {/* Instant Action Grid: All 4 Operations Available */}
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            {/* Instant Action Grid: All 4 Operations with minimum 44px touch height */}
+            <div className="mt-3.5 sm:mt-4 grid grid-cols-2 gap-2">
               <a
                 href={`/receipt/${success.invoiceId}?print=true`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100 transition shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100 transition shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 active:scale-95"
               >
                 <Printer className="h-4 w-4 text-blue-600 dark:text-cyan-400" />
                 <span>Print 80mm</span>
@@ -2076,7 +2227,7 @@ export default function PosShell({
                 href={`/receipt/${success.invoiceId}/a4?print=true`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100 transition shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100 transition shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 active:scale-95"
               >
                 <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Print A4</span>
@@ -2086,7 +2237,7 @@ export default function PosShell({
                 type="button"
                 onClick={() => void handleDownloadPdf()}
                 disabled={downloadingPdf}
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-black text-blue-700 hover:bg-blue-100 transition shadow-xs dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 disabled:opacity-50 cursor-pointer"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-black text-blue-700 hover:bg-blue-100 transition shadow-xs dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 disabled:opacity-50 cursor-pointer active:scale-95"
               >
                 {downloadingPdf ? (
                   <>
@@ -2106,7 +2257,7 @@ export default function PosShell({
                   type="button"
                   onClick={() => void sendWhatsAppInvoice()}
                   disabled={whatsappStatus === "sending" || whatsappStatus === "sent"}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50 shadow-xs"
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50 shadow-xs active:scale-95"
                 >
                   <MessageSquare className="h-4 w-4" />
                   <span>
@@ -2126,7 +2277,7 @@ export default function PosShell({
                       setSuccess((prev) => (prev ? { ...prev, customerPhone: phone.trim() } : null));
                     }
                   }}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 shadow-xs"
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-black text-emerald-700 hover:bg-emerald-100 transition dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 shadow-xs active:scale-95"
                 >
                   <MessageSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   <span>WhatsApp</span>
@@ -2148,7 +2299,7 @@ export default function PosShell({
               type="button"
               autoFocus
               onClick={handleResetAfterSale}
-              className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white hover:bg-blue-700 transition shadow-lg shadow-blue-600/25"
+              className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white hover:bg-blue-700 active:scale-98 transition shadow-lg shadow-blue-600/25 cursor-pointer"
             >
               Start Next Bill (Enter)
             </button>
