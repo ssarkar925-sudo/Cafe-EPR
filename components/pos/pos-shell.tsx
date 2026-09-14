@@ -1732,9 +1732,10 @@ export default function PosShell({
             ${mobileCartOpen ? "translate-y-0" : "translate-y-full lg:translate-y-0"}
           `}
         >
-          {/* Order Header: Title + Sound, Money Out, Held, Sales, Hold, Clear */}
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 px-3 bg-slate-50/90 dark:border-slate-800 dark:bg-slate-900/80 gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+          {/* 1. Order Tabs & Cart Actions Header */}
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200 px-3 bg-slate-50/90 dark:border-slate-800 dark:bg-slate-900/80 gap-2">
+            {/* Left: Mobile Back button + Multi-Order Tabs */}
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
               {/* Mobile Back button */}
               <button
                 type="button"
@@ -1745,78 +1746,64 @@ export default function PosShell({
                 <span>Catalog</span>
               </button>
 
-              <div className="min-w-0">
-                <div className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white truncate">
-                  {currentTab.title.toUpperCase()}
-                </div>
-                <div className="text-[10px] text-slate-500 font-semibold dark:text-slate-400 truncate">
-                  {currentTab.cart.reduce((s, l) => s + l.qty, 0)} items · {money(total)}
-                </div>
-              </div>
+              {/* Order Tabs */}
+              {tabs.map((tab) => {
+                const isActive = tab.id === activeTabId;
+                const tabItemCount = tab.cart.reduce((s, l) => s + l.qty, 0);
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => switchTab(tab.id)}
+                    className={`group flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black transition-all shrink-0 ${
+                      isActive
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
+                    }`}
+                  >
+                    <span>{tab.title}</span>
+                    {tabItemCount > 0 && (
+                      <span className={`text-[9px] font-bold ${isActive ? "text-blue-100" : "text-slate-400"}`}>
+                        ({tabItemCount})
+                      </span>
+                    )}
+                    {tabs.length > 1 && (
+                      <span
+                        role="button"
+                        onClick={(e) => closeTab(tab.id, e)}
+                        className="flex h-3.5 w-3.5 items-center justify-center rounded hover:bg-black/20 text-white/70 hover:text-white transition ml-0.5"
+                      >
+                        ×
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {tabs.length < 5 && (
+                <button
+                  type="button"
+                  onClick={addNewTab}
+                  title="Add New Cart Tab (F2)"
+                  className="flex h-7 items-center gap-1 rounded-lg border border-dashed border-slate-300 bg-white/60 px-2 text-[9px] font-black text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 shrink-0"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Tab</span>
+                  <kbd className="text-[8px] font-bold text-slate-400">F2</kbd>
+                </button>
+              )}
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* Audio Toggle */}
-              <button
-                type="button"
-                onClick={toggleSound}
-                title={soundEnabled ? "Sound ON (Click to mute)" : "Sound MUTED (Click to unmute)"}
-                className={`flex h-7 w-7 items-center justify-center rounded-lg border transition ${
-                  soundEnabled
-                    ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400"
-                    : "border-slate-200 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600"
-                }`}
-              >
-                {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-              </button>
-
-              {/* Money Out */}
-              <button
-                type="button"
-                onClick={() => setOperationsPanel("money-out")}
-                className="flex h-7 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-[9px] font-black text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 transition shrink-0"
-                title="Money Out / Record Expense"
-              >
-                <ArrowDownToLine className="h-3 w-3 text-rose-500" />
-                <span className="hidden sm:inline">Money Out</span>
-              </button>
-
-              {/* Held Bills */}
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    const raw = localStorage.getItem(HELD_STORAGE_KEY);
-                    setHeldBills(raw ? JSON.parse(raw) : []);
-                  } catch {}
-                  setOperationsPanel("held");
-                }}
-                title="Parked / Held Bills"
-                className="flex h-7 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 text-[9px] font-black text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 transition shrink-0"
-              >
-                <Pause className="h-3 w-3 text-amber-600" />
-                <span>{heldBills.length > 0 ? `${heldBills.length.toString().padStart(2, "0")} Held` : "Held"}</span>
-              </button>
-
-              {/* Today's Sales */}
-              <button
-                type="button"
-                onClick={() => void openTodaySales()}
-                title="Today's Sales Registry"
-                className="flex h-7 items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 text-[9px] font-black text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300 transition shrink-0"
-              >
-                <ReceiptText className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                <span>Sales</span>
-              </button>
-
+            {/* Right: Cart Actions (Hold & Clear) */}
+            <div className="flex items-center gap-1 shrink-0">
               {/* Hold Current Tab */}
               <button
                 type="button"
                 onClick={holdCurrentBill}
-                title="Park this bill to finish later"
-                className="flex h-7 items-center gap-1 rounded-lg border border-amber-300 bg-white px-2 text-[9px] font-black text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-300 shrink-0"
+                title="Park this bill to finish later (F4)"
+                className="flex h-7 items-center gap-1 rounded-lg border border-amber-300 bg-amber-50/50 px-2 text-[9px] font-black text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-300 shrink-0"
               >
-                <Pause className="h-3 w-3" />
+                <Pause className="h-3 w-3 text-amber-600" />
                 <span>Hold</span>
               </button>
 
@@ -1824,7 +1811,8 @@ export default function PosShell({
               <button
                 type="button"
                 onClick={clearActiveCart}
-                className="rounded-lg px-2 py-1 text-[9px] font-black text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40 shrink-0"
+                title="Clear current cart items"
+                className="flex h-7 items-center rounded-lg px-2 text-[9px] font-black text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40 shrink-0"
               >
                 Clear
               </button>
@@ -1841,54 +1829,77 @@ export default function PosShell({
             </div>
           </div>
 
-          {/* Customer Banner & Selector + Order Tabs Bar */}
+          {/* 2. POS Quick Operations Strip & Items Count */}
+          <div className="flex h-8 shrink-0 items-center justify-between border-b border-slate-200/80 bg-slate-100/70 px-3 dark:border-slate-800 dark:bg-slate-900/60 gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {/* Audio Toggle */}
+              <button
+                type="button"
+                onClick={toggleSound}
+                title={soundEnabled ? "Sound ON (Click to mute)" : "Sound MUTED (Click to unmute)"}
+                className={`flex h-6 w-6 items-center justify-center rounded-md border transition ${
+                  soundEnabled
+                    ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400"
+                    : "border-slate-200 bg-white text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600"
+                }`}
+              >
+                {soundEnabled ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+              </button>
+
+              {/* Money Out */}
+              <button
+                type="button"
+                onClick={() => setOperationsPanel("money-out")}
+                className="flex h-6 items-center gap-1 rounded-md border border-rose-200 bg-white px-1.5 text-[9px] font-black text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 transition shrink-0"
+                title="Money Out / Record Expense"
+              >
+                <ArrowDownToLine className="h-3 w-3 text-rose-500" />
+                <span>Money Out</span>
+              </button>
+
+              {/* Held Bills */}
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    const raw = localStorage.getItem(HELD_STORAGE_KEY);
+                    setHeldBills(raw ? JSON.parse(raw) : []);
+                  } catch {}
+                  setOperationsPanel("held");
+                }}
+                title="Parked / Held Bills"
+                className="flex h-6 items-center gap-1 rounded-md border border-amber-200 bg-white px-1.5 text-[9px] font-black text-amber-800 hover:bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 transition shrink-0"
+              >
+                <Pause className="h-3 w-3 text-amber-600" />
+                <span>{heldBills.length > 0 ? `${heldBills.length.toString().padStart(2, "0")} Held` : "Held"}</span>
+              </button>
+
+              {/* Today's Sales */}
+              <button
+                type="button"
+                onClick={() => void openTodaySales()}
+                title="Today's Sales Registry"
+                className="flex h-6 items-center gap-1 rounded-md border border-blue-200 bg-white px-1.5 text-[9px] font-black text-blue-700 hover:bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300 transition shrink-0"
+              >
+                <ReceiptText className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                <span>Sales</span>
+              </button>
+            </div>
+
+            {/* Active Cart Summary Badge */}
+            <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate shrink-0">
+              <span>{currentTab.cart.reduce((s, l) => s + l.qty, 0)} items</span>
+              <span className="mx-1 text-slate-300 dark:text-slate-600">·</span>
+              <span className="font-mono font-black text-slate-900 dark:text-white">{money(total)}</span>
+            </div>
+          </div>
+
+          {/* 3. Customer Banner & Selector */}
           <div className="shrink-0 border-b border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/40">
             <div data-pos-customer-action="reference" className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">
                 Customer
               </span>
-
-              {/* Order Tabs */}
-              <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
-                {tabs.map((tab) => {
-                  const isActive = tab.id === activeTabId;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => switchTab(tab.id)}
-                      className={`group flex h-6 items-center gap-1.5 rounded-lg px-2 text-[10px] font-black transition-all shrink-0 ${
-                        isActive
-                          ? "bg-blue-600 text-white shadow-xs"
-                          : "border border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300"
-                      }`}
-                    >
-                      <span>{tab.title}</span>
-                      {tabs.length > 1 && (
-                        <span
-                          role="button"
-                          onClick={(e) => closeTab(tab.id, e)}
-                          className="flex h-3.5 w-3.5 items-center justify-center rounded hover:bg-black/20 text-white/70 hover:text-white transition"
-                        >
-                          ×
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-                {tabs.length < 5 && (
-                  <button
-                    type="button"
-                    onClick={addNewTab}
-                    title="Add New Cart Tab (F2)"
-                    className="flex h-6 items-center gap-1 rounded-lg border border-dashed border-slate-300 px-1.5 text-[9px] font-black text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400 shrink-0"
-                  >
-                    <Plus className="h-3 w-3" />
-                    <span>Tab</span>
-                    <kbd className="text-[8px] font-bold text-slate-400">F2</kbd>
-                  </button>
-                )}
-              </div>
 
               {/* + New Customer or Change */}
               <div className="shrink-0">
