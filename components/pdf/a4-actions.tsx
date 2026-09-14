@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { InvoicePdfData } from "./invoice-pdf";
 import type { BusinessPdfData } from "./business-pdf";
 import type { DayClosePdfData } from "./day-close-pdf";
@@ -11,18 +11,54 @@ export default function A4Actions({
   filename,
   showFees = false,
   receiptUrl,
+  invoiceId,
 }: {
   variant: "invoice" | "business" | "day_close";
   data: InvoicePdfData | BusinessPdfData | DayClosePdfData;
   filename: string;
   showFees?: boolean;
   receiptUrl?: string;
+  invoiceId?: string;
 }) {
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("download") === "true") {
+        const timer = setTimeout(() => {
+          void downloadPdf();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
 
   async function downloadPdf() {
     setBusy(true);
     try {
+      const targetId = invoiceId || (data as any)?.invoice?.id;
+      if (variant === "invoice" && targetId) {
+        try {
+          const res = await fetch(`/api/invoices/${targetId}/pdf`);
+          if (res.ok && (res.headers.get("content-type") || "").includes("pdf")) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename || `Invoice-${targetId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            setBusy(false);
+            return;
+          }
+        } catch (serverErr) {
+          console.warn("Server PDF fetch failed, falling back to client renderer:", serverErr);
+        }
+      }
+
       const [{ pdf }, { default: InvoicePdf }, { default: BusinessPdf }, { default: DayClosePdf }] =
         await Promise.all([
           import("@react-pdf/renderer"),
@@ -47,7 +83,15 @@ export default function A4Actions({
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err: any) {
+      console.error("PDF download failed:", err);
+      const targetId = invoiceId || (data as any)?.invoice?.id;
+      if (variant === "invoice" && targetId) {
+        window.open(`/api/invoices/${targetId}/pdf`, "_blank");
+      } else {
+        alert("Unable to generate PDF directly. Please use Print -> Save as PDF.");
+      }
     } finally {
       setBusy(false);
     }
@@ -59,18 +103,21 @@ export default function A4Actions({
         <a
           href={receiptUrl}
           target="_blank"
-          className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
         >
           🧾 View Receipt (80mm)
         </a>
       )}
       <button
+        type="button"
         onClick={() => window.print()}
         className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"
       >
         🖨️ Print Invoice (A4)
       </button>
       <button
+        type="button"
         onClick={downloadPdf}
         disabled={busy}
         className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
