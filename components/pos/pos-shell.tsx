@@ -1077,16 +1077,20 @@ export default function PosShell({
       });
 
       if (rpcError) throw new Error(rpcError.message);
-      const result = (data ?? {}) as Partial<SuccessState> & { invoice_number?: string | null };
+      // create_sale() returns jsonb with key 'invoice_id' (not 'id').
+      // Cast to any before mapping to avoid TypeScript hiding the real keys.
+      const raw = (data ?? {}) as Record<string, any>;
+      const invoiceId = String(raw.invoice_id || raw.id || "");
+      const invoiceNumber = String(raw.invoice_number ?? "INV-SUCCESS");
 
       playPosSound("success", soundEnabled);
 
       setSuccess({
-        invoiceId: String((result as any).id || (result as any).invoice_id || ""),
-        invoiceNumber: String(result.invoice_number ?? "INV-SUCCESS"),
-        total: Number(result.total ?? total),
-        paid: Number(result.paid ?? (currentTab.paymentChoice === "khata" ? 0 : total)),
-        due: Number(result.due ?? (currentTab.paymentChoice === "khata" ? total : 0)),
+        invoiceId,
+        invoiceNumber,
+        total: Number(raw.total ?? total),
+        paid: Number(raw.paid ?? (currentTab.paymentChoice === "khata" ? 0 : total)),
+        due: Number(raw.due ?? (currentTab.paymentChoice === "khata" ? total : 0)),
         customerName: selectedCustomer?.name,
         customerPhone: selectedCustomer?.phone ?? undefined,
       });
@@ -1125,7 +1129,8 @@ export default function PosShell({
   }
 
   async function sendWhatsAppInvoice() {
-    if (!success?.invoiceId || !success?.customerPhone) return;
+    if (!success?.customerPhone) return;
+    if (!success.invoiceId && !success.invoiceNumber) return;
     try {
       setWhatsappStatus("sending");
       setWhatsappMsg("");
@@ -1134,6 +1139,7 @@ export default function PosShell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invoiceId: success.invoiceId,
+          invoiceNumber: success.invoiceNumber,
           phone: success.customerPhone,
         }),
       });

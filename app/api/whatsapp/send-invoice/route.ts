@@ -21,22 +21,46 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const invoiceId = String(body?.invoiceId || "").trim();
+    const invoiceNumber = String(body?.invoiceNumber || "").trim();
     const phone = String(body?.phone || "").trim();
-    if (!invoiceId || !phone) {
+    if ((!invoiceId && !invoiceNumber) || !phone) {
       return NextResponse.json(
-        { success: false, error: "Invoice ID and recipient phone are required." },
+        { success: false, error: "Invoice ID (or invoice number) and recipient phone are required." },
         { status: 400 }
       );
     }
 
     const db = createAdminClient();
-    const { data: invoice, error } = await db
-      .from("invoices")
-      .select("*, customers(name, phone, address, code)")
-      .eq("id", invoiceId)
-      .maybeSingle();
 
-    if (error || !invoice) {
+    // Helper: look up invoice by ID first, fallback to invoice number
+    async function lookupInvoice() {
+      if (invoiceId) {
+        const res = await db
+          .from("invoices")
+          .select("*, customers(name, phone, address, code)")
+          .eq("id", invoiceId)
+          .maybeSingle();
+        if (!res.error && res.data) return res.data;
+      }
+      if (invoiceNumber) {
+        const res = await db
+          .from("invoices")
+          .select("*, customers(name, phone, address, code)")
+          .eq("invoice_number", invoiceNumber)
+          .maybeSingle();
+        if (!res.error && res.data) return res.data;
+      }
+      return null;
+    }
+
+    // Try immediately, then retry once after 600ms to handle DB commit race condition
+    let invoice = await lookupInvoice();
+    if (!invoice) {
+      await new Promise((r) => setTimeout(r, 600));
+      invoice = await lookupInvoice();
+    }
+
+    if (!invoice) {
       return NextResponse.json({ success: false, error: "Invoice not found." }, { status: 404 });
     }
 
