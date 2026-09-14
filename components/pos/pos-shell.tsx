@@ -14,6 +14,7 @@ import CloudSyncBadge from "@/components/cloud-sync-badge";
 import WhatsAppStatusBadge from "@/components/whatsapp/whatsapp-status-badge";
 import Modal, { useBodyScrollLock } from "@/components/ui/modal";
 import GlobalQuickAccess from "@/components/global-quick-access";
+import GlobalSearch from "@/components/global-search";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -184,6 +185,7 @@ export default function PosShell({
   const [products, setProducts] = useState<PosCatalogItem[]>(initialProducts);
   const [services, setServices] = useState<PosCatalogItem[]>(initialServices);
   const [customItemOpen, setCustomItemOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
   // Merchant QR state
   const [selectedMerchantQrId, setSelectedMerchantQrId] = useState<string>(
@@ -632,7 +634,10 @@ export default function PosShell({
   // Keyboard Shortcuts Handler
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "F2") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setGlobalSearchOpen(true);
+      } else if (e.key === "F2") {
         e.preventDefault();
         addNewTab();
       } else if (e.key === "F3") {
@@ -1284,6 +1289,23 @@ export default function PosShell({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Center: Global Search Bar */}
+        <div className="flex-1 flex justify-center max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mx-2 sm:mx-4 min-w-0">
+          <button
+            type="button"
+            onClick={() => setGlobalSearchOpen(true)}
+            className="group flex w-full items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-100/70 px-3 py-1.5 text-xs text-slate-400 shadow-inner transition hover:border-blue-500/50 hover:bg-white hover:text-slate-600 hover:shadow-xs dark:border-white/10 dark:bg-slate-800/60 dark:hover:border-blue-400/50 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
+          >
+            <Search className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-500 dark:group-hover:text-cyan-400 transition-colors shrink-0" />
+            <span className="flex-1 text-left truncate text-[11px] sm:text-xs">
+              Search anything (invoices, items, customers)…
+            </span>
+            <kbd className="hidden sm:inline-flex shrink-0 items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-500 shadow-2xs dark:border-white/10 dark:bg-slate-900 dark:text-slate-400">
+              ⌘K
+            </kbd>
+          </button>
         </div>
 
         {/* Right: Global Status & Utilities */}
@@ -2758,6 +2780,12 @@ export default function PosShell({
         open={customItemOpen}
         onClose={() => setCustomItemOpen(false)}
         onAddCustomItem={handleAddCustomItem}
+      />
+
+      {/* 9. GLOBAL SYSTEM SEARCH MODAL */}
+      <GlobalSearch
+        open={globalSearchOpen}
+        onClose={() => setGlobalSearchOpen(false)}
       />
     </div>
   );
