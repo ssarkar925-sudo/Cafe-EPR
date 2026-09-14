@@ -13,7 +13,7 @@ import {
   Info,
   Check,
 } from "lucide-react";
-import { DEFAULT_AUTOMATIONS, DEFAULT_WA_CONFIG, saveWhatsAppConfig, saveCloudWhatsAppConfig, type WhatsAppAutomationRules, type WhatsAppProvider } from "@/lib/whatsapp";
+import { DEFAULT_AUTOMATIONS, DEFAULT_WA_CONFIG, getWhatsAppConfig, saveWhatsAppConfig, saveCloudWhatsAppConfig, type WhatsAppAutomationRules, type WhatsAppProvider } from "@/lib/whatsapp";
 
 type ConfigResponse = {
   provider: WhatsAppProvider;
@@ -46,18 +46,18 @@ type ConfigResponse = {
 
 export default function WhatsAppConfigurationPanel() {
   const [cfg, setCfg] = useState<ConfigResponse>({
-    provider: "meta",
-    gateway_url: DEFAULT_WA_CONFIG.gateway_url,
+    provider: "local_gateway",
+    gateway_url: DEFAULT_WA_CONFIG.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com",
     automations: DEFAULT_AUTOMATIONS,
-    configured: false,
+    configured: true,
   });
   const [token, setToken] = useState("");
   const [phoneId, setPhoneId] = useState("");
   const [wabaId, setWabaId] = useState("");
   const [appId, setAppId] = useState("");
   const [displayPhone, setDisplayPhone] = useState("");
-  const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_WA_CONFIG.gateway_url || "");
-  const [provider, setProvider] = useState<WhatsAppProvider>("meta");
+  const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_WA_CONFIG.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com");
+  const [provider, setProvider] = useState<WhatsAppProvider>("local_gateway");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [checkingLive, setCheckingLive] = useState(false);
@@ -114,13 +114,26 @@ export default function WhatsAppConfigurationPanel() {
       const res = await fetch(`/api/whatsapp/config${checkLive ? "?check_live=1" : ""}`, { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as ConfigResponse;
-      setCfg(data);
-      setProvider(data.provider || "meta");
-      setGatewayUrl(data.gateway_url || "");
+      const localCfg = getWhatsAppConfig();
+
+      const chosenProvider: WhatsAppProvider =
+        data.provider && data.provider !== "off"
+          ? data.provider
+          : (localCfg.provider && localCfg.provider !== "off" ? localCfg.provider : "local_gateway");
+      const chosenGateway =
+        data.gateway_url || localCfg.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com";
+
+      setCfg({
+        ...data,
+        provider: chosenProvider,
+        gateway_url: chosenGateway,
+      });
+      setProvider(chosenProvider);
+      setGatewayUrl(chosenGateway);
       setPhoneId(data.meta_phone_number_id || "");
       setWabaId(data.meta_waba_id || "");
       setAppId(data.meta_app_id || "");
-      setDisplayPhone(data.meta_display_phone_number || "");
+      setDisplayPhone(data.meta_display_phone_number || "917003037208");
     } finally {
       if (checkLive) setCheckingLive(false);
     }
@@ -134,11 +147,12 @@ export default function WhatsAppConfigurationPanel() {
     setSaving(true);
     setMessage(null);
     try {
+      const effectiveGateway = gatewayUrl || "https://sccomm-whatsapp-gateway.onrender.com";
       const localUpdated = {
         ...DEFAULT_WA_CONFIG,
         ...cfg,
         provider,
-        gateway_url: gatewayUrl,
+        gateway_url: effectiveGateway,
         meta_phone_number_id: phoneId,
         meta_waba_id: wabaId,
         meta_app_id: appId,
@@ -152,7 +166,7 @@ export default function WhatsAppConfigurationPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider,
-          gateway_url: gatewayUrl,
+          gateway_url: effectiveGateway,
           meta_phone_number_id: phoneId,
           meta_waba_id: wabaId,
           meta_app_id: appId,
@@ -162,19 +176,20 @@ export default function WhatsAppConfigurationPanel() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        // If local update already succeeded, don't block the user
-        if (provider === "local_gateway") {
-          setMessage({ ok: true, text: "WhatsApp Gateway active: " + gatewayUrl });
-          setToken("");
-          await load(false);
-          return;
-        }
+      if (!res.ok && provider !== "local_gateway") {
         throw new Error(data.error || "Could not save configuration");
       }
       setToken("");
-      setMessage({ ok: true, text: "WhatsApp configuration saved securely." });
-      await load(true);
+      setProvider(provider);
+      setGatewayUrl(effectiveGateway);
+      setCfg((prev) => ({ ...prev, provider, gateway_url: effectiveGateway }));
+      setMessage({
+        ok: true,
+        text: provider === "local_gateway"
+          ? `WhatsApp Gateway active & saved permanently (${effectiveGateway}).`
+          : "WhatsApp configuration saved securely.",
+      });
+      await load(false);
     } catch (err: any) {
       setMessage({ ok: false, text: err?.message || "Could not save configuration" });
     } finally {

@@ -34,27 +34,43 @@ function normalizeGatewayUrl(raw: unknown): string | null {
 
 /** Resolves the authoritative server-side WhatsApp configuration. */
 export async function getServerWhatsAppConfig(): Promise<WhatsAppConfig> {
-  const db = createAdminClient();
-  const [{ data: row }, { data: secrets }] = await Promise.all([
-    db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
-    db.from("whatsapp_gateway_secrets").select("provider, meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
-  ]);
+  let row: any = null;
+  let secrets: any = null;
+  let settingsRow: any = null;
 
-  const base = (row?.config as WhatsAppConfig) || {};
-  const activeProvider = (secrets?.provider || base.provider || "off") as WhatsAppConfig["provider"];
+  try {
+    const db = createAdminClient();
+    const [rRes, sRes, stRes] = await Promise.all([
+      db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
+      db.from("whatsapp_gateway_secrets").select("provider, gateway_url, meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
+      db.from("settings").select("whatsapp_config").limit(1).maybeSingle(),
+    ]);
+    row = rRes?.data;
+    secrets = sRes?.data;
+    settingsRow = stRes?.data;
+  } catch {
+    // If admin client is not available in environment, fallback to safe defaults
+  }
+
+  const base = (row?.config as WhatsAppConfig) || (settingsRow?.whatsapp_config as WhatsAppConfig) || {};
+  let activeProvider = (secrets?.provider || base.provider || "local_gateway") as WhatsAppConfig["provider"];
+  if (!activeProvider || activeProvider === "off") {
+    activeProvider = "local_gateway";
+  }
+
   const phoneId = String(secrets?.meta_phone_number_id || base.meta_phone_number_id || process.env.META_PHONE_NUMBER_ID || "").trim();
   const wabaId = String(secrets?.waba_id || base.meta_waba_id || (row as any)?.meta_waba_id || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || "").trim();
   const token = String(secrets?.meta_access_token || process.env.META_ACCESS_TOKEN || "").trim();
-  const gatewayUrl = normalizeGatewayUrl(base.gateway_url || process.env.WHATSAPP_GATEWAY_URL);
+  const gatewayUrl = normalizeGatewayUrl(secrets?.gateway_url || base.gateway_url || process.env.WHATSAPP_GATEWAY_URL) || "https://sccomm-whatsapp-gateway.onrender.com";
 
   return {
     ...base,
     provider: activeProvider,
-    gateway_url: gatewayUrl || "",
+    gateway_url: gatewayUrl,
     meta_phone_number_id: phoneId,
     meta_waba_id: wabaId,
     meta_access_token: token,
-    meta_display_phone_number: base.meta_display_phone_number || (row as any)?.meta_display_phone_number || "",
+    meta_display_phone_number: base.meta_display_phone_number || (row as any)?.meta_display_phone_number || "917003037208",
     automations: { ...DEFAULT_AUTOMATIONS, ...(base.automations || {}) },
     templates: { ...DEFAULT_WA_TEMPLATES, ...((row as any)?.templates || {}), ...(base.templates || {}) },
   };

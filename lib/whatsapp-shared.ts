@@ -84,11 +84,11 @@ export const DEFAULT_WA_TEMPLATES: WhatsAppTemplates = {
 };
 
 export const DEFAULT_WA_CONFIG: WhatsAppConfig = {
-  provider: "off",
+  provider: "local_gateway",
   automations: DEFAULT_AUTOMATIONS,
-  auto_send_pos: false,
-  auto_send_business: false,
-  gateway_url: "http://localhost:3001",
+  auto_send_pos: true,
+  auto_send_business: true,
+  gateway_url: "https://sccomm-whatsapp-gateway.onrender.com",
   gateway_api_key: "",
   templates: DEFAULT_WA_TEMPLATES,
 };

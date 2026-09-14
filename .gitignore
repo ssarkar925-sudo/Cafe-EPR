@@ -61,3 +61,4 @@ dist-electron/
 # Nested clones / scratch
 Cafe-EPR/
 Cafe-EPR
+.cafeerp-prebuild-repairs.*

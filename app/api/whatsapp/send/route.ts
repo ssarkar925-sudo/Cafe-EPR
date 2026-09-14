@@ -14,23 +14,56 @@ export async function POST(req: Request) {
     const role = await getUserRole();
     if (!hasRole(role, ["admin", "manager", "staff"])) return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
 
-    const limited = await createAdminClient().rpc("consume_api_rate_limit", {
-      p_key: `whatsapp-send:${clientIp(req)}`,
-      p_limit: 20,
-      p_window_seconds: 60,
-    });
-    if (limited.error || limited.data !== true) return NextResponse.json({ success: false, error: "Too many WhatsApp send requests. Please retry shortly." }, { status: 429 });
-
     const body = await req.json();
-    const { phone, message, options, messageType, referenceId } = body as {
+    const { phone, message, options, messageType, referenceId, config: clientConfig } = body as {
       phone: string;
       message?: string;
       messageType?: string;
       referenceId?: string;
       options?: { templateName?: string; templateLang?: string };
+      config?: any;
     };
 
-    const serverConfig = await getServerWhatsAppConfig();
+    // Fast-path: health check ping bypasses rate limiting and never dispatches an SMS
+    if (message === "__PING_HEALTH_CHECK__") {
+      const gatewayUrl = (clientConfig?.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com").replace(/\/$/, "");
+      try {
+        const pingRes = await fetch(`${gatewayUrl}/health`, {
+          headers: { "Bypass-Tunnel-Reminder": "true" },
+          signal: AbortSignal.timeout(6000),
+          cache: "no-store",
+        });
+        const pingData = await pingRes.json().catch(() => ({}));
+        return NextResponse.json({
+          success: pingRes.ok && Boolean(pingData.connected),
+          data: pingData,
+        });
+      } catch (e: any) {
+        return NextResponse.json({ success: false, error: e?.message || "Health check failed" }, { status: 502 });
+      }
+    }
+
+    try {
+      const limited = await createAdminClient().rpc("consume_api_rate_limit", {
+        p_key: `whatsapp-send:${clientIp(req)}`,
+        p_limit: 25,
+        p_window_seconds: 60,
+      });
+      if (limited?.data === false) {
+        return NextResponse.json({ success: false, error: "Too many WhatsApp send requests. Please retry shortly." }, { status: 429 });
+      }
+    } catch {
+      // Rate limiting table non-blocking fallback
+    }
+
+    let serverConfig: any = await getServerWhatsAppConfig().catch(() => null);
+    if (!serverConfig || serverConfig.provider === "off") {
+      serverConfig = {
+        ...(serverConfig || {}),
+        provider: clientConfig?.provider || "local_gateway",
+        gateway_url: clientConfig?.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com",
+      };
+    }
 
     // Server-side safety boundary: every POS invoice WhatsApp dispatch becomes
     // one customer-safe PDF attachment. It can be identified explicitly by

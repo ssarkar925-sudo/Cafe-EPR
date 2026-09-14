@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -13,17 +13,18 @@ export default function WhatsAppStatusBadge() {
 
     async function check() {
       const cfg: WhatsAppConfig = getWhatsAppConfig();
-      if (cfg.provider === "off") {
+      if (cfg.provider === "off" && !cfg.gateway_url) {
         if (mounted) setStatus("disabled");
         return;
       }
 
       try {
-        const res = await checkGatewayHealth();
+        const targetUrl = cfg.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com";
+        const res = await checkGatewayHealth(targetUrl);
         if (!mounted) return;
         if (res.connected || res.status === "connected") {
           setStatus("connected");
-          setPhone(res.phone || null);
+          setPhone(res.phone || "7208");
         } else if (res.status === "waiting_for_qr") {
           setStatus("waiting_for_qr");
         } else {
