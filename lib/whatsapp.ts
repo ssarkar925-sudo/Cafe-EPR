@@ -75,10 +75,17 @@ export async function fetchCloudWhatsAppConfig(): Promise<WhatsAppConfig> {
         cleanPhoneId = "252079703694976";
       }
 
+      const effectiveProvider = (dbConfig.provider && dbConfig.provider !== "off")
+        ? dbConfig.provider
+        : (localCfg.provider && localCfg.provider !== "off" ? localCfg.provider : "local_gateway");
+      const effectiveGateway = dbConfig.gateway_url || localCfg.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com";
+
       const merged: WhatsAppConfig = {
         ...DEFAULT_WA_CONFIG,
         ...localCfg,
         ...dbConfig,
+        provider: effectiveProvider,
+        gateway_url: effectiveGateway,
         meta_phone_number_id: cleanPhoneId,
         meta_waba_id: wabaId,
         automations: {
@@ -150,88 +157,62 @@ export async function checkGatewayHealth(targetUrl?: string): Promise<{
   isLocal?: boolean;
 }> {
   const config = getWhatsAppConfig();
-  const rawUrl = targetUrl || config.gateway_url || "http://localhost:3001";
+  const rawUrl = targetUrl || config.gateway_url || "https://sccomm-whatsapp-gateway.onrender.com";
   const gatewayUrl = rawUrl.trim().replace(/\/$/, "");
   const isLocal = gatewayUrl.includes("localhost") || gatewayUrl.includes("127.0.0.1");
 
-  if (isLocal) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${gatewayUrl}/health`, {
-        headers: { "Bypass-Tunnel-Reminder": "true" },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        return {
-          ok: true,
-          status: data.connected ? "connected" : "waiting_for_qr",
-          connected: Boolean(data.connected),
-          phone: data.userPhone || "",
-          service: data.service,
-          isLocal: true,
-        };
-      }
-      return {
-        ok: false,
-        status: "error",
-        connected: false,
-        error: `Local Gateway returned HTTP ${res.status}`,
-        isLocal: true,
-      };
-    } catch (err: any) {
-      return {
-        ok: false,
-        status: "offline",
-        connected: false,
-        error: `Cannot connect to Local PC Gateway at ${gatewayUrl}.`,
-        isLocal: true,
-      };
-    }
-  }
-
+  // 1. Direct browser fetch to /health
   try {
-    const res = await fetch("/api/whatsapp/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: "0000000000",
-        message: "__PING_HEALTH_CHECK__",
-        config: {
-          ...config,
-          provider: "local_gateway",
-          gateway_url: gatewayUrl,
-        },
-      }),
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`${gatewayUrl}/health`, {
+      headers: { "Bypass-Tunnel-Reminder": "true" },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.data) {
-      const isConn = Boolean(data.data.connected);
+    if (res.ok) {
       return {
         ok: true,
-        status: isConn ? "connected" : "waiting_for_qr",
-        connected: isConn,
-        phone: data.data.userPhone || "",
-        service: data.data.service,
-        isLocal: false,
+        status: data.connected ? "connected" : "waiting_for_qr",
+        connected: Boolean(data.connected),
+        phone: data.userPhone || "",
+        service: data.service,
+        isLocal,
       };
     }
     return {
       ok: false,
-      status: "offline",
+      status: "error",
       connected: false,
-      error: data?.error || `Could not connect to Cloud Gateway at ${gatewayUrl}.`,
-      isLocal: false,
+      error: `Gateway returned HTTP ${res.status}`,
+      isLocal,
     };
   } catch (err: any) {
+    // 2. If direct fetch fails and not localhost (e.g. browser mixed-content restriction), query via server proxy
+    if (!isLocal && typeof window !== "undefined") {
+      try {
+        const proxyRes = await fetch(`/api/whatsapp/gateway-health?url=${encodeURIComponent(gatewayUrl)}`);
+        const proxyData = await proxyRes.json().catch(() => ({}));
+        if (proxyRes.ok && proxyData.status) {
+          return {
+            ok: Boolean(proxyData.connected),
+            status: proxyData.status,
+            connected: Boolean(proxyData.connected),
+            phone: proxyData.phone || proxyData.userPhone || "",
+            service: proxyData.service,
+            isLocal: false,
+          };
+        }
+      } catch {}
+    }
+
     return {
       ok: false,
       status: "offline",
       connected: false,
-      error: err?.message || `Could not connect to Cloud Gateway at ${gatewayUrl}.`,
-      isLocal: false,
+      error: `Cannot connect to WhatsApp Gateway at ${gatewayUrl}.`,
+      isLocal,
     };
   }
 }

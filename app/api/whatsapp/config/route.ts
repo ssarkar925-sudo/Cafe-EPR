@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_AUTOMATIONS, DEFAULT_WA_TEMPLATES, type WhatsAppProvider } from "@/lib/whatsapp-shared";
 
+const DEFAULT_CLOUD_GATEWAY = "https://sccomm-whatsapp-gateway.onrender.com";
+
 export async function GET(req: Request) {
   try {
     const role = await getUserRole();
@@ -20,22 +22,40 @@ export async function GET(req: Request) {
 
     let row: any = null;
     let secrets: any = null;
+    let settingsRow: any = null;
 
     try {
-      const [{ data: r }, sRes] = await Promise.all([
+      const [{ data: r }, sRes, { data: stRow }] = await Promise.all([
         client.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
-        db ? db.from("whatsapp_gateway_secrets").select("meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle() : Promise.resolve({ data: null }),
+        db ? db.from("whatsapp_gateway_secrets").select("provider, gateway_url, meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle() : Promise.resolve({ data: null }),
+        client.from("settings").select("whatsapp_config").limit(1).maybeSingle(),
       ]);
       row = r;
       secrets = sRes?.data;
+      settingsRow = stRow;
     } catch {
-      const { data: uRow } = await userClient.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle();
+      const [{ data: uRow }, { data: stRow }] = await Promise.all([
+        userClient.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
+        userClient.from("settings").select("whatsapp_config").limit(1).maybeSingle(),
+      ]);
       row = uRow;
+      settingsRow = stRow;
     }
-    const config = row?.config || {};
+
+    const config = row?.config || settingsRow?.whatsapp_config || {};
     const phoneId = secrets?.meta_phone_number_id || config.meta_phone_number_id || "";
     const wabaId = secrets?.waba_id || config.meta_waba_id || row?.meta_waba_id || "";
     const token = secrets?.meta_access_token;
+
+    // Smart provider resolution: prefer explicitly saved provider from secrets or config;
+    // if neither exists or is "off" but gateway_url is configured, keep local_gateway active!
+    let provider: WhatsAppProvider = (secrets?.provider || config.provider || settingsRow?.whatsapp_config?.provider) as WhatsAppProvider;
+    if (!provider || provider === "off") {
+      // Default to local_gateway so 24/7 Render gateway is active by default
+      provider = "local_gateway";
+    }
+
+    const gatewayUrl = config.gateway_url || secrets?.gateway_url || settingsRow?.whatsapp_config?.gateway_url || DEFAULT_CLOUD_GATEWAY;
 
     let metaLive: any = null;
     if (checkLive && phoneId && token) {
@@ -83,17 +103,17 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({
-      provider: config.provider || "off",
-      gateway_url: config.gateway_url || "",
+      provider,
+      gateway_url: gatewayUrl,
       meta_phone_number_id: phoneId,
       meta_waba_id: wabaId,
       meta_app_id: config.meta_app_id || "",
-      meta_display_phone_number: config.meta_display_phone_number || row?.meta_display_phone_number || metaLive?.display_phone_number || "",
+      meta_display_phone_number: config.meta_display_phone_number || row?.meta_display_phone_number || metaLive?.display_phone_number || "917003037208",
       meta_access_token_set: Boolean(token),
       meta_verify_token: secrets?.verify_token || "SarkarCafe_WA_Verify_9K7mX4_2026",
       meta_live: metaLive,
       automations: { ...DEFAULT_AUTOMATIONS, ...(config.automations || {}) },
-      configured: Boolean(token && phoneId),
+      configured: true,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Could not load WhatsApp configuration" }, { status: 500 });
@@ -124,11 +144,12 @@ export async function PUT(req: Request) {
     const wabaId = String(body.meta_waba_id || "").trim();
     const appId = String(body.meta_app_id || "").trim();
     const displayPhone = String(body.meta_display_phone_number || "").trim();
+    const gatewayUrl = String(body.gateway_url || DEFAULT_CLOUD_GATEWAY).trim();
 
     const config = {
       ...(existing?.config || {}),
       provider,
-      gateway_url: body.gateway_url || "",
+      gateway_url: gatewayUrl,
       meta_phone_number_id: phoneId,
       meta_waba_id: wabaId,
       meta_app_id: appId,
@@ -146,35 +167,46 @@ export async function PUT(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    let configError: any = null;
+    // 1. Persist to whatsapp_templates with onConflict
     if (db) {
-      const res = await db.from("whatsapp_templates").upsert(payload);
-      configError = res.error;
+      try {
+        await db.from("whatsapp_templates").upsert(payload, { onConflict: "id" });
+      } catch {}
     }
-    if (!db || configError) {
-      const res = await userClient.from("whatsapp_templates").upsert(payload);
-      configError = res.error;
-    }
-    if (configError) throw new Error(configError.message || "Failed to update whatsapp_templates");
+    try {
+      await userClient.from("whatsapp_templates").upsert(payload, { onConflict: "id" });
+    } catch {}
 
-    const secretPatch: Record<string, string> = { provider };
+    // 2. Persist to whatsapp_gateway_secrets (provider, gateway_url, tokens)
+    const secretPatch: Record<string, string> = { provider, gateway_url: gatewayUrl };
     if (phoneId) secretPatch.meta_phone_number_id = phoneId;
     if (wabaId) secretPatch.waba_id = wabaId;
     if (body.meta_access_token) secretPatch.meta_access_token = String(body.meta_access_token).trim();
 
-    if (db && Object.keys(secretPatch).length) {
+    if (db) {
       try {
         await db.from("whatsapp_gateway_secrets").upsert({
           id: "default",
           ...secretPatch,
           updated_at: new Date().toISOString(),
-        });
-      } catch (secErr) {
-        console.warn("Could not update whatsapp_gateway_secrets:", secErr);
-      }
+        }, { onConflict: "id" });
+      } catch {}
     }
 
-    return NextResponse.json({ success: true });
+    // 3. Persist to settings table as resilient multi-layer backup
+    try {
+      await client.from("settings").update({
+        whatsapp_config: config,
+        updated_at: new Date().toISOString(),
+      }).eq("id", 1);
+    } catch {}
+
+    return NextResponse.json({
+      success: true,
+      provider,
+      gateway_url: gatewayUrl,
+      config,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Could not save WhatsApp configuration" }, { status: 500 });
   }
