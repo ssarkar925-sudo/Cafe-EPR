@@ -36,7 +36,7 @@ function normalizeGatewayUrl(raw: unknown): string | null {
 export async function getServerWhatsAppConfig(): Promise<WhatsAppConfig> {
   const db = createAdminClient();
   const [{ data: row }, { data: secrets }] = await Promise.all([
-    db.from("whatsapp_templates").select("config, templates, meta_waba_id, meta_display_phone_number").eq("id", "default").maybeSingle(),
+    db.from("whatsapp_templates").select("config, templates").eq("id", "default").maybeSingle(),
     db.from("whatsapp_gateway_secrets").select("provider, meta_access_token, meta_phone_number_id, waba_id, verify_token").eq("id", "default").maybeSingle(),
   ]);
 

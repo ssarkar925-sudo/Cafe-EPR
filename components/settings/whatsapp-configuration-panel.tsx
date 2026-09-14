@@ -13,7 +13,7 @@ import {
   Info,
   Check,
 } from "lucide-react";
-import { DEFAULT_AUTOMATIONS, DEFAULT_WA_CONFIG, type WhatsAppAutomationRules, type WhatsAppProvider } from "@/lib/whatsapp";
+import { DEFAULT_AUTOMATIONS, DEFAULT_WA_CONFIG, saveWhatsAppConfig, saveCloudWhatsAppConfig, type WhatsAppAutomationRules, type WhatsAppProvider } from "@/lib/whatsapp";
 
 type ConfigResponse = {
   provider: WhatsAppProvider;
@@ -134,6 +134,19 @@ export default function WhatsAppConfigurationPanel() {
     setSaving(true);
     setMessage(null);
     try {
+      const localUpdated = {
+        ...DEFAULT_WA_CONFIG,
+        ...cfg,
+        provider,
+        gateway_url: gatewayUrl,
+        meta_phone_number_id: phoneId,
+        meta_waba_id: wabaId,
+        meta_app_id: appId,
+        meta_display_phone_number: displayPhone,
+      };
+      saveWhatsAppConfig(localUpdated);
+      await saveCloudWhatsAppConfig(localUpdated).catch(() => {});
+
       const res = await fetch("/api/whatsapp/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -148,8 +161,17 @@ export default function WhatsAppConfigurationPanel() {
           automations: cfg.automations,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save configuration");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // If local update already succeeded, don't block the user
+        if (provider === "local_gateway") {
+          setMessage({ ok: true, text: "WhatsApp Gateway active: " + gatewayUrl });
+          setToken("");
+          await load(false);
+          return;
+        }
+        throw new Error(data.error || "Could not save configuration");
+      }
       setToken("");
       setMessage({ ok: true, text: "WhatsApp configuration saved securely." });
       await load(true);
