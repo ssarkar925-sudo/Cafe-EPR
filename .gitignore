@@ -58,6 +58,6 @@ android/captures/
 # Electron build outputs
 dist-electron/
 
-# OpenNext build outputs
-.open-next/
-
+# Nested clones / scratch
+Cafe-EPR/
+Cafe-EPR
