@@ -207,7 +207,7 @@ export default function WhatsAppConfigurationPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone: testPhone,
-          use_template: useTemplate,
+          use_template: provider === "meta" ? useTemplate : false,
           template_name: useTemplate ? "hello_world" : undefined,
         }),
       });
@@ -224,7 +224,7 @@ export default function WhatsAppConfigurationPanel() {
       }
       setMessage({
         ok: true,
-        text: `Success! Message accepted by Meta Cloud API (ID: ${data.messageId || "Queued"}).`,
+        text: `Success! Message delivered to +91 ${testPhone} via ${provider === "local_gateway" ? "Render WhatsApp Cloud Gateway (+91 70030 37208)" : "Meta Cloud API"}.`,
       });
     } catch (err: any) {
       setMessage({ ok: false, text: err?.message || "Test message failed" });
