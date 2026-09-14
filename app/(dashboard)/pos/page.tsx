@@ -16,6 +16,10 @@ export default async function PosPage({
 }) {
   const { customer: initialCustomerId } = await searchParams;
   const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  const currentUserId = authUser?.id ?? "";
 
   const [
     { data: products },
@@ -59,7 +63,7 @@ export default async function PosPage({
       .select("id, name")
       .eq("is_active", true)
       .order("name"),
-    supabase.from("profiles").select("full_name").eq("id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle(),
+    supabase.from("profiles").select("full_name").eq("id", currentUserId).maybeSingle(),
     supabase.from("settings").select("shop_name, upi_id, phone, address, currency_symbol").maybeSingle(),
   ]);
 
@@ -145,6 +149,7 @@ export default async function PosPage({
       initialCustomerId={initialCustomerId || ""}
       defaultUpiId={defaultUpiId}
       shopPhone={(settings as any)?.phone || ""}
+      userId={currentUserId}
     />
   );
 }

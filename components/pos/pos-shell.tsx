@@ -141,6 +141,7 @@ export default function PosShell({
   initialCustomerId = "",
   defaultUpiId = "",
   shopPhone = "",
+  userId = "",
 }: {
   shopName: string;
   operatorName: string;
@@ -153,11 +154,31 @@ export default function PosShell({
   initialCustomerId?: string;
   defaultUpiId?: string;
   shopPhone?: string;
+  userId?: string;
 }) {
   const supabase = createClient();
   const { collapsed, toggleSidebar, setMobileOpen } = useDashboardShell();
   const itemSearchRef = useRef<HTMLInputElement | null>(null);
   const customerSearchRef = useRef<HTMLInputElement | null>(null);
+
+  // Realtime multi-device synchronization (Mobile <-> Web)
+  const deviceIdRef = useRef<string>("");
+  const isRemoteSyncRef = useRef<boolean>(false);
+  const lastSyncTimestampRef = useRef<number>(0);
+  const initialMountRef = useRef<boolean>(true);
+  const channelRef = useRef<any>(null);
+  const channelSubscribedRef = useRef<boolean>(false);
+  const [peerDevice, setPeerDevice] = useState<string | null>(null);
+  const [syncFlash, setSyncFlash] = useState<string | null>(null);
+
+  if (!deviceIdRef.current && typeof window !== "undefined") {
+    let devId = sessionStorage.getItem("cafeerp_pos_device_id");
+    if (!devId) {
+      devId = "pos_dev_" + Math.random().toString(36).slice(2, 9);
+      sessionStorage.setItem("cafeerp_pos_device_id", devId);
+    }
+    deviceIdRef.current = devId;
+  }
 
   // Dynamic Catalog state (so custom ad-hoc added items appear instantly)
   const [products, setProducts] = useState<PosCatalogItem[]>(initialProducts);
@@ -220,6 +241,191 @@ export default function PosShell({
       curr.map((tab) => (tab.id === activeTabId ? { ...tab, ...patch } : tab))
     );
   }, [activeTabId]);
+
+  // 1. Rehydrate draft tabs from localStorage on first mount
+  useEffect(() => {
+    try {
+      const savedTabs = localStorage.getItem(`cafeerp_pos_tabs_${userId || "shared"}`);
+      if (savedTabs) {
+        const parsed = JSON.parse(savedTabs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          isRemoteSyncRef.current = true;
+          setTabs(parsed);
+          const savedActiveTab = localStorage.getItem(`cafeerp_pos_active_tab_${userId || "shared"}`);
+          if (savedActiveTab && parsed.some((t: OrderTab) => t.id === savedActiveTab)) {
+            setActiveTabId(savedActiveTab);
+          } else {
+            setActiveTabId(parsed[0].id);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load POS local draft:", e);
+    }
+  }, [userId]);
+
+  // 2. Persist to localStorage & Broadcast to peer devices (Mobile <-> Web)
+  useEffect(() => {
+    // Skip the very first initial render so we don't overwrite peer state before rehydration
+    if (initialMountRef.current) {
+      initialMountRef.current = false;
+      return;
+    }
+
+    // Always persist to localStorage
+    try {
+      localStorage.setItem(`cafeerp_pos_tabs_${userId || "shared"}`, JSON.stringify(tabs));
+      localStorage.setItem(`cafeerp_pos_active_tab_${userId || "shared"}`, activeTabId);
+    } catch {}
+
+    // If change was triggered by an incoming remote sync, don't rebroadcast (prevent infinite loop)
+    if (isRemoteSyncRef.current) {
+      isRemoteSyncRef.current = false;
+      return;
+    }
+
+    // Broadcast change to other devices
+    if (channelRef.current && channelSubscribedRef.current) {
+      const now = Date.now();
+      lastSyncTimestampRef.current = now;
+      const isMobile =
+        typeof window !== "undefined" &&
+        (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+          window.innerWidth < 768);
+      channelRef.current.send({
+        type: "broadcast",
+        event: "cart_sync",
+        payload: {
+          deviceId: deviceIdRef.current,
+          deviceType: isMobile ? "Mobile" : "Web",
+          tabs,
+          activeTabId,
+          timestamp: now,
+        },
+      });
+    }
+  }, [tabs, activeTabId, userId]);
+
+  // 3. Supabase Realtime Channel for Multi-Device Sync (Mobile <-> Web)
+  useEffect(() => {
+    if (!supabase) return;
+
+    const isMobile =
+      typeof window !== "undefined" &&
+      (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        window.innerWidth < 768);
+    const myDeviceType = isMobile ? "Mobile" : "Web";
+    const myDeviceId = deviceIdRef.current;
+    const channelName = `pos-cart-sync:${userId || "shared"}`;
+
+    const channel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: myDeviceId },
+      },
+    });
+
+    channelRef.current = channel;
+
+    channel
+      .on("broadcast", { event: "cart_sync" }, ({ payload }) => {
+        if (!payload || payload.deviceId === myDeviceId) return;
+        if (payload.timestamp && payload.timestamp < lastSyncTimestampRef.current) {
+          return;
+        }
+        if (payload.timestamp) {
+          lastSyncTimestampRef.current = payload.timestamp;
+        }
+
+        if (Array.isArray(payload.tabs) && payload.tabs.length > 0) {
+          isRemoteSyncRef.current = true;
+          setTabs(payload.tabs);
+          if (payload.activeTabId) {
+            setActiveTabId(payload.activeTabId);
+          }
+          const fromDevice = payload.deviceType || (myDeviceType === "Mobile" ? "Web" : "Mobile");
+          setSyncFlash(`Synced with ${fromDevice}`);
+          setTimeout(() => setSyncFlash(null), 3000);
+        }
+      })
+      .on("broadcast", { event: "request_sync" }, ({ payload }) => {
+        if (!payload || payload.deviceId === myDeviceId) return;
+        setTabs((currentTabs) => {
+          setActiveTabId((currentActiveId) => {
+            if (channelRef.current && channelSubscribedRef.current) {
+              const now = Date.now();
+              channelRef.current.send({
+                type: "broadcast",
+                event: "cart_sync",
+                payload: {
+                  deviceId: myDeviceId,
+                  deviceType: myDeviceType,
+                  tabs: currentTabs,
+                  activeTabId: currentActiveId,
+                  timestamp: now,
+                },
+              });
+            }
+            return currentActiveId;
+          });
+          return currentTabs;
+        });
+      })
+      .on("broadcast", { event: "sale_completed" }, ({ payload }) => {
+        if (!payload || payload.deviceId === myDeviceId) return;
+        isRemoteSyncRef.current = true;
+        updateCurrentTab({
+          cart: [],
+          discount: "",
+          customerId: "",
+          customerSearch: "",
+          cashReceived: "",
+          splitRows: [],
+          collectPreviousDue: false,
+          useAdvance: false,
+        });
+        const fromDevice = payload.deviceType || (myDeviceType === "Mobile" ? "Web" : "Mobile");
+        setSyncFlash(`Sale completed on ${fromDevice} (${payload.invoiceNumber || "Done"})`);
+        setTimeout(() => setSyncFlash(null), 4000);
+      })
+      .on("presence", { event: "sync" }, () => {
+        const presenceState = channel.presenceState();
+        let foundPeer: string | null = null;
+        for (const key of Object.keys(presenceState)) {
+          if (key === myDeviceId) continue;
+          const presences = presenceState[key] as any[];
+          if (presences && presences.length > 0) {
+            const peerInfo = presences[0];
+            foundPeer = peerInfo.deviceType || (myDeviceType === "Mobile" ? "Web" : "Mobile");
+            break;
+          }
+        }
+        setPeerDevice(foundPeer);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          channelSubscribedRef.current = true;
+          await channel.track({
+            deviceId: myDeviceId,
+            deviceType: myDeviceType,
+            onlineAt: Date.now(),
+          });
+          channel.send({
+            type: "broadcast",
+            event: "request_sync",
+            payload: { deviceId: myDeviceId },
+          });
+        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+          channelSubscribedRef.current = false;
+        }
+      });
+
+    return () => {
+      channelSubscribedRef.current = false;
+      channelRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, userId, updateCurrentTab]);
 
   // Catalog Filters
   const [scope, setScope] = useState<"all" | "services" | "products">("all");
@@ -866,6 +1072,23 @@ export default function PosShell({
         customerPhone: selectedCustomer?.phone ?? undefined,
       });
       setMobileCartOpen(false);
+
+      // Notify peer devices that this sale was completed so their cart also clears
+      if (channelRef.current && channelSubscribedRef.current) {
+        const isMobile =
+          typeof window !== "undefined" &&
+          (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+            window.innerWidth < 768);
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sale_completed",
+          payload: {
+            deviceId: deviceIdRef.current,
+            deviceType: isMobile ? "Mobile" : "Web",
+            invoiceNumber: result.invoice_number ?? "INV-SUCCESS",
+          },
+        });
+      }
     } catch (err: any) {
       playPosSound("warning", soundEnabled);
       setError(err?.message || "Failed to complete transaction.");
@@ -1243,6 +1466,32 @@ export default function PosShell({
               </span>
             )}
           </button>
+
+          {/* Multi-Device Realtime Sync Indicator (Mobile <-> Web) */}
+          {syncFlash && (
+            <div className="flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-300 animate-pulse">
+              <Sparkles className="h-3 w-3 text-emerald-500 shrink-0" />
+              <span className="truncate max-w-[90px] sm:max-w-none">{syncFlash}</span>
+            </div>
+          )}
+
+          {peerDevice ? (
+            <div
+              title={`Real-time sync active with ${peerDevice}`}
+              className="hidden sm:flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300 shadow-xs"
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{peerDevice} Synced</span>
+            </div>
+          ) : (
+            <div
+              title="Real-time multi-device cloud sync active. Open POS on mobile or web to sync instantly."
+              className="hidden xl:flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <span>Live Sync</span>
+            </div>
+          )}
 
           <span className="hidden lg:block h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
 
