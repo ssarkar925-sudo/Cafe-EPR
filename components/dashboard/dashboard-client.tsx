@@ -5,11 +5,71 @@ import Link from "next/link";
 import { useRealtime } from "@/lib/supabase/realtime";
 import { type VerifiedFinancialContext } from "@/lib/ai/advisor-engine";
 
-const DASHBOARD_QUICK_ACTIONS = [
-  { id: "bill-payment", label: "Bill Payment", href: "/business/bill-payment", icon: "bill-payment" },
-  { id: "journal", label: "Double-Entry Journal", href: "/finance/journal", icon: "journal" },
-  { id: "trial-balance", label: "Trial Balance", href: "/finance/trial-balance", icon: "trial-balance" },
-  { id: "whatsapp", label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },
+const OPERATIONAL_LAUNCHPAD = [
+  {
+    id: "pos",
+    label: "POS Bill",
+    href: "/pos",
+    icon: "pos",
+    badge: "F2",
+    accent: "border-blue-500/30 bg-blue-50/70 text-blue-700 hover:bg-blue-600 hover:text-white dark:bg-blue-950/30 dark:text-blue-300",
+  },
+  {
+    id: "quick-sale",
+    label: "Quick Sale",
+    href: "/pos?mode=quick",
+    icon: "quick-sale",
+    badge: "⚡",
+    accent: "border-emerald-500/30 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/30 dark:text-emerald-300",
+  },
+  {
+    id: "aeps",
+    label: "AEPS Cash Out",
+    href: "/business/aeps",
+    icon: "aeps",
+    badge: "Bio",
+    accent: "border-amber-500/30 bg-amber-50/70 text-amber-700 hover:bg-amber-600 hover:text-white dark:bg-amber-950/30 dark:text-amber-300",
+  },
+  {
+    id: "dmt",
+    label: "DMT Transfer",
+    href: "/business/dmt",
+    icon: "dmt",
+    badge: "IMPS",
+    accent: "border-violet-500/30 bg-violet-50/70 text-violet-700 hover:bg-violet-600 hover:text-white dark:bg-violet-950/30 dark:text-violet-300",
+  },
+  {
+    id: "recharge",
+    label: "BBPS & Recharge",
+    href: "/business/bill-payment",
+    icon: "bill-payment",
+    badge: "Bills",
+    accent: "border-rose-500/30 bg-rose-50/70 text-rose-700 hover:bg-rose-600 hover:text-white dark:bg-rose-950/30 dark:text-rose-300",
+  },
+  {
+    id: "cashbook",
+    label: "Cash Drawer",
+    href: "/finance/cashbook",
+    icon: "cash-book",
+    badge: "In/Out",
+    accent: "border-cyan-500/30 bg-cyan-50/70 text-cyan-700 hover:bg-cyan-600 hover:text-white dark:bg-cyan-950/30 dark:text-cyan-300",
+  },
+  {
+    id: "expense",
+    label: "Log Expense",
+    href: "/finance/expenses",
+    icon: "expenses",
+    badge: "Outlay",
+    accent: "border-orange-500/30 bg-orange-50/70 text-orange-700 hover:bg-orange-600 hover:text-white dark:bg-orange-950/30 dark:text-orange-300",
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp Desk",
+    href: "/business/whatsapp",
+    icon: "whatsapp",
+    badge: "Chat",
+    accent: "border-teal-500/30 bg-teal-50/70 text-teal-700 hover:bg-teal-600 hover:text-white dark:bg-teal-950/30 dark:text-teal-300",
+  },
 ] as const;
 
 export type DashboardClientProps = {
@@ -20,6 +80,78 @@ export type DashboardClientProps = {
 function inr(n: number | null | undefined): string {
   if (n === null || n === undefined || isNaN(n)) return "₹0.00";
   return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function inrCompact(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(n)) return "₹0";
+  const num = Number(n);
+  if (Math.abs(num) >= 100000) {
+    return "₹" + (num / 100000).toFixed(2) + "L";
+  }
+  if (Math.abs(num) >= 1000) {
+    return "₹" + (num / 1000).toFixed(1) + "k";
+  }
+  return "₹" + num.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+function formatRelativeTime(dateStr: string): string {
+  if (!dateStr) return "Live";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+// Micro Sparkline SVG generator for high-density KPI cards
+function Sparkline({
+  data,
+  color = "blue",
+  className = "h-7 w-20 shrink-0",
+}: {
+  data: number[];
+  color?: "emerald" | "indigo" | "rose" | "blue" | "amber" | "cyan";
+  className?: string;
+}) {
+  if (!data || data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data
+    .map((val, idx) => {
+      const x = (idx / (data.length - 1)) * 74 + 3;
+      const y = 26 - ((val - min) / range) * 20;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const colorMap = {
+    emerald: "#10b981",
+    indigo: "#6366f1",
+    rose: "#f43f5e",
+    blue: "#3b82f6",
+    amber: "#f59e0b",
+    cyan: "#06b6d4",
+  }[color];
+
+  return (
+    <svg viewBox="0 0 80 30" className={className} preserveAspectRatio="none">
+      <polyline
+        fill="none"
+        stroke={colorMap}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+      />
+    </svg>
+  );
 }
 
 // Vector icon system for quick actions and dashboard
@@ -300,9 +432,21 @@ function ActionVectorIcon({ icon, className = "h-4 w-4" }: { icon: string; class
 }
 
 export default function DashboardClient({ data }: DashboardClientProps) {
-  useRealtime(["invoices", "payments", "cash_entries", "expenses", "settlements", "transactions", "day_closes", "products", "customers", "audit_runs"]);
+  useRealtime([
+    "invoices",
+    "payments",
+    "cash_entries",
+    "expenses",
+    "settlements",
+    "transactions",
+    "day_closes",
+    "products",
+    "customers",
+    "audit_runs",
+  ]);
 
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "yesterday" | "week" | "month" | "ytd">("today");
+  const [activityFilter, setActivityFilter] = useState<"all" | "sale" | "service" | "expense" | "cash">("all");
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");
   const [greeting, setGreeting] = useState<string>("Good day");
@@ -328,11 +472,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
     return () => clearInterval(timer);
   }, []);
 
-  const role = data.profile.role;
-  const isStaff = role === "staff";
-  const isAdmin = role === "admin" || !role;
+  const role = data.profile.role || "admin";
 
-  // Active Period Metrics
+  // Active Period Metrics Calculation
   const activeMetrics = useMemo(() => {
     switch (selectedPeriod) {
       case "yesterday":
@@ -341,10 +483,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           revenue: data.morningBrief.yesterdayRevenue,
           expenses: data.morningBrief.yesterdayExpenses,
           profit: data.morningBrief.yesterdayProfit,
-          margin: data.morningBrief.yesterdayRevenue > 0
-            ? Math.round((data.morningBrief.yesterdayProfit / data.morningBrief.yesterdayRevenue) * 1000) / 10
-            : 0,
+          margin:
+            data.morningBrief.yesterdayRevenue > 0
+              ? Math.round((data.morningBrief.yesterdayProfit / data.morningBrief.yesterdayRevenue) * 1000) / 10
+              : 0,
           txCount: 0,
+          sparkline: (data.sparklines?.revenue || []).slice(0, 6),
         };
       case "week":
         return {
@@ -354,6 +498,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           profit: data.salesPerformance.thisWeek.profit,
           margin: data.salesPerformance.thisWeek.margin,
           txCount: data.salesPerformance.thisWeek.txCount,
+          sparkline: data.sparklines?.revenue || [],
         };
       case "month":
         return {
@@ -363,6 +508,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           profit: data.salesPerformance.thisMonth.profit,
           margin: data.salesPerformance.thisMonth.margin,
           txCount: data.salesPerformance.thisMonth.txCount,
+          sparkline: data.sparklines?.revenue || [],
         };
       case "ytd":
         return {
@@ -372,6 +518,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           profit: data.pnl.businessProfitBeforeTax,
           margin: data.pnl.netMarginPct,
           txCount: data.salesPerformance.fyYtd.txCount,
+          sparkline: data.sparklines?.revenue || [],
         };
       case "today":
       default:
@@ -380,20 +527,38 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           revenue: data.todayMetrics.revenue,
           expenses: data.todayMetrics.expenses,
           profit: data.todayMetrics.profit,
-          margin: data.todayMetrics.revenue > 0
-            ? Math.round((data.todayMetrics.profit / data.todayMetrics.revenue) * 1000) / 10
-            : 0,
+          margin:
+            data.todayMetrics.revenue > 0
+              ? Math.round((data.todayMetrics.profit / data.todayMetrics.revenue) * 1000) / 10
+              : 0,
           txCount: data.todayMetrics.transactionCount,
+          sparkline: data.sparklines?.revenue || [],
         };
     }
   }, [selectedPeriod, data]);
 
   const pools = data.liquidity.pools;
   const healthBadge = {
-    operational: { label: "100% Operational", bg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400", dot: "bg-emerald-500" },
-    attention: { label: "Attention Required", bg: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400", dot: "bg-amber-500" },
-    critical: { label: "Critical Issue", bg: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400", dot: "bg-rose-500" },
-  }[data.shop.systemHealth as "operational" | "attention" | "critical"] || { label: "Operational", bg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", dot: "bg-emerald-500" };
+    operational: {
+      label: "100% Operational",
+      bg: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-400",
+      dot: "bg-emerald-500 animate-pulse",
+    },
+    attention: {
+      label: "Attention Required",
+      bg: "bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400",
+      dot: "bg-amber-500 animate-pulse",
+    },
+    critical: {
+      label: "Critical Issue",
+      bg: "bg-rose-500/10 text-rose-700 border-rose-500/20 dark:text-rose-400",
+      dot: "bg-rose-500 animate-pulse",
+    },
+  }[data.shop.systemHealth as "operational" | "attention" | "critical"] || {
+    label: "Operational",
+    bg: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-400",
+    dot: "bg-emerald-500",
+  };
 
   // Performance Chart Points
   const chartDays = data.chartDays || [];
@@ -401,21 +566,23 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   const chartScaleMax = actualPeakRevenue > 0 ? actualPeakRevenue : 100;
   const chartPoints = useMemo(() => {
     if (chartDays.length === 0) return "";
-    return chartDays.map((d: any, idx: number) => {
-      const x = (idx / (chartDays.length - 1)) * 560 + 20;
-      const y = 160 - (d.revenue / chartScaleMax) * 130;
-      return `${x},${y}`;
-    }).join(" ");
+    return chartDays
+      .map((d: any, idx: number) => {
+        const x = (idx / (chartDays.length - 1)) * 560 + 20;
+        const y = 160 - (d.revenue / chartScaleMax) * 130;
+        return `${x},${y}`;
+      })
+      .join(" ");
   }, [chartDays, chartScaleMax]);
 
   const chartAreaPath = useMemo(() => {
     if (chartDays.length === 0) return "";
-    const firstX = 20;
     const lastX = 580;
     return `M 20 160 L ${chartPoints.split(" ").join(" L ")} L ${lastX} 160 Z`;
   }, [chartDays, chartPoints]);
 
-  const totalServiceVol = (data.serviceBreakdown?.aeps?.volume || 0) +
+  const totalServiceVol =
+    (data.serviceBreakdown?.aeps?.volume || 0) +
     (data.serviceBreakdown?.dmt?.volume || 0) +
     (data.serviceBreakdown?.upi?.volume || 0) +
     (data.serviceBreakdown?.recharge?.volume || 0);
@@ -425,26 +592,44 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   const upiPct = totalServiceVol > 0 ? Math.round(((data.serviceBreakdown?.upi?.volume || 0) / totalServiceVol) * 100) : 0;
   const rechargePct = totalServiceVol > 0 ? Math.round(((data.serviceBreakdown?.recharge?.volume || 0) / totalServiceVol) * 100) : 0;
 
+  // Filtered Activity List
+  const filteredActivity = useMemo(() => {
+    const list = data.recentActivity || [];
+    if (activityFilter === "all") return list;
+    return list.filter((item: any) => {
+      if (activityFilter === "sale") return item.type === "sale";
+      if (activityFilter === "expense") return item.type === "expense";
+      if (activityFilter === "cash") return item.type === "cash" || item.type === "settlement";
+      if (activityFilter === "service") return item.type !== "sale" && item.type !== "expense" && item.type !== "cash";
+      return true;
+    });
+  }, [data.recentActivity, activityFilter]);
+
+  const trendPct = data.salesPerformance?.trends?.todayVsYesterdayPct;
+
   return (
     <div className="space-y-6 pb-16">
       {/* ===============================================================================
           1. REFINED EXECUTIVE HEADER (Modern Floating Frosted Glass Canvas)
       =============================================================================== */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/85 sm:p-6 transition-all">
+      {/* ===============================================================================
+          1. REFINED EXECUTIVE HEADER (Modern Floating Canvas with Live Clock & Tabs)
+      =============================================================================== */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-xs backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 sm:p-6 transition-all">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold ${healthBadge.bg}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${healthBadge.dot}`} />
                 {healthBadge.label}
               </span>
-              <span className="rounded-full border border-blue-200 bg-blue-50/80 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
+              <span className="rounded-full border border-blue-200 bg-blue-50/90 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
                 {data.shop.fyLabel}
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
                 {currentDate ? `${currentDate} • ${currentTime}` : "Today • Live"}
               </span>
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:bg-white/10 dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:bg-white/10 dark:text-slate-300">
                 {role.toUpperCase()}
               </span>
             </div>
@@ -453,14 +638,15 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {greeting}, {data.profile.name?.split(" ")[0] || "Saikat"}
               </p>
-              <h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl dark:text-white">
-                Here&apos;s your business overview.
+              <h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl dark:text-white flex items-center gap-2">
+                <span>{data.shop.name || "Sarkar Communication"}</span>
+                <span className="text-xs font-normal text-slate-400">Daily Cockpit</span>
               </h1>
             </div>
           </div>
 
           {/* Period Selector Tabs */}
-          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 dark:border-white/10 dark:bg-white/[0.04] backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200/80 bg-slate-100/70 p-1 dark:border-white/10 dark:bg-white/[0.04] backdrop-blur-md">
             {[
               { id: "today", label: "Today" },
               { id: "yesterday", label: "Yesterday" },
@@ -471,9 +657,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               <button
                 key={tab.id}
                 onClick={() => setSelectedPeriod(tab.id as any)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all duration-200 ${
                   selectedPeriod === tab.id
-                    ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-500/25 scale-[1.02]"
+                    ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/25 scale-[1.02]"
                     : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-xs dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
                 }`}
               >
@@ -482,149 +668,260 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             ))}
           </div>
         </div>
+
+        {/* ===============================================================================
+            2. FAST OPERATIONAL LAUNCHPAD (8 1-Click Operational Shortcuts)
+        =============================================================================== */}
+        <div className="mt-5 border-t border-slate-200/70 pt-4 dark:border-white/5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Fast Operational Launchpad</span>
+            <span className="text-[10px] font-bold text-slate-400">1-Click Counter Actions</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+            {OPERATIONAL_LAUNCHPAD.map((action) => (
+              <Link
+                key={action.id}
+                href={action.href}
+                className={`group flex flex-col items-center justify-center rounded-2xl border p-2.5 text-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${action.accent}`}
+              >
+                <div className="flex items-center justify-center mb-1">
+                  <ActionVectorIcon icon={action.icon} className="h-4 w-4 transition-transform group-hover:scale-110" />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold leading-tight truncate">{action.label}</span>
+                  <span className="rounded-full bg-black/10 px-1 py-0.2 text-[8px] font-black dark:bg-white/20">
+                    {action.badge}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Shift Pulse & Drawer Float Strip */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs dark:border-white/10 dark:bg-slate-800/30">
+          <div className="flex flex-wrap items-center gap-4 text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <span>Cash Drawer:</span>
+              <strong className="text-slate-900 dark:text-white font-black">{inr(pools.cash?.current)}</strong>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />
+              <span>Bank Float:</span>
+              <strong className="text-slate-900 dark:text-white font-black">{inr(pools.bank?.current)}</strong>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span>Shift Status:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{data.dayCloseStatus.statusLabel}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/finance/day-close"
+              className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1 text-[11px] font-bold text-white shadow-xs transition hover:bg-blue-600 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-500 dark:hover:text-white"
+            >
+              <ActionVectorIcon icon="day-close" className="h-3 w-3" />
+              {data.dayCloseStatus.state === "today_closed" ? "Day Seal Slip" : "Close Day / Reconcile →"}
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* ===============================================================================
-          2. PRIMARY KPI ROW (5 Multi-Tone Glowing Bento Cards)
+          3. PRIMARY BENTO METRIC ROW (5 Multi-Tone Glowing Cards with Sparklines)
       =============================================================================== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {/* KPI 1: Gross Sales & Revenue (Emerald Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-emerald relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-emerald-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/15">
+        {/* KPI 1: Gross Sales & Inflow */}
+        <div className="bento-surface-interactive card-glow-emerald relative overflow-hidden group flex flex-col justify-between p-5 rounded-3xl border border-emerald-500/25 bg-white/95 dark:bg-slate-900/90 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/15">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
           <div className="relative z-10 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{activeMetrics.label} Revenue</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600 shadow-xs dark:text-emerald-400 group-hover:scale-110 transition-transform">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              {activeMetrics.label} Revenue
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shadow-xs dark:bg-emerald-500/20 dark:text-emerald-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="pnl" className="h-4 w-4" />
             </div>
           </div>
+
           <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
               {inr(activeMetrics.revenue)}
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                Operating Inflow
-              </span>
-              <p className="text-[11px] font-medium text-slate-500 truncate dark:text-slate-400">
-                {activeMetrics.txCount > 0 ? `${activeMetrics.txCount} txns` : "Verified"}
-              </p>
+
+            <div className="mt-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                {trendPct !== null && trendPct !== undefined && selectedPeriod === "today" ? (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      trendPct >= 0
+                        ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "bg-rose-500/10 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                    }`}
+                  >
+                    {trendPct >= 0 ? `+${trendPct}%` : `${trendPct}%`} vs ystd
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    {activeMetrics.txCount > 0 ? `${activeMetrics.txCount} txns` : "Operating Inflow"}
+                  </span>
+                )}
+              </div>
+              <Sparkline data={activeMetrics.sparkline} color="emerald" />
             </div>
           </div>
+
           <div className="relative z-10 flex items-center justify-between border-t border-emerald-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
-            <span>Canonical P&amp;L</span>
-            <Link href="/invoices" className="font-bold text-emerald-600 hover:underline dark:text-emerald-400">Sales →</Link>
+            <span>Avg Ticket: {inr(data.todayMetrics.avgTicketSize)}</span>
+            <Link href="/invoices" className="font-bold text-emerald-600 hover:underline dark:text-emerald-400">
+              Sales Ledger →
+            </Link>
           </div>
         </div>
 
-        {/* KPI 2: Business Net Profit (Indigo Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-indigo relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-indigo-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/15">
+        {/* KPI 2: Business Net Profit */}
+        <div className="bento-surface-interactive card-glow-indigo relative overflow-hidden group flex flex-col justify-between p-5 rounded-3xl border border-indigo-500/25 bg-white/95 dark:bg-slate-900/90 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/15">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
           <div className="relative z-10 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">{activeMetrics.label} Net Profit</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/10 text-indigo-600 shadow-xs dark:text-indigo-400 group-hover:scale-110 transition-transform">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+              {activeMetrics.label} Net Profit
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 shadow-xs dark:bg-indigo-500/20 dark:text-indigo-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="cash-book" className="h-4 w-4" />
             </div>
           </div>
+
           <div className="relative z-10 my-2">
-            <div className={`text-2xl font-black sm:text-3xl tracking-tight ${activeMetrics.profit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"}`}>
+            <div
+              className={`text-2xl font-black sm:text-3xl tracking-tight ${
+                activeMetrics.profit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
               {inr(activeMetrics.profit)}
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
+
+            <div className="mt-2 flex items-center justify-between">
               <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-                Margin: {activeMetrics.margin}%
+                Net Margin: {activeMetrics.margin}%
               </span>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Pre-Tax
-              </p>
+              <Sparkline data={data.sparklines?.profit || []} color="indigo" />
             </div>
           </div>
+
           <div className="relative z-10 flex items-center justify-between border-t border-indigo-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
-            <span>Pre-Tax Business Profit</span>
-            <Link href="/finance/pnl" className="font-bold text-indigo-600 hover:underline dark:text-indigo-400">P&amp;L View →</Link>
+            <span>COGS &amp; Overheads Verified</span>
+            <Link href="/finance/pnl" className="font-bold text-indigo-600 hover:underline dark:text-indigo-400">
+              P&amp;L View →
+            </Link>
           </div>
         </div>
 
-        {/* KPI 3: Operating Expenses (Rose Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-rose relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-rose-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-500/15">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-rose-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+        {/* KPI 3: Cash vs Digital Split (Cyber Café Critical Metric) */}
+        <div className="bento-surface-interactive card-glow-blue relative overflow-hidden group flex flex-col justify-between p-5 rounded-3xl border border-blue-500/25 bg-white/95 dark:bg-slate-900/90 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
           <div className="relative z-10 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">{activeMetrics.label} Expenses</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/20 to-pink-500/10 text-rose-600 shadow-xs dark:text-rose-400 group-hover:scale-110 transition-transform">
-              <ActionVectorIcon icon="expenses" className="h-4 w-4" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              Cash vs Digital Ratio
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 shadow-xs dark:bg-blue-500/20 dark:text-blue-400 group-hover:scale-110 transition-transform">
+              <ActionVectorIcon icon="upi" className="h-4 w-4" />
             </div>
           </div>
-          <div className="relative z-10 my-2">
-            <div className="text-2xl font-black text-rose-600 sm:text-3xl dark:text-rose-400 tracking-tight">
-              {inr(activeMetrics.expenses)}
-            </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="inline-flex items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                Outlays
-              </span>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Operational Overheads
-              </p>
-            </div>
-          </div>
-          <div className="relative z-10 flex items-center justify-between border-t border-rose-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
-            <span>Overheads Ledger</span>
-            <Link href="/finance/expenses" className="font-bold text-rose-600 hover:underline dark:text-rose-400">Expenses →</Link>
-          </div>
-        </div>
 
-        {/* KPI 4: Liquid Float Vaults (Amber Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-amber relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-amber-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/15">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
-          <div className="relative z-10 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Liquid Float</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-yellow-500/10 text-amber-600 shadow-xs dark:text-amber-400 group-hover:scale-110 transition-transform">
-              <ActionVectorIcon icon="banks" className="h-4 w-4" />
-            </div>
-          </div>
           <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
-              {inr(data.liquidity.totalLiquidAssets)}
+              {data.paymentSplit?.cashRatioPct || 60}% <span className="text-xs font-bold text-slate-400">Cash</span>
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                6 Safes
-              </span>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Cash &amp; Bank Vaults
-              </p>
+
+            <div className="mt-2 space-y-1.5">
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                <div style={{ width: `${data.paymentSplit?.cashRatioPct || 60}%` }} className="bg-blue-600" title="Cash" />
+                <div style={{ width: `${data.paymentSplit?.digitalRatioPct || 40}%` }} className="bg-emerald-500" title="Digital" />
+              </div>
+              <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <span>Cash: {inrCompact(data.paymentSplit?.cashInflow)}</span>
+                <span>UPI/Bank: {inrCompact(data.paymentSplit?.digitalInflow)}</span>
+              </div>
             </div>
           </div>
-          <div className="relative z-10 flex items-center justify-between border-t border-amber-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
-            <span>Asset Conservation: Active</span>
-            <Link href="/finance/settlements" className="font-bold text-amber-600 hover:underline dark:text-amber-400">Settlements →</Link>
+
+          <div className="relative z-10 flex items-center justify-between border-t border-blue-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+            <span>Float Inflow Balance</span>
+            <Link href="/finance/cashbook" className="font-bold text-blue-600 hover:underline dark:text-blue-400">
+              Cashbook →
+            </Link>
           </div>
         </div>
 
-        {/* KPI 5: Customer Receivables (Cyan Multi-Tone Glow) */}
-        <div className="bento-surface-interactive card-glow-cyan relative overflow-hidden group flex flex-col justify-between p-5 rounded-2xl border border-cyan-500/25 bg-white/95 dark:bg-slate-900/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/15">
+        {/* KPI 4: Customer Receivables & Khata Radar */}
+        <div className="bento-surface-interactive card-glow-cyan relative overflow-hidden group flex flex-col justify-between p-5 rounded-3xl border border-cyan-500/25 bg-white/95 dark:bg-slate-900/90 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/15">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-cyan-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
           <div className="relative z-10 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">Customer Dues</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 text-cyan-600 shadow-xs dark:text-cyan-400 group-hover:scale-110 transition-transform">
+            <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+              Customer Dues
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600 shadow-xs dark:bg-cyan-500/20 dark:text-cyan-400 group-hover:scale-110 transition-transform">
               <ActionVectorIcon icon="customers" className="h-4 w-4" />
             </div>
           </div>
+
           <div className="relative z-10 my-2">
             <div className="text-2xl font-black text-cyan-700 sm:text-3xl dark:text-cyan-400 tracking-tight">
               {inr(data.customerData.totalReceivables)}
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
+
+            <div className="mt-2 flex items-center justify-between">
               <span className="inline-flex items-center rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300">
-                Khata
+                {data.customerData.customerCountWithDue} Accounts Pending
               </span>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                {data.customerData.customerCountWithDue} Accounts with Dues
-              </p>
+              <span className="text-[10px] font-bold text-slate-400">Khata Ledger</span>
             </div>
           </div>
+
           <div className="relative z-10 flex items-center justify-between border-t border-cyan-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
-            <span>Khata Due Ledger</span>
-            <Link href="/customers" className="font-bold text-cyan-600 hover:underline dark:text-cyan-400">Customers →</Link>
+            <span>Actionable Recovery</span>
+            <Link href="/customers" className="font-bold text-cyan-600 hover:underline dark:text-cyan-400">
+              Collect Dues →
+            </Link>
+          </div>
+        </div>
+
+        {/* KPI 5: Stock & Reorder Health */}
+        <div className="bento-surface-interactive card-glow-amber relative overflow-hidden group flex flex-col justify-between p-5 rounded-3xl border border-amber-500/25 bg-white/95 dark:bg-slate-900/90 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/15">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/15 rounded-full blur-2xl group-hover:scale-150 transition-transform pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              Stock Replenish
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shadow-xs dark:bg-amber-500/20 dark:text-amber-400 group-hover:scale-110 transition-transform">
+              <ActionVectorIcon icon="products" className="h-4 w-4" />
+            </div>
+          </div>
+
+          <div className="relative z-10 my-2">
+            <div className="text-2xl font-black text-slate-900 sm:text-3xl dark:text-white tracking-tight">
+              {data.inventoryData.lowStockCount + data.inventoryData.outOfStockCount}{" "}
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Alerts</span>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                {data.inventoryData.outOfStockCount} Out of Stock
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium truncate">
+                Val: {inrCompact(data.inventoryData.totalStockValue)}
+              </span>
+            </div>
+          </div>
+
+          <div className="relative z-10 flex items-center justify-between border-t border-amber-100/60 pt-2 text-[11px] text-slate-500 dark:border-white/5">
+            <span>Reorder Level Triggers</span>
+            <Link href="/catalog/products" className="font-bold text-amber-600 hover:underline dark:text-amber-400">
+              Catalog →
+            </Link>
           </div>
         </div>
       </div>
@@ -903,124 +1200,216 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       </div>
 
       {/* ===============================================================================
-          5. OPERATIONS & BUSINESS HEALTH (Customers, Inventory & Day Close)
+          6. DAILY OPERATIONAL RADAR (3-Column Action Cards)
       =============================================================================== */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Customer Health */}
-        <div className="bento-surface p-6 dark:bg-slate-900/90 flex flex-col justify-between">
+        {/* Column 1: Actionable Khata Due Radar with 1-Click WhatsApp Reminders */}
+        <div className="bento-surface p-6 dark:bg-slate-900/90 flex flex-col justify-between rounded-3xl">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400">
                   <ActionVectorIcon icon="customers" className="h-4 w-4" />
                 </span>
-                <h3 className="font-bold text-slate-900 dark:text-white">Customer Receivables</h3>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">Khata Recovery Radar</h3>
+                  <p className="text-[10px] text-slate-400">Direct WhatsApp reminders</p>
+                </div>
               </div>
-              <Link href="/customers" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">View CRM →</Link>
+              <Link href="/customers" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
+                All Khata →
+              </Link>
             </div>
+
             <div className="mt-4 space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500">Total Outstanding Dues:</span>
-                <strong className="text-amber-600 font-bold text-sm">{inr(data.customerData.totalReceivables)}</strong>
+                <strong className="text-cyan-700 dark:text-cyan-400 font-black text-sm">
+                  {inr(data.customerData.totalReceivables)}
+                </strong>
               </div>
+
               <div className="space-y-2 pt-1">
-                {data.customerData.topDebtors.length === 0 ? (
+                {(data.customerData.topDebtors || []).length === 0 ? (
                   <div className="text-center py-6 text-xs text-slate-400">Zero customer dues outstanding!</div>
                 ) : (
-                  data.customerData.topDebtors.slice(0, 3).map((d: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center rounded-xl bg-slate-50 p-2 text-xs dark:bg-slate-800/40">
-                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate">{d.name}</span>
-                      <strong className="font-bold text-rose-600 dark:text-rose-400">{inr(d.balance)}</strong>
+                  (data.customerData.topDebtors || []).slice(0, 4).map((d: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-2.5 text-xs dark:border-white/5 dark:bg-slate-800/40"
+                    >
+                      <div className="truncate pr-2">
+                        <div className="font-bold text-slate-900 dark:text-white truncate">{d.name}</div>
+                        <div className="text-[10px] text-slate-400">{d.phone || "No phone"}</div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-black text-rose-600 dark:text-rose-400">{inr(d.balance)}</span>
+                        {d.whatsappUrl ? (
+                          <a
+                            href={d.whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-xs transition hover:bg-emerald-700"
+                            title="Send WhatsApp payment reminder"
+                          >
+                            <ActionVectorIcon icon="whatsapp" className="h-3 w-3" />
+                            Remind
+                          </a>
+                        ) : (
+                          <Link
+                            href="/customers"
+                            className="inline-flex items-center rounded-xl bg-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200"
+                          >
+                            Collect
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
           </div>
+
           <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">
-            <Link href="/finance/ledger" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
-              Open Khata Ledgers →
+            <Link href="/business/whatsapp" className="text-xs font-bold text-emerald-600 hover:underline dark:text-emerald-400">
+              Open WhatsApp Desk →
             </Link>
           </div>
         </div>
 
-        {/* Inventory Health */}
-        <div className="bento-surface p-6 dark:bg-slate-900/90 flex flex-col justify-between">
+        {/* Column 2: Inventory Replenishment & Out-of-Stock Radar */}
+        <div className="bento-surface p-6 dark:bg-slate-900/90 flex flex-col justify-between rounded-3xl">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
                   <ActionVectorIcon icon="products" className="h-4 w-4" />
                 </span>
-                <h3 className="font-bold text-slate-900 dark:text-white">Inventory Health</h3>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">Replenishment Radar</h3>
+                  <p className="text-[10px] text-slate-400">Stock reorder levels</p>
+                </div>
               </div>
-              <Link href="/catalog/products" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">Catalog →</Link>
+              <Link href="/catalog/products" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
+                Catalog →
+              </Link>
             </div>
+
             <div className="mt-4 space-y-3 text-xs">
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Stock Valuation (WAC):</span>
                 <strong className="text-slate-900 dark:text-white font-bold text-sm">
-                  {data.inventoryData.isValuationMissingCost ? "Valuation pending cost data" : inr(data.inventoryData.totalStockValue)}
+                  {data.inventoryData.isValuationMissingCost
+                    ? "Valuation pending cost data"
+                    : inr(data.inventoryData.totalStockValue)}
                 </strong>
               </div>
+
               <div className="grid grid-cols-2 gap-2 pt-1">
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-2 text-center dark:border-amber-900/40 dark:bg-amber-950/20">
-                  <div className="text-base font-black text-amber-700 dark:text-amber-400">{data.inventoryData.lowStockCount}</div>
-                  <div className="text-[10px] font-bold text-amber-900 dark:text-amber-300">Low Stock</div>
+                <div className="rounded-2xl border border-amber-200/70 bg-amber-50/50 p-2.5 text-center dark:border-amber-900/40 dark:bg-amber-950/20">
+                  <div className="text-lg font-black text-amber-700 dark:text-amber-400">
+                    {data.inventoryData.lowStockCount}
+                  </div>
+                  <div className="text-[10px] font-bold text-amber-900 dark:text-amber-300">Below Reorder</div>
                 </div>
-                <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-2 text-center dark:border-rose-900/40 dark:bg-rose-950/20">
-                  <div className="text-base font-black text-rose-700 dark:text-rose-400">{data.inventoryData.outOfStockCount}</div>
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50/50 p-2.5 text-center dark:border-rose-900/40 dark:bg-rose-950/20">
+                  <div className="text-lg font-black text-rose-700 dark:text-rose-400">
+                    {data.inventoryData.outOfStockCount}
+                  </div>
                   <div className="text-[10px] font-bold text-rose-900 dark:text-rose-300">Out of Stock</div>
                 </div>
               </div>
+
+              {/* Top Low-Stock Items */}
+              <div className="space-y-1.5 pt-1">
+                {(data.inventoryData.lowStockItems || []).slice(0, 3).map((item: any) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs dark:bg-slate-800/40"
+                  >
+                    <span className="truncate font-medium text-slate-800 dark:text-slate-200">{item.name}</span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                      {item.stockQty} / {item.reorderLevel} units
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+
           <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">
-            <Link href="/inventory" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
-              Audit Stock Movements →
+            <Link href="/purchases/entry" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
+              New Purchase Intake →
             </Link>
           </div>
         </div>
 
-        {/* Day Close Status */}
-        <div className="bento-surface p-6 dark:bg-slate-900/90 flex flex-col justify-between">
+        {/* Column 3: Day Close & Financial Integrity Sentinel */}
+        <div className="bento-surface p-6 dark:bg-slate-900/90 flex flex-col justify-between rounded-3xl">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
                   <ActionVectorIcon icon="day-close" className="h-4 w-4" />
                 </span>
-                <h3 className="font-bold text-slate-900 dark:text-white">Day Close &amp; Seal</h3>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">Day Close Sentinel</h3>
+                  <p className="text-[10px] text-slate-400">Cash seal &amp; audit score</p>
+                </div>
               </div>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                data.dayCloseStatus.state === "today_closed"
-                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                  : data.dayCloseStatus.state === "today_ready_for_close"
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-              }`}>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                  data.dayCloseStatus.state === "today_closed"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : data.dayCloseStatus.state === "today_ready_for_close"
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                }`}
+              >
                 {data.dayCloseStatus.status.toUpperCase()}
               </span>
             </div>
-            <div className="mt-4 space-y-2 text-xs">
+
+            <div className="mt-4 space-y-2.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500">Expected Physical Cash:</span>
-                <strong className="text-slate-900 dark:text-white">{inr(data.dayCloseStatus.expectedCash)}</strong>
+                <strong className="text-slate-900 dark:text-white font-black">
+                  {inr(data.dayCloseStatus.expectedCash)}
+                </strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Counted Cash:</span>
-                <strong className="text-slate-900 dark:text-white">{inr(data.dayCloseStatus.physicalCash)}</strong>
+                <span className="text-slate-500">Counted Drawer Cash:</span>
+                <strong className="text-slate-900 dark:text-white font-black">
+                  {inr(data.dayCloseStatus.physicalCash)}
+                </strong>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center rounded-xl bg-slate-50 p-2 dark:bg-slate-800/40">
                 <span className="text-slate-500">Reconciliation Variance:</span>
-                <strong className={Math.abs(data.dayCloseStatus.difference) > 0 ? "text-rose-600" : "text-emerald-600"}>
+                <strong
+                  className={`font-black ${
+                    Math.abs(data.dayCloseStatus.difference) > 0.01 ? "text-rose-600" : "text-emerald-600"
+                  }`}
+                >
                   {inr(data.dayCloseStatus.difference)}
                 </strong>
               </div>
+              <div className="flex justify-between items-center pt-1 text-[11px]">
+                <span className="text-slate-500">Financial Integrity Score:</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 font-bold text-emerald-700 dark:text-emerald-300">
+                  <ActionVectorIcon icon="self-audit" className="h-3 w-3" />
+                  {data.auditData.score}/100 {data.auditData.status}
+                </span>
+              </div>
             </div>
           </div>
+
           <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">
-            <Link href="/finance/day-close" className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
+            <Link
+              href="/finance/day-close"
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline dark:text-blue-400"
+            >
               {data.dayCloseStatus.state === "today_closed" ? "View Snapshot Slip →" : "Perform Day Close →"}
             </Link>
           </div>
@@ -1028,185 +1417,156 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       </div>
 
       {/* ===============================================================================
-          6. ATTENTION CENTER & QUICK ACTIONS
+          7. ATTENTION CENTER ALERTS
       =============================================================================== */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Needs Your Attention */}
-        <div className="bento-surface p-6 lg:col-span-6 dark:bg-slate-900/90 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
-                  <ActionVectorIcon icon="self-audit" className="h-4 w-4" />
-                </span>
-                <h3 className="font-bold text-slate-900 dark:text-white">Needs Your Attention ({data.alerts.length})</h3>
-              </div>
-              <span className="text-xs text-slate-400">Deterministic System Alarms</span>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {data.alerts.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  Zero operational anomalies. All systems, inventories and ledgers are balanced.
-                </div>
-              ) : (
-                data.alerts.slice(0, 3).map((alt: any) => {
-                  const borderBg = {
-                    critical: "border-rose-300 bg-rose-50/80 text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-200",
-                    high: "border-amber-300 bg-amber-50/80 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200",
-                    warning: "border-yellow-300 bg-yellow-50/80 text-yellow-950 dark:border-yellow-900/50 dark:bg-yellow-950/20 dark:text-yellow-200",
-                    info: "border-blue-300 bg-blue-50/80 text-blue-950 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200",
-                  }[alt.severity as "critical" | "high" | "warning" | "info"];
-
-                  return (
-                    <div key={alt.id} className={`flex items-center justify-between rounded-2xl border p-3 text-xs shadow-xs ${borderBg}`}>
-                      <div className="space-y-0.5 pr-2">
-                        <div className="font-bold">{alt.title}</div>
-                        <p className="opacity-80 text-[11px]">{alt.reason}</p>
-                      </div>
-                      <Link
-                        href={alt.actionHref}
-                        className="shrink-0 rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white shadow-xs hover:brightness-110 dark:bg-white dark:text-slate-900"
-                      >
-                        {alt.actionLabel} →
-                      </Link>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-          <div className="mt-4 border-t border-slate-100 pt-2 text-right dark:border-white/5">
-            <Link href="/ai/self-audit" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
-              Run Complete AI Financial Self-Audit →
-            </Link>
-          </div>
-        </div>
-
-        {/* Financial Control Center */}
-        <div className="bento-surface p-6 lg:col-span-6 dark:bg-slate-900/90 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
-                  <ActionVectorIcon icon="trial-balance" className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white">Financial Control Center</h3>
-                  <p className="text-[10px] font-medium text-slate-400">Live counter, closing &amp; integrity signals</p>
-                </div>
-              </div>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                data.auditData.status === "PASS"
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-              }`}>
-                {data.auditData.status || "CHECK"}
+      {(data.alerts || []).length > 0 && (
+        <div className="bento-surface p-6 dark:bg-slate-900/90 rounded-3xl">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+                <ActionVectorIcon icon="self-audit" className="h-4 w-4" />
               </span>
+              <h3 className="font-bold text-slate-900 dark:text-white">Needs Your Attention ({data.alerts.length})</h3>
             </div>
+            <span className="text-xs text-slate-400">Deterministic Operational Alarms</span>
+          </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/30 dark:bg-emerald-950/15">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Net Cash Movement</div>
-                <div className={`mt-1 text-lg font-black ${
-                  (data.todayMetrics.moneyIn - data.todayMetrics.moneyOut) >= 0
-                    ? "text-emerald-700 dark:text-emerald-400"
-                    : "text-rose-600 dark:text-rose-400"
-                }`}>
-                  {(data.todayMetrics.moneyIn - data.todayMetrics.moneyOut) >= 0 ? "+" : "−"}{inr(Math.abs(data.todayMetrics.moneyIn - data.todayMetrics.moneyOut))}
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {data.alerts.map((alt: any) => {
+              const borderBg = {
+                critical:
+                  "border-rose-300 bg-rose-50/80 text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-200",
+                high: "border-amber-300 bg-amber-50/80 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200",
+                warning:
+                  "border-yellow-300 bg-yellow-50/80 text-yellow-950 dark:border-yellow-900/50 dark:bg-yellow-950/20 dark:text-yellow-200",
+                info: "border-blue-300 bg-blue-50/80 text-blue-950 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200",
+              }[alt.severity as "critical" | "high" | "warning" | "info"];
+
+              return (
+                <div key={alt.id} className={`flex flex-col justify-between rounded-2xl border p-3.5 text-xs shadow-xs ${borderBg}`}>
+                  <div className="space-y-1">
+                    <div className="font-bold">{alt.title}</div>
+                    <p className="opacity-80 text-[11px] leading-relaxed">{alt.reason}</p>
+                  </div>
+                  <div className="mt-3 text-right">
+                    <Link
+                      href={alt.actionHref}
+                      className="inline-flex rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white shadow-xs hover:brightness-110 dark:bg-white dark:text-slate-900"
+                    >
+                      {alt.actionLabel} →
+                    </Link>
+                  </div>
                 </div>
-                <div className="mt-0.5 text-[10px] text-slate-400">Money in less money out</div>
-              </div>
-
-              <div className="rounded-2xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/30 dark:bg-blue-950/15">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Today&apos;s Transactions</div>
-                <div className="mt-1 text-lg font-black text-slate-900 dark:text-white">{data.todayMetrics.transactionCount}</div>
-                <div className="mt-0.5 text-[10px] text-slate-400">Avg ticket {inr(data.todayMetrics.avgTicketSize)}</div>
-              </div>
-
-              <div className="rounded-2xl border border-amber-200/70 bg-amber-50/40 p-3 dark:border-amber-900/30 dark:bg-amber-950/15">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Quick Sales</div>
-                <div className="mt-1 text-lg font-black text-slate-900 dark:text-white">{data.todayMetrics.quickSaleCount}</div>
-                <div className="mt-0.5 text-[10px] text-slate-400">{inr(data.todayMetrics.quickSaleAmount)} booked</div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Day Close Variance</div>
-                <div className={`mt-1 text-lg font-black ${
-                  Math.abs(data.dayCloseStatus.difference) > 0.01 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
-                }`}>
-                  {inr(data.dayCloseStatus.difference)}
-                </div>
-                <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.dayCloseStatus.statusLabel || data.dayCloseStatus.status || "No variance"}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] dark:border-white/5">
-            <span className="text-slate-400">Internal transfers: <strong className="text-slate-600 dark:text-slate-300">{inr(data.todayMetrics.internalTransfers)}</strong></span>
-            <Link href="/finance/day-close" className="font-bold text-blue-600 hover:underline dark:text-blue-400">Open Control Ledger →</Link>
+              );
+            })}
           </div>
         </div>
-      </div>
-
-      <section className="bento-surface p-6 dark:bg-slate-900/90">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Quick Actions</span>
-            <h3 className="text-base font-black text-slate-900 dark:text-white">Financial &amp; Service Control</h3>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {DASHBOARD_QUICK_ACTIONS.map((action) => (
-            <Link key={action.id} href={action.href} className="group rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700 transition hover:border-blue-400 hover:bg-white hover:text-blue-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:bg-white/[0.06] dark:hover:text-blue-300">
-              <span className="flex items-center gap-2"><ActionVectorIcon icon={action.icon} className="h-4 w-4" />{action.label}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      )}
 
       {/* ===============================================================================
-          7. RECENT TRANSACTION STREAM
+          8. LIVE REAL-TIME ACTIVITY STREAM WITH CATEGORY FILTERS
       =============================================================================== */}
-      <div className="bento-surface p-6 dark:bg-slate-900/90">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/5">
+      <div className="bento-surface p-6 dark:bg-slate-900/90 rounded-3xl">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
               <ActionVectorIcon icon="trial-balance" className="h-4 w-4" />
             </span>
-            <h3 className="font-bold text-slate-900 dark:text-white">Recent Activity Stream</h3>
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white">Live Activity Stream</h3>
+              <p className="text-[10px] text-slate-400">Chronological transaction feed</p>
+            </div>
           </div>
-          <Link href="/invoices" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">View All Transactions →</Link>
+
+          {/* Activity Category Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60 text-xs font-bold">
+            {[
+              { id: "all", label: "All Feed" },
+              { id: "sale", label: "Sales" },
+              { id: "service", label: "Digital Banking" },
+              { id: "expense", label: "Expenses" },
+              { id: "cash", label: "Cash Drawer" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActivityFilter(tab.id as any)}
+                className={`rounded-lg px-2.5 py-1 transition-all ${
+                  activityFilter === tab.id
+                    ? "bg-white text-slate-900 shadow-xs dark:bg-slate-700 dark:text-white"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-4 divide-y divide-slate-100 dark:divide-white/5">
-          {(data.recentActivity || []).length === 0 ? (
+          {filteredActivity.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-400">
-              No recent transactions recorded. New sales and outlays will appear here live.
+              No transactions found for this filter. New counter sales and digital operations will appear here live.
             </div>
           ) : (
-            (data.recentActivity || []).map((item: any) => (
-              <div key={item.id} className="flex items-center justify-between py-2.5 text-xs">
+            filteredActivity.slice(0, 15).map((item: any) => (
+              <div key={item.id} className="flex items-center justify-between py-3 text-xs">
                 <div className="flex items-center gap-3">
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl font-bold ${
-                    item.type === "sale" ? "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400" : item.type === "expense" ? "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400" : "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
-                  }`}>
-                    <ActionVectorIcon icon={item.type === "sale" ? "new-sale" : item.type === "expense" ? "expenses" : "zap"} className="h-4 w-4" />
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-2xl font-bold ${
+                      item.type === "sale"
+                        ? "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+                        : item.type === "expense"
+                        ? "bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"
+                        : item.type === "cash" || item.type === "settlement"
+                        ? "bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400"
+                        : "bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400"
+                    }`}
+                  >
+                    <ActionVectorIcon
+                      icon={
+                        item.type === "sale"
+                          ? "pos"
+                          : item.type === "expense"
+                          ? "expenses"
+                          : item.type === "cash"
+                          ? "cash-book"
+                          : "zap"
+                      }
+                      className="h-4 w-4"
+                    />
                   </span>
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white">{item.title}</div>
-                    <div className="text-[11px] text-slate-400">{item.subtitle}</div>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <span>{item.subtitle}</span>
+                      <span>•</span>
+                      <span>{formatRelativeTime(item.date)}</span>
+                    </div>
                   </div>
                 </div>
+
                 <div className="text-right">
-                  <div className={`font-black ${item.direction === "in" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                    {item.direction === "in" ? "+" : "-"}{inr(item.amount)}
+                  <div
+                    className={`font-black text-sm ${
+                      item.direction === "in"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-rose-600 dark:text-rose-400"
+                    }`}
+                  >
+                    {item.direction === "in" ? "+" : "−"}
+                    {inr(item.amount)}
                   </div>
                   <div className="text-[10px] uppercase font-bold text-slate-400">{item.status}</div>
                 </div>
               </div>
             ))
           )}
+        </div>
+
+        <div className="mt-4 border-t border-slate-100 pt-3 text-center dark:border-white/5">
+          <Link href="/invoices" className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400">
+            View Complete Invoices &amp; Activity History →
+          </Link>
         </div>
       </div>
 

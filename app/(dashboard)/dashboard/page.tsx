@@ -42,6 +42,7 @@ export default async function DashboardPage() {
     transactionsRes,
     cashEntriesRes,
     settlementsRes,
+    paymentsRes,
   ] = await Promise.all([
     supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null })),
     getUserRole(),
@@ -60,6 +61,7 @@ export default async function DashboardPage() {
     supabase.from("transactions").select("id, transaction_number, service_type, direction, amount, service_fee, portal_charge, portal_commission, transaction_date, status, created_at, customers(name)").gte("transaction_date", thirtyDaysAgo),
     supabase.from("cash_entries").select("id, amount, direction, method, entry_date, ref_type, created_at").gte("entry_date", thirtyDaysAgo),
     supabase.from("settlements").select("id, amount, from_pool, to_pool, settlement_date, status, created_at").gte("settlement_date", thirtyDaysAgo),
+    supabase.from("payments").select("id, invoice_id, amount, method, received_at").gte("received_at", thirtyDaysAgo),
   ]);
 
   const profile = user
@@ -151,6 +153,7 @@ export default async function DashboardPage() {
   const transactions = (transactionsRes.data as any[]) || [];
   const cashEntries = (cashEntriesRes.data as any[]) || [];
   const settlements = (settlementsRes.data as any[]) || [];
+  const payments = (paymentsRes.data as any[]) || [];
 
   const todayInvoices = invoices.filter((inv) => inv.invoice_date === isoToday && inv.status !== "cancelled");
   const todayQuick = quickSales.filter((q) => q.sale_date === isoToday && q.status === "active");
@@ -161,6 +164,14 @@ export default async function DashboardPage() {
 
   const todayInvoiceRevenue = todayInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0);
   const todayQuickRevenue = todayQuick.reduce((s, q) => s + Number(q.amount || 0), 0);
+
+  // Payment Tender Split (Cash vs Digital Payment Inflow)
+  const todayPayments = payments.filter((p) => (p.received_at || "").slice(0, 10) === isoToday);
+  const todayPaymentCash = todayPayments.filter((p) => (p.method || "").toLowerCase() === "cash").reduce((s, p) => s + Number(p.amount || 0), 0) + todayQuickRevenue;
+  const todayPaymentDigital = todayPayments.filter((p) => (p.method || "").toLowerCase() !== "cash").reduce((s, p) => s + Number(p.amount || 0), 0);
+  const todayTotalPaymentInflow = todayPaymentCash + todayPaymentDigital;
+  const todayCashRatioPct = todayTotalPaymentInflow > 0 ? Math.round((todayPaymentCash / todayTotalPaymentInflow) * 100) : 60;
+  const todayDigitalRatioPct = 100 - todayCashRatioPct;
   
   const todayOperatingRevenue = Number(todayReport.revenue?.total_operating_revenue || (todayInvoiceRevenue + todayQuickRevenue));
   const todayCogs = Number(todayReport.cogs?.total_cogs || 0);
@@ -340,6 +351,41 @@ export default async function DashboardPage() {
       volume: rechargeTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
       income: rechargeTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
     },
+  };
+
+  // Today specific service metrics for real-time daily counter
+  const todayAepsTxns = todayTxns.filter((t) => t.service_type === "aeps");
+  const todayDmtTxns = todayTxns.filter((t) => t.service_type === "dmt");
+  const todayUpiTxns = todayTxns.filter((t) => t.service_type === "upi");
+  const todayRechargeTxns = todayTxns.filter((t) => t.service_type === "recharge");
+
+  const todayServiceBreakdown = {
+    aeps: {
+      count: todayAepsTxns.length,
+      volume: todayAepsTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
+      income: todayAepsTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
+    },
+    dmt: {
+      count: todayDmtTxns.length,
+      volume: todayDmtTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
+      income: todayDmtTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0) - Number(t.portal_charge || 0), 0),
+    },
+    upi: {
+      count: todayUpiTxns.length,
+      volume: todayUpiTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
+      income: todayUpiTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0),
+    },
+    recharge: {
+      count: todayRechargeTxns.length,
+      volume: todayRechargeTxns.reduce((s, t) => s + Number(t.amount || 0), 0),
+      income: todayRechargeTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0),
+    },
+  };
+
+  const sparklines = {
+    revenue: chartDays.slice(-7).map((d) => d.revenue),
+    expenses: chartDays.slice(-7).map((d) => d.expenses),
+    profit: chartDays.slice(-7).map((d) => Math.round((d.revenue - d.expenses) * 100) / 100),
   };
 
   // Unified Recent Activity Stream — merge every canonical activity source, then sort globally newest-first.
@@ -625,10 +671,31 @@ export default async function DashboardPage() {
     },
     chartDays,
     serviceBreakdown,
+    todayServiceBreakdown,
+    sparklines,
+    paymentSplit: {
+      cashInflow: todayPaymentCash,
+      digitalInflow: todayPaymentDigital,
+      cashRatioPct: todayCashRatioPct,
+      digitalRatioPct: todayDigitalRatioPct,
+    },
     customerData: {
       totalReceivables,
       customerCountWithDue: debtors.length,
-      topDebtors: debtors.map((d: any) => ({ name: d.name || "Customer", balance: Number(d.balance || 0), phone: d.phone })),
+      topDebtors: debtors.map((d: any) => {
+        const rawPhone = (d.phone || "").replace(/\D/g, "");
+        const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+        const greetingMsg = encodeURIComponent(
+          `Namaste ${d.name || "Customer"}, gentle reminder from ${shopSettings.shop_name || "Sarkar Communication"}. Your outstanding balance is ₹${Number(d.balance || 0).toFixed(2)}. Kindly settle when convenient. Thank you!`
+        );
+        return {
+          id: d.id,
+          name: d.name || "Customer",
+          balance: Number(d.balance || 0),
+          phone: d.phone,
+          whatsappUrl: cleanPhone ? `https://wa.me/${cleanPhone}?text=${greetingMsg}` : null,
+        };
+      }),
     },
     inventoryData: {
       totalStockValue,
