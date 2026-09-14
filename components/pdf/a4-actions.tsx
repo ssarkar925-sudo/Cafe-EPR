@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { InvoicePdfData } from "./invoice-pdf";
 import type { BusinessPdfData } from "./business-pdf";
 import type { DayClosePdfData } from "./day-close-pdf";
@@ -22,6 +22,18 @@ export default function A4Actions({
 }) {
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("download") === "true") {
+        const timer = setTimeout(() => {
+          void downloadPdf();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
+
   async function downloadPdf() {
     setBusy(true);
     try {
@@ -38,7 +50,7 @@ export default function A4Actions({
             document.body.appendChild(a);
             a.click();
             a.remove();
-            URL.revokeObjectURL(url);
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
             setBusy(false);
             return;
           }
@@ -71,7 +83,7 @@ export default function A4Actions({
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (err: any) {
       console.error("PDF download failed:", err);
       const targetId = invoiceId || (data as any)?.invoice?.id;

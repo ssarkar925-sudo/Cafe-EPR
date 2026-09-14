@@ -29,6 +29,7 @@ import {
   FileText,
   LayoutGrid,
   List,
+  Loader2,
   Menu,
   MessageSquare,
   Minus,
@@ -233,6 +234,7 @@ export default function PosShell({
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [whatsappMsg, setWhatsappMsg] = useState("");
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Operations drawers (Money Out, Today's Sales, Held Bills)
   const [mounted, setMounted] = useState(false);
@@ -899,6 +901,86 @@ export default function PosShell({
     } catch {
       setWhatsappStatus("error");
       setWhatsappMsg("Network error sending WhatsApp invoice.");
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!success?.invoiceId || downloadingPdf) return;
+    try {
+      setDownloadingPdf(true);
+
+      let invoiceData: any = null;
+      let invoiceItems: any[] = [];
+      let invoicePayments: any[] = [];
+      let storeSettings: any = null;
+
+      try {
+        const [invRes, itmRes, payRes, setRes] = await Promise.all([
+          supabase.from("invoices").select("*, customers(*)").eq("id", success.invoiceId).maybeSingle(),
+          supabase.from("invoice_items").select("*").eq("invoice_id", success.invoiceId).order("id", { ascending: true }),
+          supabase.from("payments").select("*").eq("invoice_id", success.invoiceId).order("received_at", { ascending: true }),
+          supabase.from("settings").select("*").maybeSingle(),
+        ]);
+        if (invRes.data) {
+          invoiceData = invRes.data;
+          invoiceItems = itmRes.data || [];
+          invoicePayments = payRes.data || [];
+          storeSettings = setRes.data || {};
+        }
+      } catch (fetchErr) {
+        console.warn("Could not fetch remote invoice data, falling back:", fetchErr);
+      }
+
+      if (!invoiceData) {
+        invoiceData = {
+          id: success.invoiceId,
+          invoice_number: success.invoiceNumber,
+          invoice_date: indiaToday(),
+          subtotal,
+          discount: discountValue,
+          total: success.total,
+          paid: success.paid,
+          due: success.due,
+          status: success.due > 0 ? "partial" : "paid",
+          customers: success.customerName ? { name: success.customerName, phone: success.customerPhone } : null,
+        };
+        invoiceItems = currentTab.cart.map((c) => ({
+          description: c.name,
+          qty: c.qty,
+          rate: c.rate,
+          amount: c.qty * c.rate,
+        }));
+        invoicePayments = [{ method: currentTab.paymentChoice, amount: success.paid }];
+      }
+
+      const [{ pdf }, { default: InvoicePdf }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/pdf/invoice-pdf"),
+      ]);
+
+      const blob = await pdf(
+        <InvoicePdf
+          invoice={invoiceData}
+          items={invoiceItems}
+          payments={invoicePayments}
+          settings={storeSettings || { shop_name: shopName }}
+          upiId={defaultUpiId}
+        />
+      ).toBlob();
+
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `Invoice-${success.invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err) {
+      console.error("Client PDF generation error:", err);
+      window.open(`/receipt/${success.invoiceId}/a4`, "_blank");
+    } finally {
+      setDownloadingPdf(false);
     }
   }
 
@@ -2000,16 +2082,24 @@ export default function PosShell({
                 <span>Print A4</span>
               </a>
 
-              <a
-                href={`/api/invoices/${success.invoiceId}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                download={`Invoice-${success.invoiceNumber}.pdf`}
-                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-black text-blue-700 hover:bg-blue-100 transition shadow-xs dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+              <button
+                type="button"
+                onClick={() => void handleDownloadPdf()}
+                disabled={downloadingPdf}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-black text-blue-700 hover:bg-blue-100 transition shadow-xs dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 disabled:opacity-50 cursor-pointer"
               >
-                <Download className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span>Download PDF</span>
-              </a>
+                {downloadingPdf ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                    <span>Generating PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span>Download PDF</span>
+                  </>
+                )}
+              </button>
 
               {success.customerPhone ? (
                 <button

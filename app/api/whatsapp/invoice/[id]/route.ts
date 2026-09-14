@@ -24,12 +24,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       db.from("settings").select("*").single(),
     ]);
 
-    const pdf = await renderToBuffer(createElement(CustomerInvoicePdf, {
-      invoice,
-      items: (items || []) as any[],
-      payments: (payments || []) as any[],
-      settings,
-    }) as any);
+    let pdf: any = null;
+    try {
+      pdf = await renderToBuffer(createElement(CustomerInvoicePdf, {
+        invoice,
+        items: (items || []) as any[],
+        payments: (payments || []) as any[],
+        settings,
+      }) as any);
+    } catch (renderErr) {
+      console.warn("Customer invoice PDF server rendering failed on Cloudflare, redirecting to A4:", renderErr);
+      return NextResponse.redirect(new URL(`/receipt/${invoice.id}/a4?download=true`, req.url));
+    }
 
     return new NextResponse(pdf as unknown as BodyInit, {
       status: 200,
@@ -42,6 +48,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
   } catch (error: any) {
     console.error("Customer invoice PDF error:", error);
-    return new NextResponse("Unable to generate invoice PDF.", { status: 500 });
+    try {
+      const { id } = await params;
+      return NextResponse.redirect(new URL(`/receipt/${id}/a4?download=true`, req.url));
+    } catch {
+      return new NextResponse("Unable to generate invoice PDF.", { status: 500 });
+    }
   }
 }

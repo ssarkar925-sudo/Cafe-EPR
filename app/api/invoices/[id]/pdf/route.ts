@@ -66,12 +66,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const { data: settings } = await db.from("settings").select("*").maybeSingle();
-    const pdfBuffer = await renderToBuffer(createElement(CustomerInvoicePdf, { invoice, items, payments, settings: settings || {} }) as any);
+    let pdfBuffer: any = null;
+    try {
+      pdfBuffer = await renderToBuffer(createElement(CustomerInvoicePdf, { invoice, items, payments, settings: settings || {} }) as any);
+    } catch (renderErr) {
+      console.warn("Server renderToBuffer failed on Cloudflare Worker, redirecting to A4 print view:", renderErr);
+      const redirectPath = isQuick ? `/receipt/quick/${invoice?.id || id}/a4?download=true` : `/receipt/${invoice?.id || id}/a4?download=true`;
+      return NextResponse.redirect(new URL(redirectPath, req.url));
+    }
     const isInline = url.searchParams.get("inline") === "true";
     const filename = `Invoice-${invoice.invoice_number || id}.pdf`;
     return new NextResponse(pdfBuffer as unknown as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${filename}"`, "Cache-Control": "private, no-store, max-age=0", "X-Content-Type-Options": "nosniff" } });
   } catch (error: any) {
     console.error("Invoice PDF generation error:", error);
-    return new NextResponse("Unable to generate invoice PDF.", { status: 500 });
+    try {
+      const { id } = await params;
+      return NextResponse.redirect(new URL(`/receipt/${id}/a4?download=true`, req.url));
+    } catch {
+      return new NextResponse("Unable to generate invoice PDF.", { status: 500 });
+    }
   }
 }

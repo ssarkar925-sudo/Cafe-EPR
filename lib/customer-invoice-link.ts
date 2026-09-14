@@ -3,7 +3,20 @@ import { createHmac, timingSafeEqual } from "crypto";
 const TOKEN_TTL_SECONDS = 15 * 60;
 
 function secret(): string {
-  const value = process.env.CUSTOMER_DOCUMENT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  let cfEnv: Record<string, unknown> = {};
+  try {
+    const { getCloudflareContext } = require("@opennextjs/cloudflare");
+    cfEnv = (getCloudflareContext()?.env as Record<string, unknown>) || {};
+  } catch {}
+  const value = String(
+    process.env.CUSTOMER_DOCUMENT_SECRET ||
+      cfEnv.CUSTOMER_DOCUMENT_SECRET ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      cfEnv.SUPABASE_SERVICE_ROLE_KEY ||
+      cfEnv.SUPABASE_SECRET_KEY ||
+      process.env.SUPABASE_SECRET_KEY ||
+      ""
+  ).trim();
   if (!value) throw new Error("Customer invoice document secret is not configured.");
   return value;
 }
