@@ -1,0 +1,288 @@
+name: One-time POS reset patch
+
+'on':
+  pull_request:
+    types: [opened]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply POS post-sale reset and receipt snapshot fixes
+        env:
+          POS_FILE: components/pos/pos-shell.tsx
+          TYPES_FILE: components/pos/pos-types.ts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          pos = Path("components/pos/pos-shell.tsx")
+          text = pos.read_text(encoding="utf-8")
+
+          old = '''  function clearActiveCart() {
+    playPosSound("delete", soundEnabled);
+    updateCurrentTab({
+      cart: [],
+      discount: "",
+      cashReceived: "",
+      splitRows: [],
+      collectPreviousDue: false,
+      useAdvance: false,
+    });
+  }
+'''
+          new = '''  function clearActiveCart() {
+    playPosSound("delete", soundEnabled);
+    updateCurrentTab({
+      cart: [],
+      discount: "",
+      cashReceived: "",
+      splitRows: [],
+      collectPreviousDue: false,
+      useAdvance: false,
+    });
+  }
+
+  // Reset only transaction-scoped state after a successful sale. This deliberately
+  // keeps held bills and other open order tabs untouched.
+  function resetPOSForNewTransaction() {
+    updateCurrentTab({
+      cart: [],
+      customerId: "",
+      customerSearch: "",
+      discount: "",
+      discountType: "flat",
+      paymentChoice: "cash",
+      cashReceived: "",
+      splitRows: [],
+      collectPreviousDue: false,
+      useAdvance: false,
+    });
+    setCustomerOpen(false);
+    setSearch("");
+    setQrDataUrl("");
+    setError(null);
+    setMobileCartOpen(false);
+  }
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"clearActiveCart anchor count={text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = '''        updateCurrentTab({
+          cart: [],
+          discount: "",
+          customerId: "",
+          customerSearch: "",
+          cashReceived: "",
+          splitRows: [],
+          collectPreviousDue: false,
+          useAdvance: false,
+        });
+'''
+          new = '''        updateCurrentTab({
+          cart: [],
+          customerId: "",
+          customerSearch: "",
+          discount: "",
+          discountType: "flat",
+          paymentChoice: "cash",
+          cashReceived: "",
+          splitRows: [],
+          collectPreviousDue: false,
+          useAdvance: false,
+        });
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"remote sale reset anchor count={text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = '''      setSuccess({
+        invoiceId,
+        invoiceNumber,
+        total: Number(raw.total ?? total),
+        paid: Number(raw.paid ?? (currentTab.paymentChoice === "khata" ? 0 : total)),
+        due: Number(raw.due ?? (currentTab.paymentChoice === "khata" ? total : 0)),
+        customerName: selectedCustomer?.name,
+        customerPhone: selectedCustomer?.phone ?? undefined,
+      });
+      setMobileCartOpen(false);
+'''
+          new = '''      // Snapshot receipt data before resetting the active tab. The success modal can
+      // remain open while the terminal is immediately ready for the next bill.
+      const completedCart = currentTab.cart.map((line) => ({ ...line }));
+      const completedPaymentChoice = currentTab.paymentChoice;
+      const completedSubtotal = subtotal;
+      const completedDiscount = discountValue;
+      const completedCustomerName = selectedCustomer?.name;
+      const completedCustomerPhone = selectedCustomer?.phone ?? undefined;
+
+      setSuccess({
+        invoiceId,
+        invoiceNumber,
+        total: Number(raw.total ?? total),
+        paid: Number(raw.paid ?? (completedPaymentChoice === "khata" ? 0 : total)),
+        due: Number(raw.due ?? (completedPaymentChoice === "khata" ? total : 0)),
+        customerName: completedCustomerName,
+        customerPhone: completedCustomerPhone,
+        cart: completedCart,
+        paymentChoice: completedPaymentChoice,
+        subtotal: completedSubtotal,
+        discount: completedDiscount,
+      });
+
+      // Database commit succeeded: immediately start a clean transaction locally.
+      resetPOSForNewTransaction();
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"success anchor count={text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = '''      if (!invoiceData) {
+        invoiceData = {
+          id: success.invoiceId,
+          invoice_number: success.invoiceNumber,
+          invoice_date: indiaToday(),
+          subtotal,
+          discount: discountValue,
+          total: success.total,
+          paid: success.paid,
+          due: success.due,
+          status: success.due > 0 ? "partial" : "paid",
+          customers: success.customerName ? { name: success.customerName, phone: success.customerPhone } : null,
+        };
+        invoiceItems = currentTab.cart.map((c) => ({
+          description: c.name,
+          qty: c.qty,
+          rate: c.rate,
+          amount: c.qty * c.rate,
+        }));
+        invoicePayments = [{ method: currentTab.paymentChoice, amount: success.paid }];
+      }
+'''
+          new = '''      if (!invoiceData) {
+        // The active tab is already reset after a successful sale, so fall back to
+        // the immutable receipt snapshot stored in SuccessState.
+        const fallbackCart = success.cart ?? [];
+        const fallbackPaymentChoice = success.paymentChoice ?? "cash";
+        const fallbackSubtotal = Number(success.subtotal ?? 0);
+        const fallbackDiscount = Number(success.discount ?? 0);
+        invoiceData = {
+          id: success.invoiceId,
+          invoice_number: success.invoiceNumber,
+          invoice_date: indiaToday(),
+          subtotal: fallbackSubtotal,
+          discount: fallbackDiscount,
+          total: success.total,
+          paid: success.paid,
+          due: success.due,
+          status: success.due > 0 ? "partial" : "paid",
+          customers: success.customerName ? { name: success.customerName, phone: success.customerPhone } : null,
+        };
+        invoiceItems = fallbackCart.map((c) => ({
+          description: c.name,
+          qty: c.qty,
+          rate: c.rate,
+          amount: c.qty * c.rate,
+        }));
+        invoicePayments = [{ method: fallbackPaymentChoice, amount: success.paid }];
+      }
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"PDF fallback anchor count={text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = '''  function handleResetAfterSale() {
+    setSuccess(null);
+    setWhatsappStatus("idle");
+    setWhatsappMsg("");
+    clearActiveCart();
+    window.setTimeout(() => itemSearchRef.current?.focus(), 100);
+  }
+'''
+          new = '''  function handleResetAfterSale() {
+    setSuccess(null);
+    setWhatsappStatus("idle");
+    setWhatsappMsg("");
+    resetPOSForNewTransaction();
+    window.setTimeout(() => itemSearchRef.current?.focus(), 100);
+  }
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"post-sale handler anchor count={text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          pos.write_text(text, encoding="utf-8")
+
+          types = Path(TYPES_FILE).read_text(encoding="utf-8")
+          old = '''export type SuccessState = {
+  invoiceId: string;
+  invoiceNumber: string;
+  total: number;
+  paid: number;
+  due: number;
+  customerName?: string;
+  customerPhone?: string;
+};
+'''
+          new = '''export type SuccessState = {
+  invoiceId: string;
+  invoiceNumber: string;
+  total: number;
+  paid: number;
+  due: number;
+  customerName?: string;
+  customerPhone?: string;
+  cart?: CartLine[];
+  paymentChoice?: PaymentChoice;
+  subtotal?: number;
+  discount?: number;
+};
+'''
+          if types.count(old) != 1:
+              raise SystemExit(f"SuccessState anchor count={types.count(old)}")
+          Path(TYPES_FILE).write_text(types.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          git diff --check
+          grep -n "resetPOSForNewTransaction\|p_idempotency_key\|cart?: CartLine" components/pos/pos-shell.tsx components/pos/pos-types.ts components/invoices/invoice-edit-modal.tsx supabase/migrations/20260915_01_fix_invoice_edit_idempotency_rpc.sql
+
+      - name: Verify TypeScript
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Commit patched source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/pos/pos-shell.tsx components/pos/pos-types.ts
+          git diff --cached --quiet && echo "No POS changes detected" && exit 0
+          git commit -m "fix(pos): reset terminal after successful sale"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+      - name: Remove one-time patch workflow
+        if: success()
+        run: |
+          git fetch origin "${{ github.event.pull_request.head.ref }}"
+          git checkout "${{ github.event.pull_request.head.ref }}"
+          if [ -f .github/workflows/_oneoff_pos_reset.yml ]; then
+            git rm .github/workflows/_oneoff_pos_reset.yml
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: remove one-time POS patch workflow"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi
