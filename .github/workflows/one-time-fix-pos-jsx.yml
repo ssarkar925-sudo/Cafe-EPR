@@ -21,8 +21,10 @@ jobs:
       - name: Remove extra POS customer closing tag
         shell: bash
         run: |
-          sed -i '/data-pos-customer-action="reference"/ s#</div></div></div>$#</div></div>#' components/pos/pos-shell.tsx
-          grep -F 'data-pos-customer-action="reference"' components/pos/pos-shell.tsx | grep -F '</div></div></div>' && exit 1 || true
+          before=$(grep -F 'data-pos-customer-action="reference"' components/pos/pos-shell.tsx)
+          sed -i '/data-pos-customer-action="reference"/ s#</div>[[:space:]]*$##' components/pos/pos-shell.tsx
+          after=$(grep -F 'data-pos-customer-action="reference"' components/pos/pos-shell.tsx)
+          test "$before" != "$after"
 
       - name: Commit repair
         shell: bash
@@ -31,6 +33,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add components/pos/pos-shell.tsx
           git diff --cached --check
-          git diff --cached --quiet && exit 0
+          git diff --cached --quiet && exit 1
           git commit -m 'fix: repair POS JSX customer section'
           git push origin HEAD:fix/invoice-edit-pos-reset
