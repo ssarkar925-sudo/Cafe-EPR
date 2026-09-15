@@ -9,8 +9,20 @@
 // Run: npm run test:whatsapp-document
 import { register } from "node:module";
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 register("./whatsapp-test-alias-hooks.mjs", import.meta.url);
+
+const require = createRequire(import.meta.url);
+const runner = require("./whatsapp-pdf-job-runner.js");
+
+const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+function readRepo(rel) {
+  return fs.readFileSync(path.join(repoRoot, rel), "utf8");
+}
 
 const doc = await import("../lib/whatsapp-document.ts");
 const direct = await import("../lib/whatsapp-direct-delivery.ts");
@@ -319,6 +331,93 @@ function strictGatewayEmulator(req, res, body) {
   const r = await postDocumentDirectToGateway(gw.url, { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf", documentBase64: badB64 });
   ok("e2e: corrupt PDF rejected, not reported sent", r.ok === false && /not a valid PDF/i.test(String(r.error)), JSON.stringify(r));
   await stopMock(gw);
+}
+
+// 19. Job runner: backoff schedule and terminal boundary.
+{
+  ok("runner backoff minutes", runner.retryDelayMinutes(1) === 2 && runner.retryDelayMinutes(4) === 120, JSON.stringify([runner.retryDelayMinutes(1), runner.retryDelayMinutes(4)]));
+  ok("runner terminal at max attempts", runner.retryDelayMinutes(5) === null && runner.retryDelayMinutes(9) === null);
+}
+
+// 20. Job runner: phone/filename/PDF validation helpers.
+{
+  ok("runner jid formatting", runner.formatJid("9876543210") === "919876543210@s.whatsapp.net" && runner.formatJid("+91 98765 43210") === "919876543210@s.whatsapp.net");
+  ok("runner filename sanitized", runner.sanitizeFileName("Invoice-INV/0175.pdf") === "Invoice-INV_0175.pdf");
+  const good = runner.decodeJobPdf({ document_base64: Buffer.from("%PDF-1.4 q").toString("base64") });
+  const bad = runner.decodeJobPdf({ document_base64: Buffer.from("hello").toString("base64") });
+  const empty = runner.decodeJobPdf({ document_base64: "" });
+  ok("runner pdf validation", Boolean(good.buffer?.length) && /not a valid PDF/.test(bad.error || "") && /empty/i.test(empty.error || ""), JSON.stringify({ bad, empty }));
+}
+
+// 21. Job runner: full processPdfJob paths with mocked deps.
+{
+  const patches = [];
+  const deps = {
+    patchJob: async (id, fields) => { patches.push({ id, fields }); },
+    sendDocument: async () => ({ messageId: "job-msg-1" }),
+  };
+  const r = await runner.processPdfJob(deps, { id: "job-1", recipient_phone: "919876543210", file_name: "Invoice-INV-0175.pdf", document_base64: Buffer.from("%PDF-1.4 q").toString("base64"), attempt_count: 0 });
+  const finalPatch = patches[patches.length - 1];
+  ok("runner sends and marks sent", r === "sent" && finalPatch?.fields?.status === "sent" && finalPatch?.fields?.provider_message_id === "job-msg-1", JSON.stringify(finalPatch));
+}
+{
+  let sends = 0;
+  const deps = { patchJob: async () => {}, sendDocument: async () => { sends++; return {}; } };
+  const r = await runner.processPdfJob(deps, { id: "job-2", recipient_phone: "abc", file_name: "f.pdf", document_base64: "xx", attempt_count: 0 });
+  ok("runner rejects bad phone without sending", r === "failed" && sends === 0);
+}
+{
+  let sends = 0;
+  const deps = { patchJob: async () => {}, sendDocument: async () => { sends++; return {}; } };
+  const r = await runner.processPdfJob(deps, { id: "job-3", recipient_phone: VALID_PHONE, file_name: "f.pdf", document_base64: Buffer.from("nope").toString("base64"), attempt_count: 0 });
+  ok("runner fails corrupt pdf without sending", r === "failed" && sends === 0);
+}
+{
+  const patches = [];
+  const deps = { patchJob: async (id, fields) => { patches.push(fields); }, sendDocument: async () => { throw new Error("wa socket down"); } };
+  const r = await runner.processPdfJob(deps, { id: "job-4", recipient_phone: VALID_PHONE, file_name: "f.pdf", document_base64: Buffer.from("%PDF-1.4 q").toString("base64"), attempt_count: 0 });
+  const finalPatch = patches[patches.length - 1];
+  ok("runner retries send failure with backoff", r === "retry" && finalPatch?.status === "pending" && new Date(finalPatch?.next_attempt_at).getTime() > Date.now(), JSON.stringify(finalPatch));
+  const r2 = await runner.processPdfJob(deps, { id: "job-4", recipient_phone: VALID_PHONE, file_name: "f.pdf", document_base64: Buffer.from("%PDF-1.4 q").toString("base64"), attempt_count: 4 });
+  ok("runner terminal after max attempts", r2 === "failed");
+}
+
+// 22. Migration: durable queue table with tight RLS and no secrets.
+{
+  const sql = readRepo("supabase/migrations/20260915_02_whatsapp_pdf_jobs.sql");
+  ok("migration creates queue table", /create table if not exists public\.whatsapp_pdf_jobs/i.test(sql));
+  ok("migration enables RLS for back-office only", /enable row level security/i.test(sql) && /is_back_office\(\)/.test(sql));
+  ok("migration holds no credentials", !/service_role|api[_-]?key|bearer|password|secret/i.test(sql));
+}
+
+// 23. Wiring: gateway poller, route enqueue, job endpoint, queued UI states.
+{
+  const gw = readRepo("scripts/whatsapp-gateway.js");
+  ok("gateway requires runner and polls", gw.includes('require("./whatsapp-pdf-job-runner")') && gw.includes("setInterval(pollPdfJobs"));
+  const route = readRepo("app/api/whatsapp/send-invoice/route.ts");
+  ok("route enqueues durable jobs", route.includes("whatsapp_pdf_jobs") && route.includes(".insert("));
+  const jobRoute = readRepo("app/api/whatsapp/send-invoice/job/route.ts");
+  ok("job status endpoint guards roles", jobRoute.includes("hasRole") && jobRoute.includes("whatsapp_pdf_jobs"));
+  const pos = readRepo("components/pos/pos-shell.tsx");
+  ok("pos has queued delivery state", pos.includes('"queued"') && pos.includes("reportJobOutcome"));
+  const modal = readRepo("components/whatsapp/whatsapp-send-modal.tsx");
+  ok("modal has queued delivery state", modal.includes('"queued"') && modal.includes("reportJobOutcome"));
+}
+
+// 24. reportJobOutcome: posts job update; never throws.
+{
+  const calls = [];
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return { ok: true }; };
+  try {
+    await direct.reportJobOutcome("11111111-1111-4111-8111-111111111111", { messageId: "m-1" });
+    const sentBody = JSON.parse(calls[0].init.body);
+    globalThis.fetch = async () => { throw new Error("down"); };
+    await direct.reportJobOutcome("11111111-1111-4111-8111-111111111111", { error: "x" });
+    ok("reportJobOutcome posts and never throws", calls[0].url === "/api/whatsapp/send-invoice/job" && sentBody.messageId === "m-1");
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

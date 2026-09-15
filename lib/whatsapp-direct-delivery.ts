@@ -91,6 +91,31 @@ export function buildGatewayFallback(
   return { gatewayUrl: normalized, payload };
 }
 
+/**
+ * Fire-and-forget report of the browser direct-delivery outcome. Never throws.
+ * The gateway poller remains the delivery guarantee, so a lost report is
+ * harmless (the job simply stays pending until the poller sends it).
+ */
+export async function reportJobOutcome(
+  jobId: string | null | undefined,
+  outcome: { messageId?: string; error?: string }
+): Promise<void> {
+  if (!jobId) return;
+  try {
+    await fetch("/api/whatsapp/send-invoice/job", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        outcome.messageId
+          ? { jobId, messageId: outcome.messageId }
+          : { jobId, error: outcome.error || "Direct device delivery failed." }
+      ),
+    });
+  } catch {
+    // Intentionally silent: delivery does not depend on this report.
+  }
+}
+
 function parseBody(raw: string): any {
   const text = String(raw || "").trim();
   if (!text) return {};

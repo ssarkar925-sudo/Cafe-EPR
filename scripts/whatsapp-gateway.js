@@ -15,6 +15,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const pdfJobRunner = require("./whatsapp-pdf-job-runner");
 
 const PORT = process.env.PORT || 3001;
 const AUTH_DIR = path.join(__dirname, "..", "auth_info_baileys");
@@ -351,6 +352,9 @@ async function initWhatsApp() {
         // Backup auth to cloud immediately upon successful connection
         debouncedBackupAuth();
 
+        // Socket (re)connected: drain any queued invoice PDFs promptly.
+        setTimeout(pollPdfJobs, 5000);
+
         console.log("\n========================================================");
         console.log(`✅ WHATSAPP CONNECTED SUCCESSFULLY (${lastStatus})!`);
         console.log("📡 Ready to send automated invoices & receipts in background.");
@@ -379,6 +383,73 @@ function formatJid(rawPhone) {
   let clean = String(rawPhone || "").replace(/\D/g, "");
   if (clean.length === 10) clean = "91" + clean;
   return clean.includes("@s.whatsapp.net") ? clean : `${clean}@s.whatsapp.net`;
+}
+
+// Durable invoice-PDF outbox pull: the gateway fetches PENDING jobs from
+// Supabase (a proven path in both directions) and delivers them through the
+// live Baileys socket. This guarantees delivery even when the synchronous
+// ERP -> gateway and browser -> gateway HTTPS hops are edge/network blocked.
+const PDF_JOBS_POLL_MS = 30000;
+let pdfJobsPolling = false;
+let pdfJobsLoggedNoCreds = false;
+
+async function pollPdfJobs() {
+  if (pdfJobsPolling || !isConnected || !sock) return;
+  if (!supabaseUrl || !supabaseKey) {
+    if (!pdfJobsLoggedNoCreds) {
+      pdfJobsLoggedNoCreds = true;
+      console.log("⚠️ [PDF Jobs] Supabase credentials missing; queued invoice pull disabled.");
+    }
+    return;
+  }
+  pdfJobsPolling = true;
+  try {
+    const now = new Date().toISOString();
+    const listRes = await fetch(
+      `${supabaseUrl}/rest/v1/whatsapp_pdf_jobs?status=eq.pending&next_attempt_at=lte.${encodeURIComponent(now)}&order=created_at.asc&limit=3`,
+      {
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+        signal: AbortSignal.timeout(20000),
+      }
+    );
+    if (!listRes.ok) return;
+    const jobs = await listRes.json().catch(() => []);
+    for (const job of Array.isArray(jobs) ? jobs : []) {
+      try {
+        const outcome = await pdfJobRunner.processPdfJob(
+          {
+            patchJob: async (id, fields) => {
+              await fetch(`${supabaseUrl}/rest/v1/whatsapp_pdf_jobs?id=eq.${encodeURIComponent(id)}`, {
+                method: "PATCH",
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                  "Content-Type": "application/json",
+                  Prefer: "return=minimal",
+                },
+                body: JSON.stringify(fields),
+                signal: AbortSignal.timeout(20000),
+              });
+            },
+            sendDocument: async (jid, buffer, fileName) => {
+              const sent = await sock.sendMessage(jid, { document: buffer, mimetype: "application/pdf", fileName });
+              return { messageId: sent?.key?.id };
+            },
+          },
+          job
+        );
+        if (outcome === "sent") {
+          console.log(`[PDF Jobs] ✅ Delivered queued invoice ${job.invoice_number || job.id} to ${job.recipient_phone} (${job.file_name || "Invoice.pdf"})`);
+        }
+      } catch (jobErr) {
+        console.warn("[PDF Jobs] job error:", jobErr?.message || jobErr);
+      }
+    }
+  } catch (err) {
+    console.warn("[PDF Jobs] poll error:", err?.message || err);
+  } finally {
+    pdfJobsPolling = false;
+  }
 }
 
 // HTML Web Dashboard
@@ -764,4 +835,6 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("========================================================");
   initTunnel();
   initWhatsApp();
+  setInterval(pollPdfJobs, PDF_JOBS_POLL_MS);
+  setTimeout(pollPdfJobs, 15000);
 });

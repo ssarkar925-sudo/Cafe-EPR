@@ -162,6 +162,72 @@ export async function POST(req: Request) {
     const config = await getServerWhatsAppConfig();
     const pdfBase64 = Buffer.from(pdf).toString("base64");
     const fileName = `Invoice-${invoice.invoice_number}.pdf`;
+
+    // Durable delivery guarantee: enqueue the PDF job BEFORE any live send
+    // attempt, so a crash or blocked network hop never loses the delivery.
+    // The gateway poller pulls PENDING jobs over its proven Supabase path.
+    // Reuse an already-queued job for the same invoice + recipient so impatient
+    // retaps never queue (or deliver) duplicate PDFs to the customer.
+    let jobId: string | null = null;
+    try {
+      const existing = await db
+        .from("whatsapp_pdf_jobs")
+        .select("id")
+        .eq("invoice_id", resolvedId)
+        .eq("recipient_phone", phone)
+        .in("status", ["pending", "processing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!existing.error && existing.data?.id) {
+        jobId = String(existing.data.id);
+      }
+    } catch {
+      // Non-blocking: fall through to insert.
+    }
+    if (jobId) {
+      try {
+        await db
+          .from("whatsapp_pdf_jobs")
+          .update({ file_name: fileName, document_base64: pdfBase64, document_url: signed.data.signedUrl, error_message: null, next_attempt_at: new Date().toISOString() })
+          .eq("id", jobId)
+          .eq("status", "pending");
+      } catch {
+        // Non-blocking: the existing job remains deliverable as-is.
+      }
+    }
+    if (!jobId) {
+      try {
+        const enqueued = await db
+          .from("whatsapp_pdf_jobs")
+          .insert({
+            invoice_id: resolvedId,
+            invoice_number: invoice.invoice_number,
+            recipient_phone: phone,
+            file_name: fileName,
+            mime_type: "application/pdf",
+            document_base64: pdfBase64,
+            document_url: signed.data.signedUrl,
+            provider: config?.provider || "local_gateway",
+            status: "pending",
+          })
+          .select("id")
+          .single();
+        if (!enqueued.error && enqueued.data?.id) jobId = String(enqueued.data.id);
+      } catch (enqueueErr: any) {
+        console.error("[whatsapp-send-invoice] job enqueue failed (continuing with live send):", enqueueErr?.message || enqueueErr);
+      }
+    }
+
+    async function markJob(patch: Record<string, unknown>) {
+      if (!jobId) return;
+      try {
+        await db.from("whatsapp_pdf_jobs").update(patch).eq("id", jobId);
+      } catch (markErr: any) {
+        console.error("[whatsapp-send-invoice] job status update failed:", markErr?.message || markErr);
+      }
+    }
+
     const result = await sendCustomerInvoicePdf(phone, config, signed.data.signedUrl, fileName, pdfBase64);
 
     // Safe diagnostics: endpoint host/path, provider outcome, invoice identity,
@@ -185,6 +251,19 @@ export async function POST(req: Request) {
     };
     if (!result.success) {
       console.error("[whatsapp-send-invoice] document dispatch failed:", JSON.stringify(diagnostic));
+      const failedStatus = (result as any)?.status || 400;
+      if (failedStatus === 400) {
+        // Client-side defect (bad phone, bad provider config): the queued job
+        // could never succeed, so fail it immediately instead of retrying.
+        await markJob({ status: "failed", error_message: String((result as any)?.error || "Failed to send invoice PDF.").slice(0, 300) });
+      } else {
+        // Network/edge/provider failure: leave the job PENDING so the gateway
+        // poller delivers it over the proven Supabase path.
+        await markJob({
+          error_message: String((result as any)?.error || "Failed to send invoice PDF.").slice(0, 300),
+          next_attempt_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+        });
+      }
       if ((result as any)?.code === CLOUDFLARE_EDGE_REJECTION_CODE) {
         // Workers egress was rejected at the Cloudflare edge before the PDF
         // could reach the gateway. Hand the prepared payload back so the
@@ -202,6 +281,7 @@ export async function POST(req: Request) {
               "The server could not reach the WhatsApp gateway (network edge rejection). Retrying delivery directly from this device.",
             code: CLOUDFLARE_EDGE_REJECTION_CODE,
             hop: "server-to-gateway",
+            ...(jobId ? { jobId } : {}),
             ...(fallback ? { fallback } : {}),
           },
           { status: 502 }
@@ -213,12 +293,14 @@ export async function POST(req: Request) {
           error: (result as any)?.error || "Failed to send invoice PDF.",
           code: (result as any)?.code,
           hop: "server-to-gateway",
+          ...(jobId ? { jobId } : {}),
         },
-        { status: (result as any)?.status || 400 }
+        { status: failedStatus }
       );
     }
+    await markJob({ status: "sent", provider_message_id: (result as any)?.messageId || null, sent_at: new Date().toISOString() });
     console.info("[whatsapp-send-invoice] document dispatched:", JSON.stringify({ ...diagnostic, providerError: undefined }));
-    return NextResponse.json({ success: true, provider: result.provider, messageId: result.messageId, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
+    return NextResponse.json({ success: true, provider: result.provider, messageId: result.messageId, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, ...(jobId ? { jobId } : {}) });
   } catch (error: any) {
     console.error("Invoice-only WhatsApp dispatch error:", error);
     return NextResponse.json({ success: false, error: error?.message || "Internal server error." }, { status: 500 });
