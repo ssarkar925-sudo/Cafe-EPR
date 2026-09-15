@@ -61,6 +61,9 @@ export default function WhatsAppTrackerPanel() {
   const [testText, setTestText] = useState("Hello from Sarkar Communication! Your WhatsApp Automation 2.0 gateway is functioning properly.");
   const [sendingTest, setSendingTest] = useState(false);
   const [processingQueue, setProcessingQueue] = useState(false);
+  const [abortingId, setAbortingId] = useState<string | null>(null);
+  const [abortError, setAbortError] = useState<string | null>(null);
+
 
   // Template Editing State
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<keyof WhatsAppTemplates>("pos_invoice");
@@ -175,6 +178,37 @@ export default function WhatsAppTrackerPanel() {
     await processWhatsAppOutbox();
     await loadData();
     setProcessingQueue(false);
+  }
+
+  async function handleAbortMessage(messageId: string) {
+    setAbortingId(messageId);
+    setAbortError(null);
+    try {
+      const res = await fetch("/api/whatsapp/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setAbortError(data.error || "Failed to abort message.");
+      } else {
+        // Optimistically update local state immediately
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? { ...m, status: "CANCELLED" as any }
+              : m
+          )
+        );
+        // Then refresh from DB
+        await loadData();
+      }
+    } catch {
+      setAbortError("Network error. Please try again.");
+    } finally {
+      setAbortingId(null);
+    }
   }
 
   async function handleSendTest() {
@@ -375,12 +409,24 @@ export default function WhatsAppTrackerPanel() {
                         <td className="py-3 text-center font-mono">{m.attempt_count}/4</td>
                         <td className="py-3 text-right text-slate-400">{fmtDateTime(m.created_at)}</td>
                         <td className="py-3 text-right">
-                          <button
-                            onClick={() => setSelectedMsg(m)}
-                            className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
-                          >
-                            View
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedMsg(m)}
+                              className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
+                            >
+                              View
+                            </button>
+                            {(m.status === "PENDING" || m.status === "FAILED") && (
+                              <button
+                                onClick={() => void handleAbortMessage(m.id!)}
+                                disabled={abortingId === m.id}
+                                className="rounded-lg bg-rose-100 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-200 disabled:opacity-50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50"
+                                title="Cancel this pending message — it will not be sent"
+                              >
+                                {abortingId === m.id ? "…" : "Abort"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -389,6 +435,14 @@ export default function WhatsAppTrackerPanel() {
               </tbody>
             </table>
           </div>
+
+          {/* Abort error banner */}
+          {abortError && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
+              <span>⚠ {abortError}</span>
+              <button onClick={() => setAbortError(null)} className="ml-2 font-bold hover:text-rose-900 dark:hover:text-rose-100">✕</button>
+            </div>
+          )}
         </div>
       )}
 

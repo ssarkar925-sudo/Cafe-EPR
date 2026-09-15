@@ -1108,7 +1108,7 @@ export default function PosShell({
           payload: {
             deviceId: deviceIdRef.current,
             deviceType: isMobile ? "Mobile" : "Web",
-            invoiceNumber: result.invoice_number ?? "INV-SUCCESS",
+            invoiceNumber: invoiceNumber,
           },
         });
       }
