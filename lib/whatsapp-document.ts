@@ -20,6 +20,33 @@ function responseError(status: number, data: any, path: string) {
   );
 }
 
+/**
+ * Cloudflare edge rejection marker.
+ *
+ * The ERP runs on Cloudflare Workers (OpenNext). The gateway host
+ * (*.onrender.com) is itself behind Cloudflare. When Workers egress hits that
+ * edge, Cloudflare can answer with HTTP 403 + a 16-byte text/plain body
+ * ("error code: 1003" = "Direct IP Access Not Allowed") instead of proxying
+ * to Render. The PDF never reaches the gateway in that case.
+ */
+export const CLOUDFLARE_EDGE_REJECTION_CODE = "CLOUDFLARE_EDGE_1003";
+
+export function isCloudflareEdgeRejection(status: number, data: any): boolean {
+  if (status !== 403) return false;
+  const raw = String(data?.raw || data?.error || data?.message || "");
+  return /error\s*code:\s*1003/i.test(raw) || /direct\s+ip\s+access\s+not\s+allowed/i.test(raw);
+}
+
+/** Host + path only — never includes query strings that may carry signed tokens. */
+export function describeEndpointForLog(url: string): { host: string; path: string } {
+  try {
+    const u = new URL(String(url));
+    return { host: u.host.toLowerCase(), path: u.pathname || "/" };
+  } catch {
+    return { host: "invalid", path: "/" };
+  }
+}
+
 export async function sendCustomerInvoicePdf(
   phone: string,
   config: WhatsAppConfig,
@@ -90,10 +117,22 @@ export async function sendCustomerInvoicePdf(
       }
 
       if (!result.response.ok || result.data?.success === false) {
+        const status = result.response.status || 502;
+        if (isCloudflareEdgeRejection(status, result.data)) {
+          return {
+            success: false,
+            code: CLOUDFLARE_EDGE_REJECTION_CODE,
+            edgeRejected: true,
+            error:
+              "The network edge blocked the WhatsApp gateway request (Cloudflare error 1003: direct-IP access not allowed). The invoice PDF never reached the gateway.",
+            status: 502,
+            data: result.data,
+          };
+        }
         return {
           success: false,
-          error: responseError(result.response.status || 502, result.data, path),
-          status: result.response.status || 502,
+          error: responseError(status, result.data, path),
+          status,
           data: result.data,
         };
       }

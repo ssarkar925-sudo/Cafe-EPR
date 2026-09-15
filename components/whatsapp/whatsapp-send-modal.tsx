@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/modal";
 import { getDirectWhatsAppUrl, sendWhatsAppMessage, type WhatsAppLogEntry } from "@/lib/whatsapp";
+import { CLOUDFLARE_EDGE_REJECTION_CODE } from "@/lib/whatsapp-document";
+import { postDocumentDirectToGateway } from "@/lib/whatsapp-direct-delivery";
 
 type Props = {
   open: boolean;
@@ -87,7 +89,12 @@ export default function WhatsAppSendModal({
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {
-          throw new Error(result.error || "Failed to send invoice PDF.");
+          if (result?.code === CLOUDFLARE_EDGE_REJECTION_CODE && result?.fallback?.gatewayUrl && result?.fallback?.payload) {
+            const direct = await postDocumentDirectToGateway(result.fallback.gatewayUrl, result.fallback.payload);
+            if (!direct.ok) throw new Error(direct.error || "Failed to send invoice PDF.");
+          } else {
+            throw new Error(result.error || "Failed to send invoice PDF.");
+          }
         }
       } else {
         if (!message.trim()) throw new Error("Phone number and message text cannot be empty.");

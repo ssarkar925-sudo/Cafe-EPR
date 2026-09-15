@@ -53,6 +53,8 @@ import {
 import PosNewCustomerModal from "./pos-new-customer-modal";
 import PosCustomItemModal from "./pos-custom-item-modal";
 import { playPosSound } from "./pos-sound";
+import { CLOUDFLARE_EDGE_REJECTION_CODE } from "@/lib/whatsapp-document";
+import { postDocumentDirectToGateway } from "@/lib/whatsapp-direct-delivery";
 import type {
   CartLine,
   OrderTab,
@@ -1186,6 +1188,17 @@ export default function PosShell({
       if (data.success) {
         setWhatsappStatus("sent");
         setWhatsappMsg(`Invoice sent to ${success.customerPhone}!`);
+      } else if (data?.code === CLOUDFLARE_EDGE_REJECTION_CODE && data?.fallback?.gatewayUrl && data?.fallback?.payload) {
+        // Server egress was rejected at the network edge before the PDF reached
+        // the gateway. Deliver the prepared payload directly from this device.
+        const direct = await postDocumentDirectToGateway(data.fallback.gatewayUrl, data.fallback.payload);
+        if (direct.ok) {
+          setWhatsappStatus("sent");
+          setWhatsappMsg(`Invoice sent to ${success.customerPhone}!`);
+        } else {
+          setWhatsappStatus("error");
+          setWhatsappMsg(direct.error || "Failed to send WhatsApp.");
+        }
       } else {
         setWhatsappStatus("error");
         setWhatsappMsg(data.error || "Failed to send WhatsApp.");

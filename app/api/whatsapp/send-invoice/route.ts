@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getServerWhatsAppConfig } from "@/lib/whatsapp-sender";
-import { sendCustomerInvoicePdf } from "@/lib/whatsapp-document";
+import {
+  CLOUDFLARE_EDGE_REJECTION_CODE,
+  describeEndpointForLog,
+  sendCustomerInvoicePdf,
+} from "@/lib/whatsapp-document";
+import { buildGatewayFallback } from "@/lib/whatsapp-direct-delivery";
 
 export const runtime = "nodejs";
 
@@ -156,8 +161,57 @@ export async function POST(req: Request) {
 
     const config = await getServerWhatsAppConfig();
     const pdfBase64 = Buffer.from(pdf).toString("base64");
-    const result = await sendCustomerInvoicePdf(phone, config, signed.data.signedUrl, `Invoice-${invoice.invoice_number}.pdf`, pdfBase64);
-    if (!result.success) return NextResponse.json({ success: false, error: result.error || "Failed to send invoice PDF." }, { status: result.status || 400 });
+    const fileName = `Invoice-${invoice.invoice_number}.pdf`;
+    const result = await sendCustomerInvoicePdf(phone, config, signed.data.signedUrl, fileName, pdfBase64);
+
+    // Safe diagnostics: endpoint host/path, provider outcome, invoice identity,
+    // recipient, and document metadata. Never logs tokens, API keys, secrets,
+    // PDF bytes, or signed-URL query strings.
+    const gatewayEndpoint = describeEndpointForLog(`${String(config?.gateway_url || "").replace(/\/$/, "")}/send-document`);
+    const documentEndpoint = describeEndpointForLog(signed.data.signedUrl);
+    const diagnostic = {
+      provider: config?.provider,
+      gatewayHost: gatewayEndpoint.host,
+      gatewayPath: gatewayEndpoint.path,
+      httpStatus: (result as any)?.status ?? null,
+      code: (result as any)?.code ?? null,
+      invoiceNumber: invoice.invoice_number,
+      recipient: phone,
+      fileName,
+      mimeType: "application/pdf",
+      documentHost: documentEndpoint.host,
+      documentPath: documentEndpoint.path,
+      providerError: result.success ? undefined : String((result as any)?.error || "").slice(0, 300),
+    };
+    if (!result.success) {
+      console.error("[whatsapp-send-invoice] document dispatch failed:", JSON.stringify(diagnostic));
+      if ((result as any)?.code === CLOUDFLARE_EDGE_REJECTION_CODE) {
+        // Workers egress was rejected at the Cloudflare edge before the PDF
+        // could reach the gateway. Hand the prepared payload back so the
+        // device delivers it directly (browser egress is unaffected).
+        const fallback = buildGatewayFallback(config?.gateway_url, {
+          phone,
+          documentUrl: signed.data.signedUrl,
+          fileName,
+          documentBase64: pdfBase64,
+        });
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "The server could not reach the WhatsApp gateway (network edge rejection). Retrying delivery directly from this device.",
+            code: CLOUDFLARE_EDGE_REJECTION_CODE,
+            ...(fallback ? { fallback } : {}),
+          },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json(
+        { success: false, error: (result as any)?.error || "Failed to send invoice PDF.", code: (result as any)?.code },
+        { status: (result as any)?.status || 400 }
+      );
+    }
+    console.info("[whatsapp-send-invoice] document dispatched:", JSON.stringify({ ...diagnostic, providerError: undefined }));
     return NextResponse.json({ success: true, provider: result.provider, messageId: result.messageId, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
   } catch (error: any) {
     console.error("Invoice-only WhatsApp dispatch error:", error);
