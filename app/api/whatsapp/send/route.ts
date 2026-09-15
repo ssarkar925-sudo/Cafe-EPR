@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getServerWhatsAppConfig, sendWhatsAppViaConfig } from "@/lib/whatsapp-sender";
 import { buildCustomerInvoiceUrl } from "@/lib/customer-invoice-link";
 import { sendCustomerInvoicePdf } from "@/lib/whatsapp-document";
+import { buildInvoiceCaption } from "@/lib/invoice-pdf-text";
 
 function clientIp(req: Request): string {
   return String(req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown").trim();
@@ -71,10 +72,23 @@ export async function POST(req: Request) {
     const legacyInvoiceMatch = String(message || "").match(/\/receipt\/([0-9a-f-]{36})\/a4(?:\b|[?#])/i);
     const invoiceId = messageType === "pos_invoice" && referenceId ? referenceId : legacyInvoiceMatch?.[1] || "";
     if (invoiceId) {
-      const { data: invoice, error: invoiceError } = await createAdminClient().from("invoices").select("id, invoice_number").eq("id", invoiceId).maybeSingle();
+      const { data: invoice, error: invoiceError } = await createAdminClient()
+        .from("invoices")
+        .select("id, invoice_number, invoice_date, created_at, total, paid, due, customers(name)")
+        .eq("id", invoiceId)
+        .maybeSingle();
       if (invoiceError || !invoice) return NextResponse.json({ success: false, error: "Invoice not found." }, { status: 404 });
       const documentUrl = buildCustomerInvoiceUrl(new URL(req.url).origin, invoice.id);
-      const result = await sendCustomerInvoicePdf(phone, serverConfig, documentUrl, `Invoice-${invoice.invoice_number}.pdf`);
+      // Same greeting as every other invoice document path (never text-only).
+      const caption = buildInvoiceCaption({
+        invoiceNumber: (invoice as any).invoice_number,
+        invoiceDate: (invoice as any).invoice_date || (invoice as any).created_at,
+        customerName: (invoice as any).customers?.name,
+        total: (invoice as any).total,
+        paid: (invoice as any).paid,
+        due: (invoice as any).due,
+      });
+      const result = await sendCustomerInvoicePdf(phone, serverConfig, documentUrl, `Invoice-${invoice.invoice_number}.pdf`, undefined, { caption });
       if (!result.success) return NextResponse.json({ success: false, error: result.error || "Failed to send invoice PDF." }, { status: result.status || 400 });
       return NextResponse.json({ success: true, provider: result.provider, messageId: result.messageId, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, documentOnly: true });
     }

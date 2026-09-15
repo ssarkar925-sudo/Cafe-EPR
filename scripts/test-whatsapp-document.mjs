@@ -556,6 +556,8 @@ function strictGatewayEmulator(req, res, body) {
   ok("view uses canonical download", view.includes("downloadCanonicalPdf") && view.includes("generateInvoicePdfBlob"));
   const sendRoute = readRepo("app/api/whatsapp/send-invoice/route.ts");
   ok("send route honors client bytes", sendRoute.includes("validateClientPdfBytes") && sendRoute.includes("checked.bytes") && sendRoute.includes("captionOverride") && sendRoute.includes("clientDocumentBase64"));
+  const legacySend = readRepo("app/api/whatsapp/send/route.ts");
+  ok("legacy send path includes greeting", legacySend.includes("buildInvoiceCaption") && legacySend.includes("{ caption }") && legacySend.includes("customers(name)"));
   const pdfData = readRepo("app/api/invoices/[id]/pdf-data/route.ts");
   ok("pdf-data contract complete", ["invoice", "items", "payments", "settings", "qrDataUrl", "upiId"].every((k) => pdfData.includes(k)) && pdfData.includes("hasRole"));
 }
