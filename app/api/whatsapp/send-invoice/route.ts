@@ -33,9 +33,10 @@ export async function POST(req: Request) {
     const db = createAdminClient();
     let lastLookupError = "";
 
-    // Resolve the invoice using the strongest available identifier. The embedded
-    // customer relationship is convenient, but a relationship/schema-cache issue
-    // must never be misreported to the operator as "Invoice not found".
+    // Resolve the invoice from the primary table first. Immediately after
+    // create_sale commits, a separate server request can briefly observe the
+    // write late, so retry the direct lookup for several seconds. The customer
+    // relationship is only enrichment and can never block invoice resolution.
     async function lookupInvoice() {
       async function enrichCustomer(invoice: any) {
         if (!invoice?.customer_id) return invoice;
@@ -49,6 +50,10 @@ export async function POST(req: Request) {
       }
 
       if (invoiceId) {
+        const plain = await db.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
+        if (!plain.error && plain.data) return enrichCustomer(plain.data);
+        if (plain.error) lastLookupError = plain.error.message;
+
         const embedded = await db
           .from("invoices")
           .select("*, customers(name, phone, address, code)")
@@ -56,21 +61,9 @@ export async function POST(req: Request) {
           .maybeSingle();
         if (!embedded.error && embedded.data) return embedded.data;
         if (embedded.error) lastLookupError = embedded.error.message;
-
-        const plain = await db.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
-        if (!plain.error && plain.data) return enrichCustomer(plain.data);
-        if (plain.error) lastLookupError = plain.error.message;
       }
 
       if (invoiceNumber) {
-        const embedded = await db
-          .from("invoices")
-          .select("*, customers(name, phone, address, code)")
-          .eq("invoice_number", invoiceNumber)
-          .maybeSingle();
-        if (!embedded.error && embedded.data) return embedded.data;
-        if (embedded.error) lastLookupError = embedded.error.message;
-
         const plain = await db
           .from("invoices")
           .select("*")
@@ -78,29 +71,38 @@ export async function POST(req: Request) {
           .maybeSingle();
         if (!plain.error && plain.data) return enrichCustomer(plain.data);
         if (plain.error) lastLookupError = plain.error.message;
+
+        const normalized = invoiceNumber.replace(/\s+/g, "").trim();
+        if (normalized) {
+          const fuzzy = await db
+            .from("invoices")
+            .select("*")
+            .ilike("invoice_number", normalized)
+            .maybeSingle();
+          if (!fuzzy.error && fuzzy.data) return enrichCustomer(fuzzy.data);
+          if (fuzzy.error) lastLookupError = fuzzy.error.message;
+        }
       }
 
       return null;
     }
 
-    // Try immediately, then retry once after 600ms to handle DB commit race
-    // conditions immediately after the create_sale transaction commits.
-    let invoice = await lookupInvoice();
-    if (!invoice) {
-      await new Promise((r) => setTimeout(r, 600));
+    // Bounded retry for a just-committed sale becoming visible to this request.
+    let invoice = null as any;
+    const retryDelaysMs = [0, 250, 500, 1000, 1500, 2000];
+    for (const delayMs of retryDelaysMs) {
+      if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
       invoice = await lookupInvoice();
+      if (invoice) break;
     }
 
     if (!invoice) {
       if (lastLookupError) {
         console.error(
-          "WhatsApp send-invoice: invoice lookup failed.",
-          "invoiceId=",
-          invoiceId,
-          "invoiceNumber=",
-          invoiceNumber,
-          "error=",
-          lastLookupError
+          "WhatsApp send-invoice: invoice lookup failed after retries.",
+          "invoiceId=", invoiceId,
+          "invoiceNumber=", invoiceNumber,
+          "error=", lastLookupError
         );
         return NextResponse.json(
           { success: false, error: `Invoice lookup failed: ${lastLookupError}` },
@@ -108,11 +110,17 @@ export async function POST(req: Request) {
         );
       }
 
-      console.error("WhatsApp send-invoice: invoice not found.", "invoiceId=", invoiceId, "invoiceNumber=", invoiceNumber);
-      return NextResponse.json({ success: false, error: "Invoice not found." }, { status: 404 });
+      console.error(
+        "WhatsApp send-invoice: invoice not found after retries.",
+        "invoiceId=", invoiceId,
+        "invoiceNumber=", invoiceNumber
+      );
+      return NextResponse.json(
+        { success: false, error: `Invoice ${invoiceNumber || invoiceId || "(missing identifier)"} could not be resolved after the sale.` },
+        { status: 404 }
+      );
     }
 
-    // Always use the resolved invoice.id — never the raw input.
     const resolvedId = invoice.id as string;
 
     const [{ data: items }, { data: payments }, { data: settings }] = await Promise.all([
@@ -165,10 +173,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // External WhatsApp providers/gateways must fetch the document without
-    // inheriting the browser's Deployment Protection session. The short-lived
-    // Supabase signed URL is accessible to the provider while the invoice PDF
-    // route itself remains protected by the application's design.
     const documentUrl = signed.data.signedUrl;
     const config = await getServerWhatsAppConfig();
     const result = await sendCustomerInvoicePdf(
