@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: cloudflare-production
@@ -28,73 +28,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Apply gateway direct PDF compatibility patch
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('scripts/whatsapp-gateway.js')
-          s = p.read_text(encoding='utf-8')
-          start = s.find('        const documentUrl = payload.documentUrl || payload.document;')
-          end = s.find('        if (buffer.length > 15 * 1024 * 1024)', start)
-          if start < 0 or end < 0:
-              raise SystemExit('Gateway PDF block markers not found; refusing unsafe edit')
-          new = '''        const documentUrl = payload.documentUrl || payload.document;
-          const documentBase64 = payload.documentBase64 || payload.pdfBase64 || "";
-          const fileName = String(payload.fileName || payload.filename || "Invoice.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
-
-          if (!phone || (!documentUrl && !documentBase64)) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: false, error: "Phone and invoice PDF content are required." }));
-            return;
-          }
-
-          const jid = formatJid(phone);
-
-          if (!isConnected || !sock) {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true, status: "dispatched_mock", note: "Gateway active, scan QR at http://localhost:3001 to deliver live to WhatsApp", to: jid, type: "document" }));
-            return;
-          }
-
-          let buffer;
-          if (documentBase64) {
-            const encoded = String(documentBase64).trim().replace(/^data:application\\/pdf;base64,/, "");
-            buffer = Buffer.from(encoded, "base64");
-          } else {
-            let parsedUrl;
-            try {
-              parsedUrl = new URL(documentUrl);
-              if (!["https:", "http:"].includes(parsedUrl.protocol)) throw new Error("Unsupported document URL protocol");
-            } catch {
-              res.writeHead(400, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ success: false, error: "Document URL must be HTTP(S)." }));
-              return;
-            }
-
-            const fileRes = await fetch(parsedUrl, { signal: AbortSignal.timeout(30000) });
-            if (!fileRes.ok) throw new Error(`Invoice PDF endpoint returned HTTP ${fileRes.status}`);
-            const contentType = (fileRes.headers.get("content-type") || "").toLowerCase();
-            if (!contentType.includes("application/pdf")) throw new Error("Invoice endpoint did not return an application/pdf document.");
-            const contentLength = Number(fileRes.headers.get("content-length") || 0);
-            if (contentLength > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds 15 MB.");
-            buffer = Buffer.from(await fileRes.arrayBuffer());
-          }
-
-'''
-          p.write_text(s[:start] + new + s[end:], encoding='utf-8')
-          print('gateway direct PDF compatibility patch applied')
-          PY
-
-      - name: Commit gateway patch
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add scripts/whatsapp-gateway.js
-          if git diff --cached --quiet; then exit 0; fi
-          git diff --cached --check
-          git commit -m 'fix(gateway): accept direct PDF payload'
-          git push
 
       - name: Setup Node
         uses: actions/setup-node@v4
