@@ -36,6 +36,8 @@ auth_info_baileys/**
 playwright/.auth/
 playwright/.sessions/
 .ai-portal-state/
+workers/portal/.browser-state/
+workers/portal/outbox/
 
 # Scratch and forensic artifacts
 scratch/

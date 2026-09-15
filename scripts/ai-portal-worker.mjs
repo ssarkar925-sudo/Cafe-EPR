@@ -327,6 +327,18 @@ async function teach() {
       if (picked) fields[key] = picked.relativeSelector || picked.selector;
     }
 
+    // Learned adapter extras: date-filter control + completed-status value.
+    // The durable worker (workers/portal) reads the list page as-is and never
+    // submits filters; these are recorded so layout drift is detectable.
+    let dateFilterSelector = null;
+    const hasDateFilter = await askTerminal("Does the list page have a date filter control? Type y or n: ");
+    if (hasDateFilter.toLowerCase().startsWith("y")) {
+      const dateFilter = await pickSelector(page, "click the date filter control (do NOT change its value)");
+      dateFilterSelector = dateFilter.selector;
+      await inspectPage(page);
+    }
+    const completedStatusText = await askTerminal("Type the exact status text that marks a COMPLETED row (e.g. Success): ");
+
     const snapshotFile = path.join(stateDir, "transaction-history-snapshot.txt");
     const screenshotFile = path.join(stateDir, "teaching-screenshot.png");
     await fs.writeFile(snapshotFile, (await page.locator("body").innerText()).slice(0, 20000) + "\n", "utf8");
@@ -345,8 +357,48 @@ async function teach() {
       selector_map: { historySelector: history.selector, cashWithdrawalFilterSelector, rowSelectorTemplate, fields },
     };
     await fs.writeFile(teachingDraftFile, JSON.stringify(draft, null, 2) + "\n", "utf8");
+    // Import-ready adapter for the durable worker + learning API: the 11
+    // learned fields (portal name, URL, list page, date filter, completed
+    // status, ID/amount/fee/commission/customer selectors, stop conditions).
+    const adapterWorkflow = {
+      workflow_key: draft.workflow_key,
+      name: `${provider} Transaction Import`,
+      risk: "low",
+      confidence: 0.85,
+      instruction: draft.instruction,
+      selector_map: {
+        historySelector: history.selector,
+        cashWithdrawalFilterSelector,
+        rowSelectorTemplate,
+        dateFilterSelector,
+        completedStatusText: completedStatusText.trim(),
+        fields,
+      },
+      evidence: {
+        source: "owner_live_browser_teaching",
+        taughtAt: new Date().toISOString(),
+        pageUrl: page.url(),
+        portalName: provider,
+        reportUrl: startUrl,
+        listPageSelector: history.selector,
+        snapshotFile,
+        screenshotFile,
+        stopConditions: [
+          "Login or MFA is required",
+          "A PIN, OTP, password, or payment authorization is requested",
+          "CAPTCHA or security challenge appears",
+          "The transaction status is not completed/successful",
+          "The page layout no longer matches the learned selectors",
+          "Required transaction identity is missing or ambiguous",
+          "An initiation control (pay/submit/transfer/authorize) is detected",
+        ],
+      },
+    };
+    const adapterFile = path.join(stateDir, "portal-adapter.json");
+    await fs.writeFile(adapterFile, JSON.stringify(adapterWorkflow, null, 2) + "\n", "utf8");
     console.log("\nTEACHING COMPLETE");
     console.log(`Draft saved to ${teachingDraftFile}`);
+    console.log(`Adapter saved to ${adapterFile} (matches the learning API shape: workflow_key, name, instruction, selector_map)`);
     console.log(`Screenshot saved to ${screenshotFile}`);
     console.log("Import this draft in AI Learning Control Center. It will be saved as Draft and will not become active automatically.");
   } finally {

@@ -7,6 +7,7 @@ import AIWhatsAppBridge from "@/components/ai/ai-whatsapp-bridge";
 import AISelfHealingBridge from "@/components/ai/ai-self-healing-bridge";
 import AICommandCenter from "@/components/ai/ai-command-center";
 import AICodeRepairGuardian from "@/components/ai/ai-code-repair-guardian";
+import AIIngestionPanel from "@/components/ai/ai-ingestion-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function CafeAIAgentPage() {
   return (
     <div className="space-y-6">
       <AIWhatsAppBridge />
+      <AIIngestionPanel />
       <AICommandCenter />
       <AICodeRepairGuardian />
       <AISelfHealingBridge />

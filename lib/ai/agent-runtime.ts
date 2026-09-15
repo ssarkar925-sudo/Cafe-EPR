@@ -108,8 +108,8 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
-    name: "prepare_quick_sale",
-    description: "Prepare an itemized quick sale for owner approval. Resolves products, checks stock, applies GST, and creates an approval record with 1-click confirmation.",
+    name: "prepare_sale",
+    description: "Prepare an itemized POS counter sale for owner approval. Resolves products, checks stock, applies GST, and creates an approval record with 1-click confirmation.",
     parameters: {
       type: "object",
       properties: {
@@ -502,7 +502,7 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
       };
     }
 
-    case "prepare_quick_sale": {
+    case "prepare_sale": {
       const rawItems = Array.isArray(call.args.items) ? call.args.items : [];
       if (!rawItems.length) return { error: "No items provided for sale." };
 
@@ -931,7 +931,7 @@ export async function runIntelligentHeuristicAgent({
     if (itemMatches.length > 0) {
       const saleResult = await executeTool(
         {
-          name: "prepare_quick_sale",
+          name: "prepare_sale",
           args: { items: itemMatches, payment_method: paymentMethod, customer_query: customerQuery },
         },
         { supabase, userId }
@@ -940,7 +940,7 @@ export async function runIntelligentHeuristicAgent({
       if (saleResult.error) {
         return {
           message: `⚠️ Could not prepare sale: ${saleResult.error}`,
-          usedTools: ["prepare_quick_sale"],
+          usedTools: ["prepare_sale"],
           rounds: 1,
           finishReason: "STOP",
         };
@@ -950,7 +950,7 @@ export async function runIntelligentHeuristicAgent({
       const itemList = (summary?.items || []).map((i: any) => `- ${i.qty}x ${i.name}: ${i.amount}`).join("\n");
       return {
         message: `⚡ **Sale Prepared (Pending Approval)**\n\n**Customer**: ${summary?.customer}\n**Payment**: ${summary?.paymentMethod?.toUpperCase()}\n**Total**: ${summary?.total}\n\n**Items**:\n${itemList}\n\n*Click "Approve & Execute" below to finalize and generate the GST invoice.*`,
-        usedTools: ["prepare_quick_sale"],
+        usedTools: ["prepare_sale"],
         rounds: 1,
         finishReason: "STOP",
         approval: { id: saleResult.approvalId, ...summary },

@@ -21,6 +21,7 @@
     "test:quick-sale-exclusion": "node scripts/test-quick-sale-exclusion.mjs",
     "test:ai-browser": "node scripts/test-ai-browser-safety.mjs",
     "test:ai-learning": "node scripts/test-ai-learning-control.mjs",
+    "test:ai-ingestion": "node scripts/test-ai-ingestion.mjs",
     "start": "next start",
     "electron:dev": "electron electron/main.js",
     "dist:win": "electron-builder --win",
