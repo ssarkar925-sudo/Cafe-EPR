@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import { createElement } from "react";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
-import CustomerInvoicePdf from "@/components/pdf/customer-invoice-pdf";
 import { getServerWhatsAppConfig } from "@/lib/whatsapp-sender";
 import { sendCustomerInvoicePdf } from "@/lib/whatsapp-document";
 
@@ -11,6 +8,124 @@ export const runtime = "nodejs";
 
 const STORAGE_BUCKET = "customer-invoices";
 const SIGNED_URL_TTL_SECONDS = 15 * 60;
+
+function pdfSafe(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/[\\()]/g, (m) => `\\${m}`)
+    .replace(/[^\x20-\x7E]/g, "")
+    .trim();
+}
+
+function makePdf(lines: string[]): Uint8Array {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const margin = 42;
+  const lineHeight = 15;
+  const maxLinesPerPage = 48;
+  const pages: string[][] = [];
+  for (let i = 0; i < lines.length; i += maxLinesPerPage) {
+    pages.push(lines.slice(i, i + maxLinesPerPage));
+  }
+  if (!pages.length) pages.push([]);
+
+  const objects: string[] = [];
+  const pageObjectNumbers: number[] = [];
+  const contentObjectNumbers: number[] = [];
+
+  objects.push("<< /Type /Catalog /Pages 2 0 R >>");
+  objects.push("PLACEHOLDER_PAGES");
+
+  for (const pageLines of pages) {
+    const contentCommands: string[] = ["BT", "/F1 10 Tf", `${margin} ${pageHeight - margin} Td`];
+    pageLines.forEach((line, index) => {
+      if (index > 0) contentCommands.push(`0 -${lineHeight} Td`);
+      contentCommands.push(`(${pdfSafe(line)}) Tj`);
+    });
+    contentCommands.push("ET");
+    const content = contentCommands.join("\\n");
+
+    const contentObjectNumber = objects.length + 1;
+    objects.push(`<< /Length ${content.length} >>\\nstream\\n${content}\\nendstream`);
+    contentObjectNumbers.push(contentObjectNumber);
+
+    const pageObjectNumber = objects.length + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${objects.length + 2} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    pageObjectNumbers.push(pageObjectNumber);
+  }
+
+  const fontObjectNumber = objects.length + 1;
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((n) => `${n} 0 R`).join(" ")}] /Count ${pageObjectNumbers.length} >>`;
+
+  const chunks: string[] = ["%PDF-1.4\\n%âãÏÓ\\n"];
+  const offsets: number[] = [0];
+  let currentOffset = chunks[0].length;
+
+  objects.forEach((object, index) => {
+    const objectNumber = index + 1;
+    const objectText = `${objectNumber} 0 obj\\n${object}\\nendobj\\n`;
+    offsets.push(currentOffset);
+    chunks.push(objectText);
+    currentOffset += objectText.length;
+  });
+
+  const xrefOffset = currentOffset;
+  chunks.push(`xref\\n0 ${objects.length + 1}\\n0000000000 65535 f \\n`);
+  for (let i = 1; i < offsets.length; i++) {
+    chunks.push(`${String(offsets[i]).padStart(10, "0")} 00000 n \\n`);
+  }
+  chunks.push(`trailer\\n<< /Size ${objects.length + 1} /Root 1 0 R >>\\nstartxref\\n${xrefOffset}\\n%%EOF\\n`);
+
+  const bytes = new TextEncoder().encode(chunks.join(""));
+  return bytes;
+}
+
+function buildInvoicePdf(invoice: any, items: any[], payments: any[], settings: any): Uint8Array {
+  const lines: string[] = [];
+  const storeName = settings?.shop_name || settings?.business_name || settings?.company_name || "CafeERP";
+  const customer = invoice?.customers?.name || "Walk-in Customer";
+  const phone = invoice?.customers?.phone || "";
+
+  lines.push(String(storeName));
+  lines.push("INVOICE");
+  lines.push(`Invoice No: ${invoice?.invoice_number || ""}`);
+  lines.push(`Date: ${invoice?.invoice_date || invoice?.created_at || ""}`);
+  lines.push(`Customer: ${customer}${phone ? ` (${phone})` : ""}`);
+  lines.push("");
+  lines.push("Item                         Qty      Rate       Amount");
+  lines.push("---------------------------------------------------------");
+
+  for (const item of items || []) {
+    const name = String(item?.description || item?.products?.name || item?.services?.name || "Item").slice(0, 28).padEnd(28);
+    const qty = Number(item?.qty || 0).toFixed(2).padStart(6);
+    const rate = Number(item?.rate || 0).toFixed(2).padStart(10);
+    const amount = Number(item?.amount || 0).toFixed(2).padStart(11);
+    lines.push(`${name} ${qty} ${rate} ${amount}`);
+  }
+
+  lines.push("");
+  lines.push(`Subtotal: INR ${Number(invoice?.subtotal || 0).toFixed(2)}`);
+  lines.push(`Discount: INR ${Number(invoice?.discount || 0).toFixed(2)}`);
+  lines.push(`Tax: INR ${Number(invoice?.tax || 0).toFixed(2)}`);
+  lines.push(`TOTAL: INR ${Number(invoice?.total || 0).toFixed(2)}`);
+  lines.push(`PAID: INR ${Number(invoice?.paid || 0).toFixed(2)}`);
+  lines.push(`DUE: INR ${Number(invoice?.due || 0).toFixed(2)}`);
+  lines.push(`Status: ${invoice?.status || ""}`);
+
+  if ((payments || []).length) {
+    lines.push("");
+    lines.push("Payments");
+    for (const payment of payments) {
+      lines.push(`${payment?.method || "payment"}: INR ${Number(payment?.amount || 0).toFixed(2)}`);
+    }
+  }
+
+  lines.push("");
+  lines.push("Generated securely by CafeERP");
+  return makePdf(lines);
+}
 
 export async function POST(req: Request) {
   try {
@@ -33,10 +148,6 @@ export async function POST(req: Request) {
     const db = createAdminClient();
     let lastLookupError = "";
 
-    // Resolve the invoice from the primary table first. Immediately after
-    // create_sale commits, a separate server request can briefly observe the
-    // write late, so retry the direct lookup for several seconds. The customer
-    // relationship is only enrichment and can never block invoice resolution.
     async function lookupInvoice() {
       async function enrichCustomer(invoice: any) {
         if (!invoice?.customer_id) return invoice;
@@ -87,7 +198,6 @@ export async function POST(req: Request) {
       return null;
     }
 
-    // Bounded retry for a just-committed sale becoming visible to this request.
     let invoice = null as any;
     const retryDelaysMs = [0, 250, 500, 1000, 1500, 2000];
     for (const delayMs of retryDelaysMs) {
@@ -98,23 +208,12 @@ export async function POST(req: Request) {
 
     if (!invoice) {
       if (lastLookupError) {
-        console.error(
-          "WhatsApp send-invoice: invoice lookup failed after retries.",
-          "invoiceId=", invoiceId,
-          "invoiceNumber=", invoiceNumber,
-          "error=", lastLookupError
-        );
+        console.error("WhatsApp invoice lookup failed after retries.", { invoiceId, invoiceNumber, error: lastLookupError });
         return NextResponse.json(
           { success: false, error: `Invoice lookup failed: ${lastLookupError}` },
           { status: 500 }
         );
       }
-
-      console.error(
-        "WhatsApp send-invoice: invoice not found after retries.",
-        "invoiceId=", invoiceId,
-        "invoiceNumber=", invoiceNumber
-      );
       return NextResponse.json(
         { success: false, error: `Invoice ${invoiceNumber || invoiceId || "(missing identifier)"} could not be resolved after the sale.` },
         { status: 404 }
@@ -122,30 +221,13 @@ export async function POST(req: Request) {
     }
 
     const resolvedId = invoice.id as string;
-
     const [{ data: items }, { data: payments }, { data: settings }] = await Promise.all([
-      db
-        .from("invoice_items")
-        .select("*, products(name, code), services(name)")
-        .eq("invoice_id", resolvedId)
-        .order("id", { ascending: true }),
-      db
-        .from("payments")
-        .select("id, method, amount, received_at")
-        .eq("invoice_id", resolvedId)
-        .order("received_at", { ascending: true }),
+      db.from("invoice_items").select("*, products(name, code), services(name)").eq("invoice_id", resolvedId).order("id", { ascending: true }),
+      db.from("payments").select("id, method, amount, received_at").eq("invoice_id", resolvedId).order("received_at", { ascending: true }),
       db.from("settings").select("*").single(),
     ]);
 
-    const pdf = await renderToBuffer(
-      createElement(CustomerInvoicePdf, {
-        invoice,
-        items: (items || []) as any[],
-        payments: (payments || []) as any[],
-        settings,
-      }) as any
-    );
-
+    const pdf = buildInvoicePdf(invoice, (items || []) as any[], (payments || []) as any[], settings);
     const storagePath = `${invoice.id}/Invoice-${invoice.invoice_number}.pdf`;
     const upload = await db.storage.from(STORAGE_BUCKET).upload(storagePath, pdf, {
       contentType: "application/pdf",
@@ -155,30 +237,20 @@ export async function POST(req: Request) {
 
     if (upload.error) {
       console.error("Customer invoice PDF storage upload error:", upload.error);
-      return NextResponse.json(
-        { success: false, error: "Unable to prepare the invoice PDF for delivery." },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: "Unable to prepare the invoice PDF for delivery." }, { status: 500 });
     }
 
-    const signed = await db.storage
-      .from(STORAGE_BUCKET)
-      .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
-
+    const signed = await db.storage.from(STORAGE_BUCKET).createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
     if (signed.error || !signed.data?.signedUrl) {
       console.error("Customer invoice PDF signed URL error:", signed.error);
-      return NextResponse.json(
-        { success: false, error: "Unable to create the secure invoice PDF delivery link." },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: "Unable to create the secure invoice PDF delivery link." }, { status: 500 });
     }
 
-    const documentUrl = signed.data.signedUrl;
     const config = await getServerWhatsAppConfig();
     const result = await sendCustomerInvoicePdf(
       phone,
       config,
-      documentUrl,
+      signed.data.signedUrl,
       `Invoice-${invoice.invoice_number}.pdf`
     );
 
@@ -198,9 +270,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error("Invoice-only WhatsApp dispatch error:", error);
-    return NextResponse.json(
-      { success: false, error: error?.message || "Internal server error." },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error?.message || "Internal server error." }, { status: 500 });
   }
 }
