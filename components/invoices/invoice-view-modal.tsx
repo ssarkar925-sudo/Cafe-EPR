@@ -73,6 +73,8 @@ export default function InvoiceViewModal({
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [upiId, setUpiId] = useState<string>("");
+  const [storeSettings, setStoreSettings] = useState<any>(null);
+  const [downloading, setDownloading] = useState(false);
   const [showQr, setShowQr] = useState<boolean>(true);
   const [waModal, setWaModal] = useState<{
     open: boolean;
@@ -106,6 +108,7 @@ export default function InvoiceViewModal({
     if (inv.data) setDetail(inv.data as Detail);
     setItems((its.data ?? []) as Item[]);
     setPayments((pays.data ?? []) as Payment[]);
+    setStoreSettings(sets.data ?? null);
 
     const computedUpi =
       (sets.data as any)?.upi_id ||
@@ -130,6 +133,30 @@ export default function InvoiceViewModal({
       if (str) {
         generateQrDataUrl(str, { width: 220 }).then(setQrDataUrl);
       }
+    }
+  }
+
+  async function downloadCanonicalPdf() {
+    if (!detail || downloading) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      // Canonical path: the ONE shared InvoicePdf renderer with the full
+      // view data contract (invoice/items/payments/settings/QR/UPI).
+      const { generateInvoicePdfBlob, downloadPdfBlob } = await import("@/lib/invoice-pdf");
+      const blob = await generateInvoicePdfBlob({
+        invoice: detail,
+        items: items as any[],
+        payments: payments as any[],
+        settings: storeSettings || {},
+        qrDataUrl,
+        upiId,
+      });
+      downloadPdfBlob(blob, `Invoice-${detail.invoice_number || invoiceId}.pdf`);
+    } catch (err: any) {
+      setError(err?.message || "Unable to generate the invoice PDF.");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -275,7 +302,7 @@ export default function InvoiceViewModal({
           </button>
           <a href={`/receipt/${invoiceId}/a4?print=true`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 font-semibold text-white shadow-sm transition hover:bg-blue-700">🖨️ Print A4</a>
           <a href={`/receipt/${invoiceId}?print=true`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">🧾 Print 80mm</a>
-          <a href={`/api/invoices/${invoiceId}/pdf`} target="_blank" rel="noopener noreferrer" download={`Invoice-${detail?.invoice_number || invoiceId}.pdf`} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">📥 PDF</a>
+          <button type="button" onClick={() => void downloadCanonicalPdf()} disabled={downloading || !detail} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 shadow-xs transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">{downloading ? "…" : "📥 PDF"}</button>
         </div>
       }
       footer={

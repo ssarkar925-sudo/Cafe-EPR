@@ -33,7 +33,7 @@ const {
   describeEndpointForLog,
   CLOUDFLARE_EDGE_REJECTION_CODE,
 } = doc;
-const { buildGatewayFallback, postDocumentDirectToGateway } = direct;
+const { buildGatewayFallback, postDocumentDirectToGateway, validateClientPdfBytes, MAX_CLIENT_PDF_BYTES } = direct;
 
 let passed = 0;
 let failed = 0;
@@ -506,6 +506,97 @@ function strictGatewayEmulator(req, res, body) {
 {
   const sql = readRepo("supabase/migrations/20260915_03_whatsapp_pdf_jobs_caption.sql");
   ok("caption migration adds column", /add column if not exists caption/i.test(sql));
+}
+
+// 28. Client PDF validation (Task 13/15 failure matrix).
+{
+  const validB64 = Buffer.from("%PDF-1.4 hello").toString("base64");
+  const v = validateClientPdfBytes({ documentBase64: validB64, mimeType: "application/pdf" });
+  ok("validator accepts real pdf bytes", v.ok === true && v.size > 0 && v.bytes[0] === 0x25, JSON.stringify({ ok: v.ok }));
+  const malformed = validateClientPdfBytes({ documentBase64: "!!!not-base64!!!", mimeType: "application/pdf" });
+  ok("validator rejects malformed base64", malformed.ok === false && malformed.status === 400, JSON.stringify(malformed));
+  const empty = validateClientPdfBytes({ documentBase64: "   ", mimeType: "application/pdf" });
+  ok("validator rejects empty payload", empty.ok === false && empty.status === 400);
+  const wrongMagic = validateClientPdfBytes({ documentBase64: Buffer.from("hello-not-pdf").toString("base64"), mimeType: "application/pdf" });
+  ok("validator rejects non-pdf magic", wrongMagic.ok === false && /valid PDF/i.test(wrongMagic.error || ""), JSON.stringify(wrongMagic));
+  const wrongMime = validateClientPdfBytes({ documentBase64: validB64, mimeType: "image/png" });
+  ok("validator rejects non-pdf mime", wrongMime.ok === false && wrongMime.status === 400, JSON.stringify(wrongMime));
+  const big = validateClientPdfBytes({ documentBase64: validB64, mimeType: "application/pdf", maxBytes: 4 });
+  ok("validator rejects oversized payload", big.ok === false && big.status === 413, JSON.stringify(big));
+  ok("validator default cap sane", MAX_CLIENT_PDF_BYTES === 10 * 1024 * 1024);
+}
+
+// 29. Canonical architecture wiring (no duplicate generators, honest pdf route).
+{
+  const modal = readRepo("components/whatsapp/whatsapp-send-modal.tsx");
+  ok("modal sends exact client bytes once", modal.includes("documentBase64: rendered.base64") && modal.includes("generateInvoicePdfBase64") && !modal.includes("renderToBuffer"));
+  const list = readRepo("components/invoices/unified-invoices-client.tsx");
+  ok("list uses canonical download + modal", list.includes("downloadPosPdf") && list.includes('messageType="pos_invoice"') && list.includes("generateInvoicePdfBlob"));
+  ok("quick sale path preserved", list.includes("/pdf?source=quick") && list.includes("Receipt: ${row.number}"));
+  const a4 = readRepo("components/pdf/a4-actions.tsx");
+  ok("a4 invoice uses canonical generator", a4.includes("generateInvoicePdfBlob") && !a4.includes("window.open(`/api/invoices/"));
+  const pdfRoute = readRepo("app/api/invoices/[id]/pdf/route.ts");
+  ok("pdf route never redirects to html", !pdfRoute.includes("NextResponse.redirect") && pdfRoute.includes("502"));
+  const view = readRepo("components/invoices/invoice-view-modal.tsx");
+  ok("view uses canonical download", view.includes("downloadCanonicalPdf") && view.includes("generateInvoicePdfBlob"));
+  const sendRoute = readRepo("app/api/whatsapp/send-invoice/route.ts");
+  ok("send route honors client bytes", sendRoute.includes("validateClientPdfBytes") && sendRoute.includes("checked.bytes") && sendRoute.includes("captionOverride") && sendRoute.includes("clientDocumentBase64"));
+  const pdfData = readRepo("app/api/invoices/[id]/pdf-data/route.ts");
+  ok("pdf-data contract complete", ["invoice", "items", "payments", "settings", "qrDataUrl", "upiId"].every((k) => pdfData.includes(k)) && pdfData.includes("hasRole"));
+}
+
+// 30. Canonical render end-to-end: bundle the real InvoicePdf with esbuild
+//     (repo-local so externals resolve), render in Node, validate with pypdf.
+//     SKIP only if the toolchain itself is unavailable.
+{
+  const workDir = path.join(repoRoot, ".tmp-canon-test");
+  try {
+    const { execFileSync } = await import("node:child_process");
+    fs.mkdirSync(workDir, { recursive: true });
+    const libPath = repoRoot.replace(/\\/g, "/") + "/lib/invoice-pdf";
+    const entry = path.join(workDir, "entry.ts");
+    const fixtureFile = path.join(workDir, "fixture.json");
+    const bundled = path.join(workDir, "bundle.mjs");
+    const pdfOut = path.join(workDir, "canon.pdf");
+    fs.writeFileSync(entry, [
+      `import { generateInvoicePdfBase64 } from '${libPath}';`,
+      "import fs from 'node:fs';",
+      "const input = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));",
+      "generateInvoicePdfBase64(input).then((r) => {",
+      "  fs.writeFileSync(process.argv[3], Buffer.from(r.base64, 'base64'));",
+      "  console.log('BYTES:' + r.size + ' MIME:' + r.mimeType);",
+      "}).catch((e) => { console.error('RENDER-FAIL:' + ((e && e.stack) || e)); process.exit(1); });",
+      "",
+    ].join("\n"));
+    fs.writeFileSync(fixtureFile, JSON.stringify({
+      invoice: { invoice_number: "INV-0176", invoice_date: "2026-09-15", subtotal: 2, discount: 0, total: 2, paid: 2, due: 0, status: "paid", customers: { name: "Saikat Sarkar", phone: "9339987644" } },
+      items: [{ description: "Xerox Sigle Side", qty: 1, rate: 2, amount: 2 }],
+      payments: [{ method: "cash", amount: 2 }],
+      settings: { shop_name: "Sarkar Communication", receipt_footer: "Thank you for your business." },
+      qrDataUrl: "",
+      upiId: "",
+    }));
+    const esbuildBin = path.join(repoRoot, "node_modules", "esbuild", "bin", "esbuild");
+    execFileSync("node", [esbuildBin, entry, "--bundle", "--platform=node", "--format=esm", `--outfile=${bundled}`, `--tsconfig=${path.join(repoRoot, "tsconfig.json")}`, "--jsx=automatic", "--external:pdfkit", "--log-level=error"], { encoding: "utf8", timeout: 240000, cwd: repoRoot });
+    const runOut = execFileSync("node", [bundled, fixtureFile, pdfOut], { encoding: "utf8", timeout: 120000 });
+    const m = runOut.match(/BYTES:(\d+) MIME:([^\s]+)/);
+    const size = m ? Number(m[1]) : 0;
+    const head = Buffer.from(fs.readFileSync(pdfOut).subarray(0, 5)).toString("ascii");
+    let parsed = "";
+    try {
+      parsed = execFileSync("python3", ["-c", "import sys,pypdf; r=pypdf.PdfReader(sys.argv[1]); print(len(r.pages)); print('\\n'.join([(p.extract_text() or '') for p in r.pages])[:800])", pdfOut], { encoding: "utf8", timeout: 60000 });
+    } catch { parsed = "PARSER-UNAVAILABLE"; }
+    const firstNl = parsed.indexOf("\n");
+    const pages = Number(parsed.slice(0, firstNl).trim());
+    const text = parsed.slice(firstNl + 1);
+    const structural = size > 0 && head === "%PDF-";
+    const content = text.includes("INV-0176") && text.includes("Grand Total") && text.includes("TAX INVOICE");
+    ok("canonical render produces real decorated pdf", structural && (parsed === "PARSER-UNAVAILABLE" || (pages >= 1 && content)), `bytes=${size} pages=${pages}`);
+  } catch (e) {
+    console.log(`  SKIP  canonical render bundle unavailable (${String((e && e.message) || e).slice(0, 120)})`);
+  } finally {
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

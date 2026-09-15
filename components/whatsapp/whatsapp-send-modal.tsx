@@ -82,10 +82,47 @@ export default function WhatsAppSendModal({
 
     try {
       if (invoiceOnly) {
+        // Canonical path (Task 7): fetch invoice data, render the ONE shared
+        // InvoicePdf in this browser, and send those exact bytes. No second
+        // PDF is generated anywhere downstream.
+        const dataRes = await fetch(`/api/invoices/${encodeURIComponent(String(refId))}/pdf-data`);
+        const dataJson = await dataRes.json().catch(() => ({}));
+        if (!dataRes.ok || !dataJson?.success || !dataJson?.data) {
+          throw new Error(dataJson?.error || "Unable to load invoice data.");
+        }
+        const pdfInput = dataJson.data;
+        const { generateInvoicePdfBase64 } = await import("@/lib/invoice-pdf");
+        const { buildInvoiceCaption } = await import("@/lib/invoice-pdf-text");
+        const rendered = await generateInvoicePdfBase64({
+          invoice: pdfInput.invoice,
+          items: pdfInput.items || [],
+          payments: pdfInput.payments || [],
+          settings: pdfInput.settings || {},
+          qrDataUrl: pdfInput.qrDataUrl || "",
+          upiId: pdfInput.upiId || "",
+        });
+        const fileName = `Invoice-${refNumber || pdfInput.invoice?.invoice_number || "invoice"}.pdf`;
+        const pdfCaption = buildInvoiceCaption({
+          invoiceNumber: pdfInput.invoice?.invoice_number,
+          invoiceDate: pdfInput.invoice?.invoice_date || pdfInput.invoice?.created_at,
+          customerName: recipientName || pdfInput.invoice?.customers?.name,
+          shopName: pdfInput.settings?.shop_name,
+          total: pdfInput.invoice?.total,
+          paid: pdfInput.invoice?.paid,
+          due: pdfInput.invoice?.due,
+        });
         const response = await fetch("/api/whatsapp/send-invoice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ invoiceId: refId, invoiceNumber: refNumber, phone: phone.trim() }),
+          body: JSON.stringify({
+            invoiceId: refId,
+            invoiceNumber: refNumber,
+            phone: phone.trim(),
+            documentBase64: rendered.base64,
+            fileName,
+            mimeType: rendered.mimeType,
+            caption: pdfCaption,
+          }),
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {

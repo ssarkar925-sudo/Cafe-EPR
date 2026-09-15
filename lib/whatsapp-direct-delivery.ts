@@ -120,6 +120,52 @@ export async function reportJobOutcome(
   }
 }
 
+/** Matches the customer-invoices storage bucket file size limit. */
+export const MAX_CLIENT_PDF_BYTES = 10 * 1024 * 1024;
+
+export type ClientPdfValidation =
+  | { ok: true; bytes: Uint8Array; size: number }
+  | { ok: false; error: string; status: number };
+
+/**
+ * Strict validation for client-supplied invoice PDF bytes (Task 13).
+ * Rejects: missing/empty payload, malformed base64, wrong magic, oversize,
+ * non-PDF MIME. Never throws and never logs the payload.
+ */
+export function validateClientPdfBytes(input: {
+  documentBase64?: unknown;
+  mimeType?: unknown;
+  maxBytes?: number;
+}): ClientPdfValidation {
+  const raw = String(input?.documentBase64 ?? "").trim();
+  if (!raw) return { ok: false, error: "Invoice PDF content is required.", status: 400 };
+  const mime = String(input?.mimeType ?? "application/pdf").trim().toLowerCase() || "application/pdf";
+  if (mime !== "application/pdf") {
+    return { ok: false, error: "Invoice document must be application/pdf.", status: 400 };
+  }
+  const compact = raw.replace(/\s+/g, "").replace(/^data:application\/pdf;base64,/i, "");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.length % 4 !== 0) {
+    return { ok: false, error: "Invoice PDF content is not valid base64.", status: 400 };
+  }
+  let bytes: Uint8Array;
+  try {
+    const bin = typeof atob === "function" ? atob(compact) : Buffer.from(compact, "base64").toString("binary");
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch {
+    return { ok: false, error: "Invoice PDF content is not valid base64.", status: 400 };
+  }
+  if (bytes.length === 0) return { ok: false, error: "Invoice PDF content is empty.", status: 400 };
+  const maxBytes = input?.maxBytes && input.maxBytes > 0 ? input.maxBytes : MAX_CLIENT_PDF_BYTES;
+  if (bytes.length > maxBytes) {
+    return { ok: false, error: `Invoice PDF exceeds the ${(maxBytes / (1024 * 1024)).toFixed(0)} MB delivery limit.`, status: 413 };
+  }
+  if (String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]) !== "%PDF-") {
+    return { ok: false, error: "Invoice document is not a valid PDF.", status: 400 };
+  }
+  return { ok: true, bytes, size: bytes.length };
+}
+
 function parseBody(raw: string): any {
   const text = String(raw || "").trim();
   if (!text) return {};

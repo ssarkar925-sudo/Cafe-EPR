@@ -15,6 +15,7 @@ const STORAGE_BUCKET = "customer-invoices";
 const SIGNED_URL_TTL_SECONDS = 15 * 60;
 
 import { buildInvoiceCaption, buildInvoicePdf } from "@/lib/invoice-pdf-text";
+import { validateClientPdfBytes } from "@/lib/whatsapp-direct-delivery";
 
 export async function POST(req: Request) {
   try {
@@ -24,6 +25,12 @@ export async function POST(req: Request) {
     const invoiceId = String(body?.invoiceId || "").trim();
     const invoiceNumber = String(body?.invoiceNumber || "").trim();
     const phone = String(body?.phone || "").trim();
+    // Optional canonical client-supplied PDF (Task 6): the exact bytes rendered
+    // by the shared InvoicePdf generator in the browser.
+    const clientDocumentBase64 = String(body?.documentBase64 || "").trim();
+    const clientFileName = String(body?.fileName || "").trim();
+    const clientMimeType = String(body?.mimeType || "").trim();
+    const clientCaption = String(body?.caption || "").trim().slice(0, 800);
     if ((!invoiceId && !invoiceNumber) || !phone) return NextResponse.json({ success: false, error: "Invoice ID (or invoice number) and recipient phone are required." }, { status: 400 });
 
     const db = createAdminClient();
@@ -75,7 +82,24 @@ export async function POST(req: Request) {
       db.from("settings").select("*").single(),
     ]);
 
-    const pdf = buildInvoicePdf(invoice, (items || []) as any[], (payments || []) as any[], settings);
+    // Canonical client bytes win when supplied AND valid (Task 6): the exact
+    // PDF rendered by the shared InvoicePdf generator is used verbatim — never
+    // regenerated. Otherwise the legacy server render applies (backward compat).
+    let pdf: Uint8Array;
+    let fileName = `Invoice-${invoice.invoice_number}.pdf`;
+    let captionOverride: string | null = null;
+    if (clientDocumentBase64) {
+      const checked = validateClientPdfBytes({ documentBase64: clientDocumentBase64, mimeType: clientMimeType || "application/pdf" });
+      if (!checked.ok) return NextResponse.json({ success: false, error: checked.error }, { status: checked.status });
+      pdf = checked.bytes;
+      if (clientFileName) {
+        const safe = clientFileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+        if (safe) fileName = safe;
+      }
+      if (clientCaption) captionOverride = clientCaption;
+    } else {
+      pdf = buildInvoicePdf(invoice, (items || []) as any[], (payments || []) as any[], settings);
+    }
     const storagePath = `${invoice.id}/Invoice-${invoice.invoice_number}.pdf`;
     const upload = await db.storage.from(STORAGE_BUCKET).upload(storagePath, pdf, { contentType: "application/pdf", cacheControl: String(SIGNED_URL_TTL_SECONDS), upsert: true });
     if (upload.error) return NextResponse.json({ success: false, error: "Unable to prepare the invoice PDF for delivery." }, { status: 500 });
@@ -85,10 +109,10 @@ export async function POST(req: Request) {
 
     const config = await getServerWhatsAppConfig();
     const pdfBase64 = Buffer.from(pdf).toString("base64");
-    const fileName = `Invoice-${invoice.invoice_number}.pdf`;
     // Greeting attached to the WhatsApp DOCUMENT message (the PDF itself is
     // still delivered as a document — never downgraded to text-only).
-    const caption = buildInvoiceCaption({
+    // A client-supplied caption wins; otherwise the server builds it.
+    const caption = captionOverride || buildInvoiceCaption({
       invoiceNumber: invoice.invoice_number,
       invoiceDate: invoice.invoice_date || invoice.created_at,
       customerName: invoice?.customers?.name,

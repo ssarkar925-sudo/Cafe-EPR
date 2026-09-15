@@ -37,40 +37,24 @@ export default function A4Actions({
   async function downloadPdf() {
     setBusy(true);
     try {
-      const targetId = invoiceId || (data as any)?.invoice?.id;
-      if (variant === "invoice" && targetId) {
-        try {
-          const res = await fetch(`/api/invoices/${targetId}/pdf`);
-          if (res.ok && (res.headers.get("content-type") || "").includes("pdf")) {
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename || `Invoice-${targetId}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
-            setBusy(false);
-            return;
-          }
-        } catch (serverErr) {
-          console.warn("Server PDF fetch failed, falling back to client renderer:", serverErr);
-        }
+      if (variant === "invoice") {
+        // Canonical path: the ONE shared InvoicePdf generator. No server
+        // round-trip, no window.open fallback to the PDF route.
+        const { generateInvoicePdfBlob, downloadPdfBlob } = await import("@/lib/invoice-pdf");
+        const blob = await generateInvoicePdfBlob(data as InvoicePdfData);
+        downloadPdfBlob(blob, filename || `Invoice-${(data as any)?.invoice?.invoice_number || (data as any)?.invoice?.id || "invoice"}.pdf`);
+        return;
       }
 
-      const [{ pdf }, { default: InvoicePdf }, { default: BusinessPdf }, { default: DayClosePdf }] =
+      const [{ pdf }, { default: BusinessPdf }, { default: DayClosePdf }] =
         await Promise.all([
           import("@react-pdf/renderer"),
-          import("./invoice-pdf"),
           import("./business-pdf"),
           import("./day-close-pdf"),
         ]);
 
       const el =
-        variant === "invoice" ? (
-          <InvoicePdf {...(data as InvoicePdfData)} />
-        ) : variant === "day_close" ? (
+        variant === "day_close" ? (
           <DayClosePdf {...(data as DayClosePdfData)} />
         ) : (
           <BusinessPdf {...(data as BusinessPdfData)} showFees={showFees} />
@@ -86,12 +70,7 @@ export default function A4Actions({
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (err: any) {
       console.error("PDF download failed:", err);
-      const targetId = invoiceId || (data as any)?.invoice?.id;
-      if (variant === "invoice" && targetId) {
-        window.open(`/api/invoices/${targetId}/pdf`, "_blank");
-      } else {
-        alert("Unable to generate PDF directly. Please use Print -> Save as PDF.");
-      }
+      alert(err?.message || "Unable to generate PDF directly. Please use Print -> Save as PDF.");
     } finally {
       setBusy(false);
     }

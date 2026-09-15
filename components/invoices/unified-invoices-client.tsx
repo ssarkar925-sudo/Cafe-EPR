@@ -34,7 +34,8 @@ import QuickSaleViewModal from "./quick-sale-view-modal";
 import ReturnModal from "./return-modal";
 import Modal from "@/components/ui/modal";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
-import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 type Props = {
   initialInvoices: any[];
@@ -159,6 +160,13 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [copiedNum, setCopiedNum] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [waModal, setWaModal] = useState<{
+    phone: string;
+    name: string;
+    refId: string;
+    refNumber: string;
+  } | null>(null);
 
   const rows = useMemo(() => normalize(invoices, quickSales), [invoices, quickSales]);
 
@@ -289,25 +297,52 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
     setTimeout(() => setMessage(null), 2500);
   }
 
+  async function downloadPosPdf(row: UnifiedInvoiceRow) {
+    if (downloadingId) return;
+    setDownloadingId(`${row.source}:${row.id}`);
+    try {
+      // Canonical path: pdf-data contract + ONE shared InvoicePdf generator.
+      const dataRes = await fetch(`/api/invoices/${encodeURIComponent(row.id)}/pdf-data`);
+      const dataJson = await dataRes.json().catch(() => ({}));
+      if (!dataRes.ok || !dataJson?.success || !dataJson?.data) {
+        throw new Error(dataJson?.error || "Unable to load invoice data.");
+      }
+      const d = dataJson.data;
+      const { generateInvoicePdfBlob, downloadPdfBlob } = await import("@/lib/invoice-pdf");
+      const blob = await generateInvoicePdfBlob({
+        invoice: d.invoice,
+        items: d.items || [],
+        payments: d.payments || [],
+        settings: d.settings || {},
+        qrDataUrl: d.qrDataUrl || "",
+        upiId: d.upiId || "",
+      });
+      downloadPdfBlob(blob, `Invoice-${row.number || d.invoice?.invoice_number || "invoice"}.pdf`);
+    } catch (err: any) {
+      setMessage(err?.message || "Unable to generate the invoice PDF.");
+      setTimeout(() => setMessage(null), 3500);
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   async function sendWhatsApp(row: UnifiedInvoiceRow) {
-    const cfg = getWhatsAppConfig();
+    // POS invoices ride the canonical PDF path through WhatsAppSendModal.
+    if (row.source === "pos") {
+      setMenuKey(null);
+      setWaModal({
+        phone: row.customer?.phone || "",
+        name: row.customer?.name || "Customer",
+        refId: row.id,
+        refNumber: row.number,
+      });
+      return;
+    }
+    // Quick sales preserve their existing text-receipt behavior.
     const phone = row.customer?.phone || "";
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = row.source === "pos" ? `${origin}/receipt/${row.id}/a4` : `${origin}/receipt/quick/${row.id}`;
-    const msg =
-      row.source === "pos"
-        ? renderWhatsAppTemplate(cfg.templates?.pos_invoice || DEFAULT_WA_TEMPLATES.pos_invoice, {
-            shop_name: "Sarkar Communication",
-            invoice_number: row.number,
-            invoice_date: row.date,
-            customer_name: row.customer?.name || "Customer",
-            total_amount: inr(row.total),
-            paid_amount: inr(row.paid),
-            due_amount: inr(row.due),
-            status_line: row.status === "paid" ? "Fully Paid" : `Balance Due: ${inr(row.due)}`,
-            receipt_url: url,
-          })
-        : `🧾 Receipt: ${row.number}\n📅 Date: ${row.date}\n👤 Customer: ${row.customer?.name || "Walk-in"}\n💰 Amount: ${inr(row.total)}\n📄 Receipt: ${url}`;
+    const url = `${origin}/receipt/quick/${row.id}`;
+    const msg = `🧾 Receipt: ${row.number}\n📅 Date: ${row.date}\n👤 Customer: ${row.customer?.name || "Walk-in"}\n💰 Amount: ${inr(row.total)}\n📄 Receipt: ${url}`;
     const result = await sendWhatsAppMessage({ phone, message: msg });
     if (!result.ok) window.open(result.fallbackUrl, "_blank", "noopener");
   }
@@ -807,17 +842,29 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                           <Printer className="h-3.5 w-3.5" />
                         </a>
 
-                        {/* Download PDF Button */}
-                        <a
-                          title="Download PDF Invoice"
-                          target="_blank"
-                          rel="noreferrer"
-                          href={`/api/invoices/${row.id}/pdf${row.source === "quick" ? "?source=quick" : ""}`}
-                          download={`Invoice-${row.number}.pdf`}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
+                        {/* Download PDF Button: POS uses the canonical client Blob; quick keeps its existing route */}
+                        {isPos ? (
+                          <button
+                            type="button"
+                            title="Download PDF Invoice"
+                            disabled={downloadingId === `${row.source}:${row.id}`}
+                            onClick={() => void downloadPosPdf(row)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 disabled:opacity-50 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <a
+                            title="Download PDF Invoice"
+                            target="_blank"
+                            rel="noreferrer"
+                            href={`/api/invoices/${row.id}/pdf?source=quick`}
+                            download={`Invoice-${row.number}.pdf`}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        )}
 
                         {/* WhatsApp Button */}
                         <button
@@ -885,17 +932,32 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                               <Printer className="h-3.5 w-3.5 text-slate-500" />
                               <span>Print 80mm Slip</span>
                             </a>
-                            <a
-                              href={`/api/invoices/${row.id}/pdf${row.source === "quick" ? "?source=quick" : ""}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={`Invoice-${row.number}.pdf`}
-                              onClick={() => setMenuKey(null)}
-                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-white/10"
-                            >
-                              <Download className="h-3.5 w-3.5 text-blue-600" />
-                              <span>Download PDF</span>
-                            </a>
+                            {isPos ? (
+                              <button
+                                type="button"
+                                disabled={downloadingId === `${row.source}:${row.id}`}
+                                onClick={() => {
+                                  setMenuKey(null);
+                                  void downloadPosPdf(row);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-300 dark:hover:bg-white/10"
+                              >
+                                <Download className="h-3.5 w-3.5 text-blue-600" />
+                                <span>{downloadingId === `${row.source}:${row.id}` ? "Preparing…" : "Download PDF"}</span>
+                              </button>
+                            ) : (
+                              <a
+                                href={`/api/invoices/${row.id}/pdf?source=quick`}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={`Invoice-${row.number}.pdf`}
+                                onClick={() => setMenuKey(null)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-white/10"
+                              >
+                                <Download className="h-3.5 w-3.5 text-blue-600" />
+                                <span>Download PDF</span>
+                              </a>
+                            )}
                             {isPos && row.status !== "cancelled" && (
                               <button
                                 type="button"
@@ -1034,6 +1096,20 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
           onCancelled={(id) => {
             setQuickSales((current) => current.map((x) => (x.id === id ? { ...x, status: "cancelled" } : x)));
           }}
+        />
+      )}
+
+      {/* WhatsApp PDF Modal (POS invoices ride the canonical PDF path) */}
+      {waModal && (
+        <WhatsAppSendModal
+          open={Boolean(waModal)}
+          onClose={() => setWaModal(null)}
+          phone={waModal.phone}
+          recipientName={waModal.name}
+          initialMessage=""
+          messageType="pos_invoice"
+          refId={waModal.refId}
+          refNumber={waModal.refNumber}
         />
       )}
 
