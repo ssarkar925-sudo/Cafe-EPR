@@ -3,6 +3,7 @@ name: one-time-gateway-direct-pdf
   push:
     branches: [main]
 
+# One-time source patch; removed immediately after the gateway source commit lands.
 jobs:
   patch-gateway:
     if: ${{ !contains(github.event.head_commit.message, 'fix(gateway): accept direct PDF payload') }}
