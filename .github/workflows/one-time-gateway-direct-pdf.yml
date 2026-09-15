@@ -1,5 +1,5 @@
 name: one-time-gateway-direct-pdf
-'on':
+on:
   push:
     branches: [main]
 
@@ -9,14 +9,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Patch gateway PDF endpoint
-        shell: python
         run: |
+          python - <<'PY'
           from pathlib import Path
-
           p = Path('scripts/whatsapp-gateway.js')
           s = p.read_text(encoding='utf-8')
+          start_marker = '  // Send PDF Invoice Document Endpoint\n'
+          end_marker = '  // Send Message Endpoint\n'
+          start = s.find(start_marker)
+          end = s.find(end_marker, start if start >= 0 else 0)
+          if end < 0:
+              raise SystemExit('Gateway endpoint marker not found; refusing unsafe edit')
 
-          block = r'''  // Send PDF Invoice Document Endpoint
+          block = '''  // Send PDF Invoice Document Endpoint
   if ((urlPath === "/send-document" || urlPath === "/api/send-document") && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
@@ -47,7 +52,7 @@ jobs:
 
         let buffer;
         if (documentBase64) {
-          const encoded = String(documentBase64).trim().replace(/^data:application\/pdf;base64,/, "");
+          const encoded = String(documentBase64).trim().replace(/^data:application\\/pdf;base64,/, "");
           buffer = Buffer.from(encoded, "base64");
         } else {
           let parsedUrl;
@@ -96,19 +101,9 @@ jobs:
   }
 '''
 
-          start_marker = '  // Send PDF Invoice Document Endpoint\n'
-          end_marker = '  // Send Message Endpoint\n'
-          if start_marker in s and end_marker in s:
-              start = s.index(start_marker)
-              end = s.index(end_marker, start)
-              s = s[:start] + block + '\n' + s[end:]
-          elif end_marker in s:
-              end = s.index(end_marker)
-              s = s[:end] + block + '\n' + s[end:]
-          else:
-              raise SystemExit('Gateway endpoint marker not found; refusing unsafe edit')
-
-          p.write_text(s, encoding='utf-8')
+          p.write_text(s[:start] + block + '\n' + s[end:], encoding='utf-8')
+          print('gateway PDF endpoint patched')
+          PY
       - name: Commit patched gateway
         run: |
           git config user.name github-actions[bot]
