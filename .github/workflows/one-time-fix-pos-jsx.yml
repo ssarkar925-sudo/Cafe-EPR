@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   repair:
-    if: ${{ !contains(github.event.head_commit.message, 'chore: remove one-time POS JSX repair') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -20,8 +19,8 @@ jobs:
           fetch-depth: 0
 
       - name: Remove extra POS customer closing tag
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
 
           path = Path('components/pos/pos-shell.tsx')
@@ -39,9 +38,9 @@ jobs:
 
           lines[i] = line.rstrip()[:-len('</div>')]
           path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
 
       - name: Commit repair
-        shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
