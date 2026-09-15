@@ -201,13 +201,19 @@ export async function POST(req: Request) {
             error:
               "The server could not reach the WhatsApp gateway (network edge rejection). Retrying delivery directly from this device.",
             code: CLOUDFLARE_EDGE_REJECTION_CODE,
+            hop: "server-to-gateway",
             ...(fallback ? { fallback } : {}),
           },
           { status: 502 }
         );
       }
       return NextResponse.json(
-        { success: false, error: (result as any)?.error || "Failed to send invoice PDF.", code: (result as any)?.code },
+        {
+          success: false,
+          error: (result as any)?.error || "Failed to send invoice PDF.",
+          code: (result as any)?.code,
+          hop: "server-to-gateway",
+        },
         { status: (result as any)?.status || 400 }
       );
     }

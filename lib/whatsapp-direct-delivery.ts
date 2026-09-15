@@ -101,38 +101,73 @@ function parseBody(raw: string): any {
   }
 }
 
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+const RETRY_BACKOFF_MS = [1500, 4000, 8000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function postDocumentDirectToGateway(
   gatewayUrl: string,
   payload: GatewayDocumentPayload,
-  timeoutMs = 60000
-): Promise<{ ok: boolean; messageId?: string; status?: number; error?: string; data?: any }> {
+  timeoutMs = 60000,
+  options?: { retries?: number }
+): Promise<{ ok: boolean; messageId?: string; status?: number; error?: string; data?: any; attempts: number }> {
   const normalized = normalizeGatewayUrl(gatewayUrl);
-  if (!normalized) return { ok: false, error: "WhatsApp gateway URL is missing or invalid." };
-  if (!payload?.phone) return { ok: false, error: "Phone and invoice PDF are required." };
-  try {
-    const response = await fetch(`${normalized}/send-document`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true" },
-      body: JSON.stringify(payload),
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const raw = await response.text();
-    const data = parseBody(raw);
-    if (!response.ok || data?.success === false) {
+  if (!normalized) return { ok: false, error: "WhatsApp gateway URL is missing or invalid.", attempts: 0 };
+  if (!payload?.phone) return { ok: false, error: "Phone and invoice PDF are required.", attempts: 0 };
+  // Transient network throws (reset connections, Render restarts/cold starts)
+  // and proxy-level 502/503/504 are retried with backoff. Definitive gateway
+  // answers (other statuses, JSON errors, QR-not-linked) are returned as-is.
+  const maxAttempts = 1 + Math.min(Math.max(options?.retries ?? 2, 0), 3);
+  let attempts = 0;
+  let lastError = "request failed";
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    attempts++;
+    try {
+      const response = await fetch(`${normalized}/send-document`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "true" },
+        body: JSON.stringify(payload),
+        redirect: "follow",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const raw = await response.text();
+      const data = parseBody(raw);
+      if (!response.ok || data?.success === false) {
+        if (RETRYABLE_STATUS.has(response.status) && attempts < maxAttempts) {
+          lastError = String(data?.error || data?.message || data?.raw || `Gateway returned HTTP ${response.status}`);
+          await sleep(RETRY_BACKOFF_MS[Math.min(attempts - 1, RETRY_BACKOFF_MS.length - 1)]);
+          continue;
+        }
+        return {
+          ok: false,
+          status: response.status,
+          error: String(data?.error || data?.message || data?.raw || `Gateway returned HTTP ${response.status}`),
+          data,
+          attempts,
+        };
+      }
+      if (data?.status === "dispatched_mock") {
+        return { ok: false, status: response.status, error: "WhatsApp gateway is not linked yet. Scan the QR code first.", data, attempts };
+      }
+      return { ok: true, messageId: data?.messageId || data?.id, status: response.status, data, attempts };
+    } catch (err: any) {
+      const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+      lastError = String(err?.message || "request failed");
+      if (attempts < maxAttempts) {
+        await sleep(RETRY_BACKOFF_MS[Math.min(attempts - 1, RETRY_BACKOFF_MS.length - 1)]);
+        continue;
+      }
       return {
         ok: false,
-        status: response.status,
-        error: String(data?.error || data?.message || data?.raw || `Gateway returned HTTP ${response.status}`),
-        data,
+        attempts,
+        error: isTimeout
+          ? `Direct delivery from this device timed out after ${attempts} attempt(s).`
+          : `Could not reach WhatsApp gateway from this device (attempt ${attempts}): ${lastError}`,
       };
     }
-    if (data?.status === "dispatched_mock") {
-      return { ok: false, status: response.status, error: "WhatsApp gateway is not linked yet. Scan the QR code first.", data };
-    }
-    return { ok: true, messageId: data?.messageId || data?.id, status: response.status, data };
-  } catch (err: any) {
-    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
-    return { ok: false, error: isTimeout ? "Direct gateway delivery timed out." : `Could not reach WhatsApp gateway: ${err?.message || "request failed"}` };
   }
 }

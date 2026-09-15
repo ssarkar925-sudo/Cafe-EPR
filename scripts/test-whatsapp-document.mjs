@@ -196,13 +196,61 @@ console.log("WhatsApp document delivery tests");
   await stopMock(mock);
 }
 
-// 16. Direct delivery helper: timeout is bounded and reported.
+// 16. Direct delivery helper: timeout is bounded and reported (no retry).
 {
   const mock = await startMock(() => { /* hang */ });
   const started = Date.now();
-  const r = await postDocumentDirectToGateway(mock.url, { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf" }, 300);
+  const r = await postDocumentDirectToGateway(mock.url, { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf" }, 300, { retries: 0 });
   const elapsed = Date.now() - started;
-  ok("direct delivery timeout bounded", r.ok === false && /timed out/i.test(String(r.error)) && elapsed < 15000, `${r.error} (${elapsed}ms)`);
+  ok("direct delivery timeout bounded", r.ok === false && /timed out/i.test(String(r.error)) && r.attempts === 1 && elapsed < 15000, `${r.error} (${elapsed}ms)`);
+  await stopMock(mock);
+}
+
+// 16b. Direct delivery helper: transient reset is retried, then succeeds.
+{
+  let n = 0;
+  const mock = await startMock((req, res) => {
+    n++;
+    if (n === 1) { req.socket.destroy(); return; }
+    json(res, 200, { success: true, status: "sent", messageId: "retry-1" });
+  });
+  const r = await postDocumentDirectToGateway(mock.url, { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf", documentBase64: PDF_B64 }, 10000, { retries: 2 });
+  ok("direct delivery retries transient failure", r.ok === true && r.messageId === "retry-1" && r.attempts === 2, JSON.stringify(r));
+  await stopMock(mock);
+}
+
+// 16c. Direct delivery helper: persistent 503 exhausts retries; 500 never retries.
+{
+  const mock503 = await startMock((req, res) => json(res, 503, { error: "proxy warming up" }));
+  const r503 = await postDocumentDirectToGateway(mock503.url, { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf" }, 10000, { retries: 2 });
+  ok("direct delivery exhausts retries on 503", r503.ok === false && r503.attempts === 3 && mock503.hits.count === 3, JSON.stringify({ attempts: r503.attempts, hits: mock503.hits.count }));
+  await stopMock(mock503);
+  const mock500 = await startMock((req, res) => json(res, 500, { success: false, error: "definitive failure" }));
+  const r500 = await postDocumentDirectToGateway(mock500.url, { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf" }, 10000, { retries: 2 });
+  ok("direct delivery does not retry definitive 500", r500.ok === false && r500.attempts === 1 && mock500.hits.count === 1 && /definitive failure/.test(String(r500.error)), JSON.stringify(r500));
+  await stopMock(mock500);
+}
+
+// 16d. Server lib: transient throw is retried once, then succeeds.
+{
+  let n = 0;
+  const mock = await startMock((req, res) => {
+    n++;
+    if (n === 1) { req.socket.destroy(); return; }
+    json(res, 200, { success: true, status: "sent", messageId: "srv-retry-1" });
+  });
+  const r = await sendCustomerInvoicePdf(VALID_PHONE, localConfig(mock.url), DOC_URL, "f.pdf", PDF_B64);
+  ok("server retries transient throw", r.success === true && r.messageId === "srv-retry-1" && mock.hits.count === 2, JSON.stringify({ r, hits: mock.hits.count }));
+  await stopMock(mock);
+}
+
+// 16e. Server lib: timeout is NOT retried (single bounded attempt).
+{
+  const mock = await startMock(() => { /* hang */ });
+  const started = Date.now();
+  const r = await sendCustomerInvoicePdf(VALID_PHONE, localConfig(mock.url), DOC_URL, "f.pdf", PDF_B64, { timeoutMs: 300 });
+  const elapsed = Date.now() - started;
+  ok("server does not retry timeouts", r.success === false && r.status === 502 && mock.hits.count === 1 && elapsed < 15000, JSON.stringify({ r, hits: mock.hits.count, elapsed }));
   await stopMock(mock);
 }
 

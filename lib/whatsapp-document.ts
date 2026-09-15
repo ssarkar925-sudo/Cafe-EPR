@@ -52,7 +52,8 @@ export async function sendCustomerInvoicePdf(
   config: WhatsAppConfig,
   documentUrl: string,
   filename: string,
-  documentBase64?: string
+  documentBase64?: string,
+  options?: { timeoutMs?: number }
 ) {
   if (!phone || !documentUrl) return { success: false, error: "Phone and invoice PDF URL are required.", status: 400 };
   if (!config || config.provider === "off") return { success: false, error: "WhatsApp integration is not enabled in Settings.", status: 400 };
@@ -95,21 +96,53 @@ export async function sendCustomerInvoicePdf(
       ...(documentBase64 ? { documentBase64, pdfBase64: documentBase64 } : {}),
     };
 
+    const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 60000;
+
     async function callGateway(path: string) {
       const response = await fetch(`${gateway}${path}`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
         redirect: "follow",
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const raw = await response.text();
       return { response, data: parseResponse(raw) };
     }
 
+    function isTimeoutError(err: any): boolean {
+      return err?.name === "TimeoutError" || err?.name === "AbortError";
+    }
+
+    function sleep(ms: number): Promise<void> {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
     try {
-      let result = await callGateway("/send-document");
+      // One retry for transient network throws (fast failures only — never on
+      // timeouts) and proxy-level 502/503/504. HTTP answers such as the 1003
+      // edge rejection are definitive and are never retried.
+      let result: { response: Response; data: any } | null = null;
       let path = "/send-document";
+      let lastThrow: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          result = await callGateway(path);
+          lastThrow = null;
+        } catch (err: any) {
+          lastThrow = err;
+          result = null;
+          if (isTimeoutError(err) || attempt >= 2) break;
+          await sleep(2000);
+          continue;
+        }
+        if ((result.response.status === 502 || result.response.status === 503 || result.response.status === 504) && attempt < 2) {
+          await sleep(2000);
+          continue;
+        }
+        break;
+      }
+      if (!result) throw lastThrow || new Error("request failed");
 
       if (result.response.status === 404) {
         result = await callGateway("/api/send-document");
