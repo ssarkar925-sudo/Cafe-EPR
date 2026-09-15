@@ -31,29 +31,60 @@ export async function POST(req: Request) {
     }
 
     const db = createAdminClient();
+    let lastLookupError = "";
 
-    // Helper: look up invoice by ID first, fallback to invoice number
+    // Resolve the invoice using the strongest available identifier. The embedded
+    // customer relationship is convenient, but a relationship/schema-cache issue
+    // must never be misreported to the operator as "Invoice not found".
     async function lookupInvoice() {
+      async function enrichCustomer(invoice: any) {
+        if (!invoice?.customer_id) return invoice;
+        const customerResult = await db
+          .from("customers")
+          .select("name, phone, address, code")
+          .eq("id", invoice.customer_id)
+          .maybeSingle();
+        if (!customerResult.error) invoice.customers = customerResult.data || null;
+        return invoice;
+      }
+
       if (invoiceId) {
-        const res = await db
+        const embedded = await db
           .from("invoices")
           .select("*, customers(name, phone, address, code)")
           .eq("id", invoiceId)
           .maybeSingle();
-        if (!res.error && res.data) return res.data;
+        if (!embedded.error && embedded.data) return embedded.data;
+        if (embedded.error) lastLookupError = embedded.error.message;
+
+        const plain = await db.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
+        if (!plain.error && plain.data) return enrichCustomer(plain.data);
+        if (plain.error) lastLookupError = plain.error.message;
       }
+
       if (invoiceNumber) {
-        const res = await db
+        const embedded = await db
           .from("invoices")
           .select("*, customers(name, phone, address, code)")
           .eq("invoice_number", invoiceNumber)
           .maybeSingle();
-        if (!res.error && res.data) return res.data;
+        if (!embedded.error && embedded.data) return embedded.data;
+        if (embedded.error) lastLookupError = embedded.error.message;
+
+        const plain = await db
+          .from("invoices")
+          .select("*")
+          .eq("invoice_number", invoiceNumber)
+          .maybeSingle();
+        if (!plain.error && plain.data) return enrichCustomer(plain.data);
+        if (plain.error) lastLookupError = plain.error.message;
       }
+
       return null;
     }
 
-    // Try immediately, then retry once after 600ms to handle DB commit race condition
+    // Try immediately, then retry once after 600ms to handle DB commit race
+    // conditions immediately after the create_sale transaction commits.
     let invoice = await lookupInvoice();
     if (!invoice) {
       await new Promise((r) => setTimeout(r, 600));
@@ -61,11 +92,27 @@ export async function POST(req: Request) {
     }
 
     if (!invoice) {
-      console.error("WhatsApp send-invoice: not found. invoiceId=", invoiceId, "invoiceNumber=", invoiceNumber);
+      if (lastLookupError) {
+        console.error(
+          "WhatsApp send-invoice: invoice lookup failed.",
+          "invoiceId=",
+          invoiceId,
+          "invoiceNumber=",
+          invoiceNumber,
+          "error=",
+          lastLookupError
+        );
+        return NextResponse.json(
+          { success: false, error: `Invoice lookup failed: ${lastLookupError}` },
+          { status: 500 }
+        );
+      }
+
+      console.error("WhatsApp send-invoice: invoice not found.", "invoiceId=", invoiceId, "invoiceNumber=", invoiceNumber);
       return NextResponse.json({ success: false, error: "Invoice not found." }, { status: 404 });
     }
 
-    // Always use the resolved invoice.id — never the raw input (which may be empty if found via number fallback)
+    // Always use the resolved invoice.id — never the raw input.
     const resolvedId = invoice.id as string;
 
     const [{ data: items }, { data: payments }, { data: settings }] = await Promise.all([
@@ -119,9 +166,9 @@ export async function POST(req: Request) {
     }
 
     // External WhatsApp providers/gateways must fetch the document without
-    // inheriting the browser's Vercel Deployment Protection session. The
-    // short-lived Supabase signed URL is accessible to the provider while the
-    // invoice PDF route itself remains protected by the application's design.
+    // inheriting the browser's Deployment Protection session. The short-lived
+    // Supabase signed URL is accessible to the provider while the invoice PDF
+    // route itself remains protected by the application's design.
     const documentUrl = signed.data.signedUrl;
     const config = await getServerWhatsAppConfig();
     const result = await sendCustomerInvoicePdf(
