@@ -21,25 +21,8 @@ jobs:
       - name: Remove extra POS customer closing tag
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('components/pos/pos-shell.tsx')
-          lines = path.read_text(encoding='utf-8').splitlines()
-          matches = [i for i, line in enumerate(lines) if 'data-pos-customer-action="reference"' in line]
-
-          if len(matches) != 1:
-              raise SystemExit(f'Expected exactly one POS customer reference line, found {len(matches)}')
-
-          i = matches[0]
-          line = lines[i]
-          expected = '</div></div></div>'
-          if not line.rstrip().endswith(expected):
-              raise SystemExit('POS customer line does not have the expected trailing JSX structure')
-
-          lines[i] = line.rstrip()[:-len('</div>')]
-          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-          PY
+          sed -i '/data-pos-customer-action="reference"/ s#</div></div></div>$#</div></div>#' components/pos/pos-shell.tsx
+          grep -F 'data-pos-customer-action="reference"' components/pos/pos-shell.tsx | grep -F '</div></div></div>' && exit 1 || true
 
       - name: Commit repair
         shell: bash
