@@ -466,13 +466,31 @@ function strictGatewayEmulator(req, res, body) {
     const tmp = path.join(fs.mkdtempSync(path.join(require("node:os").tmpdir(), "cafe-inv-")), "inv.pdf");
     fs.writeFileSync(tmp, bytes);
     const { execFileSync } = await import("node:child_process");
-    const out = execFileSync("python3", ["-c", "import sys,pypdf; r=pypdf.PdfReader(sys.argv[1]); print(len(r.pages)); print((r.pages[0].extract_text() or '')[:400])", tmp], { encoding: "utf8", timeout: 60000 });
+    const out = execFileSync("python3", ["-c", "import sys,pypdf; r=pypdf.PdfReader(sys.argv[1]); print(len(r.pages)); print((r.pages[0].extract_text() or '')[:600])", tmp], { encoding: "utf8", timeout: 60000 });
     const firstLineEnd = out.indexOf("\n");
     const pages = Number(out.slice(0, firstLineEnd).trim());
     const text = out.slice(firstLineEnd + 1);
     ok("pdf opens in real parser with invoice content", pages >= 1 && text.includes("INV-0176") && text.includes("Saikat Sarkar"), text.slice(0, 120));
+    ok("pdf has decorated A4 blocks", text.includes("TAX INVOICE") && text.includes("Grand Total") && text.includes("Sarkar Communication"), text.slice(0, 120));
   } catch (e) {
     console.log("  SKIP  pypdf open-test unavailable (structural checks passed)");
+  }
+  // Decorated design markers in the raw bytes + pagination for long invoices.
+  {
+    const raw = bytes.toString("latin1");
+    ok("pdf embeds bold font and color fills", raw.includes("Helvetica-Bold") && raw.includes(" rg") && raw.includes(" re"), "design ops");
+    const manyItems = Array.from({ length: 60 }, (_, i) => ({ description: `Item ${i + 1}`, qty: 1, rate: 10, amount: 10 }));
+    const big = Buffer.from(gen.buildInvoicePdf({ ...sampleInvoice, total: 600, paid: 600 }, manyItems, [], { shop_name: "S" }));
+    const { execFileSync } = await import("node:child_process");
+    try {
+      const tmp = path.join(fs.mkdtempSync(path.join(require("node:os").tmpdir(), "cafe-big-")), "big.pdf");
+      fs.writeFileSync(tmp, big);
+      const n = Number(execFileSync("python3", ["-c", "import sys,pypdf; print(len(pypdf.PdfReader(sys.argv[1]).pages))", tmp], { encoding: "utf8", timeout: 60000 }).trim());
+      ok("long invoice paginates cleanly", n >= 2, `${n} pages`);
+    } catch (e) {
+      const count = (big.toString("latin1").match(/\/Type \/Page[^s]/g) || []).length;
+      ok("long invoice paginates cleanly", count >= 2, `${count} pages (no parser)`);
+    }
   }
 }
 
