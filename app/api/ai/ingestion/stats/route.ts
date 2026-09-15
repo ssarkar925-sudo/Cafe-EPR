@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getUserRole, hasRole } from "@/lib/authz";
 import { createClient } from "@/lib/supabase/server";
+import { resolveIngestionActor, actorHasRoles } from "@/lib/ai/ingestion-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +23,8 @@ export interface SourceStats {
  */
 export async function GET(request: Request) {
   try {
-    const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager"])) {
+    const actor = await resolveIngestionActor(request);
+    if (!actorHasRoles(actor, ["admin", "manager"])) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const url = new URL(request.url);

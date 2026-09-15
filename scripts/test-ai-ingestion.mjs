@@ -295,6 +295,15 @@ function ok(name, cond, extra = "") {
   ok("honest stages defined", types.INGESTION_STAGE_LABELS.includes("collected") && types.INGESTION_STAGE_LABELS.includes("applied"));
 }
 
+// ---------- Worker auth helper (pure check in secret-guard) ----------
+{
+  const check = (given, configured) => guard.isValidWorkerKeyValue(given, configured);
+  ok("worker key accepts exact match", check("test-secret-key-123", "test-secret-key-123") === true);
+  ok("worker key rejects wrong value", check("wrong-value-here!!!!", "test-secret-key-123") === false);
+  ok("worker key rejects empty", check("", "test-secret-key-123") === false);
+  ok("worker key rejects unset server key", check("anything", "") === false);
+}
+
 // ---------- Quick Sale AI regression (Phase 22) ----------
 {
   const runtime = readRepo("lib/ai/agent-runtime.ts");

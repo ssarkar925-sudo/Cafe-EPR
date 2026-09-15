@@ -110,6 +110,22 @@ export function redactSecrets(payload: unknown): unknown {
   }
 }
 
+/**
+ * Constant-time worker-key comparison. Pure and dependency-free so tests and
+ * edge code can share it. Returns false unless both sides are non-empty and
+ * byte-identical.
+ */
+export function isValidWorkerKeyValue(presented: string | null | undefined, configured: string | null | undefined): boolean {
+  const given = String(presented || "");
+  const expected = String(configured || "");
+  if (!given || !expected || given.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 /** Redact secrets from free text (logs, prompts, telemetry, errors). */
 export function redactSecretsFromText(text: string): string {
   let out = String(text || "");

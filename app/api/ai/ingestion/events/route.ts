@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHash, timingSafeEqual } from "node:crypto";
-import { getUserRole, hasRole } from "@/lib/authz";
+import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveIngestionActor, actorHasRoles } from "@/lib/ai/ingestion-auth";
 import {
   INGESTION_SOURCE_TYPES,
   type IngestionSourceType,
@@ -25,36 +25,18 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
-function workerKeyValid(request: Request): boolean {
-  const configured = String(process.env.AI_INGESTION_WORKER_KEY || "").trim();
-  if (!configured) return false;
-  const presented = String(request.headers.get("x-ingestion-worker-key") || "").trim();
-  if (!presented || presented.length !== configured.length) return false;
-  try {
-    return timingSafeEqual(Buffer.from(presented), Buffer.from(configured));
-  } catch {
-    return false;
-  }
-}
-
 function sha256Hex(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 export async function POST(request: Request) {
   try {
-    const isWorker = workerKeyValid(request);
-    let userId: string | null = null;
-    if (!isWorker) {
-      const role = await getUserRole();
-      if (!hasRole(role, ["admin", "manager", "staff"])) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      const supabase = await createClient();
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      userId = auth.user.id;
+    const actor = await resolveIngestionActor(request);
+    if (!actorHasRoles(actor, ["admin", "manager", "staff"])) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const isWorker = actor!.type === "worker";
+    const userId = isWorker ? null : (actor as { userId: string }).userId;
 
     const rawBody = await request.text();
     if (!rawBody) return NextResponse.json({ error: "Request body is required." }, { status: 400 });
@@ -314,8 +296,8 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager"])) {
+    const actor = await resolveIngestionActor(request);
+    if (!actorHasRoles(actor, ["admin", "manager"])) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const url = new URL(request.url);

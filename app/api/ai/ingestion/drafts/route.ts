@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveIngestionActor, actorHasRoles } from "@/lib/ai/ingestion-auth";
 import {
   DRAFT_ACTION_TYPES,
   DRAFT_STATES,
@@ -24,13 +26,16 @@ function classifyRisk(action: DraftActionType): "low" | "medium" | "high" {
  */
 export async function POST(request: Request) {
   try {
-    const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager", "staff"])) {
+    const actor = await resolveIngestionActor(request);
+    if (!actorHasRoles(actor, ["admin", "manager", "staff"])) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const supabase = await createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const isWorker = actor!.type === "worker";
+    const supabase = isWorker ? createAdminClient() : await createClient();
+    if (!isWorker) {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await request.json().catch(() => null);
     const action = String(body?.action_type || "") as DraftActionType;
@@ -157,8 +162,8 @@ export async function PATCH(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const role = await getUserRole();
-    if (!hasRole(role, ["admin", "manager"])) {
+    const actor = await resolveIngestionActor(request);
+    if (!actorHasRoles(actor, ["admin", "manager"])) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const url = new URL(request.url);
