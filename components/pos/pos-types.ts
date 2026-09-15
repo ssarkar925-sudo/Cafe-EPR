@@ -96,4 +96,9 @@ export type SuccessState = {
   due: number;
   customerName?: string;
   customerPhone?: string;
+  // Immutable receipt snapshot retained after the active POS tab is reset.
+  cart?: CartLine[];
+  paymentChoice?: PaymentChoice;
+  subtotal?: number;
+  discount?: number;
 };
