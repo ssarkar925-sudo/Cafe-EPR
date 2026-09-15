@@ -3,10 +3,8 @@ name: one-time-gateway-direct-pdf
   push:
     branches: [main]
 
-# One-time source patch; removed immediately after the gateway source commit lands.
 jobs:
   patch-gateway:
-    if: ${{ !contains(github.event.head_commit.message, 'fix(gateway): accept direct PDF payload') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,5 +115,6 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add scripts/whatsapp-gateway.js
           git diff --cached --check
+          git diff --cached --quiet && exit 0
           git commit -m 'fix(gateway): accept direct PDF payload'
           git push
