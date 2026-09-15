@@ -44,7 +44,7 @@ function decodeJobPdf(job) {
 
 /**
  * Process one queued job.
- * deps: { patchJob(id, fields) -> Promise, sendDocument(jid, buffer, fileName) -> Promise<{messageId}> }
+ * deps: { patchJob(id, fields) -> Promise, sendDocument(jid, buffer, fileName, caption?) -> Promise<{messageId}> }
  * Returns "sent" | "retry" | "failed".
  */
 async function processPdfJob(deps, job) {
@@ -75,7 +75,8 @@ async function processPdfJob(deps, job) {
   await deps.patchJob(job.id, { status: "processing", attempt_count: attempt }).catch(() => {});
 
   try {
-    const sent = await deps.sendDocument(formatJid(job.recipient_phone), decoded.buffer, sanitizeFileName(job.file_name));
+    const caption = String(job.caption || "").slice(0, 1024) || undefined;
+    const sent = await deps.sendDocument(formatJid(job.recipient_phone), decoded.buffer, sanitizeFileName(job.file_name), caption);
     await deps.patchJob(job.id, {
       status: "sent",
       provider_message_id: (sent && sent.messageId) || null,

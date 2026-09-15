@@ -431,8 +431,13 @@ async function pollPdfJobs() {
                 signal: AbortSignal.timeout(20000),
               });
             },
-            sendDocument: async (jid, buffer, fileName) => {
-              const sent = await sock.sendMessage(jid, { document: buffer, mimetype: "application/pdf", fileName });
+            sendDocument: async (jid, buffer, fileName, caption) => {
+              const sent = await sock.sendMessage(jid, {
+                document: buffer,
+                mimetype: "application/pdf",
+                fileName,
+                ...(caption ? { caption } : {}),
+              });
               return { messageId: sent?.key?.id };
             },
           },
@@ -707,6 +712,7 @@ const server = http.createServer(async (req, res) => {
         const documentUrl = payload.documentUrl || payload.document;
         const documentBase64 = payload.documentBase64 || payload.pdfBase64 || "";
         const fileName = String(payload.fileName || payload.filename || "Invoice.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+        const caption = String(payload.caption || "").slice(0, 1024) || undefined;
 
         if (!phone || (!documentUrl && !documentBase64)) {
           res.writeHead(400, { "Content-Type": "application/json" });
@@ -753,6 +759,7 @@ const server = http.createServer(async (req, res) => {
           document: buffer,
           mimetype: "application/pdf",
           fileName,
+          ...(caption ? { caption } : {}),
         });
 
         res.writeHead(200, { "Content-Type": "application/json" });

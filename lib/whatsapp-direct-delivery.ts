@@ -19,6 +19,7 @@ export type GatewayDocumentPayload = {
   fileName: string;
   filename?: string;
   mimetype?: string;
+  caption?: string;
   documentBase64?: string;
   pdfBase64?: string;
 };
@@ -36,6 +37,7 @@ const ALLOWED_PAYLOAD_KEYS = new Set([
   "fileName",
   "filename",
   "mimetype",
+  "caption",
   "documentBase64",
   "pdfBase64",
 ]);
@@ -64,13 +66,14 @@ function normalizeGatewayUrl(raw: unknown): string | null {
  */
 export function buildGatewayFallback(
   gatewayUrl: unknown,
-  args: { phone: unknown; documentUrl: unknown; fileName: unknown; documentBase64?: unknown }
+  args: { phone: unknown; documentUrl: unknown; fileName: unknown; documentBase64?: unknown; caption?: unknown }
 ): GatewayFallback | null {
   const normalized = normalizeGatewayUrl(gatewayUrl);
   const phone = String(args?.phone ?? "").trim();
   const documentUrl = String(args?.documentUrl ?? "").trim();
   const fileName = String(args?.fileName ?? "").trim() || "Invoice.pdf";
   const documentBase64 = String(args?.documentBase64 ?? "").trim();
+  const caption = String(args?.caption ?? "").trim().slice(0, 800);
   if (!normalized || !phone || (!documentUrl && !documentBase64)) return null;
   const payload: GatewayDocumentPayload = {
     phone,
@@ -81,6 +84,7 @@ export function buildGatewayFallback(
     filename: fileName,
     mimetype: "application/pdf",
   };
+  if (caption) payload.caption = caption;
   if (documentBase64) {
     payload.documentBase64 = documentBase64;
     payload.pdfBase64 = documentBase64;

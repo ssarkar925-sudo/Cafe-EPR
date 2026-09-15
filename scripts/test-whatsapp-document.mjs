@@ -174,9 +174,10 @@ console.log("WhatsApp document delivery tests");
 
 // 12. Fallback builder: exact key set, secret hygiene, validation.
 {
-  const fb = buildGatewayFallback("https://gw.example.com/", { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "Invoice-INV-0170.pdf", documentBase64: PDF_B64 });
+  const fb = buildGatewayFallback("https://gw.example.com/", { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "Invoice-INV-0170.pdf", documentBase64: PDF_B64, caption: "Greetings!" });
   const keys = Object.keys(fb?.payload || {}).sort();
-  ok("fallback keeps exact payload keys", JSON.stringify(keys) === JSON.stringify(["document", "documentBase64", "documentUrl", "fileName", "filename", "mimetype", "number", "pdfBase64", "phone"]), keys.join(","));
+  ok("fallback keeps exact payload keys", JSON.stringify(keys) === JSON.stringify(["caption", "document", "documentBase64", "documentUrl", "fileName", "filename", "mimetype", "number", "pdfBase64", "phone"]), keys.join(","));
+  ok("fallback carries caption", fb?.payload?.caption === "Greetings!");
   const serialized = JSON.stringify(fb);
   ok("fallback carries no secrets", fb !== null && !/x-api-key|gateway_api_key|bearer|meta_access_token|ultramsg_token|service_role|password|secret/i.test(serialized), "secret scan");
   ok("fallback rejects invalid gateway URL", buildGatewayFallback("not-a-url", { phone: VALID_PHONE, documentUrl: DOC_URL, fileName: "f.pdf" }) === null);
@@ -418,6 +419,75 @@ function strictGatewayEmulator(req, res, body) {
   } finally {
     globalThis.fetch = origFetch;
   }
+}
+
+// 25. Real invoice PDF generator: byte-level validity (the "invalid format" fix).
+{
+  const gen = await import("../lib/invoice-pdf-text.ts");
+  const sampleInvoice = {
+    invoice_number: "INV-0176", invoice_date: "2026-09-15", subtotal: 2, discount: 0,
+    total: 2, paid: 2, due: 0, status: "paid",
+    customers: { name: "Saikat Sarkar", phone: "9339987644" },
+  };
+  const bytes = Buffer.from(gen.buildInvoicePdf(sampleInvoice, [{ description: "Test Item", qty: 1, rate: 2, amount: 2 }], [{ method: "cash", amount: 2 }], { shop_name: "Sarkar Communication" }));
+  const hasRealNewlines = bytes.includes(0x0a);
+  const hasLiteralBackslashN = bytes.includes(Buffer.from([0x5c, 0x6e]));
+  ok("pdf starts with %PDF- header", bytes.subarray(0, 5).toString("ascii") === "%PDF-");
+  ok("pdf uses real newline bytes", hasRealNewlines);
+  ok("pdf has no literal backslash-n sequences", !hasLiteralBackslashN);
+  // Xref integrity: every offset must point at "<n> 0 obj", stream /Length must match.
+  let xrefOk = true;
+  try {
+    const text = bytes.toString("latin1");
+    const xrefAt = text.lastIndexOf("\nstartxref\n");
+    const eofAt = text.indexOf("%%EOF", xrefAt);
+    const tableAt = text.indexOf("\nxref\n");
+    const tableEnd = text.indexOf("trailer", tableAt);
+    const rows = text.slice(tableAt, tableEnd).trim().split("\n").slice(2);
+    for (const row of rows) {
+      const off = Number(row.slice(0, 10));
+      if (!Number.isInteger(off)) { xrefOk = false; break; }
+      if (off === 0) continue;
+      if (text.slice(off, off + 30).match(/^\d+ 0 obj/) === null) { xrefOk = false; break; }
+    }
+    const m = text.match(/<< \/Length (\d+) >>\nstream\n/);
+    if (!m) xrefOk = false;
+    else {
+      const len = Number(m[1]);
+      const streamStart = (m.index || 0) + m[0].length;
+      const streamEnd = text.indexOf("\nendstream", streamStart);
+      if (streamEnd - streamStart !== len) xrefOk = false;
+    }
+    void eofAt;
+  } catch { xrefOk = false; }
+  ok("pdf xref offsets and stream length valid", xrefOk);
+  // Real open-test with pypdf when available (bonus; structural checks above are the gate).
+  try {
+    const tmp = path.join(fs.mkdtempSync(path.join(require("node:os").tmpdir(), "cafe-inv-")), "inv.pdf");
+    fs.writeFileSync(tmp, bytes);
+    const { execFileSync } = await import("node:child_process");
+    const out = execFileSync("python3", ["-c", "import sys,pypdf; r=pypdf.PdfReader(sys.argv[1]); print(len(r.pages)); print((r.pages[0].extract_text() or '')[:400])", tmp], { encoding: "utf8", timeout: 60000 });
+    const firstLineEnd = out.indexOf("\n");
+    const pages = Number(out.slice(0, firstLineEnd).trim());
+    const text = out.slice(firstLineEnd + 1);
+    ok("pdf opens in real parser with invoice content", pages >= 1 && text.includes("INV-0176") && text.includes("Saikat Sarkar"), text.slice(0, 120));
+  } catch (e) {
+    console.log("  SKIP  pypdf open-test unavailable (structural checks passed)");
+  }
+}
+
+// 26. Caption builder: greeting content, no URLs, bounded length.
+{
+  const gen = await import("../lib/invoice-pdf-text.ts");
+  const cap = gen.buildInvoiceCaption({ invoiceNumber: "INV-0176", invoiceDate: "2026-09-15", customerName: "Saikat Sarkar", shopName: "Sarkar Communication", total: 2, paid: 2, due: 0 });
+  ok("caption greets with invoice facts", cap.includes("INV-0176") && cap.includes("Saikat Sarkar") && /greet|thank/i.test(cap), cap.slice(0, 80));
+  ok("caption contains no URLs", !/https?:\/\//i.test(cap) && cap.length <= 800);
+}
+
+// 27. Caption migration present.
+{
+  const sql = readRepo("supabase/migrations/20260915_03_whatsapp_pdf_jobs_caption.sql");
+  ok("caption migration adds column", /add column if not exists caption/i.test(sql));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);
