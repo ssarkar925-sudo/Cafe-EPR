@@ -634,21 +634,12 @@ const server = http.createServer(async (req, res) => {
         const payload = JSON.parse(body || "{}");
         const phone = payload.phone || payload.number;
         const documentUrl = payload.documentUrl || payload.document;
+        const documentBase64 = payload.documentBase64 || payload.pdfBase64 || "";
         const fileName = String(payload.fileName || payload.filename || "Invoice.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
 
-        if (!phone || !documentUrl) {
+        if (!phone || (!documentUrl && !documentBase64)) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Phone and document URL are required." }));
-          return;
-        }
-
-        let parsedUrl;
-        try {
-          parsedUrl = new URL(documentUrl);
-          if (!["https:", "http:"].includes(parsedUrl.protocol)) throw new Error("Unsupported document URL protocol");
-        } catch {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ success: false, error: "Document URL must be HTTP(S)." }));
+          res.end(JSON.stringify({ success: false, error: "Phone and invoice PDF content are required." }));
           return;
         }
 
@@ -660,16 +651,32 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        const fileRes = await fetch(parsedUrl, { signal: AbortSignal.timeout(30000) });
-        if (!fileRes.ok) throw new Error(`Invoice PDF endpoint returned HTTP ${fileRes.status}`);
-        const contentType = (fileRes.headers.get("content-type") || "").toLowerCase();
-        if (!contentType.includes("application/pdf")) throw new Error("Invoice endpoint did not return an application/pdf document.");
+        let buffer;
+        if (documentBase64) {
+          const encoded = String(documentBase64).trim().replace(/^data:application\/pdf;base64,/, "");
+          buffer = Buffer.from(encoded, "base64");
+        } else {
+          let parsedUrl;
+          try {
+            parsedUrl = new URL(documentUrl);
+            if (!["https:", "http:"].includes(parsedUrl.protocol)) throw new Error("Unsupported document URL protocol");
+          } catch {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: false, error: "Document URL must be HTTP(S)." }));
+            return;
+          }
+          const fileRes = await fetch(parsedUrl, { signal: AbortSignal.timeout(30000) });
+          if (!fileRes.ok) throw new Error(`Invoice PDF endpoint returned HTTP ${fileRes.status}`);
+          const contentType = (fileRes.headers.get("content-type") || "").toLowerCase();
+          if (!contentType.includes("application/pdf")) throw new Error("Invoice endpoint did not return an application/pdf document.");
+          const contentLength = Number(fileRes.headers.get("content-length") || 0);
+          if (contentLength > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds 15 MB.");
+          buffer = Buffer.from(await fileRes.arrayBuffer());
+        }
 
-        const contentLength = Number(fileRes.headers.get("content-length") || 0);
-        if (contentLength > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds 15 MB.");
-
-        const buffer = Buffer.from(await fileRes.arrayBuffer());
+        if (!buffer?.length) throw new Error("Invoice PDF is empty.");
         if (buffer.length > 15 * 1024 * 1024) throw new Error("Invoice PDF exceeds 15 MB.");
+        if (buffer.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("Generated invoice payload is not a valid PDF.");
 
         const sent = await sock.sendMessage(jid, {
           document: buffer,
