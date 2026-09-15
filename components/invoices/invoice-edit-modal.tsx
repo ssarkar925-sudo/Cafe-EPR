@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { calculateGstInvoice } from "@/lib/gst";
@@ -55,6 +55,7 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
   const [b2bOrB2c, setB2bOrB2c] = useState("B2C_SMALL");
   const [reverseCharge, setReverseCharge] = useState(false);
   const [addKey, setAddKey] = useState("");
+  const saveAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +132,7 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
       setCustomerGstin(inv.data.customer_gstin ?? null);
       setB2bOrB2c(String(inv.data.b2b_or_b2c ?? "B2C_SMALL"));
       setReverseCharge(Boolean(inv.data.is_reverse_charge));
+      saveAttemptRef.current = null;
       setLoading(false);
     }
     void load();
@@ -222,8 +224,7 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
       };
     });
 
-    setSaving(true);
-    const { error: rpcError } = await supabase.rpc("edit_invoice", {
+    const requestPayload = {
       p_invoice_id: invoiceId,
       p_customer_id: customerId || null,
       p_invoice_date: invoiceDate,
@@ -243,6 +244,17 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
       p_total_igst: totals.totalIgst,
       p_is_reverse_charge: reverseCharge,
       p_advance_used: advanceUsed,
+    };
+    const fingerprint = JSON.stringify(requestPayload);
+    if (!saveAttemptRef.current || saveAttemptRef.current.fingerprint !== fingerprint) {
+      saveAttemptRef.current = { fingerprint, key: crypto.randomUUID() };
+    }
+    const idempotencyKey = saveAttemptRef.current.key;
+
+    setSaving(true);
+    const { error: rpcError } = await supabase.rpc("edit_invoice", {
+      ...requestPayload,
+      p_idempotency_key: idempotencyKey,
     } as any);
     setSaving(false);
 
@@ -250,6 +262,7 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
       setError(rpcError.message || "Invoice edit failed. No changes were saved.");
       return;
     }
+    saveAttemptRef.current = null;
     onSaved();
     onClose();
   }
@@ -259,7 +272,7 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
       onClose={onClose}
       title={invoiceNumber ? `Edit ${invoiceNumber}` : "Edit Invoice"}
       subtitle="Changes are applied atomically: the old invoice is retained as a cancelled audit record and the corrected invoice receives a new number."
-      icon="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"
+      icon="M12 20h9M16.5 3.5a2.12 2.12 0 0 0 3 3L7 19l-4 1 1-4Z"
       accent="blue"
       size="xl"
       footer={
