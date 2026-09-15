@@ -20,7 +20,13 @@ function responseError(status: number, data: any, path: string) {
   );
 }
 
-export async function sendCustomerInvoicePdf(phone: string, config: WhatsAppConfig, documentUrl: string, filename: string) {
+export async function sendCustomerInvoicePdf(
+  phone: string,
+  config: WhatsAppConfig,
+  documentUrl: string,
+  filename: string,
+  documentBase64?: string
+) {
   if (!phone || !documentUrl) return { success: false, error: "Phone and invoice PDF URL are required.", status: 400 };
   if (!config || config.provider === "off") return { success: false, error: "WhatsApp integration is not enabled in Settings.", status: 400 };
   const to = formatWhatsAppPhone(phone);
@@ -59,6 +65,7 @@ export async function sendCustomerInvoicePdf(phone: string, config: WhatsAppConf
       fileName: filename,
       filename,
       mimetype: "application/pdf",
+      ...(documentBase64 ? { documentBase64, pdfBase64: documentBase64 } : {}),
     };
 
     async function callGateway(path: string) {
@@ -77,8 +84,6 @@ export async function sendCustomerInvoicePdf(phone: string, config: WhatsAppConf
       let result = await callGateway("/send-document");
       let path = "/send-document";
 
-      // Some older gateway/controller builds expose the same handler under /api/send-document.
-      // Retry only on 404; a 5xx or transport failure must not be replayed automatically.
       if (result.response.status === 404) {
         result = await callGateway("/api/send-document");
         path = "/api/send-document";
