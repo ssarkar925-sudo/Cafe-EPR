@@ -5,7 +5,6 @@ let rejectionListenerInstalled = false;
 
 const FINANCIAL_IDEMPOTENT_RPCS = new Set([
   "create_sale",
-  "record_quick_sale",
   "create_business_txn",
   "create_recharge",
   "record_invoice_payment",

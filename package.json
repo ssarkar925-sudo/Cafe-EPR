@@ -18,6 +18,7 @@
     "test:reconciliation": "node scripts/test-cross-module-reconciliation.mjs",
     "test:idempotency-client": "node scripts/test-client-idempotency-contract.mjs",
     "test:whatsapp-document": "node scripts/test-whatsapp-document.mjs",
+    "test:quick-sale-exclusion": "node scripts/test-quick-sale-exclusion.mjs",
     "test:ai-browser": "node scripts/test-ai-browser-safety.mjs",
     "test:ai-learning": "node scripts/test-ai-learning-control.mjs",
     "start": "next start",

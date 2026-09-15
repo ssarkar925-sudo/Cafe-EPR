@@ -54,7 +54,7 @@
 ### 4.2 Keyboard Navigation & Focus Rings
 - High-visibility focus rings (`focus:ring-2 focus:ring-cyan-500/50`) on all inputs.
 - POS keyboard accelerators:
-  - `F2`: Toggles Quick Sale express dialog.
+  - `F2`: Opens a new POS cart tab.
   - `F4`: Instantly shifts cursor focus to Product Catalog search box.
   - `Esc`: Closes open modals or clears product search filter.
 

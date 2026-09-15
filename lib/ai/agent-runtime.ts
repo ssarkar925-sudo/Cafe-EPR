@@ -619,7 +619,7 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
           rawTotal: total,
           items: resolved.map((x) => ({ name: x.name, qty: x.qty, rate: money(x.rate), amount: money(x.qty * x.rate) })),
         },
-        message: `Prepared quick sale for ${resolved.map((r) => `${r.qty}x ${r.name}`).join(", ")} (${money(total)} via ${method.toUpperCase()}). Waiting for 1-click owner approval.`,
+        message: `Prepared sale for ${resolved.map((r) => `${r.qty}x ${r.name}`).join(", ")} (${money(total)} via ${method.toUpperCase()}). Waiting for 1-click owner approval.`,
       };
     }
 
@@ -812,7 +812,7 @@ export async function runIntelligentHeuristicAgent({
     phone: language === "hi" ? "फोन" : language === "bn" ? "ফোন" : "Phone",
     balance: language === "hi" ? "वर्तमान बकाया" : language === "bn" ? "বর্তমান বকেয়া" : "Current Balance Due",
     creditLimit: language === "hi" ? "क्रेडिट सीमा" : language === "bn" ? "ক্রেডিট লিমিট" : "Credit Limit",
-    saleReady: language === "hi" ? "⚡ **त्वरित बिक्री तैयार (अनुमोदन लंबित)**" : language === "bn" ? "⚡ **কুইক সেল প্রস্তুত (অনুমোদনের অপেক্ষায়)**" : "⚡ **Quick Sale Prepared (Pending Approval)**",
+    saleReady: language === "hi" ? "⚡ **बिक्री तैयार (अनुमोदन लंबित)**" : language === "bn" ? "⚡ **সেল প্রস্তুত (অনুমোদনের অপেক্ষায়)**" : "⚡ **Sale Prepared (Pending Approval)**",
     saleApprove: language === "hi" ? "नीचे \"अनुमोदित करें\" बटन दबाएं।" : language === "bn" ? "নিচে \"অনুমোদন করুন\" বোতাম চাপুন।" : "Click \"Approve & Execute\" below to finalize and generate the GST invoice.",
     payment: language === "hi" ? "भुगतान" : language === "bn" ? "পেমেন্ট" : "Payment",
     items: language === "hi" ? "सामान" : language === "bn" ? "আইটেম" : "Items",
@@ -911,7 +911,7 @@ export async function runIntelligentHeuristicAgent({
     };
   }
 
-  // 6. Check for Quick Sale / Billing
+  // 6. Check for counter sale / billing intent (creates standard POS invoices)
   if (/\b(?:sell|bill|quick\s*sale|invoice\s*for|create\s*(?:a\s*)?sale)\b/i.test(lower)) {
     const paymentMethod = /\bupi\b/i.test(lower) ? "upi" : /\bcard\b/i.test(lower) ? "card" : /\bcredit|khata\b/i.test(lower) ? "credit" : "cash";
     const customerMatch = text.match(/(?:for|customer|to)\s+([A-Za-z\s]+?)(?:,|\.|\s+(?:cash|upi|card|pay)|$)/i);
@@ -949,7 +949,7 @@ export async function runIntelligentHeuristicAgent({
       const summary = saleResult.summary as any;
       const itemList = (summary?.items || []).map((i: any) => `- ${i.qty}x ${i.name}: ${i.amount}`).join("\n");
       return {
-        message: `⚡ **Quick Sale Prepared (Pending Approval)**\n\n**Customer**: ${summary?.customer}\n**Payment**: ${summary?.paymentMethod?.toUpperCase()}\n**Total**: ${summary?.total}\n\n**Items**:\n${itemList}\n\n*Click "Approve & Execute" below to finalize and generate the GST invoice.*`,
+        message: `⚡ **Sale Prepared (Pending Approval)**\n\n**Customer**: ${summary?.customer}\n**Payment**: ${summary?.paymentMethod?.toUpperCase()}\n**Total**: ${summary?.total}\n\n**Items**:\n${itemList}\n\n*Click "Approve & Execute" below to finalize and generate the GST invoice.*`,
         usedTools: ["prepare_quick_sale"],
         rounds: 1,
         finishReason: "STOP",

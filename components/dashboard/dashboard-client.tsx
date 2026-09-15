@@ -15,14 +15,6 @@ const OPERATIONAL_LAUNCHPAD = [
     accent: "border-blue-500/30 bg-blue-50/70 text-blue-700 hover:bg-blue-600 hover:text-white dark:bg-blue-950/30 dark:text-blue-300",
   },
   {
-    id: "quick-sale",
-    label: "Quick Sale",
-    href: "/pos?mode=quick",
-    icon: "quick-sale",
-    badge: "⚡",
-    accent: "border-emerald-500/30 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/30 dark:text-emerald-300",
-  },
-  {
     id: "aeps",
     label: "AEPS Cash Out",
     href: "/business/aeps",
@@ -175,9 +167,8 @@ function ActionVectorIcon({ icon, className = "h-4 w-4" }: { icon: string; class
           <path d="M16 10a4 4 0 0 1-8 0" />
         </svg>
       );
-    case "quick-sale":
-    case "zap":
-    case "⚡":
+      case "zap":
+      case "⚡":
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />

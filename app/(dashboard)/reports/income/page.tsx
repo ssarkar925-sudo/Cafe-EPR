@@ -18,7 +18,7 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
   const to = params.to && /^\d{4}-\d{2}-\d{2}$/.test(params.to) ? params.to : today;
   const supabase = await createClient();
 
-  const [{ data: transactions }, { data: quickSales }, { data: invoices }] = await Promise.all([
+  const [{ data: transactions }, { data: invoices }] = await Promise.all([
     supabase
       .from("transactions")
       .select("transaction_number, service_type, amount, service_fee, portal_charge, portal_commission, status, transaction_date, created_at")
@@ -26,14 +26,6 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
       .gte("transaction_date", from)
       .lte("transaction_date", to)
       .order("transaction_date", { ascending: true })
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("quick_sales")
-      .select("id, sale_number, sale_date, item_name, amount, cost, status, created_at")
-      .eq("status", "active")
-      .gte("sale_date", from)
-      .lte("sale_date", to)
-      .order("sale_date", { ascending: true })
       .order("created_at", { ascending: true }),
     supabase
       .from("invoices")
@@ -44,20 +36,6 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
       .order("invoice_date", { ascending: true })
       .order("created_at", { ascending: true }),
   ]);
-
-  const posQuickRows = (quickSales ?? []).map((s: any) => ({
-    transaction_number: s.sale_number,
-    service_type: "pos_sale",
-    amount: Number(s.amount) || 0,
-    service_fee: 0,
-    portal_charge: 0,
-    portal_commission: 0,
-    status: s.status,
-    transaction_date: s.sale_date,
-    created_at: s.created_at,
-    cogs: Number(s.cost) || 0,
-    source: "POS Quick Sale",
-  }));
 
   const posInvoiceRows = (invoices ?? []).map((i: any) => ({
     transaction_number: i.invoice_number,
@@ -73,5 +51,5 @@ export default async function IncomeReportPage({ searchParams }: { searchParams:
     source: "POS Invoice",
   }));
 
-  return <IncomeReportClient rows={((transactions ?? []) as any[]).concat(posQuickRows, posInvoiceRows)} from={from} to={to} />;
+  return <IncomeReportClient rows={((transactions ?? []) as any[]).concat(posInvoiceRows)} from={from} to={to} />;
 }

@@ -53,14 +53,13 @@ export const CANONICAL_HUBS: NavHub[] = [
       {
         id: "pos",
         label: "POS Billing",
-        description: "Full counter billing workstation with Invoice and Quick Sale modes",
+        description: "Full counter billing workstation",
         href: "/pos",
         icon: "pos",
         badge: { text: "F2 Fast", tone: "emerald" },
-        keywords: ["pos", "point of sale", "quick sale", "billing", "counter", "checkout", "retail"],
+        keywords: ["pos", "point of sale", "billing", "counter", "checkout", "retail"],
         items: [
           { label: "Invoice Mode", href: "/pos", description: "Standard A4 & thermal POS counter billing" },
-          { label: "Quick Sale Mode", href: "/pos?mode=quick", description: "F2 ultra-fast counter checkout" },
         ],
       },
       {

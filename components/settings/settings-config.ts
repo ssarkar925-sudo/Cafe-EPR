@@ -148,7 +148,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     borderColor: "border-emerald-500/20",
     bgGlow: "bg-emerald-500/5",
     items: [
-      { key: "quick-favorites", label: "Quick Sale Favorites", desc: "1-click favorite service buttons on POS counter", icon: "M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z", badge: "F2 Fast", badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300", accent: "text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400" },
+      { key: "quick-favorites", label: "POS Counter Favorites", desc: "1-click favorite service buttons on POS counter", icon: "M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2z", badge: "F2 Fast", badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300", accent: "text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400" },
       { key: "payment-methods", label: "Payment Methods", desc: "Enable/disable counter payment options & sort order", icon: "M12 8c-2.2 0-4 1.3-4 3s1.8 3 4 3 4-1.3 4-3-1.8-3-4-3ZM21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z", accent: "text-teal-600 bg-teal-50 dark:bg-teal-950/50 dark:text-teal-400" },
       { key: "pos-terminal", label: "POS Terminal", desc: "Open live billing counter & barcode scan desk", icon: "M6 6h15l-1.5 8h-13L4 3H2M9 20a1 1 0 1 0 0 .01M20 20a1 1 0 1 0 0 .01", directHref: "/pos", accent: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400" },
     ],
@@ -272,7 +272,7 @@ export const tabMeta: Record<string, { title: string; desc: string; group: strin
   receipt: { title: "Invoice & Receipt Templates", desc: "Customize default POS print layout (A4 Tax Invoice or 80mm Thermal Receipt), footer note, and dynamic UPI QR code.", group: "Business & Legal" },
   tax: { title: "Tax & GST Configuration", desc: "Manage your GST registration number and default tax rates for billing.", group: "Business & Legal" },
   "payment-accounts": { title: "Payment Accounts & Drawers", desc: "Manage named cash registers, bank accounts, UPI IDs, and digital wallets.", group: "Payments & Liquid Finance" },
-  "quick-favorites": { title: "Quick Sale Counter Favorites", desc: "Configure popular 1-click service buttons for instant counter billing.", group: "POS & Counter Billing" },
+  "quick-favorites": { title: "POS Counter Favorites", desc: "Configure popular 1-click service buttons for instant counter billing.", group: "POS & Counter Billing" },
   "payment-methods": { title: "Payment Methods", desc: "Enable/disable counter payment options & sort order.", group: "POS & Counter Billing" },
   catalog: { title: "Catalog Management", desc: "Manage sellable products, service pricelists, and item category classifications.", group: "Inventory & Catalog" },
   inventory: { title: "Inventory & Supply (Back-Office)", desc: "Manage purchasing, supplier balances, stock movements, and stock reports.", group: "Inventory & Catalog" },

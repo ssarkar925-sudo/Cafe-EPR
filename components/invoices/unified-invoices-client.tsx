@@ -30,16 +30,13 @@ import {
 } from "lucide-react";
 import InvoiceViewModal from "./invoice-view-modal";
 import InvoiceEditModal from "./invoice-edit-modal";
-import QuickSaleViewModal from "./quick-sale-view-modal";
 import ReturnModal from "./return-modal";
 import Modal from "@/components/ui/modal";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
 type Props = {
   initialInvoices: any[];
-  initialQuickSales: any[];
 };
 
 export type UnifiedInvoiceRow = {
@@ -52,7 +49,7 @@ export type UnifiedInvoiceRow = {
   due: number;
   status: string;
   customer: { name?: string | null; phone?: string | null } | null;
-  source: "pos" | "quick";
+  source: "pos";
   item?: string | null;
   cost?: number;
 };
@@ -66,7 +63,7 @@ export type SortKey =
   | "number_asc"
   | "number_desc";
 
-function normalize(invoices: any[], quickSales: any[]): UnifiedInvoiceRow[] {
+function normalize(invoices: any[]): UnifiedInvoiceRow[] {
   const pos: UnifiedInvoiceRow[] = invoices.map((row) => ({
     id: String(row.id),
     number: String(row.invoice_number ?? ""),
@@ -79,23 +76,8 @@ function normalize(invoices: any[], quickSales: any[]): UnifiedInvoiceRow[] {
     customer: Array.isArray(row.customers) ? row.customers[0] ?? null : row.customers ?? null,
     source: "pos" as const,
   }));
-  const quick: UnifiedInvoiceRow[] = quickSales.map((row) => ({
-    id: String(row.id),
-    number: String(row.sale_number ?? ""),
-    date: String(row.sale_date ?? ""),
-    createdAt: String(row.created_at ?? row.sale_date ?? ""),
-    total: Number(row.amount ?? 0),
-    paid: Number(row.amount ?? 0),
-    due: 0,
-    status: String(row.status ?? "paid"),
-    customer: Array.isArray(row.customers) ? row.customers[0] ?? null : row.customers ?? null,
-    source: "quick" as const,
-    item: row.item_name ?? row.products?.name ?? row.services?.name ?? "Quick Sale",
-    cost: Number(row.cost ?? 0),
-  }));
-
   // Default chronological sort: newest creation timestamp first
-  return [...pos, ...quick].sort((a, b) => {
+  return [...pos].sort((a, b) => {
     const timeA = a.createdAt || a.date;
     const timeB = b.createdAt || b.date;
     const cmp = timeB.localeCompare(timeA);
@@ -140,19 +122,16 @@ function statusBadge(status: string) {
   }
 }
 
-export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSales }: Props) {
+export default function UnifiedInvoicesClient({ initialInvoices }: Props) {
   const supabase = createClient();
   const [invoices, setInvoices] = useState(initialInvoices);
-  const [quickSales, setQuickSales] = useState(initialQuickSales);
   const [q, setQ] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<"all" | "pos" | "quick">("all");
   const [status, setStatus] = useState("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "this_month">("all");
   const [sortBy, setSortBy] = useState<SortKey>("newest");
 
   const [viewId, setViewId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
-  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [returnInvoiceId, setReturnInvoiceId] = useState<string | null>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [collectId, setCollectId] = useState<string | null>(null);
@@ -168,12 +147,11 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
     refNumber: string;
   } | null>(null);
 
-  const rows = useMemo(() => normalize(invoices, quickSales), [invoices, quickSales]);
+  const rows = useMemo(() => normalize(invoices), [invoices]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const rowsFiltered = rows.filter((row) => {
-      if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
       if (status !== "all" && row.status !== status) return false;
       if (dateFilter === "today") {
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -216,7 +194,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
           return 0;
       }
     });
-  }, [rows, q, status, sourceFilter, dateFilter, sortBy]);
+  }, [rows, q, status, dateFilter, sortBy]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status !== "cancelled");
@@ -225,8 +203,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
     const total = active.reduce((s, r) => s + r.total, 0);
     const paid = active.reduce((s, r) => s + r.paid, 0);
     const due = active.reduce((s, r) => s + r.due, 0);
-    const posTotal = active.filter((r) => r.source === "pos").reduce((s, r) => s + r.total, 0);
-    const quickTotal = active.filter((r) => r.source === "quick").reduce((s, r) => s + r.total, 0);
     const todayTotal = todayBills.reduce((s, r) => s + r.total, 0);
     const collectionRate = total > 0 ? Math.round((paid / total) * 100) : 100;
     return {
@@ -234,8 +210,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
       total,
       paid,
       due,
-      posTotal,
-      quickTotal,
       todayCount: todayBills.length,
       todayTotal,
       collectionRate,
@@ -243,20 +217,12 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   }, [rows]);
 
   async function refresh() {
-    const [a, b] = await Promise.all([
-      supabase
-        .from("invoices")
-        .select("id, invoice_number, invoice_date, total, paid, due, returned, refunded, status, created_at, customers(name, phone)")
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("quick_sales")
-        .select("id, sale_number, sale_date, amount, cost, status, created_at, customers(name, phone), products(name), services(name), item_name")
-        .order("created_at", { ascending: false })
-        .limit(500),
-    ]);
-    if (a.data) setInvoices(a.data);
-    if (b.data) setQuickSales(b.data);
+    const { data } = await supabase
+      .from("invoices")
+      .select("id, invoice_number, invoice_date, total, paid, due, returned, refunded, status, created_at, customers(name, phone)")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (data) setInvoices(data);
   }
 
   useEffect(() => {
@@ -264,7 +230,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
       .channel(`unified-invoices-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quick_sales" }, refresh)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -327,24 +292,15 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
   }
 
   async function sendWhatsApp(row: UnifiedInvoiceRow) {
-    // POS invoices ride the canonical PDF path through WhatsAppSendModal.
-    if (row.source === "pos") {
-      setMenuKey(null);
-      setWaModal({
-        phone: row.customer?.phone || "",
-        name: row.customer?.name || "Customer",
-        refId: row.id,
-        refNumber: row.number,
-      });
-      return;
-    }
-    // Quick sales preserve their existing text-receipt behavior.
-    const phone = row.customer?.phone || "";
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}/receipt/quick/${row.id}`;
-    const msg = `🧾 Receipt: ${row.number}\n📅 Date: ${row.date}\n👤 Customer: ${row.customer?.name || "Walk-in"}\n💰 Amount: ${inr(row.total)}\n📄 Receipt: ${url}`;
-    const result = await sendWhatsAppMessage({ phone, message: msg });
-    if (!result.ok) window.open(result.fallbackUrl, "_blank", "noopener");
+    // Unified ledger is POS-only: every row rides the canonical PDF path
+    // through WhatsAppSendModal.
+    setMenuKey(null);
+    setWaModal({
+      phone: row.customer?.phone || "",
+      name: row.customer?.name || "Customer",
+      refId: row.id,
+      refNumber: row.number,
+    });
   }
 
   function handleCopy(num: string) {
@@ -357,13 +313,12 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
   function open(row: UnifiedInvoiceRow) {
     setMenuKey(null);
-    if (row.source === "pos") setViewId(row.id);
-    else setQuickViewId(row.id);
+    setViewId(row.id);
   }
 
   function edit(row: UnifiedInvoiceRow) {
     setMenuKey(null);
-    if (row.source === "pos" && row.status !== "cancelled") setEditId(row.id);
+    if (row.status !== "cancelled") setEditId(row.id);
   }
 
   function handleEdited() {
@@ -403,7 +358,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Real-time unified register for POS bills and quick counter sales with multi-payment allocations.
+            Real-time unified register for POS bills with multi-payment allocations.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -433,7 +388,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
             {inr(stats.total)}
           </p>
           <p className="mt-1 text-[10px] font-semibold text-slate-400">
-            POS {inr(stats.posTotal)} · Quick {inr(stats.quickTotal)}
+            POS {inr(stats.total)} · {stats.count} bills
           </p>
         </div>
 
@@ -535,43 +490,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
           {/* Filter & Sorting Controls */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Segmented Source Filter */}
-            <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold dark:bg-slate-800">
-              <button
-                type="button"
-                onClick={() => setSourceFilter("all")}
-                className={`rounded-lg px-2.5 py-1 transition ${
-                  sourceFilter === "all"
-                    ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                }`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setSourceFilter("pos")}
-                className={`rounded-lg px-2.5 py-1 transition ${
-                  sourceFilter === "pos"
-                    ? "bg-white text-blue-700 shadow-xs dark:bg-slate-900 dark:text-blue-400"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                }`}
-              >
-                POS
-              </button>
-              <button
-                type="button"
-                onClick={() => setSourceFilter("quick")}
-                className={`rounded-lg px-2.5 py-1 transition ${
-                  sourceFilter === "quick"
-                    ? "bg-white text-violet-700 shadow-xs dark:bg-slate-900 dark:text-violet-400"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                }`}
-              >
-                Quick Sale
-              </button>
-            </div>
-
             {/* Status Select */}
             <select
               value={status}
@@ -616,13 +534,12 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
             </div>
 
             {/* Reset Button */}
-            {(q || status !== "all" || sourceFilter !== "all" || dateFilter !== "all" || sortBy !== "newest") && (
+            {(q || status !== "all" || dateFilter !== "all" || sortBy !== "newest") && (
               <button
                 type="button"
                 onClick={() => {
                   setQ("");
                   setStatus("all");
-                  setSourceFilter("all");
                   setDateFilter("all");
                   setSortBy("newest");
                 }}
@@ -718,7 +635,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {filtered.map((row) => {
-                const isPos = row.source === "pos";
                 const badge = statusBadge(row.status);
                 const StatusIcon = badge.icon;
                 const custInitial = (row.customer?.name || "W")[0].toUpperCase();
@@ -755,14 +671,8 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
                     {/* Source Type Badge */}
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                          isPos
-                            ? "bg-blue-50 text-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-950/40 dark:text-blue-300"
-                            : "bg-violet-50 text-violet-700 ring-1 ring-violet-500/20 dark:bg-violet-950/40 dark:text-violet-300"
-                        }`}
-                      >
-                        {isPos ? "POS" : "QUICK"}
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-950/40 dark:text-blue-300">
+                        POS
                       </span>
                     </td>
 
@@ -836,35 +746,22 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                           title="Print A4 / Slip"
                           target="_blank"
                           rel="noreferrer"
-                          href={isPos ? `/receipt/${row.id}/a4?print=true` : `/receipt/quick/${row.id}?print=true`}
+                          href={`/receipt/${row.id}/a4?print=true`}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:hover:bg-white/5"
                         >
                           <Printer className="h-3.5 w-3.5" />
                         </a>
 
-                        {/* Download PDF Button: POS uses the canonical client Blob; quick keeps its existing route */}
-                        {isPos ? (
-                          <button
-                            type="button"
-                            title="Download PDF Invoice"
-                            disabled={downloadingId === `${row.source}:${row.id}`}
-                            onClick={() => void downloadPosPdf(row)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 disabled:opacity-50 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </button>
-                        ) : (
-                          <a
-                            title="Download PDF Invoice"
-                            target="_blank"
-                            rel="noreferrer"
-                            href={`/api/invoices/${row.id}/pdf?source=quick`}
-                            download={`Invoice-${row.number}.pdf`}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
-                        )}
+                        {/* Download PDF Button: canonical client Blob */}
+                        <button
+                          type="button"
+                          title="Download PDF Invoice"
+                          disabled={downloadingId === `pos:${row.id}`}
+                          onClick={() => void downloadPosPdf(row)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50/60 text-blue-600 hover:bg-blue-100 hover:text-blue-800 disabled:opacity-50 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </button>
 
                         {/* WhatsApp Button */}
                         <button
@@ -877,7 +774,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                         </button>
 
                         {/* Quick Collect Due Button */}
-                        {isPos && row.due > 0 && row.status !== "cancelled" && (
+                        {row.due > 0 && row.status !== "cancelled" && (
                           <button
                             type="button"
                             title="Collect Outstanding Balance"
@@ -913,7 +810,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                               <span>View details</span>
                             </button>
                             <a
-                              href={isPos ? `/receipt/${row.id}/a4?print=true` : `/receipt/quick/${row.id}/a4?print=true`}
+                              href={`/receipt/${row.id}/a4?print=true`}
                               target="_blank"
                               rel="noreferrer"
                               onClick={() => setMenuKey(null)}
@@ -923,7 +820,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                               <span>Print A4 Invoice</span>
                             </a>
                             <a
-                              href={isPos ? `/receipt/${row.id}?print=true` : `/receipt/quick/${row.id}?print=true`}
+                              href={`/receipt/${row.id}?print=true`}
                               target="_blank"
                               rel="noreferrer"
                               onClick={() => setMenuKey(null)}
@@ -932,33 +829,19 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                               <Printer className="h-3.5 w-3.5 text-slate-500" />
                               <span>Print 80mm Slip</span>
                             </a>
-                            {isPos ? (
-                              <button
-                                type="button"
-                                disabled={downloadingId === `${row.source}:${row.id}`}
-                                onClick={() => {
-                                  setMenuKey(null);
-                                  void downloadPosPdf(row);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-300 dark:hover:bg-white/10"
-                              >
-                                <Download className="h-3.5 w-3.5 text-blue-600" />
-                                <span>{downloadingId === `${row.source}:${row.id}` ? "Preparing…" : "Download PDF"}</span>
-                              </button>
-                            ) : (
-                              <a
-                                href={`/api/invoices/${row.id}/pdf?source=quick`}
-                                target="_blank"
-                                rel="noreferrer"
-                                download={`Invoice-${row.number}.pdf`}
-                                onClick={() => setMenuKey(null)}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-white/10"
-                              >
-                                <Download className="h-3.5 w-3.5 text-blue-600" />
-                                <span>Download PDF</span>
-                              </a>
-                            )}
-                            {isPos && row.status !== "cancelled" && (
+                            <button
+                              type="button"
+                              disabled={downloadingId === `pos:${row.id}`}
+                              onClick={() => {
+                                setMenuKey(null);
+                                void downloadPosPdf(row);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-300 dark:hover:bg-white/10"
+                            >
+                              <Download className="h-3.5 w-3.5 text-blue-600" />
+                              <span>{downloadingId === `pos:${row.id}` ? "Preparing…" : "Download PDF"}</span>
+                            </button>
+                            {row.status !== "cancelled" && (
                               <button
                                 type="button"
                                 onClick={() => edit(row)}
@@ -968,7 +851,7 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
                                 <span>Edit invoice</span>
                               </button>
                             )}
-                            {isPos && row.status !== "cancelled" && (
+                            {row.status !== "cancelled" && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1087,17 +970,6 @@ export default function UnifiedInvoicesClient({ initialInvoices, initialQuickSal
 
       {/* Edit Modal */}
       {editId && <InvoiceEditModal invoiceId={editId} onClose={() => setEditId(null)} onSaved={handleEdited} />}
-
-      {/* Quick Sale View Modal */}
-      {quickViewId && (
-        <QuickSaleViewModal
-          saleId={quickViewId}
-          onClose={() => setQuickViewId(null)}
-          onCancelled={(id) => {
-            setQuickSales((current) => current.map((x) => (x.id === id ? { ...x, status: "cancelled" } : x)));
-          }}
-        />
-      )}
 
       {/* WhatsApp PDF Modal (POS invoices ride the canonical PDF path) */}
       {waModal && (

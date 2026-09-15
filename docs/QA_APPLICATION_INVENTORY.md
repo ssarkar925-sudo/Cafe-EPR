@@ -20,7 +20,7 @@
 | `/pos` | `app/(dashboard)/pos/page.tsx` | Auth Cookie | Admin, Manager, Staff | Touch POS terminal, barcode scanning, cart math, multi-pay |
 | `/inventory` | `app/(dashboard)/inventory/page.tsx` | Auth Cookie | Admin, Manager | Stock master, low stock alerts, manual adjustments, WAC |
 | `/inventory/movements` | `app/(dashboard)/inventory/movements/page.tsx` | Auth Cookie | Admin, Manager | Append-only physical inventory movement ledger |
-| `/invoices` | `app/(dashboard)/invoices/page.tsx` | Auth Cookie | Admin, Manager, Staff | Unified invoice list, quick sales, status filter, PDF download |
+| `/invoices` | `app/(dashboard)/invoices/page.tsx` | Auth Cookie | Admin, Manager, Staff | Unified POS invoice list, status filter, PDF download |
 | `/customers` | `app/(dashboard)/customers/page.tsx` | Auth Cookie | Admin, Manager, Staff | Khata directory, outstanding receivables, credit limits |
 | `/customers/[id]` | `app/(dashboard)/customers/[id]/page.tsx` | Auth Cookie | Admin, Manager, Staff | Detailed customer ledger, transaction history, dues payment |
 | `/suppliers` | `app/(dashboard)/suppliers/page.tsx` | Auth Cookie | Admin, Manager | Supplier directory, payable balances, purchase histories |
@@ -86,7 +86,7 @@
 | Method | Endpoint Route | Auth & Guard | Rate Limit | Purpose & Contract |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/pos/financial-rpc` | User Session + CSRF Origin | 60/min | Whitelisted financial RPC gateway (`create_sale`, `record_bill_payment`, etc.) |
-| `POST` | `/api/pos/quick-sale` | Admin/Manager + Idempotency | 30/min | Atomically records express walk-in counter sales |
+| `POST` | `/api/pos/quick-sale` | None (410 Gone) | — | DISCONTINUED: always answers 410; use POS billing (`create_sale`) |
 | `POST` | `/api/pos/customer-due-payment` | Admin/Manager + Idempotency | 30/min | Records customer khata repayments and generates cashbook entry |
 | `GET` | `/api/invoices/[id]/pdf` | User Session + UUID Validation | 60/min | Generates dynamic A4 PDF invoice stream via `@react-pdf/renderer` |
 | `GET` | `/api/bill-payment/fetch` | Admin/Manager/Staff | 30/min | Fetches live customer utility bill details from BBPS provider adapter |
@@ -122,7 +122,7 @@
 | `POST` | `/api/ai/memory` | Admin/Manager | 30/min | Contextual memory storage for business preferences and rules |
 | `GET` | `/api/ai/monitor` | Admin/Manager | 30/min | Live status of background monitors and system integrity gates |
 | `POST` | `/api/ai/monitor/cron` | Internal / Secret Cron | 60/min | Automated periodic reconciliation and health heartbeat check |
-| `POST` | `/api/ai/quick-sale` | Admin/Manager | 30/min | AI voice/text assisted quick sale drafter |
+| `POST` | `/api/ai/quick-sale` | Admin/Manager | 30/min | AI voice/text assisted POS sale drafter (creates standard invoices, never quick_sales rows) |
 | `POST` | `/api/ai/self-heal` | Admin Role Only | 5/min | Self-healing gateway for local WhatsApp and connection pools |
 | `POST` | `/api/ai/transaction-import` | Admin/Manager | 10/min | Parses and stages bank statements and provider spreadsheets |
 | `POST` | `/api/ai/translate` | Admin/Manager/Staff | 60/min | Multilingual translation engine (Bengali, Hindi, English) |
@@ -143,7 +143,7 @@
 
 ### 3.2 Canonical Stored Procedures (RPCs)
 1. `create_sale`: Master POS transaction creator (invoicing, multi-payment, perpetual stock decrement, double-entry journal)
-2. `record_quick_sale`: Express walk-in counter sale with immediate cashbook attribution and stock deduction
+2. `record_quick_sale`: DISABLED — raises unconditionally (Quick Sale discontinued); historical rows and `cancel_quick_sale` reversals preserved
 3. `create_business_txn`: Banking transaction creator (AEPS, DMT, UPI, Recharge) with zero-ghost-outflow guarantee
 4. `create_recharge`: Specialized mobile/DTH recharge RPC with balance tracking and portal cost debit
 5. `record_bill_payment`: BBPS utility bill payment RPC supporting multi-payment allocations and provider funding legs

@@ -48,7 +48,7 @@ export default function QuickFavoritesPanel({
       action: next ? "favorite" : "unfavorite",
       entity: "service",
       entity_id: row.id,
-      description: `Quick Sale ${next ? "favourite added" : "favourite removed"}: ${row.name}`,
+      description: `POS Counter favourite ${next ? "added" : "removed"}: ${row.name}`,
     });
   }
 

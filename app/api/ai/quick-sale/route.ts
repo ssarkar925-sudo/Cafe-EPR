@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
     if (apiKey && apiKey.length > 15 && !apiKey.includes("[SENSITIVE")) {
       const requestBody = {
-        systemInstruction: { parts: [{ text: "Extract only a quick-sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a quick sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a quick sale, return unsupported. Do not calculate prices." }] },
+        systemInstruction: { parts: [{ text: "Extract only a counter sale request from the owner's message. Support Bengali, Hindi, English and mixed language. Never invent an item. For a sale, return item names and positive quantities, payment method and optional customer name. If the request is not clearly a sale, return unsupported. Do not calculate prices." }] },
         contents: [{ role: "user", parts: [{ text: message }] }],
         generationConfig: {
           responseMimeType: "application/json",
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     }
 
     if (!parsed || parsed.action !== "quick_sale" || !parsed.items?.length) {
-      return NextResponse.json({ action: "unsupported", message: "This request is not a complete quick sale. I have not changed anything." });
+      return NextResponse.json({ action: "unsupported", message: "This request is not a complete sale. I have not changed anything." });
     }
 
     const supabase = await createClient();
@@ -165,9 +165,9 @@ export async function POST(request: Request) {
     const payment = [{ method: paymentMethod, amount: total, instrument_id: instrumentId }];
     const approval = await requireOwnerApproval("create_sale", { source: "cafe-ai-quick-sale", original_request: message, customer_id: customer?.id ?? null, customer_name: customer?.name ?? null, customer_state_code: customer?.state_code ?? null, customer_gstin: customer?.gstin ?? null, payment, items: resolved, expected_total: total });
 
-    return NextResponse.json({ action: "approval_required", approval_id: approval.id, approval, summary: { customer: customer?.name ?? "Walk-in customer", payment_method: paymentMethod, total, items: resolved.map((x) => ({ name: x.name, qty: x.qty, rate: x.rate, amount: Number((x.qty * x.rate).toFixed(2)) })) }, message: "Quick sale prepared. Owner approval is required before Cafe-EPR is changed." });
+    return NextResponse.json({ action: "approval_required", approval_id: approval.id, approval, summary: { customer: customer?.name ?? "Walk-in customer", payment_method: paymentMethod, total, items: resolved.map((x) => ({ name: x.name, qty: x.qty, rate: x.rate, amount: Number((x.qty * x.rate).toFixed(2)) })) }, message: "Sale prepared. Owner approval is required before Cafe-EPR is changed." });
   } catch (error) {
-    console.error("AI quick-sale failed", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Cafe AI quick-sale failed" }, { status: 502 });
+    console.error("AI sale drafting failed", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Cafe AI sale drafting failed" }, { status: 502 });
   }
 }

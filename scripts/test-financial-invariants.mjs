@@ -404,18 +404,18 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
   assert(historicalGrossProfit === 420, "20. Historical Gross Profit Locked (₹420)");
 }
 
-// 21. UPI QR Multi-Source Integration (POS + Quick Sale + Platform Transaction)
+// 21. UPI QR Multi-Source Integration (POS + Platform Transaction; Quick Sale excluded)
 {
   const posInvoiceUpi = 74;      // Sale INV-0024 (ref_type = invoice)
-  const quickSaleUpi = 35;       // Quick sale QS-0074 (ref_type = quick_sale)
+  const historicalQuickSaleUpi = 35; // Quick sale QS-0074 (ref_type = quick_sale) exists in history but is excluded from active metrics
   const businessUpiTxn = 301;    // Business UPI-0001 (ref_type = transaction)
 
-  // Canonical UPI QR movement formula
-  const totalUpiQrMovement = posInvoiceUpi + quickSaleUpi + businessUpiTxn;
-  const cashBookUpiNet = 410;
+  // Canonical UPI QR movement formula (Quick Sale discontinued: contributes 0)
+  const totalUpiQrMovement = posInvoiceUpi + businessUpiTxn;
+  const cashBookUpiNet = 375;
 
-  assert(totalUpiQrMovement === 410, "21. UPI QR Movement: POS ₹74 + Quick Sale ₹35 + Txn ₹301 === ₹410.00 Exactly");
-  assert(totalUpiQrMovement === cashBookUpiNet, "21. UPI QR Invariant: UPI Pool Movement matches Cash Book UPI Net (₹410.00)");
+  assert(totalUpiQrMovement === 375, "21. UPI QR Movement: POS ₹74 + Txn ₹301 === ₹375.00 Exactly (Quick Sale ₹35 excluded)");
+  assert(totalUpiQrMovement === cashBookUpiNet, "21. UPI QR Invariant: UPI Pool Movement matches Cash Book UPI Net (₹375.00)");
 }
 
 // 22. Temporal Immutability Guard: Mid-Day Reseed Rejection
@@ -628,22 +628,22 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
   assert(liabilityIncrease === 1000.0, "40. Credit Card Classification: Draws on Credit Card Liability Line");
 }
 
-// 41. Accounting Invariant: Multi-Source Cash Book Net Reconciliation
+// 41. Accounting Invariant: Multi-Source Cash Book Net Reconciliation (Quick Sale excluded)
 {
   const cashPayments = 620.0;
-  const quickSalesCash = 5888.0;
+  const historicalQuickSalesCash = 5888.0; // preserved in history, excluded from active inflow
   const dmtCashCollected = 910.0;
   const aepsDirectFeeCash = 70.0;
-  const totalCashInflows = cashPayments + quickSalesCash + dmtCashCollected + aepsDirectFeeCash; // ₹7,488.00
+  const totalCashInflows = cashPayments + dmtCashCollected + aepsDirectFeeCash; // ₹1,600.00
 
   const aepsCashPayouts = 9470.0;
   const upiCashPayout = 300.0;
   const totalCashOutflows = aepsCashPayouts + upiCashPayout; // ₹9,770.00
 
-  const computedCashBookNet = totalCashInflows - totalCashOutflows; // -₹2,282.00
-  const cashPoolMovement = -2282.0;
+  const computedCashBookNet = totalCashInflows - totalCashOutflows; // -₹8,170.00
+  const cashPoolMovement = -8170.0;
 
-  assert(computedCashBookNet === cashPoolMovement, "41. Multi-Source Cash Book Net === Pool Movement (-₹2,282.00)");
+  assert(computedCashBookNet === cashPoolMovement, "41. Multi-Source Cash Book Net === Pool Movement (-₹8,170.00, Quick Sale ₹5,888 excluded)");
   assert(computedCashBookNet - cashPoolMovement === 0.0, "41. Cash Book vs Pool Movement Variance === ₹0.00 Exactly");
 }
 
@@ -654,21 +654,21 @@ function computePoolSeed({ pool, baseSeed, instruments, snapshots, asOf }) {
   assert(isDateInFY2026_27("2026-03-31") === false, "42. Indian FY Filtering: Mar 31, 2026 belongs to FY 2025-26");
 }
 
-// 43. Tax Reporting: Total Operating Revenue Calculation
+// 43. Tax Reporting: Total Operating Revenue Calculation (Quick Sale excluded)
 {
   const grossInvoices = 6675.0;
   const salesReturns = 0.0;
-  const quickSales = 29792.0;
+  const historicalQuickSales = 29792.0; // preserved in history, excluded from active revenue
   const aepsFees = 829.98;
   const aepsCommissions = 281.99;
   const dmtFees = 50.0;
   const upiFees = 1.0;
 
-  const netRetailRevenue = grossInvoices - salesReturns + quickSales; // ₹36,467.00
-  const totalTaxRevenue = netRetailRevenue + aepsFees + aepsCommissions + dmtFees + upiFees; // ₹37,629.97
+  const netRetailRevenue = grossInvoices - salesReturns; // ₹6,675.00
+  const totalTaxRevenue = netRetailRevenue + aepsFees + aepsCommissions + dmtFees + upiFees; // ₹7,837.97
 
-  assert(netRetailRevenue === 36467.0, "43. Tax Reporting: Net Retail Revenue Reconciled (₹36,467.00)");
-  assert(Math.abs(totalTaxRevenue - 37629.97) < 0.01, "43. Tax Reporting: Total Operating Revenue Reconciled (₹37,629.97)");
+  assert(netRetailRevenue === 6675.0, "43. Tax Reporting: Net Retail Revenue Reconciled (₹6,675.00, Quick Sale ₹29,792 excluded)");
+  assert(Math.abs(totalTaxRevenue - 7837.97) < 0.01, "43. Tax Reporting: Total Operating Revenue Reconciled (₹7,837.97)");
 }
 
 // 44. Tax Reporting: Historical Locked COGS Calculation
@@ -2606,17 +2606,19 @@ function detectIntent(question) {
   assert(totalCogs === 40.0, "248. Segregation Invariant: Total COGS is sum of distinct cost streams (₹40.00)");
 }
 
-// 249. Quick Sales Cost Segregation & Inclusion
+// 249. Quick Sales Excluded From Active Turnover & Cost
 {
-  const quickSales = [
+  const historicalQuickSales = [
     { amount: 10.0, cost: 3.0 },
     { amount: 27.0, cost: 10.0 }
   ];
-  const quickSaleRevenue = quickSales.reduce((s, q) => s + q.amount, 0);
-  const quickSaleCost = quickSales.reduce((s, q) => s + q.cost, 0);
+  // Historical rows exist (₹37.00 revenue, ₹13.00 cost preserved) but active
+  // P&L never reads them.
+  const activeQuickSaleRevenue = 0;
+  const activeQuickSaleCost = 0;
 
-  assert(quickSaleRevenue === 37.0, "249. Quick Sale Invariant: Quick sale revenue recognized in total turnover (₹37.00)");
-  assert(quickSaleCost === 13.0, "249. Quick Sale Invariant: Quick sale cost recognized in total direct cost (₹13.00)");
+  assert(activeQuickSaleRevenue === 0, "249. Quick Sale Exclusion: historical ₹37.00 contributes ₹0.00 to active turnover");
+  assert(activeQuickSaleCost === 0, "249. Quick Sale Exclusion: historical ₹13.00 contributes ₹0.00 to active direct cost");
 }
 
 // 250. P&L === Tax Preparation Revenue Parity
@@ -2633,19 +2635,19 @@ function detectIntent(question) {
   assert(Math.abs(pnlTotalOperatingRevenue - taxTotalOperatingRevenue) < 0.001, "250. Cross-Module Parity: P&L Operating Revenue === Tax Prep Operating Revenue (₹9,561.99)");
 }
 
-// 251. P&L === Tax Preparation COGS Parity
+// 251. P&L === Tax Preparation COGS Parity (Quick Sale excluded on both sides)
 {
   const pnlProductCogs = 0.0;
   const pnlServiceDirectCost = 21.0;
-  const pnlQuickSaleCost = 68.0;
-  const pnlTotalCogs = pnlProductCogs + pnlServiceDirectCost + pnlQuickSaleCost; // 89.0
+  const pnlQuickSaleCost = 0.0;
+  const pnlTotalCogs = pnlProductCogs + pnlServiceDirectCost + pnlQuickSaleCost; // 21.0
 
   const taxProductCogs = 0.0;
   const taxServiceDirectCost = 21.0;
-  const taxQuickSalesCost = 68.0;
-  const taxTotalCogs = taxProductCogs + taxServiceDirectCost + taxQuickSalesCost; // 89.0
+  const taxQuickSalesCost = 0.0;
+  const taxTotalCogs = taxProductCogs + taxServiceDirectCost + taxQuickSalesCost; // 21.0
 
-  assert(pnlTotalCogs === taxTotalCogs && pnlTotalCogs === 89.0, "251. Cross-Module Parity: P&L Total COGS === Tax Prep Total COGS (₹89.00)");
+  assert(pnlTotalCogs === taxTotalCogs && pnlTotalCogs === 21.0, "251. Cross-Module Parity: P&L Total COGS === Tax Prep Total COGS (₹21.00, Quick Sale ₹68 excluded)");
 }
 
 // 252. P&L === Tax Preparation Expense Parity
@@ -2718,16 +2720,16 @@ function detectIntent(question) {
   assert(istFormatter.format(t4) === "2026-08-25", "259. Boundary Invariant: 00:05:00 IST is Aug 25");
 }
 
-// 260. Yesterday (2026-08-24) Exact Reconciliation Invariant
+// 260. Yesterday (2026-08-24) Exact Reconciliation Invariant (Quick Sale excluded)
 {
   const operatingRevenue = 9561.99;
   const productCogs = 0.0;
   const serviceDirectCost = 21.0;
-  const quickSaleCost = 68.0;
-  const totalCogs = productCogs + serviceDirectCost + quickSaleCost; // 89.00
+  const quickSaleCost = 0.0;
+  const totalCogs = productCogs + serviceDirectCost + quickSaleCost; // 21.00
   const operatingExpenses = 10088.0;
-  const computedNetProfit = operatingRevenue - totalCogs - operatingExpenses; // -615.01
-  const canonicalNetProfit = -615.01;
+  const computedNetProfit = operatingRevenue - totalCogs - operatingExpenses; // -547.01
+  const canonicalNetProfit = -547.01;
   const variance = Math.abs(computedNetProfit - canonicalNetProfit);
 
   assert(Number(variance.toFixed(2)) === 0.0, "260. Final Reconciliation Invariant: Yesterday Profit Equation Reconciles with ₹0.00 Variance");
@@ -2800,14 +2802,14 @@ function detectIntent(question) {
   assert(quickSalesHasInvoiceId === false, "268. Double-Count Invariant: quick_sales has no invoice_id — structurally isolated from invoice_items");
 }
 
-// 269. COGS Double-Count Invariant: Four streams are mutually exclusive by row condition
+// 269. COGS Streams: product/service/custom only (Quick Sale excluded)
 {
   const productCogs   = { condition: "product_id IS NOT NULL", amount: 0 };
   const serviceCost   = { condition: "service_id IS NOT NULL", amount: 21 };
   const customCost    = { condition: "product_id IS NULL AND service_id IS NULL", amount: 0 };
-  const quickCost     = { source: "quick_sales", amount: 68 };
+  const quickCost     = { source: "quick_sales (discontinued)", amount: 0 };
   const total = productCogs.amount + serviceCost.amount + customCost.amount + quickCost.amount;
-  assert(total === 89, "269. Double-Count Invariant: All COGS streams additive and mutually exclusive. Aug 24 Total = ₹89");
+  assert(total === 21, "269. Stream Invariant: Active COGS streams additive and mutually exclusive. Aug 24 Total = ₹21");
 }
 
 // 270. Expense Classification Invariant: ₹10,088 derives from public.expenses only
@@ -2864,13 +2866,13 @@ function detectIntent(question) {
 
 // 276. Total Migration: Before=After for all 7 P&L metrics (Aug 24)
 {
-  const before = { revenue: 9298, productCogs: 0, serviceDirectCost: 21, quickSaleCost: 68, totalCogs: 89, expenses: 10088, netProfit: -615.01 };
-  const after  = { revenue: 9298, productCogs: 0, serviceDirectCost: 21, quickSaleCost: 68, totalCogs: 89, expenses: 10088, netProfit: -615.01 };
+  const before = { revenue: 9298, productCogs: 0, serviceDirectCost: 21, quickSaleCost: 0, totalCogs: 21, expenses: 10088, netProfit: -547.01 };
+  const after  = { revenue: 9298, productCogs: 0, serviceDirectCost: 21, quickSaleCost: 0, totalCogs: 21, expenses: 10088, netProfit: -547.01 };
   assert(before.revenue === after.revenue, "276. Migration Parity: Revenue unchanged (₹9,298)");
   assert(before.serviceDirectCost === after.serviceDirectCost, "276. Migration Parity: Service Direct Cost unchanged (₹21)");
-  assert(before.totalCogs === after.totalCogs, "276. Migration Parity: Total COGS unchanged (₹89)");
+  assert(before.totalCogs === after.totalCogs, "276. Migration Parity: Total COGS unchanged (₹21, Quick Sale excluded)");
   assert(before.expenses === after.expenses, "276. Migration Parity: Expenses unchanged (₹10,088)");
-  assert(Number(before.netProfit.toFixed(2)) === Number(after.netProfit.toFixed(2)), "276. Migration Parity: Net Profit unchanged (-₹615.01)");
+  assert(Number(before.netProfit.toFixed(2)) === Number(after.netProfit.toFixed(2)), "276. Migration Parity: Net Profit unchanged (-₹547.01)");
 }
 
 // 277. Explicit Cost State: VERIFIED_COST snapshots exact positive cost
@@ -3142,16 +3144,17 @@ function detectIntent(question) {
   assert(!invoiceCreated && !stockDeducted, "305. Atomicity Invariant: Stock shortfall aborts invoice creation and rolls back completely");
 }
 
-// 306. Unified POS: Existing Quick Sale continues to operate
+// 306. Unified POS: Quick Sale discontinued, standard POS unaffected
 {
-  const quickSaleWorks = true;
-  assert(quickSaleWorks, "306. Workflow Invariant: Quick Sale module preserved and operational alongside standard POS");
+  const quickSaleDiscontinued = true;
+  const standardPosBillingWorks = true;
+  assert(quickSaleDiscontinued && standardPosBillingWorks, "306. Workflow Invariant: Quick Sale discontinued; standard POS billing unaffected");
 }
 
 // 307. Unified POS: Existing P&L parity remains unchanged
 {
-  const aug24NetProfit = -615.01;
-  assert(aug24NetProfit === -615.01, "307. Accounting Invariant: P&L canonical parity preserved at -₹615.01");
+  const aug24NetProfit = -547.01;
+  assert(aug24NetProfit === -547.01, "307. Accounting Invariant: P&L canonical parity preserved at -₹547.01");
 }
 
 // 308. Unified POS: Existing Self-Audit remains 100/100
@@ -6838,7 +6841,8 @@ assert(
     "/reports",
   ];
 
-  assert(sidebarOperationalRoutes.includes("/pos"), "1265. Sidebar Daily Ops: POS & Quick Sale is core operational route");
+  assert(sidebarOperationalRoutes.includes("/pos"), "1265. Sidebar Daily Ops: POS Billing is core operational route");
+  assert(!sidebarOperationalRoutes.includes("/pos?mode=quick"), "1265b. Sidebar Daily Ops: Quick Sale mode route removed");
   assert(sidebarOperationalRoutes.includes("/invoices"), "1266. Sidebar Daily Ops: Invoices & Sales is core operational route");
   assert(sidebarOperationalRoutes.includes("/business/bill-payment"), "1267. Sidebar Daily Ops: Bill Payment & Recharge Hub is core operational route");
   assert(sidebarOperationalRoutes.includes("/finance/cashbook"), "1268. Sidebar Daily Ops: Daily Cash Book is core operational route");
@@ -7595,7 +7599,7 @@ assert(
 
   // 4. POS Fast-Sale Key Shortcuts
   const posClientCode = fs.readFileSync("./components/pos/pos-client.tsx", "utf8");
-  assert(posClientCode.includes('e.key === "F2"'), "1419. POS Usability: F2 Quick Sale toggle active");
+  assert(posClientCode.includes('e.key === "F2"'), "1419. POS Usability: F2 new-cart-tab shortcut active");
   assert(posClientCode.includes('e.key === "F4"'), "1420. POS Usability: F4 Search focus shortcut active");
 
   // 5. AI Advisor Safety Invariant (Non-mutation)
@@ -7969,27 +7973,23 @@ assert(
 {
   console.log("\n--- Phase 21: Income Breakdown Accounting & POS Revenue Integrity ---");
 
-  // Simulated dataset with POS Invoices, Quick Sales, and Services
+  // Simulated dataset with POS Invoices and Services (income page never feeds pos_sale rows)
   const sampleTransactions = [
     // 1. POS Invoice: ₹1,500 total sale
     { transaction_number: "INV-001", service_type: "pos_invoice", amount: 1500, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 0 },
     // 2. POS Invoice: ₹2,400 total sale
     { transaction_number: "INV-002", service_type: "pos_invoice", amount: 2400, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 0 },
-    // 3. POS Quick Sale: ₹500 sale with ₹300 COGS -> Gross profit ₹200
-    { transaction_number: "QS-001", service_type: "pos_sale", amount: 500, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 300 },
-    // 4. POS Quick Sale: ₹250 sale with ₹150 COGS -> Gross profit ₹100
-    { transaction_number: "QS-002", service_type: "pos_sale", amount: 250, service_fee: 0, portal_charge: 0, portal_commission: 0, cogs: 150 },
-    // 5. Bill Payment: ₹3,000 principal, ₹15 fee, ₹5 commission
+    // 3. Bill Payment: ₹3,000 principal, ₹15 fee, ₹5 commission
     { transaction_number: "BP-001", service_type: "bill_payment", amount: 3000, service_fee: 15, portal_charge: 0, portal_commission: 5, cogs: 0 },
-    // 6. AEPS Cash-Out: ₹2,000 principal, ₹0 fee, ₹6 commission
+    // 4. AEPS Cash-Out: ₹2,000 principal, ₹0 fee, ₹6 commission
     { transaction_number: "AEPS-001", service_type: "aeps", amount: 2000, service_fee: 0, portal_charge: 0, portal_commission: 6, cogs: 0 },
-    // 7. DMT Remittance: ₹5,000 principal, ₹50 fee, ₹0 commission
+    // 5. DMT Remittance: ₹5,000 principal, ₹50 fee, ₹0 commission
     { transaction_number: "DMT-001", service_type: "dmt", amount: 5000, service_fee: 50, portal_charge: 0, portal_commission: 0, cogs: 0 },
   ];
 
   // Helper matching components/reports/income-report-client.tsx
   function getRowIncome(r) {
-    if (r.service_type === "pos_invoice" || r.service_type === "pos_sale") {
+    if (r.service_type === "pos_invoice") {
       return Number(r.amount) || 0;
     }
     return (Number(r.service_fee) || 0) + (Number(r.portal_charge) || 0) + (Number(r.portal_commission) || 0);
@@ -8001,38 +8001,33 @@ assert(
   assert(inv1Income === 1500, "1507. Income Report: POS Invoice INV-001 revenue strictly equals ₹1,500.00 (not 0)");
   assert(inv2Income === 2400, "1508. Income Report: POS Invoice INV-002 revenue strictly equals ₹2,400.00 (not 0)");
 
-  // 2. POS Quick Sale revenue = quick sale amount
-  const qs1Income = getRowIncome(sampleTransactions[2]);
-  assert(qs1Income === 500, "1509. Income Report: POS Quick Sale QS-001 revenue strictly equals ₹500.00");
+  // 2. No pos_sale rows are ever fed by the income page (Quick Sale discontinued)
+  const posSaleRows = sampleTransactions.filter((r) => r.service_type === "pos_sale");
+  assert(posSaleRows.length === 0, "1509. Income Report: zero pos_sale rows in feed (Quick Sale excluded at source)");
 
   // 3. Service income = service fees + portal charges + commissions (principal excluded)
-  const bpIncome = getRowIncome(sampleTransactions[4]);
-  const aepsIncome = getRowIncome(sampleTransactions[5]);
-  const dmtIncome = getRowIncome(sampleTransactions[6]);
+  const bpIncome = getRowIncome(sampleTransactions[2]);
+  const aepsIncome = getRowIncome(sampleTransactions[3]);
+  const dmtIncome = getRowIncome(sampleTransactions[4]);
   assert(bpIncome === 20, "1510. Income Report: Bill Payment income is strictly ₹20.00 (Fee ₹15 + Comm ₹5, principal ₹3,000 excluded)");
   assert(aepsIncome === 6, "1511. Income Report: AEPS income is strictly ₹6.00 (Commission ₹6, principal ₹2,000 excluded)");
   assert(dmtIncome === 50, "1512. Income Report: DMT income is strictly ₹50.00 (Fee ₹50, principal ₹5,000 excluded)");
 
   // 4. Aggregated KPIs
-  const serviceRows = sampleTransactions.filter(r => r.service_type !== "pos_sale" && r.service_type !== "pos_invoice");
+  const serviceRows = sampleTransactions.filter(r => r.service_type !== "pos_invoice");
   const serviceFees = serviceRows.reduce((s, r) => s + r.service_fee + r.portal_charge, 0); // 15 + 50 = 65
   const commissions = serviceRows.reduce((s, r) => s + r.portal_commission, 0); // 5 + 6 = 11
   const serviceIncome = serviceFees + commissions; // 76
 
-  const posInvoiceRevenue = sampleTransactions.filter(r => r.service_type === "pos_invoice").reduce((s, r) => s + r.amount, 0); // 1500 + 2400 = 3900
-  const posQuickRevenue = sampleTransactions.filter(r => r.service_type === "pos_sale").reduce((s, r) => s + r.amount, 0); // 500 + 250 = 750
-  const posRevenue = posInvoiceRevenue + posQuickRevenue; // 4650
-  const posCogs = sampleTransactions.filter(r => r.service_type === "pos_sale").reduce((s, r) => s + r.cogs, 0); // 300 + 150 = 450
-  const posGrossProfit = posQuickRevenue - posCogs; // 750 - 450 = 300
+  const posRevenue = sampleTransactions.filter(r => r.service_type === "pos_invoice").reduce((s, r) => s + r.amount, 0); // 1500 + 2400 = 3900
 
-  const totalIncome = posRevenue + serviceIncome; // 4650 + 76 = 4726
-  const totalPrincipal = sampleTransactions.reduce((s, r) => s + r.amount, 0); // 1500+2400+500+250+3000+2000+5000 = 14650
+  const totalIncome = posRevenue + serviceIncome; // 3900 + 76 = 3976
+  const totalPrincipal = sampleTransactions.reduce((s, r) => s + r.amount, 0); // 1500+2400+3000+2000+5000 = 13900
 
-  assert(posRevenue === 4650, "1513. Income Report: Total POS Revenue strictly equals ₹4,650.00 (Invoices ₹3,900 + Quick ₹750)");
-  assert(posGrossProfit === 300, "1514. Income Report: POS Quick Sale Gross Profit strictly equals ₹300.00 (Revenue ₹750 - COGS ₹450)");
+  assert(posRevenue === 3900, "1513. Income Report: Total POS Revenue strictly equals ₹3,900.00 (Invoices only)");
   assert(serviceIncome === 76, "1515. Income Report: Total Service Income strictly equals ₹76.00 (Fees ₹65 + Comm ₹11)");
-  assert(totalIncome === 4726, "1516. Income Report: Total Income strictly equals ₹4,726.00 (POS ₹4,650 + Services ₹76)");
-  assert(totalPrincipal === 14650, "1517. Income Report: Gross Principal / Sales Volume strictly equals ₹14,650.00");
+  assert(totalIncome === 3976, "1516. Income Report: Total Income strictly equals ₹3,976.00 (POS ₹3,900 + Services ₹76)");
+  assert(totalPrincipal === 13900, "1517. Income Report: Gross Principal / Sales Volume strictly equals ₹13,900.00");
 
   // 5. UI Contract Verification
   const clientCode = fs.readFileSync("./components/reports/income-report-client.tsx", "utf8");

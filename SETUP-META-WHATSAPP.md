@@ -155,9 +155,9 @@ browser's localStorage is invisible to it.
 Any message *you* start must use a template Meta approved in advance. Free-form
 text is only allowed as a reply within 24 hours of the customer writing to you.
 
-For CafeERP that means your POS invoice, quick sale, banking receipt, due
+For CafeERP that means your POS invoice, banking receipt, due
 reminder and day-close messages all need to exist as templates. Create them in
-**WhatsApp Manager → Message Templates**:
+**WhatsApp Manager → Message Templates** (Quick Sale templates are discontinued):
 
 - Category **Utility** for receipts, order confirmations and payment reminders.
   These are transactional and get approved easily.

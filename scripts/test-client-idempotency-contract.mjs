@@ -4,12 +4,19 @@ const clientSource = readFileSync("lib/supabase/client.ts", "utf8");
 
 const requiredRpcs = [
   "create_sale",
-  "record_quick_sale",
   "create_business_txn",
   "record_invoice_payment",
   "cancel_invoice",
   "cancel_quick_sale",
 ];
+
+const forbiddenRpcs = ["record_quick_sale"];
+
+for (const rpc of forbiddenRpcs) {
+  if (clientSource.includes(`"${rpc}"`)) {
+    throw new Error(`Discontinued RPC still covered: ${rpc}`);
+  }
+}
 
 for (const rpc of requiredRpcs) {
   if (!clientSource.includes(`\"${rpc}\"`)) {

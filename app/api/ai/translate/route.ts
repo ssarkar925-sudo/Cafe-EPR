@@ -48,7 +48,7 @@ const OFFLINE_DICTIONARY: Record<string, { hi: string; bn: string }> = {
   "current balance due": { hi: "वर्तमान बकाया राशि", bn: "বর্তমান বাকি টাকা" },
   "credit limit": { hi: "क्रेडिट सीमा", bn: "ক্রেডিট লিমিট" },
   "no pending dues": { hi: "कोई बकाया नहीं है", bn: "কোনো বাকি টাকা নেই" },
-  "quick sale prepared": { hi: "त्वरित बिक्री तैयार (अनुमोदन लंबित)", bn: "কুইক সেল প্রস্তুত (অনুমোদনের অপেক্ষায়)" },
+  "sale prepared": { hi: "बिक्री तैयार (अनुमोदन लंबित)", bn: "সেল প্রস্তুত (অনুমোদনের অপেক্ষায়)" },
   "waiting for 1-click owner approval": { hi: "मालिक के 1-क्लिक अनुमोदन की प्रतीक्षा है", bn: "মালিকের ১-ক্লিক অনুমোদনের অপেক্ষায়" },
   "all catalog products are currently healthy": { hi: "कैटलॉग के सभी उत्पाद वर्तमान में पर्याप्त स्टॉक में हैं।", bn: "ক্যাটালগের সমস্ত পণ্য বর্তমানে পর্যাপ্ত স্টকে রয়েছে।" },
   "low stock": { hi: "कम स्टॉक", bn: "কম স্টক" },

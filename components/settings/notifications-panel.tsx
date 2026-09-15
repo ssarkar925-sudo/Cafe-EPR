@@ -28,12 +28,6 @@ const TEMPLATE_KEYS: { id: keyof WhatsAppTemplates; label: string; icon: string;
     vars: ["shop_name", "invoice_number", "invoice_date", "customer_name_line", "total_amount", "paid_amount", "status_line", "receipt_url"],
   },
   {
-    id: "quick_sale",
-    label: "Quick Sale Receipt",
-    icon: "📦",
-    vars: ["shop_name", "sale_number", "sale_date", "customer_name_line", "item_name", "paid_amount", "receipt_url"],
-  },
-  {
     id: "banking_txn",
     label: "Banking / Remittance Receipt",
     icon: "📱",

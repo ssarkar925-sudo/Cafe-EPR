@@ -42,14 +42,13 @@ const SERVICE_LABELS: Record<string, string> = {
   google_play: "Google Play Recharge",
   bill_payment: "Bill Payment",
   utility_bill: "Utility Bill",
-  pos_sale: "POS Quick Sales",
   pos_invoice: "POS Invoices",
 };
 
 const label = (service: string) => SERVICE_LABELS[service] ?? service.replaceAll("_", " ");
 
 function getRowIncome(r: { service_type: string; amount: number | string; fee: number; commission: number; portalCharge: number }) {
-  if (r.service_type === "pos_invoice" || r.service_type === "pos_sale") {
+  if (r.service_type === "pos_invoice") {
     return Number(r.amount) || 0;
   }
   return (r.fee || 0) + (r.portalCharge || 0) + (r.commission || 0);
@@ -108,19 +107,15 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
   }, [filteredRows]);
 
   // 1. Service transactions (AEPS, DMT, UPI, Bill Payment, Recharge, etc.)
-  const serviceRows = filteredRows.filter((r) => r.service_type !== "pos_sale" && r.service_type !== "pos_invoice");
+  const serviceRows = filteredRows.filter((r) => r.service_type !== "pos_invoice");
   const serviceFees = serviceRows.reduce((s, r) => s + r.fee + r.portalCharge, 0);
   const commissions = serviceRows.reduce((s, r) => s + r.commission, 0);
   const serviceIncome = serviceFees + commissions;
 
-  // 2. POS transactions (Invoices & Quick Sales)
+  // 2. POS transactions (Invoices only — Quick Sale discontinued)
   const posInvoiceRows = filteredRows.filter((r) => r.service_type === "pos_invoice");
-  const posQuickRows = filteredRows.filter((r) => r.service_type === "pos_sale");
   const posInvoiceRevenue = posInvoiceRows.reduce((s, r) => s + Number(r.amount), 0);
-  const posQuickRevenue = posQuickRows.reduce((s, r) => s + Number(r.amount), 0);
-  const posRevenue = posInvoiceRevenue + posQuickRevenue;
-  const posCogs = posQuickRows.reduce((s, r) => s + Number(r.cost), 0);
-  const posGrossProfit = posQuickRevenue - posCogs;
+  const posRevenue = posInvoiceRevenue;
 
   // 3. Total Income (POS Revenue + Service Income)
   const totalIncome = posRevenue + serviceIncome;
@@ -143,8 +138,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
       "Mark",
     ];
     const body = filteredRows.map((r) => {
-      const isPos = r.service_type === "pos_sale" || r.service_type === "pos_invoice";
-      const isQuickPos = r.service_type === "pos_sale";
+      const isPos = r.service_type === "pos_invoice";
       const income = getRowIncome(r);
       return [
         r.transaction_date,
@@ -152,7 +146,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
         label(r.service_type),
         r.source || "Service",
         Number(r.amount) || 0,
-        isQuickPos ? r.cost : "",
+        "",
         isPos ? "" : r.fee,
         isPos ? "" : r.portalCharge,
         isPos ? "" : r.commission,
@@ -298,14 +292,14 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
               POS Retail Revenue
             </span>
             <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
-              {posInvoiceRows.length + posQuickRows.length} orders
+              {posInvoiceRows.length} orders
             </span>
           </div>
           <div className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">
             {inr(posRevenue)}
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Invoices: {inr(posInvoiceRevenue)} &bull; Quick: {inr(posQuickRevenue)}
+            Invoices: {inr(posInvoiceRevenue)}
           </div>
         </div>
 
@@ -327,7 +321,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
           </div>
         </div>
 
-        {/* Quick Sale Profit */}
+        {/* Gross Principal Volume */}
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -469,9 +463,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {visibleRows.map((r) => {
               const mark = marks[r.transaction_number] || "";
-              const isPosInvoice = r.service_type === "pos_invoice";
-              const isQuickPos = r.service_type === "pos_sale";
-              const isPos = isPosInvoice || isQuickPos;
+              const isPos = r.service_type === "pos_invoice";
               const rowIncome = getRowIncome(r);
 
               return (
@@ -492,10 +484,8 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${
-                        isPosInvoice
+                        isPos
                           ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
-                          : isQuickPos
-                          ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
                           : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300"
                       }`}
                     >
@@ -507,7 +497,7 @@ export default function IncomeReportClient({ rows, from, to }: { rows: Row[]; fr
                     {inr(Number(r.amount))}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-xs text-slate-500 tabular-nums">
-                    {isQuickPos ? inr(Number(r.cost)) : "—"}
+                    {"—"}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-xs text-slate-600 dark:text-slate-400 tabular-nums">
                     {isPos ? "—" : r.fee > 0 ? inr(r.fee) : "—"}

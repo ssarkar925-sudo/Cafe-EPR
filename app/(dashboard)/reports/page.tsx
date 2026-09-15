@@ -10,7 +10,7 @@ export default async function ReportsPage() {
   const role = await getUserRole();
   if (!hasRole(role, ["admin", "manager"])) redirect("/dashboard");
   const supabase = await createClient();
-  const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }, { data: expenses }, { data: returns }, { data: transactions }, { data: instruments }, { data: cashEntries }, { data: quickSales }] = await Promise.all([
+  const [{ data: invoices }, { data: items }, { data: payments }, { data: dues }, { data: expenses }, { data: returns }, { data: transactions }, { data: instruments }, { data: cashEntries }] = await Promise.all([
     supabase.from("invoices").select("id, invoice_number, invoice_date, total, paid, due, status, customers(name)").order("invoice_date", { ascending: false }).limit(1000),
     supabase.from("invoice_items").select("qty, amount, invoices(invoice_date), products(name), services(name)").limit(1500),
     supabase.from("payments").select("method, amount, received_at, invoices(invoice_number), payment_instruments(name, type)").order("received_at", { ascending: false }).limit(1000),
@@ -20,8 +20,7 @@ export default async function ReportsPage() {
     supabase.from("transactions").select("id, transaction_number, service_type, direction, transaction_date, customer_mobile, reference, amount, service_fee, portal_charge, portal_commission, status").order("transaction_date", { ascending: false }).limit(1500),
     supabase.from("payment_instruments").select("id, name, type, is_active").order("type").order("name"),
     supabase.from("cash_entries").select("id, entry_date, method, direction, amount, description, payment_instruments(name, type)").order("entry_date", { ascending: false }).limit(1500),
-    supabase.from("quick_sales").select("id, sale_number, sale_date, item_name, amount, cost, change_due, payments, status, customers(name), products(name), services(name)").order("sale_date", { ascending: false }).limit(1000),
   ]);
-  const data = { invoices: (invoices ?? []) as any, items: (items ?? []) as any, payments: (payments ?? []) as any, dues: (dues ?? []) as any, expenses: (expenses ?? []) as any, returns: (returns ?? []) as any, transactions: (transactions ?? []) as any, instruments: (instruments ?? []) as any, cashEntries: (cashEntries ?? []) as any, quickSales: (quickSales ?? []) as any };
+  const data = { invoices: (invoices ?? []) as any, items: (items ?? []) as any, payments: (payments ?? []) as any, dues: (dues ?? []) as any, expenses: (expenses ?? []) as any, returns: (returns ?? []) as any, transactions: (transactions ?? []) as any, instruments: (instruments ?? []) as any, cashEntries: (cashEntries ?? []) as any };
   return <div className="space-y-10"><ReportsHub invoices={data.invoices} expenses={data.expenses} returns={data.returns} /><div className="border-t border-slate-200 pt-8 dark:border-white/10"><ReportsClient {...data} /></div></div>;
 }

@@ -46,7 +46,6 @@ export default function TaxPreparationClient({
   initialEndDate,
   initialReport,
   rawInvoices,
-  rawQuickSales,
   rawExpenses,
   rawTransactions,
   rawCustomers,
@@ -55,7 +54,6 @@ export default function TaxPreparationClient({
   initialEndDate: string;
   initialReport: any;
   rawInvoices: any[];
-  rawQuickSales: any[];
   rawExpenses: any[];
   rawTransactions: any[];
   rawCustomers: any[];
@@ -69,12 +67,12 @@ export default function TaxPreparationClient({
   const [activeStep, setActiveStep] = useState<WorkflowStep>("period");
 
   // Filter & Search states for tables
-  const [sourceTab, setSourceTab] = useState<"invoices" | "quick_sales" | "expenses" | "transactions" | "dues">("invoices");
+  const [sourceTab, setSourceTab] = useState<"invoices" | "expenses" | "transactions" | "dues">("invoices");
   const [sourceSearch, setSourceSearch] = useState<string>("");
 
   // Modal / Drawer state for drill-down audit
   const [drillDownTitle, setDrillDownTitle] = useState<string | null>(null);
-  const [drillDownType, setDrillDownType] = useState<"invoices" | "quick_sales" | "expenses" | "aeps" | "dmt" | "upi" | "customers" | null>(null);
+  const [drillDownType, setDrillDownType] = useState<"invoices" | "expenses" | "aeps" | "dmt" | "upi" | "customers" | null>(null);
 
   const { showToast, toastView } = useToast();
 
@@ -135,7 +133,6 @@ export default function TaxPreparationClient({
     const rows = [
       ["Gross Retail Invoices", rev.gross_invoices],
       ["Less: Sales Returns", rev.sales_returns],
-      ["Add: Retail Quick Sales", rev.quick_sales],
       ["Net Retail Revenue", rev.net_retail_revenue],
       ["AEPS Customer Fees", rev.service_fees.aeps_fees],
       ["AEPS Portal Commissions", rev.commissions.aeps_commissions],
@@ -169,7 +166,6 @@ export default function TaxPreparationClient({
     const rows = [
       ["Retail Revenue", "POS Invoices (Gross)", rev.gross_invoices, "Operating Income"],
       ["Retail Revenue", "Less: Sales Returns & Credit Notes", -rev.sales_returns, "Revenue Reversal"],
-      ["Retail Revenue", "Counter Quick Sales", rev.quick_sales, "Operating Income"],
       ["Service Fees", "AEPS Customer Service Fees", rev.service_fees.aeps_fees, "Operating Fee Revenue"],
       ["Service Fees", "DMT Remittance Fees", rev.service_fees.dmt_fees, "Operating Fee Revenue"],
       ["Service Fees", "UPI Processing / Convenience Fees", rev.service_fees.upi_fees, "Operating Fee Revenue"],
@@ -538,16 +534,6 @@ export default function TaxPreparationClient({
                   Invoices ({rawInvoices.length})
                 </button>
                 <button
-                  onClick={() => setSourceTab("quick_sales")}
-                  className={`rounded-lg px-2.5 py-1 font-semibold transition ${
-                    sourceTab === "quick_sales"
-                      ? "bg-white text-slate-950 shadow-xs dark:bg-slate-900 dark:text-white"
-                      : "text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  Quick Sales ({rawQuickSales.length})
-                </button>
-                <button
                   onClick={() => setSourceTab("expenses")}
                   className={`rounded-lg px-2.5 py-1 font-semibold transition ${
                     sourceTab === "expenses"
@@ -627,43 +613,6 @@ export default function TaxPreparationClient({
                       <tr>
                         <td colSpan={7} className="px-3.5 py-8 text-center text-slate-500">
                           No invoices found for the period.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Quick Sales Table */}
-            {sourceTab === "quick_sales" && (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                    <tr>
-                      <th className="px-3.5 py-2.5 font-medium">Entry ID / Date</th>
-                      <th className="px-3.5 py-2.5 font-medium">Method</th>
-                      <th className="px-3.5 py-2.5 font-medium">Description</th>
-                      <th className="px-3.5 py-2.5 text-right font-medium">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                    {rawQuickSales.slice(0, 25).map((q) => (
-                      <tr key={q.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                        <td className="px-3.5 py-2.5 font-mono text-xs font-bold text-slate-900 dark:text-white">
-                          {q.entry_date}
-                        </td>
-                        <td className="px-3.5 py-2.5 capitalize text-slate-700 dark:text-slate-300">{q.method}</td>
-                        <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-400">{q.description || "POS Quick Sale"}</td>
-                        <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">
-                          {inr(Number(q.amount))}
-                        </td>
-                      </tr>
-                    ))}
-                    {rawQuickSales.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="px-3.5 py-8 text-center text-slate-500">
-                          No quick sales found for the period.
                         </td>
                       </tr>
                     )}
@@ -845,10 +794,6 @@ export default function TaxPreparationClient({
                   <span className="tabular-nums">- {inr(revenue?.sales_returns ?? 0)}</span>
                 </div>
                 <div className="flex justify-between py-1 text-slate-700 dark:text-slate-300">
-                  <span className="font-sans">Add: Counter Quick Sales</span>
-                  <span className="tabular-nums">+ {inr(revenue?.quick_sales ?? 0)}</span>
-                </div>
-                <div className="flex justify-between py-1 text-slate-700 dark:text-slate-300">
                   <span className="font-sans">AEPS Service Fees Collected</span>
                   <span className="tabular-nums">+ {inr(revenue?.service_fees?.aeps_fees ?? 0)}</span>
                 </div>
@@ -1007,18 +952,6 @@ export default function TaxPreparationClient({
                       </td>
                     </tr>
                   )}
-                  <tr className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                    <td className="px-3.5 py-2.5 font-semibold text-slate-900 dark:text-white">Quick Counter Sales</td>
-                    <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-400">Retail Sales</td>
-                    <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">
-                      {inr(revenue?.quick_sales ?? 0)}
-                    </td>
-                    <td className="px-3.5 py-2.5">
-                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                        Net Retail Revenue
-                      </span>
-                    </td>
-                  </tr>
                   <tr className="hover:bg-slate-50/50 dark:hover:bg-white/5">
                     <td className="px-3.5 py-2.5 font-semibold text-slate-900 dark:text-white">AEPS Customer Service Fees</td>
                     <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-400">Service Charges</td>

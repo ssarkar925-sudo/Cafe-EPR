@@ -176,7 +176,7 @@ export default function PaymentMethodsPanel({
         icon={SECTION_ICON}
         tone="cyan"
         title="Payment Methods"
-        desc="These are the methods POS and Quick Sale offer at the till. Disabled methods are hidden; reorder to set their order."
+        desc="These are the methods POS offers at the till. Disabled methods are hidden; reorder to set their order."
       >
         <div className="space-y-2">
           {sortedMethods.map((row, idx) => (

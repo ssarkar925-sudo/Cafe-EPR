@@ -28,7 +28,6 @@ export type Pnl = {
   product_cogs?: number;
   service_direct_cost?: number;
   custom_direct_cost?: number;
-  quick_sale_cost?: number;
   verified_cogs?: number;
   unverified_cost_count?: number;
   unverified_cost_warning?: boolean;
@@ -110,7 +109,7 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
   const [custom, setCustom] = useState(false);
   const { showToast, toastView } = useToast();
 
-  useRealtime(["invoices", "invoice_items", "returns", "return_items", "expenses", "transactions", "quick_sales", "products", "services"]);
+  useRealtime(["invoices", "invoice_items", "returns", "return_items", "expenses", "transactions", "products", "services"]);
 
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true);
@@ -167,7 +166,6 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
       productCogs: safeNumber(pnl?.product_cogs),
       serviceCost: safeNumber(pnl?.service_direct_cost),
       customCost: safeNumber(pnl?.custom_direct_cost),
-      quickSaleCost: safeNumber(pnl?.quick_sale_cost),
       verifiedCogs: safeNumber(pnl?.verified_cogs ?? pnl?.cogs),
       unverifiedCount: safeNumber(pnl?.unverified_cost_count),
     };
@@ -184,7 +182,6 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
       ["Direct Costs", "Product COGS", -numbers.productCogs],
       ["Direct Costs", "Service Direct Cost", -numbers.serviceCost],
       ["Direct Costs", "Custom Direct Cost", -numbers.customCost],
-      ["Direct Costs", "Quick Sale Cost", -numbers.quickSaleCost],
       ["Direct Costs", "Total COGS", -numbers.cogs],
       ["Profit", "Gross Profit", numbers.grossProfit],
       ["Income", "Commission / Service Income", numbers.commission],
@@ -291,7 +288,6 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
             <StatementRow label="Product COGS" value={-numbers.productCogs} tone="cost" />
             <StatementRow label="Service direct cost" value={-numbers.serviceCost} tone="cost" />
             <StatementRow label="Custom direct cost" value={-numbers.customCost} tone="cost" />
-            <StatementRow label="Quick-sale cost" value={-numbers.quickSaleCost} tone="cost" />
             <StatementRow label="Total COGS" value={-numbers.cogs} tone="cost" strong />
             <StatementRow label="Gross profit" value={numbers.grossProfit} tone={numbers.grossProfit >= 0 ? "profit" : "negative"} strong />
 
@@ -338,7 +334,6 @@ export default function PnlClient({ initialPnl, defaultFrom, defaultTo }: {
             <CostCard label="Product COGS" value={numbers.productCogs} total={numbers.cogs} />
             <CostCard label="Service Direct Cost" value={numbers.serviceCost} total={numbers.cogs} />
             <CostCard label="Custom Direct Cost" value={numbers.customCost} total={numbers.cogs} />
-            <CostCard label="Quick Sale Cost" value={numbers.quickSaleCost} total={numbers.cogs} />
           </div>
         </div>
 

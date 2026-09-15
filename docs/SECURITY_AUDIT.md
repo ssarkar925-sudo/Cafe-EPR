@@ -38,7 +38,7 @@ The application security architecture of CafeERP was evaluated against OWASP Top
 | Role | Permitted Actions | Prohibited Boundaries |
 | :--- | :--- | :--- |
 | **Admin** | Full system administration, staff creation, chart of accounts management, AI approval execution, WhatsApp gateway secrets, system settings. | None. |
-| **Manager** | POS operations, quick sales, customer khata dues collection, purchase entry, stock adjustments, expense logging, reports viewing. | Cannot create staff accounts, edit system settings, alter WhatsApp API secrets, or approve mutating AI actions. |
+| **Manager** | POS operations, customer khata dues collection, purchase entry, stock adjustments, expense logging, reports viewing. | Cannot create staff accounts, edit system settings, alter WhatsApp API secrets, or approve mutating AI actions. |
 | **Staff** | POS terminal billing, customer search, banking workspace transactions (AEPS, DMT, UPI, Bill Payment, Recharge), receipt printing. | Cannot access raw journal entries, edit accounting balances, alter supplier bills, perform manual stock adjustments, or view system settings. |
 
 ### 3.2 AI Approval Gate Security

@@ -461,7 +461,6 @@ export default function WhatsAppTrackerPanel() {
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[
               { key: "auto_send_pos" as const, title: "POS Tax Invoices", desc: "Enqueue invoice receipt with PDF link after sale completes." },
-              { key: "auto_send_quick" as const, title: "Quick Counter Sales", desc: "Enqueue receipt for Xerox, Photos, and quick digital services." },
               { key: "auto_send_payment" as const, title: "Payment Receipts", desc: "Enqueue payment confirmation upon balance / invoice payment." },
               { key: "auto_send_due_reminder" as const, title: "Customer Due Reminders", desc: "Allow automatic outstanding due reminders for debtors." },
               { key: "auto_send_document_ready" as const, title: "Document Ready Alerts", desc: "Notify customer when application or print job is ready." },
@@ -503,7 +502,6 @@ export default function WhatsAppTrackerPanel() {
           <div className="space-y-2 lg:col-span-4">
             {[
               { key: "pos_invoice" as const, label: "🧾 POS Tax Invoice" },
-              { key: "quick_sale" as const, label: "⚡ Quick Counter Sale" },
               { key: "payment_receipt" as const, label: "💳 Payment Confirmation" },
               { key: "due_reminder" as const, label: "⚠️ Customer Due Reminder" },
               { key: "doc_ready" as const, label: "📂 Document Ready Alert" },

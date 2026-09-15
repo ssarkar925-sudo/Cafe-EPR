@@ -405,7 +405,6 @@ export async function processWhatsAppOutbox(): Promise<{ processed: number; sent
 export async function triggerWhatsAppAutomation(event: {
   type:
     | "pos_invoice"
-    | "quick_sale"
     | "payment_receipt"
     | "due_reminder"
     | "doc_ready"
@@ -426,7 +425,6 @@ export async function triggerWhatsAppAutomation(event: {
 
   const isEnabled = {
     pos_invoice: automations.auto_send_pos,
-    quick_sale: automations.auto_send_quick,
     payment_receipt: automations.auto_send_payment,
     due_reminder: automations.auto_send_due_reminder,
     doc_ready: automations.auto_send_document_ready,
@@ -475,7 +473,6 @@ export async function triggerWhatsAppAutomation(event: {
 
   const refTypeMap: Record<string, WhatsAppOutboxMessage["reference_type"]> = {
     pos_invoice: "invoice",
-    quick_sale: "quick_sale",
     payment_receipt: "payment",
     due_reminder: "due",
     doc_ready: "document",

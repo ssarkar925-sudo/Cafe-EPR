@@ -547,7 +547,7 @@ function strictGatewayEmulator(req, res, body) {
   ok("modal sends exact client bytes once", modal.includes("documentBase64: rendered.base64") && modal.includes("generateInvoicePdfBase64") && !modal.includes("renderToBuffer"));
   const list = readRepo("components/invoices/unified-invoices-client.tsx");
   ok("list uses canonical download + modal", list.includes("downloadPosPdf") && list.includes('messageType="pos_invoice"') && list.includes("generateInvoicePdfBlob"));
-  ok("quick sale path preserved", list.includes("/pdf?source=quick") && list.includes("Receipt: ${row.number}"));
+  ok("unified list is POS-only (no quick branches)", !list.includes("/pdf?source=quick") && !list.includes("receipt/quick") && !list.includes("QuickSaleViewModal") && list.includes('source: "pos"'));
   const a4 = readRepo("components/pdf/a4-actions.tsx");
   ok("a4 invoice uses canonical generator", a4.includes("generateInvoicePdfBlob") && !a4.includes("window.open(`/api/invoices/"));
   const pdfRoute = readRepo("app/api/invoices/[id]/pdf/route.ts");

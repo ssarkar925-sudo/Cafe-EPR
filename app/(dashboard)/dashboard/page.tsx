@@ -37,7 +37,6 @@ export default async function DashboardPage() {
     customersRes,
     productsRes,
     invoicesRes,
-    quickSalesRes,
     expensesRes,
     transactionsRes,
     cashEntriesRes,
@@ -56,7 +55,6 @@ export default async function DashboardPage() {
     supabase.from("customers").select("id, name, balance, phone").gt("balance", 0).order("balance", { ascending: false }).limit(20),
     supabase.from("products").select("id, name, stock_qty, reorder_level, cost_price, sale_price").eq("is_active", true),
     supabase.from("invoices").select("id, invoice_number, invoice_date, total, paid, due, status, created_at, customers(name)").gte("invoice_date", thirtyDaysAgo).order("invoice_date", { ascending: false }).limit(300),
-    supabase.from("quick_sales").select("id, sale_number, amount, cost, sale_date, status, created_at").gte("sale_date", thirtyDaysAgo),
     supabase.from("expenses").select("id, title, amount, category, expense_date, status, created_at").gte("expense_date", thirtyDaysAgo),
     supabase.from("transactions").select("id, transaction_number, service_type, direction, amount, service_fee, portal_charge, portal_commission, transaction_date, status, created_at, customers(name)").gte("transaction_date", thirtyDaysAgo),
     supabase.from("cash_entries").select("id, amount, direction, method, entry_date, ref_type, created_at").gte("entry_date", thirtyDaysAgo),
@@ -146,9 +144,8 @@ export default async function DashboardPage() {
     pnl: { net_profit: 0 },
   };
 
-  // Operational items
+  // Operational items (Quick Sale discontinued: excluded from all active metrics)
   const invoices = (invoicesRes.data as any[]) || [];
-  const quickSales = (quickSalesRes.data as any[]) || [];
   const expenses = (expensesRes.data as any[]) || [];
   const transactions = (transactionsRes.data as any[]) || [];
   const cashEntries = (cashEntriesRes.data as any[]) || [];
@@ -156,24 +153,22 @@ export default async function DashboardPage() {
   const payments = (paymentsRes.data as any[]) || [];
 
   const todayInvoices = invoices.filter((inv) => inv.invoice_date === isoToday && inv.status !== "cancelled");
-  const todayQuick = quickSales.filter((q) => q.sale_date === isoToday && q.status === "active");
   const todayExpenses = expenses.filter((e) => e.expense_date === isoToday && e.status !== "cancelled");
   const todayTxns = transactions.filter((t) => (t.transaction_date || "").slice(0, 10) === isoToday && t.status === "success");
   const todayCash = cashEntries.filter((c) => c.entry_date === isoToday);
   const todaySettlements = settlements.filter((s) => (s.settlement_date || "").slice(0, 10) === isoToday && s.status === "completed");
 
   const todayInvoiceRevenue = todayInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0);
-  const todayQuickRevenue = todayQuick.reduce((s, q) => s + Number(q.amount || 0), 0);
 
-  // Payment Tender Split (Cash vs Digital Payment Inflow)
+  // Payment Tender Split (Cash vs Digital Payment Inflow) — POS invoice payments only.
   const todayPayments = payments.filter((p) => (p.received_at || "").slice(0, 10) === isoToday);
-  const todayPaymentCash = todayPayments.filter((p) => (p.method || "").toLowerCase() === "cash").reduce((s, p) => s + Number(p.amount || 0), 0) + todayQuickRevenue;
+  const todayPaymentCash = todayPayments.filter((p) => (p.method || "").toLowerCase() === "cash").reduce((s, p) => s + Number(p.amount || 0), 0);
   const todayPaymentDigital = todayPayments.filter((p) => (p.method || "").toLowerCase() !== "cash").reduce((s, p) => s + Number(p.amount || 0), 0);
   const todayTotalPaymentInflow = todayPaymentCash + todayPaymentDigital;
   const todayCashRatioPct = todayTotalPaymentInflow > 0 ? Math.round((todayPaymentCash / todayTotalPaymentInflow) * 100) : 60;
   const todayDigitalRatioPct = 100 - todayCashRatioPct;
   
-  const todayOperatingRevenue = Number(todayReport.revenue?.total_operating_revenue || (todayInvoiceRevenue + todayQuickRevenue));
+  const todayOperatingRevenue = Number(todayReport.revenue?.total_operating_revenue || todayInvoiceRevenue);
   const todayCogs = Number(todayReport.cogs?.total_cogs || 0);
   const todayExpenseTotal = Number(todayReport.expenses?.total_active_expenses || todayExpenses.reduce((s, e) => s + Number(e.amount || 0), 0));
   const todayProfit = Number(todayReport.pnl?.net_profit || (todayOperatingRevenue - todayCogs - todayExpenseTotal));
@@ -183,39 +178,35 @@ export default async function DashboardPage() {
   const yesterdayExpenseTotal = Number(yesterdayReport.expenses?.total_active_expenses || 0);
   const yesterdayProfit = Number(yesterdayReport.pnl?.net_profit || 0);
 
-  const todayMoneyIn = todayCash.filter((c) => c.direction === "in").reduce((s, c) => s + Number(c.amount || 0), 0);
-  const todayMoneyOut = todayCash.filter((c) => c.direction === "out").reduce((s, c) => s + Number(c.amount || 0), 0);
+  const todayMoneyIn = todayCash.filter((c) => c.direction === "in" && c.ref_type !== "quick_sale").reduce((s, c) => s + Number(c.amount || 0), 0);
+  const todayMoneyOut = todayCash.filter((c) => c.direction === "out" && c.ref_type !== "quick_sale").reduce((s, c) => s + Number(c.amount || 0), 0);
   const todayInternalTransfers = todaySettlements.reduce((s, st) => s + Number(st.amount || 0), 0);
 
-  const todayTxCount = todayInvoices.length + todayQuick.length + todayTxns.length;
+  const todayTxCount = todayInvoices.length + todayTxns.length;
   const todayAvgTicket = todayTxCount > 0 ? Math.round((todayOperatingRevenue / todayTxCount) * 100) / 100 : 0;
 
   // Month-to-date Calculations
   const mtdInvoices = invoices.filter((inv) => inv.invoice_date >= monthStart && inv.status !== "cancelled");
-  const mtdQuick = quickSales.filter((q) => q.sale_date >= monthStart && q.status === "active");
   const mtdExpenses = expenses.filter((e) => e.expense_date >= monthStart && e.status !== "cancelled");
   const mtdTxns = transactions.filter((t) => (t.transaction_date || "").slice(0, 10) >= monthStart && t.status === "success");
 
   const mtdRevenue = mtdInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0) +
-    mtdQuick.reduce((s, q) => s + Number(q.amount || 0), 0) +
     mtdTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
   const mtdExpenseTotal = mtdExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
   const mtdProfit = mtdRevenue - mtdExpenseTotal;
-  const mtdTxCount = mtdInvoices.length + mtdQuick.length + mtdTxns.length;
+  const mtdTxCount = mtdInvoices.length + mtdTxns.length;
   const mtdAvgTicket = mtdTxCount > 0 ? Math.round((mtdRevenue / mtdTxCount) * 100) / 100 : 0;
 
   // Week-to-date Calculations
   const wtdInvoices = invoices.filter((inv) => inv.invoice_date >= sevenDaysAgo && inv.status !== "cancelled");
-  const wtdQuick = quickSales.filter((q) => q.sale_date >= sevenDaysAgo && q.status === "active");
   const wtdExpenses = expenses.filter((e) => e.expense_date >= sevenDaysAgo && e.status !== "cancelled");
   const wtdTxns = transactions.filter((t) => (t.transaction_date || "").slice(0, 10) >= sevenDaysAgo && t.status === "success");
 
   const wtdRevenue = wtdInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0) +
-    wtdQuick.reduce((s, q) => s + Number(q.amount || 0), 0) +
     wtdTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
   const wtdExpenseTotal = wtdExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
   const wtdProfit = wtdRevenue - wtdExpenseTotal;
-  const wtdTxCount = wtdInvoices.length + wtdQuick.length + wtdTxns.length;
+  const wtdTxCount = wtdInvoices.length + wtdTxns.length;
   const wtdAvgTicket = wtdTxCount > 0 ? Math.round((wtdRevenue / wtdTxCount) * 100) / 100 : 0;
 
   // Receivables
@@ -312,14 +303,13 @@ export default async function DashboardPage() {
     const dayLabel = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" });
     
     const dayInv = invoices.filter((inv) => inv.invoice_date === dStr && inv.status !== "cancelled").reduce((s, inv) => s + Number(inv.total || 0), 0);
-    const dayQ = quickSales.filter((q) => q.sale_date === dStr && q.status === "active").reduce((s, q) => s + Number(q.amount || 0), 0);
     const dayTx = transactions.filter((t) => (t.transaction_date || "").slice(0, 10) === dStr && t.status === "success").reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
     const dayExp = expenses.filter((e) => e.expense_date === dStr && e.status !== "cancelled").reduce((s, e) => s + Number(e.amount || 0), 0);
 
     chartDays.push({
       date: dStr,
       label: dayLabel,
-      revenue: Math.round((dayInv + dayQ + dayTx) * 100) / 100,
+      revenue: Math.round((dayInv + dayTx) * 100) / 100,
       expenses: Math.round(dayExp * 100) / 100,
     });
   }
@@ -401,19 +391,6 @@ export default async function DashboardPage() {
       direction: "in",
       status: inv.status,
       date: inv.created_at || inv.invoice_date,
-    });
-  }
-
-  for (const sale of quickSales) {
-    activityList.push({
-      id: "quick-" + sale.id,
-      type: "sale",
-      title: `Quick Sale #${sale.sale_number || ""}`,
-      subtitle: "Quick Sale • Counter",
-      amount: Number(sale.amount || 0),
-      direction: "in",
-      status: sale.status,
-      date: sale.created_at || sale.sale_date,
     });
   }
 
@@ -621,9 +598,6 @@ export default async function DashboardPage() {
       internalTransfers: todayInternalTransfers,
       transactionCount: todayTxCount,
       avgTicketSize: todayAvgTicket,
-      quickSaleCount: todayQuick.length,
-      quickSaleAmount: todayQuickRevenue,
-      quickSaleMargin: todayQuick.reduce((s, q) => s + Number(q.amount) - Number(q.cost || 0), 0),
     },
     liquidity: {
       pools: poolsData,
@@ -657,9 +631,9 @@ export default async function DashboardPage() {
         margin: mtdRevenue > 0 ? Math.round((mtdProfit / mtdRevenue) * 1000) / 10 : 0,
       },
       fyYtd: {
-        txCount: invoices.length + quickSales.length + transactions.length,
-        avgTicket: (invoices.length + quickSales.length + transactions.length) > 0
-          ? Math.round((taxReport.revenue.total_operating_revenue / (invoices.length + quickSales.length + transactions.length)) * 100) / 100
+        txCount: invoices.length + transactions.length,
+        avgTicket: (invoices.length + transactions.length) > 0
+          ? Math.round((taxReport.revenue.total_operating_revenue / (invoices.length + transactions.length)) * 100) / 100
           : 0,
         revenue: taxReport.revenue.total_operating_revenue,
         profit: taxReport.pnl.net_profit,

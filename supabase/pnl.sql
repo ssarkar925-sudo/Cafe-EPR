@@ -31,9 +31,7 @@ begin
     from public.invoices
     where status <> 'cancelled' and invoice_date between p_from and p_to;
 
-  -- Quick sales revenue in range (active sales only)
-  v_revenue := v_revenue + coalesce((select sum(amount) from public.quick_sales
-    where status = 'active' and sale_date between p_from and p_to), 0);
+  -- Quick sales revenue: DISCONTINUED (contributes 0; historical rows preserved).
 
   -- Returns / refunds in range. Fully-returned invoices (status = 'cancelled') are already
   -- excluded from revenue, so only returns on still-active invoices reduce revenue here,
@@ -53,9 +51,7 @@ begin
     left join public.services s on s.id = ii.service_id
     where i.status <> 'cancelled' and i.invoice_date between p_from and p_to;
 
-  -- Quick sale COGS in range
-  v_cogs := v_cogs + coalesce((select sum(cost) from public.quick_sales
-    where status = 'active' and sale_date between p_from and p_to), 0);
+  -- Quick sale COGS: DISCONTINUED (contributes 0; historical rows preserved).
 
   -- Commission income: successful AEPS/DMT/UPI transactions in range
   select coalesce(sum(commission + service_fee), 0) into v_commission
@@ -105,14 +101,6 @@ begin
       select transaction_date, 0, 0, 0, commission + service_fee
       from public.transactions
       where status = 'success' and transaction_date between p_from and p_to
-      union all
-      select sale_date, amount, 0, 0, 0
-      from public.quick_sales
-      where status = 'active' and sale_date between p_from and p_to
-      union all
-      select sale_date, 0, cost, 0, 0
-      from public.quick_sales
-      where status = 'active' and sale_date between p_from and p_to
     ) raw
     group by to_char(d, 'YYYY-MM')
   ) m;

@@ -67,7 +67,7 @@ git push origin main
 ### Post-Deployment Smoke Test
 1. Access `/login` and verify IP rate limiting response headers.
 2. Log in with admin credentials and verify Dashboard liquid assets rendering.
-3. Open `/pos` and verify barcode focus shortcut (`F4`) and Quick Sale toggle (`F2`).
+3. Open `/pos` and verify barcode focus shortcut (`F4`) and new cart tab (`F2`).
 4. Access `/business/upi` and verify real-time `<UpiQrCode>` generation with live amount encoding.
 5. Verify thermal receipt generation under `/receipt/[id]`.
 

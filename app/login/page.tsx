@@ -23,7 +23,7 @@ function clientOrNull(): ReturnType<typeof createClient> | null {
 }
 
 const FEATURES = [
-  { title: "Point of Sale", desc: "Invoices & quick sales in one tap" },
+  { title: "Point of Sale", desc: "Invoices in one tap" },
   { title: "Billing & Ledger", desc: "Customer balances, cash book, expenses" },
   { title: "AEPS / DMT / UPI", desc: "Business transactions & settlements" },
   { title: "Reports & Analytics", desc: "Real-time KPIs, stock & profit" },

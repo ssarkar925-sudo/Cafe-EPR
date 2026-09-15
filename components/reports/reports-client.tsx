@@ -32,21 +32,6 @@ type CashEntry = {
   description: string | null;
   payment_instruments: { name: string; type: string } | null;
 };
-type Quick = {
-  id: string;
-  sale_number: string;
-  sale_date: string;
-  item_name: string | null;
-  amount: string;
-  cost: string;
-  change_due: string;
-  payments: { method: string; amount: number; instrument_id?: string | null }[];
-  status: string;
-  customers: { name: string } | null;
-  products: { name: string } | null;
-  services: { name: string } | null;
-};
-
 const INSTRUMENT_LABEL: Record<string, string> = {
   cash: "Cash",
   bank: "Bank",
@@ -88,7 +73,6 @@ export default function ReportsClient({
   transactions,
   instruments,
   cashEntries,
-  quickSales,
 }: {
   invoices: Inv[];
   items: Item[];
@@ -99,13 +83,12 @@ export default function ReportsClient({
   transactions: Tx[];
   instruments: Inst[];
   cashEntries: CashEntry[];
-  quickSales: Quick[];
 }) {
   const [period, setPeriod] = useState<(typeof PERIODS)[number]["key"]>("30d");
   const searchParams = useSearchParams();
   const initialTab = searchParams?.get("tab") || "overview";
-  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business" | "accounts" | "quick">(() => {
-    if (["overview", "invoices", "expenses", "returns", "business", "accounts", "quick"].includes(initialTab)) {
+  const [tab, setTab] = useState<"overview" | "invoices" | "expenses" | "returns" | "business" | "accounts">(() => {
+    if (["overview", "invoices", "expenses", "returns", "business", "accounts"].includes(initialTab)) {
       return initialTab as any;
     }
     if (initialTab === "sales") return "invoices";
@@ -124,7 +107,6 @@ export default function ReportsClient({
     "return_items",
     "customers",
     "transactions",
-    "quick_sales",
   ]);
 
   const range = useMemo(() => {
@@ -156,25 +138,6 @@ export default function ReportsClient({
   const totalExpenses = activeExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const totalReturns = validReturns.reduce((s, r) => s + Number(r.subtotal), 0);
 
-  const validQuick = useMemo(
-    () => quickSales.filter((q) => q.status === "active" && q.sale_date >= range.from && q.sale_date <= range.to),
-    [quickSales, range]
-  );
-  const quickSummary = useMemo(() => {
-    const byMethod = new Map<string, number>();
-    for (const q of validQuick) {
-      for (const p of q.payments ?? []) {
-        byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + (Number(p.amount) || 0));
-      }
-    }
-    return {
-      count: validQuick.length,
-      amount: validQuick.reduce((s, q) => s + Number(q.amount), 0),
-      cost: validQuick.reduce((s, q) => s + Number(q.cost), 0),
-      byMethod: Array.from(byMethod.entries()).sort((a, b) => b[1] - a[1]),
-    };
-  }, [validQuick]);
-
   const validTxns = useMemo(
     () =>
       transactions.filter(
@@ -199,7 +162,7 @@ export default function ReportsClient({
     };
   }, [validTxns]);
 
-  const net = totalSales - totalReturns - totalExpenses + quickSummary.amount - quickSummary.cost + txnSummary.income;
+  const net = totalSales - totalReturns - totalExpenses + txnSummary.income;
 
   const dayTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -312,19 +275,11 @@ export default function ReportsClient({
       onClick: () => setTab("expenses"),
     },
     {
-      label: "Quick Sales",
-      value: quickSummary.amount,
-      icon: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
-      grad: "from-teal-500 to-emerald-600",
-      sub: `${quickSummary.count} sales · ${inr(quickSummary.amount - quickSummary.cost)} margin`,
-      onClick: () => setTab("quick"),
-    },
-    {
       label: "Net Profit",
       value: net,
       icon: "M3 3v18h18M7 14l4-4 3 3 5-6",
       grad: net >= 0 ? "from-violet-500 to-purple-600" : "from-rose-500 to-red-600",
-      sub: "Sales + quick margin + business income − returns − expenses",
+      sub: "Sales + business income − returns − expenses",
       onClick: () => setTab("business"),
     },
   ];
@@ -362,7 +317,7 @@ export default function ReportsClient({
             Reports Studio
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Filtered operational ledger across {validInvoices.length} invoices, {validQuick.length} quick sales, {validTxns.length} service transactions &amp; {activeExpenses.length} expense entries.
+            Filtered operational ledger across {validInvoices.length} invoices, {validTxns.length} service transactions &amp; {activeExpenses.length} expense entries.
           </p>
         </div>
 
@@ -410,7 +365,6 @@ export default function ReportsClient({
         {tabBtn("returns", `Returns (${validReturns.length})`)}
         {tabBtn("business", `Digital Services (${validTxns.length})`)}
         {tabBtn("accounts", "Payment Accounts")}
-        {tabBtn("quick", `Quick POS (${validQuick.length})`)}
       </div>
 
       {tab === "overview" && (
@@ -945,132 +899,6 @@ export default function ReportsClient({
             </table>
           </div>
         </div>
-      )}
-
-      {tab === "quick" && (
-        <>
-          <div className="mt-6 grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Quick POS Sales", value: String(quickSummary.count), sub: `${validQuick.length} sales in period` },
-              { label: "Collected Amount", value: inr(quickSummary.amount), sub: "Gross counter turnover" },
-              { label: "Direct POS Cost", value: inr(quickSummary.cost), sub: "Item acquisition cost" },
-              { label: "Gross POS Margin", value: inr(quickSummary.amount - quickSummary.cost), sub: "Amount − Cost" },
-            ].map((c) => (
-              <div key={c.label} className="rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c.label}</p>
-                <p className="mt-2 font-mono text-2xl font-bold tracking-tight text-slate-950 dark:text-white tabular-nums">{c.value}</p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{c.sub}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-bold text-slate-950 dark:text-white">Quick Sales by Instrument</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Total: {inr(quickSummary.amount)}</p>
-                </div>
-              </div>
-              <div className="mt-4 space-y-3.5">
-                {quickSummary.byMethod.map(([m, amt]) => {
-                  const pct = quickSummary.amount > 0 ? (amt / quickSummary.amount) * 100 : 0;
-                  return (
-                    <div key={m}>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold uppercase text-slate-700 dark:text-slate-300">{INSTRUMENT_LABEL[m] ?? m}</span>
-                        <span className="font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(amt)} ({pct.toFixed(1)}%)</span>
-                      </div>
-                      <div className="mt-1.5 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className="h-2 rounded-full bg-emerald-600 dark:bg-emerald-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-                {quickSummary.byMethod.length === 0 && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No quick sales recorded.</p>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-white/10 dark:bg-slate-900">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-bold text-slate-950 dark:text-white">Quick POS Counter Register</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Recent over-the-counter slips</p>
-                </div>
-                <button
-                  onClick={() =>
-                    downloadCsv(
-                      "quick-sales.csv",
-                      ["Sale #", "Date", "Item", "Customer", "Amount", "Cost", "Margin", "Status"],
-                      validQuick.map((q) => [
-                        q.sale_number,
-                        q.sale_date,
-                        q.item_name ?? q.products?.name ?? q.services?.name ?? "Sale (general)",
-                        q.customers?.name ?? "Walk-in",
-                        q.amount,
-                        q.cost,
-                        Number(q.amount) - Number(q.cost),
-                        q.status,
-                      ])
-                    )
-                  }
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                >
-                  Export CSV
-                </button>
-              </div>
-              <div className="mt-4 max-h-80 overflow-x-auto overflow-y-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Slip #</th>
-                      <th className="px-3 py-2 font-medium">Item Description</th>
-                      <th className="px-3 py-2 text-right font-medium">Amount</th>
-                      <th className="px-3 py-2 text-right font-medium">Margin</th>
-                      <th className="px-3 py-2 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                    {validQuick.slice(0, 50).map((q) => (
-                      <tr key={q.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5">
-                        <td className="px-3 py-2 font-mono text-xs font-bold text-teal-600 dark:text-teal-400">{q.sale_number}</td>
-                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                          <span className="block max-w-[180px] truncate font-medium text-slate-900 dark:text-white">
-                            {q.item_name ?? q.products?.name ?? q.services?.name ?? "Sale (general)"}
-                          </span>
-                          <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                            {q.sale_date} · {q.customers?.name ?? "Walk-in"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-bold text-slate-950 dark:text-white tabular-nums">{inr(Number(q.amount))}</td>
-                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                          {inr(Number(q.amount) - Number(q.cost))}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold capitalize text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                            {q.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {validQuick.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="px-3 py-8 text-center text-slate-500 dark:text-slate-400">
-                          No quick sales in this period.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        </>
       )}
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-slate-900">

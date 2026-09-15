@@ -101,10 +101,11 @@ console.log("\n--- Suite 2: API Surface & Auth Security Bounds ---");
   assert(finRpcContent.includes("Cross-origin financial requests are not allowed"), "Financial RPC: Origin header CSRF protection installed");
   assert(finRpcContent.includes("supabase.auth.getUser()"), "Financial RPC: Explicit server session authentication required");
 
-  // Verify Quick Sale API Auth & Role Protection
+  // Verify Quick Sale API is discontinued (explicit 410, no creation path)
   const qsContent = fs.readFileSync(path.join(ROOT_DIR, "app/api/pos/quick-sale/route.ts"), "utf8");
-  assert(qsContent.includes("ALLOWED_ROLES = new Set([\"admin\", \"manager\"])"), "Quick Sale API: Role-gated to admin/manager");
-  assert(qsContent.includes("p_idempotency_key"), "Quick Sale API: Requires idempotency key");
+  assert(qsContent.includes("status: 410"), "Quick Sale API: answers 410 Gone");
+  assert(qsContent.includes("discontinued"), "Quick Sale API: states discontinuation");
+  assert(!qsContent.includes("record_quick_sale"), "Quick Sale API: no creation RPC call remains");
 
   // Verify Staff API Auth & Role Protection
   const staffContent = fs.readFileSync(path.join(ROOT_DIR, "app/api/staff/route.ts"), "utf8");

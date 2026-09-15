@@ -876,19 +876,6 @@ export function assembleVerifiedContext(params: {
       rating: "star",
     },
     {
-      serviceKey: "quick_sales",
-      serviceName: "Quick Counter Sales (Xerox/Photos)",
-      category: "Digital Services",
-      revenue: rev.quick_sales || 0,
-      cost: null, // Cost not tracked per unit at counter
-      grossProfit: rev.quick_sales || 0,
-      marginPct: null,
-      marginDescription: "Insufficient cost data to calculate service-level profit.",
-      transactionCount: 93,
-      costStatus: "insufficient_cost_data",
-      rating: "star",
-    },
-    {
       serviceKey: "aeps",
       serviceName: "AEPS Aadhaar ATM & Micro-ATM",
       category: "Banking Services",

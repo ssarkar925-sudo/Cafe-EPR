@@ -32,7 +32,6 @@ export default async function TaxPreparationPage() {
   // Fetch raw supporting registers for audit drill-down
   const [
     { data: rawInvoices },
-    { data: rawQuickSales },
     { data: rawExpenses },
     { data: rawTransactions },
     { data: rawCustomers },
@@ -43,13 +42,6 @@ export default async function TaxPreparationPage() {
       .gte("invoice_date", initialStartDate)
       .lte("invoice_date", initialEndDate)
       .order("invoice_date", { ascending: false }),
-    supabase
-      .from("cash_entries")
-      .select("id, entry_date, method, direction, amount, description, ref_type, ref_id")
-      .gte("entry_date", initialStartDate)
-      .lte("entry_date", initialEndDate)
-      .eq("ref_type", "quick_sale")
-      .order("entry_date", { ascending: false }),
     supabase
       .from("expenses")
       .select("id, expense_date, category, amount, note, status, created_at")
@@ -75,7 +67,6 @@ export default async function TaxPreparationPage() {
       initialEndDate={initialEndDate}
       initialReport={initialReport}
       rawInvoices={rawInvoices || []}
-      rawQuickSales={rawQuickSales || []}
       rawExpenses={rawExpenses || []}
       rawTransactions={rawTransactions || []}
       rawCustomers={rawCustomers || []}

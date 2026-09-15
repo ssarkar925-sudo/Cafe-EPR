@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const quickCommands = [
-  { label: "⚡ Quick Sale", query: "Create a quick sale for 2 coffee and 1 sandwich, UPI.", category: "Billing" },
+  { label: "⚡ New Sale", query: "Create a sale for 2 coffee and 1 sandwich, UPI.", category: "Billing" },
   { label: "📱 Bank SMS", query: "Collect data from this SMS: Dear SBI User, Rs 2,500.00 credited to A/c ending 4589 on 14-Sep-26 by UPI/425819283748/Rahul Kumar. Avail Bal: Rs 14,200.00", category: "SMS" },
   { label: "🧾 Portal Data", query: "Collect data from portal: CSC DigiPay AEPS Cash Withdrawal Successful. Amount: Rs 3000.00. RRN: 987654321012. Bank: PNB. Commission: Rs 6.00.", category: "Portal" },
   { label: "🌐 Web Scrape", query: "Collect data from https://httpbin.org/json", category: "Web" },
@@ -347,7 +347,7 @@ export default function CafeAIAgent() {
       let completionMessage = data.message || "Action completed successfully.";
       if (data.mode === "executed") {
         const invoice = data.sale?.invoice_number || data.sale?.invoice_id || "created";
-        completionMessage = `Quick sale completed. Invoice ${invoice} was created in Cafe-EPR.`;
+        completionMessage = `Sale completed. Invoice ${invoice} was created in Cafe-EPR.`;
       }
       const localized = await localizeOutput(completionMessage);
       setReply(`✓ ${localized}`);

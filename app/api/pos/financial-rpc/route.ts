@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_FINANCIAL_RPCS = new Set([
   "create_sale",
-  "record_quick_sale",
   "create_business_txn",
   "create_recharge",
   "record_invoice_payment",

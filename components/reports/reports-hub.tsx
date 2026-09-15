@@ -76,7 +76,7 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
       id: "sales",
       name: "2. Sales & Revenue",
       icon: TrendingUp,
-      description: "Invoicing trends, POS quick sales, service margins and category revenues",
+      description: "Invoicing trends, service margins and category revenues",
       reports: [
         {
           title: "Comprehensive Income Breakdown",
@@ -91,13 +91,6 @@ export default function ReportsHub({ invoices, expenses, returns }: Props) {
           href: "/reports?tab=invoices",
           badge: "Invoices",
           badgeTone: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
-        },
-        {
-          title: "Quick Sales & Over-The-Counter Register",
-          desc: "Single-item and fast counter receipts, change due calculations and COGS tracking",
-          href: "/reports?tab=quick",
-          badge: "POS",
-          badgeTone: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
         },
         {
           title: "Customer Returns & Credit Register",

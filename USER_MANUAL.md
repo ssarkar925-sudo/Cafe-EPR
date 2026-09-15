@@ -11,7 +11,7 @@ This manual explains every screen, every button, and the rules that keep your mo
 1. [Getting Started](#1-getting-started)
 2. [Dashboard](#2-dashboard)
 3. [Point of Sale (Billing)](#3-point-of-sale-billing)
-4. [Quick Sale](#4-quick-sale)
+4. [Quick Sale (Discontinued)](#4-quick-sale)
 5. [Invoices](#5-invoices)
 6. [Returns](#6-returns)
 7. [Customers (CRM)](#7-customers-crm)
@@ -75,11 +75,10 @@ The dashboard is a live control room. All numbers come from your real records (n
 ### 2.1 Today's Pulse (hero cards)
 
 - **Sales Today** — value of non-cancelled invoices today (with % vs yesterday).
-- **Quick Sales Today** — today's quick-sale value (shows order count and margin).
 - **Business Income Today** — AEPS/DMT/UPI income today (service fee + portal commission on successful transactions).
 - **Expenses Today** — expense value dated today.
 - **Cash Flow Today** — cash in minus cash out today.
-- **Net Today** — Sales + Business income + Quick Sale margin − Expenses.
+- **Net Today** — Sales + Business income − Expenses.
 
 Below these: **Month-to-date** cards for Sales, Business Income, Expenses, and Net Profit.
 
@@ -112,7 +111,7 @@ The POS bills a customer for products and/or services on an **invoice**. It is f
 - **Left:** category list. **Centre:** the item grid with **Products** and **Services** tabs (search with `Ctrl+K`; switch between grid/list view; sort by name, price, or stock).
 - **Right:** the current bill — items, discount, customer, payment, and checkout.
 
-**Keyboard shortcuts (Quick Sale mode):** `F1` recent sales · `F2` search · `F3` customer · `F4` hold · `F8` payment · `F9` pay & print · `Esc` cancel.
+**Keyboard shortcuts (POS):** `F2` new cart tab · `Esc` close dialogs.
 
 ### 3.2 Building a bill
 
@@ -149,21 +148,11 @@ Use **Money Out** to record a quick cash expense (e.g. "bought milk") while bill
 
 ---
 
-## 4. Quick Sale
+## 4. Quick Sale (Discontinued)
 
-Quick Sale is a super-fast counter for **services** (and favourite products). It starts on the **Services** tab and shows **Favourites** as big buttons — set which services appear there in Settings → Quick Sale Favorites.
+Quick Sale is discontinued and no longer available for new sales. Use **POS Billing** (§3) for all counter sales.
 
-1. Tap items to add them.
-2. Enter the payment (quick method buttons + account; one cash row shows **Cash Tendered / Change**).
-3. Optionally add the **customer** inline (duplicate-phone check included) or a custom item.
-4. Click **Record**. The receipt link appears; you can print it (opens `/receipt/quick/…`).
-
-The top strip shows today's **orders, collected, profit (admin/manager), and per-method chips**.
-
-**After recording you can:**
-- **Cancel** the sale (reverses cash entries, restores stock) — `F1` → Recent Sales → Cancel.
-- **Edit** the sale (loads the items into the cart, cancels the original, re-records).
-- **Recent Sales** (`F1`) — search by customer/mobile/sale number; actions: Receipt / Cancel / Edit.
+Historical quick-sale records are preserved: old receipts remain viewable/printable from their saved links, and the sales ledger no longer includes them in active revenue, P&L, or KPI totals.
 
 ---
 
@@ -171,7 +160,7 @@ The top strip shows today's **orders, collected, profit (admin/manager), and per
 
 ### 5.1 Invoice list (Invoices tab)
 
-Shows your invoices and quick sales.
+Shows your POS invoices.
 
 - **KPI cards:** Total Sales, Collected (with collection rate), Outstanding (unpaid + partial), Returned (with refunded).
 - **Filters:** search (number/customer/phone), status pills **All / Paid / Partial / Unpaid / Cancelled** (with counts), sort, cards/list view, **Export CSV**.
@@ -268,7 +257,7 @@ Fields: **Name***, **Code** (auto-suggested like `PRD-0001`), **Category**, **Un
 
 ### 8.2 Services
 
-Fields: **Name***, **Category**, **Description**, **Sale Price***, **Cost Price** (margin shown live). Services have **no stock**. Mark one as a **Quick Sale favorite** here or in Settings → Quick Sale Favorites.
+Fields: **Name***, **Category**, **Description**, **Sale Price***, **Cost Price** (margin shown live). Services have **no stock**. Mark one as a **POS Counter favorite** here or in Settings → POS Counter Favorites (pins it as a fast button on the POS screen).
 
 ### 8.3 Categories
 
@@ -480,9 +469,9 @@ Which methods the till offers (cash, card, bank, UPI, wallet, debit, credit) and
 - **Rename** the label, **reorder** with arrows, **toggle** on/off.
 - **No hard delete** — disabling hides it from the till while keeping past sales intact.
 
-### 13.6 Quick Sale Favorites
+### 13.6 POS Counter Favorites
 
-Pick which **services** appear as big "Popular" buttons on Quick Sale. Use the star toggle and the arrows to order them.
+Pick which **services** appear as big "Popular" buttons on the POS screen. Use the star toggle and the arrows to order them.
 
 ### 13.7 Catalog
 
@@ -540,7 +529,7 @@ The app prints three kinds of receipts.
 |---|---|---|
 | **80mm thermal (invoice)** | Invoice → Print 80mm | Shop name/address/phone/GSTIN, invoice no & date, customer, items (qty × rate), subtotal/discount/total/paid/due, payment lines, footer |
 | **A4 + PDF** | Invoice → A4 | Full A4 layout; **Download PDF** (`<invoice>.pdf`) or **Print A4** |
-| **80mm quick sale** | Quick Sale receipt | Quick sale number, items, TOTAL, payments, **Cash Tendered / Change**, `CANCELLED` stamp if cancelled, footer |
+| **80mm quick sale (historical)** | Old Quick Sale receipts (feature discontinued) | Quick sale number, items, TOTAL, payments, **Cash Tendered / Change**, `CANCELLED` stamp if cancelled, footer |
 
 Print using the browser's print dialog (choose your thermal printer, e.g. "80mm" paper). **A4/PDF** is generated with a dedicated layout for invoices and AEPS/DMT/UPI business receipts.
 
@@ -558,7 +547,7 @@ Print using the browser's print dialog (choose your thermal printer, e.g. "80mm"
 
 | Capability | Staff | Manager | Admin |
 |---|---|---|---|
-| Dashboard, POS, Quick Sale, Invoices | ✅ | ✅ | ✅ |
+| Dashboard, POS, Invoices | ✅ | ✅ | ✅ |
 | Customers (view/add/edit/advance) | ✅ | ✅ | ✅ |
 | Returns | ❌ | ✅ | ✅ |
 | Catalog (products/services/categories) | ❌ | ✅ | ✅ |
@@ -579,7 +568,7 @@ Print using the browser's print dialog (choose your thermal printer, e.g. "80mm"
 
 1. **No hard deletes on money records.** Invoices, payments, ledger entries, cash entries, settlements, and returns are never deleted. Wrong entries are **cancelled / reversed / corrected** with an audit trail.
 2. **No negative stock.** You cannot sell more than available without authorisation.
-3. **Numbering is automatic and unique:** `INV-` invoices, `QS-` quick sales, `RTN-` returns, `CUST-/CUS-` customers, `PRD-` products, `AEP-/DMT-/UPI-` business, `ATB/BTD/WTD/UQW/WTB/BWD/CTB/CAD-` settlements.
+3. **Numbering is automatic and unique:** `INV-` invoices, `RTN-` returns, `CUST-/CUS-` customers, `PRD-` products, `AEP-/DMT-/UPI-` business, `ATB/BTD/WTD/UQW/WTB/BWD/CTB/CAD-` settlements. (`QS-` numbers belong to discontinued Quick Sale history and are never issued anymore.)
 4. **One operation, many updates.** A single sale/payment/return updates the invoice, payments, cash book, customer balance, ledger, stock, and audit log together — no double entry.
 5. **Money is decimal.** All amounts are stored precisely (₹, 2 decimals). Never use rounded floats.
 6. **Aadhaar privacy.** Only the last 4 digits are stored; full Aadhaar/biometrics are never stored.

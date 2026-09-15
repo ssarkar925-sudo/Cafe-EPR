@@ -61,11 +61,9 @@ begin
   where return_date >= p_start_date and return_date <= p_end_date
     and status in ('approved', 'completed');
 
-  -- 3. QUICK SALES (Direct retail counter sales)
-  select coalesce(sum(amount), 0) into v_quick_sales
-  from public.cash_entries
-  where entry_date >= p_start_date and entry_date <= p_end_date
-    and ref_type = 'quick_sale';
+  -- 3. QUICK SALES — DISCONTINUED (always 0).
+  -- Quick Sale is no longer a supported channel: historical cash_entries with
+  -- ref_type = 'quick_sale' are preserved but never read here.
 
   -- 4. HISTORICAL LOCKED COGS
   select coalesce(sum(ii.qty * coalesce(ii.cost_price, 0)), 0) into v_cogs
@@ -141,7 +139,7 @@ begin
   where balance > 0;
 
   -- 11. CALCULATE P&L AGGREGATES
-  v_net_retail_revenue := (v_retail_invoices - v_sales_returns) + v_quick_sales;
+  v_net_retail_revenue := v_retail_invoices - v_sales_returns;
   v_total_operating_revenue := v_net_retail_revenue + v_aeps_customer_fees + v_aeps_commission + v_dmt_service_fees + v_dmt_commission + v_upi_service_fees;
   v_gross_profit := v_total_operating_revenue - v_cogs;
   v_net_profit := v_gross_profit - v_active_expenses;
