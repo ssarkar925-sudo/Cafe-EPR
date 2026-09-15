@@ -53,7 +53,7 @@ export async function sendCustomerInvoicePdf(
   documentUrl: string,
   filename: string,
   documentBase64?: string,
-  options?: { timeoutMs?: number }
+  options?: { timeoutMs?: number; caption?: string }
 ) {
   if (!phone || !documentUrl) return { success: false, error: "Phone and invoice PDF URL are required.", status: 400 };
   if (!config || config.provider === "off") return { success: false, error: "WhatsApp integration is not enabled in Settings.", status: 400 };
@@ -64,10 +64,11 @@ export async function sendCustomerInvoicePdf(
     const phoneId = config.meta_phone_number_id?.trim();
     const token = config.meta_access_token?.trim();
     if (!phoneId || !token) return { success: false, error: "Meta Phone Number ID and Access Token are required.", status: 400 };
+    const metaCaption = String(options?.caption || "").trim().slice(0, 800);
     const response = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(phoneId)}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "document", document: { link: documentUrl, filename } }),
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "document", document: { link: documentUrl, filename, ...(metaCaption ? { caption: metaCaption } : {}) } }),
       signal: AbortSignal.timeout(15000),
     });
     const raw = await response.text();
@@ -85,6 +86,7 @@ export async function sendCustomerInvoicePdf(
       "Bypass-Tunnel-Reminder": "true",
       ...(config.gateway_api_key ? { "x-api-key": config.gateway_api_key } : {}),
     };
+    const gatewayCaption = String(options?.caption || "").trim().slice(0, 800);
     const payload = {
       phone,
       number: phone,
@@ -94,6 +96,7 @@ export async function sendCustomerInvoicePdf(
       filename,
       mimetype: "application/pdf",
       ...(documentBase64 ? { documentBase64, pdfBase64: documentBase64 } : {}),
+      ...(gatewayCaption ? { caption: gatewayCaption } : {}),
     };
 
     const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 60000;

@@ -188,7 +188,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = await sendCustomerInvoicePdf(phone, config, signed.data.signedUrl, fileName, pdfBase64);
+    const result = await sendCustomerInvoicePdf(phone, config, signed.data.signedUrl, fileName, pdfBase64, { caption });
 
     // Safe diagnostics: endpoint host/path, provider outcome, invoice identity,
     // recipient, and document metadata. Never logs tokens, API keys, secrets,

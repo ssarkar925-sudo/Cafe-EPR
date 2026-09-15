@@ -83,6 +83,21 @@ console.log("WhatsApp document delivery tests");
   await stopMock(mock);
 }
 
+// 1b. Server fast-path includes the greeting caption; omits when absent.
+{
+  let seen = null;
+  const mock = await startMock((req, res, body) => {
+    try { seen = JSON.parse(body); } catch { seen = null; }
+    json(res, 200, { success: true, status: "sent", messageId: "cap-1" });
+  });
+  const r1 = await sendCustomerInvoicePdf(VALID_PHONE, localConfig(mock.url), DOC_URL, "Invoice-INV-0176.pdf", PDF_B64, { caption: "Greetings from Shop!" });
+  ok("fast-path sends caption", r1.success === true && seen && seen.caption === "Greetings from Shop!", JSON.stringify(seen && { caption: seen.caption }));
+  seen = null;
+  await sendCustomerInvoicePdf(VALID_PHONE, localConfig(mock.url), DOC_URL, "f.pdf", PDF_B64);
+  ok("fast-path omits empty caption", seen && !("caption" in seen), JSON.stringify(seen && Object.keys(seen)));
+  await stopMock(mock);
+}
+
 // 2. Invalid credentials: Meta without token never touches the network.
 {
   const mock = await startMock((req, res) => json(res, 200, {}));
