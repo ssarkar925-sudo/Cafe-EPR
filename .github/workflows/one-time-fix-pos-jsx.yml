@@ -1,9 +1,8 @@
 name: One-time POS JSX repair
 
-on:
+'on':
   push:
-    branches:
-      - fix/invoice-edit-pos-reset
+    branches: [fix/invoice-edit-pos-reset]
 
 permissions:
   contents: write
@@ -11,14 +10,16 @@ permissions:
 jobs:
   repair:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout branch
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: fix/invoice-edit-pos-reset
           fetch-depth: 0
 
       - name: Remove extra POS customer closing tag
+        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -41,6 +42,7 @@ jobs:
           PY
 
       - name: Commit repair
+        shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
