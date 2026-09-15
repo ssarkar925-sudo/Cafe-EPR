@@ -4,6 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
+    autoDeployTrigger: commit
     buildCommand: npm install --omit=dev
     # Render's public PORT is owned by the controller. The controller forwards
     # traffic to the WhatsApp child and supports the direct PDF byte handoff.
