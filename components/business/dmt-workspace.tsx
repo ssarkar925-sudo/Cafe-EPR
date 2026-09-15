@@ -2408,6 +2408,11 @@ export default function DmtWorkspace({
                       <div className="text-[10px] text-slate-400">
                         {fmtDate(t.transaction_date)}
                       </div>
+                      {t.transaction_timestamp && (
+                        <div className="text-[10px] text-slate-400">
+                          {fmtTime(t.transaction_timestamp)}
+                        </div>
+                      )}
                     </td>
 
                     <td className="px-3 py-3">

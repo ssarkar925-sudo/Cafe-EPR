@@ -108,6 +108,22 @@ function fmtDate(d: string) {
   return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
+// Shows date + time (uses created_at for time precision; falls back to invoice_date for date-only)
+function fmtDateTime(dateStr: string, timeStr?: string | null) {
+  if (!dateStr) return "—";
+  // If we have a full timestamp in timeStr, use it for both date and time
+  if (timeStr) {
+    const dt = new Date(timeStr);
+    if (!Number.isNaN(dt.getTime())) {
+      const date = dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+      const time = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+      return { date, time };
+    }
+  }
+  // Fallback: date only
+  return { date: fmtDate(dateStr), time: null };
+}
+
 const BAR_STYLE: Record<string, string> = {
   paid: "bg-gradient-to-r from-emerald-500 to-teal-400",
   partial: "bg-gradient-to-r from-amber-500 to-orange-400",
@@ -860,7 +876,9 @@ export default function InvoicesClient({
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-medium text-slate-500 dark:text-slate-400">{pct}% collected</span>
-                    <span className="text-slate-400">{fmtDate(inv.invoice_date)}</span>
+                    <span className="text-slate-400 text-right">
+                      {(() => { const dt = fmtDateTime(inv.invoice_date, inv.created_at); return typeof dt === "string" ? dt : (<>{dt.date}{dt.time && <div className="text-[10px]">{dt.time}</div>}</>); })()}
+                    </span>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                     <div className={`h-full rounded-full ${BAR_STYLE[inv.status]}`} style={{ width: `${cancelled ? 0 : pct}%` }} />
@@ -1066,7 +1084,9 @@ export default function InvoicesClient({
                             <span className="max-w-[140px] truncate text-slate-600 dark:text-slate-300">{customer}</span>
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">{fmtDate(inv.invoice_date)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">
+                          {(() => { const dt = fmtDateTime(inv.invoice_date, inv.created_at); return typeof dt === "string" ? dt : (<><div>{dt.date}</div>{dt.time && <div className="text-[11px] text-slate-400">{dt.time}</div>}</>); })()}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <p className="font-semibold text-slate-900 dark:text-white">{inr(total)}</p>
                           <div className="cell-sub ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
