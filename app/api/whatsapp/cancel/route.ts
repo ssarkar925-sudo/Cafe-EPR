@@ -1,5 +1,5 @@
 ﻿import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserRole, hasRole } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
@@ -17,20 +17,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "messageId is required." }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
+    // Use admin client to bypass RLS and ensure update always works for owner
+    const db = createAdminClient();
 
     // Fetch message to check current status
-    const { data: msg, error: fetchErr } = await supabase
+    const { data: msg, error: fetchErr } = await db
       .from("whatsapp_outbox")
       .select("id, status")
       .eq("id", messageId)
       .maybeSingle();
 
     if (fetchErr || !msg) {
+      console.error("WhatsApp cancel: message not found", messageId, fetchErr);
       return NextResponse.json({ success: false, error: "Message not found." }, { status: 404 });
     }
 
@@ -42,18 +40,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const { error: updateErr } = await supabase
+    // Update only columns that exist on the table (no updated_at column)
+    const { error: updateErr } = await db
       .from("whatsapp_outbox")
       .update({
         status: "CANCELLED",
         error_message: `Manually cancelled by owner at ${new Date().toISOString()}`,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", messageId)
       .in("status", cancellable);
 
     if (updateErr) {
-      return NextResponse.json({ success: false, error: "Failed to cancel message." }, { status: 500 });
+      console.error("WhatsApp cancel: update failed", updateErr);
+      return NextResponse.json({ success: false, error: updateErr.message || "Failed to cancel message." }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, messageId });
