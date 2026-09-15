@@ -83,7 +83,7 @@ export default function WhatsAppSendModal({
         const response = await fetch("/api/whatsapp/send-invoice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ invoiceId: refId, phone: phone.trim() }),
+          body: JSON.stringify({ invoiceId: refId, invoiceNumber: refNumber, phone: phone.trim() }),
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {

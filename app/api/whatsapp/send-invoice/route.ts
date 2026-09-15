@@ -61,19 +61,23 @@ export async function POST(req: Request) {
     }
 
     if (!invoice) {
+      console.error("WhatsApp send-invoice: not found. invoiceId=", invoiceId, "invoiceNumber=", invoiceNumber);
       return NextResponse.json({ success: false, error: "Invoice not found." }, { status: 404 });
     }
+
+    // Always use the resolved invoice.id — never the raw input (which may be empty if found via number fallback)
+    const resolvedId = invoice.id as string;
 
     const [{ data: items }, { data: payments }, { data: settings }] = await Promise.all([
       db
         .from("invoice_items")
         .select("*, products(name, code), services(name)")
-        .eq("invoice_id", invoiceId)
+        .eq("invoice_id", resolvedId)
         .order("id", { ascending: true }),
       db
         .from("payments")
         .select("id, method, amount, received_at")
-        .eq("invoice_id", invoiceId)
+        .eq("invoice_id", resolvedId)
         .order("received_at", { ascending: true }),
       db.from("settings").select("*").single(),
     ]);
