@@ -31,7 +31,6 @@ function makePdf(lines: string[]): Uint8Array {
 
   const objects: string[] = [];
   const pageObjectNumbers: number[] = [];
-  const contentObjectNumbers: number[] = [];
 
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
   objects.push("PLACEHOLDER_PAGES");
@@ -47,25 +46,27 @@ function makePdf(lines: string[]): Uint8Array {
 
     const contentObjectNumber = objects.length + 1;
     objects.push(`<< /Length ${content.length} >>\\nstream\\n${content}\\nendstream`);
-    contentObjectNumbers.push(contentObjectNumber);
 
     const pageObjectNumber = objects.length + 1;
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${objects.length + 2} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    const fontObjectNumber = pages.length + 5; // placeholder; overwritten below after all objects exist
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 FONT_OBJECT >> >> /Contents ${contentObjectNumber} 0 R >>`);
     pageObjectNumbers.push(pageObjectNumber);
   }
 
   const fontObjectNumber = objects.length + 1;
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
 
+  for (let i = 0; i < objects.length; i++) {
+    objects[i] = objects[i].replace(/FONT_OBJECT/g, `${fontObjectNumber} 0 R`);
+  }
   objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((n) => `${n} 0 R`).join(" ")}] /Count ${pageObjectNumbers.length} >>`;
 
-  const chunks: string[] = ["%PDF-1.4\\n%âãÏÓ\\n"];
+  const chunks: string[] = ["%PDF-1.4\\n% CafeERP\\n"];
   const offsets: number[] = [0];
   let currentOffset = chunks[0].length;
 
   objects.forEach((object, index) => {
-    const objectNumber = index + 1;
-    const objectText = `${objectNumber} 0 obj\\n${object}\\nendobj\\n`;
+    const objectText = `${index + 1} 0 obj\\n${object}\\nendobj\\n`;
     offsets.push(currentOffset);
     chunks.push(objectText);
     currentOffset += objectText.length;
@@ -78,8 +79,7 @@ function makePdf(lines: string[]): Uint8Array {
   }
   chunks.push(`trailer\\n<< /Size ${objects.length + 1} /Root 1 0 R >>\\nstartxref\\n${xrefOffset}\\n%%EOF\\n`);
 
-  const bytes = new TextEncoder().encode(chunks.join(""));
-  return bytes;
+  return new TextEncoder().encode(chunks.join(""));
 }
 
 function buildInvoicePdf(invoice: any, items: any[], payments: any[], settings: any): Uint8Array {
@@ -88,7 +88,7 @@ function buildInvoicePdf(invoice: any, items: any[], payments: any[], settings: 
   const customer = invoice?.customers?.name || "Walk-in Customer";
   const phone = invoice?.customers?.phone || "";
 
-  lines.push(String(storeName));
+  lines.push(storeName);
   lines.push("INVOICE");
   lines.push(`Invoice No: ${invoice?.invoice_number || ""}`);
   lines.push(`Date: ${invoice?.invoice_date || invoice?.created_at || ""}`);
@@ -247,12 +247,7 @@ export async function POST(req: Request) {
     }
 
     const config = await getServerWhatsAppConfig();
-    const result = await sendCustomerInvoicePdf(
-      phone,
-      config,
-      signed.data.signedUrl,
-      `Invoice-${invoice.invoice_number}.pdf`
-    );
+    const result = await sendCustomerInvoicePdf(phone, config, signed.data.signedUrl, `Invoice-${invoice.invoice_number}.pdf`);
 
     if (!result.success) {
       return NextResponse.json(
