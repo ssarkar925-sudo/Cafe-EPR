@@ -76,6 +76,44 @@ public class AiIngestionPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setCollectionEnabled(PluginCall call) {
+        Boolean enabled = call.getBoolean("enabled", false);
+        getContext()
+                .getSharedPreferences(AiIngestionListenerService.PREFS, android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(AiIngestionListenerService.KEY_ENABLED, Boolean.TRUE.equals(enabled))
+                .apply();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void isCollectionEnabled(PluginCall call) {
+        boolean enabled = getContext()
+                .getSharedPreferences(AiIngestionListenerService.PREFS, android.content.Context.MODE_PRIVATE)
+                .getBoolean(AiIngestionListenerService.KEY_ENABLED, false);
+        JSObject ret = new JSObject();
+        ret.put("enabled", enabled);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void isListenerSystemEnabled(PluginCall call) {
+        boolean enabled = false;
+        try {
+            String flat = android.provider.Settings.Secure.getString(
+                    getContext().getContentResolver(), "enabled_notification_listeners");
+            String me = new android.content.ComponentName(
+                    getContext(), AiIngestionListenerService.class).flattenToString();
+            enabled = flat != null && flat.contains(me);
+        } catch (Exception e) {
+            enabled = false;
+        }
+        JSObject ret = new JSObject();
+        ret.put("enabled", enabled);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void openListenerSettings(PluginCall call) {
         try {
             Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);

@@ -8,6 +8,7 @@ import AISelfHealingBridge from "@/components/ai/ai-self-healing-bridge";
 import AICommandCenter from "@/components/ai/ai-command-center";
 import AICodeRepairGuardian from "@/components/ai/ai-code-repair-guardian";
 import AIIngestionPanel from "@/components/ai/ai-ingestion-panel";
+import PhoneCollectorPanel from "@/components/ai/phone-collector-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function CafeAIAgentPage() {
     <div className="space-y-6">
       <AIWhatsAppBridge />
       <AIIngestionPanel />
+      <PhoneCollectorPanel />
       <AICommandCenter />
       <AICodeRepairGuardian />
       <AISelfHealingBridge />

@@ -442,6 +442,55 @@ function makeMockDb(seed) {
   }
 }
 
+// ---------- Phone notification path (Phase 2 fixtures, anonymized) ----------
+{
+  // Successful credit via UPI-style notification.
+  const credit = normalizer.normalizeSmsEvent("UPI payment of Rs.1,200 received from RAMESH on 15-09-26. UTR 222233334444");
+  ok("phone credit normalizes", credit.event_type === "upi" && credit.amount === 1200 && credit.external_reference === "222233334444" && credit.confidence >= 0.5);
+  // Successful debit via bank notification with masked account + labeled balance.
+  const debit = normalizer.normalizeSmsEvent("Rs.2,500 debited from A/c XXXX9876. Avl Bal Rs.44,100. Ref 333344445555");
+  ok("phone debit keeps masked last4 and labeled balance", debit.event_type === "bank_debit" && debit.account_last4 === "9876" && debit.metadata.availableBalance === 44100);
+  // Duplicate notification: same content twice shares the dedupe hash.
+  const again = normalizer.normalizeSmsEvent("UPI payment of Rs.1,200 received from RAMESH on 15-09-26. UTR 222233334444");
+  const h1 = dedupe.buildDedupeKeys({ businessId: "default", sourceProvider: "com.bank.app", externalReference: credit.external_reference, amount: credit.amount, occurredAt: credit.occurred_at, normalizedPayload: credit });
+  const h2 = dedupe.buildDedupeKeys({ businessId: "default", sourceProvider: "com.bank.app", externalReference: again.external_reference, amount: again.amount, occurredAt: again.occurred_at, normalizedPayload: again });
+  ok("repeated notification dedupes", h1.contentHash === h2.contentHash && h1.primary === h2.primary);
+  // Malformed / unknown notifications never become financial events.
+  const malformed = normalizer.normalizeSmsEvent("   ");
+  const unknown = normalizer.normalizeSmsEvent("Your package arrives tomorrow at noon.");
+  ok("malformed notification rejected", malformed.amount === null && malformed.confidence < 0.5);
+  ok("unknown notification rejected", unknown.amount === null && unknown.confidence < 0.5);
+  const malCheck = validation.validateNormalizedEvent({ event: malformed, providerKnown: true });
+  ok("malformed fails validation", malCheck.state === "rejected" || malCheck.state === "needs_review");
+  // OTP / security notification: secret-bearing, never uploaded as an event.
+  const otpFindings = guard.findSecretFields({ sms_text: "Your OTP is 482913. Do not share." });
+  ok("otp notification flagged secret", otpFindings.length > 0);
+  // Unsupported app: allowlist denies by default.
+  ok("unsupported app denied", guard.isAllowedNotificationSource("com.random.game", ["com.csc.digipay"]) === false);
+  // Masked-only last4 is enforced on-device (JUnit); server keeps masked value end to end.
+  const masked = normalizer.normalizeSmsEvent("Rs.100 credited to A/c XXXX7788. Ref 123456789012");
+  ok("masked last4 survives server normalization", masked.account_last4 === "7788" && masked.amount === 100);
+  // Device->server contract: service posts exactly the accepted variant shape.
+  const service = readRepo("android/app/src/main/java/com/sarkarcommunication/cafeerp/AiIngestionListenerService.java");
+  ok("service posts accepted variant", service.includes('"sms_text"') && service.includes('"source_type", "phone_notification"'));
+  ok("service tracks queued/failed outcomes", service.includes('"QUEUED"') && service.includes('"FAILED"'));
+  ok("service distinguishes sent vs duplicate", service.includes("UploadOutcome.SENT") && service.includes("UploadOutcome.DUPLICATE"));
+  ok("service records local rejections", service.includes("recordLocalRejection"));
+  ok("service retries with backoff", service.includes("BACKOFF_MS") && service.includes("next_retry_at"));
+  ok("service never logs notification text", !/Log\.\w+\(TAG,[^)]*(text|body|message)/.test(service));
+  // Manifest + deployment contract.
+  const manifest = readRepo("android/app/src/main/AndroidManifest.xml");
+  ok("manifest declares listener, no sms permission", manifest.includes("BIND_NOTIFICATION_LISTENER_SERVICE") && !/<uses-permission[^>]*READ_SMS/.test(manifest));
+  ok(
+    "no accessibility service anywhere",
+    !/extends\s+AccessibilityService/.test(service) &&
+      !/android\.accessibilityservice/.test(service) &&
+      !/extends\s+AccessibilityService/.test(manifest),
+  );
+  // Offline queue contract: entries persist status/attempts/retry across restarts.
+  ok("queue entries carry retry state", service.includes('"attempts"') && service.includes('"next_retry_at"') && service.includes('"local_id"'));
+}
+
 // ---------- Quick Sale AI regression (Phase 22) ----------
 {
   const runtime = readRepo("lib/ai/agent-runtime.ts");

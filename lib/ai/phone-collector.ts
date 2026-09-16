@@ -9,10 +9,17 @@
 
 export interface PhoneCollectorStatus {
   available: boolean;
+  collectionEnabled: boolean;
+  listenerSystemEnabled: boolean;
   sourcesEnabled: number;
   apiConfigured: boolean;
   lastActiveAt: number;
   queuedEvents: number;
+  failedEvents: number;
+  lastResult: string;
+  lastErrorCode: string;
+  consecutiveFailures: number;
+  counters: Record<string, number>;
 }
 
 /** Suggested source apps. Nothing is enabled unless the owner enables it. */
@@ -45,21 +52,45 @@ export async function getPhoneCollectorStatus(): Promise<PhoneCollectorStatus> {
   const plugin = await getPlugin();
   const fallback: PhoneCollectorStatus = {
     available: false,
+    collectionEnabled: false,
+    listenerSystemEnabled: false,
     sourcesEnabled: 0,
     apiConfigured: false,
     lastActiveAt: 0,
     queuedEvents: 0,
+    failedEvents: 0,
+    lastResult: "",
+    lastErrorCode: "",
+    consecutiveFailures: 0,
+    counters: {},
   };
   if (!plugin) return fallback;
   try {
     const res = await plugin.getStatus();
     const status = JSON.parse(String(res?.status || "{}"));
+    let listenerOn = false;
+    try {
+      const sys = await plugin.isListenerSystemEnabled();
+      listenerOn = Boolean(sys?.enabled);
+    } catch {
+      listenerOn = false;
+    }
     return {
       available: true,
+      collectionEnabled: Boolean(status.collection_enabled),
+      listenerSystemEnabled: listenerOn,
       sourcesEnabled: Number(status.sources_enabled || 0),
       apiConfigured: Boolean(status.api_configured),
       lastActiveAt: Number(status.last_active_at || 0),
       queuedEvents: Number(status.queued_events || 0),
+      failedEvents: Number(status.failed_events || 0),
+      lastResult: String(status.last_result || ""),
+      lastErrorCode: String(status.last_error_code || ""),
+      consecutiveFailures: Number(status.consecutive_failures || 0),
+      counters:
+        status.counters && typeof status.counters === "object"
+          ? (status.counters as Record<string, number>)
+          : {},
     };
   } catch {
     return fallback;
@@ -93,4 +124,32 @@ export async function openPhoneListenerSettings(): Promise<void> {
   const plugin = await getPlugin();
   if (!plugin) throw new Error("Phone collector is only available inside the Android app.");
   await plugin.openListenerSettings();
+}
+
+export async function setPhoneCollectionEnabled(enabled: boolean): Promise<void> {
+  const plugin = await getPlugin();
+  if (!plugin) throw new Error("Phone collector is only available inside the Android app.");
+  await plugin.setCollectionEnabled({ enabled });
+}
+
+export async function isPhoneCollectionEnabled(): Promise<boolean> {
+  const plugin = await getPlugin();
+  if (!plugin) return false;
+  try {
+    const res = await plugin.isCollectionEnabled();
+    return Boolean(res?.enabled);
+  } catch {
+    return false;
+  }
+}
+
+export async function isPhoneListenerSystemEnabled(): Promise<boolean> {
+  const plugin = await getPlugin();
+  if (!plugin) return false;
+  try {
+    const res = await plugin.isListenerSystemEnabled();
+    return Boolean(res?.enabled);
+  } catch {
+    return false;
+  }
 }
