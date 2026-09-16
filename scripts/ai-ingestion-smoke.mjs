@@ -237,7 +237,8 @@ async function main() {
   } else {
     step("8. reconciliation draft created", true, `draftId=${draftId} (by server processor)`);
   }
-  step("9. draft is PENDING_APPROVAL", draftState === "pending", `state=${draftState} (pending + high-risk = owner approval required)`);
+  const approvalLabel = draftState === "pending" ? "PENDING_APPROVAL" : draftState;
+  step("9. draft is PENDING_APPROVAL", draftState === "pending", `state=${draftState} label=${approvalLabel} (pending high-risk draft = owner approval required, nothing executed)`);
 
   // 10. No ledger writes.
   if (ledgerBefore) {
@@ -282,7 +283,7 @@ async function main() {
     }
   }
 
-  console.log("\nsummary:", JSON.stringify({ syntheticEventId: externalEventId, ingestionEventId: eventId, reconciliationVerdict: verdict, draftId, draftState, duplicateDeduped: Boolean(dupOk) }, null, 2));
+  console.log("\nsummary:", JSON.stringify({ syntheticEventId: externalEventId, ingestionEventId: eventId, reconciliationVerdict: verdict, draftId, draftState, approvalLabel, duplicateDeduped: Boolean(dupOk) }, null, 2));
   return done(true);
 }
 

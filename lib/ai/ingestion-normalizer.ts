@@ -216,9 +216,16 @@ export interface ManualUploadInput {
   external_reference?: string | null;
 }
 
-/** Normalize a manually entered event (human-typed, lower baseline confidence). */
-export function normalizeManualUpload(input: ManualUploadInput): NormalizedIngestion {
-  const ambiguity: string[] = ["manual_entry_unverified"];
+/**
+ * Normalize a manually entered event (human-typed, lower baseline confidence).
+ * Machine-submitted api_event payloads pass verifiedSource so they are not
+ * penalized for being human-typed — they are still fully validated.
+ */
+export function normalizeManualUpload(
+  input: ManualUploadInput,
+  opts?: { verifiedSource?: boolean },
+): NormalizedIngestion {
+  const ambiguity: string[] = opts?.verifiedSource ? [] : ["manual_entry_unverified"];
   const num = (v: unknown): number | null => {
     if (v === null || v === undefined || v === "") return null;
     const n = Number(v);

@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       if (!manual || typeof manual !== "object") {
         return NextResponse.json({ error: "manual/api_event must be an object.", state: "failed" }, { status: 400 });
       }
-      normalized = normalizeManualUpload(manual);
+      normalized = normalizeManualUpload(manual, { verifiedSource: variants[0] === "api_event" });
     }
 
     // Optional AI extraction: validated strictly, merged conservatively.
@@ -223,7 +223,9 @@ export async function POST(request: Request) {
       event: normalized,
       providerKnown,
       providerConfidence: extractionConfidence,
-      customerMatchConfidence,
+      // Only judge match confidence when contact info was actually provided.
+      customerMatchConfidence:
+        normalized.customer_mobile || normalized.customer_name ? customerMatchConfidence : null,
     });
     if (validation.state === "rejected") {
       return NextResponse.json({ error: "Event failed deterministic validation.", issues: validation.issues, state: "failed" }, { status: 422 });

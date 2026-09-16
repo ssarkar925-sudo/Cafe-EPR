@@ -153,6 +153,16 @@ function ok(name, cond, extra = "") {
   ok("retry counter advances", retry.attempts === 1 && retry.attempts < retry.max);
 }
 
+// ---------- Manual/api upload paths ----------
+{
+  const human = normalizer.normalizeManualUpload({ event_type: "bank_credit", status: "completed", amount: 50, occurred_at: "2026-09-15", external_reference: "M-1" });
+  ok("manual upload flagged unverified", human.ambiguity.includes("manual_entry_unverified"));
+  const machine = normalizer.normalizeManualUpload({ event_type: "bank_credit", status: "completed", amount: 50, occurred_at: "2026-09-15", external_reference: "M-1" }, { verifiedSource: true });
+  ok("machine api upload not penalized", !machine.ambiguity.includes("manual_entry_unverified"));
+  const clean = validation.validateNormalizedEvent({ event: machine, providerKnown: true, customerMatchConfidence: null });
+  ok("machine event with no contact validates clean", clean.state === "valid" && clean.issues.length === 0, JSON.stringify(clean));
+}
+
 // ---------- Validation matrix ----------
 {
   const base = normalizer.normalizePortalItem({ externalTransactionId: "V1", transactionType: "AEPS Cash Withdrawal", amount: 100, status: "Success", occurredAt: "2026-09-15" }, "CSC DigiPay");
