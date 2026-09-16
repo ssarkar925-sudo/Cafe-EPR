@@ -16,13 +16,6 @@ import { getUserRole, hasRole } from "@/lib/authz";
 import { createClient } from "@/lib/supabase/server";
 import { isValidWorkerKeyValue } from "@/lib/ai/secret-guard";
 
-/**
- * Build fingerprint for the worker-auth implementation. Returned by the
- * temporary diagnostics endpoint so a probe can prove which code is
- * actually deployed. Bump when this file's auth logic changes.
- */
-export const AUTH_BUILD = "worker-auth-v2-dual-source";
-
 export type IngestionActor =
   | { type: "worker" }
   | { type: "user"; userId: string; role: string };
@@ -45,64 +38,9 @@ export function getWorkerKeyFromRuntime(): string {
   }
 }
 
-export function isWorkerKeyConfigured(): boolean {
-  return getWorkerKeyFromRuntime().length > 0;
-}
-
 export function isValidWorkerKey(presented: string | null | undefined): boolean {
   const given = String(presented || "").trim();
   return isValidWorkerKeyValue(given, getWorkerKeyFromRuntime());
-}
-
-/** Length of the secret as seen through process.env only (diagnostics). */
-export function workerKeyProcessEnvLen(): number {
-  try {
-    return String(process.env.AI_INGESTION_WORKER_KEY || "").trim().length;
-  } catch {
-    return -1;
-  }
-}
-
-/** Length of the secret as seen through Cloudflare env bindings only (diagnostics). */
-export function workerKeyCloudEnvLen(): number {
-  try {
-    const runtimeEnv = (getCloudflareContext()?.env as Record<string, unknown>) || {};
-    return String(runtimeEnv.AI_INGESTION_WORKER_KEY || "").trim().length;
-  } catch {
-    return -1;
-  }
-}
-
-/**
- * Safe, temporary authentication diagnostics (no secret values, hashes,
- * cookies, or header contents — booleans and lengths only).
- */
-export function describeWorkerAuthRequest(request: Request): {
-  envPresent: boolean;
-  expectedLen: number;
-  processEnvLen: number;
-  cloudEnvLen: number;
-  hasHeader: boolean;
-  receivedLen: number;
-  selected: "worker" | "session" | "none";
-} {
-  const presented = String(request.headers.get("x-ingestion-worker-key") || "");
-  const configured = getWorkerKeyFromRuntime();
-  const match =
-    presented.length > 0 &&
-    configured.length > 0 &&
-    isValidWorkerKeyValue(presented.trim(), configured);
-  const cookieHeader = String(request.headers.get("cookie") || "");
-  const hasSessionCookie = /sb-[a-z0-9-]+-auth-token|supabase-auth-token/i.test(cookieHeader);
-  return {
-    envPresent: configured.length > 0,
-    expectedLen: configured.length,
-    processEnvLen: workerKeyProcessEnvLen(),
-    cloudEnvLen: workerKeyCloudEnvLen(),
-    hasHeader: presented.length > 0,
-    receivedLen: presented.length,
-    selected: match ? "worker" : hasSessionCookie ? "session" : "none",
-  };
 }
 
 export function requestPresentsWorkerKey(request: Request): boolean {
