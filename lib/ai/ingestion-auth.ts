@@ -54,6 +54,25 @@ export function isValidWorkerKey(presented: string | null | undefined): boolean 
   return isValidWorkerKeyValue(given, getWorkerKeyFromRuntime());
 }
 
+/** Length of the secret as seen through process.env only (diagnostics). */
+export function workerKeyProcessEnvLen(): number {
+  try {
+    return String(process.env.AI_INGESTION_WORKER_KEY || "").trim().length;
+  } catch {
+    return -1;
+  }
+}
+
+/** Length of the secret as seen through Cloudflare env bindings only (diagnostics). */
+export function workerKeyCloudEnvLen(): number {
+  try {
+    const runtimeEnv = (getCloudflareContext()?.env as Record<string, unknown>) || {};
+    return String(runtimeEnv.AI_INGESTION_WORKER_KEY || "").trim().length;
+  } catch {
+    return -1;
+  }
+}
+
 /**
  * Safe, temporary authentication diagnostics (no secret values, hashes,
  * cookies, or header contents — booleans and lengths only).
@@ -61,6 +80,8 @@ export function isValidWorkerKey(presented: string | null | undefined): boolean 
 export function describeWorkerAuthRequest(request: Request): {
   envPresent: boolean;
   expectedLen: number;
+  processEnvLen: number;
+  cloudEnvLen: number;
   hasHeader: boolean;
   receivedLen: number;
   selected: "worker" | "session" | "none";
@@ -76,6 +97,8 @@ export function describeWorkerAuthRequest(request: Request): {
   return {
     envPresent: configured.length > 0,
     expectedLen: configured.length,
+    processEnvLen: workerKeyProcessEnvLen(),
+    cloudEnvLen: workerKeyCloudEnvLen(),
     hasHeader: presented.length > 0,
     receivedLen: presented.length,
     selected: match ? "worker" : hasSessionCookie ? "session" : "none",
