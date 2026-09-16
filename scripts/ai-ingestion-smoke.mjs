@@ -42,9 +42,9 @@ for (let i = 0; i < rawArgs.length; i++) {
 }
 
 const BASE_URL = String(args["base-url"] || process.env.SMOKE_BASE_URL || "https://cafeerp.ssarkar925.workers.dev").replace(/\/$/, "");
-const WORKER_KEY = String(args["worker-key"] || process.env.AI_INGESTION_WORKER_KEY || "");
-const CRON_SECRET = String(args["cron-secret"] || process.env.CRON_SECRET || "");
-const SERVICE_KEY = String(args["service-key"] || process.env.SUPABASE_SERVICE_ROLE_KEY || "");
+const WORKER_KEY = String(args["worker-key"] || process.env.AI_INGESTION_WORKER_KEY || "").trim();
+const CRON_SECRET = String(args["cron-secret"] || process.env.CRON_SECRET || "").trim();
+const SERVICE_KEY = String(args["service-key"] || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const SUPABASE_URL = String(args["supabase-url"] || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
 const CLEANUP = Boolean(args.cleanup);
 
