@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveIngestionActor, actorHasRoles } from "@/lib/ai/ingestion-auth";
 
@@ -30,7 +31,9 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const businessId = (url.searchParams.get("business_id") || "default").trim().slice(0, 64) || "default";
 
-    const supabase = await createClient();
+    // Worker identity reads through the service client (same pattern as the
+    // events/drafts paths). RLS policies are untouched.
+    const supabase = actor!.type === "worker" ? createAdminClient() : await createClient();
     const { data: events, error } = await supabase
       .from("ai_ingestion_events")
       .select("source_type, source_provider, state, created_at")

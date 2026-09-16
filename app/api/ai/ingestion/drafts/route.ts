@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserRole, hasRole } from "@/lib/authz";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { resolveIngestionActor, actorHasRoles } from "@/lib/ai/ingestion-auth";
 import {
   DRAFT_ACTION_TYPES,
@@ -172,7 +172,9 @@ export async function GET(request: Request) {
     const risk = url.searchParams.get("risk_level") || "";
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 100), 1), 200);
 
-    const supabase = await createClient();
+    // Worker identity reads through the service client (same pattern as the
+    // POST path). RLS policies are untouched; anonymous callers never reach here.
+    const supabase = actor!.type === "worker" ? createAdminClient() : await createClient();
     let query = supabase
       .from("ai_reconciliation_drafts")
       .select("id, business_id, source_event_id, action_type, target_entity, target_id, proposed_payload, evidence, confidence, risk_level, state, approved_by, approved_at, applied_ref, created_at")

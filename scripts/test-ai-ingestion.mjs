@@ -314,6 +314,20 @@ function ok(name, cond, extra = "") {
   ok("worker key rejects unset server key", check("anything", "") === false);
 }
 
+// ---------- Worker-actor read visibility (live 401/empty-list regression) ----------
+// Worker-key calls carry no user session, so every worker-reachable read must
+// use the service client (same as POST/cron). Otherwise RLS filters worker
+// reads to zero rows while writes succeed — exactly the observed
+// "201 + duplicate detected but matches=0" production symptom.
+{
+  for (const rel of ["app/api/ai/ingestion/events/route.ts", "app/api/ai/ingestion/drafts/route.ts", "app/api/ai/ingestion/stats/route.ts"]) {
+    const src = readRepo(rel);
+    ok(`${rel} worker reads use admin client`, src.includes('actor!.type === "worker" ? createAdminClient() : await createClient()'), rel);
+  }
+  const patch = readRepo("app/api/ai/ingestion/drafts/route.ts");
+  ok("draft approve stays admin-session-only", patch.includes('hasRole(role, ["admin"])') && patch.includes("Owner approval is required."));
+}
+
 // ---------- Quick Sale AI regression (Phase 22) ----------
 {
   const runtime = readRepo("lib/ai/agent-runtime.ts");

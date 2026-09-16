@@ -311,7 +311,10 @@ export async function GET(request: Request) {
     const to = url.searchParams.get("to") || "";
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 100), 1), 200);
 
-    const supabase = await createClient();
+    // Worker identity has no user session, so it reads through the service
+    // client (same pattern as the POST path and the cron processor). RLS
+    // policies are untouched; anonymous callers never reach this line.
+    const supabase = actor!.type === "worker" ? createAdminClient() : await createClient();
     let query = supabase
       .from("ai_ingestion_events")
       .select(
