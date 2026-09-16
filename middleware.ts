@@ -64,6 +64,12 @@ export async function middleware(request: NextRequest) {
   // not return here; they must pass the authenticated session/RLS checks.
   if (pathname === "/manifest.webmanifest" || pathname === "/api/recharge/operator-circle" || pathname === "/api/bill-payment/fetch" || pathname === "/api/whatsapp/webhook" || pathname === "/auth/confirm-reset" || pathname === "/auth/reset-password" || pathname === "/logout") return applySecurityHeaders(NextResponse.next());
 
+  // AI ingestion pipeline authenticates machine-to-machine callers itself
+  // (worker key or CRON secret, enforced inside each route). Let these
+  // requests pass the browser-cookie gate; anonymous callers are still
+  // rejected with 401 by the route handlers. No other path is affected.
+  if (pathname === "/api/ai/ingestion" || pathname.startsWith("/api/ai/ingestion/")) return applySecurityHeaders(NextResponse.next());
+
   const hasCookie = hasAuthCookie(request);
   if (pathname === "/login" && !hasCookie) return applySecurityHeaders(NextResponse.next());
   if (!isPublic(pathname) && !hasCookie) {
