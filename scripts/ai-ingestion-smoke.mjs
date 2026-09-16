@@ -45,7 +45,10 @@ const BASE_URL = String(args["base-url"] || process.env.SMOKE_BASE_URL || "https
 const WORKER_KEY = String(args["worker-key"] || process.env.AI_INGESTION_WORKER_KEY || "").trim();
 const CRON_SECRET = String(args["cron-secret"] || process.env.CRON_SECRET || "").trim();
 const SERVICE_KEY = String(args["service-key"] || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const SUPABASE_URL = String(args["supabase-url"] || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
+// The Supabase project URL is public (shipped in the client bundle); override only for another project.
+const SUPABASE_URL = String(
+  args["supabase-url"] || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tvxehxnvuwojjbhysajp.supabase.co",
+).replace(/\/$/, "");
 const CLEANUP = Boolean(args.cleanup);
 
 const results = [];
@@ -187,31 +190,55 @@ async function main() {
   let draftState = null;
   if (CRON_SECRET) {
     try {
-      const procRes = await fetch(`${BASE_URL}/api/ai/ingestion/process`, {
+      const procRes = await fetch(`${BASE_URL}/api/ai/ingestion/process?event_id=${encodeURIComponent(eventId)}`, {
         headers: { Authorization: `Bearer ${CRON_SECRET}` },
         signal: AbortSignal.timeout(120000),
       });
       const proc = await procRes.json().catch(() => ({}));
-      step("7a. server processor ran", procRes.ok === true, `processed=${proc.processed} reconciled=${proc.reconciled} review=${proc.needsReview}`);
+      const evt = proc && proc.event;
+      step(
+        "7a. server processor ran",
+        procRes.ok === true && Boolean(evt && evt.processed),
+        `HTTP ${procRes.status} processed=${evt && evt.processed} reconciled=${proc.reconciled} review=${proc.needsReview} ${proc.error ? `err=${proc.error}` : ""}`,
+      );
+      if (evt) {
+        verdict = (evt.reconciliation && evt.reconciliation.verdict) || null;
+        if (evt.draftId) {
+          draftId = evt.draftId;
+        }
+      }
       const refreshed = await api(`/api/ai/ingestion/events?provider=test-bank&limit=20`);
       const current = Array.isArray(refreshed.data && refreshed.data.events)
         ? refreshed.data.events.find((r) => r.id === eventId)
         : null;
-      verdict = current && current.metadata && current.metadata.reconcile_verdict;
-      step("7. reconciliation produced verdict with evidence", Boolean(verdict), `verdict=${verdict} state=${current && current.state}`);
-      const drafts = await api(`/api/ai/ingestion/drafts?limit=50`);
-      const mine = Array.isArray(drafts.data && drafts.data.drafts)
-        ? drafts.data.drafts.find((d) => d.source_event_id === eventId)
-        : null;
-      if (mine) {
-        draftId = mine.id;
-        draftState = mine.state;
+      const rowVerdict = current && current.metadata && current.metadata.reconcile_verdict;
+      if (!verdict && rowVerdict) verdict = rowVerdict;
+      step(
+        "7. reconciliation produced verdict with evidence",
+        Boolean(verdict),
+        `verdict=${verdict} rowState=${current && current.state} rowVerdict=${rowVerdict}`,
+      );
+      if (!draftId) {
+        const drafts = await api(`/api/ai/ingestion/drafts?limit=50`);
+        const mine = Array.isArray(drafts.data && drafts.data.drafts)
+          ? drafts.data.drafts.find((d) => d.source_event_id === eventId)
+          : null;
+        if (mine) {
+          draftId = mine.id;
+          draftState = mine.state;
+        }
+      } else {
+        const drafts = await api(`/api/ai/ingestion/drafts?limit=50`);
+        const mine = Array.isArray(drafts.data && drafts.data.drafts)
+          ? drafts.data.drafts.find((d) => d.id === draftId)
+          : null;
+        if (mine) draftState = mine.state;
       }
     } catch (e) {
       step("7a. server processor ran", false, String((e && e.message) || e));
     }
   } else {
-    step("7a. server processor ran", "SKIP", "no --cron-secret; run processor via app cron, then re-run with --verify-only");
+    step("7a. server processor ran", "SKIP", "no --cron-secret; processor runs on app cron every 15 min");
   }
 
   if (!draftId) {

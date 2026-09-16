@@ -328,6 +328,120 @@ function ok(name, cond, extra = "") {
   ok("draft approve stays admin-session-only", patch.includes('hasRole(role, ["admin"])') && patch.includes("Owner approval is required."));
 }
 
+// ---------- Processor contract: per-event results, verdict persistence ----------
+function makeMockDb(seed) {
+  const tables = JSON.parse(JSON.stringify(seed || {}));
+  const writes = [];
+  const applyFilters = (rows, filters) => {
+    let out = rows.slice();
+    for (const [kind, col, val] of filters) {
+      if (kind === "eq") out = out.filter((r) => r[col] === val);
+      if (kind === "in") out = out.filter((r) => Array.isArray(val) && val.includes(r[col]));
+    }
+    return out;
+  };
+  const table = (name) => {
+    const q = {
+      _filters: [],
+      _limit: null,
+      _patch: null,
+      select() { return q; },
+      eq(col, val) { q._filters.push(["eq", col, val]); return q; },
+      in(col, vals) { q._filters.push(["in", col, vals]); return q; },
+      gte() { return q; },
+      neq() { return q; },
+      order() { return q; },
+      limit(n) { q._limit = n; return q; },
+      update(patch) { writes.push({ table: name, op: "update", patch }); q._patch = patch; return q; },
+      insert(row) {
+        writes.push({ table: name, op: "insert", row });
+        return { select() { return { single() { return Promise.resolve({ data: { id: "draft-mock-1" }, error: null }); } }; } };
+      },
+      single() { return q; },
+      maybeSingle() { return q; },
+      then(resolve) {
+        if (q._patch) {
+          const targets = applyFilters(tables[name] || [], q._filters);
+          for (const t of targets) Object.assign(t, q._patch);
+          resolve({ data: null, error: null });
+        } else {
+          resolve({ data: applyFilters(tables[name] || [], q._filters).slice(0, q._limit || 100), error: null });
+        }
+      },
+    };
+    return q;
+  };
+  return { from: (name) => table(name), writes, tables };
+}
+
+{
+  const processor = await import("../lib/ai/ingestion-processor.ts");
+  // Scenario A: unmatched bank credit -> needs_review + high-risk draft, no financial writes.
+  {
+    const event = {
+      id: "e-smoke-1", business_id: "default", source_provider: "test-bank", source_type: "api",
+      event_type: "bank_credit", status: "completed", occurred_at: "2026-09-15",
+      amount: 100, fee: null, commission: null, external_event_id: "smoke-1", external_reference: "TEST-1",
+      content_hash: "h1", state: "pending", metadata: {}, matched_customer_id: null,
+    };
+    const db = makeMockDb({ ai_ingestion_events: [event] });
+    const res = await processor.processPendingIngestionEvents(db);
+    ok("processor returns per-event result", res.events.length === 1 && res.events[0].eventId === "e-smoke-1" && res.events[0].processed === true, JSON.stringify(res.events));
+    ok("processor verdict persisted", res.events[0].reconciliation.verdict === "missing_in_erp" && res.events[0].reconciliation.state === "needs_review");
+    ok("processor stages pending draft with id", res.events[0].draftId === "draft-mock-1" && res.draftsCreated === 1);
+    const stored = db.tables.ai_ingestion_events[0];
+    ok("processor writes verdict to event row", stored.state === "needs_review" && stored.metadata.reconcile_verdict === "missing_in_erp");
+    const financialWrites = db.writes.filter((w) => !["ai_ingestion_events", "ai_reconciliation_drafts"].includes(w.table));
+    ok("processor never touches financial tables", financialWrites.length === 0);
+    const draftWrite = db.writes.find((w) => w.table === "ai_reconciliation_drafts" && w.op === "insert");
+    ok("draft stays pending high-risk", draftWrite && draftWrite.row.state === "pending" && draftWrite.row.risk_level === "high" && draftWrite.row.action_type === "record_customer_payment");
+  }
+  // Scenario B: exact ERP match -> reconciled, no draft.
+  {
+    const event = {
+      id: "e-exact-1", business_id: "default", source_provider: "test-bank", source_type: "api",
+      event_type: "aeps", status: "completed", occurred_at: "2026-09-15",
+      amount: 1000, fee: null, commission: null, external_event_id: "RRN-X", external_reference: "RRN-X",
+      content_hash: "h2", state: "pending", metadata: {}, matched_customer_id: null,
+    };
+    const db = makeMockDb({
+      ai_ingestion_events: [event],
+      transactions: [{ id: "t-1", transaction_number: "RRN-X", amount: 1000, transaction_date: "2026-09-15", status: "success" }],
+    });
+    const res = await processor.processPendingIngestionEvents(db);
+    ok("processor reconciles exact match", res.events[0].reconciliation.verdict === "exact_match" && res.events[0].reconciliation.state === "reconciled" && res.events[0].draftId === null, JSON.stringify(res.events[0]));
+    ok("processor marks matched transaction", db.tables.ai_ingestion_events[0].matched_transaction_id === "t-1");
+  }
+  // Scenario C: eventIds filter scopes processing.
+  {
+    const mk = (id) => ({
+      id, business_id: "default", source_provider: "test-bank", source_type: "api",
+      event_type: "bank_credit", status: "completed", occurred_at: "2026-09-15",
+      amount: 10, fee: null, commission: null, external_event_id: id, external_reference: id,
+      content_hash: "h-" + id, state: "pending", metadata: {}, matched_customer_id: null,
+    });
+    const db = makeMockDb({ ai_ingestion_events: [mk("e-a"), mk("e-b")] });
+    const res = await processor.processPendingIngestionEvents(db, { eventIds: ["e-b"] });
+    ok("processor honors eventIds filter", res.processed === 1 && res.events.length === 1 && res.events[0].eventId === "e-b", JSON.stringify(res.events.map((e) => e.eventId)));
+  }
+  // Worker/cron path: drafts route exposes worker reads; PATCH stays admin-only.
+  {
+    const draftsRoute = readRepo("app/api/ai/ingestion/drafts/route.ts");
+    const patchFn = (draftsRoute.split("export async function PATCH")[1] || "").split("export async function GET")[0];
+    ok(
+      "drafts PATCH remains admin-session-only",
+      patchFn.includes('hasRole(role, ["admin"])') && !patchFn.includes("actorHasRoles") && !patchFn.includes("createAdminClient"),
+    );
+  }
+  // Smoke script: service URL default + status reporting (arg-handling regression).
+  {
+    const smoke = readRepo("scripts/ai-ingestion-smoke.mjs");
+    ok("smoke defaults supabase url", smoke.includes("tvxehxnvuwojjbhysajp.supabase.co"));
+    ok("smoke prints processor HTTP status", smoke.includes("HTTP ${procRes.status}"));
+    ok("smoke targets single event", smoke.includes("event_id=${encodeURIComponent(eventId)}"));
+  }
+}
+
 // ---------- Quick Sale AI regression (Phase 22) ----------
 {
   const runtime = readRepo("lib/ai/agent-runtime.ts");

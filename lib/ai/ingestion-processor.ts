@@ -18,6 +18,20 @@ export interface IngestionProcessSummary {
   draftsCreated: number;
 }
 
+export interface IngestionEventResult {
+  eventId: string;
+  processed: boolean;
+  reconciliation: {
+    verdict: string | null;
+    state: string | null;
+  };
+  draftId: string | null;
+}
+
+export interface IngestionProcessResult extends IngestionProcessSummary {
+  events: IngestionEventResult[];
+}
+
 type SupabaseAdmin = {
   from: (table: string) => any;
 };
@@ -63,17 +77,39 @@ async function buildErpSnapshot(db: SupabaseAdmin) {
   ];
 }
 
-export async function processPendingIngestionEvents(db: SupabaseAdmin): Promise<IngestionProcessSummary> {
+export async function processPendingIngestionEvents(
+  db: SupabaseAdmin,
+  opts?: { eventIds?: string[]; batchLimit?: number },
+): Promise<IngestionProcessResult> {
   const summary: IngestionProcessSummary = { processed: 0, reconciled: 0, needsReview: 0, failed: 0, draftsCreated: 0 };
-  const { data: pending } = await db
+  const results: IngestionEventResult[] = [];
+  const limit = Math.min(Math.max(opts?.batchLimit ?? BATCH_LIMIT, 1), 100);
+  let query = db
     .from("ai_ingestion_events")
     .select("*")
     .eq("state", "pending")
     .order("created_at", { ascending: true })
-    .limit(BATCH_LIMIT);
+    .limit(limit);
+  if (opts?.eventIds && opts.eventIds.length > 0) {
+    query = db
+      .from("ai_ingestion_events")
+      .select("*")
+      .eq("state", "pending")
+      .in("id", opts.eventIds.slice(0, 100))
+      .order("created_at", { ascending: true })
+      .limit(limit);
+  }
+  const { data: pending } = await query;
 
   for (const event of pending || []) {
     summary.processed++;
+    const eventResult: IngestionEventResult = {
+      eventId: event.id,
+      processed: false,
+      reconciliation: { verdict: null, state: null },
+      draftId: null,
+    };
+    results.push(eventResult);
     try {
       const businessId = event.business_id || "default";
       const snapshot = await buildErpSnapshot(db);
@@ -94,12 +130,15 @@ export async function processPendingIngestionEvents(db: SupabaseAdmin): Promise<
       );
 
       if (result.verdict === "exact_match" || result.verdict === "duplicate") {
+        const nextState = result.verdict === "duplicate" ? "duplicate" : "reconciled";
         await db.from("ai_ingestion_events").update({
-          state: result.verdict === "duplicate" ? "duplicate" : "reconciled",
+          state: nextState,
           matched_transaction_id: result.matchedRowId,
           processed_at: new Date().toISOString(),
           metadata: { ...(event.metadata || {}), reconcile_verdict: result.verdict, reconcile_confidence: result.confidence },
         }).eq("id", event.id);
+        eventResult.processed = true;
+        eventResult.reconciliation = { verdict: result.verdict, state: nextState };
         summary.reconciled++;
       } else if (result.verdict === "conflict" || result.verdict === "needs_review") {
         await db.from("ai_ingestion_events").update({
@@ -107,29 +146,42 @@ export async function processPendingIngestionEvents(db: SupabaseAdmin): Promise<
           processed_at: new Date().toISOString(),
           metadata: { ...(event.metadata || {}), reconcile_verdict: result.verdict, reconcile_confidence: result.confidence, evidence: result.evidence },
         }).eq("id", event.id);
+        eventResult.processed = true;
+        eventResult.reconciliation = { verdict: result.verdict, state: "needs_review" };
         summary.needsReview++;
       } else {
         if (result.suggestion) {
           const risk = HIGH_RISK_DRAFT_ACTIONS.has(result.suggestion.action as any) ? "high" : "medium";
-          await db.from("ai_reconciliation_drafts").insert({
-            business_id: businessId,
-            source_event_id: event.id,
-            action_type: result.suggestion.action,
-            target_entity: result.suggestion.targetEntity,
-            target_id: result.suggestion.targetId,
-            proposed_payload: { event_id: event.id, verdict: result.verdict },
-            evidence: { ...(result.evidence || {}), reason: result.suggestion.reason },
-            confidence: result.confidence,
-            risk_level: risk,
-            state: "pending",
-          });
-          summary.draftsCreated++;
+          try {
+            const inserted: any = await db.from("ai_reconciliation_drafts").insert({
+              business_id: businessId,
+              source_event_id: event.id,
+              action_type: result.suggestion.action,
+              target_entity: result.suggestion.targetEntity,
+              target_id: result.suggestion.targetId,
+              proposed_payload: { event_id: event.id, verdict: result.verdict },
+              evidence: { ...(result.evidence || {}), reason: result.suggestion.reason },
+              confidence: result.confidence,
+              risk_level: risk,
+              state: "pending",
+            }).select("id").single();
+            if (!inserted?.error && inserted?.data?.id) {
+              eventResult.draftId = String(inserted.data.id);
+              summary.draftsCreated++;
+            } else {
+              eventResult.draftId = null;
+            }
+          } catch (draftErr: any) {
+            eventResult.draftId = null;
+          }
         }
         await db.from("ai_ingestion_events").update({
           state: "needs_review",
           processed_at: new Date().toISOString(),
           metadata: { ...(event.metadata || {}), reconcile_verdict: result.verdict, reconcile_confidence: result.confidence },
         }).eq("id", event.id);
+        eventResult.processed = true;
+        eventResult.reconciliation = { verdict: result.verdict, state: "needs_review" };
         summary.needsReview++;
       }
     } catch (err: any) {
@@ -138,8 +190,10 @@ export async function processPendingIngestionEvents(db: SupabaseAdmin): Promise<
         processed_at: new Date().toISOString(),
         metadata: { error: String(err?.message || "processing failed").slice(0, 300) },
       }).eq("id", (event as any).id);
+      eventResult.processed = false;
+      eventResult.reconciliation = { verdict: null, state: "failed" };
       summary.failed++;
     }
   }
-  return summary;
+  return { ...summary, events: results };
 }
