@@ -40,18 +40,27 @@ const BATCH_LIMIT = 25;
 
 async function buildErpSnapshot(db: SupabaseAdmin) {
   const since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-  const [txRes, invRes, payRes, setRes, cashRes] = await Promise.all([
-    db.from("transactions").select("id, transaction_number, amount, transaction_date, status").gte("transaction_date", since).limit(300),
+  const [txRes, invRes, payRes, setRes, cashRes, portalsRes] = await Promise.all([
+    db.from("transactions").select("id, transaction_number, reference, portal_id, amount, transaction_date, status").gte("transaction_date", since).limit(300),
     db.from("invoices").select("id, invoice_number, total, paid, due, invoice_date, status, customer_id").gte("invoice_date", since).neq("status", "cancelled").limit(300),
     db.from("payments").select("id, invoice_id, amount, received_at, method").gte("received_at", since).limit(300),
     db.from("settlements").select("id, amount, settlement_date, status").gte("settlement_date", since).limit(100),
     db.from("cash_entries").select("id, amount, entry_date, direction, ref_type").gte("entry_date", since).limit(300),
+    db.from("aeps_portals").select("id, name").eq("service_type", "aeps").limit(100),
   ]);
+  const portalMap = new Map<string, string>();
+  for (const p of (portalsRes?.data || []) as any[]) {
+    if (p.id && p.name) portalMap.set(p.id, p.name);
+  }
   return [
     ...((txRes.data || []) as any[]).map((t) => ({
       id: t.id, kind: "transaction" as const,
-      reference: t.transaction_number, externalId: t.transaction_number,
-      amount: Number(t.amount) || 0, occurredAt: t.transaction_date, status: t.status,
+      reference: t.reference || t.transaction_number,
+      externalId: t.transaction_number,
+      amount: Number(t.amount) || 0,
+      occurredAt: t.transaction_date,
+      status: t.status,
+      provider: t.portal_id ? portalMap.get(t.portal_id) || undefined : undefined,
     })),
     ...((invRes.data || []) as any[]).map((i) => ({
       id: i.id, kind: "invoice" as const,

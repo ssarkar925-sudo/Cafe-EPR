@@ -7,6 +7,8 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import FloatingWindow from "@/components/ui/floating-window";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
@@ -238,10 +240,53 @@ export default function AepsWorkspace({
     if (c?.phone) setCustomerMobile(c.phone);
   }, [selectedCustomerId, customers]);
 
+  // Canonical directory: server-side search only. `customers` is a bounded
+  // cache (seeded rows + selections + creations), never a full preload.
+  const selectedCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === selectedCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, selectedCustomerId]);
+
+  const editCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === editCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, editCustomerId]);
+
+  function rememberCustomerRecord(record: CustomerSearchResult) {
+    setCustomers((prev) =>
+      prev.some((x) => x.id === record.id)
+        ? prev.map((x) => (x.id === record.id ? { ...x, name: record.name ?? x.name, phone: record.phone ?? x.phone } : x))
+        : [...prev, { id: record.id, name: record.name ?? "Customer", code: record.code ?? "", phone: record.phone } as CustomerRow].sort((a, b) => a.name.localeCompare(b.name))
+    );
+  }
+
+  function handleCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setSelectedCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.phone) setCustomerMobile(record.phone);
+    }
+  }
+
+  function handleEditCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setEditCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.phone) setEditCustomerMobile(record.phone);
+    }
+  }
+
+  function selectExistingCustomer(dup: { id: string; name: string; phone?: string | null }, phoneFallback: string) {
+    rememberCustomerRecord({ id: dup.id, code: null, name: dup.name, phone: dup.phone ?? phoneFallback, is_active: true });
+    setSelectedCustomerId(dup.id);
+    setCustomerMobile(dup.phone ?? phoneFallback);
+    setCustCreateError(`Customer already exists: ${dup.name} (${dup.phone ?? phoneFallback}). Selected the existing profile — no duplicate created.`);
+  }
+
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [{ data: txns }, { data: poolData }, { data: bData }, { data: pData }, { data: cData }] = await Promise.all([
+      const [{ data: txns }, { data: poolData }, { data: bData }, { data: pData }] = await Promise.all([
         supabase
           .from("transactions")
           .select("*, customers(name, phone), banks:aeps_banks(name, code), portals:aeps_portals(name, code), profiles(full_name)")
@@ -251,15 +296,16 @@ export default function AepsWorkspace({
           .limit(500),
         supabase.rpc("get_pool_balances"),
         supabase.from("aeps_banks").select("*").order("name"),
-        supabase.from("aeps_portals").select("*").order("name"),
-        supabase.from("customers").select("id, name, code, phone").eq("is_active", true).order("name"),
+        supabase.from("aeps_portals").select("*").eq("service_type", "aeps").order("name"),
       ]);
 
       if (txns) setTransactions(txns as any);
       if (poolData) setLivePool((poolData as any)?.aeps ?? null);
       if (bData) setBanks(bData);
-      if (pData) setPortals(pData);
-      if (cData) setCustomers(cData);
+      if (pData) {
+        setPortals(pData);
+        setSelectedPortalId((prev) => (prev && pData.some((p: any) => p.id === prev) ? prev : pData[0]?.id || ""));
+      }
 
       setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     } catch (err) {
@@ -474,29 +520,24 @@ export default function AepsWorkspace({
     setCustCreateError("");
 
     try {
-      const { data: newCust, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name,
-          phone: phone || null,
-          email: newCustEmail.trim() || null,
-          address: newCustAddress.trim() || null,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
+      // Canonical creation: the database assigns the Customer ID (code).
+      // Duplicate phones resolve to the existing profile, never a 2nd row.
+      const newCust = await createCustomerRecord(supabase, {
+        name,
+        phone: phone || null,
+        email: newCustEmail.trim() || null,
+        address: newCustAddress.trim() || null,
+      });
 
       await logAudit({
         action: "create",
         entity: "customer",
-        entity_id: (newCust as any).id,
+        entity_id: newCust.id,
         description: `Created customer "${name}" from AEPS workspace`,
       });
 
       setCustomers((prev) => [...prev, newCust as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
-      setSelectedCustomerId((newCust as any).id);
+      setSelectedCustomerId(newCust.id);
       if (phone) setCustomerMobile(phone);
       setAddCustomerWindowOpen(false);
       setNewCustName("");
@@ -506,6 +547,10 @@ export default function AepsWorkspace({
       showToast("success", `Customer "${name}" created and assigned.`);
     } catch (err: any) {
       console.error("Customer creation error:", err);
+      if (err instanceof DuplicateCustomerError) {
+        selectExistingCustomer(err.existing, phone);
+        return;
+      }
       setCustCreateError(err.message || "Failed to create customer.");
     } finally {
       setCustCreateSubmitting(false);
@@ -595,6 +640,7 @@ export default function AepsWorkspace({
         p_customer_pay_method: effectivePayMethod,
         p_pay_from_instrument_id: portals.find((p) => p.id === editPortalId)?.payment_instrument_id || null,
         p_pay_from_method: "aeps_portal",
+        p_receiver_name: null,
       });
 
       if (res.error) throw res.error;
@@ -903,7 +949,7 @@ export default function AepsWorkspace({
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5"><div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">{[{ id: "withdrawal", label: "🏧 Cash Withdrawal" }, { id: "enquiry", label: "🔍 Balance Enquiry" }, { id: "statement", label: "📑 Mini Statement" }].map((op) => <button key={op.id} type="button" onClick={() => setOperation(op.id as any)} className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${operation === op.id ? "bg-white text-slate-900 shadow-sm dark:bg-teal-600 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}>{op.label}</button>)}</div><button type="button" onClick={() => setScanModalOpen(true)} className="btn-3d-tactile-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black shadow-sm"><span>📷 Scan &amp; Fill Receipt / SMS</span></button></div>
             {scannedReviewData && <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-xs dark:border-teal-900/40 dark:bg-teal-950/20"><div className="flex items-center justify-between"><span className="font-bold text-teal-900 dark:text-teal-300">✓ Information Detected from Scan</span><button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button></div><div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">{scannedReviewData.mobile && <div><span className="text-slate-500">Mobile:</span> <strong>{maskMobile(scannedReviewData.mobile)}</strong></div>}{scannedReviewData.aadhaarLast4 && <div><span className="text-slate-500">Aadhaar:</span> <strong>**** {scannedReviewData.aadhaarLast4}</strong></div>}{scannedReviewData.bankName && <div><span className="text-slate-500">Bank:</span>{" "}<strong>{scannedReviewData.matchedBank ? `✓ ${scannedReviewData.matchedBank.name}` : `❓ ${scannedReviewData.bankName}`}</strong></div>}</div></div>}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer (CRM Profile) <span className="text-rose-500">*</span></label><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400">+ Add New Customer</button></div><div className="flex gap-2"><div className="flex-1"><SearchableSelect value={selectedCustomerId} onChange={setSelectedCustomerId} minSearchLength={2} minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…" options={[{ value: "", label: "-- Walk-in Customer --" }, ...customers.map((c) => ({ value: c.id, label: `${c.name} (${maskMobile(c.phone) || c.code})` }))]} placeholder="Search customer (min 2 chars) or select Walk-in…" /></div><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Add new customer to CRM">+ Add</button></div></div>
+              <div className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer (CRM Profile) <span className="text-rose-500">*</span></label><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400">+ Add New Customer</button></div><div className="flex gap-2"><div className="flex-1"><CustomerSearchSelect value={selectedCustomerId || null} selected={selectedCustomerRecord} onChange={handleCustomerSelect} allowWalkIn walkInLabel="-- Walk-in Customer --" placeholder="Search name, phone, or ID (min 2 chars)…" tone="auto" /></div><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Add new customer to CRM">+ Add</button></div></div>
               <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Mobile Number <span className="text-rose-500">*</span></label><input type="tel" value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit mobile number" className={`w-full rounded-2xl border bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none transition focus:bg-white dark:bg-white/5 dark:focus:bg-slate-900 ${cleanMobile && cleanMobile.length !== 10 ? "border-amber-400 focus:border-amber-500" : "border-slate-200 focus:border-teal-500 dark:border-white/10"}`} /></div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
@@ -957,7 +1003,7 @@ export default function AepsWorkspace({
                 </div>
               </div>
               <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">XXXX - XXXX -</span><input type="text" maxLength={4} value={aadhaarLast4} onChange={(e) => { const digits = e.target.value.replace(/\D/g, "").slice(0, 4); setAadhaarLast4(digits); }} placeholder="3619" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900" /></div></div>
-              <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">AEPS Service Portal <span className="text-rose-500">*</span></label><select value={selectedPortalId} onChange={(e) => setSelectedPortalId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900">{portals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+              <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">AEPS Service Portal <span className="text-rose-500">*</span></label><select value={selectedPortalId} onChange={(e) => setSelectedPortalId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900">{portals.filter((p) => !p.service_type || p.service_type === "aeps").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
               {operation === "withdrawal" && <div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Withdrawal Amount (₹) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900" /></div><div className="flex flex-wrap items-center gap-1.5 pt-0.5">{["100", "500", "1000", "2000", "3000", "5000", "10000"].map((v) => <button key={v} type="button" onClick={() => setAmount(v)} className={`rounded-xl border px-3 py-1 text-xs font-black transition ${amount === v ? "border-teal-600 bg-teal-600 text-white shadow-xs" : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"}`}>₹{Number(v).toLocaleString("en-IN")}</button>)}</div></div>}
               {operation === "withdrawal" && <><div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Service Fee (₹)</label><input type="number" value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" placeholder="0.00" /></div><div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Portal Commission (₹)</label><input type="number" value={portalCommission} onChange={(e) => setPortalCommission(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" placeholder="0.00" /></div><div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fee Treatment Model <span className="text-rose-500">*</span></label><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><button type="button" onClick={() => setFeeTreatment("separate")} className={`rounded-2xl border p-2.5 text-left transition ${feeTreatment === "separate" ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30" : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"}`}><div className="text-xs font-black text-slate-900 dark:text-white">💵 Collect Fee Separately</div><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Customer receives full <strong>{inr(numAmount)}</strong> withdrawal cash; pays <strong>{inr(numFee)}</strong> fee separately.</p></button><button type="button" onClick={() => setFeeTreatment("deduct")} className={`rounded-2xl border p-2.5 text-left transition ${feeTreatment === "deduct" ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30" : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"}`}><div className="text-xs font-black text-slate-900 dark:text-white">✂️ Deduct from Payout</div><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Fee deducted directly. Customer receives net <strong>{inr(Math.max(0, numAmount - numFee))}</strong> cash handout.</p></button></div></div>{feeTreatment === "separate" && <div className="space-y-1 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fee Collection Instrument <span className="text-rose-500">*</span></label><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[{ id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" }, { id: "upi", label: "📱 UPI / QR Float", desc: "Merchant QR" }, { id: "bank", label: "🏦 Bank Account", desc: "Direct deposit" }, { id: "due", label: "📋 Customer Khata", desc: "Post to due" }].map((m) => <button key={m.id} type="button" onClick={() => setCustomerPayMethod(m.id as any)} className={`rounded-xl border p-2 text-center transition ${customerPayMethod === m.id ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"}`}><div className="text-xs font-bold">{m.label}</div><div className="text-[10px] text-slate-400">{m.desc}</div></button>)}</div></div>}</>}
               <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank RRN / Terminal Reference Number</label><input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="12-digit RRN / Auth Reference" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div>
@@ -1187,20 +1233,14 @@ export default function AepsWorkspace({
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                       Customer Attribution
                     </label>
-                    <SearchableSelect
-                      value={editCustomerId}
-                      onChange={(id) => {
-                        setEditCustomerId(id);
-                        const c = customers.find((cust) => cust.id === id);
-                        if (c?.phone) setEditCustomerMobile(c.phone);
-                      }}
-                      minSearchLength={2}
-                      minSearchPrompt="Type to search…"
-                      options={[
-                        { value: "", label: "-- Walk-in Customer --" },
-                        ...customers.map((c) => ({ value: c.id, label: `${c.name} (${maskMobile(c.phone) || c.code})` })),
-                      ]}
+                    <CustomerSearchSelect
+                      value={editCustomerId || null}
+                      selected={editCustomerRecord}
+                      onChange={handleEditCustomerSelect}
+                      allowWalkIn
+                      walkInLabel="-- Walk-in Customer --"
                       placeholder="Assign customer…"
+                      tone="auto"
                     />
                   </div>
 

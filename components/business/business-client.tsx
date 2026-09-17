@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import BusinessFormModal from "./business-form-modal";
 import ReasonModal from "./business-reason-modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
 import Link from "next/link";
 import ViewToggle from "@/components/ui/view-toggle";
 import CompactToggle from "@/components/ui/compact-toggle";
@@ -17,7 +18,7 @@ import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate, sendWh
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 import Modal from "@/components/ui/modal";
 
-export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string; payment_instrument_id?: string | null };
+export type Master = { id: string; name: string; display_name?: string; upi_id?: string; code?: string; payment_instrument_id?: string | null; service_type?: string | null };
 export type CustomerRow = { id: string; name: string; code: string; phone: string | null };
 
 export type Txn = {
@@ -303,6 +304,10 @@ export default function BusinessClient({
   const [providerFilter, setProviderFilter] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
+  // Canonical directory: server-side search only. Label cache resolves display
+  // names for the filter + optimistic rows without a directory preload.
+  const [customerFilterRecord, setCustomerFilterRecord] = useState<CustomerSearchResult | null>(null);
+  const [customerLabelCache, setCustomerLabelCache] = useState<Record<string, { id: string; name: string; code?: string | null; phone?: string | null }>>({});
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [preset, setPreset] = useState("all");
@@ -508,6 +513,11 @@ export default function BusinessClient({
       return;
     }
     const d = data as Record<string, unknown>;
+    // Optimistic row label: snapshot from the create modal, else cached/seeded row.
+    const snapCustomer = ((payload.customer_snapshot as { name?: string | null; phone?: string | null } | null) ??
+      (payload.p_customer_id ? customerLabelCache[payload.p_customer_id as string] : null) ??
+      (payload.p_customer_id ? initialCustomers.find((c) => c.id === payload.p_customer_id) : null) ??
+      null) as { name?: string | null; phone?: string | null } | null;
     const newTxn: Txn = {
       id: d.id as string,
       transaction_number: d.transaction_number as string,
@@ -541,7 +551,7 @@ export default function BusinessClient({
       paid_from: (payload.p_paid_from as string) || null,
       customer_pay_method: (payload.p_customer_pay_method as string) || null,
       customers: payload.p_customer_id
-        ? initialCustomers.find((c) => c.id === payload.p_customer_id) ?? null
+        ? { name: snapCustomer?.name ?? "Customer", phone: snapCustomer?.phone ?? null }
         : null,
       remarks: (payload.p_remarks as string) || null,
       banks: (payload.p_bank_id as string || (payload.payment_account_name as string))
@@ -558,6 +568,8 @@ export default function BusinessClient({
       profiles: null,
     };
     setTxns((prev) => [newTxn, ...prev]);
+    const snap = (payload as Record<string, any>).customer_snapshot as { id: string; name: string; code?: string | null; phone?: string | null } | null;
+    if (snap?.id) setCustomerLabelCache((prev) => (prev[snap.id] ? prev : { ...prev, [snap.id]: snap }));
     setShowCreate(false);
     showToast("success", `${service.toUpperCase()} ${inr(Number(payload.p_amount))} recorded — ${d.transaction_number}`);
 
@@ -1154,16 +1166,25 @@ export default function BusinessClient({
             />
           )}
           {cfg.customerFilter && (
-            <SearchableSelect
-              value={customerFilter}
-              onChange={setCustomerFilter}
-              options={[
-                { value: "", label: "All Customers" },
-                ...initialCustomers.map((c) => ({ value: c.id, label: `${c.name}${c.phone ? ` · ${c.phone}` : ""}` })),
-              ]}
-              searchPlaceholder="Search customer…"
-              className="w-48"
-            />
+            <div className="w-48">
+              <CustomerSearchSelect
+                value={customerFilter || null}
+                selected={customerFilter && customerFilterRecord?.id === customerFilter ? customerFilterRecord : null}
+                onChange={(id, record) => {
+                  setCustomerFilter(id ?? "");
+                  setCustomerFilterRecord(record);
+                  if (record) {
+                    setCustomerLabelCache((prev) =>
+                      prev[record.id] ? prev : { ...prev, [record.id]: { id: record.id, name: record.name ?? "Customer", code: record.code, phone: record.phone } }
+                    );
+                  }
+                }}
+                allowWalkIn
+                walkInLabel="All Customers"
+                placeholder="Search customer…"
+                tone="auto"
+              />
+            </div>
           )}
         </div>
       </div>

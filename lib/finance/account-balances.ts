@@ -167,19 +167,31 @@ export function calculateAccountBalances({
       transaction.total_amount ?? transaction.customer_amount,
     );
 
-    // Provider/payout leg: exactly one funding account is charged.
-    let fundingId =
-      transaction.funding_instrument_id ??
-      transaction.pay_from_instrument_id ??
-      transaction.instrument_id ??
-      null;
-    if (!fundingId && transaction.portal_id) fundingId = portalToInstrument[transaction.portal_id] ?? null;
+    // Provider/payout leg:
+    if (transaction.service_type === "aeps") {
+      const portalInstrumentId =
+        (transaction.portal_id ? portalToInstrument[transaction.portal_id] : null) ??
+        (transaction.pay_from_method === "aeps_portal" ? transaction.pay_from_instrument_id : null);
+      const poolCredit = money(transaction.pool_credit ?? transaction.provider_credit ?? 0);
+      const poolOut = money(transaction.pool_out ?? transaction.provider_amount ?? 0);
+      if (portalInstrumentId) {
+        if (poolCredit > 0) addDelta(inflows, outflows, portalInstrumentId, "in", poolCredit);
+        if (poolOut > 0) addDelta(inflows, outflows, portalInstrumentId, "out", poolOut);
+      }
+    } else {
+      let fundingId =
+        transaction.funding_instrument_id ??
+        transaction.pay_from_instrument_id ??
+        transaction.instrument_id ??
+        null;
+      if (!fundingId && transaction.portal_id) fundingId = portalToInstrument[transaction.portal_id] ?? null;
 
-    const poolOut = money(transaction.pool_out ?? transaction.provider_amount ?? 0);
-    const poolCredit = money(transaction.pool_credit ?? transaction.provider_credit ?? 0);
-    if (fundingId) {
-      addDelta(inflows, outflows, fundingId, "in", poolCredit);
-      addDelta(inflows, outflows, fundingId, "out", poolOut);
+      const poolOut = money(transaction.pool_out ?? transaction.provider_amount ?? 0);
+      const poolCredit = money(transaction.pool_credit ?? transaction.provider_credit ?? 0);
+      if (fundingId) {
+        addDelta(inflows, outflows, fundingId, "in", poolCredit);
+        addDelta(inflows, outflows, fundingId, "out", poolOut);
+      }
     }
   }
 

@@ -241,12 +241,9 @@ export default function SettlementFormModal({
         const selectedInstrument = (() => {
           if (type === "aeps_to_bank") {
             const p = loadedPortals.find((item) => item.id === sourceId || item.payment_instrument_id === sourceId);
-            const name = (p?.name ?? "").trim().toLowerCase();
             return loadedAccounts.find((i: any) =>
               i.id === sourceId ||
-              i.id === p?.payment_instrument_id ||
-              ((i.type === "aeps_portal" || i.type === "aeps") &&
-                (i.name ?? "").trim().toLowerCase() === name)
+              i.id === p?.payment_instrument_id
             );
           }
           if (isSourceUpiQr) {
@@ -274,19 +271,14 @@ export default function SettlementFormModal({
 
         if (type === "aeps_to_bank") {
           const portalObj = loadedPortals.find((p) => p.id === sourceId || p.payment_instrument_id === sourceId);
-          const portalName = (portalObj?.name ?? "").toLowerCase();
           
-          // 1. Resolve exact linked financial instrument
+          // 1. Resolve exact linked financial instrument by immutable ID
           const inst = loadedAccounts.find(
-            (i) => i.id === sourceId ||
-                   i.id === portalObj?.payment_instrument_id ||
-                   ((i.type === "aeps_portal" || i.type === "aeps") && (
-                     i.name.toLowerCase().includes(portalName) || portalName.includes(i.name.toLowerCase())
-                   ))
+            (i) => i.id === sourceId || i.id === portalObj?.payment_instrument_id
           );
 
-          const effectiveInstrumentId = inst?.id || portalObj?.payment_instrument_id || sourceId;
-          const effectivePortalId = portalObj?.id || loadedPortals.find(p => p.payment_instrument_id === effectiveInstrumentId)?.id || sourceId;
+          const effectiveInstrumentId = inst?.id || portalObj?.payment_instrument_id || (loadedAccounts.some(a => a.id === sourceId) ? sourceId : null);
+          const effectivePortalId = portalObj?.id || (effectiveInstrumentId ? loadedPortals.find(p => p.payment_instrument_id === effectiveInstrumentId)?.id : null) || sourceId;
 
           // 2. Resolve account-specific opening balance
           const openingBal = Number(inst?.opening_balance ?? 0);
@@ -315,7 +307,7 @@ export default function SettlementFormModal({
               if (st.source_instrument_id && effectiveInstrumentId) {
                 return st.source_instrument_id === effectiveInstrumentId;
               }
-              return !portalName || (st.remarks ?? "").toLowerCase().includes(portalName);
+              return false;
             })
             .reduce((s, st) => s + Number(st.amount || 0), 0);
 
