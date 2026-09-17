@@ -40,7 +40,7 @@ BEGIN
 
     -- ATOMIC RENAME: If portal name changed, propagate to linked payment account without changing UUID
     IF lower(btrim(v_instrument_name)) <> lower(v_name) THEN
-      IF current_setting('app.aeps_portal_bootstrap', true) <> 'on' THEN
+      IF COALESCE(current_setting('app.aeps_portal_bootstrap', true), 'off') <> 'on' THEN
         PERFORM set_config('app.aeps_portal_bootstrap', 'on', true);
         UPDATE public.payment_instruments
         SET name = v_name, is_active = COALESCE(NEW.is_active, is_active)
@@ -52,7 +52,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF current_setting('app.aeps_portal_bootstrap', true) = 'on' THEN RETURN NEW; END IF;
+  IF COALESCE(current_setting('app.aeps_portal_bootstrap', true), 'off') = 'on' THEN RETURN NEW; END IF;
 
   -- If payment_instrument_id is null, find by name or create a new instrument
   SELECT id INTO v_instrument_id FROM public.payment_instruments
@@ -98,7 +98,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('portal:aeps:' || lower(v_name), 0));
   NEW.name := v_name;
 
-  IF current_setting('app.aeps_portal_bootstrap', true) = 'on' THEN RETURN NEW; END IF;
+  IF COALESCE(current_setting('app.aeps_portal_bootstrap', true), 'off') = 'on' THEN RETURN NEW; END IF;
 
   -- 1. If portal already linked to this instrument, update name and active status
   SELECT id INTO v_portal_id FROM public.aeps_portals
