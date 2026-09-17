@@ -1,4 +1,4 @@
-﻿-- AEPS Portal & Payment Instrument Atomic Sync Migration
+-- AEPS Portal & Payment Instrument Atomic Sync Migration
 -- Ensures portal rename is display metadata only and preserves stable financial identity (UUIDs).
 -- Mirrors DMT and UPI bidirectional synchronization.
 
@@ -6,7 +6,7 @@ BEGIN;
 
 -- 1. Replace sync_aeps_portal_to_payment_instrument with atomic rename sync
 CREATE OR REPLACE FUNCTION public.sync_aeps_portal_to_payment_instrument()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_name text := btrim(NEW.name);
   v_instrument_id uuid;
@@ -73,11 +73,11 @@ BEGIN
   NEW.payment_instrument_id := v_instrument_id;
   RETURN NEW;
 END;
-$;
+$$;
 
 -- 2. Create reverse sync trigger from payment_instruments to aeps_portals
 CREATE OR REPLACE FUNCTION public.sync_aeps_payment_instrument_to_portal()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_name text := btrim(NEW.name);
   v_portal_id uuid;
@@ -135,7 +135,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS trg_sync_aeps_payment_instrument_to_portal ON public.payment_instruments;
 CREATE TRIGGER trg_sync_aeps_payment_instrument_to_portal
