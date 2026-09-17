@@ -13,6 +13,13 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Single native registration path for the app-module AiIngestion plugin.
+        // Must run BEFORE super.onCreate(): BridgeActivity builds the Capacitor
+        // bridge inside super.onCreate() from this builder, so registering later
+        // would silently have no effect. (Auto-discovery via
+        // assets/capacitor.plugins.json only lists npm plugin packages, which
+        // this project has none of — the manifest is and stays [].)
+        registerPlugin(AiIngestionPlugin.class);
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {

@@ -32,16 +32,31 @@ export const SUGGESTED_NOTIFICATION_SOURCES: { pkg: string; label: string }[] = 
   { pkg: "net.one97.paytm", label: "Paytm (UPI alerts)" },
 ];
 
-async function getPlugin(): Promise<any | null> {
-  try {
-    if (typeof window === "undefined") return null;
-    const { Capacitor } = await import("@capacitor/core");
-    if (!Capacitor || Capacitor.getPlatform() !== "android") return null;
-    const { registerPlugin } = await import("@capacitor/core");
-    return registerPlugin("AiIngestion");
-  } catch {
-    return null;
+/**
+ * Single JS registration for the native plugin.
+ * Capacitor's registerPlugin() warns ("already registered") on every repeat
+ * call, and every Phone Collector refresh invokes several bridge functions —
+ * so registration must happen exactly once per page load. This memoizes the
+ * proxy promise; it does NOT provide any JS implementation, so on platforms
+ * without the native plugin the calls still resolve/reject exactly as before
+ * (Unimplemented on android-without-native, guarded by callers).
+ */
+let pluginPromise: Promise<any | null> | null = null;
+
+function getPlugin(): Promise<any | null> {
+  if (!pluginPromise) {
+    pluginPromise = (async () => {
+      try {
+        if (typeof window === "undefined") return null;
+        const { Capacitor, registerPlugin } = await import("@capacitor/core");
+        if (!Capacitor || Capacitor.getPlatform() !== "android") return null;
+        return registerPlugin("AiIngestion");
+      } catch {
+        return null;
+      }
+    })();
   }
+  return pluginPromise;
 }
 
 export async function isPhoneCollectorAvailable(): Promise<boolean> {

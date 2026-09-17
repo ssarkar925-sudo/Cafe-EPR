@@ -504,5 +504,60 @@ function makeMockDb(seed) {
   ok("sender has no quick_sale branch", !/quick_sale/i.test(sender));
 }
 
+// ---------- Capacitor AiIngestion bridge registration (Android E2E blocker) ----------
+{
+  const bridge = readRepo("lib/ai/phone-collector.ts");
+  const pluginJava = readRepo("android/app/src/main/java/com/sarkarcommunication/cafeerp/AiIngestionPlugin.java");
+  const mainActivity = readRepo("android/app/src/main/java/com/sarkarcommunication/cafeerp/MainActivity.java");
+  const pluginsJson = readRepo("android/app/src/main/assets/capacitor.plugins.json");
+
+  // JS plugin name: exactly one registration call site, exactly "AiIngestion".
+  const jsRegs = [...bridge.matchAll(/registerPlugin\(\s*"([^"]+)"\s*(,|\))/g)];
+  ok("single JS registerPlugin call site", jsRegs.length === 1, `${jsRegs.length} sites`);
+  ok("JS plugin name is AiIngestion", jsRegs.length === 1 && jsRegs[0][1] === "AiIngestion");
+  // No fake JS implementation: registerPlugin must not carry a second (jsImpl) argument.
+  ok("no fake JS fallback implementation", !/registerPlugin\(\s*"AiIngestion"\s*,/.test(bridge));
+  // Registration happens once per page load (memoized), never per bridge call.
+  ok("JS registration is a memoized singleton", /let pluginPromise|pluginPromise \?/.test(bridge) && !/async function getPlugin/.test(bridge));
+  // Graceful degradation preserved: platform guard + error swallowing intact.
+  ok("web/non-android still degrades to null", bridge.includes('Capacitor.getPlatform() !== "android"') && bridge.includes("return null"));
+
+  // Native plugin name must match the JS name exactly.
+  const nativeName = (pluginJava.match(/@CapacitorPlugin\(\s*name\s*=\s*"([^"]+)"\s*\)/) || [])[1];
+  ok("native annotation name matches JS name", nativeName === "AiIngestion", String(nativeName));
+  ok("plugin class is public and extends Plugin", /public class AiIngestionPlugin extends Plugin/.test(pluginJava));
+  ok("plugin package matches appId", pluginJava.includes("package com.sarkarcommunication.cafeerp;"));
+
+  // 1:1 method mapping between TS bridge calls and native @PluginMethod entries.
+  const nativeMethods = [...pluginJava.matchAll(/@PluginMethod\s+public void (\w+)\s*\(/g)].map((m) => m[1]).sort();
+  const jsMethods = [...new Set([...bridge.matchAll(/plugin\.(\w+)\s*\(/g)].map((m) => m[1]))].sort();
+  ok(
+    "every JS bridge method exists natively",
+    jsMethods.every((m) => nativeMethods.includes(m)),
+    `js=[${jsMethods}] native=[${nativeMethods}]`,
+  );
+  ok(
+    "every native method is used by the bridge",
+    nativeMethods.every((m) => jsMethods.includes(m)),
+    `native=[${nativeMethods}] js=[${jsMethods}]`,
+  );
+
+  // Exactly ONE Android registration path: manual, in MainActivity, before super.onCreate().
+  const manualRegs = [...mainActivity.matchAll(/registerPlugin\(\s*AiIngestionPlugin\.class\s*\)/g)];
+  ok("MainActivity registers AiIngestion exactly once", manualRegs.length === 1, `${manualRegs.length}x`);
+  ok(
+    "manual registration runs before super.onCreate (else the bridge is already built)",
+    mainActivity.indexOf("registerPlugin(AiIngestionPlugin.class)") !== -1 &&
+      mainActivity.indexOf("registerPlugin(AiIngestionPlugin.class)") < mainActivity.indexOf("super.onCreate(savedInstanceState);"),
+  );
+  // Auto-discovery manifest must not also claim the plugin (would be a second path).
+  ok("no duplicate auto-registration via capacitor.plugins.json", !/AiIngestion/.test(pluginsJson), pluginsJson.slice(0, 80));
+
+  // Security model untouched by the bridge fix.
+  ok("bridge never touches notification content", !/notification_text|sms_text|EXTRA_TEXT/.test(bridge));
+  const manifest = readRepo("android/app/src/main/AndroidManifest.xml");
+  ok("listener service still declared", manifest.includes(".AiIngestionListenerService"));
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed ? 1 : 0);
