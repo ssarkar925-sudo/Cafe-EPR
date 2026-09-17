@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SUGGESTED_NOTIFICATION_SOURCES,
   getAllowedPhoneSources,
@@ -32,16 +32,26 @@ export default function PhoneCollectorPanel() {
   const [workerKey, setWorkerKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const isMutatingRef = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (isMutatingRef.current) return;
     const available = await isPhoneCollectorAvailable();
     setPresent(available);
     if (!available) return;
     try {
-      setEnabled(await isPhoneCollectionEnabled());
-      setSystemOn(await isPhoneListenerSystemEnabled());
-      setAllowed(await getAllowedPhoneSources());
-      setStatus(await getPhoneCollectorStatus());
+      const [colEnabled, sysEnabled, sources, collectorStatus] = await Promise.all([
+        isPhoneCollectionEnabled(),
+        isPhoneListenerSystemEnabled(),
+        getAllowedPhoneSources(),
+        getPhoneCollectorStatus(),
+      ]);
+      if (!isMutatingRef.current) {
+        setEnabled(colEnabled);
+        setSystemOn(sysEnabled);
+        setAllowed(sources);
+        setStatus(collectorStatus);
+      }
     } catch {
       // Collector bridge unavailable; panel stays in web mode.
     }
@@ -99,20 +109,62 @@ export default function PhoneCollectorPanel() {
     );
   }
 
-  const toggleSource = async (pkg: string, next: boolean) => {
+  const toggleCollection = async () => {
+    const nextEnabled = !enabled;
+    setEnabled(nextEnabled);
     setBusy(true);
+    isMutatingRef.current = true;
+    setNote("");
     try {
-      await setPhoneSourceAllowed(pkg, next);
-      setAllowed(await getAllowedPhoneSources());
+      const confirmed = await setPhoneCollectionEnabled(nextEnabled);
+      setEnabled(confirmed);
+      const st = await getPhoneCollectorStatus();
+      setStatus(st);
     } catch {
-      setNote("Could not update the source allowlist.");
+      setEnabled(!nextEnabled);
+      setNote("Could not update collection state.");
     } finally {
+      isMutatingRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const toggleSource = async (pkg: string, next: boolean) => {
+    const trimmed = pkg.trim();
+    if (!trimmed) return;
+    setAllowed((prev) =>
+      next
+        ? prev.some((p) => p.toLowerCase() === trimmed.toLowerCase())
+          ? prev
+          : [...prev, trimmed]
+        : prev.filter((p) => p.toLowerCase() !== trimmed.toLowerCase())
+    );
+    setBusy(true);
+    isMutatingRef.current = true;
+    setNote("");
+    try {
+      const confirmed = await setPhoneSourceAllowed(trimmed, next);
+      setAllowed(confirmed);
+      const st = await getPhoneCollectorStatus();
+      setStatus(st);
+    } catch {
+      setAllowed((prev) =>
+        !next
+          ? prev.some((p) => p.toLowerCase() === trimmed.toLowerCase())
+            ? prev
+            : [...prev, trimmed]
+          : prev.filter((p) => p.toLowerCase() !== trimmed.toLowerCase())
+      );
+      setNote(`Could not update the source allowlist for ${trimmed}.`);
+    } finally {
+      isMutatingRef.current = false;
       setBusy(false);
     }
   };
 
   const saveApi = async () => {
     setBusy(true);
+    isMutatingRef.current = true;
     try {
       await setPhoneCollectorApi(apiUrl.trim(), workerKey.trim());
       setWorkerKey("");
@@ -121,6 +173,7 @@ export default function PhoneCollectorPanel() {
     } catch {
       setNote("Could not save sync configuration.");
     } finally {
+      isMutatingRef.current = false;
       setBusy(false);
     }
   };
@@ -146,15 +199,7 @@ export default function PhoneCollectorPanel() {
           <button
             type="button"
             disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await setPhoneCollectionEnabled(!enabled);
-                setEnabled(!enabled);
-              } finally {
-                setBusy(false);
-              }
-            }}
+            onClick={() => void toggleCollection()}
             className={`rounded-xl px-3 py-1.5 text-xs font-bold text-white transition ${enabled ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"}`}
           >
             {enabled ? "Disable collection" : "Enable collection"}
@@ -172,7 +217,7 @@ export default function PhoneCollectorPanel() {
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Allowed sources (explicit opt-in only)</p>
         <div className="mt-2 space-y-2">
           {SUGGESTED_NOTIFICATION_SOURCES.map((s) => {
-            const on = allowed.includes(s.pkg);
+            const on = allowed.some((p) => p.toLowerCase() === s.pkg.toLowerCase());
             return (
               <div key={s.pkg} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 dark:border-white/5">
                 <div>
@@ -190,6 +235,24 @@ export default function PhoneCollectorPanel() {
               </div>
             );
           })}
+          {allowed
+            .filter((pkg) => !SUGGESTED_NOTIFICATION_SOURCES.some((s) => s.pkg.toLowerCase() === pkg.toLowerCase()))
+            .map((pkg) => (
+              <div key={pkg} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 dark:border-white/5">
+                <div>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Custom app</p>
+                  <p className="font-mono text-[10px] text-slate-400">{pkg}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void toggleSource(pkg, false)}
+                  className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-bold text-white transition dark:bg-white dark:text-slate-900"
+                >
+                  On
+                </button>
+              </div>
+            ))}
         </div>
         <div className="mt-2 flex gap-2">
           <input
@@ -202,7 +265,9 @@ export default function PhoneCollectorPanel() {
             type="button"
             disabled={busy || !customPkg.trim()}
             onClick={() => {
-              void toggleSource(customPkg.trim(), true).then(() => setCustomPkg(""));
+              const target = customPkg.trim();
+              setCustomPkg("");
+              void toggleSource(target, true);
             }}
             className="shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
           >

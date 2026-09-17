@@ -148,10 +148,14 @@ export async function getAllowedPhoneSources(): Promise<string[]> {
   }
 }
 
-export async function setPhoneSourceAllowed(pkg: string, allowed: boolean): Promise<void> {
+export async function setPhoneSourceAllowed(pkg: string, allowed: boolean): Promise<string[]> {
   const plugin = await getPlugin();
   if (!plugin) throw new Error("Phone collector is only available inside the Android app.");
-  await plugin.setSourceAllowed({ package: pkg, allowed });
+  const res = await plugin.setSourceAllowed({ package: pkg, allowed });
+  if (Array.isArray(res?.sources)) {
+    return res.sources.map((s: unknown) => String(s));
+  }
+  return getAllowedPhoneSources();
 }
 
 export async function setPhoneCollectorApi(apiUrl: string, workerKey: string): Promise<void> {
@@ -166,10 +170,14 @@ export async function openPhoneListenerSettings(): Promise<void> {
   await plugin.openListenerSettings();
 }
 
-export async function setPhoneCollectionEnabled(enabled: boolean): Promise<void> {
+export async function setPhoneCollectionEnabled(enabled: boolean): Promise<boolean> {
   const plugin = await getPlugin();
   if (!plugin) throw new Error("Phone collector is only available inside the Android app.");
-  await plugin.setCollectionEnabled({ enabled });
+  const res = await plugin.setCollectionEnabled({ enabled });
+  if (typeof res?.enabled === "boolean") {
+    return res.enabled;
+  }
+  return isPhoneCollectionEnabled();
 }
 
 export async function isPhoneCollectionEnabled(): Promise<boolean> {

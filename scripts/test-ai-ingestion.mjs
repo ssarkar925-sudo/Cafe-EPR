@@ -563,6 +563,15 @@ function makeMockDb(seed) {
   ok("bridge never touches notification content", !/notification_text|sms_text|EXTRA_TEXT/.test(bridge));
   const manifest = readRepo("android/app/src/main/AndroidManifest.xml");
   ok("listener service still declared", manifest.includes(".AiIngestionListenerService"));
+
+  // Real-device controls fix: JSON array serialization, synchronous persistence, and mutation race guard.
+  ok("plugin uses JSArray for allowed sources serialization", pluginJava.includes("JSArray sourcesArray = new JSArray();") && pluginJava.includes("sourcesArray.put"));
+  ok("plugin uses synchronous commit for SharedPreferences", !pluginJava.includes(".apply()") && pluginJava.includes(".commit()"));
+  ok("plugin setSourceAllowed returns updated sources array", pluginJava.includes('ret.put("sources", sourcesArray);'));
+  ok("plugin setCollectionEnabled returns updated enabled boolean", pluginJava.includes('ret.put("enabled", Boolean.TRUE.equals(enabled));'));
+  ok("bridge setPhoneSourceAllowed handles returned sources", bridge.includes("res?.sources") && bridge.includes("setPhoneSourceAllowed"));
+  ok("bridge setPhoneCollectionEnabled handles returned enabled", bridge.includes("res?.enabled") && bridge.includes("setPhoneCollectionEnabled"));
+  ok("panel guards background refresh during user mutation", panel.includes("isMutatingRef") && panel.includes("if (isMutatingRef.current) return;"));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

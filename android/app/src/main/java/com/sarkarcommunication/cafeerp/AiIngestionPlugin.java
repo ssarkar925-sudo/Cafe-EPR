@@ -2,6 +2,7 @@ package com.sarkarcommunication.cafeerp;
 
 import android.content.Intent;
 import android.provider.Settings;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -37,7 +38,13 @@ public class AiIngestionPlugin extends Plugin {
                 .getSharedPreferences(AiIngestionListenerService.PREFS, android.content.Context.MODE_PRIVATE)
                 .getStringSet(AiIngestionListenerService.KEY_SOURCES, new HashSet<String>());
         JSObject ret = new JSObject();
-        ret.put("sources", allowed == null ? new String[0] : allowed.toArray(new String[0]));
+        JSArray sourcesArray = new JSArray();
+        if (allowed != null) {
+            for (String pkg : allowed) {
+                sourcesArray.put(pkg);
+            }
+        }
+        ret.put("sources", sourcesArray);
         call.resolve(ret);
     }
 
@@ -52,14 +59,32 @@ public class AiIngestionPlugin extends Plugin {
         Set<String> current = new HashSet<>(getContext()
                 .getSharedPreferences(AiIngestionListenerService.PREFS, android.content.Context.MODE_PRIVATE)
                 .getStringSet(AiIngestionListenerService.KEY_SOURCES, new HashSet<String>()));
-        if (Boolean.TRUE.equals(allowed)) current.add(pkg.trim());
-        else current.remove(pkg.trim());
+        String trimmedPkg = pkg.trim();
+        Set<String> toRemove = new HashSet<>();
+        for (String s : current) {
+            if (s != null && s.trim().equalsIgnoreCase(trimmedPkg)) {
+                toRemove.add(s);
+            }
+        }
+        current.removeAll(toRemove);
+        if (Boolean.TRUE.equals(allowed)) {
+            current.add(trimmedPkg);
+        }
         getContext()
                 .getSharedPreferences(AiIngestionListenerService.PREFS, android.content.Context.MODE_PRIVATE)
                 .edit()
                 .putStringSet(AiIngestionListenerService.KEY_SOURCES, current)
-                .apply();
-        call.resolve();
+                .commit();
+
+        JSArray sourcesArray = new JSArray();
+        for (String s : current) {
+            sourcesArray.put(s);
+        }
+        JSObject ret = new JSObject();
+        ret.put("sources", sourcesArray);
+        ret.put("package", pkg.trim());
+        ret.put("allowed", Boolean.TRUE.equals(allowed));
+        call.resolve(ret);
     }
 
     @PluginMethod
@@ -71,7 +96,7 @@ public class AiIngestionPlugin extends Plugin {
                 .edit()
                 .putString(AiIngestionListenerService.KEY_API_URL, apiUrl == null ? "" : apiUrl.trim())
                 .putString(AiIngestionListenerService.KEY_WORKER_KEY, workerKey == null ? "" : workerKey.trim())
-                .apply();
+                .commit();
         call.resolve();
     }
 
@@ -82,8 +107,10 @@ public class AiIngestionPlugin extends Plugin {
                 .getSharedPreferences(AiIngestionListenerService.PREFS, android.content.Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(AiIngestionListenerService.KEY_ENABLED, Boolean.TRUE.equals(enabled))
-                .apply();
-        call.resolve();
+                .commit();
+        JSObject ret = new JSObject();
+        ret.put("enabled", Boolean.TRUE.equals(enabled));
+        call.resolve(ret);
     }
 
     @PluginMethod
