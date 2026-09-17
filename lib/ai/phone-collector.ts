@@ -44,18 +44,43 @@ export const SUGGESTED_NOTIFICATION_SOURCES: { pkg: string; label: string }[] = 
 let pluginPromise: Promise<any | null> | null = null;
 
 function getPlugin(): Promise<any | null> {
-  if (!pluginPromise) {
-    pluginPromise = (async () => {
-      try {
-        if (typeof window === "undefined") return null;
-        const { Capacitor, registerPlugin } = await import("@capacitor/core");
-        if (!Capacitor || Capacitor.getPlatform() !== "android") return null;
-        return registerPlugin("AiIngestion");
-      } catch {
-        return null;
+  if (pluginPromise) return pluginPromise;
+  pluginPromise = (async () => {
+    try {
+      if (typeof window === "undefined") return null;
+      const win = window as any;
+
+      // 1. Direct native proxy check (Capacitor Android injects window.Capacitor.Plugins.AiIngestion)
+      if (win.Capacitor?.Plugins?.AiIngestion) {
+        return win.Capacitor.Plugins.AiIngestion;
       }
-    })();
-  }
+
+      // 2. Resolve @capacitor/core and verify platform
+      const { Capacitor, registerPlugin } = await import("@capacitor/core");
+      const effectiveCap = win.Capacitor || Capacitor;
+      const isAndroid =
+        Boolean(win.androidBridge) ||
+        effectiveCap?.getPlatform?.() === "android" ||
+        Capacitor.getPlatform() === "android";
+
+      if (!isAndroid || Capacitor.getPlatform() !== "android") {
+        if (!isAndroid) return null;
+      }
+
+      if (effectiveCap?.Plugins?.AiIngestion) {
+        return effectiveCap.Plugins.AiIngestion;
+      }
+
+      return registerPlugin("AiIngestion");
+    } catch {
+      return null;
+    }
+  })().then((res) => {
+    if (!res) {
+      pluginPromise = null;
+    }
+    return res;
+  });
   return pluginPromise;
 }
 

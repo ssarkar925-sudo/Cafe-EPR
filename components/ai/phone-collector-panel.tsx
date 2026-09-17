@@ -48,13 +48,50 @@ export default function PhoneCollectorPanel() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+    let retries = 0;
+    const maxRetries = 10;
+
+    const poll = async () => {
+      const available = await isPhoneCollectorAvailable();
+      if (!active) return;
+      if (available) {
+        setPresent(true);
+        void refresh();
+      } else if (retries < maxRetries) {
+        retries++;
+        setTimeout(poll, 300);
+      }
+    };
+
+    void poll();
+
+    const onReady = () => {
+      if (active) void refresh();
+    };
+    window.addEventListener("DOMContentLoaded", onReady);
+    window.addEventListener("deviceready", onReady);
+
+    return () => {
+      active = false;
+      window.removeEventListener("DOMContentLoaded", onReady);
+      window.removeEventListener("deviceready", onReady);
+    };
   }, [refresh]);
 
   if (!present) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Phone Collector</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Phone Collector</h3>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300"
+          >
+            Check device
+          </button>
+        </div>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Notification collection runs inside the Android app with owner-enabled sources only. This browser has no collector.
         </p>
@@ -175,20 +212,39 @@ export default function PhoneCollectorPanel() {
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <input
-          value={apiUrl}
-          onChange={(e) => setApiUrl(e.target.value)}
-          placeholder="Sync API URL (https://…/api/ai/ingestion/events)"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs outline-none dark:border-white/10 dark:bg-slate-900"
-        />
-        <input
-          value={workerKey}
-          onChange={(e) => setWorkerKey(e.target.value)}
-          placeholder="Worker key (stored on device only)"
-          type="password"
-          autoComplete="off"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs outline-none dark:border-white/10 dark:bg-slate-900"
-        />
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sync Endpoint</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  setApiUrl(`${window.location.origin}/api/ai/ingestion/events`);
+                }
+              }}
+              className="text-[10px] font-medium text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Use this server
+            </button>
+          </div>
+          <input
+            value={apiUrl}
+            onChange={(e) => setApiUrl(e.target.value)}
+            placeholder="Sync API URL (https://…/api/ai/ingestion/events)"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs outline-none dark:border-white/10 dark:bg-slate-900"
+          />
+        </div>
+        <div className="space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Worker Key</span>
+          <input
+            value={workerKey}
+            onChange={(e) => setWorkerKey(e.target.value)}
+            placeholder="Worker key (stored on device only)"
+            type="password"
+            autoComplete="off"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs outline-none dark:border-white/10 dark:bg-slate-900"
+          />
+        </div>
       </div>
       <button
         type="button"

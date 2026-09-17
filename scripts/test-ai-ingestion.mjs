@@ -521,6 +521,12 @@ function makeMockDb(seed) {
   ok("JS registration is a memoized singleton", /let pluginPromise|pluginPromise \?/.test(bridge) && !/async function getPlugin/.test(bridge));
   // Graceful degradation preserved: platform guard + error swallowing intact.
   ok("web/non-android still degrades to null", bridge.includes('Capacitor.getPlatform() !== "android"') && bridge.includes("return null"));
+  ok("checks window Capacitor Plugins AiIngestion", bridge.includes("win.Capacitor?.Plugins?.AiIngestion"));
+  ok("resets pluginPromise on null for retry", bridge.includes("pluginPromise = null"));
+
+  const panel = readRepo("components/ai/phone-collector-panel.tsx");
+  ok("panel retries bridge detection on mount", panel.includes("maxRetries") && panel.includes("isPhoneCollectorAvailable"));
+  ok("panel provides explicit device check button", panel.includes("Check device"));
 
   // Native plugin name must match the JS name exactly.
   const nativeName = (pluginJava.match(/@CapacitorPlugin\(\s*name\s*=\s*"([^"]+)"\s*\)/) || [])[1];
