@@ -1340,6 +1340,7 @@ export default function RechargeWorkspace({
           customerPaymentAllocations={customerPaymentAllocations}
           setCustomerPaymentAllocations={setCustomerPaymentAllocations}
           customerPaymentAccount={instruments.find((i) => i.id === customerPayInstId) ?? null}
+          customerPaymentInstruments={instruments}
           fundingInstId={fundingInstId}
           setFundingInstId={setFundingInstId}
           fundingInstruments={validFundingInstruments}

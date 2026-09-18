@@ -1287,6 +1287,7 @@ export default function UtilityBillWorkspace({
           customerPaymentAllocations={customerPaymentAllocations}
           setCustomerPaymentAllocations={setCustomerPaymentAllocations}
           customerPaymentAccount={selectedCustomerPaymentAccount}
+          customerPaymentInstruments={instruments}
           fundingInstId={fundingInstId}
           setFundingInstId={setFundingInstId}
           fundingInstruments={validFundingInstruments}

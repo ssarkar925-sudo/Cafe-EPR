@@ -844,6 +844,7 @@ export default function GooglePlayWorkspace({
           customerPaymentAllocations={customerPaymentAllocations}
           setCustomerPaymentAllocations={setCustomerPaymentAllocations}
           customerPaymentAccount={instruments.find((i) => i.id === customerPayInstId) ?? null}
+          customerPaymentInstruments={instruments}
           fundingInstId={fundingInstId}
           setFundingInstId={setFundingInstId}
           fundingInstruments={validFundingInstruments}

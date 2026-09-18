@@ -168,10 +168,10 @@ export function calculateAccountBalances({
     );
 
     // Provider/payout leg:
-    if (transaction.service_type === "aeps") {
+    if (String(transaction.service_type ?? "").toLowerCase() === "aeps") {
       const portalInstrumentId =
         (transaction.portal_id ? portalToInstrument[transaction.portal_id] : null) ??
-        (transaction.pay_from_method === "aeps_portal" ? transaction.pay_from_instrument_id : null);
+        (String(transaction.pay_from_method ?? "").toLowerCase() === "aeps_portal" ? transaction.pay_from_instrument_id : null);
       const poolCredit = money(transaction.pool_credit ?? transaction.provider_credit ?? 0);
       const poolOut = money(transaction.pool_out ?? transaction.provider_amount ?? 0);
       if (portalInstrumentId) {

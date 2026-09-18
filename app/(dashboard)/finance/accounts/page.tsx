@@ -102,10 +102,10 @@ export default async function FinanceAccountsPage({
       .order("name"),
     supabase.from("cash_entries").select("id, instrument_id, direction, amount, method, created_at").limit(2000),
     supabase.from("settlements").select("id, source_instrument_id, dest_instrument_id, from_pool, to_pool, amount, status, created_at").limit(1000),
-    supabase.from("transactions").select("id, instrument_id, customer_instrument_id, funding_instrument_id, portal_id, service_type, total_amount, amount, pool_credit, pool_out, customer_pay_method, status, created_at").limit(2000),
+    supabase.from("transactions").select("id, instrument_id, customer_instrument_id, funding_instrument_id, portal_id, service_type, total_amount, amount, pool_credit, pool_out, customer_pay_method, pay_from_method, pay_from_instrument_id, status, transaction_date, created_at").order("transaction_date", { ascending: true }).range(0, 9999),
     supabase.from("expenses").select("id, payment_instrument_id, payment_method, amount, status, created_at").limit(1000),
     supabase.from("purchases").select("id, payment_instrument_id, payment_method, paid_amount, amount, status, created_at").limit(1000),
-    supabase.from("aeps_portals").select("id, payment_instrument_id").limit(100),
+    supabase.from("aeps_portals").select("id, payment_instrument_id, service_type").eq("service_type", "aeps").range(0, 9999),
     supabase.rpc("get_pool_balances"),
     supabase.from("opening_balances").select("*").order("as_of", { ascending: false }),
   ]);

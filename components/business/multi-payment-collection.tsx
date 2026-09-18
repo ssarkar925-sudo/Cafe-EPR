@@ -16,6 +16,8 @@ type Props = {
   initialMethod?: PaymentAllocation["method"];
   initialAllocations?: PaymentAllocation[];
   onChange: (allocations: PaymentAllocation[]) => void;
+  paymentInstruments?: Array<{ id: string; name: string; type: string; is_active?: boolean }>;
+  defaultInstrumentId?: string | null;
 };
 
 const METHODS: { id: PaymentAllocation["method"]; label: string }[] = [
@@ -26,10 +28,39 @@ const METHODS: { id: PaymentAllocation["method"]; label: string }[] = [
   { id: "card", label: "Card" },
 ];
 
+function instrumentMatchesMethod(type: string, method: PaymentAllocation["method"]) {
+  const t = String(type || "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (method === "cash") return t === "cash" || t.includes("cash");
+  if (method === "upi") return t === "upi" || t === "upi_qr" || t.includes("merchant_qr");
+  if (method === "bank") return t === "bank" || t.includes("bank_account") || t.includes("current_account") || t.includes("savings");
+  if (method === "wallet") return t === "wallet" || t.includes("wallet");
+  if (method === "card") return t === "card" || t.includes("credit_card") || t === "cc";
+  return false;
+}
+
+function resolveMatchingInstrument(
+  method: PaymentAllocation["method"],
+  preferredInstrumentId?: string | null,
+  paymentInstruments: Array<{ id: string; name: string; type: string; is_active?: boolean }> = [],
+): string | null {
+  if (
+    preferredInstrumentId &&
+    paymentInstruments.some((item) => item.id === preferredInstrumentId && instrumentMatchesMethod(item.type, method))
+  ) {
+    return preferredInstrumentId;
+  }
+  const fallback = paymentInstruments.find(
+    (item) => item.is_active !== false && instrumentMatchesMethod(item.type, method),
+  );
+  return fallback ? fallback.id : null;
+}
+
 function normalizeInitialAllocations(
   total: number,
   initialMethod: PaymentAllocation["method"],
-  initialAllocations?: PaymentAllocation[]
+  initialAllocations?: PaymentAllocation[],
+  defaultInstrumentId?: string | null,
+  paymentInstruments: Array<{ id: string; name: string; type: string; is_active?: boolean }> = [],
 ): PaymentAllocation[] {
   const rows = Array.isArray(initialAllocations)
     ? initialAllocations
@@ -37,13 +68,16 @@ function normalizeInitialAllocations(
         .map((row) => ({
           method: row.method,
           amount: Math.max(0, Number(row.amount) || 0).toFixed(2),
-          instrument_id: row.instrument_id || null,
+          instrument_id:
+            row.instrument_id ||
+            resolveMatchingInstrument(row.method, defaultInstrumentId, paymentInstruments),
         }))
     : [];
 
   if (rows.length > 0) return rows;
+  const defaultInstrument = resolveMatchingInstrument(initialMethod, defaultInstrumentId, paymentInstruments);
   return total > 0
-    ? [{ method: initialMethod, amount: total.toFixed(2), instrument_id: null }]
+    ? [{ method: initialMethod, amount: total.toFixed(2), instrument_id: defaultInstrument }]
     : [];
 }
 
@@ -54,10 +88,12 @@ export default function MultiPaymentCollection({
   initialMethod = "cash",
   initialAllocations,
   onChange,
+  paymentInstruments = [],
+  defaultInstrumentId = null,
 }: Props) {
   const safeTotal = Math.max(0, Number(totalDue) || 0);
   const [allocations, setAllocations] = useState<PaymentAllocation[]>(() =>
-    normalizeInitialAllocations(safeTotal, initialMethod, initialAllocations)
+    normalizeInitialAllocations(safeTotal, initialMethod, initialAllocations, defaultInstrumentId, paymentInstruments)
   );
   const [splitOpen, setSplitOpen] = useState(false);
   const previousTotalRef = useRef(safeTotal);
@@ -72,7 +108,10 @@ export default function MultiPaymentCollection({
     const prevTotal = previousTotalRef.current;
     setAllocations((prev) => {
       if (safeTotal <= 0) return [];
-      if (prev.length === 0) return [{ method: initialMethod, amount: safeTotal.toFixed(2), instrument_id: null }];
+      if (prev.length === 0) {
+        const defaultInst = resolveMatchingInstrument(initialMethod, defaultInstrumentId, paymentInstruments);
+        return [{ method: initialMethod, amount: safeTotal.toFixed(2), instrument_id: defaultInst }];
+      }
       const prevCollected = prev.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
       if (prev.length === 1 && Math.abs(prevCollected - prevTotal) < 0.005) {
         return [{ ...prev[0], amount: safeTotal.toFixed(2) }];
@@ -80,7 +119,7 @@ export default function MultiPaymentCollection({
       return prev;
     });
     previousTotalRef.current = safeTotal;
-  }, [safeTotal, initialMethod]);
+  }, [safeTotal, initialMethod, defaultInstrumentId, paymentInstruments]);
 
   useEffect(() => {
     const serialized = JSON.stringify(allocations);
@@ -96,20 +135,37 @@ export default function MultiPaymentCollection({
   const remaining = Math.max(0, safeTotal - collected);
 
   function updateRow(index: number, patch: Partial<PaymentAllocation>) {
-    setAllocations((prev) => prev.map((row, i) => {
-      if (i !== index) return row;
-      if (patch.amount === undefined) return { ...row, ...patch };
-      const otherCollected = prev.reduce((sum, item, itemIndex) => itemIndex === index ? sum : sum + Math.max(0, Number(item.amount) || 0), 0);
-      const maxForRow = Math.max(0, safeTotal - otherCollected);
-      const raw = patch.amount.trim() === "" ? "" : Math.max(0, Math.min(maxForRow, Number(patch.amount) || 0)).toFixed(2);
-      return { ...row, ...patch, amount: raw };
-    }));
+    setAllocations((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
+        let nextRow = { ...row, ...patch };
+        if (patch.method && patch.method !== row.method) {
+          const currentInstId = patch.instrument_id !== undefined ? patch.instrument_id : row.instrument_id;
+          const stillMatches =
+            currentInstId &&
+            paymentInstruments.some((item) => item.id === currentInstId && instrumentMatchesMethod(item.type, patch.method!));
+          if (!stillMatches) {
+            nextRow.instrument_id = resolveMatchingInstrument(patch.method, defaultInstrumentId, paymentInstruments);
+          }
+        }
+        if (patch.amount === undefined) return nextRow;
+        const otherCollected = prev.reduce(
+          (sum, item, itemIndex) => (itemIndex === index ? sum : sum + Math.max(0, Number(item.amount) || 0)),
+          0
+        );
+        const maxForRow = Math.max(0, safeTotal - otherCollected);
+        const raw =
+          patch.amount.trim() === "" ? "" : Math.max(0, Math.min(maxForRow, Number(patch.amount) || 0)).toFixed(2);
+        return { ...nextRow, amount: raw };
+      })
+    );
   }
 
   function addRow() {
     if (safeTotal <= 0 || allocations.length >= METHODS.length) return;
     const used = new Set(allocations.map((x) => x.method));
     const nextMethod = METHODS.find((m) => !used.has(m.id))?.id || "cash";
+    const nextInst = resolveMatchingInstrument(nextMethod, defaultInstrumentId, paymentInstruments);
     setSplitOpen(true);
 
     setAllocations((prev) => {
@@ -117,7 +173,7 @@ export default function MultiPaymentCollection({
       const remainingNow = Math.max(0, safeTotal - collectedNow);
 
       if (remainingNow > 0) {
-        return [...prev, { method: nextMethod, amount: remainingNow.toFixed(2), instrument_id: null }];
+        return [...prev, { method: nextMethod, amount: remainingNow.toFixed(2), instrument_id: nextInst }];
       }
 
       // The default single-payment row is normally filled to the full total.
@@ -130,11 +186,11 @@ export default function MultiPaymentCollection({
         return [
           ...prev.slice(0, index),
           { ...prev[index], amount: first.toFixed(2) },
-          { method: nextMethod, amount: second.toFixed(2), instrument_id: null },
+          { method: nextMethod, amount: second.toFixed(2), instrument_id: nextInst },
         ];
       }
 
-      return [...prev, { method: nextMethod, amount: "0.00", instrument_id: null }];
+      return [...prev, { method: nextMethod, amount: "0.00", instrument_id: nextInst }];
     });
   }
 
@@ -211,7 +267,7 @@ export default function MultiPaymentCollection({
       {(splitOpen || allocations.length > 1) && (
         <div className="mt-2 space-y-1.5">
           {allocations.map((row, index) => (
-            <div key={`${index}-${row.method}`} className="grid grid-cols-[minmax(0,1fr)_96px_auto] items-center gap-1.5">
+            <div key={`${index}-${row.method}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px_auto] items-center gap-1.5">
               <select
                 value={row.method}
                 onChange={(e) => updateRow(index, { method: e.target.value as PaymentAllocation["method"] })}
@@ -219,6 +275,17 @@ export default function MultiPaymentCollection({
                 className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
               >
                 {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+              <select
+                value={row.instrument_id || ""}
+                onChange={(e) => updateRow(index, { instrument_id: e.target.value || null })}
+                disabled={disabled}
+                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
+              >
+                <option value="">Select account</option>
+                {paymentInstruments.filter((item) => item.is_active !== false && instrumentMatchesMethod(item.type, row.method)).map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
               </select>
               <input
                 type="number"

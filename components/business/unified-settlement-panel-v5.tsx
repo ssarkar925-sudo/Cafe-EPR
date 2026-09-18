@@ -31,6 +31,7 @@ type Props = {
   customerPaymentAllocations: PaymentAllocation[];
   setCustomerPaymentAllocations: Dispatch<SetStateAction<PaymentAllocation[]>>;
   customerPaymentAccount?: PaymentInstrument | null;
+  customerPaymentInstruments?: PaymentInstrument[];
   fundingInstId: string;
   setFundingInstId: (value: string) => void;
   fundingInstruments: PaymentInstrument[];
@@ -111,6 +112,7 @@ export default function UnifiedSettlementPanelV5({
   customerPaymentAllocations,
   setCustomerPaymentAllocations,
   customerPaymentAccount,
+  customerPaymentInstruments = [],
   fundingInstId,
   setFundingInstId,
   fundingInstruments,
@@ -285,6 +287,8 @@ export default function UnifiedSettlementPanelV5({
                     totalDue={customerTotal}
                     disabled={submitting}
                     mode="customer"
+                    paymentInstruments={customerPaymentInstruments}
+                    defaultInstrumentId={customerPaymentAccount?.id ?? null}
                     initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod}
                     onChange={(rows) => {
                       setCustomerPaymentAllocations(rows);
