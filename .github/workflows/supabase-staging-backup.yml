@@ -33,10 +33,10 @@ concurrency:
 env:
   # Expected staging host. The guard step requires an exact match and aborts
   # on anything else. Update only with review.
-  STAGING_EXPECTED_HOST: plznnfgupoqhdsfwgqna.supabase.co
+  STAGING_EXPECTED_HOST: db.plznnfgupoqhdsfwgqna.supabase.co
   # Production hostname. The guard step additionally refuses to run if the
   # staging connection string resolves to this host. Update only with review.
-  PRODUCTION_HOST: tvxehxnvuwojjbhysajp.supabase.co
+  PRODUCTION_HOST: db.tvxehxnvuwojjbhysajp.supabase.co
   BACKUP_RETENTION_DAYS: "14"
   BACKUP_KEEP_MINIMUM: "7"
 
@@ -81,7 +81,7 @@ jobs:
             echo "::error::Could not determine database hostname. Refusing to run."
             exit 1
           fi
-          if [ "$HOST" = "$PRODUCTION_HOST" ]; then
+          if [ "$HOST" = "$PRODUCTION_HOST" ] || [ "$HOST" = "tvxehxnvuwojjbhysajp.supabase.co" ]; then
             echo "::error::Target hostname matches PRODUCTION. Refusing to run."
             exit 1
           fi
