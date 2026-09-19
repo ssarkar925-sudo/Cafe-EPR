@@ -58,10 +58,17 @@ jobs:
           fi
           # Parse without ever printing the URL. Only PASS/FAIL reaches logs.
           PARSED="$(STAGING_DATABASE_URL="$STAGING_DATABASE_URL" python3 - <<'EOF'
-          import os, urllib.parse
-          u = urllib.parse.urlparse(os.environ.get("STAGING_DATABASE_URL", ""))
-          print(u.scheme or "")
-          print(u.hostname or "")
+          import os, sys, urllib.parse
+          try:
+              u = urllib.parse.urlparse(os.environ.get("STAGING_DATABASE_URL", ""))
+              scheme = u.scheme or ""
+              host = u.hostname or ""
+          except ValueError:
+              sys.stderr.write("::error::PARSE_ERROR: invalid database URL format\n")
+              sys.stderr.write("PARSE_ERROR: invalid database URL format\n")
+              sys.exit(1)
+          print(scheme)
+          print(host)
           EOF
           )"
           SCHEME="$(echo "$PARSED" | sed -n '1p')"
@@ -95,22 +102,30 @@ jobs:
           echo "BACKUP_STAMP=$STAMP" >> "$GITHUB_ENV"
           PGPASS="$RUNNER_TEMP/pgpass"
           STAGING_DATABASE_URL="$STAGING_DATABASE_URL" PGPASSFILE_OUT="$PGPASS" GITHUB_ENV_OUT="$GITHUB_ENV" python3 - <<'EOF'
-          import os, urllib.parse
-          u = urllib.parse.urlparse(os.environ["STAGING_DATABASE_URL"])
-          db = (u.path or "/postgres").lstrip("/") or "postgres"
-          port = str(u.port or 5432)
+          import os, sys, urllib.parse
+          try:
+              u = urllib.parse.urlparse(os.environ["STAGING_DATABASE_URL"])
+              db = (u.path or "/postgres").lstrip("/") or "postgres"
+              port = str(u.port or 5432)
+              host = u.hostname or ""
+              user = urllib.parse.unquote(u.username or "postgres")
+              password = urllib.parse.unquote(u.password or "")
+          except ValueError:
+              sys.stderr.write("::error::PARSE_ERROR: invalid database URL format\n")
+              sys.stderr.write("PARSE_ERROR: invalid database URL format\n")
+              sys.exit(1)
           with open(os.environ["GITHUB_ENV_OUT"], "a", encoding="utf-8") as f:
-              f.write(f"PGHOST={u.hostname or ''}\n")
+              f.write(f"PGHOST={host}\n")
               f.write(f"PGPORT={port}\n")
-              f.write(f"PGUSER={urllib.parse.unquote(u.username or 'postgres')}\n")
+              f.write(f"PGUSER={user}\n")
               f.write(f"PGDATABASE={db}\n")
               f.write("PGPASSFILE=" + os.environ["PGPASSFILE_OUT"] + "\n")
           line = ":".join([
-              u.hostname or "",
+              host,
               port,
               db,
-              urllib.parse.unquote(u.username or "postgres"),
-              urllib.parse.unquote(u.password or ""),
+              user,
+              password,
           ])
           with open(os.environ["PGPASSFILE_OUT"], "w", encoding="utf-8") as f:
               f.write(line + "\n")
@@ -244,7 +259,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          for f in "$RUNNER_TEMP/pgpass" "$DUMP_PATH" "$ENC_PATH"; do
+          for f in "$RUNNER_TEMP/pgpass" "${DUMP_PATH:-}" "${ENC_PATH:-}"; do
             if [ -n "${f:-}" ] && [ -f "$f" ]; then shred -u "$f" || rm -f "$f"; fi
           done
           echo "Temporary credential and backup files shredded."
