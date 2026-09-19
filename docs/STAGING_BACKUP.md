@@ -1,0 +1,75 @@
+# CafeERP Staging Backup — encrypted pg_dump to Google Drive
+
+Workflow: `.github/workflows/supabase-staging-backup.yml`
+Scope: **staging only**. Nothing here may target production.
+
+## How it works
+
+1. **Guard (fail closed).** Parses `STAGING_DATABASE_URL` without printing it and aborts unless the scheme is `postgresql://` and the hostname differs from the production host pinned in the workflow (`PRODUCTION_HOST`). Empty URL, unparsable URL, or production host ⇒ immediate failure.
+2. **Connection split.** The URL is decomposed into libpq variables (`PGHOST/PGPORT/PGUSER/PGDATABASE`); the password lives only in a `0600` pgpass file. Secrets never appear in CLI args or logs (full URL and passphrase are masked via `::add-mask::`).
+3. **Dump.** Pinned `postgres:18` container runs `pg_dump -Fc -Z6` (custom format, compressed). Client ≥ server version is guaranteed by the pin.
+4. **Encrypt.** `openssl enc -aes-256-cbc -pbkdf2 -iter 600000` with `BACKUP_ENCRYPTION_PASSPHRASE`; plaintext is `shred -u` shredded immediately after. Only a SHA256 of the ciphertext is logged.
+5. **Upload + retention.** Service-account upload to the Drive folder, then retention: always keep the newest `BACKUP_KEEP_MINIMUM` (7); trash anything older than `BACKUP_RETENTION_DAYS` (14) beyond that. Local ciphertext is shredded afterwards.
+
+Triggers: daily `30 2 * * *` (UTC) plus manual `workflow_dispatch`.
+
+## Required GitHub secrets (repository → Settings → Secrets → Actions)
+
+| Secret | Contents | Notes |
+|---|---|---|
+| `STAGING_DATABASE_URL` | `postgresql://USER:PASSWORD@<staging-host>:5432/postgres` | **Staging only.** Prefer a dedicated backup role (below), not the `postgres` superuser. |
+| `BACKUP_ENCRYPTION_PASSPHRASE` | Long random string (≥32 chars, generated, e.g. `openssl rand -base64 48`) | Losing this = backups unrecoverable. Store a copy in the team vault. |
+| `GDRIVE_SERVICE_ACCOUNT_JSON` | Full service-account key JSON | See setup below. |
+| `GDRIVE_BACKUP_FOLDER_ID` | Drive folder ID (the string after `/folders/` in its URL) | Folder must be shared with the service account (Writer). |
+
+## Dedicated staging backup role (least privilege)
+
+Run once against **staging** as an owner (never production):
+
+```sql
+CREATE ROLE backup_reader WITH LOGIN PASSWORD '<strong-unique-password>';
+GRANT CONNECT ON DATABASE postgres TO backup_reader;
+GRANT USAGE ON SCHEMA public TO backup_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_reader;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_reader;
+```
+
+`pg_dump` also needs sequence values; if the dump warns on sequences, add `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO backup_reader;`. Use this role's password in `STAGING_DATABASE_URL`.
+
+## Google Drive setup (least privilege)
+
+1. Google Cloud console → new or existing project → enable **Google Drive API**.
+2. IAM → Service Accounts → create (e.g. `cafeerp-staging-backup`) → no project roles.
+3. Keys → Add key → JSON → paste the whole JSON into `GDRIVE_SERVICE_ACCOUNT_JSON`.
+4. In Google Drive, create the backups folder → Share → add the service-account email (`…@….iam.gserviceaccount.com`) as **Content manager** (lets it create/trash files inside that folder only).
+5. Copy the folder ID from its URL into `GDRIVE_BACKUP_FOLDER_ID`.
+6. The uploader requests only the `drive.file` scope (files the app itself creates), not full Drive access.
+
+## Restore procedure
+
+```bash
+# 1. Download the newest cafeerp-staging-<stamp>.dump.enc from the Drive folder.
+# 2. Decrypt (passphrase from the team vault, never chat/email):
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+  -in cafeerp-staging-<stamp>.dump.enc -out restore.dump \
+  -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+# 3. Verify + restore into an EMPTY staging-equivalent database (never production):
+pg_restore --list restore.dump | head
+pg_restore --clean --if-exists -d "<empty-target-url>" restore.dump
+```
+
+## Safe testing (no production contact)
+
+1. Fill the four secrets with **staging-only** values (double-check the hostname is not production).
+2. Actions → Supabase Staging Backup → Run workflow.
+3. Expect: guard PASS → dump size logged → ciphertext SHA256 logged → Drive file appears → retention line printed.
+4. Negative test: temporarily set `STAGING_DATABASE_URL` to a URL whose host is the production hostname (or empty) in a scratch run — the workflow must fail at the guard step before any dump. Revert immediately.
+5. Restore drill quarterly: decrypt + `pg_restore --list` into an empty database.
+
+## Security limitations (read before relying on this)
+
+- The passphrase and service-account key live in GitHub Secrets; anyone with repo admin can read workflow *results* but secrets stay masked. Rotate both if admin membership changes unexpectedly.
+- `drive.file` scope + folder sharing limits blast radius to that folder, but a leaked SA key can still delete backups inside it — retention `KEEP_MINIMUM` only guards the workflow's own deletions, not manual/API deletes. Consider a second offline copy for critical milestones.
+- The production-host guard is a string comparison against a pinned constant; it cannot detect a *different* production-replica hostname. Human verification of secrets (step: safe testing, item 1) remains mandatory.
+- Runner disk is ephemeral, but plaintext exists briefly between dump and encrypt; `shred` mitigates, not eliminates, cloud-disk forensics risk. For higher assurance, stream `pg_dump | openssl` via pipe (future improvement).
+- This workflow never touches production by design; there is deliberately no production variant of this file.
