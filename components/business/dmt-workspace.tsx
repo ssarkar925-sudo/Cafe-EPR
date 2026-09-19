@@ -2087,7 +2087,7 @@ export default function DmtWorkspace({
                 </div>
               </div>
 
-<MultiPaymentCollection totalDue={totalCollected} disabled={isSubmitting} mode="customer" initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />
+<MultiPaymentCollection totalDue={totalCollected} disabled={isSubmitting} mode="customer" paymentInstruments={liveInstruments} initialMethod={customerPayMethod === "due" ? "cash" : customerPayMethod} onChange={(rows) => { setCustomerPaymentAllocations(rows); const first = rows.find((row) => Number(row.amount) > 0); setCustomerPayMethod(first?.method ?? "due"); }} />
 
               {/* Reference & Remarks */}
               <div className="space-y-1 sm:col-span-2 pt-2 border-t border-slate-100 dark:border-white/5">
