@@ -31,12 +31,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Expected staging host. The guard step requires an exact match and aborts
-  # on anything else. Update only with review.
-  STAGING_EXPECTED_HOST: plznnfgupoqhdsfwgqna.supabase.co
-  # Production hostname. The guard step additionally refuses to run if the
-  # staging connection string resolves to this host. Update only with review.
-  PRODUCTION_HOST: tvxehxnvuwojjbhysajp.supabase.co
+  # Approved staging hosts. The guard step requires an exact match with one of
+  # these approved hosts and aborts on anything else. Update only with review.
+  # Session pooler (IPv4) host:
+  STAGING_EXPECTED_HOST: aws-0-ap-south-1.pooler.supabase.com
+  # Direct connection host:
+  STAGING_DIRECT_HOST: db.plznnfgupoqhdsfwgqna.supabase.co
+  STAGING_PROJECT_REF: plznnfgupoqhdsfwgqna
+  # Production hostnames and project reference. Guard step strictly refuses these.
+  PRODUCTION_HOST: db.tvxehxnvuwojjbhysajp.supabase.co
+  PRODUCTION_PROJECT_REF: tvxehxnvuwojjbhysajp
   BACKUP_RETENTION_DAYS: "14"
   BACKUP_KEEP_MINIMUM: "7"
 
@@ -63,16 +67,22 @@ jobs:
               u = urllib.parse.urlparse(os.environ.get("STAGING_DATABASE_URL", ""))
               scheme = u.scheme or ""
               host = u.hostname or ""
+              port = str(u.port or 5432)
+              user = urllib.parse.unquote(u.username or "")
           except ValueError:
               sys.stderr.write("::error::PARSE_ERROR: invalid database URL format\n")
               sys.stderr.write("PARSE_ERROR: invalid database URL format\n")
               sys.exit(1)
           print(scheme)
           print(host)
+          print(port)
+          print(user)
           EOF
           )"
           SCHEME="$(echo "$PARSED" | sed -n '1p')"
           HOST="$(echo "$PARSED" | sed -n '2p')"
+          PORT="$(echo "$PARSED" | sed -n '3p')"
+          USER_INFO="$(echo "$PARSED" | sed -n '4p')"
           if [ "$SCHEME" != "postgresql" ] && [ "$SCHEME" != "postgres" ]; then
             echo "::error::Connection string is not a postgresql:// URL. Refusing to run."
             exit 1
@@ -81,15 +91,35 @@ jobs:
             echo "::error::Could not determine database hostname. Refusing to run."
             exit 1
           fi
-          if [ "$HOST" = "$PRODUCTION_HOST" ]; then
-            echo "::error::Target hostname matches PRODUCTION. Refusing to run."
+          if [ "$PORT" != "5432" ]; then
+            echo "::error::Database port is $PORT. Port must be 5432 (Session mode pooler required for pg_dump; transaction mode 6543 is not supported). Refusing to run."
             exit 1
           fi
-          if [ "$HOST" != "$STAGING_EXPECTED_HOST" ]; then
-            echo "::error::Database hostname is not the expected staging host. Refusing to run."
+          if [ "$HOST" = "$PRODUCTION_HOST" ] || [ "$HOST" = "tvxehxnvuwojjbhysajp.supabase.co" ] || [ "$HOST" = "db.tvxehxnvuwojjbhysajp.supabase.co" ]; then
+            echo "::error::Target hostname matches PRODUCTION direct host. Refusing to run."
             exit 1
           fi
-          echo "Target guard passed: exact staging host confirmed."
+          case "$USER_INFO" in
+            *"$PRODUCTION_PROJECT_REF"*)
+              echo "::error::Target database user references PRODUCTION project ($PRODUCTION_PROJECT_REF). Refusing to run."
+              exit 1
+              ;;
+          esac
+          if [ "$HOST" != "$STAGING_EXPECTED_HOST" ] && [ "$HOST" != "$STAGING_DIRECT_HOST" ]; then
+            echo "::error::Database hostname is not an approved staging host. Refusing to run."
+            exit 1
+          fi
+          if [ "$HOST" = "$STAGING_EXPECTED_HOST" ]; then
+            case "$USER_INFO" in
+              *"$STAGING_PROJECT_REF"*)
+                ;;
+              *)
+                echo "::error::Pooler connection user must reference the staging project ($STAGING_PROJECT_REF). Refusing to run."
+                exit 1
+                ;;
+            esac
+          fi
+          echo "Target guard passed: approved staging host and port confirmed."
 
       - name: Split connection into libpq env (no secrets in args/logs)
         shell: bash

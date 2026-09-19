@@ -5,7 +5,7 @@ Scope: **staging only**. Nothing here may target production.
 
 ## How it works
 
-1. **Guard (fail closed).** Parses `STAGING_DATABASE_URL` without printing it and aborts unless the scheme is `postgresql://` and the hostname differs from the production host pinned in the workflow (`PRODUCTION_HOST`). Empty URL, unparsable URL, or production host ⇒ immediate failure.
+1. **Guard (fail closed).** Parses `STAGING_DATABASE_URL` without printing it and aborts unless the scheme is `postgresql://`, port is `5432`, and the hostname matches an approved staging host (staging session pooler `aws-0-ap-south-1.pooler.supabase.com` with staging project reference in the user, or direct staging host `db.plznnfgupoqhdsfwgqna.supabase.co`). Any production host, production project reference, invalid port (such as transaction pooler `6543`), empty URL, unparsable URL, or unrecognized host ⇒ immediate failure.
 2. **Connection split.** The URL is decomposed into libpq variables (`PGHOST/PGPORT/PGUSER/PGDATABASE`); the password lives only in a `0600` pgpass file. Secrets never appear in CLI args or logs (full URL and passphrase are masked via `::add-mask::`).
 3. **Dump.** Pinned `postgres:18` container runs `pg_dump -Fc -Z6` (custom format, compressed). Client ≥ server version is guaranteed by the pin.
 4. **Encrypt.** `openssl enc -aes-256-cbc -pbkdf2 -iter 600000` with `BACKUP_ENCRYPTION_PASSPHRASE`; plaintext is `shred -u` shredded immediately after. Only a SHA256 of the ciphertext is logged.
@@ -17,7 +17,7 @@ Triggers: daily `30 2 * * *` (UTC) plus manual `workflow_dispatch`.
 
 | Secret | Contents | Notes |
 |---|---|---|
-| `STAGING_DATABASE_URL` | `postgresql://USER:PASSWORD@<staging-host>:5432/postgres` | **Staging only.** Prefer a dedicated backup role (below), not the `postgres` superuser. |
+| `STAGING_DATABASE_URL` | `postgresql://USER.<staging-ref>:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres` or `postgresql://USER:PASSWORD@db.<staging-ref>.supabase.co:5432/postgres` | **Staging only.** For GitHub Actions runners (IPv4), use the Session Pooler endpoint on port 5432. Port 6543 (transaction mode) is not supported by `pg_dump`. |
 | `BACKUP_ENCRYPTION_PASSPHRASE` | Long random string (≥32 chars, generated, e.g. `openssl rand -base64 48`) | Losing this = backups unrecoverable. Store a copy in the team vault. |
 | `GDRIVE_SERVICE_ACCOUNT_JSON` | Full service-account key JSON | See setup below. |
 | `GDRIVE_BACKUP_FOLDER_ID` | Drive folder ID (the string after `/folders/` in its URL) | Folder must be shared with the service account (Writer). |
