@@ -20,8 +20,9 @@ import { BILLER_CATEGORIES, POPULAR_BILLERS } from "@/components/business/utilit
 import type { CustomerRow, PaymentInstrument, RechargeProvider, RechargeSlab, Txn } from "@/components/business/recharge-workspace";
 import type { BillCommissionConfig } from "@/lib/bill-payment/commission";
 
-function normalizeEditPaymentAllocations(txn: Txn | null): PaymentAllocation[] {
+function normalizeEditPaymentAllocations(txn: Txn | null, paymentInstruments: PaymentInstrument[] = []): PaymentAllocation[] {
   if (!txn) return [];
+  const defaultCash = paymentInstruments.find((i) => i.is_active !== false && String(i.type || "").toLowerCase() === "cash")?.id || null;
   const raw = Array.isArray((txn as any).customer_payment_allocations)
     ? (txn as any).customer_payment_allocations
     : [];
@@ -33,10 +34,14 @@ function normalizeEditPaymentAllocations(txn: Txn | null): PaymentAllocation[] {
       const method: PaymentAllocation["method"] = ["cash", "upi", "bank", "wallet", "card"].includes(normalizedMethod)
         ? normalizedMethod as PaymentAllocation["method"]
         : "cash";
+      let instId = item?.instrument_id || null;
+      if (!instId && paymentInstruments.length > 0) {
+        instId = paymentInstruments.find((i) => i.is_active !== false && String(i.type || "").toLowerCase().includes(method === "card" ? "card" : method))?.id || null;
+      }
       return {
         method,
         amount: Number(item?.amount || 0).toFixed(2),
-        instrument_id: item?.instrument_id || null,
+        instrument_id: instId,
       } as PaymentAllocation;
     });
   if (mapped.length > 0) return mapped;
@@ -51,10 +56,13 @@ function normalizeEditPaymentAllocations(txn: Txn | null): PaymentAllocation[] {
   const method: PaymentAllocation["method"] = ["cash", "upi", "bank", "wallet", "card"].includes(normalizedMethod)
     ? normalizedMethod as PaymentAllocation["method"]
     : "cash";
+  const fallbackInst = (txn as any).customer_collection_instrument_id ||
+    paymentInstruments.find((i) => i.is_active !== false && String(i.type || "").toLowerCase().includes(method === "card" ? "card" : method))?.id ||
+    defaultCash;
   return [{
     method,
     amount: total.toFixed(2),
-    instrument_id: (txn as any).customer_collection_instrument_id || null,
+    instrument_id: fallbackInst,
   }];
 }
 
@@ -260,14 +268,14 @@ export default function BillPaymentHub({
       setEditServiceFee(String(editTxn.service_fee ?? "0"));
       setEditCommission(String(editTxn.portal_commission ?? "0"));
       setEditPayMethod(editTxn.customer_pay_method || "cash");
-      setEditPaymentAllocations(normalizeEditPaymentAllocations(editTxn));
+      setEditPaymentAllocations(normalizeEditPaymentAllocations(editTxn, paymentInstruments));
       const currentInstId = (editTxn as any).pay_from_instrument_id || editTxn.instrument_id || "";
       setEditFundingInstId(currentInstId);
       setEditRemarks(editTxn.remarks || "");
       setEditStatus(editTxn.status);
       setEditValidationErr(null);
     }
-  }, [editTxn]);
+  }, [editTxn, paymentInstruments]);
 
   // Classification Helper
   const classifyTxn = useCallback((t: Txn) => {
@@ -517,7 +525,7 @@ export default function BillPaymentHub({
       const totalCustomerPaid = parsedAmount + parsedFee;
       const allocationsForSave = editPayMethod === "due"
         ? []
-        : (editPaymentAllocations.length > 0 ? editPaymentAllocations : normalizeEditPaymentAllocations(editTxn));
+        : (editPaymentAllocations.length > 0 ? editPaymentAllocations : normalizeEditPaymentAllocations(editTxn, paymentInstruments));
       const collectedFromAllocations = allocationsForSave.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
       if (editStatus === "success") {
         if (editPayMethod !== "due" && allocationsForSave.length === 0) {
@@ -1582,11 +1590,12 @@ export default function BillPaymentHub({
                         } else {
                           const rows = editPaymentAllocations.length > 0
                             ? editPaymentAllocations
-                            : normalizeEditPaymentAllocations(editTxn);
+                            : normalizeEditPaymentAllocations(editTxn, paymentInstruments);
                           const total = Math.max(0, Number(editAmount) || 0) + Math.max(0, Number(editServiceFee) || 0);
+                          const defaultCashId = paymentInstruments.find((i) => i.is_active !== false && String(i.type || "").toLowerCase() === "cash")?.id || null;
                           const nextRows = rows.length > 0
                             ? rows
-                            : [{ method: "cash" as PaymentAllocation["method"], amount: total.toFixed(2), instrument_id: null }];
+                            : [{ method: "cash" as PaymentAllocation["method"], amount: total.toFixed(2), instrument_id: defaultCashId }];
                           setEditPaymentAllocations(nextRows);
                           setEditPayMethod(nextRows[0]?.method || "cash");
                         }
@@ -1607,8 +1616,9 @@ export default function BillPaymentHub({
                       key={editTxn.id}
                       totalDue={(Number(editAmount) || 0) + (Number(editServiceFee) || 0)}
                       mode="customer"
-                      initialMethod={(normalizeEditPaymentAllocations(editTxn)[0]?.method || "cash") as PaymentAllocation["method"]}
-                      initialAllocations={normalizeEditPaymentAllocations(editTxn)}
+                      paymentInstruments={paymentInstruments}
+                      initialMethod={(normalizeEditPaymentAllocations(editTxn, paymentInstruments)[0]?.method || "cash") as PaymentAllocation["method"]}
+                      initialAllocations={normalizeEditPaymentAllocations(editTxn, paymentInstruments)}
                       onChange={(allocations) => {
                         setEditPaymentAllocations(allocations);
                         if (allocations[0]?.method) setEditPayMethod(allocations[0].method);

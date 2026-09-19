@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export type PaymentAllocation = {
   method: "cash" | "upi" | "bank" | "wallet" | "card";
@@ -34,7 +35,7 @@ function instrumentMatchesMethod(type: string, method: PaymentAllocation["method
   if (method === "upi") return t === "upi" || t === "upi_qr" || t.includes("merchant_qr");
   if (method === "bank") return t === "bank" || t.includes("bank_account") || t.includes("current_account") || t.includes("savings");
   if (method === "wallet") return t === "wallet" || t.includes("wallet");
-  if (method === "card") return t === "card" || t.includes("credit_card") || t === "cc";
+  if (method === "card") return t === "card" || t.includes("card") || t.includes("credit_card") || t.includes("debit_card") || t === "cc";
   return false;
 }
 
@@ -92,6 +93,31 @@ export default function MultiPaymentCollection({
   defaultInstrumentId = null,
 }: Props) {
   const safeTotal = Math.max(0, Number(totalDue) || 0);
+  const [internalInstruments, setInternalInstruments] = useState<Array<{ id: string; name: string; type: string; is_active?: boolean }>>([]);
+
+  useEffect(() => {
+    if (paymentInstruments && paymentInstruments.length > 0) return;
+    try {
+      const supabase = createClient();
+      supabase
+        .from("payment_instruments")
+        .select("id, name, type, is_active")
+        .eq("is_active", true)
+        .order("name")
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setInternalInstruments(data);
+          }
+        });
+    } catch {
+      // Safe fallback if Supabase client cannot be initialized in test environments
+    }
+  }, [paymentInstruments]);
+
+  const effectiveInstruments = useMemo(() => {
+    return paymentInstruments && paymentInstruments.length > 0 ? paymentInstruments : internalInstruments;
+  }, [paymentInstruments, internalInstruments]);
+
   const [allocations, setAllocations] = useState<PaymentAllocation[]>(() =>
     normalizeInitialAllocations(safeTotal, initialMethod, initialAllocations, defaultInstrumentId, paymentInstruments)
   );
@@ -109,17 +135,24 @@ export default function MultiPaymentCollection({
     setAllocations((prev) => {
       if (safeTotal <= 0) return [];
       if (prev.length === 0) {
-        const defaultInst = resolveMatchingInstrument(initialMethod, defaultInstrumentId, paymentInstruments);
+        const defaultInst = resolveMatchingInstrument(initialMethod, defaultInstrumentId, effectiveInstruments);
         return [{ method: initialMethod, amount: safeTotal.toFixed(2), instrument_id: defaultInst }];
       }
       const prevCollected = prev.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
+      let next = prev;
       if (prev.length === 1 && Math.abs(prevCollected - prevTotal) < 0.005) {
-        return [{ ...prev[0], amount: safeTotal.toFixed(2) }];
+        next = [{ ...prev[0], amount: safeTotal.toFixed(2) }];
       }
-      return prev;
+      return next.map((row) => {
+        if (!row.instrument_id) {
+          const resolved = resolveMatchingInstrument(row.method, defaultInstrumentId, effectiveInstruments);
+          if (resolved) return { ...row, instrument_id: resolved };
+        }
+        return row;
+      });
     });
     previousTotalRef.current = safeTotal;
-  }, [safeTotal, initialMethod, defaultInstrumentId, paymentInstruments]);
+  }, [safeTotal, initialMethod, defaultInstrumentId, effectiveInstruments]);
 
   useEffect(() => {
     const serialized = JSON.stringify(allocations);
@@ -143,10 +176,13 @@ export default function MultiPaymentCollection({
           const currentInstId = patch.instrument_id !== undefined ? patch.instrument_id : row.instrument_id;
           const stillMatches =
             currentInstId &&
-            paymentInstruments.some((item) => item.id === currentInstId && instrumentMatchesMethod(item.type, patch.method!));
+            effectiveInstruments.some((item) => item.id === currentInstId && instrumentMatchesMethod(item.type, patch.method!));
           if (!stillMatches) {
-            nextRow.instrument_id = resolveMatchingInstrument(patch.method, defaultInstrumentId, paymentInstruments);
+            nextRow.instrument_id = resolveMatchingInstrument(patch.method, defaultInstrumentId, effectiveInstruments);
           }
+        }
+        if (!nextRow.instrument_id) {
+          nextRow.instrument_id = resolveMatchingInstrument(nextRow.method, defaultInstrumentId, effectiveInstruments);
         }
         if (patch.amount === undefined) return nextRow;
         const otherCollected = prev.reduce(
@@ -165,7 +201,7 @@ export default function MultiPaymentCollection({
     if (safeTotal <= 0 || allocations.length >= METHODS.length) return;
     const used = new Set(allocations.map((x) => x.method));
     const nextMethod = METHODS.find((m) => !used.has(m.id))?.id || "cash";
-    const nextInst = resolveMatchingInstrument(nextMethod, defaultInstrumentId, paymentInstruments);
+    const nextInst = resolveMatchingInstrument(nextMethod, defaultInstrumentId, effectiveInstruments);
     setSplitOpen(true);
 
     setAllocations((prev) => {
@@ -278,12 +314,17 @@ export default function MultiPaymentCollection({
               </select>
               <select
                 value={row.instrument_id || ""}
-                onChange={(e) => updateRow(index, { instrument_id: e.target.value || null })}
+                onChange={(e) => {
+                  const chosen = e.target.value || resolveMatchingInstrument(row.method, defaultInstrumentId, effectiveInstruments);
+                  updateRow(index, { instrument_id: chosen });
+                }}
                 disabled={disabled}
                 className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
               >
-                <option value="">Select account</option>
-                {paymentInstruments.filter((item) => item.is_active !== false && instrumentMatchesMethod(item.type, row.method)).map((item) => (
+                {effectiveInstruments.filter((item) => item.is_active !== false && instrumentMatchesMethod(item.type, row.method)).length === 0 && (
+                  <option value="">No account configured</option>
+                )}
+                {effectiveInstruments.filter((item) => item.is_active !== false && instrumentMatchesMethod(item.type, row.method)).map((item) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
               </select>
