@@ -31,12 +31,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Expected staging host. The guard step requires an exact match and aborts
-  # on anything else. Update only with review.
-  STAGING_EXPECTED_HOST: plznnfgupoqhdsfwgqna.supabase.co
-  # Production hostname. The guard step additionally refuses to run if the
-  # staging connection string resolves to this host. Update only with review.
-  PRODUCTION_HOST: tvxehxnvuwojjbhysajp.supabase.co
+  # Approved staging hosts. The guard step requires an exact match with one of
+  # these approved hosts and aborts on anything else. Update only with review.
+  # Session pooler (IPv4) host:
+  STAGING_EXPECTED_HOST: aws-0-ap-south-1.pooler.supabase.com
+  # Direct connection host:
+  STAGING_DIRECT_HOST: db.plznnfgupoqhdsfwgqna.supabase.co
+  STAGING_PROJECT_REF: plznnfgupoqhdsfwgqna
+  # Production hostnames and project reference. Guard step strictly refuses these.
+  PRODUCTION_HOST: db.tvxehxnvuwojjbhysajp.supabase.co
+  PRODUCTION_PROJECT_REF: tvxehxnvuwojjbhysajp
   BACKUP_RETENTION_DAYS: "14"
   BACKUP_KEEP_MINIMUM: "7"
 
@@ -63,16 +67,22 @@ jobs:
               u = urllib.parse.urlparse(os.environ.get("STAGING_DATABASE_URL", ""))
               scheme = u.scheme or ""
               host = u.hostname or ""
+              port = str(u.port or 5432)
+              user = urllib.parse.unquote(u.username or "")
           except ValueError:
               sys.stderr.write("::error::PARSE_ERROR: invalid database URL format\n")
               sys.stderr.write("PARSE_ERROR: invalid database URL format\n")
               sys.exit(1)
           print(scheme)
           print(host)
+          print(port)
+          print(user)
           EOF
           )"
           SCHEME="$(echo "$PARSED" | sed -n '1p')"
           HOST="$(echo "$PARSED" | sed -n '2p')"
+          PORT="$(echo "$PARSED" | sed -n '3p')"
+          USER_INFO="$(echo "$PARSED" | sed -n '4p')"
           if [ "$SCHEME" != "postgresql" ] && [ "$SCHEME" != "postgres" ]; then
             echo "::error::Connection string is not a postgresql:// URL. Refusing to run."
             exit 1
@@ -81,15 +91,35 @@ jobs:
             echo "::error::Could not determine database hostname. Refusing to run."
             exit 1
           fi
-          if [ "$HOST" = "$PRODUCTION_HOST" ]; then
-            echo "::error::Target hostname matches PRODUCTION. Refusing to run."
+          if [ "$PORT" != "5432" ]; then
+            echo "::error::Database port is $PORT. Port must be 5432 (Session mode pooler required for pg_dump; transaction mode 6543 is not supported). Refusing to run."
             exit 1
           fi
-          if [ "$HOST" != "$STAGING_EXPECTED_HOST" ]; then
-            echo "::error::Database hostname is not the expected staging host. Refusing to run."
+          if [ "$HOST" = "$PRODUCTION_HOST" ] || [ "$HOST" = "tvxehxnvuwojjbhysajp.supabase.co" ] || [ "$HOST" = "db.tvxehxnvuwojjbhysajp.supabase.co" ]; then
+            echo "::error::Target hostname matches PRODUCTION direct host. Refusing to run."
             exit 1
           fi
-          echo "Target guard passed: exact staging host confirmed."
+          case "$USER_INFO" in
+            *"$PRODUCTION_PROJECT_REF"*)
+              echo "::error::Target database user references PRODUCTION project ($PRODUCTION_PROJECT_REF). Refusing to run."
+              exit 1
+              ;;
+          esac
+          if [ "$HOST" != "$STAGING_EXPECTED_HOST" ] && [ "$HOST" != "$STAGING_DIRECT_HOST" ]; then
+            echo "::error::Database hostname is not an approved staging host. Refusing to run."
+            exit 1
+          fi
+          if [ "$HOST" = "$STAGING_EXPECTED_HOST" ]; then
+            case "$USER_INFO" in
+              *"$STAGING_PROJECT_REF"*)
+                ;;
+              *)
+                echo "::error::Pooler connection user must reference the staging project ($STAGING_PROJECT_REF). Refusing to run."
+                exit 1
+                ;;
+            esac
+          fi
+          echo "Target guard passed: approved staging host and port confirmed."
 
       - name: Split connection into libpq env (no secrets in args/logs)
         shell: bash
@@ -186,7 +216,7 @@ jobs:
           ENC_PATH="$ENC_PATH" BACKUP_STAMP="$BACKUP_STAMP" BACKUP_SHA="$SHA256" BACKUP_MD5="$MD5" \
           RETENTION_DAYS="$BACKUP_RETENTION_DAYS" KEEP_MINIMUM="$BACKUP_KEEP_MINIMUM" \
           python3 - <<'EOF'
-          import json, os
+          import json, os, sys
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
           from googleapiclient.http import MediaFileUpload
@@ -201,20 +231,41 @@ jobs:
           keep_min = int(os.environ.get("KEEP_MINIMUM", "7"))
 
           creds = service_account.Credentials.from_service_account_info(
-              key, scopes=["https://www.googleapis.com/auth/drive.file"])
+              key, scopes=["https://www.googleapis.com/auth/drive"])
           drive = build("drive", "v3", credentials=creds, cache_discovery=False)
+
+          # Verify folder metadata and log drive context
+          try:
+              folder_meta = drive.files().get(
+                  fileId=folder,
+                  fields="id,name,driveId,capabilities",
+                  supportsAllDrives=True
+              ).execute()
+              print(f"Target folder verified: '{folder_meta.get('name', folder)}' (driveId: {folder_meta.get('driveId', 'None - personal My Drive')})")
+              if not folder_meta.get("driveId"):
+                  print("::warning::Target folder is located in a personal Google Drive ('My Drive'). Google Drive API rejects Service Account uploads to personal drives with 'storageQuotaExceeded'. Use a Google Workspace Shared Drive for service account backups.")
+          except Exception as fe:
+              print(f"::warning::Could not inspect target folder metadata: {fe}")
 
           name = f"cafeerp-staging-{stamp}.dump.enc"
           media = MediaFileUpload(enc, mimetype="application/octet-stream", resumable=True)
-          created = drive.files().create(
-              body={"name": name, "parents": [folder],
-                    "description": f"CafeERP staging pg_dump (custom format, AES-256-CBC). SHA256={sha}"},
-              media_body=media, fields="id,name,size,md5Checksum,trashed").execute()
+          try:
+              created = drive.files().create(
+                  body={"name": name, "parents": [folder],
+                        "description": f"CafeERP staging pg_dump (custom format, AES-256-CBC). SHA256={sha}"},
+                  media_body=media, fields="id,name,size,md5Checksum,trashed",
+                  supportsAllDrives=True).execute()
+          except Exception as e:
+              err_str = str(e)
+              if "storageQuotaExceeded" in err_str or "Service Accounts do not have storage quota" in err_str:
+                  sys.stderr.write("::error::Google Drive upload failed: Service Accounts do not have storage quota in personal Google Drive ('My Drive'). The folder specified by GDRIVE_BACKUP_FOLDER_ID must reside within a Google Workspace Shared Drive, with the Service Account added as Content Manager or Contributor.\n")
+              raise
 
           # Cryptographic upload verification: fail hard on any mismatch.
           remote = drive.files().get(
               fileId=created["id"],
-              fields="id,name,size,md5Checksum,trashed").execute()
+              fields="id,name,size,md5Checksum,trashed",
+              supportsAllDrives=True).execute()
           local_size = str(os.path.getsize(enc))
           checks = {
               "id_present": bool(remote.get("id")),
@@ -235,7 +286,10 @@ jobs:
               resp = drive.files().list(
                   q=f"'{folder}' in parents and trashed=false and name contains 'cafeerp-staging-'",
                   fields="files(id,name,createdTime),nextPageToken",
-                  orderBy="createdTime desc", pageSize=100, pageToken=token).execute()
+                  orderBy="createdTime desc", pageSize=100, pageToken=token,
+                  corpora="allDrives",
+                  supportsAllDrives=True,
+                  includeItemsFromAllDrives=True).execute()
               items.extend(resp.get("files", []))
               token = resp.get("nextPageToken")
               if not token:
@@ -247,7 +301,7 @@ jobs:
                   continue
               created_time = datetime.fromisoformat(item["createdTime"].replace("Z", "+00:00"))
               if created_time < cutoff:
-                  drive.files().update(fileId=item["id"], body={"trashed": True}).execute()
+                  drive.files().update(fileId=item["id"], body={"trashed": True}, supportsAllDrives=True).execute()
                   removed += 1
           print(f"Retention: {len(items)} backups present, {removed} trashed (keep_min={keep_min}, days={retention}).")
           EOF
