@@ -1,0 +1,211 @@
+# CafeERP STAGING database backup to Google Drive (encrypted).
+#
+# SAFETY MODEL:
+# - STAGING ONLY, dispatch-only. The guard step aborts unless the database
+#   URL resolves to exactly the expected staging host below. There is no
+#   schedule on this workflow.
+# - All credentials come from the existing GitHub Actions secrets listed
+#   under each step. Nothing is hardcoded. No new secrets are required.
+# - Secrets are masked and never echoed, never passed as CLI arguments, and
+#   never written to disk (service-account JSON stays in memory; the DB
+#   password lives only in a 0600 pgpass file that is shredded afterwards).
+# - Plaintext and ciphertext are shredded in an always-run cleanup step.
+#
+# Existing secrets used (do NOT rename without updating every step):
+#   STAGING_DATABASE_URL, BACKUP_ENCRYPTION_PASSPHRASE,
+#   GDRIVE_SERVICE_ACCOUNT_JSON, GDRIVE_BACKUP_FOLDER_ID
+
+name: Backup Staging DB to Google Drive
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-to-google-drive
+  cancel-in-progress: false
+
+env:
+  # Expected staging host. The guard step requires an exact match and aborts
+  # on anything else. Update only with review.
+  STAGING_EXPECTED_HOST: plznnfgupoqhdsfwgqna.supabase.co
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WORKDIR: ${{ runner.temp }}/cafebak
+    steps:
+      - name: Guard staging target and required secrets (fail closed)
+        shell: bash
+        env:
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_BACKUP_FOLDER_ID: ${{ secrets.GDRIVE_BACKUP_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$STAGING_DATABASE_URL"
+          echo "::add-mask::$BACKUP_ENCRYPTION_PASSPHRASE"
+          echo "::add-mask::$GDRIVE_SERVICE_ACCOUNT_JSON"
+          for var in STAGING_DATABASE_URL BACKUP_ENCRYPTION_PASSPHRASE GDRIVE_SERVICE_ACCOUNT_JSON GDRIVE_BACKUP_FOLDER_ID; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Required secret $var is missing or empty. Refusing to run."
+              exit 1
+            fi
+          done
+          # Parse the URL without printing it. Only PASS/FAIL reaches logs.
+          HOST="$(STAGING_DATABASE_URL="$STAGING_DATABASE_URL" python3 - <<'EOF'
+          import os, urllib.parse
+          u = urllib.parse.urlparse(os.environ.get("STAGING_DATABASE_URL", ""))
+          print(u.hostname or "")
+          EOF
+          )"
+          if [ -z "$HOST" ]; then
+            echo "::error::Could not determine database hostname. Refusing to run."
+            exit 1
+          fi
+          if [ "$HOST" != "$STAGING_EXPECTED_HOST" ]; then
+            echo "::error::Database hostname is not the expected staging host. Refusing to run."
+            exit 1
+          fi
+          mkdir -p -m 0700 "$WORKDIR"
+          echo "Guard passed: exact staging host confirmed, all secrets present."
+
+      - name: Dump staging database (pinned postgres:18 client)
+        shell: bash
+        env:
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$STAGING_DATABASE_URL"
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          echo "BACKUP_STAMP=$STAMP" >> "$GITHUB_ENV"
+          DUMP="$WORKDIR/staging-$STAMP.dump"
+          echo "DUMP_PATH=$DUMP" >> "$GITHUB_ENV"
+          PGPASS="$WORKDIR/pgpass"
+          STAGING_DATABASE_URL="$STAGING_DATABASE_URL" PGPASSFILE_OUT="$PGPASS" GITHUB_ENV_OUT="$GITHUB_ENV" python3 - <<'EOF'
+          import os, urllib.parse
+          u = urllib.parse.urlparse(os.environ["STAGING_DATABASE_URL"])
+          db = (u.path or "/postgres").lstrip("/") or "postgres"
+          port = str(u.port or 5432)
+          with open(os.environ["GITHUB_ENV_OUT"], "a", encoding="utf-8") as f:
+              f.write(f"PGHOST={u.hostname or ''}\n")
+              f.write(f"PGPORT={port}\n")
+              f.write(f"PGUSER={urllib.parse.unquote(u.username or 'postgres')}\n")
+              f.write(f"PGDATABASE={db}\n")
+              f.write("PGPASSFILE=" + os.environ["PGPASSFILE_OUT"] + "\n")
+          with open(os.environ["PGPASSFILE_OUT"], "w", encoding="utf-8") as f:
+              f.write(":".join([u.hostname or "", port, db,
+                                urllib.parse.unquote(u.username or "postgres"),
+                                urllib.parse.unquote(u.password or "")]) + "\n")
+          os.chmod(os.environ["PGPASSFILE_OUT"], 0o600)
+          EOF
+          docker run --rm -i \
+            -e PGHOST -e PGPORT -e PGUSER -e PGDATABASE -e PGPASSFILE \
+            -v "$PGPASSFILE:/tmp/pgpass:ro" \
+            -e PGPASSFILE=/tmp/pgpass \
+            postgres:18 pg_dump -Fc -Z6 -d "$PGDATABASE" > "$DUMP"
+          test -s "$DUMP"
+          echo "Dump complete: $(du -h "$DUMP" | cut -f1)."
+
+      - name: Encrypt backup and shred plaintext
+        shell: bash
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$BACKUP_ENCRYPTION_PASSPHRASE"
+          if [ -z "${BACKUP_ENCRYPTION_PASSPHRASE:-}" ]; then
+            echo "::error::BACKUP_ENCRYPTION_PASSPHRASE secret is empty. Refusing to encrypt with an empty passphrase."
+            exit 1
+          fi
+          ENC="$DUMP_PATH.enc"
+          echo "ENC_PATH=$ENC" >> "$GITHUB_ENV"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 \
+            -in "$DUMP_PATH" -out "$ENC" -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+          test -s "$ENC"
+          shred -u "$DUMP_PATH"
+          echo "SHA256=$(sha256sum "$ENC" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "MD5=$(md5sum "$ENC" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "Encrypted and plaintext shredded."
+
+      - name: Upload encrypted backup and verify on Drive
+        shell: bash
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_BACKUP_FOLDER_ID: ${{ secrets.GDRIVE_BACKUP_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$GDRIVE_SERVICE_ACCOUNT_JSON"
+          if [ -z "${GDRIVE_BACKUP_FOLDER_ID:-}" ]; then
+            echo "::error::GDRIVE_BACKUP_FOLDER_ID secret is empty. Refusing to run."
+            exit 1
+          fi
+          python3 -m pip install --quiet google-api-python-client google-auth
+          GDRIVE_SERVICE_ACCOUNT_JSON="$GDRIVE_SERVICE_ACCOUNT_JSON" \
+          GDRIVE_BACKUP_FOLDER_ID="$GDRIVE_BACKUP_FOLDER_ID" \
+          ENC_PATH="$ENC_PATH" BACKUP_STAMP="$BACKUP_STAMP" BACKUP_SHA="$SHA256" BACKUP_MD5="$MD5" \
+          python3 - <<'EOF'
+          import json, os
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          # Service-account key stays in memory; never written to disk.
+          key = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
+          folder = os.environ["GDRIVE_BACKUP_FOLDER_ID"]
+          enc = os.environ["ENC_PATH"]
+          stamp = os.environ["BACKUP_STAMP"]
+          sha = os.environ.get("BACKUP_SHA", "")
+          local_md5 = os.environ.get("BACKUP_MD5", "")
+
+          creds = service_account.Credentials.from_service_account_info(
+              key, scopes=["https://www.googleapis.com/auth/drive.file"])
+          drive = build("drive", "v3", credentials=creds, cache_discovery=False)
+
+          name = f"cafeerp-staging-{stamp}.dump.enc"
+          created = drive.files().create(
+              body={"name": name, "parents": [folder],
+                    "description": f"CafeERP staging pg_dump (custom format, AES-256-CBC). SHA256={sha}"},
+              media_body=MediaFileUpload(enc, mimetype="application/octet-stream", resumable=True),
+              fields="id,name,size,md5Checksum,trashed").execute()
+
+          # Verify the upload: same name, same byte size, same MD5, not trashed.
+          remote = drive.files().get(
+              fileId=created["id"],
+              fields="id,name,size,md5Checksum,trashed").execute()
+          local_size = str(os.path.getsize(enc))
+          checks = {
+              "id_present": bool(remote.get("id")),
+              "name_match": remote.get("name") == name,
+              "size_match": str(remote.get("size")) == local_size,
+              "md5_match": bool(local_md5) and (remote.get("md5Checksum") or "").lower() == local_md5.lower(),
+              "not_trashed": remote.get("trashed") is False,
+          }
+          print("Upload verification: " + ", ".join(f"{k}={v}" for k, v in checks.items()))
+          if not all(checks.values()):
+              raise SystemExit(f"UPLOAD VERIFICATION FAILED: {checks}")
+          print(f"Verified {remote['name']} id={remote['id']} bytes={remote['size']}.")
+          EOF
+
+      - name: Secure cleanup (always)
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          for f in "$WORKDIR"/pgpass "$DUMP_PATH" "$ENC_PATH"; do
+            if [ -n "${f:-}" ] && [ -f "$f" ]; then shred -u "$f" || rm -f "$f"; fi
+          done
+          rm -rf "$WORKDIR"
+          echo "Temporary files shredded and workdir removed."
+
+      - name: Summary (always, no secrets)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Staging backup to Google Drive finished. Review per-step status above; no secrets are printed."
