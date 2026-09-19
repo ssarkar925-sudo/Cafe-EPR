@@ -41,7 +41,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_reade
 1. Google Cloud console → new or existing project → enable **Google Drive API**.
 2. IAM → Service Accounts → create (e.g. `cafeerp-staging-backup`) → no project roles.
 3. Keys → Add key → JSON → paste the whole JSON into `GDRIVE_SERVICE_ACCOUNT_JSON`.
-4. In Google Drive, create the backups folder → Share → add the service-account email (`…@….iam.gserviceaccount.com`) as **Content manager** (lets it create/trash files inside that folder only).
+4. In Google Drive, create the backups folder inside a **Google Workspace Shared Drive** (Service Accounts have 0 bytes storage quota in personal 'My Drive' accounts and will fail with `storageQuotaExceeded` if placed in personal Drive). Share the Shared Drive or folder with the service-account email (`…@….iam.gserviceaccount.com`) as **Content manager** or **Contributor**.
 5. Copy the folder ID from its URL into `GDRIVE_BACKUP_FOLDER_ID`.
 6. The uploader requests only the `drive.file` scope (files the app itself creates), not full Drive access.
 

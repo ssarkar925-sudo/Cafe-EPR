@@ -234,13 +234,32 @@ jobs:
               key, scopes=["https://www.googleapis.com/auth/drive.file"])
           drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
+          # Verify folder metadata and log drive context
+          try:
+              folder_meta = drive.files().get(
+                  fileId=folder,
+                  fields="id,name,driveId,capabilities",
+                  supportsAllDrives=True
+              ).execute()
+              print(f"Target folder verified: '{folder_meta.get('name', folder)}' (driveId: {folder_meta.get('driveId', 'None - personal My Drive')})")
+              if not folder_meta.get("driveId"):
+                  print("::warning::Target folder is located in a personal Google Drive ('My Drive'). Google Drive API rejects Service Account uploads to personal drives with 'storageQuotaExceeded'. Use a Google Workspace Shared Drive for service account backups.")
+          except Exception as fe:
+              print(f"::warning::Could not inspect target folder metadata: {fe}")
+
           name = f"cafeerp-staging-{stamp}.dump.enc"
           media = MediaFileUpload(enc, mimetype="application/octet-stream", resumable=True)
-          created = drive.files().create(
-              body={"name": name, "parents": [folder],
-                    "description": f"CafeERP staging pg_dump (custom format, AES-256-CBC). SHA256={sha}"},
-              media_body=media, fields="id,name,size,md5Checksum,trashed",
-              supportsAllDrives=True).execute()
+          try:
+              created = drive.files().create(
+                  body={"name": name, "parents": [folder],
+                        "description": f"CafeERP staging pg_dump (custom format, AES-256-CBC). SHA256={sha}"},
+                  media_body=media, fields="id,name,size,md5Checksum,trashed",
+                  supportsAllDrives=True).execute()
+          except Exception as e:
+              err_str = str(e)
+              if "storageQuotaExceeded" in err_str or "Service Accounts do not have storage quota" in err_str:
+                  sys.stderr.write("::error::Google Drive upload failed: Service Accounts do not have storage quota in personal Google Drive ('My Drive'). The folder specified by GDRIVE_BACKUP_FOLDER_ID must reside within a Google Workspace Shared Drive, with the Service Account added as Content Manager or Contributor.\n")
+              raise
 
           # Cryptographic upload verification: fail hard on any mismatch.
           remote = drive.files().get(
