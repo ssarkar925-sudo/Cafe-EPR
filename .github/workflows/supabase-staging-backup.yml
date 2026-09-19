@@ -239,12 +239,14 @@ jobs:
           created = drive.files().create(
               body={"name": name, "parents": [folder],
                     "description": f"CafeERP staging pg_dump (custom format, AES-256-CBC). SHA256={sha}"},
-              media_body=media, fields="id,name,size,md5Checksum,trashed").execute()
+              media_body=media, fields="id,name,size,md5Checksum,trashed",
+              supportsAllDrives=True).execute()
 
           # Cryptographic upload verification: fail hard on any mismatch.
           remote = drive.files().get(
               fileId=created["id"],
-              fields="id,name,size,md5Checksum,trashed").execute()
+              fields="id,name,size,md5Checksum,trashed",
+              supportsAllDrives=True).execute()
           local_size = str(os.path.getsize(enc))
           checks = {
               "id_present": bool(remote.get("id")),
@@ -265,7 +267,10 @@ jobs:
               resp = drive.files().list(
                   q=f"'{folder}' in parents and trashed=false and name contains 'cafeerp-staging-'",
                   fields="files(id,name,createdTime),nextPageToken",
-                  orderBy="createdTime desc", pageSize=100, pageToken=token).execute()
+                  orderBy="createdTime desc", pageSize=100, pageToken=token,
+                  corpora="allDrives",
+                  supportsAllDrives=True,
+                  includeItemsFromAllDrives=True).execute()
               items.extend(resp.get("files", []))
               token = resp.get("nextPageToken")
               if not token:
@@ -277,7 +282,7 @@ jobs:
                   continue
               created_time = datetime.fromisoformat(item["createdTime"].replace("Z", "+00:00"))
               if created_time < cutoff:
-                  drive.files().update(fileId=item["id"], body={"trashed": True}).execute()
+                  drive.files().update(fileId=item["id"], body={"trashed": True}, supportsAllDrives=True).execute()
                   removed += 1
           print(f"Retention: {len(items)} backups present, {removed} trashed (keep_min={keep_min}, days={retention}).")
           EOF
