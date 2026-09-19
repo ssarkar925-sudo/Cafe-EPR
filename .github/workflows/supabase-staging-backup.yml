@@ -216,7 +216,7 @@ jobs:
           ENC_PATH="$ENC_PATH" BACKUP_STAMP="$BACKUP_STAMP" BACKUP_SHA="$SHA256" BACKUP_MD5="$MD5" \
           RETENTION_DAYS="$BACKUP_RETENTION_DAYS" KEEP_MINIMUM="$BACKUP_KEEP_MINIMUM" \
           python3 - <<'EOF'
-          import json, os
+          import json, os, sys
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
           from googleapiclient.http import MediaFileUpload
@@ -231,7 +231,7 @@ jobs:
           keep_min = int(os.environ.get("KEEP_MINIMUM", "7"))
 
           creds = service_account.Credentials.from_service_account_info(
-              key, scopes=["https://www.googleapis.com/auth/drive.file"])
+              key, scopes=["https://www.googleapis.com/auth/drive"])
           drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
           # Verify folder metadata and log drive context
