@@ -86,7 +86,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- PART 2: Repair NULL allocation instruments without unsafe UUID casts
+-- PART 2: Repair NULL allocation instruments without unsafe casts
 -- ============================================================================
 DO $$
 DECLARE
@@ -95,6 +95,7 @@ DECLARE
   v_item JSONB;
   v_method TEXT;
   v_raw_inst TEXT;
+  v_raw_amount TEXT;
   v_inst UUID;
   v_default_cash UUID;
   v_default_upi UUID;
@@ -110,7 +111,7 @@ BEGIN
   SELECT id INTO v_default_card FROM public.payment_instruments WHERE is_active = true AND lower(type) IN ('credit_card', 'debit_card', 'card', 'cc') ORDER BY created_at, id LIMIT 1;
 
   FOR v_txn IN
-    SELECT t.id, t.transaction_number, t.customer_payment_allocations, t.customer_collection_instrument_id
+    SELECT t.id, t.transaction_number, t.customer_payment_allocations, t.customer_collection_instrument_id, t.transaction_date
     FROM public.transactions t
     WHERE jsonb_typeof(t.customer_payment_allocations) = 'array'
       AND jsonb_array_length(t.customer_payment_allocations) > 0
@@ -158,10 +159,15 @@ BEGIN
         END IF;
       END IF;
 
+      v_raw_amount := NULLIF(btrim(v_item->>'amount'), '');
+      IF v_raw_amount IS NULL OR lower(v_raw_amount) = 'null' OR v_raw_amount !~ '^-?(0|[1-9][0-9]*)(\.[0-9]+)?$' THEN
+        RAISE EXCEPTION 'Allocation repair blocked: invalid amount for transaction %, value %', v_txn.transaction_number, v_raw_amount;
+      END IF;
+
       v_new_allocs := v_new_allocs || jsonb_build_array(
         jsonb_build_object(
           'method', v_method,
-          'amount', round(COALESCE((v_item->>'amount')::numeric, 0), 2),
+          'amount', round(v_raw_amount::numeric, 2),
           'instrument_id', v_inst
         )
       );
