@@ -6,7 +6,7 @@ BEGIN;
 SELECT set_config('erp.internal_cash_mutation_authorized', 'on', true);
 SELECT set_config('erp.financial_edit_in_progress', 'on', true);
 
-DO $$
+DO $body$
 DECLARE
   v_proc RECORD;
   v_def TEXT;
@@ -24,7 +24,6 @@ BEGIN
     v_def := pg_get_functiondef(v_proc.oid);
     v_new_def := v_def;
 
-    -- Match stored function formatting case-insensitively and tolerate spacing.
     v_new_def := regexp_replace(
       v_new_def,
       $$lower\s*\(\s*type\s*\)\s*=\s*'aeps'$$,
@@ -55,6 +54,7 @@ BEGIN
       RAISE NOTICE 'Hardened % (%)', v_proc.proname, v_proc.args;
     END IF;
   END LOOP;
-END $$;
+END;
+$body$;
 
 COMMIT;
