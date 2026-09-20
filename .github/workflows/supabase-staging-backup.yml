@@ -198,6 +198,15 @@ jobs:
           echo "MD5=$(md5sum "$ENC" | cut -d' ' -f1)" >> "$GITHUB_ENV"
           echo "Encrypted and plaintext shredded."
 
+      - name: Retain encrypted backup artifact (emergency fallback)
+        if: env.ENC_PATH != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-backup-${{ env.BACKUP_STAMP }}-encrypted
+          path: ${{ env.ENC_PATH }}
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Upload to Google Drive and apply retention
         shell: bash
         env:
@@ -234,18 +243,29 @@ jobs:
               key, scopes=["https://www.googleapis.com/auth/drive"])
           drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
-          # Verify folder metadata and log drive context
+          # Preflight: Verify folder metadata and ensure it belongs to a Google Workspace Shared Drive
           try:
               folder_meta = drive.files().get(
                   fileId=folder,
                   fields="id,name,driveId,capabilities",
                   supportsAllDrives=True
               ).execute()
-              print(f"Target folder verified: '{folder_meta.get('name', folder)}' (driveId: {folder_meta.get('driveId', 'None - personal My Drive')})")
-              if not folder_meta.get("driveId"):
-                  print("::warning::Target folder is located in a personal Google Drive ('My Drive'). Google Drive API rejects Service Account uploads to personal drives with 'storageQuotaExceeded'. Use a Google Workspace Shared Drive for service account backups.")
           except Exception as fe:
-              print(f"::warning::Could not inspect target folder metadata: {fe}")
+              sys.stderr.write(f"::error::Could not inspect target Google Drive folder '{folder}': {fe}\n")
+              raise SystemExit(1)
+
+          drive_id = folder_meta.get("driveId")
+          folder_name = folder_meta.get("name", folder)
+          print(f"Target folder verified: '{folder_name}' (driveId: {drive_id or 'None - personal My Drive'})")
+
+          if not drive_id:
+              sys.stderr.write(
+                  "::error::PREFLIGHT CHECK FAILED: Target folder is located in a personal Google Drive ('My Drive'). "
+                  "Google Drive API gives Service Accounts a 0 MB storage quota in personal drives and rejects uploads with 'storageQuotaExceeded'. "
+                  "GDRIVE_BACKUP_FOLDER_ID must reside within a Google Workspace Shared Drive, with the Service Account added as Content Manager or Contributor. "
+                  "See docs/STAGING_BACKUP.md for configuration instructions.\n"
+              )
+              raise SystemExit(1)
 
           name = f"cafeerp-staging-{stamp}.dump.enc"
           media = MediaFileUpload(enc, mimetype="application/octet-stream", resumable=True)

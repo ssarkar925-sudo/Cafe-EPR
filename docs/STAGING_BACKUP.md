@@ -36,14 +36,42 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_reade
 
 `pg_dump` also needs sequence values; if the dump warns on sequences, add `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO backup_reader;`. Use this role's password in `STAGING_DATABASE_URL`.
 
-## Google Drive setup (least privilege)
+## Google Drive setup (least privilege & Google Workspace Shared Drive)
 
-1. Google Cloud console → new or existing project → enable **Google Drive API**.
-2. IAM → Service Accounts → create (e.g. `cafeerp-staging-backup`) → no project roles.
-3. Keys → Add key → JSON → paste the whole JSON into `GDRIVE_SERVICE_ACCOUNT_JSON`.
-4. In Google Drive, create the backups folder inside a **Google Workspace Shared Drive** (Service Accounts have 0 bytes storage quota in personal 'My Drive' accounts and will fail with `storageQuotaExceeded` if placed in personal Drive). Share the Shared Drive or folder with the service-account email (`…@….iam.gserviceaccount.com`) as **Content manager** or **Contributor**.
-5. Copy the folder ID from its URL into `GDRIVE_BACKUP_FOLDER_ID`.
-6. The uploader uses the `https://www.googleapis.com/auth/drive` scope to access and upload directly into the shared backup folder.
+> [!IMPORTANT]
+> **Google Workspace Shared Drive is strictly required.**
+> Google Cloud Service Accounts (`...@...iam.gserviceaccount.com`) are non-human principals with a **0 MB storage quota** in personal Google Drive ("My Drive"). If `GDRIVE_BACKUP_FOLDER_ID` points to a personal "My Drive" folder, Google Drive API rejects uploads with `storageQuotaExceeded` because storage is billed to the uploader (the service account).
+> In a **Google Workspace Shared Drive**, file storage is owned by the workspace organization, not the service account, allowing programmatic uploads.
+
+### Step-by-Step Operator Configuration:
+
+1. **Google Cloud Console**:
+   - Open your GCP Project → Enable **Google Drive API**.
+   - Navigate to **IAM & Admin** → **Service Accounts** → Create account (e.g. `cafeerp-staging-backup@<project-id>.iam.gserviceaccount.com`).
+   - Create and download a JSON key → paste full JSON into GitHub Secret `GDRIVE_SERVICE_ACCOUNT_JSON`.
+
+2. **Google Workspace (Shared Drive)**:
+   - Log into Google Drive using a Google Workspace organization account (Business, Enterprise, or Education).
+   - In the left navigation menu, click **Shared drives** (formerly Team Drives).
+   - Click **+ New** to create a new Shared Drive (e.g., `CafeERP-Backups`).
+   - Click **Manage members** at the top right of the Shared Drive.
+   - Enter the service account email (`cafeerp-staging-backup@<project-id>.iam.gserviceaccount.com`).
+   - Assign the role: **Content manager** (recommended: add, edit, move, delete files) or **Contributor** (add, edit files).
+   - *Optional*: Inside the Shared Drive, create a subfolder named `staging-backups`.
+   - Open the Shared Drive or subfolder, inspect the browser URL:
+     `https://drive.google.com/drive/folders/<FOLDER_ID>`
+   - Copy the string after `/folders/` (the `<FOLDER_ID>`).
+   - In GitHub repository settings (`Settings` → `Secrets and variables` → `Actions`), save this value as `GDRIVE_BACKUP_FOLDER_ID`.
+
+3. **Preflight Validation in Workflow**:
+   - The backup workflow queries the Google Drive API for the target folder metadata (`fields="id,name,driveId"`).
+   - If `driveId` is absent (indicating a personal "My Drive" folder), the workflow **fails early during preflight** with an actionable error before attempting any upload, preventing cryptic `storageQuotaExceeded` API exceptions.
+
+4. **Transient Emergency Fallback (Encrypted GitHub Actions Artifact)**:
+   - Immediately following encryption and plaintext shredding, the workflow uploads the encrypted ciphertext (`*.dump.enc`) as a workflow artifact named `staging-backup-<timestamp>-encrypted`.
+   - **Retention**: Strictly 7 days (transient emergency operational window).
+   - **Security**: Uploads **ciphertext only**; plaintext is shredded prior to artifact creation.
+   - **Failure Status**: If the Google Drive upload fails or is unconfigured, the overall workflow run status **remains failed**. The artifact fallback provides temporary recovery capability during setup but does not claim permanent backup coverage.
 
 ## Restore procedure
 
