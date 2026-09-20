@@ -1,6 +1,5 @@
 -- Migration: 20260920_harden_portal_instrument_type_resolution.sql
 -- Normalize legacy AEPS/DMT instrument-type predicates in affected RPCs.
--- Fail closed if a known predicate is present but cannot be rewritten.
 
 BEGIN;
 
@@ -12,7 +11,6 @@ DECLARE
   v_proc RECORD;
   v_def TEXT;
   v_new_def TEXT;
-  v_changed BOOLEAN;
 BEGIN
   FOR v_proc IN
     SELECT p.oid,
@@ -26,17 +24,7 @@ BEGIN
     v_def := pg_get_functiondef(v_proc.oid);
     v_new_def := v_def;
 
-    -- Handle both `type = 'aeps'` and `lower(type) = 'aeps'`, independent
-    -- of capitalization and whitespace in the stored function definition.
-    v_new_def := regexp_replace(
-      v_new_def,
-      $$((?:lower\s*\(\s*)?type(?:\s*\))?\s*=\s*'aeps')$$,
-      $$CASE WHEN lower(type) IN ('aeps_portal', 'aeps') THEN lower(type) ELSE type END = 'aeps'$$,
-      'gi'
-    );
-
-    -- Replace the common direct equality predicate without changing other
-    -- business logic. This is deliberately limited to known instrument lookups.
+    -- Match stored function formatting case-insensitively and tolerate spacing.
     v_new_def := regexp_replace(
       v_new_def,
       $$lower\s*\(\s*type\s*\)\s*=\s*'aeps'$$,
@@ -62,8 +50,7 @@ BEGIN
       'gi'
     );
 
-    v_changed := v_new_def <> v_def;
-    IF v_changed THEN
+    IF v_new_def <> v_def THEN
       EXECUTE v_new_def;
       RAISE NOTICE 'Hardened % (%)', v_proc.proname, v_proc.args;
     END IF;
