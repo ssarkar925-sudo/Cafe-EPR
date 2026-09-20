@@ -1,0 +1,82 @@
+name: Verify Google Drive Target
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Google Drive target folder
+        shell: bash
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_BACKUP_FOLDER_ID: ${{ secrets.GDRIVE_BACKUP_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$GDRIVE_SERVICE_ACCOUNT_JSON"
+          echo "::add-mask::$GDRIVE_BACKUP_FOLDER_ID"
+          if [ -z "${GDRIVE_BACKUP_FOLDER_ID:-}" ]; then
+            echo "::error::GDRIVE_BACKUP_FOLDER_ID is empty."
+            exit 1
+          fi
+          python3 -m pip install --quiet google-api-python-client google-auth
+          python3 - <<'EOF'
+          import json, os, sys
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+
+          key = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
+          folder = os.environ["GDRIVE_BACKUP_FOLDER_ID"]
+
+          creds = service_account.Credentials.from_service_account_info(
+              key, scopes=["https://www.googleapis.com/auth/drive"])
+          drive = build("drive", "v3", credentials=creds, cache_discovery=False)
+
+          try:
+              meta = drive.files().get(
+                  fileId=folder,
+                  fields="id,name,driveId,capabilities,trashed",
+                  supportsAllDrives=True
+              ).execute()
+          except Exception as fe:
+              sys.stderr.write(f"::error::Could not inspect target folder: {fe}\n")
+              sys.exit(1)
+
+          drive_id = meta.get("driveId")
+          name = meta.get("name", "unnamed")
+          caps = meta.get("capabilities", {})
+          trashed = meta.get("trashed", False)
+
+          can_add = caps.get("canAddChildren", False)
+          can_delete = caps.get("canDeleteChildren", False)
+          can_trash = caps.get("canTrashChildren", False)
+          can_edit = caps.get("canEdit", False)
+
+          print(f"Target folder verified: '{name}'")
+          print(f"driveId present: {bool(drive_id)}")
+          print(f"Belongs to Google Workspace Shared Drive: {bool(drive_id)}")
+          print(f"canAddChildren (upload permission): {can_add}")
+          print(f"canDeleteChildren (Content Manager retention permission): {can_delete}")
+          print(f"canTrashChildren: {can_trash}")
+          print(f"canEdit: {can_edit}")
+          print(f"isTrashed: {trashed}")
+
+          if trashed:
+              sys.stderr.write("::error::Target folder is in the Trash.\n")
+              sys.exit(1)
+
+          if not drive_id:
+              sys.stderr.write("::error::PREFLIGHT FAILED: Target folder is NOT in a Shared Drive (driveId is empty/None).\n")
+              sys.exit(1)
+
+          if not can_add:
+              sys.stderr.write("::error::PERMISSION FAILED: Service account cannot add children (no upload permission).\n")
+              sys.exit(1)
+
+          print("CONFIRMED: Target folder is a valid Google Workspace Shared Drive with required service account permissions.")
+          EOF
