@@ -1,5 +1,6 @@
 -- Migration: 20260920_harden_portal_instrument_type_resolution.sql
 -- Normalize legacy AEPS/DMT instrument-type predicates in affected RPCs.
+-- Fail closed if a legacy predicate is detected but cannot be fully removed.
 
 BEGIN;
 
@@ -11,6 +12,7 @@ DECLARE
   v_proc RECORD;
   v_def TEXT;
   v_new_def TEXT;
+  v_legacy_found BOOLEAN;
 BEGIN
   FOR v_proc IN
     SELECT p.oid,
@@ -23,6 +25,12 @@ BEGIN
   LOOP
     v_def := pg_get_functiondef(v_proc.oid);
     v_new_def := v_def;
+    v_legacy_found := v_def ~* $$lower\s*\(\s*type\s*\)\s*=\s*'(aeps|dmt)'$$
+      OR v_def ~* $$\btype\s*=\s*'(aeps|dmt)'$$;
+
+    IF NOT v_legacy_found THEN
+      CONTINUE;
+    END IF;
 
     v_new_def := regexp_replace(
       v_new_def,
@@ -49,10 +57,17 @@ BEGIN
       'gi'
     );
 
-    IF v_new_def <> v_def THEN
-      EXECUTE v_new_def;
-      RAISE NOTICE 'Hardened % (%)', v_proc.proname, v_proc.args;
+    IF v_new_def = v_def THEN
+      RAISE EXCEPTION 'Could not rewrite legacy instrument predicate in %.%', v_proc.proname, v_proc.args;
     END IF;
+
+    IF v_new_def ~* $$lower\s*\(\s*type\s*\)\s*=\s*'(aeps|dmt)'$$
+       OR v_new_def ~* $$\btype\s*=\s*'(aeps|dmt)'$$ THEN
+      RAISE EXCEPTION 'Legacy instrument predicate remains in %.% after rewrite', v_proc.proname, v_proc.args;
+    END IF;
+
+    EXECUTE v_new_def;
+    RAISE NOTICE 'Hardened % (%)', v_proc.proname, v_proc.args;
   END LOOP;
 END;
 $body$;
