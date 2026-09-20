@@ -61,6 +61,12 @@ validation_report.txt
 /backups/
 db-backups/
 
+# Google Drive OAuth credentials and tokens (never commit)
+.oauth*
+token.json
+client_secret*.json
+credentials.json
+
 # Android build outputs
 android/.gradle/
 android/build/
