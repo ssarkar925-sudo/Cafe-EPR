@@ -186,7 +186,7 @@ jobs:
             postgres:18 psql -h 127.0.0.1 -p 5433 -U "$PGUSER" -d "$PGDATABASE" -c "
               SELECT 'transactions' as table_name, count(*) FROM public.transactions
               UNION ALL
-              SELECT 'accounts', count(*) FROM public.accounts
+              SELECT 'accounting_accounts', count(*) FROM public.accounting_accounts
               UNION ALL
               SELECT 'customers', count(*) FROM public.customers;
             "
