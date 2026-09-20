@@ -42,6 +42,8 @@ workers/portal/outbox/
 
 # Scratch and forensic artifacts
 scratch/
+supabase/prod_schema_public_*.sql
+prod_schema_public_*.sql
 supabase/validate_migration.py
 supabase/validation_output.txt
 supabase/validation_report.txt
