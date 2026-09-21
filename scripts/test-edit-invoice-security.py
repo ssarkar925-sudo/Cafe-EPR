@@ -45,6 +45,7 @@ def test_suite():
     SELECT 
       p.proname,
       pronargs,
+      has_function_privilege('public', p.oid, 'EXECUTE') as public_exec,
       has_function_privilege('anon', p.oid, 'EXECUTE') as anon_exec,
       has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_exec,
       has_function_privilege('service_role', p.oid, 'EXECUTE') as sr_exec
@@ -57,24 +58,24 @@ def test_suite():
     print(stdout)
     assert rc == 0, f"ACL check failed: {stderr}"
 
-    # Verify rules:
-    # edit_invoice 10: anon=F, auth=T, sr=T
-    # edit_invoice 19: anon=F, auth=F, sr=T
-    # edit_invoice 20: anon=F, auth=T, sr=T
-    # edit_invoice_internal 9: anon=F, auth=F, sr=T
+    # Verify rules (PUBLIC explicitly revoked on every overload):
+    # edit_invoice 10: public=F, anon=F, auth=T, sr=T
+    # edit_invoice 19: public=F, anon=F, auth=F, sr=T
+    # edit_invoice 20: public=F, anon=F, auth=T, sr=T
+    # edit_invoice_internal 9: public=F, anon=F, auth=F, sr=T
     acl_map = {}
     for line in stdout.splitlines():
         if '|' in line:
             parts = [p.strip() for p in line.split('|')]
-            if len(parts) == 5 and parts[1].isdigit():
+            if len(parts) == 6 and parts[1].isdigit():
                 key = (parts[0], int(parts[1]))
-                acl_map[key] = (parts[2] == 't', parts[3] == 't', parts[4] == 't')
+                acl_map[key] = (parts[2] == 't', parts[3] == 't', parts[4] == 't', parts[5] == 't')
 
-    print("Parsed ACLs:", acl_map)
-    assert acl_map.get(('edit_invoice', 10)) == (False, True, True), "10-arg ACL mismatch!"
-    assert acl_map.get(('edit_invoice', 19)) == (False, False, True), "19-arg ACL mismatch! Authenticated must NOT have execute."
-    assert acl_map.get(('edit_invoice', 20)) == (False, True, True), "20-arg ACL mismatch!"
-    assert acl_map.get(('edit_invoice_internal', 9)) == (False, False, True), "9-arg internal ACL mismatch!"
+    print("Parsed ACLs (public, anon, auth, sr):", acl_map)
+    assert acl_map.get(('edit_invoice', 10)) == (False, False, True, True), "10-arg ACL mismatch!"
+    assert acl_map.get(('edit_invoice', 19)) == (False, False, False, True), "19-arg ACL mismatch! PUBLIC/Authenticated must NOT have execute."
+    assert acl_map.get(('edit_invoice', 20)) == (False, False, True, True), "20-arg ACL mismatch!"
+    assert acl_map.get(('edit_invoice_internal', 9)) == (False, False, False, True), "9-arg internal ACL mismatch!"
     print(">>> TEST 1 PASSED: Catalog routine privileges strictly match specifications.")
     results['catalog_privileges'] = 'PASS'
 

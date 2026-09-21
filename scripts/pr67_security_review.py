@@ -131,7 +131,7 @@ for pronargs in [9, 10, 19, 20]:
     # ACLs
     acl_sql = f"""
     SELECT
-      has_function_privilege('PUBLIC', p.oid, 'EXECUTE') AS public_exec,
+      has_function_privilege('public', p.oid, 'EXECUTE') AS public_exec,
       has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec,
       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec,
       has_function_privilege('service_role', p.oid, 'EXECUTE') AS sr_exec,
@@ -213,7 +213,7 @@ for pronargs in [9, 10, 19, 20]:
 
     acl_sql = f"""
     SELECT
-      has_function_privilege('PUBLIC', p.oid, 'EXECUTE') AS public_exec,
+      has_function_privilege('public', p.oid, 'EXECUTE') AS public_exec,
       has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec,
       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec,
       has_function_privilege('service_role', p.oid, 'EXECUTE') AS sr_exec,
@@ -271,23 +271,24 @@ for pronargs in [9, 10, 19, 20]:
 # ============================================================
 banner("STEP 4: ACL Verification — Every Overload vs Specification")
 
-# Expected ACLs post-migration:
-# 10-arg wrapper: PUBLIC=t(inherited), anon=f, authenticated=t, service_role=t, postgres=t
+# Expected ACLs post-migration (PUBLIC explicitly revoked on every overload):
+# 10-arg wrapper: PUBLIC=f, anon=f, authenticated=t, service_role=t, postgres=t
 # 19-arg core:    PUBLIC=f, anon=f, authenticated=f, service_role=t, postgres=t
-# 20-arg wrapper: PUBLIC=t(inherited), anon=f, authenticated=t, service_role=t, postgres=t
+# 20-arg wrapper: PUBLIC=f, anon=f, authenticated=t, service_role=t, postgres=t
 # 9-arg internal: PUBLIC=f, anon=f, authenticated=f, service_role=t, postgres=t
 
 ACL_SPEC = {
-    10: {"anon": "f", "authenticated": "t", "service_role": "t", "postgres": "t"},
-    19: {"anon": "f", "authenticated": "f", "service_role": "t", "postgres": "t"},  # KEY CHANGE
-    20: {"anon": "f", "authenticated": "t", "service_role": "t", "postgres": "t"},
-    9:  {"anon": "f", "authenticated": "f", "service_role": "t", "postgres": "t"},
+    10: {"public": "f", "anon": "f", "authenticated": "t", "service_role": "t", "postgres": "t"},
+    19: {"public": "f", "anon": "f", "authenticated": "f", "service_role": "t", "postgres": "t"},  # KEY CHANGE
+    20: {"public": "f", "anon": "f", "authenticated": "t", "service_role": "t", "postgres": "t"},
+    9:  {"public": "f", "anon": "f", "authenticated": "f", "service_role": "t", "postgres": "t"},
 }
 
 for pronargs, spec in ACL_SPEC.items():
     proname = "edit_invoice_internal" if pronargs == 9 else "edit_invoice"
     acl_detail_sql = f"""
     SELECT
+      has_function_privilege('public', p.oid, 'EXECUTE')        AS pub_exec,
       has_function_privilege('anon', p.oid, 'EXECUTE')          AS anon_exec,
       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec,
       has_function_privilege('service_role', p.oid, 'EXECUTE')  AS sr_exec,
@@ -297,9 +298,10 @@ for pronargs, spec in ACL_SPEC.items():
     """
     rc, out, _ = run_sql(acl_detail_sql, db="test_pr67_evidence", extra_flags=["-t", "-A"])
     parts = out.strip().split("|")
-    if len(parts) == 4:
-        actual = {"anon": parts[0].strip(), "authenticated": parts[1].strip(),
-                  "service_role": parts[2].strip(), "postgres": parts[3].strip()}
+    if len(parts) == 5:
+        actual = {"public": parts[0].strip(), "anon": parts[1].strip(),
+                  "authenticated": parts[2].strip(),
+                  "service_role": parts[3].strip(), "postgres": parts[4].strip()}
         for role, expected in spec.items():
             match = actual.get(role) == expected
             check(f"{proname}({pronargs}): {role}=={expected}", match,

@@ -36,6 +36,10 @@
 --    19-arg: REVOKE EXECUTE FROM authenticated.
 --            Production had GRANT to authenticated -- this is the vulnerability.
 --            All API callers now must go through the idempotent wrappers.
+--    ALL FOUR overloads: explicit REVOKE ALL ... FROM PUBLIC (fail-safe).
+--            No-op on production (PUBLIC already revoked there); prevents a
+--            fresh CREATE OR REPLACE on a drifted database from leaving any
+--            overload world-executable.
 --
 -- VERIFICATION:
 --    Run scripts/test-edit-invoice-security.py against the target database.
@@ -540,6 +544,35 @@ $$;
 -- 19-arg core:    VULNERABILITY — was GRANT to authenticated. Revoke it.
 --                 Only service_role may call the mutating implementation directly.
 -- 9-arg internal: already correct in production (only service_role). Keep.
+--
+-- FAIL-SAFE PUBLIC REVOCATION (staging-parity hardening):
+-- PostgreSQL grants EXECUTE TO PUBLIC by default on freshly created functions.
+-- If this migration ever runs where a target overload does not yet exist
+-- (e.g. a staging database with schema drift), CREATE OR REPLACE would create
+-- it with PUBLIC EXECUTE, and revoking only `authenticated` would leave it
+-- world-executable. The explicit REVOKE ALL ... FROM PUBLIC statements below
+-- close that hole on every overload. They are no-ops where production already
+-- revoked PUBLIC, so production behavior is unchanged.
+
+-- Fail-safe: strip default PUBLIC EXECUTE from every target overload first,
+-- using complete identity argument lists (never pronargs alone):
+REVOKE ALL ON FUNCTION public.edit_invoice(
+  uuid, uuid, date, numeric, numeric, numeric, jsonb, jsonb, text, text
+) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.edit_invoice(
+  uuid, uuid, date, numeric, numeric, numeric, jsonb, jsonb, text,
+  text, text, text, text, numeric, numeric, numeric, numeric, boolean, numeric
+) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.edit_invoice(
+  uuid, uuid, date, numeric, numeric, numeric, jsonb, jsonb, text,
+  text, text, text, text, numeric, numeric, numeric, numeric, boolean, numeric, text
+) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.edit_invoice_internal(
+  uuid, uuid, date, numeric, numeric, numeric, jsonb, jsonb, text
+) FROM PUBLIC;
 
 -- Revoke authenticated from the mutating 19-arg implementation:
 REVOKE EXECUTE ON FUNCTION public.edit_invoice(
