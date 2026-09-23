@@ -29,6 +29,7 @@ export const v1NavItems: V1NavItem[] = [
   { key: "dayclose", label: "Day Close", href: "/v1/day-close", roles: ["admin", "manager"], phase: null },
   { key: "approvals", label: "Approvals", href: "/v1/admin/approvals", roles: ["admin"], phase: null },
   { key: "backentry", label: "Back-entry", href: "/v1/back-entry", roles: ["admin"], phase: null },
+  { key: "reports", label: "Reports", href: "/v1/reports", roles: ["admin", "manager"], phase: null },
 ];
 
 export function v1NavForRole(role: V1Role): V1NavItem[] {
