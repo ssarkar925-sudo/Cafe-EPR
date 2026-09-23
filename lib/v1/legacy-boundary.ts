@@ -1,7 +1,7 @@
 /**
  * V1 / legacy boundary — single source of truth for what is NOT V1.
  *
- * The greenfield V1 baseline (G0–G13) does not contain these objects or
+ * The greenfield V1 baseline (G0–G15) does not contain these objects or
  * behaviors. New V1 code must never import, call, or map onto them. The
  * static contract test (`scripts/test-v1-foundation-contract.mjs`) enforces
  * this file's lists against `lib/v1/**`.
@@ -85,7 +85,7 @@ export const LEGACY_BEHAVIORS: readonly string[] = [
   "GST computation (V1 dormant flags only)",
   "quick-sale accounting",
   "legacy payment-table writes",
-  "process_return (V1 composes approval + cancel/recreate + claims)",
+  "process_return (legacy return workflow; V1 uses request_return/execute_return)",
   "legacy transaction posting",
 ];
 
