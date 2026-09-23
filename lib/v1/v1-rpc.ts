@@ -78,6 +78,10 @@ export const V1_MUTATION_RPCS: readonly string[] = [
   "submit_back_entry_batch",
   "void_back_entry_batch",
   "resolve_suspense",
+  // Returns / refunds
+  "request_return",
+  "execute_return",
+  "cancel_return",
 ];
 
 /** Documented V1 pure reads (direct rpc; RLS enforced). */
@@ -115,6 +119,9 @@ export const V1_IDEMPOTENT_RPCS: ReadonlySet<string> = new Set([
   "record_day_counts",
   "close_day_close",
   "approve_day_close",
+  "request_return",
+  "execute_return",
+  "cancel_return",
 ]);
 
 function newIdempotencyKey(): string {
