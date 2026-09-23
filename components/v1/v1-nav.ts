@@ -23,13 +23,14 @@ export const v1NavItems: V1NavItem[] = [
   { key: "pos", label: "POS", href: "/v1/pos", roles: ["admin", "manager", "staff", "cashier"], phase: null },
   { key: "inventory", label: "Inventory", href: "/v1/inventory", roles: ["admin", "manager", "staff", "cashier"], phase: null },
   { key: "purchases", label: "Purchases", href: "/v1/purchases", roles: ["admin", "manager"], phase: null },
-  { key: "customers", label: "Customers & Khata", href: "/v1/masters/customers", roles: ["admin", "manager", "staff", "cashier"], phase: null },
+  { key: "customers", label: "Customers & Khata", href: "/v1/masters/customers", roles: ["admin", "manager"], phase: null },
   { key: "services", label: "Services", href: "/v1/services", roles: ["admin", "manager"], phase: null },
   { key: "returns", label: "Returns", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
   { key: "dayclose", label: "Day Close", href: "/v1/day-close", roles: ["admin", "manager"], phase: null },
   { key: "approvals", label: "Approvals", href: "/v1/admin/approvals", roles: ["admin"], phase: null },
   { key: "backentry", label: "Back-entry", href: "/v1/back-entry", roles: ["admin"], phase: null },
   { key: "reports", label: "Reports", href: "/v1/reports", roles: ["admin", "manager"], phase: null },
+  { key: "offline", label: "Offline Sync", href: "/v1/offline", roles: ["admin", "manager", "staff", "cashier"], phase: null },
 ];
 
 export function v1NavForRole(role: V1Role): V1NavItem[] {
