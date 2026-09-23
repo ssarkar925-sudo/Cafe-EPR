@@ -98,6 +98,10 @@ const V1_FINANCIAL_RPCS = new Set([
   "submit_back_entry_batch",
   "void_back_entry_batch",
   "resolve_suspense",
+  // Returns / refunds
+  "request_return",
+  "execute_return",
+  "cancel_return",
 ]);
 
 const ALLOWED_FINANCIAL_RPCS = new Set([
