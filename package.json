@@ -43,7 +43,8 @@
     "ai:aeps:run": "node scripts/ai-aeps-one-command-v3.mjs",
     "ai:portal:learn": "node scripts/ai-portal-worker.mjs learn",
     "ai:portal:collect": "node scripts/ai-portal-worker.mjs collect",
-    "postinstall": "node scripts/patch-lucide-building-complex.mjs"
+    "postinstall": "node scripts/patch-lucide-building-complex.mjs",
+    "test:v1-reports": "node scripts/test-v1-reports.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -79,9 +80,37 @@
   "build": {
     "appId": "com.sarkarcommunication.cafeerp",
     "productName": "CafeERP",
-    "directories": {"output": "dist-electron"},
-    "files": ["electron/**/*", "public/**/*", "package.json"],
-    "win": {"target": [{"target":"nsis","arch":["x64"]},{"target":"portable","arch":["x64"]}],"icon":"public/app-icon.png"},
-    "nsis": {"oneClick":false,"allowToChangeInstallationDirectory":true,"createDesktopShortcut":true,"createStartMenuShortcut":true,"shortcutName":"CafeERP"}
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/app-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CafeERP"
+    }
   }
 }
