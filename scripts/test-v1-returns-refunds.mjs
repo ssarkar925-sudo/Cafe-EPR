@@ -25,6 +25,7 @@ check("return lot trace", sql.includes("CREATE TABLE public.return_line_lots"));
 check("refund records", sql.includes("CREATE TABLE public.refund_records"));
 check("khata and cash only", sql.includes("khata_credit") && sql.includes("cash"));
 check("partial quantity guard", sql.includes("Return qty exceeds remaining returnable qty"));
+check("cancelled returns excluded", sql.includes("CASE WHEN rd.status NOT IN ('cancelled','rejected')"));
 check("row locking", sql.includes("FOR UPDATE"));
 check("original lot restoration", sql.includes("original_invoice_line_lot_id") && sql.includes("qty_remaining = l.qty_remaining + v_take"));
 check("damaged quarantine", sql.includes("v_rl.disposition = 'damaged'") && sql.includes("'quarantined'"));
