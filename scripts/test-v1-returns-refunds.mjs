@@ -14,6 +14,10 @@ const proxy = read("app/api/pos/financial-rpc/route.ts");
 const sql = read(migration);
 
 check("migration exists", existsSync(join(root, migration)));
+check("returns page exists", existsSync(join(root, "app/v1/returns/page.tsx")));
+check("returns form exists", existsSync(join(root, "app/v1/returns/form.tsx")));
+check("returns actions exists", existsSync(join(root, "app/v1/returns/return-actions.tsx")));
+check("returns nav active", read("components/v1/v1-nav.ts").includes('href: "/v1/returns"'));
 check("approved proportional rule documented", read("docs/architecture/v1-returns-refunds-mini-spec.md").includes("proportional allocation"));
 check("return documents", sql.includes("CREATE TABLE public.return_documents"));
 check("return lines", sql.includes("CREATE TABLE public.return_lines"));
