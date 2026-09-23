@@ -24,6 +24,7 @@
     "test:v1-phase6-step1": "node scripts/test-v1-phase6-step1.mjs",
     "test:v1-phase6-step2": "node scripts/test-v1-phase6-step2.mjs",
     "test:v1-phase6-step3": "node scripts/test-v1-phase6-step3.mjs",
+    "test:v1-day-close": "node scripts/test-v1-day-close.mjs",
     "test:v1-services": "node scripts/test-v1-services.mjs",
     "test:whatsapp-document": "node scripts/test-whatsapp-document.mjs",
     "test:quick-sale-exclusion": "node scripts/test-quick-sale-exclusion.mjs",
