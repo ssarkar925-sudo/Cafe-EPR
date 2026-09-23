@@ -2,7 +2,7 @@
  * V1 greenfield contracts — CyberCafe & Digital Services ERP.
  *
  * Every name, parameter, and status value below is taken from the gated
- * G0–G13 baseline (`greenfield/migrations/V1_001`–`V1_014`). Nothing here
+ * G0–G15 baseline (`greenfield/migrations/V1_001`–`V1_014`). Nothing here
  * invents database behavior: the server/database remains authoritative for
  * totals, balances, FIFO, dates, canonical numbers, permissions, approval
  * validity, period locks, accounting, and sync watermarks.
@@ -84,7 +84,7 @@ export interface V1RpcError {
 export type V1RpcResult<T> = { data: T; error: null } | { data: null; error: V1RpcError };
 
 // ---------------------------------------------------------------------------
-// Lifecycle / status unions (CHECK constraints in V1_001–V1_014)
+// Lifecycle / status unions (CHECK constraints in V1_001–V1_015)
 // ---------------------------------------------------------------------------
 
 export type V1InvoiceStatus =
