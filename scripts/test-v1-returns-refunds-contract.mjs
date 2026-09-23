@@ -1,0 +1,42 @@
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root=join(dirname(fileURLToPath(import.meta.url)),"..");
+const p="greenfield/migrations/V1_015__returns_refunds.sql";
+const s=readFileSync(join(root,p),"utf8");
+let failures=0;
+const check=(name,ok)=>ok?console.log("PASS "+name):(failures++,console.log("FAIL "+name));
+
+check("migration exists",existsSync(join(root,p)));
+check("return documents",s.includes("CREATE TABLE public.return_documents"));
+check("return lines",s.includes("CREATE TABLE public.return_lines"));
+check("return lot trace",s.includes("CREATE TABLE public.return_line_lots"));
+check("refund records",s.includes("CREATE TABLE public.refund_records"));
+check("return numbering",s.includes("'return'"));
+check("journal return source",s.includes("'variance','return'"));
+check("request RPC",s.includes("CREATE OR REPLACE FUNCTION public.request_return"));
+check("execute RPC",s.includes("CREATE OR REPLACE FUNCTION public.execute_return"));
+check("cancel RPC",s.includes("CREATE OR REPLACE FUNCTION public.cancel_return"));
+check("admin approval required",s.includes("status', 'consumed") && s.includes("Admin return/refund approval is not consumed"));
+check("khata default path",s.includes("v_refund_account := '1300'"));
+check("cash refund path",s.includes("refund_method = 'cash'"));
+check("cash instrument validation",s.includes("pi.itype = 'cash'"));
+check("partial quantity guard",s.includes("Return qty exceeds remaining returnable qty"));
+check("row lock on invoice line",s.includes("FOR UPDATE;") && s.includes("Original invoice line missing"));
+check("original lot restoration",s.includes("public.invoice_line_lots"));
+check("sellable damaged disposition",s.includes("IN ('sellable','damaged')"));
+check("quarantine damaged",s.includes("v_rl.disposition = 'damaged'"));
+check("idempotent request",s.includes("idempotency_begin('request_return'"));
+check("idempotent execution",s.includes("idempotency_begin('execute_return'"));
+check("locked period delegated to posting",s.includes("public.post_journal"));
+check("tenant-scoped tables",s.includes("tenant_id"));
+check("security definer",s.match(/SECURITY DEFINER/g)?.length >= 3);
+check("public execution revoked",s.includes("REVOKE ALL ON FUNCTION public.request_return") && s.includes("REVOKE ALL ON FUNCTION public.execute_return"));
+check("proportional discount",s.includes("v_line.amount / nullif(v_invoice.subtotal,0)"));
+check("full-return residual",s.includes("v_invoice.discount - v_prior_discount - v_discount"));
+check("zero refund safe",s.includes("IF v_return.refund_total > 0 THEN"));
+check("no payment claim for refund",!s.includes("public.record_claim("));
+check("no legacy return primitive",!s.includes("process_return"));
+if(failures){console.log("V1_RETURNS_REFUNDS_CONTRACT_FAILED ("+failures+")");process.exit(1)}
+console.log("V1_RETURNS_REFUNDS_CONTRACT_PASSED");
