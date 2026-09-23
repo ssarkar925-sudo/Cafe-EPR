@@ -353,7 +353,73 @@ BEGIN
     v_discount := v_discount + v_line_discount;
   END LOOP;
 
-  v_total := round(v_sub - v_discount, 2);
+  -- When this request completes the entire invoice, absorb the accumulated
+  -- cent residual into the last requested line so all return discounts sum
+  -- exactly to the original header discount.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.invoice_lines il
+    WHERE il.invoice_id = p_invoice_id
+      AND il.qty > (
+        coalesce((
+          SELECT sum(rl.qty)
+          FROM public.return_lines rl
+          JOIN public.return_documents rd ON rd.id = rl.return_document_id
+          WHERE rl.original_invoice_line_id = il.id
+            AND rd.status NOT IN ('cancelled','rejected')
+        ), 0)
+      )
+  ) THEN
+    SELECT coalesce(sum(rl.discount_allocated),0)
+      INTO v_prior_discount
+    FROM public.return_lines rl
+    JOIN public.return_documents rd ON rd.id = rl.return_document_id
+    WHERE rd.id <> v_return_id
+      AND rd.original_invoice_id = p_invoice_id
+      AND rd.status NOT IN ('cancelled','rejected');
+
+    v_line_discount := round(v_invoice.discount - v_prior_discount - v_discount, 2);
+    IF v_line_discount <> 0 THEN
+      SELECT id INTO v_last_line
+      FROM public.return_lines
+      WHERE return_document_id = v_return_id
+      ORDER BY id DESC
+      LIMIT 1;
+
+      UPDATE public.return_lines rl
+      SET discount_allocated = discount_allocated + v_line_discount,
+          refund_amount = round(
+            greatest(
+              (SELECT round(il.amount * rl.qty / il.qty, 2)
+               FROM public.invoice_lines il
+               WHERE il.id = rl.original_invoice_line_id)
+              - (rl.discount_allocated + v_line_discount), 0
+            ), 2
+          ),
+          unit_refund_value = CASE
+            WHEN rl.qty > 0 THEN round(
+              greatest(
+                (SELECT round(il.amount * rl.qty / il.qty, 2)
+                 FROM public.invoice_lines il
+                 WHERE il.id = rl.original_invoice_line_id)
+                - (rl.discount_allocated + v_line_discount), 0
+              ) / rl.qty, 2)
+            ELSE 0 END
+      WHERE rl.id = v_last_line;
+
+      SELECT coalesce(sum(rl.discount_allocated),0),
+             coalesce(sum(rl.refund_amount),0)
+        INTO v_discount, v_total
+      FROM public.return_lines rl
+      WHERE rl.return_document_id = v_return_id;
+      v_sub := round(v_total + v_discount, 2);
+    END IF;
+  END IF;
+
+  v_total := round(
+    (SELECT coalesce(sum(rl.refund_amount),0)
+     FROM public.return_lines rl
+     WHERE rl.return_document_id = v_return_id), 2);
 
   UPDATE public.return_documents
   SET subtotal_returned = round(v_sub,2),
@@ -600,14 +666,16 @@ BEGIN
     v_refund_account := v_instrument_account;
   END IF;
 
-  v_lines := v_lines || jsonb_build_array(
-    jsonb_build_object('account_code','4000','debit',v_return.refund_total,
-                       'description','Sales return / refund'),
-    jsonb_build_object('account_code',v_refund_account,'credit',v_return.refund_total,
-                       'description',CASE WHEN v_return.refund_method='cash'
-                                          THEN 'Cash refund'
-                                          ELSE 'Khata credit' END)
-  );
+  IF v_return.refund_total > 0 THEN
+    v_lines := v_lines || jsonb_build_array(
+      jsonb_build_object('account_code','4000','debit',v_return.refund_total,
+                         'description','Sales return / refund'),
+      jsonb_build_object('account_code',v_refund_account,'credit',v_return.refund_total,
+                         'description',CASE WHEN v_return.refund_method='cash'
+                                            THEN 'Cash refund'
+                                            ELSE 'Khata credit' END)
+    );
+  END IF;
 
   IF v_inventory_value > 0 THEN
     v_lines := v_lines || jsonb_build_array(
