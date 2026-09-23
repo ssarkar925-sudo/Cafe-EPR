@@ -336,7 +336,7 @@ BEGIN
 
     v_line_amount := round(v_line.amount * v_qty / v_line.qty, 2);
     v_line_discount := round(
-      coalesce(v_invoice.discount,0) * v_line.amount / nullif(v_invoice.subtotal,0), 2);
+      coalesce(v_invoice.discount,0) * v_line_amount / nullif(v_invoice.subtotal,0), 2);
 
     INSERT INTO public.return_lines
       (tenant_id, return_document_id, original_invoice_line_id, product_id,
