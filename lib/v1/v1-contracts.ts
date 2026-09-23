@@ -117,6 +117,7 @@ export type V1DayCloseStatus = "open" | "variance_pending" | "locked";
 export type V1JournalOrigin = "live" | "back_entry" | "opening";
 export type V1JournalSourceType =
   | "sale"
+  | "return"
   | "purchase"
   | "payment"
   | "service"
@@ -303,6 +304,28 @@ export interface V1LegalHoldParams {
   p_entity_type: string; p_entity_id: string | null; p_entity_key: string; p_reason: string;
 }
 export interface V1RunPurgeParams { p_dry_run?: boolean }
+
+// G15 Returns / Refunds
+export type V1ReturnStatus = "requested" | "approved" | "posted" | "rejected" | "cancelled";
+export type V1ReturnDisposition = "sellable" | "damaged";
+export type V1RefundMethod = "khata_credit" | "cash";
+export interface V1ReturnLineInput {
+  invoice_line_id: string;
+  qty: number;
+  disposition: V1ReturnDisposition;
+  reason: string;
+}
+export interface V1RequestReturnParams {
+  p_invoice_id: string;
+  p_lines: V1ReturnLineInput[];
+  p_refund_method: V1RefundMethod;
+  p_refund_instrument_id?: string | null;
+  p_scope_hash: string;
+  p_reason: string;
+  p_idempotency_key?: string | null;
+}
+export interface V1ExecuteReturnParams { p_return_id: string; p_idempotency_key?: string | null }
+export interface V1CancelReturnParams { p_return_id: string; p_reason: string; p_idempotency_key?: string | null }
 
 // G12
 export interface V1AcquireBackEntryLockParams { p_reason: string }
