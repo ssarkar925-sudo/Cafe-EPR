@@ -231,6 +231,7 @@ DECLARE
   v_line_discount numeric;
   v_remaining numeric;
   v_prior_discount numeric;
+  v_last_line uuid;
   v_scope_details jsonb := '{}'::jsonb;
 BEGIN
   v_tenant := public.current_tenant();
