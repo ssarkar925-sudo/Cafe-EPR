@@ -4,6 +4,7 @@ import { getV1SessionContext, requireV1Admin } from "@/lib/v1/v1-auth-context";
 import { listTenantRows } from "@/lib/v1/v1-server-reads";
 import V1Forbidden from "@/components/v1/v1-forbidden";
 import V1AdminTable from "@/components/v1/v1-admin-table";
+import { ApprovalDecision } from "./actions";
 
 interface ApprovalRow {
   id: string;
@@ -18,15 +19,18 @@ interface ApprovalRow {
   expires_at: string;
   decided_at: string | null;
   status: string;
+  details: { discount_amount?: number } | null;
 }
 
 const STATUSES = ["pending", "consumed", "rejected"] as const;
 
 /**
- * Approval inspection (server, read-only at this stage). Shows requester,
- * approver, scope, reason, expiry, and a derived self-approval marker
- * (requester = approver). No approve/reject actions here — the discount /
- * return / refund workflows that consume approvals arrive in later phases.
+ * Approval inspection + decisions (server + client islands). Shows
+ * requester, approver, scope, reason, expiry, and a derived self-approval
+ * marker (requester = approver). Pending rows carry Approve / Reject
+ * actions that call approve_override / reject_approval through the V1
+ * mutation wrapper; both RPCs enforce admin-only, pending-only,
+ * expiry/SoD, and server-side audit.
  */
 export default async function V1AdminApprovals({
   searchParams,
@@ -45,7 +49,7 @@ export default async function V1AdminApprovals({
   const { rows, error } = await listTenantRows<ApprovalRow>(
     supabase,
     "approvals",
-    "id, scope_hash, entity_type, entity_id, action, reason, requester_profile_id, approver_profile_id, requested_at, expires_at, decided_at, status",
+    "id, scope_hash, entity_type, entity_id, action, reason, requester_profile_id, approver_profile_id, requested_at, expires_at, decided_at, status, details",
     session.tenantId,
     { column: "requested_at", ascending: false },
     200,
@@ -109,6 +113,23 @@ export default async function V1AdminApprovals({
           rowKey={(r) => String(r.id)}
           emptyText={`No ${status} approvals.`}
         />
+      )}
+      {!error && status === "pending" && filtered.length > 0 && (
+        <section aria-label="Decide approvals" className="space-y-2">
+          <h2 className="text-sm font-extrabold tracking-tight">Decide</h2>
+          {filtered.map((r) => (
+            <ApprovalDecision
+              key={String(r.id)}
+              id={String(r.id)}
+              scopeHash={String(r.scope_hash)}
+              action={String(r.action)}
+              reason={typeof r.reason === "string" ? r.reason : null}
+              discountAmount={
+                r.details && typeof r.details.discount_amount === "number" ? r.details.discount_amount : null
+              }
+            />
+          ))}
+        </section>
       )}
     </div>
   );

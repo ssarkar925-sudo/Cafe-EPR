@@ -15,6 +15,11 @@
  *  6. No print CSS or new stylesheets were added by this phase.
  *
  * Run: node scripts/test-v1-phase5-design.mjs
+ *
+ * NOTE (Phase 6 Step 1 amendment): the placeholder-route assertions were
+ * retired when Step 1 replaced app/v1/pos/page.tsx with the real counter
+ * UI. Document-existence, legacy-boundary, nav-contract, and no-CSS checks
+ * below are unchanged.
  */
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -82,11 +87,10 @@ check("WAC/TAX-INVOICE only in exclusionary lines", nonExcl.length === 0, nonExc
 // --- 4. placeholder route discipline ------------------------------------------
 const pos = read("app/v1/pos/page.tsx");
 check("pos placeholder resolves V1 session", pos.includes("getV1SessionContext"));
-check("pos placeholder renders V1Placeholder", pos.includes("V1Placeholder"));
-check(
-  "pos placeholder references all six spec docs",
-  DOCS.every((d) => pos.includes(d)),
-);
+// Amended by Phase 6 Step 1: the placeholder was intentionally retired and
+// replaced by the real counter UI (see test-v1-phase6-step1.mjs). The design
+// documents above remain the normative specs.
+check("phase-5 placeholder retired by step 1 real UI", !pos.includes("V1Placeholder"));
 const rpcLitRx = /"(create_sale|create_purchase|record_claim|recognize_claim|request_approval|approve_override|sync_flush|sync_acknowledge|resolve_conflict|sync_handshake|record_service_txn|cancel_invoice|edit_invoice|intake_lots|adjust_stock|quarantine_lot|reopen_lot|mg_[a-z_]+|post_journal|reverse_journal_entry|open_day_close|close_day_close)"/;
 check("pos placeholder calls no RPCs", !rpcLitRx.test(pos));
 check(
