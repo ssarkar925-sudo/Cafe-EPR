@@ -319,14 +319,16 @@ BEGIN
 
     IF NOT FOUND THEN RAISE EXCEPTION 'Invoice line not found in original invoice'; END IF;
 
-    SELECT il.qty - coalesce(sum(rl.qty),0)
+    SELECT il.qty - coalesce(sum(
+             CASE WHEN rd.status NOT IN ('cancelled','rejected')
+                  THEN rl.qty ELSE 0 END
+           ),0)
       INTO v_remaining
     FROM public.invoice_lines il
     LEFT JOIN public.return_lines rl
       ON rl.original_invoice_line_id = il.id
     LEFT JOIN public.return_documents rd
       ON rd.id = rl.return_document_id
-     AND rd.status NOT IN ('cancelled','rejected')
     WHERE il.id = v_line.id
     GROUP BY il.qty;
 
