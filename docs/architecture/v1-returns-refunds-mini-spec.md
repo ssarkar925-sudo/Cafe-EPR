@@ -1,6 +1,6 @@
 # V1 Returns / Refunds Mini-Spec
 
-Status: **PROPOSED — backend implementation blocked pending owner confirmation of the return-value allocation rule.**
+Status: **APPROVED — proportional header-discount allocation confirmed for V1 implementation.**
 
 Basis:
 - G0–G13 database baseline
@@ -232,7 +232,7 @@ Rounding uses the global V1 rule: ₹0.01 half-up.
 
 The final returned amount must be reconciled so the sum of allocated discounts equals the invoice discount when the entire invoice is returned.
 
-**This option requires owner confirmation before V1_015.**
+**Owner approved: proportional allocation is the V1 rule.**
 
 ### Not allowed
 
@@ -354,8 +354,6 @@ V1_015 must test at minimum:
 
 ## 15. Explicit blocker
 
-Only one material business decision remains before implementation:
+Owner approval recorded: **proportional line-level discount allocation** is the V1 rule for partial returns.
 
-**Confirm the proportional line-level discount allocation described in §8 as the V1 rule for partial returns.**
-
-Everything else in this mini-spec is derived from already-approved V1 constraints or existing database contracts.
+Implementation note: V1 uses the existing G7 approval RPC for approval/rejection and a single atomic `execute_return` workflow for inventory + journal + refund-record posting; separate `approve_return` / `record_refund` RPCs are not required.
