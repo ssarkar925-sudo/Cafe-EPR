@@ -126,8 +126,11 @@ check("32. expiry preserves cart", discount.includes("15-minute server window") 
 
 // --- 33-40. out-of-scope absences ----------------------------------------------------------------------------------------------------------------
 check("33. no returns/refunds", !/process_return|refund/i.test(allCode));
-check("34. no offline", !/sync_flush|sync_acknowledge|resolve_conflict|offline_created|outbox/.test(allCode));
-check("35. no thermal", !/printThermal|window\.print|UNSYNCED|thermal/i.test(allCode));
+check(
+  "34. offline confined to G9 outbox path (amended: offline milestone owns it)",
+  !/sync_flush|sync_acknowledge|resolve_conflict/.test(allCode),
+);
+check("35. no thermal", !/printThermal|window\.print|thermal/i.test(allCode));
 check("37. no legacy quick_sales", !/quick_sale/.test(allCode));
 check("38. no legacy payments", !/cash_entries|legacy payments|old sales/.test(allCode));
 check("39. no WAC", !/WAC/.test(allCode));

@@ -24,11 +24,23 @@
  * - allocate_claim carries no idempotency key: acknowledged allocations
  *   are tracked in-component and skipped on retry; sale/claim retries
  *   reuse the caller-supplied keys (safe server-side replay).
+ * - Offline queueing (Phase 6 offline milestone): when the browser is
+ *   offline, or when create_sale fails at the transport layer (never on a
+ *   semantic rejection), the operator may queue the IDENTICAL sale payload
+ *   (same lines, customer, discount, approver, idempotency key) as a G9
+ *   'sale' outbox operation. Payment splits are NOT queued — claims need
+ *   a posted invoice, so payment is recorded after the sale syncs. The
+ *   queued sale shows its provisional number with the UNSYNCED watermark;
+ *   the canonical number arrives only via server acknowledgement.
  */
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { V1ClaimMethod, V1SaleLine } from "@/lib/v1/v1-contracts";
 import { callV1Mutation } from "@/lib/v1/v1-rpc";
+import { getEnrolledDevice } from "@/lib/v1/v1-device";
+import { enqueueOperation } from "@/lib/v1/sync/enqueue";
+import { UNSYNCED_LABEL } from "@/lib/v1/sync/types";
 import type { PosCustomer, PosInstrument, PosProduct } from "./counter";
 import PosDiscount, {
   EMPTY_DISCOUNT,
@@ -115,6 +127,12 @@ function newKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
+/** Transport-layer failures (no server verdict) may be queued offline;
+ *  semantic rejections must never be — the server already decided. */
+function isTransportError(message: string): boolean {
+  return /network|fetch|Failed to fetch|Load failed|timeout|HTTP 5|offline/i.test(message);
+}
+
 export default function PosCheckout({
   lines,
   products,
@@ -154,6 +172,7 @@ export default function PosCheckout({
   const [busy, setBusy] = useState(false);
   const [ackedAllocs, setAckedAllocs] = useState<string[]>([]);
   const [discount, setDiscount] = useState<DiscountState>(EMPTY_DISCOUNT);
+  const [queuedSale, setQueuedSale] = useState<{ provisional: string; seq: number } | null>(null);
   const busyRef = useRef(false);
   const prevDiscountAmount = useRef(0);
 
@@ -241,10 +260,75 @@ export default function PosCheckout({
     setSplits((prev) => (prev.length <= 1 ? prev : prev.filter((s) => s.key !== key)));
   }
 
+  /** Queue the identical sale payload offline (G9 'sale' operation).
+   *  Payment splits are deliberately NOT queued: claims need a posted
+   *  invoice, so payment is recorded after the sale syncs. A discounted
+   *  sale carries its verified approver id; the server re-validates the
+   *  approval at sync time. */
+  async function queueOffline(): Promise<void> {
+    if (busyRef.current) return;
+    const blocked = validationError();
+    if (blocked || (phase.kind !== "editing" && phase.kind !== "error")) return;
+    const device = getEnrolledDevice();
+    if (!device || !device.serverDeviceId) {
+      setPhase({
+        kind: "error",
+        step: "sale",
+        message: "Offline queueing needs an enrolled device on this browser.",
+        hint: "Enroll this device from Admin → Devices first; the queue identity (device, epoch, sequence) cannot be built without it.",
+        sale: null,
+        claimId: null,
+      });
+      return;
+    }
+    if (device.deviceEpoch === null || device.deviceEpoch === undefined) {
+      setPhase({
+        kind: "error",
+        step: "sale",
+        message: "Device epoch unknown — cannot queue safely.",
+        hint: "Refresh the device enrollment (Admin → Devices) so the queue carries a known epoch.",
+        sale: null,
+        claimId: null,
+      });
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const invoiceDate = todayISO();
+      const record = await enqueueOperation({
+        deviceId: device.serverDeviceId,
+        epoch: device.deviceEpoch,
+        op_type: "sale",
+        payload: {
+          customer_id: customer ? customer.id : null,
+          invoice_date: invoiceDate,
+          lines: lines.map((l) => ({ product_id: l.product_id, qty: l.qty, rate: l.rate })),
+          ...(discountApproval && discountApproval.approverId
+            ? { discount: discountApproval.amount, approver_profile_id: discountApproval.approverId }
+            : {}),
+        },
+        idempotency_key: saleKey,
+      });
+      setQueuedSale({ provisional: record.provisional_number ?? "PROV-?", seq: record.seq });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Queueing failed.";
+      setPhase({ kind: "error", step: "sale", message, hint: hintFor(message), sale: null, claimId: null });
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
   async function submit(): Promise<void> {
     if (busyRef.current) return;
     const blocked = validationError();
     if (blocked || phase.kind !== "editing") return;
+    // Browser offline: queue the identical payload instead of submitting.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await queueOffline();
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     try {
@@ -565,7 +649,45 @@ export default function PosCheckout({
         )}
       </div>
 
-      {doneSale ? (
+      {queuedSale ? (
+        <div className="mt-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+          <p role="status" className="text-sm font-extrabold text-amber-800 dark:text-amber-200">
+            Sale queued offline — {UNSYNCED_LABEL}.
+          </p>
+          <dl className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">Provisional no (not final)</dt>
+              <dd className="font-mono font-bold">{queuedSale.provisional}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">Queue position</dt>
+              <dd className="font-mono font-bold">seq {queuedSale.seq}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">Customer</dt>
+              <dd className="font-bold">{customer ? customer.name : "Walk-in"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">Estimate total</dt>
+              <dd className="font-mono font-bold">{payable.toFixed(2)}</dd>
+            </div>
+          </dl>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Nothing is final until the server acknowledges it — the canonical bill number then replaces the
+            provisional one. Payment will be recorded after the sale syncs.{" "}
+            <Link href="/v1/offline" className="font-bold underline">
+              Watch sync status →
+            </Link>
+          </p>
+          <button
+            type="button"
+            onClick={onSuccess}
+            className="mt-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800"
+          >
+            New sale
+          </button>
+        </div>
+      ) : doneSale ? (
         <div className="mt-3 space-y-2 rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-500/20 dark:bg-teal-500/10">
           <p role="status" className="text-sm font-extrabold text-teal-800 dark:text-teal-200">
             Sale posted successfully.
@@ -778,6 +900,17 @@ export default function PosCheckout({
                 >
                   {busy ? "Retrying…" : "Retry (same submission)"}
                 </button>
+                {failed.step === "sale" && !failed.sale && isTransportError(failed.message) && (
+                  <button
+                    type="button"
+                    onClick={queueOffline}
+                    disabled={busy}
+                    title="Queue the identical payload in the offline outbox (transport failure only — never offered for server rejections)"
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                  >
+                    {busy ? "Queueing…" : "Queue for sync"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onClose}

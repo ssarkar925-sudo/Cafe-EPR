@@ -105,7 +105,8 @@ check("processing state prevents double submit", coCode.includes("disabled={busy
 // --- 16-18. server-authoritative success -----------------------------------------------------------------
 check("server final amount displayed", checkout.includes("Server total") && checkout.includes("sale.total"));
 check("canonical invoice comes from the server", checkout.includes("Bill no (from server)") && checkout.includes("invoice_number"));
-check("no client-generated canonical numbers", !/INV-|next_canonical|PROV-|canonical_number:\s*["'`]/.test(allCode));
+check("no client-generated canonical numbers", !/INV-|next_canonical|canonical_number:\s*["'`]/.test(allCode));
+check("provisional display is fallback-only (offline milestone owns PROV-)", checkout.includes('?? "PROV-?"'));
 
 // --- 19-20. discount/approval confinement (Step 3 owns them; amended) -------------------------------------------
 // Approval RPCs and discount params may appear ONLY in the Step-3 discount
@@ -127,8 +128,13 @@ check(
   "no approval implementation outside step-3 surfaces",
   !/approve_override|request_approval/.test(allCode),
 );
-check("no offline queue implementation", !/sync_flush|sync_acknowledge|resolve_conflict|offline_created|outbox/.test(allCode));
-check("no thermal implementation", !/printThermal|window\.print|UNSYNCED|thermal/i.test(allCode));
+check(
+  "offline queue confined to G9 outbox path (amended: offline milestone owns it)",
+  !/sync_flush|sync_acknowledge|resolve_conflict/.test(allCode) &&
+    coCode.includes("enqueueOperation") &&
+    coCode.includes("UNSYNCED_LABEL"),
+);
+check("no thermal implementation", !/printThermal|window\.print|thermal/i.test(allCode));
 
 // --- 23. no direct financial writes ------------------------------------------------------------------------------
 check("no direct mutating queries", !/\.(insert|update|delete|upsert)\s*\(/.test(allCode));

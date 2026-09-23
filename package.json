@@ -26,6 +26,7 @@
     "test:v1-phase6-step3": "node scripts/test-v1-phase6-step3.mjs",
     "test:v1-day-close": "node scripts/test-v1-day-close.mjs",
     "test:v1-back-entry": "node scripts/test-v1-back-entry.mjs",
+    "test:v1-offline-sync": "node scripts/test-v1-offline-sync.mjs",
     "test:v1-services": "node scripts/test-v1-services.mjs",
     "test:whatsapp-document": "node scripts/test-whatsapp-document.mjs",
     "test:quick-sale-exclusion": "node scripts/test-quick-sale-exclusion.mjs",

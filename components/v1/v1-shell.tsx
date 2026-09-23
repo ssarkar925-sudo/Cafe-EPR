@@ -12,6 +12,8 @@ import Link from "next/link";
 import SessionGuard from "@/components/session-guard";
 import type { V1SessionContext } from "@/lib/v1/v1-contracts";
 import { v1NavForRole } from "./v1-nav";
+import { V1SyncProvider } from "./v1-sync-provider";
+import V1SyncStatus from "./v1-sync-status";
 
 function roleBadgeClass(role: string): string {
   switch (role) {
@@ -37,6 +39,7 @@ export default function V1Shell({
   return (
     <>
       <SessionGuard />
+      <V1SyncProvider>
       <div className="flex min-h-screen bg-slate-100 text-slate-900 dark:bg-[#0b1220] dark:text-slate-100">
         <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white/80 dark:border-white/10 dark:bg-white/[0.03] md:flex">
           <div className="px-5 pb-4 pt-6">
@@ -85,6 +88,9 @@ export default function V1Shell({
             <p className="hidden text-xs text-slate-500 dark:text-slate-400 md:block">
               Server-authoritative V1 backend · UI visibility is not access
             </p>
+            <div className="flex items-center gap-2">
+              <V1SyncStatus />
+            </div>
             <form action="/logout" method="post">
               <button
                 type="submit"
@@ -97,6 +103,7 @@ export default function V1Shell({
           <main className="min-w-0 flex-1 px-4 py-6 md:px-8">{children}</main>
         </div>
       </div>
+      </V1SyncProvider>
     </>
   );
 }
