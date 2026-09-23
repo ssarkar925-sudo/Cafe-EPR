@@ -25,7 +25,7 @@ export const v1NavItems: V1NavItem[] = [
   { key: "purchases", label: "Purchases", href: null, roles: ["admin", "manager"], phase: 4 },
   { key: "customers", label: "Customers & Khata", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
   { key: "services", label: "Services", href: null, roles: ["admin", "manager"], phase: 4 },
-  { key: "returns", label: "Returns", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
+  { key: "returns", label: "Returns", href: "/v1/returns", roles: ["admin", "manager", "staff", "cashier"], phase: null },
   { key: "dayclose", label: "Day Close", href: null, roles: ["admin", "manager"], phase: 4 },
   { key: "approvals", label: "Approvals", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
   { key: "backentry", label: "Back-entry", href: null, roles: ["admin"], phase: 4 },
