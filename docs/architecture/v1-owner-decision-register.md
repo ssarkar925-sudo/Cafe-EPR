@@ -14,6 +14,8 @@ confirmation depth, and the GST-seam review are separate tracks and are
 
 ---
 
+- **Returns/refunds discount allocation (2026-09-23):** Owner approved proportional line-level allocation of the invoice header discount for partial returns. The implementation must use the approved ₹0.01 half-up rounding rule and reconcile any final cent residual on the final return line when the invoice is fully returned.
+
 ## Pending decisions
 
 | ID | Decision | Context | Options for the owner | Blocks |
