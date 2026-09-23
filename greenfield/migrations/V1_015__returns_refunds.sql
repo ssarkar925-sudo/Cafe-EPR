@@ -110,7 +110,7 @@ CREATE TABLE public.refund_records (
   method                text NOT NULL CHECK (method IN ('khata_credit','cash')),
   amount                numeric(18,2) NOT NULL CHECK (amount >= 0),
   claim_id              uuid REFERENCES public.payment_claims(id) ON DELETE RESTRICT,
-  journal_entry_id      uuid NOT NULL REFERENCES public.journal_entries(id) ON DELETE RESTRICT,
+  journal_entry_id      uuid REFERENCES public.journal_entries(id) ON DELETE RESTRICT,
   created_at            timestamptz NOT NULL DEFAULT now(),
   UNIQUE (return_document_id)
 );
@@ -686,12 +686,14 @@ BEGIN
     );
   END IF;
 
-  SELECT public.post_journal(
-    CURRENT_DATE, 'return', v_return.id,
-    'Return ' || v_return.return_number || ' against ' ||
-      v_invoice.canonical_number,
-    v_lines
-  ) INTO v_journal_id;
+  IF v_return.refund_total > 0 OR v_inventory_value > 0 THEN
+    SELECT public.post_journal(
+      CURRENT_DATE, 'return', v_return.id,
+      'Return ' || v_return.return_number || ' against ' ||
+        v_invoice.canonical_number,
+      v_lines
+    ) INTO v_journal_id;
+  END IF;
 
   INSERT INTO public.refund_records
     (tenant_id, return_document_id, method, amount, journal_entry_id)
