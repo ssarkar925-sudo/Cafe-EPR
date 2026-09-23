@@ -72,7 +72,7 @@ export default async function V1AdminApprovals({
         <h1 className="text-xl font-extrabold tracking-tight">Approvals</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Inspect approval records. Self-approval is derived (requester = approver) under the D5
-          sole-Admin rule. Consumption happens in later-phase workflows, not here.
+          sole-Admin rule. Returns/refunds consume the approval in the server-authoritative return execution workflow; sale discounts use the existing POS verification path.
         </p>
       </div>
       <div className="flex gap-2" role="tablist" aria-label="Approval status">
