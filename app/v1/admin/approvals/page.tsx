@@ -19,7 +19,7 @@ interface ApprovalRow {
   expires_at: string;
   decided_at: string | null;
   status: string;
-  details: { discount_amount?: number } | null;
+  details: { discount_amount?: number; refund_total?: number; original_invoice_id?: string; refund_method?: string; lines?: unknown[] } | null;
 }
 
 const STATUSES = ["pending", "consumed", "rejected"] as const;
@@ -124,9 +124,11 @@ export default async function V1AdminApprovals({
               scopeHash={String(r.scope_hash)}
               action={String(r.action)}
               reason={typeof r.reason === "string" ? r.reason : null}
-              discountAmount={
-                r.details && typeof r.details.discount_amount === "number" ? r.details.discount_amount : null
-              }
+              discountAmount={r.details && typeof r.details.discount_amount === "number" ? r.details.discount_amount : null}
+              refundTotal={r.details && typeof r.details.refund_total === "number" ? r.details.refund_total : null}
+              refundMethod={r.details && typeof r.details.refund_method === "string" ? r.details.refund_method : null}
+              originalInvoiceId={r.details && typeof r.details.original_invoice_id === "string" ? r.details.original_invoice_id : null}
+              returnLineCount={r.details && Array.isArray(r.details.lines) ? r.details.lines.length : null}
             />
           ))}
         </section>
