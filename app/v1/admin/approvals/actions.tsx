@@ -19,12 +19,21 @@ export function ApprovalDecision({
   action,
   reason,
   discountAmount,
+  refundTotal,
+  refundMethod,
+  originalInvoiceId,
+  returnLineCount,
 }: {
+
   id: string;
   scopeHash: string;
   action: string;
   reason: string | null;
   discountAmount: number | null;
+  refundTotal: number | null;
+  refundMethod: string | null;
+  originalInvoiceId: string | null;
+  returnLineCount: number | null;
 }) {
   const approve = useV1Mutation();
   const reject = useV1Mutation();
@@ -62,6 +71,10 @@ export function ApprovalDecision({
       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
         Reason: {reason ?? "—"}
         {discountAmount !== null ? ` · discount ${discountAmount.toFixed(2)}` : ""}
+        {refundTotal !== null ? ` · refund ₹${refundTotal.toFixed(2)}` : ""}
+        {refundMethod ? ` · ${refundMethod}` : ""}
+        {originalInvoiceId ? ` · invoice ${originalInvoiceId.slice(0, 8)}…` : ""}
+        {returnLineCount !== null ? ` · ${returnLineCount} return line(s)` : ""}
       </p>
       {(approve.error || reject.error) && (
         <p role="alert" className="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-400">
