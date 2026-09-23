@@ -3,7 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_FINANCIAL_RPCS = new Set([
+/**
+ * Allowlist model: LEGACY_* entries serve the pre-V1 application runtime and
+ * are frozen (removal happens in later application phases, never silently).
+ * V1_* entries are the greenfield G0–G13 backend contract; new application
+ * code must call ONLY V1 names via lib/v1 (see lib/v1/legacy-boundary.ts).
+ * Shared spellings (create_sale/cancel_invoice/edit_invoice) resolve by
+ * argument arity on the database; V1 callers must send V1-shaped args.
+ */
+const LEGACY_FINANCIAL_RPCS = new Set([
   "create_sale",
   "create_business_txn",
   "create_recharge",
@@ -25,6 +33,76 @@ const ALLOWED_FINANCIAL_RPCS = new Set([
   "update_expense",
   "set_opening_balance",
   "record_customer_multi_payment",
+]);
+
+const V1_FINANCIAL_RPCS = new Set([
+  // G0 enrollment / devices / numbering
+  "issue_enrollment_token",
+  "consume_enrollment_token",
+  "revoke_device",
+  "next_canonical_number",
+  // G1 masters
+  "mg_customer_upsert",
+  "mg_supplier_upsert",
+  "mg_product_upsert",
+  "mg_instrument_upsert",
+  "mg_coa_head_update",
+  // G2 inventory
+  "intake_lots",
+  "reserve_stock",
+  "release_reservation",
+  "adjust_stock",
+  "quarantine_lot",
+  "reopen_lot",
+  "expire_overdue_lots",
+  "release_expired_reservations",
+  // G3 documents + idempotency
+  "create_purchase",
+  "create_sale",
+  "cancel_invoice",
+  "edit_invoice",
+  "idempotency_begin",
+  "idempotency_commit",
+  // G4 claims / khata
+  "record_claim",
+  "allocate_claim",
+  "recognize_claim",
+  // G5 record-only services
+  "record_service_txn",
+  "reverse_service_txn",
+  // G6 journals
+  "post_journal",
+  "reverse_journal_entry",
+  "set_instrument_account",
+  // G7 approvals / audit
+  "append_audit",
+  "request_approval",
+  "approve_override",
+  "reject_approval",
+  // G8 day-close
+  "open_day_close",
+  "record_day_counts",
+  "post_variance_journal",
+  "close_day_close",
+  "approve_day_close",
+  // G9 sync
+  "sync_flush",
+  "sync_acknowledge",
+  "resolve_conflict",
+  // G10 retention / holds
+  "set_legal_hold",
+  "release_legal_hold",
+  "run_retention_purge",
+  // G12 back-entry
+  "acquire_back_entry_lock",
+  "submit_back_entry_batch",
+  "void_back_entry_batch",
+  "resolve_suspense",
+]);
+
+const ALLOWED_FINANCIAL_RPCS = new Set([
+  ...LEGACY_FINANCIAL_RPCS,
+  ...V1_FINANCIAL_RPCS,
 ]);
 
 function safeStatus(message: string) {

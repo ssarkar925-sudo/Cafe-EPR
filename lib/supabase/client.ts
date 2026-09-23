@@ -4,6 +4,7 @@ let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 let rejectionListenerInstalled = false;
 
 const FINANCIAL_IDEMPOTENT_RPCS = new Set([
+  // LEGACY runtime (frozen; removal in later application phases only).
   "create_sale",
   "create_business_txn",
   "create_recharge",
@@ -25,6 +26,19 @@ const FINANCIAL_IDEMPOTENT_RPCS = new Set([
   "update_expense",
   "set_opening_balance",
   "record_customer_multi_payment",
+  // V1 greenfield mutations that accept p_idempotency_key (auto-injection
+  // matches the V1 parameter name). V1 RPCs without that parameter must NOT
+  // be listed here: the wrapper would inject an unknown argument and the
+  // database would reject the call. Those go via lib/v1 callV1Mutation.
+  "create_purchase",
+  "record_claim",
+  "recognize_claim",
+  "record_service_txn",
+  "reverse_service_txn",
+  "reverse_journal_entry",
+  "record_day_counts",
+  "close_day_close",
+  "approve_day_close",
 ]);
 
 const idempotencyKeys = new Map<string, string>();
