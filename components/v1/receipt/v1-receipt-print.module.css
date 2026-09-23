@@ -1,0 +1,130 @@
+/* V1 thermal receipt — screen preview + print (thermal receipt milestone).
+   Monospace-safe, black on white, single column. Widths are exact paper
+   widths selected per printer (58mm / 80mm). No external fonts, no color
+   dependence, no JavaScript required for layout.
+
+   The body-wide print isolation rule (body * { visibility: hidden }) is
+   intentionally absent from this CSS module: CSS Modules require pure
+   selectors (at least one local class or id); the global body selector is
+   not pure. That isolation is provided by V1R_PRINT_CSS, which is injected
+   as a raw <style> element by the V1Receipt client component. This module
+   contains only local-class rules that work in both screen and print. */
+
+.receipt {
+  background: #fff;
+  color: #000;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 8px;
+  margin: 0 auto;
+  border: 1px dashed #999;
+}
+
+.w58 {
+  width: 58mm;
+  max-width: 100%;
+}
+
+.w80 {
+  width: 80mm;
+  max-width: 100%;
+}
+
+.block {
+  border-top: 1px solid #000;
+  padding: 4px 0;
+  page-break-inside: avoid;
+}
+
+.block:first-child {
+  border-top: none;
+}
+
+.business {
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.title {
+  text-align: center;
+  font-weight: 700;
+  margin: 2px 0 0;
+}
+
+.watermark {
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+  border: 2px solid #000;
+  padding: 4px;
+  margin: 6px 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 1px 0;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wrap {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.line {
+  page-break-inside: avoid;
+  margin: 2px 0;
+}
+
+.total {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.capitalize {
+  text-transform: capitalize;
+}
+
+.footer {
+  text-align: center;
+  margin: 2px 0 0;
+}
+
+/* screenOnly: wrapper for the print-width selector UI (width buttons,
+   print button). Hidden at print time via V1R_PRINT_CSS (.v1r-screen-only). */
+.screenOnly {
+  margin: 0 auto 12px;
+  max-width: 80mm;
+}
+
+/* @media print — local-class rules only (CSS Modules purity requirement).
+   The .receipt block is made visible and positioned for the thermal printer
+   paper. The body-wide hide rule lives in V1R_PRINT_CSS (non-module). */
+@media print {
+  .receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    border: none;
+    page-break-inside: avoid;
+  }
+  .screenOnly {
+    display: none;
+  }
+  @page {
+    margin: 0;
+  }
+}

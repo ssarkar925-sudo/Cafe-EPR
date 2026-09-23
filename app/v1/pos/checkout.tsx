@@ -41,6 +41,9 @@ import { callV1Mutation } from "@/lib/v1/v1-rpc";
 import { getEnrolledDevice } from "@/lib/v1/v1-device";
 import { enqueueOperation } from "@/lib/v1/sync/enqueue";
 import { UNSYNCED_LABEL } from "@/lib/v1/sync/types";
+import PrintButton from "@/components/receipt/print-button";
+import V1Receipt from "@/components/v1/receipt/v1-receipt";
+import { buildProvisionalReceipt } from "@/components/v1/receipt/v1-receipt-model";
 import type { PosCustomer, PosInstrument, PosProduct } from "./counter";
 import PosDiscount, {
   EMPTY_DISCOUNT,
@@ -141,6 +144,7 @@ export default function PosCheckout({
   estimateTotal,
   saleKey,
   tenantId,
+  businessName,
   operator,
   onClose,
   onSuccess,
@@ -152,6 +156,7 @@ export default function PosCheckout({
   estimateTotal: number;
   saleKey: string;
   tenantId: string;
+  businessName: string;
   operator: { displayName: string; role: string; profileId: string };
   onClose: () => void;
   onSuccess: () => void;
@@ -679,13 +684,41 @@ export default function PosCheckout({
               Watch sync status →
             </Link>
           </p>
-          <button
-            type="button"
-            onClick={onSuccess}
-            className="mt-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800"
-          >
-            New sale
-          </button>
+          <V1Receipt
+            receipt={buildProvisionalReceipt({
+              businessName,
+              provisionalNumber: queuedSale.provisional,
+              invoiceDate: todayISO(),
+              customer: customer ? { name: customer.name, phone: customer.phone } : null,
+              lines: lines.map((l) => ({
+                name: byId.get(l.product_id)?.name ?? "Item",
+                qty: l.qty,
+                rate: l.rate,
+                amount: round2(l.qty * l.rate),
+              })),
+              subtotal: estimate,
+              discount: discount.amount,
+              total: payable,
+              payments: parsed
+                .filter((s) => s.value !== null && (s.value as number) > 0)
+                .map((s) => ({
+                  method: s.method,
+                  amount: s.value as number,
+                  instrument: instrumentById.get(s.instrumentId)?.name ?? null,
+                })),
+            })}
+            width={80}
+          />
+          <div className="mt-1 flex flex-wrap gap-2 print:hidden">
+            <PrintButton label="Print provisional" />
+            <button
+              type="button"
+              onClick={onSuccess}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              New sale
+            </button>
+          </div>
         </div>
       ) : doneSale ? (
         <div className="mt-3 space-y-2 rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-500/20 dark:bg-teal-500/10">
@@ -731,13 +764,21 @@ export default function PosCheckout({
               Tendered {tenderedValue.toFixed(2)} · change {round2(tenderedValue - doneSale.total).toFixed(2)}.
             </p>
           )}
-          <button
-            type="button"
-            onClick={onSuccess}
-            className="mt-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800"
-          >
-            New sale
-          </button>
+          <div className="mt-1 flex flex-wrap gap-2 print:hidden">
+            <Link
+              href={`/v1/receipt/${doneSale.id}`}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+            >
+              Print receipt
+            </Link>
+            <button
+              type="button"
+              onClick={onSuccess}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              New sale
+            </button>
+          </div>
         </div>
       ) : (
         <>
