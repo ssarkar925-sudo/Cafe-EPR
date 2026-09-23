@@ -15,7 +15,7 @@ ALTER TABLE public.numbering_sequences
   DROP CONSTRAINT IF EXISTS numbering_sequences_seq_name_check;
 ALTER TABLE public.numbering_sequences
   ADD CONSTRAINT numbering_sequences_seq_name_check
-  CHECK (seq_name IN ('invoice','settlement','closing','return'));
+  CHECK (seq_name IN ('invoice','settlement','closing','service','journal','return'));
 
 INSERT INTO public.numbering_sequences (tenant_id, seq_name, current_value, increment_by)
 SELECT id, 'return', 0, 1
