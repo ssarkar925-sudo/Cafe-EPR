@@ -20,15 +20,15 @@ export const v1NavItems: V1NavItem[] = [
   { key: "home", label: "Home", href: "/v1", roles: ["admin", "manager", "staff", "cashier"], phase: null },
   { key: "masters", label: "Masters", href: "/v1/masters", roles: ["admin", "manager"], phase: null },
   { key: "admin", label: "Admin", href: "/v1/admin", roles: ["admin"], phase: null },
-  { key: "pos", label: "POS", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
-  { key: "inventory", label: "Inventory", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
-  { key: "purchases", label: "Purchases", href: null, roles: ["admin", "manager"], phase: 4 },
-  { key: "customers", label: "Customers & Khata", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
-  { key: "services", label: "Services", href: null, roles: ["admin", "manager"], phase: 4 },
+  { key: "pos", label: "POS", href: "/v1/pos", roles: ["admin", "manager", "staff", "cashier"], phase: null },
+  { key: "inventory", label: "Inventory", href: "/v1/inventory", roles: ["admin", "manager", "staff", "cashier"], phase: null },
+  { key: "purchases", label: "Purchases", href: "/v1/purchases", roles: ["admin", "manager"], phase: null },
+  { key: "customers", label: "Customers & Khata", href: "/v1/masters/customers", roles: ["admin", "manager", "staff", "cashier"], phase: null },
+  { key: "services", label: "Services", href: "/v1/services", roles: ["admin", "manager"], phase: null },
   { key: "returns", label: "Returns", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
-  { key: "dayclose", label: "Day Close", href: null, roles: ["admin", "manager"], phase: 4 },
-  { key: "approvals", label: "Approvals", href: null, roles: ["admin", "manager", "staff", "cashier"], phase: 4 },
-  { key: "backentry", label: "Back-entry", href: null, roles: ["admin"], phase: 4 },
+  { key: "dayclose", label: "Day Close", href: "/v1/day-close", roles: ["admin", "manager"], phase: null },
+  { key: "approvals", label: "Approvals", href: "/v1/admin/approvals", roles: ["admin"], phase: null },
+  { key: "backentry", label: "Back-entry", href: "/v1/back-entry", roles: ["admin"], phase: null },
 ];
 
 export function v1NavForRole(role: V1Role): V1NavItem[] {
