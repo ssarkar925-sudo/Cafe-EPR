@@ -10,7 +10,7 @@ type Product={id:string;name:string;sku:string|null;barcode:string|null};
 
 export default async function V1Returns({searchParams}:{searchParams:Promise<{invoice?:string}>}){
  const session=await getV1SessionContext();
- if(!session.isActive)return <V1Forbidden surface="Returns"/>;
+ if(!session || !session.isActive)return <V1Forbidden surface="Returns"/>;
  const p=await searchParams;const db=await createClient();
  const invoices=await db.from("invoices").select("id,canonical_number,invoice_date,customer_id,subtotal,discount,total,status").eq("tenant_id",session.tenantId).eq("status","posted").order("invoice_date",{ascending:false}).limit(100);
  if(invoices.error)return <div className="mx-auto max-w-5xl"><p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{invoices.error.message}</p></div>;

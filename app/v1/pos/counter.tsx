@@ -69,6 +69,7 @@ export default function PosCounter({
   products,
   customers,
   instruments,
+  businessName,
   snapshotAt,
   operator,
   tenantId,
@@ -76,6 +77,7 @@ export default function PosCounter({
   products: PosProduct[];
   customers: PosCustomer[];
   instruments: PosInstrument[];
+  businessName: string;
   snapshotAt: string;
   operator: { displayName: string; role: string; profileId: string };
   tenantId: string;
@@ -607,6 +609,7 @@ export default function PosCounter({
           estimateTotal={subtotal}
           saleKey={saleKey}
           tenantId={tenantId}
+          businessName={businessName}
           operator={operator}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={completeSale}

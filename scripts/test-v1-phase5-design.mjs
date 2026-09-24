@@ -110,12 +110,17 @@ const futureLabels = (nav.match(/phase: 4/g) ?? []).length;
 check("future workflows stay phase-marked", futureLabels >= 8, `found ${futureLabels}`);
 
 // --- 6. no print CSS / stylesheets added ---------------------------------------
+// Amended by the thermal milestone: the scoped receipt print module under
+// components/v1/receipt/ belongs to that milestone (see
+// test-v1-thermal-receipt.mjs), not to Phase 5.
 const cssHits = [];
 const scanCss = (dir) => {
   for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
     const rel = join(dir, e.name);
-    if (e.isDirectory()) scanCss(rel);
-    else if (/\.css$/.test(e.name)) cssHits.push(rel);
+    if (e.isDirectory()) {
+      if (rel.replace(/\\/g, "/") === "components/v1/receipt") continue;
+      scanCss(rel);
+    } else if (/\.css$/.test(e.name)) cssHits.push(rel);
   }
 };
 scanCss("app/v1");

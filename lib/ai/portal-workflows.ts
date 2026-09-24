@@ -50,6 +50,39 @@ export const DEFAULT_PORTAL_WORKFLOWS: PortalWorkflow[] = [
       "Required transaction identity is missing or ambiguous",
     ],
   },
+  {
+    providerName: "EzeePay",
+    sourceType: "aeps",
+    displayName: "EzeePay AEPS",
+    purpose: "Read completed AEPS transactions and import their details.",
+    readOnly: true,
+    steps: [
+      "Open the authenticated EzeePay session.",
+      "Navigate to the AEPS transaction report / history area.",
+      "Filter for AEPS / Cash Withdrawal transactions.",
+      "Locate completed/successful transactions requested by the owner.",
+      "Extract transaction ID, Bank RRN/Reference, amount, and status.",
+    ],
+    extractionFields: [
+      "externalTransactionId",
+      "externalReference",
+      "status",
+      "transactionType",
+      "amount",
+      "fee",
+      "commission",
+      "occurredAt",
+      "customerName",
+      "customerMobile",
+    ],
+    stopConditions: [
+      "Login or MFA is required",
+      "A PIN, OTP, password, or payment authorization is requested",
+      "The transaction status is not successful/completed",
+      "The page layout no longer matches the learned workflow",
+      "Required transaction identity is missing or ambiguous",
+    ],
+  },
 ];
 
 export function findPortalWorkflow(providerName: string) {

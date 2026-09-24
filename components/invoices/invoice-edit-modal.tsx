@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { calculateGstInvoice } from "@/lib/gst";
 import Modal from "@/components/ui/modal";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
 
 
 type CatalogItem = {
@@ -62,11 +63,10 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
     async function load() {
       setLoading(true);
       setError(null);
-      const [inv, its, pays, custs, products, services] = await Promise.all([
+      const [inv, its, pays, products, services] = await Promise.all([
         supabase.from("invoices").select("*").eq("id", invoiceId).single(),
         supabase.from("invoice_items").select("*").eq("invoice_id", invoiceId).order("id"),
         supabase.from("payments").select("*").eq("invoice_id", invoiceId).order("received_at"),
-        supabase.from("customers").select("id,name,phone,balance,gstin,state_code").eq("is_active", true).order("name").limit(1000),
         supabase.from("products").select("id,name,sale_price,cost_price,stock_qty,hsn_code,gst_rate").eq("is_active", true).order("name").limit(2000),
         supabase.from("services").select("id,name,sale_price,cost_price,sac_code,gst_rate").eq("is_active", true).order("name").limit(2000),
       ]);
@@ -120,7 +120,18 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
       setInvoiceDate(String(inv.data.invoice_date ?? ""));
       setCustomerId(String(inv.data.customer_id ?? ""));
       setOldCustomerId(inv.data.customer_id ?? null);
-      setCustomers(custs.data ?? []);
+      // No directory preload: hydrate only the invoice's current customer.
+      // Further selections hydrate on select (see handleCustomerChange).
+      if (inv.data.customer_id) {
+        const { data: custRow } = await supabase
+          .from("customers")
+          .select("id,name,code,phone,balance,gstin,state_code")
+          .eq("id", inv.data.customer_id)
+          .maybeSingle();
+        if (!cancelled) setCustomers(custRow ? [custRow] : []);
+      } else if (!cancelled) {
+        setCustomers([]);
+      }
       setCatalog(allCatalog);
       setLines(mappedLines);
       setDiscount(String(Number(inv.data.discount) || 0));
@@ -143,6 +154,33 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
     () => customers.find((customer) => customer.id === customerId) ?? null,
     [customers, customerId]
   );
+
+  // Canonical customer selection: server-side search result carries identity
+  // fields; hydrate the full row (gstin/state_code) for GST math.
+  async function handleCustomerChange(id: string | null, record: CustomerSearchResult | null) {
+    setCustomerId(id ?? "");
+    if (!record) return;
+    setCustomers((curr: any[]) => {
+      if (curr.some((c) => c.id === record.id)) {
+        return curr.map((c) =>
+          c.id === record.id
+            ? { ...c, name: record.name ?? c.name, code: record.code ?? c.code, phone: record.phone ?? c.phone }
+            : c
+        );
+      }
+      return [...curr, { id: record.id, name: record.name ?? "Customer", code: record.code, phone: record.phone, balance: 0, gstin: null, state_code: null }];
+    });
+    try {
+      const { data } = await supabase
+        .from("customers")
+        .select("id,name,code,phone,balance,gstin,state_code")
+        .eq("id", record.id)
+        .maybeSingle();
+      if (data) setCustomers((curr: any[]) => curr.map((c) => (c.id === record.id ? { ...c, ...data } : c)));
+    } catch {
+      // Identity fields from search are sufficient; enrichment is best-effort.
+    }
+  }
 
   const totals = useMemo(() => calculateGstInvoice({
     lines: lines.map((line) => ({ qty: line.qty, rate: line.rate, gstRate: line.gstRate, hsnSac: line.hsnSac, taxTreatment: line.gstRate > 0 ? "taxable" : "non_gst" })),
@@ -291,7 +329,7 @@ export default function InvoiceEditModal({ invoiceId, onClose, onSaved }: Props)
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label className="text-xs font-bold text-slate-500">Invoice date<input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white" /></label>
-            <label className="text-xs font-bold text-slate-500 md:col-span-2">Customer<select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-800 dark:text-white"><option value="">Walk-in Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ""}</option>)}</select></label>
+            <label className="text-xs font-bold text-slate-500 md:col-span-2">Customer<div className="mt-1"><CustomerSearchSelect value={customerId || null} selected={selectedCustomer ? { id: selectedCustomer.id, code: selectedCustomer.code ?? null, name: selectedCustomer.name, phone: selectedCustomer.phone ?? null, is_active: true } : null} onChange={(id, record) => { void handleCustomerChange(id, record); }} allowWalkIn walkInLabel="Walk-in Customer" tone="auto" /></div></label>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">

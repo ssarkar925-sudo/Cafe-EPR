@@ -42,7 +42,7 @@ export default async function BusinessServicePage({
       ? "*, customers(name, phone), providers:recharge_providers(name), profiles(full_name)"
       : "*, customers(name, phone), banks:aeps_banks(name), portals:aeps_portals(name), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)";
 
-  const [{ data: transactions }, { data: customers }, { data: banks }, { data: portals }, { data: qrs }, { data: poolBalances }, { data: rechargeProviders }, { data: rechargeSlabs }, { data: paymentInstruments }] =
+  const [{ data: transactions }, { data: banks }, { data: portals }, { data: qrs }, { data: poolBalances }, { data: rechargeProviders }, { data: rechargeSlabs }, { data: paymentInstruments }] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -51,12 +51,9 @@ export default async function BusinessServicePage({
         .order("transaction_timestamp", { ascending: false, nullsFirst: false })
         .order("transaction_date", { ascending: false })
         .limit(500),
-      supabase
-        .from("customers")
-        .select("id, name, code, phone")
-        .eq("is_active", true)
-        .order("name")
-        .limit(300),
+      // No customer directory preload: workspaces use server-side search.
+      // Selections hydrate single rows on demand.
+      Promise.resolve({ data: [], error: null }),
       supabase.from("aeps_banks").select("*").order("name"),
       supabase
         .from("aeps_portals")
@@ -79,6 +76,8 @@ export default async function BusinessServicePage({
 
   const poolKey = SUPABASE_POOL[service];
   const poolBal = (poolBalances as any)?.[poolKey] ?? null;
+  // Canonical customer directory: no preload; server-side search only.
+  const customers: any[] = [];
 
   if (service === "aeps") {
     return (

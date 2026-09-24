@@ -17,7 +17,6 @@ export default async function OpeningBalancesPage() {
     { data: balances },
     { data: instruments },
     { data: seeds },
-    { data: customers },
     { data: suppliers },
     { data: products },
   ] = await Promise.all([
@@ -28,7 +27,8 @@ export default async function OpeningBalancesPage() {
       .select("id, pool, instrument_id, amount, as_of, remarks, created_at")
       .order("as_of", { ascending: false })
       .order("created_at", { ascending: false }),
-    supabase.from("customers").select("id, name, phone").order("name").limit(500),
+    // No customer directory preload: receivables picker uses server-side
+    // search; snapshot imports validate IDs with a targeted lookup.
     supabase
       .from("suppliers")
       .select("id, name, code, current_balance, opening_balance")
@@ -40,6 +40,9 @@ export default async function OpeningBalancesPage() {
       .order("name")
       .limit(500),
   ]);
+
+  // Canonical customer directory: no preload; server-side search only.
+  const customers: any[] = [];
 
   return (
     <OpeningBalancesClient

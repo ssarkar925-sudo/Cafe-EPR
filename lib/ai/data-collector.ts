@@ -10,6 +10,7 @@ import {
   extractFee,
   extractAadhaarLast4,
   extractPortal,
+  extractTransactionDate,
 } from "@/lib/scan/extract";
 
 export type SmsCollectionResult = {
@@ -159,6 +160,7 @@ export function parsePortalData(content: string, overridePortal?: string): Porta
   let portalName = overridePortal?.trim() || "";
   if (!portalName) {
     if (/\b(?:csc\s*digipay|digipay)\b/i.test(lower)) portalName = "CSC DigiPay";
+    else if (/\b(?:ezeepay|ezee\s*pay)\b/i.test(lower)) portalName = "EzeePay";
     else if (/\b(?:spice\s*money|spicemoney)\b/i.test(lower)) portalName = "Spice Money";
     else if (/\bpaymonk\b/i.test(lower)) portalName = "Paymonk";
     else if (/\b(?:airtel\s*payments?|airtel\s*csp)\b/i.test(lower)) portalName = "Airtel Payments Bank";
@@ -204,10 +206,11 @@ export function parsePortalData(content: string, overridePortal?: string): Porta
       const bank = extractBank(lineText);
       const mobile = extractMobile(lineText);
       const name = extractName(lineText, "to") || extractName(lineText, "from");
+      const dateStr = extractTransactionDate(lineText) || extractTransactionDate(text) || new Date().toISOString().slice(0, 10);
 
       transactions.push({
         externalTransactionId: ref,
-        transactionType: /\b(?:withdrawal|aeps|cash)\b/i.test(lineText) ? "AEPS Cash Withdrawal" : "Service Transaction",
+        transactionType: /\b(?:withdrawal|aeps|cash|cw|aadhaar\s*atm)\b/i.test(lineText) ? "AEPS Cash Withdrawal" : "Service Transaction",
         amount: amt,
         commission: commStr ? parseFloat(commStr) : null,
         fee: feeStr ? parseFloat(feeStr) : null,
@@ -216,12 +219,12 @@ export function parsePortalData(content: string, overridePortal?: string): Porta
         customerMobile: mobile,
         aadhaarLast4: aadhaar,
         bank,
-        occurredAt: new Date().toISOString().slice(0, 10),
+        occurredAt: dateStr,
       });
     }
   }
 
-  // Strategy B: Single receipt parsing (CSC DigiPay, Spice Money receipt paste)
+  // Strategy B: Single receipt parsing (CSC DigiPay, Spice Money, EzeePay receipt paste)
   if (transactions.length === 0) {
     const rawAmt = extractAmount(text);
     const amount = rawAmt ? parseFloat(rawAmt) : 0;
@@ -233,9 +236,10 @@ export function parsePortalData(content: string, overridePortal?: string): Porta
     const bank = extractBank(text);
     const mobile = extractMobile(text);
     const name = extractName(text, "to") || extractName(text, "from");
+    const dateStr = extractTransactionDate(text) || new Date().toISOString().slice(0, 10);
 
     let txnType = "Portal Transaction";
-    if (/\b(?:aeps|cash\s*withdrawal|withdrawal)\b/i.test(lower)) txnType = "AEPS Cash Withdrawal";
+    if (/\b(?:aeps|cash\s*withdrawal|withdrawal|aadhaar\s*atm|cw)\b/i.test(lower)) txnType = "AEPS Cash Withdrawal";
     else if (/\b(?:dmt|money\s*transfer|remittance)\b/i.test(lower)) txnType = "Domestic Money Transfer";
     else if (/\b(?:recharge|top\s*up)\b/i.test(lower)) txnType = "Mobile/DTH Recharge";
     else if (/\b(?:bill|electricity)\b/i.test(lower)) txnType = "Bill Payment";
@@ -252,7 +256,7 @@ export function parsePortalData(content: string, overridePortal?: string): Porta
         customerMobile: mobile,
         aadhaarLast4: aadhaar,
         bank,
-        occurredAt: new Date().toISOString().slice(0, 10),
+        occurredAt: dateStr,
       });
     }
   }

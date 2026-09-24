@@ -1,4 +1,5 @@
 create extension if not exists pgcrypto;
+create extension if not exists pg_trgm;
 
 -- Auth: one profile per auth user, auto-created on signup
 create table if not exists public.profiles (
@@ -61,6 +62,68 @@ opening_balance numeric(15,2) not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Canonical customer ID/code generation (single source of truth; mirrors
+-- supabase/migrations/20260917_customer_code_canonical.sql).
+-- The database assigns CUST-<number> (zero-padded, min width 4) to every
+-- insert that omits code. Frontends must NOT generate codes.
+create sequence if not exists public.customer_code_seq;
+
+do $$
+declare
+  v_max bigint;
+  v_cur bigint;
+begin
+  select coalesce(max((regexp_match(code, '(\d+)'))[1]::bigint), 0)
+    into v_max
+    from public.customers
+    where code is not null;
+  select last_value into v_cur from public.customer_code_seq;
+  if v_max >= v_cur then
+    perform setval('public.customer_code_seq', v_max);
+  end if;
+end
+$$;
+
+create or replace function public.assign_customer_code()
+returns trigger
+language plpgsql
+as $$
+begin
+  if NEW.code is null or btrim(NEW.code) = '' then
+    NEW.code := 'CUST-' || lpad(nextval('public.customer_code_seq')::text, 4, '0');
+  end if;
+  return NEW;
+end
+$$;
+
+drop trigger if exists trg_assign_customer_code on public.customers;
+create trigger trg_assign_customer_code
+  before insert on public.customers
+  for each row execute function public.assign_customer_code();
+
+grant usage on sequence public.customer_code_seq to authenticated;
+
+do $$
+declare
+  v_filled int;
+begin
+  with missing as (
+    select id
+    from public.customers
+    where code is null or btrim(code) = ''
+    order by created_at nulls last, id
+  )
+  update public.customers c
+  set code = 'CUST-' || lpad(nextval('public.customer_code_seq')::text, 4, '0')
+  from missing m
+  where c.id = m.id;
+  get diagnostics v_filled = row_count;
+  raise notice 'customer code backfill: % record(s) assigned canonical codes', v_filled;
+end
+$$;
+
+alter table public.customers alter column code set not null;
 
 -- Till payment methods (Settings -> Payment Methods); POS/Quick Sale offer enabled ones.
 create table if not exists public.payment_methods (
@@ -4851,6 +4914,9 @@ alter table public.returns add constraint returns_invoice_id_fkey
 -- =================== Section 7: missing indexes ===================
 
 create index if not exists customers_phone_idx on public.customers (phone);
+create index if not exists customers_name_trgm_idx on public.customers using gin (name gin_trgm_ops);
+create index if not exists customers_phone_trgm_idx on public.customers using gin (phone gin_trgm_ops);
+create index if not exists customers_code_lower_idx on public.customers (lower(code));
 create index if not exists transactions_customer_idx on public.transactions (customer_id);
 create index if not exists transactions_merchant_qr_idx on public.transactions (merchant_qr_id);
 create index if not exists cash_entries_method_idx on public.cash_entries (method);

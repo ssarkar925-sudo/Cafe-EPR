@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import FloatingWindow from "@/components/ui/floating-window";
 import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
 import { useToast } from "@/components/ui/use-toast";
 
 export type PaymentInstrument = {
@@ -351,6 +352,49 @@ export default function OpeningPositionWorkspace({
     initialSnapshot?.receivables || []
   );
   const [selectedCustId, setSelectedCustId] = useState("");
+  // Canonical directory: server-side search only. `customers` prop seeds
+  // previously-known rows; selections accumulate in a bounded local cache.
+  const [customerCache, setCustomerCache] = useState<CustomerOption[]>([]);
+  const customerCacheIds = useRef<string[]>([]);
+  const directoryCustomers = useMemo(() => {
+    const map = new Map<string, CustomerOption>();
+    for (const c of [...(customers ?? []), ...customerCache]) {
+      if (c?.id && !map.has(c.id)) map.set(c.id, c);
+    }
+    return [...map.values()];
+  }, [customers, customerCache]);
+
+  const selectedCustRecord = useMemo(() => {
+    const c = directoryCustomers.find((x) => x.id === selectedCustId);
+    return c ? { id: c.id, code: null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [directoryCustomers, selectedCustId]);
+
+  function handleCustSelect(id: string | null, record: CustomerSearchResult | null) {
+    setSelectedCustId(id ?? "");
+    if (record && !customerCacheIds.current.includes(record.id) && !(customers ?? []).some((c) => c.id === record.id)) {
+      customerCacheIds.current = [...customerCacheIds.current, record.id];
+      setCustomerCache((prev) => [...prev, { id: record.id, name: record.name ?? "Customer", phone: record.phone }]);
+    }
+  }
+
+  // Snapshot import guard: restore only receivables whose customer still
+  // exists (targeted ID check — no directory preload required).
+  async function validateAndSetReceivables(rows: ReceivableRow[]) {
+    const ids = [...new Set(rows.map((r) => String(r.customer_id || "")).filter(Boolean))].slice(0, 500);
+    const valid = new Set<string>([...(customers ?? []).map((c) => c.id), ...customerCacheIds.current]);
+    try {
+      if (ids.length) {
+        const db = createClient();
+        const { data } = await db.from("customers").select("id").in("id", ids);
+        for (const row of (data ?? []) as any[]) {
+          if (row?.id) valid.add(String(row.id));
+        }
+      }
+    } catch {
+      // On lookup failure keep only locally-known rows (fail closed).
+    }
+    setReceivables(rows.filter((r) => valid.has(String(r.customer_id))));
+  }
   const [recAmount, setRecAmount] = useState("");
   const [recRemarks, setRecRemarks] = useState("");
 
@@ -474,10 +518,7 @@ export default function OpeningPositionWorkspace({
               );
             }
             if (Array.isArray(parsed.receivables)) {
-              const validCustIds = new Set(customers.map((c) => c.id));
-              setReceivables(
-                parsed.receivables.filter((r: ReceivableRow) => validCustIds.has(r.customer_id))
-              );
+              void validateAndSetReceivables(parsed.receivables);
             }
             if (Array.isArray(parsed.inventory)) {
               const validProdIds = new Set(products.map((p) => p.id));
@@ -611,7 +652,7 @@ export default function OpeningPositionWorkspace({
       showToast("error", "Please enter a valid receivable amount greater than 0.");
       return;
     }
-    const cust = customers.find((c) => c.id === selectedCustId);
+    const cust = directoryCustomers.find((c) => c.id === selectedCustId);
     if (!cust) return;
 
     if (receivables.some((r) => r.customer_id === selectedCustId)) {
@@ -1797,14 +1838,12 @@ export default function OpeningPositionWorkspace({
               <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 sm:grid-cols-12 dark:border-white/5 dark:bg-white/2">
                 <div className="sm:col-span-5">
                   <label className="text-[11px] font-bold text-slate-500">Customer *</label>
-                  <SearchableSelect
-                    options={customers.map((c) => ({
-                      value: c.id,
-                      label: `${c.name} (${c.phone || "No phone"})`,
-                    }))}
-                    value={selectedCustId}
-                    onChange={setSelectedCustId}
-                    placeholder="Search customer..."
+                  <CustomerSearchSelect
+                    value={selectedCustId || null}
+                    selected={selectedCustRecord}
+                    onChange={handleCustSelect}
+                    placeholder="Search customer by name, phone, or ID…"
+                    tone="auto"
                   />
                 </div>
 

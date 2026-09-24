@@ -8,6 +8,8 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import FloatingWindow from "@/components/ui/floating-window";
 import Modal from "@/components/ui/modal";
@@ -577,6 +579,51 @@ export default function UtilityBillWorkspace({
     return () => clearTimeout(timer);
   }, [billerParams, consumerId, selectedBillerId, activeBillerConfig, executeBillFetch]);
 
+  // Canonical directory: server-side search only. `customers` is a bounded
+  // cache (seeded rows + selections + creations), never a full preload.
+  const selectedCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === selectedCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, selectedCustomerId]);
+
+  function rememberCustomerRecord(record: CustomerSearchResult) {
+    setCustomers((prev) =>
+      prev.some((x) => x.id === record.id)
+        ? prev.map((x) => (x.id === record.id ? { ...x, name: record.name ?? x.name, phone: record.phone ?? x.phone } : x))
+        : [...prev, { id: record.id, name: record.name ?? "Customer", code: record.code ?? "", phone: record.phone } as CustomerRow]
+    );
+  }
+
+  // Balance is display-only context for the Khata link (API is identity-minimal).
+  async function hydrateCustomerBalance(id: string) {
+    try {
+      const { data } = await supabase.from("customers").select("id,balance").eq("id", id).maybeSingle();
+      if (data) setCustomers((prev) => prev.map((x) => (x.id === id ? { ...x, balance: Number((data as any).balance) || 0 } : x)));
+    } catch {
+      // best-effort only
+    }
+  }
+
+  function handleCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setSelectedCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.phone && !customerMobile) setCustomerMobile(record.phone.replace(/\D/g, "").slice(-10));
+      void hydrateCustomerBalance(record.id);
+    }
+  }
+
+  function useExistingCustomer(dup: { id: string; name: string; phone?: string | null }, phoneFallback: string) {
+    rememberCustomerRecord({ id: dup.id, code: null, name: dup.name, phone: dup.phone ?? phoneFallback, is_active: true });
+    setSelectedCustomerId(dup.id);
+    if (!customerMobile && (dup.phone ?? phoneFallback)) setCustomerMobile((dup.phone ?? phoneFallback).replace(/\D/g, "").slice(-10));
+    void hydrateCustomerBalance(dup.id);
+    setAddCustomerModal(false);
+    setNewCustName("");
+    setNewCustPhone("");
+    showToast("info", `Customer "${dup.name}" already exists — selected instead of duplicating.`);
+  }
+
   // Customer Quick Add
   async function handleAddCustomer() {
     if (!newCustName.trim()) {
@@ -590,32 +637,34 @@ export default function UtilityBillWorkspace({
     }
 
     setAddingCustomer(true);
-    const { data: newCust, error } = await supabase
-      .from("customers")
-      .insert({
+    try {
+      // Canonical creation: the database assigns the Customer ID (code).
+      // Duplicate phones resolve to the existing profile, never a 2nd row.
+      const newCust = await createCustomerRecord(supabase, {
         name: newCustName.trim(),
         phone: cleanPhone || null,
-        is_active: true,
         balance: 0,
-      })
-      .select()
-      .single();
+      });
 
-    setAddingCustomer(false);
-    if (error) {
-      showToast("error", error.message);
+      setCustomers((prev) => [newCust, ...prev]);
+      setSelectedCustomerId(newCust.id);
+      if (!customerMobile && cleanPhone) {
+        setCustomerMobile(cleanPhone);
+      }
+      setAddCustomerModal(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      showToast("success", `Customer "${newCust.name}" created.`);
+    } catch (err: any) {
+      if (err instanceof DuplicateCustomerError) {
+        useExistingCustomer(err.existing, cleanPhone);
+        return;
+      }
+      showToast("error", err?.message || "Failed to create customer.");
       return;
+    } finally {
+      setAddingCustomer(false);
     }
-
-    setCustomers((prev) => [newCust, ...prev]);
-    setSelectedCustomerId(newCust.id);
-    if (!customerMobile && cleanPhone) {
-      setCustomerMobile(cleanPhone);
-    }
-    setAddCustomerModal(false);
-    setNewCustName("");
-    setNewCustPhone("");
-    showToast("success", `Customer "${newCust.name}" created.`);
   }
 
   // Scan & Fill
@@ -1184,23 +1233,14 @@ export default function UtilityBillWorkspace({
             {/* Optional Customer Link */}
             <div>
               <label className="text-[11px] font-bold text-slate-500">Customer Link (Optional for Khata / CRM)</label>
-              <SearchableSelect
-                options={[
-                  { value: "", label: "-- Walk-in / Direct Utility Bill --" },
-                  ...customers.map((c) => ({
-                    value: c.id,
-                    label: `${c.name} (${c.phone || "No phone"}) ${c.balance ? `· Due: ${inr(c.balance)}` : ""}`,
-                  })),
-                ]}
-                value={selectedCustomerId}
-                onChange={(v) => {
-                  setSelectedCustomerId(v);
-                  const cust = customers.find((c) => c.id === v);
-                  if (cust?.phone && !customerMobile) {
-                    setCustomerMobile(cust.phone.replace(/\D/g, "").slice(-10));
-                  }
-                }}
-                placeholder="Select customer..."
+              <CustomerSearchSelect
+                value={selectedCustomerId || null}
+                selected={selectedCustomerRecord}
+                onChange={handleCustomerSelect}
+                allowWalkIn
+                walkInLabel="-- Walk-in / Direct Utility Bill --"
+                placeholder="Search name, phone, or ID…"
+                tone="auto"
               />
             </div>
           </div>

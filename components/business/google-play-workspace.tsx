@@ -8,6 +8,8 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import FloatingWindow from "@/components/ui/floating-window";
 import Modal from "@/components/ui/modal";
@@ -232,6 +234,39 @@ export default function GooglePlayWorkspace({
     });
   }, [transactions, filterStatus, searchQuery]);
 
+  // Canonical directory: server-side search only. `customers` is a bounded
+  // cache (seeded rows + selections + creations), never a full preload.
+  const selectedCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === selectedCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, selectedCustomerId]);
+
+  function rememberCustomerRecord(record: CustomerSearchResult) {
+    setCustomers((prev) =>
+      prev.some((x) => x.id === record.id)
+        ? prev.map((x) => (x.id === record.id ? { ...x, name: record.name ?? x.name, phone: record.phone ?? x.phone } : x))
+        : [...prev, { id: record.id, name: record.name ?? "Customer", code: record.code ?? "", phone: record.phone } as CustomerRow]
+    );
+  }
+
+  function handleCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setSelectedCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.phone && !customerMobile) setCustomerMobile(record.phone.replace(/\D/g, "").slice(-10));
+    }
+  }
+
+  function useExistingCustomer(dup: { id: string; name: string; phone?: string | null }, phoneFallback: string) {
+    rememberCustomerRecord({ id: dup.id, code: null, name: dup.name, phone: dup.phone ?? phoneFallback, is_active: true });
+    setSelectedCustomerId(dup.id);
+    if (!customerMobile && (dup.phone ?? phoneFallback)) setCustomerMobile((dup.phone ?? phoneFallback).replace(/\D/g, "").slice(-10));
+    setAddCustomerModal(false);
+    setNewCustName("");
+    setNewCustPhone("");
+    showToast("info", `Customer "${dup.name}" already exists — selected instead of duplicating.`);
+  }
+
   // Quick Customer Add
   async function handleAddCustomer() {
     if (!newCustName.trim()) return showToast("error", "Customer name is required.");
@@ -239,22 +274,31 @@ export default function GooglePlayWorkspace({
     if (cleanPhone && cleanPhone.length !== 10) return showToast("error", "Phone must be 10 digits.");
 
     setAddingCustomer(true);
-    const { data: newCust, error } = await supabase
-      .from("customers")
-      .insert({ name: newCustName.trim(), phone: cleanPhone || null, is_active: true, balance: 0 })
-      .select()
-      .single();
+    try {
+      // Canonical creation: the database assigns the Customer ID (code).
+      // Duplicate phones resolve to the existing profile, never a 2nd row.
+      const newCust = await createCustomerRecord(supabase, {
+        name: newCustName.trim(),
+        phone: cleanPhone || null,
+        balance: 0,
+      });
 
-    setAddingCustomer(false);
-    if (error) return showToast("error", error.message);
-
-    setCustomers((prev) => [newCust, ...prev]);
-    setSelectedCustomerId(newCust.id);
-    if (!customerMobile && cleanPhone) setCustomerMobile(cleanPhone);
-    setAddCustomerModal(false);
-    setNewCustName("");
-    setNewCustPhone("");
-    showToast("success", `Customer "${newCust.name}" created.`);
+      setCustomers((prev) => [newCust, ...prev]);
+      setSelectedCustomerId(newCust.id);
+      if (!customerMobile && cleanPhone) setCustomerMobile(cleanPhone);
+      setAddCustomerModal(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      showToast("success", `Customer "${newCust.name}" created.`);
+    } catch (err: any) {
+      if (err instanceof DuplicateCustomerError) {
+        useExistingCustomer(err.existing, cleanPhone);
+        return;
+      }
+      return showToast("error", err?.message || "Failed to create customer.");
+    } finally {
+      setAddingCustomer(false);
+    }
   }
 
   // Scan & Fill OCR
@@ -644,20 +688,12 @@ export default function GooglePlayWorkspace({
                     + New Customer
                   </button>
                 </div>
-                <SearchableSelect
-                  options={customers.map((c) => ({
-                    value: c.id,
-                    label: `${c.name} ${c.phone ? `(${c.phone})` : ""}`,
-                  }))}
-                  value={selectedCustomerId}
-                  onChange={(v) => {
-                    setSelectedCustomerId(v);
-                    const c = customers.find((cust) => cust.id === v);
-                    if (c?.phone && !customerMobile) {
-                      setCustomerMobile(c.phone.replace(/\D/g, "").slice(-10));
-                    }
-                  }}
-                  placeholder="Select or search customer..."
+                <CustomerSearchSelect
+                  value={selectedCustomerId || null}
+                  selected={selectedCustomerRecord}
+                  onChange={handleCustomerSelect}
+                  placeholder="Search name, phone, or ID (min 2 chars)…"
+                  tone="auto"
                 />
               </div>
 

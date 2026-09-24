@@ -8,6 +8,8 @@ import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
@@ -139,10 +141,63 @@ export default function UpiWorkspace({
     if (c?.phone) setFormCustomerMobile(c.phone);
   }, [formCustomerId, customers]);
 
+  // Canonical directory: server-side search only. `customers` is a bounded
+  // cache (seeded rows + selections + creations), never a full preload.
+  const formCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === formCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, formCustomerId]);
+
+  function rememberCustomerRecord(record: CustomerSearchResult) {
+    setCustomers((prev) =>
+      prev.some((x) => x.id === record.id)
+        ? prev.map((x) => (x.id === record.id ? { ...x, name: record.name ?? x.name, phone: record.phone ?? x.phone } : x))
+        : [...prev, { id: record.id, name: record.name ?? "Customer", code: record.code ?? "", phone: record.phone } as CustomerRow].sort((a, b) => a.name.localeCompare(b.name))
+    );
+  }
+
+  function handleFormCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setFormCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.phone) setFormCustomerMobile(record.phone);
+    }
+  }
+
+  const customerFilterRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === customerFilter);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, customerFilter]);
+
+  function handleCustomerFilterSelect(id: string | null, record: CustomerSearchResult | null) {
+    setCustomerFilter(id ?? "");
+    if (record) rememberCustomerRecord(record);
+  }
+
+  const editCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === editCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, editCustomerId]);
+
+  function handleEditCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setEditCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.phone) setEditCustomerMobile(record.phone);
+    }
+  }
+
+  function selectExistingCustomer(dup: { id: string; name: string; phone?: string | null }, phoneFallback: string) {
+    rememberCustomerRecord({ id: dup.id, code: null, name: dup.name, phone: dup.phone ?? phoneFallback, is_active: true });
+    setFormCustomerId(dup.id);
+    setFormCustomerMobile(dup.phone ?? phoneFallback);
+    setCustCreateError(`Customer already exists: ${dup.name} (${dup.phone ?? phoneFallback}). Selected the existing profile — no duplicate created.`);
+  }
+
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [{ data: txns }, { data: poolData }, { data: insts }, { data: custs }, { data: merchantQrs }] = await Promise.all([
+      const [{ data: txns }, { data: poolData }, { data: insts }, { data: merchantQrs }] = await Promise.all([
         supabase
           .from("transactions")
           .select("*, customers(name, phone), merchant_qrs:upi_merchant_qrs(display_name, upi_id), profiles(full_name)")
@@ -152,14 +207,12 @@ export default function UpiWorkspace({
           .limit(500),
         supabase.rpc("get_pool_balances"),
         supabase.from("payment_instruments").select("*").order("name"),
-        supabase.from("customers").select("id, name, code, phone").eq("is_active", true).order("name"),
         supabase.from("upi_merchant_qrs").select("*").order("display_name"),
       ]);
 
       if (txns) setTransactions(txns as any);
       if (poolData) setLivePool((poolData as any)?.upi_qr ?? null);
       if (insts) setLiveInstruments(insts);
-      if (custs) setCustomers(custs);
       if (merchantQrs) setQrs(merchantQrs);
 
       setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
@@ -303,29 +356,24 @@ export default function UpiWorkspace({
     setCustCreateError("");
 
     try {
-      const { data: newCust, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name,
-          phone: phone || null,
-          email: newCustEmail.trim() || null,
-          address: newCustAddress.trim() || null,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
+      // Canonical creation: the database assigns the Customer ID (code).
+      // Duplicate phones resolve to the existing profile, never a 2nd row.
+      const newCust = await createCustomerRecord(supabase, {
+        name,
+        phone: phone || null,
+        email: newCustEmail.trim() || null,
+        address: newCustAddress.trim() || null,
+      });
 
       await logAudit({
         action: "create",
         entity: "customer",
-        entity_id: (newCust as any).id,
+        entity_id: newCust.id,
         description: `Created customer "${name}" from UPI terminal`,
       });
 
       setCustomers((prev) => [...prev, newCust as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
-      setFormCustomerId((newCust as any).id);
+      setFormCustomerId(newCust.id);
       if (phone) setFormCustomerMobile(phone);
       setAddCustomerOpen(false);
       setNewCustName("");
@@ -335,6 +383,10 @@ export default function UpiWorkspace({
       showToast("success", `Customer "${name}" created and assigned.`);
     } catch (err: any) {
       console.error("Customer creation error:", err);
+      if (err instanceof DuplicateCustomerError) {
+        selectExistingCustomer(err.existing, phone);
+        return;
+      }
       setCustCreateError(err.message || "Failed to create customer.");
     } finally {
       setCustCreateSubmitting(false);
@@ -1091,19 +1143,14 @@ export default function UpiWorkspace({
                     + New Customer
                   </button>
                 </div>
-                <SearchableSelect
-                  value={formCustomerId}
-                  onChange={setFormCustomerId}
-                  minSearchLength={2}
-                  minSearchPrompt="Type customer name or mobile…"
-                  options={[
-                    { value: "", label: "-- Walk-in Customer --" },
-                    ...customers.map((c) => ({
-                      value: c.id,
-                      label: `${c.name} ${c.phone ? `(${c.phone})` : c.code ? `(${c.code})` : ""}`,
-                    })),
-                  ]}
-                  placeholder="Search saved customer directory or select Walk-in…"
+                <CustomerSearchSelect
+                  value={formCustomerId || null}
+                  selected={formCustomerRecord}
+                  onChange={handleFormCustomerSelect}
+                  allowWalkIn
+                  walkInLabel="-- Walk-in Customer --"
+                  placeholder="Search name, phone, or ID (min 2 chars)…"
+                  tone="auto"
                 />
               </div>
 
@@ -1471,18 +1518,15 @@ export default function UpiWorkspace({
             </div>
 
             <div>
-              <select
-                value={customerFilter}
-                onChange={(e) => setCustomerFilter(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs text-slate-900 outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900"
-              >
-                <option value="">All Customers</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ""}
-                  </option>
-                ))}
-              </select>
+              <CustomerSearchSelect
+                value={customerFilter || null}
+                selected={customerFilterRecord}
+                onChange={handleCustomerFilterSelect}
+                allowWalkIn
+                walkInLabel="All Customers"
+                placeholder="Search customer…"
+                tone="auto"
+              />
             </div>
           </div>
         </div>
@@ -1726,23 +1770,15 @@ export default function UpiWorkspace({
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Customer (Optional)
               </label>
-              <select
-                value={formCustomerId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setFormCustomerId(id);
-                  const c = customers.find((x) => x.id === id);
-                  if (c?.phone) setFormCustomerMobile(c.phone);
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-900 outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="">Walk-in Customer</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ""}
-                  </option>
-                ))}
-              </select>
+              <CustomerSearchSelect
+                value={formCustomerId || null}
+                selected={formCustomerRecord}
+                onChange={handleFormCustomerSelect}
+                allowWalkIn
+                walkInLabel="Walk-in Customer"
+                placeholder="Search customer…"
+                tone="auto"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -2084,23 +2120,15 @@ export default function UpiWorkspace({
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                       Customer Attribution
                     </label>
-                    <select
-                      value={editCustomerId}
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        setEditCustomerId(id);
-                        const c = customers.find((cust) => cust.id === id);
-                        if (c?.phone) setEditCustomerMobile(c.phone);
-                      }}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5"
-                    >
-                      <option value="">-- Walk-in Customer --</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.phone || c.code})
-                        </option>
-                      ))}
-                    </select>
+                    <CustomerSearchSelect
+                      value={editCustomerId || null}
+                      selected={editCustomerRecord}
+                      onChange={handleEditCustomerSelect}
+                      allowWalkIn
+                      walkInLabel="-- Walk-in Customer --"
+                      placeholder="Assign customer…"
+                      tone="auto"
+                    />
                   </div>
 
                   <div className="space-y-1">

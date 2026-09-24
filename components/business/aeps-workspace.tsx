@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { downloadCsv } from "@/components/ui/csv";
 import { getWhatsAppConfig, renderWhatsAppTemplate, DEFAULT_WA_TEMPLATES } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 
 // Normalization dictionary for common Indian banks
 const BANK_ALIASES: Record<string, string> = {
@@ -477,29 +478,22 @@ export default function AepsWorkspace({
     setCustCreateError("");
 
     try {
-      const { data: newCust, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name,
-          phone: phone || null,
-          email: newCustEmail.trim() || null,
-          address: newCustAddress.trim() || null,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
+      const newCust = await createCustomerRecord(supabase, {
+        name,
+        phone: phone || null,
+        email: newCustEmail.trim() || null,
+        address: newCustAddress.trim() || null,
+      });
 
       await logAudit({
         action: "create",
         entity: "customer",
-        entity_id: (newCust as any).id,
+        entity_id: newCust.id,
         description: `Created customer "${name}" from AEPS workspace`,
       });
 
-      setCustomers((prev) => [...prev, newCust as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
-      setSelectedCustomerId((newCust as any).id);
+      setCustomers((prev) => [...prev, newCust as unknown as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
+      setSelectedCustomerId(newCust.id);
       if (phone) setCustomerMobile(phone);
       setAddCustomerWindowOpen(false);
       setNewCustName("");
@@ -508,8 +502,15 @@ export default function AepsWorkspace({
       setNewCustAddress("");
       showToast("success", `Customer "${name}" created and assigned.`);
     } catch (err: any) {
-      console.error("Customer creation error:", err);
-      setCustCreateError(err.message || "Failed to create customer.");
+      if (err instanceof DuplicateCustomerError) {
+        showToast("info", `Customer with this phone already exists: ${err.existing.name}`);
+        setSelectedCustomerId(err.existing.id);
+        if (err.existing.phone) setCustomerMobile(err.existing.phone);
+        setAddCustomerWindowOpen(false);
+      } else {
+        console.error("Customer creation error:", err);
+        setCustCreateError(err.message || "Failed to create customer.");
+      }
     } finally {
       setCustCreateSubmitting(false);
     }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkWhatsAppHealth } from "@/lib/whatsapp-health";
 import { calculateGstInvoice } from "@/lib/gst";
+import { normalizePhone, rankCustomerResults } from "@/lib/customer-search";
 import { parsePhoneSms, parsePortalData, fetchWebsiteData } from "@/lib/ai/data-collector";
 
 const MAX_TOOL_ROUNDS = 4;
@@ -288,23 +289,31 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
     case "search_customer": {
       const query = String(call.args.query || "").trim();
       if (!query) return { matches: [] };
-      const safe = escapeIlike(query);
+      // PostgREST OR-safe pattern (escapeIlike strips wildcards; commas/parens break OR syntax).
+      const safe = escapeIlike(query).replace(/[,()]/g, "").slice(0, 60);
+      if (!safe) return { matches: [] };
+      const digits = normalizePhone(query).slice(0, 20);
+      const ors = [`name.ilike.%${safe}%,phone.ilike.%${safe}%`];
+      if (digits.length >= 3 && !ors[0].includes(digits)) ors.push(`phone.ilike.%${digits}%`);
       const { data, error } = await supabase
         .from("customers")
-        .select("id,name,phone,balance,gstin,state_code,is_active")
+        .select("id,name,code,phone,balance,gstin,state_code,is_active")
         .eq("is_active", true)
-        .or(`name.ilike.%${safe}%,phone.ilike.%${safe}%`)
+        .or(ors.join(","))
         .limit(20);
       if (error) return { matches: [], error: error.message };
+      // Canonical ranking so the best identity match sorts first.
+      const ranked = rankCustomerResults(data ?? [], query, 20);
       return {
         query,
-        matches: (data ?? []).map((c: any) => ({
+        matches: ranked.map(({ record: c, match }: any) => ({
           id: c.id,
           name: c.name,
           phone: c.phone || null,
           balance: safeNumber(c.balance),
           gstin: c.gstin || null,
           stateCode: c.state_code || null,
+          matchTier: match.tier,
         })),
       };
     }
@@ -312,7 +321,8 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
     case "get_customer_ledger": {
       const query = String(call.args.query || "").trim();
       if (!query) return { error: "Customer query is required." };
-      const safe = escapeIlike(query);
+      const safe = escapeIlike(query).replace(/[,()]/g, "").slice(0, 60);
+      if (!safe) return { found: false, message: `No customer matching '${query}' was found.` };
       const { data: customers } = await supabase
         .from("customers")
         .select("id,name,phone,balance,gstin,state_code,credit_limit,created_at")
@@ -320,7 +330,10 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
         .or(`name.ilike.%${safe}%,phone.ilike.%${safe}%`)
         .limit(5);
       if (!customers || customers.length === 0) return { found: false, message: `No customer matching '${query}' was found.` };
-      const customer = customers[0];
+      // Canonical ranking: deterministic best identity match instead of DB order.
+      const ranked = rankCustomerResults(customers, query, 5);
+      const customer = (ranked[0]?.record ?? customers[0]) as any;
+      const matchTier = ranked[0]?.match.tier ?? "partial";
       const { data: sales } = await supabase
         .from("sales")
         .select("id,invoice_number,total_amount,payment_status,invoice_date")
@@ -329,6 +342,7 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
         .limit(10);
       return {
         found: true,
+        matchTier,
         customer: {
           id: customer.id,
           name: customer.name,
@@ -559,9 +573,13 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
       let customer: any = null;
       const custQuery = typeof call.args.customer_query === "string" ? call.args.customer_query.trim() : "";
       if (custQuery) {
-        const safe = escapeIlike(custQuery);
-        const { data: custs } = await supabase.from("customers").select("id,name,phone,state_code,gstin,balance").eq("is_active", true).ilike("name", `%${safe}%`).limit(1);
-        if (custs && custs.length > 0) customer = custs[0];
+        const safe = escapeIlike(custQuery).replace(/[,()]/g, "").slice(0, 60);
+        if (safe) {
+          const { data: custs } = await supabase.from("customers").select("id,name,phone,state_code,gstin,balance").eq("is_active", true).ilike("name", `%${safe}%`).limit(5);
+          // Canonical ranking: prefer an exact identity match over DB order.
+          const ranked = rankCustomerResults(custs ?? [], custQuery, 5);
+          if (ranked.length > 0) customer = ranked[0].record;
+        }
       }
 
       const method = typeof call.args.payment_method === "string" && ["cash", "upi", "card", "credit"].includes(call.args.payment_method.toLowerCase())
@@ -636,14 +654,18 @@ async function executeTool(call: ToolCall, ctx: ToolContext): Promise<Record<str
 
       let matchedCustomer: any = null;
       if (parsed.senderOrBeneficiary) {
-        const safe = escapeIlike(parsed.senderOrBeneficiary);
-        const { data: custs } = await supabase
-          .from("customers")
-          .select("id, name, phone, balance")
-          .eq("is_active", true)
-          .ilike("name", `%${safe}%`)
-          .limit(1);
-        if (custs && custs.length > 0) matchedCustomer = custs[0];
+        const safe = escapeIlike(parsed.senderOrBeneficiary).replace(/[,()]/g, "").slice(0, 60);
+        if (safe) {
+          const { data: custs } = await supabase
+            .from("customers")
+            .select("id, name, phone, balance")
+            .eq("is_active", true)
+            .ilike("name", `%${safe}%`)
+            .limit(5);
+          // Canonical ranking: prefer an exact identity match over DB order.
+          const ranked = rankCustomerResults(custs ?? [], parsed.senderOrBeneficiary, 5);
+          if (ranked.length > 0) matchedCustomer = ranked[0].record;
+        }
       }
 
       let approval: any = null;

@@ -31,7 +31,7 @@ export default function ReturnsForm({invoice,lines,products}:{sessionRole:string
   setBusy(true);
   try{
    const scope={entity_type:"return",action:"return_refund",original_invoice_id:invoice.id,lines:selectedLines,refund_method:refundMethod,refund_instrument_id:refundMethod==="cash"?instrument:null};
-   const hash=await sha256Hex(scopeKey(scope));
+   const hash=await sha256Hex(scopeKey(scope as any));
    const r=await callV1Mutation("request_return",{p_invoice_id:invoice.id,p_lines:selectedLines,p_refund_method:refundMethod,p_refund_instrument_id:refundMethod==="cash"?instrument:null,p_scope_hash:hash,p_reason:reason.trim()});
    if(r.error){setError(r.error.message);return}
    setResult(r.data);setQty({});

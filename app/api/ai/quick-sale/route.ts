@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeSearchText, rankCustomerResults } from "@/lib/customer-search";
 import { getUserRole, hasRole } from "@/lib/authz";
 import { requireOwnerApproval } from "@/lib/ai/approval-gate";
 import { calculateGstInvoice } from "@/lib/gst";
@@ -150,11 +151,24 @@ export async function POST(request: Request) {
 
     let customer: any = null;
     if (parsed.customer_name?.trim()) {
-      const name = safeLike(parsed.customer_name.trim());
-      const { data: customers } = await supabase.from("customers").select("id,name,phone,state_code,gstin,balance").eq("is_active", true).ilike("name", `%${name}%`).limit(5);
-      if (!customers?.length) return NextResponse.json({ action: "needs_input", message: `Customer '${parsed.customer_name}' was not found. I have not changed anything.` }, { status: 422 });
-      if (customers.length > 1) return NextResponse.json({ action: "needs_input", message: `More than one customer matches '${parsed.customer_name}'. Please choose one.`, customers: customers.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone })) }, { status: 422 });
-      customer = customers[0];
+      const rawName = parsed.customer_name.trim();
+      // PostgREST OR-safe pattern (safeLike strips wildcards; commas/parens break OR syntax).
+      const name = safeLike(rawName).replace(/[,()]/g, "").slice(0, 60);
+      const digits = rawName.replace(/\D/g, "").slice(0, 20);
+      const ors = [`name.ilike.%${name}%`];
+      if (digits.length >= 7) ors.push(`phone.ilike.%${digits}%`);
+      const { data: customers } = await supabase.from("customers").select("id,name,code,phone,state_code,gstin,balance").eq("is_active", true).or(ors.join(",")).limit(10);
+      // Canonical ranking: a single exact-tier winner resolves unambiguously.
+      const ranked = rankCustomerResults(customers ?? [], rawName, 10);
+      const exactWinners = ranked.filter((r) => r.match.tier === "exact-id" || r.match.tier === "exact-phone" || r.match.tier === "exact-name");
+      if (ranked.length === 0) return NextResponse.json({ action: "needs_input", message: `Customer '${parsed.customer_name}' was not found. I have not changed anything.` }, { status: 422 });
+      if (exactWinners.length === 1) {
+        customer = exactWinners[0].record;
+      } else if (ranked.length === 1) {
+        customer = ranked[0].record;
+      } else {
+        return NextResponse.json({ action: "needs_input", message: `More than one customer matches '${parsed.customer_name}'. Please choose one.`, customers: ranked.slice(0, 5).map((r: any) => ({ id: r.record.id, name: r.record.name, phone: r.record.phone })) }, { status: 422 });
+      }
     }
 
     const paymentMethod = parsed.payment_method === "other" ? "cash" : parsed.payment_method;

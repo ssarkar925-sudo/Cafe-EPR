@@ -24,7 +24,7 @@ export default async function PosPage({
   const [
     { data: products },
     { data: services },
-    { data: customers },
+    { data: initialCustomer },
     { data: instruments },
     { data: merchantQrs },
     { data: categories },
@@ -41,12 +41,15 @@ export default async function PosPage({
       .select("id, name, sale_price, cost_price, category_id, sac_code, gst_rate, categories(name)")
       .eq("is_active", true)
       .order("name"),
-    supabase
-      .from("customers")
-      .select("id, name, code, phone, balance, gstin, state_code")
-      .eq("is_active", true)
-      .order("name")
-      .limit(500),
+    // No directory preload: server-side search only. Hydrate just the
+    // deep-linked customer (if any) so the initial tab resolves.
+    initialCustomerId
+      ? supabase
+          .from("customers")
+          .select("id, name, code, phone, balance, gstin, state_code")
+          .eq("id", initialCustomerId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase
       .from("payment_instruments")
       .select("id, name, type, details, is_active, current_balance, opening_balance")
@@ -97,15 +100,19 @@ export default async function PosPage({
     hsn_sac: item.sac_code,
   }));
 
-  const safeCustomers: PosCustomer[] = (customers ?? []).map((item: any) => ({
-    id: item.id,
-    name: item.name,
-    code: item.code,
-    phone: item.phone,
-    balance: item.balance,
-    gstin: item.gstin,
-    state_code: item.state_code,
-  }));
+  const safeCustomers: PosCustomer[] = initialCustomer
+    ? [
+        {
+          id: (initialCustomer as any).id,
+          name: (initialCustomer as any).name,
+          code: (initialCustomer as any).code,
+          phone: (initialCustomer as any).phone,
+          balance: (initialCustomer as any).balance,
+          gstin: (initialCustomer as any).gstin,
+          state_code: (initialCustomer as any).state_code,
+        },
+      ]
+    : [];
 
   const safeInstruments: PosInstrument[] = (instruments ?? []).map((item: any) => ({
     id: item.id,

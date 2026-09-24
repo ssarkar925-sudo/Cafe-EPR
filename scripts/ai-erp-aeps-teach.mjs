@@ -87,8 +87,36 @@ async function main() {
     });
     console.log(`Opened Cafe ERP AEPS form: ${page.url()}`);
     console.log("Sign in manually if required. Do not provide passwords, OTPs, PINs or other secrets to this worker.");
+
+    const saveStateIfAuth = async () => {
+      try {
+        const url = page.url();
+        if (!/\b(login|sign[ -]?in)\b/i.test(url)) {
+          await context.storageState({ path: stateFile });
+        }
+      } catch {}
+    };
+    page.on("framenavigated", saveStateIfAuth);
+
+    const checkInterval = setInterval(async () => {
+      try {
+        const url = page.url();
+        if (!/\b(login|sign[ -]?in)\b/i.test(url)) {
+          await context.storageState({ path: stateFile });
+        }
+      } catch {}
+    }, 2000);
+
     await ask("When the AEPS Cash Out form is visible, press Enter here: ");
+    clearInterval(checkInterval);
     await inspectPage(page);
+    await context.storageState({ path: stateFile });
+    console.log(`[STORAGE-STATE] Saved refreshed session to ${stateFile}`);
+
+    if (startUrl.endsWith("/pos") || process.env.AI_ERP_AUTH_ONLY === "true") {
+      console.log("Authentication capture complete.");
+      return;
+    }
 
     const fields = {};
     const fieldPlan = [

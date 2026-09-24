@@ -67,7 +67,7 @@ export default async function V1PosCounterPage() {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const [productsRes, customersRes, lotsRes, holdsRes, instrumentsRes] = await Promise.all([
+  const [productsRes, customersRes, lotsRes, holdsRes, instrumentsRes, tenantRes] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, sku, barcode, unit, sale_price")
@@ -105,6 +105,7 @@ export default async function V1PosCounterPage() {
       { column: "name" },
       100,
     ),
+    supabase.from("tenants").select("name").eq("id", session.tenantId).single(),
   ]);
 
   const readError =
@@ -112,7 +113,8 @@ export default async function V1PosCounterPage() {
     customersRes.error ??
     lotsRes.error?.message ??
     holdsRes.error?.message ??
-    instrumentsRes.error;
+    instrumentsRes.error ??
+    tenantRes.error?.message;
   if (readError) {
     return (
       <div className="mx-auto max-w-4xl">
@@ -176,6 +178,7 @@ export default async function V1PosCounterPage() {
       products={items}
       customers={customers}
       instruments={instruments}
+      businessName={((tenantRes.data ?? null) as { name: string } | null)?.name ?? "Sale Receipt"}
       snapshotAt={snapshotAt}
       operator={{
         displayName: session.profile.display_name,

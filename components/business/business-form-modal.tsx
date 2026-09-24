@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import SearchableSelect from "@/components/ui/searchable-select";
 import Modal from "@/components/ui/modal";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
 import type { ScanFields } from "@/lib/scan/extract";
 import type { CustomerRow, Master, Txn } from "./business-client";
@@ -179,7 +180,56 @@ export default function BusinessFormModal({
     : [];
   const hasSplitCustomerCollection = customerPaymentAllocations.length > 1;
 
-  const selectedCustomer = customers.find((c) => c.id === form.customer_id);
+  // Canonical directory: server-side search only. The `customers` prop now only
+  // seeds previously-known rows; selections hydrate into the local cache.
+  const [customerCache, setCustomerCache] = useState<CustomerRow[]>([]);
+  const directoryCustomers = useMemo(() => {
+    const map = new Map<string, CustomerRow>();
+    for (const c of [...(customers ?? []), ...customerCache]) {
+      if (c?.id && !map.has(c.id)) map.set(c.id, c);
+    }
+    return [...map.values()];
+  }, [customers, customerCache]);
+
+  const selectedCustomer = directoryCustomers.find((c) => c.id === form.customer_id);
+
+  // Full row (balance/credit_limit) for credit checks + label resolution.
+  async function hydrateCustomer(id: string, patch?: { name?: string | null; code?: string | null; phone?: string | null }) {
+    if (patch) {
+      setCustomerCache((prev) =>
+        prev.some((c) => c.id === id)
+          ? prev.map((c) => (c.id === id ? { ...c, name: patch.name ?? c.name, code: (patch.code ?? (c as any).code ?? "") as string, phone: patch.phone ?? c.phone } : c))
+          : [...prev, { id, name: patch.name ?? "Customer", code: (patch.code ?? "") as string, phone: patch.phone ?? null } as CustomerRow]
+      );
+    }
+    try {
+      const { data } = await supabase
+        .from("customers")
+        .select("id,name,code,phone,balance,credit_limit")
+        .eq("id", id)
+        .maybeSingle();
+      if (data) {
+        setCustomerCache((prev) =>
+          prev.some((c) => c.id === id)
+            ? prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+            : [...prev, data as CustomerRow]
+        );
+      }
+    } catch {
+      // Identity fields from search are sufficient; enrichment is best-effort.
+    }
+  }
+
+  useEffect(() => {
+    if (form.customer_id && !directoryCustomers.some((c) => c.id === form.customer_id)) {
+      void hydrateCustomer(form.customer_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.customer_id]);
+
+  const customerSnapshot = selectedCustomer
+    ? { id: selectedCustomer.id, name: selectedCustomer.name, code: (selectedCustomer as any).code ?? null, phone: selectedCustomer.phone ?? null }
+    : null;
 
   useEffect(() => {
     if (selectedCustomer?.phone && !initial) {
@@ -351,6 +401,7 @@ export default function BusinessFormModal({
         p_transaction_date: form.transaction_timestamp.slice(0, 10),
         p_transaction_timestamp: new Date(form.transaction_timestamp).toISOString(),
         p_customer_id: form.customer_id || null,
+        customer_snapshot: customerSnapshot,
         p_customer_mobile: form.customer_mobile.trim() || null,
         p_reference: form.reference.trim() || null,
         p_remarks: form.remarks.trim() || null,
@@ -373,6 +424,7 @@ export default function BusinessFormModal({
       p_transaction_date: form.transaction_timestamp.slice(0, 10),
       p_transaction_timestamp: new Date(form.transaction_timestamp).toISOString(),
       p_customer_id: form.customer_id || null,
+      customer_snapshot: customerSnapshot,
       p_customer_mobile: form.customer_mobile.trim() || null,
       p_bank_id: service === "aeps" ? (form.bank_id || null) : null,
       p_portal_id: form.portal_id || null,
@@ -466,19 +518,21 @@ export default function BusinessFormModal({
 
           <div className="sm:col-span-2">
             <label className={labelCls}>Customer</label>
-            <SearchableSelect
-            value={form.customer_id}
-            onChange={(v) => set("customer_id", v)}
-            options={[
-              { value: "", label: "Walk-in / no saved customer" },
-              ...customers.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${c.code})${c.phone ? ` · ${c.phone}` : ""}`,
-              })),
-            ]}
-            searchPlaceholder="Search customer by name, code or mobile…"
-            showClear={false}
-          />
+            <CustomerSearchSelect
+              value={form.customer_id || null}
+              selected={selectedCustomer ? { id: selectedCustomer.id, code: (selectedCustomer as any).code ?? null, name: selectedCustomer.name, phone: selectedCustomer.phone ?? null, is_active: true } : null}
+              onChange={(id, record) => {
+                set("customer_id", id ?? "");
+                if (record) {
+                  if (record.phone) setForm((f) => ({ ...f, customer_mobile: record.phone ?? f.customer_mobile }));
+                  void hydrateCustomer(record.id, { name: record.name, code: record.code, phone: record.phone });
+                }
+              }}
+              allowWalkIn
+              walkInLabel="Walk-in / no saved customer"
+              placeholder="Search customer by name, code or mobile…"
+              tone="auto"
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Customer Mobile (optional)</label>
@@ -607,7 +661,7 @@ export default function BusinessFormModal({
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Sender</label>
-                <ContactSuggestionField mode="sender" txns={txns} customers={customers} onSelect={applySenderSuggestion} />
+                <ContactSuggestionField mode="sender" txns={txns} customers={directoryCustomers} onSelect={applySenderSuggestion} />
               </div>
               <div>
                 <label className={labelCls}>Sender Name *</label>

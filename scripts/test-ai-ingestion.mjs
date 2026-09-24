@@ -25,6 +25,9 @@ const recon = await import("../lib/ai/reconciliation-engine.ts");
 const extraction = await import("../lib/ai/ingestion-extraction.ts");
 const worker = await import("../lib/ai/browser-worker.ts");
 const types = await import("../lib/ai/ingestion-types.ts");
+const collector = await import("../lib/ai/data-collector.ts");
+const { ezeepayAdapter } = await import("../workers/portal/adapters/ezeepay.mjs");
+const { createPortalAdapter } = await import("../lib/ai/portal-adapters/index.ts");
 
 let passed = 0;
 let failed = 0;
@@ -89,6 +92,86 @@ function ok(name, cond, extra = "") {
 
   const ambCust = normalizer.normalizeSmsEvent("Rs.900 received. Ref 123456789012");
   ok("portal ambiguous customer allowed with flags", ambCust.customer_name === null && ambCust.customer_mobile === null);
+}
+
+// ---------- EzeePay AEPS reconciliation cases ----------
+{
+  const receiptText = `
+    EzeePay Digital Bharat
+    AEPS Cash Withdrawal Receipt
+    Txn ID: EZP982341209
+    Bank RRN: 426118239012
+    Date: 15-09-2026 14:32:10
+    Aadhaar No: XXXX-XXXX-4819
+    Bank: State Bank of India
+    Amount: Rs. 2,500.00
+    Commission: Rs. 7.50
+    Status: Success
+    Customer Mobile: 9876543210
+  `;
+  const parsed = collector.parsePortalData(receiptText);
+  ok("ezeepay brand recognized", parsed.portalName === "EzeePay");
+  ok("ezeepay receipt transaction extracted", parsed.transactions.length === 1 && parsed.transactions[0].amount === 2500 && parsed.transactions[0].externalTransactionId === "426118239012");
+  ok("ezeepay transaction date preserved", parsed.transactions[0]?.occurredAt === "2026-09-15");
+  ok("ezeepay transaction type identified as aeps", /aeps|cash withdrawal/i.test(parsed.transactions[0]?.transactionType || ""));
+
+  const norm = normalizer.normalizePortalText(receiptText, parsed.portalName);
+  ok("ezeepay normalized event has RRN", norm.items.length === 1 && norm.items[0].external_reference === "426118239012");
+
+  const val = validation.validateNormalizedEvent({ event: norm.items[0], providerKnown: true });
+  ok("ezeepay event passes validation", val.state === "valid" && val.issues.length === 0);
+
+  // Exact RRN match against ERP transaction snapshot containing reference
+  const erpSnapshot = [
+    {
+      id: "local-txn-1",
+      kind: "transaction",
+      reference: "426118239012",
+      externalId: "AEP-20260915-001",
+      amount: 2500,
+      occurredAt: "2026-09-15",
+      status: "success",
+      provider: "EzeePay",
+    },
+  ];
+
+  const matched = recon.reconcileEvent(
+    {
+      provider: "EzeePay",
+      eventType: "aeps",
+      externalReference: "426118239012",
+      externalEventId: "EZP982341209",
+      amount: 2500,
+      occurredAt: "2026-09-15",
+      status: "completed",
+      contentHash: "hash-ezee-1",
+      customerId: null,
+    },
+    erpSnapshot,
+  );
+  ok("ezeepay reconciles to exact_match on RRN", matched.verdict === "exact_match" && matched.matchedRowId === "local-txn-1" && matched.confidence >= 0.95);
+
+  // Duplicate rejection test
+  const dupResult = recon.reconcileEvent(
+    {
+      provider: "EzeePay",
+      eventType: "aeps",
+      externalReference: "426118239012",
+      externalEventId: "EZP982341209",
+      amount: 2500,
+      occurredAt: "2026-09-15",
+      status: "completed",
+      contentHash: "hash-ezee-1",
+      customerId: null,
+      existingEventIds: ["prior-event-id"],
+    },
+    erpSnapshot,
+  );
+  ok("ezeepay duplicate rejected with confidence 1.0", dupResult.verdict === "duplicate" && dupResult.confidence === 1.0);
+
+  // Portal worker adapter tests
+  ok("ezeepay worker adapter matches url", ezeepayAdapter.match("https://ezeepay.app/reports") && ezeepayAdapter.match("https://agent.ezee-pay.com"));
+  ok("ezeepay worker adapter infers aeps type", ezeepayAdapter.inferEventType("Cash Withdrawal 1000") === "aeps" && ezeepayAdapter.inferEventType("AEPS CW 500") === "aeps");
 }
 
 // ---------- Browser worker stop conditions ----------

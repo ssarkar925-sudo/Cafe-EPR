@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { PosCustomer } from "./pos-types";
 import Modal from "@/components/ui/modal";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 
 export default function PosNewCustomerModal({
   open,
@@ -20,8 +21,37 @@ export default function PosNewCustomerModal({
   const [gstin, setGstin] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string; phone?: string | null } | null>(null);
 
   if (!open) return null;
+
+  async function useExistingCustomer(dup: { id: string; name: string; phone?: string | null }) {
+    try {
+      setSaving(true);
+      setError(null);
+      const { data, error: fetchError } = await supabase
+        .from("customers")
+        .select("id, name, code, phone, balance, gstin, state_code")
+        .eq("id", dup.id)
+        .single();
+      if (fetchError) throw new Error(fetchError.message);
+      onCustomerCreated({
+        id: data.id,
+        name: data.name,
+        code: data.code,
+        phone: data.phone,
+        balance: data.balance ?? 0,
+        gstin: data.gstin,
+        state_code: data.state_code,
+      });
+      setDuplicate(null);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Failed to load existing customer.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,37 +66,33 @@ export default function PosNewCustomerModal({
     try {
       setSaving(true);
       setError(null);
+      setDuplicate(null);
 
-      // Auto-generate code if needed or let trigger handle it
-      const code = `CUST-${Date.now().toString().slice(-4)}`;
-
-      const { data, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name: trimmedName,
-          phone: phone.trim() || null,
-          gstin: gstin.trim() ? gstin.trim().toUpperCase() : null,
-          code,
-          is_active: true,
-          balance: 0,
-        })
-        .select("id, name, code, phone, balance, gstin, state_code")
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
+      // Canonical creation: the database assigns the Customer ID (code).
+      // Duplicate phones resolve to the existing profile, never a 2nd row.
+      const data = await createCustomerRecord(supabase, {
+        name: trimmedName,
+        phone: phone.trim() || null,
+        gstin: gstin.trim() || null,
+        balance: 0,
+      });
 
       onCustomerCreated({
         id: data.id,
-        name: data.name,
+        name: String(data.name),
         code: data.code,
-        phone: data.phone,
-        balance: data.balance ?? 0,
-        gstin: data.gstin,
-        state_code: data.state_code,
+        phone: (data.phone as string | null) ?? null,
+        balance: Number(data.balance ?? 0),
+        gstin: (data.gstin as string | null) ?? null,
+        state_code: (data.state_code as string | null) ?? null,
       });
 
       onClose();
     } catch (err: any) {
+      if (err instanceof DuplicateCustomerError) {
+        setDuplicate(err.existing);
+        return;
+      }
       setError(err.message || "Failed to create customer.");
     } finally {
       setSaving(false);
@@ -106,6 +132,31 @@ export default function PosNewCustomerModal({
         {error && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
             {error}
+          </div>
+        )}
+        {duplicate && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-[11px] dark:border-amber-900/50 dark:bg-amber-950/40">
+            <p className="font-black text-amber-800 dark:text-amber-200">Possible duplicate found</p>
+            <p className="mt-0.5 font-semibold text-amber-700 dark:text-amber-300">
+              {duplicate.name}{duplicate.phone ? ` · ${duplicate.phone}` : ""} already exists. Use the existing profile instead of creating a duplicate.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void useExistingCustomer(duplicate)}
+                className="h-8 flex-1 rounded-lg bg-amber-600 text-[11px] font-black text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                Use existing
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuplicate(null)}
+                className="h-8 flex-1 rounded-lg border border-amber-300 bg-white text-[11px] font-black text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-slate-900 dark:text-amber-200"
+              >
+                Edit details
+              </button>
+            </div>
           </div>
         )}
 

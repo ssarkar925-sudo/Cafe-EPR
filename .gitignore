@@ -53,6 +53,29 @@ search_result.txt
 summary.txt
 found.txt
 validation_report.txt
+.temp_pg_data/
+*.log
+*.patch
+check_auth_context.py
+check_auth_line.py
+debug_pattern.py
+post_evidence_comment.py
+verify_source_preservation.py
+scripts/local-db-runner.py
+scripts/pr67_security_review.py
+*_toc.txt
+toc_targets.txt
+status-before-migration-sync.txt
+extracted_*.sql
+original_*.sql
+create_sale_*.sql
+prod_*.sql
+ibo_def.sql
+trg_def.sql
+create_roles.sql
+pg_get_*.sql
+supabase/.temp/
+supabase/fresh-business-start-reset-LEDGER-AWARE-DRAFT.sql
 
 # Encrypted/local database backup artifacts (never commit dumps)
 *.dump

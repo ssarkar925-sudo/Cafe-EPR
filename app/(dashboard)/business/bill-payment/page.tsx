@@ -33,7 +33,6 @@ export default async function BillPaymentPage({
 
   const [
     { data: transactions },
-    { data: customers },
     { data: rechargeProviders },
     { data: rechargeSlabs },
     { data: paymentInstruments },
@@ -48,12 +47,9 @@ export default async function BillPaymentPage({
       .order("transaction_timestamp", { ascending: false, nullsFirst: false })
       .order("transaction_date", { ascending: false })
       .limit(600),
-    supabase
-      .from("customers")
-      .select("id, name, code, phone, balance")
-      .eq("is_active", true)
-      .order("name")
-      .limit(300),
+    // No customer directory preload: workspaces use server-side search.
+    // Selections hydrate single rows on demand.
+    Promise.resolve({ data: [], error: null }),
     supabase.from("recharge_providers").select("*").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("recharge_commission_slabs").select("*"),
     supabase.from("payment_instruments").select("*").order("name"),
@@ -86,6 +82,8 @@ export default async function BillPaymentPage({
     if (id && !routingIds.includes(id)) routingIds.push(id);
   }
   const routedPaymentInstruments = orderInstruments((paymentInstruments ?? []) as any[], routingIds);
+  // Canonical customer directory: no preload; server-side search only.
+  const customers: any[] = [];
 
   return (
     <BillPaymentHub

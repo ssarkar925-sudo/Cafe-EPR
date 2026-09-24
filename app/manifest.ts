@@ -2,14 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Cafe ERP - Cyber Cafe & Retail POS",
-    short_name: "CafeERP",
-    description: "Enterprise Cybercafe & Retail ERP with POS, AEPS, Inventory, Financial Accounts, and AI Advisor",
-    start_url: "/",
+    name: "CyberCafe ERP & Smart Business Suite",
+    short_name: "Cafe ERP",
+    description: "Full Point of Sale, Billing, AEPS/DMT & Business Management Suite",
+    id: "/dashboard",
+    start_url: "/dashboard",
+    scope: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#0f172a",
-    orientation: "portrait-primary",
+    background_color: "#070a14",
+    theme_color: "#4f46e5",
     icons: [
       {
         src: "/icon-192.png",

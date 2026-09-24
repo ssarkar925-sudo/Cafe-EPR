@@ -107,7 +107,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         const { error: insErr } = await supabase.from("ai_transaction_imports").insert({
           created_by: userId,
           provider_name: pName,
-          source_type: "other",
+          source_type: (t.sourceType as any) || (/\baeps\b|aadhaar|cw|cash withdrawal/i.test(t.transactionType || "") ? "aeps" : "other"),
           external_transaction_id: extId,
           status: t.status || "completed",
           transaction_type: t.transactionType || "Portal Transaction",

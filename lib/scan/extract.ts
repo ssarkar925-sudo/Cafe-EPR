@@ -190,6 +190,10 @@ export function extractStatus(text: string): string | null {
 }
 
 export function extractPortal(text: string): string | null {
+  if (/\b(?:ezeepay|ezee\s*pay)\b/i.test(text)) return "EzeePay";
+  if (/\b(?:csc\s*digipay|digipay)\b/i.test(text)) return "CSC DigiPay";
+  if (/\b(?:spice\s*money|spicemoney)\b/i.test(text)) return "Spice Money";
+  if (/\bpaymonk\b/i.test(text)) return "Paymonk";
   const m = text.match(/\b(?:Portal|Through|Via)\s*[#:=\-]?\s*([A-Za-z][A-Za-z .]{2,25})/i);
   return m ? clean(m[1]) : null;
 }

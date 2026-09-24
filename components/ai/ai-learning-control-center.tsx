@@ -48,7 +48,7 @@ const statusStyles: Record<Status, string> = {
 function isDraft(value: unknown): value is TeachingDraft {
   if (!value || typeof value !== "object") return false;
   const draft = value as Partial<TeachingDraft>;
-  const isBaseValid = draft.schemaVersion === 1
+  const isBaseValid = (draft.schemaVersion === 1 || draft.schemaVersion === 2)
     && typeof draft.workflow_key === "string"
     && typeof draft.name === "string"
     && typeof draft.instruction === "string"

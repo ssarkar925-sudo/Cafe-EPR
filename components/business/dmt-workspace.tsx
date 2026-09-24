@@ -7,6 +7,8 @@ import { useRealtime } from "@/lib/supabase/realtime";
 import { inr } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
+import { createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import FloatingWindow from "@/components/ui/floating-window";
 import ScanFillModal from "@/components/scan-fill/scan-fill-modal";
@@ -356,6 +358,52 @@ export default function DmtWorkspace({
     }
   }, [selectedCustomerId, customers]);
 
+  // Canonical directory: server-side search only. `customers` is a bounded
+  // cache (seeded rows + selections + creations), never a full preload.
+  const selectedCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === selectedCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, selectedCustomerId]);
+
+  const editCustomerRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === editCustomerId);
+    return c ? { id: c.id, code: (c as any).code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, editCustomerId]);
+
+  function rememberCustomerRecord(record: CustomerSearchResult) {
+    setCustomers((prev) =>
+      prev.some((x) => x.id === record.id)
+        ? prev.map((x) => (x.id === record.id ? { ...x, name: record.name ?? x.name, phone: record.phone ?? x.phone } : x))
+        : [...prev, { id: record.id, name: record.name ?? "Customer", code: record.code ?? "", phone: record.phone } as CustomerRow]
+    );
+  }
+
+  function handleCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setSelectedCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.name) setSenderName(record.name);
+      if (record.phone) setSenderMobile(record.phone);
+    }
+  }
+
+  function handleEditCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    setEditCustomerId(id ?? "");
+    if (record) {
+      rememberCustomerRecord(record);
+      if (record.name) setEditSenderName(record.name);
+      if (record.phone) setEditSenderMobile(record.phone);
+    }
+  }
+
+  function selectExistingCustomer(dup: { id: string; name: string; phone?: string | null }, phoneFallback: string) {
+    rememberCustomerRecord({ id: dup.id, code: null, name: dup.name, phone: dup.phone ?? phoneFallback, is_active: true });
+    setSelectedCustomerId(dup.id);
+    setSenderName(dup.name);
+    setSenderMobile(dup.phone ?? phoneFallback);
+    setCustCreateError(`Customer already exists: ${dup.name} (${dup.phone ?? phoneFallback}). Selected the existing profile — no duplicate created.`);
+  }
+
   // Selected Bank Account & Balance
   const selectedBankInstrument = useMemo(() => {
     return liveInstruments.find((i) => i.id === selectedBankInstrumentId) || liveInstruments[0] || null;
@@ -554,45 +602,40 @@ export default function DmtWorkspace({
     setCustCreateError("");
 
     try {
-      const generatedCode = "CUST-" + Math.floor(1000 + Math.random() * 9000);
-      const { data: newCust, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name,
-          phone: phone || null,
-          email: newCustEmail.trim() || null,
-          address: newCustAddress.trim() || null,
-          code: generatedCode,
-          customer_type: "retail",
-          is_active: true,
-        })
-        .select()
-        .single();
+      // Canonical creation: the database assigns the Customer ID (code).
+      // Duplicate phones resolve to the existing profile, never a 2nd row.
+      const newCust = await createCustomerRecord(supabase, {
+        name,
+        phone: phone || null,
+        email: newCustEmail.trim() || null,
+        address: newCustAddress.trim() || null,
+        customer_type: "retail",
+      });
 
-      if (insertError) throw insertError;
+      await logAudit({
+        action: "create",
+        entity: "customer",
+        entity_id: newCust.id,
+        description: `Created customer ${newCust.name} via DMT`,
+        details: { name: newCust.name, phone: newCust.phone, source: "dmt_workspace" },
+      });
 
-      if (newCust) {
-        await logAudit({
-          action: "create",
-          entity: "customer",
-          entity_id: newCust.id,
-          description: `Created customer ${newCust.name} via DMT`,
-          details: { name: newCust.name, phone: newCust.phone, source: "dmt_workspace" },
-        });
-
-        setCustomers((prev) => [newCust, ...prev]);
-        setSelectedCustomerId(newCust.id);
-        setSenderName(newCust.name);
-        setSenderMobile(newCust.phone || phone);
-        setAddCustomerWindowOpen(false);
-        setNewCustName("");
-        setNewCustPhone("");
-        setNewCustEmail("");
-        setNewCustAddress("");
-        showToast("success", `Customer "${newCust.name}" registered and selected.`);
-      }
+      setCustomers((prev) => [newCust, ...prev]);
+      setSelectedCustomerId(newCust.id);
+      setSenderName(String(newCust.name));
+      setSenderMobile((newCust.phone as string | null) || phone);
+      setAddCustomerWindowOpen(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustEmail("");
+      setNewCustAddress("");
+      showToast("success", `Customer "${newCust.name}" registered and selected.`);
     } catch (err: any) {
       console.error("Customer creation error:", err);
+      if (err instanceof DuplicateCustomerError) {
+        selectExistingCustomer(err.existing, phone);
+        return;
+      }
       setCustCreateError(err.message || "Failed to create customer.");
     } finally {
       setCustCreateSubmitting(false);
@@ -1641,17 +1684,14 @@ export default function DmtWorkspace({
                     + New Customer
                   </button>
                 </div>
-                <SearchableSelect
-                  options={[
-                    { value: "", label: "-- Walk-in Sender (No CRM Profile) --" },
-                    ...customers.map((c) => ({
-                      value: c.id,
-                      label: `${c.name}${c.phone ? ` (${c.phone})` : ""}`,
-                    })),
-                  ]}
-                  value={selectedCustomerId}
-                  onChange={(val) => setSelectedCustomerId(val)}
-                  placeholder="Search sender by name or mobile…"
+                <CustomerSearchSelect
+                  value={selectedCustomerId || null}
+                  selected={selectedCustomerRecord}
+                  onChange={handleCustomerSelect}
+                  allowWalkIn
+                  walkInLabel="-- Walk-in Sender (No CRM Profile) --"
+                  placeholder="Search sender by name, mobile, or ID…"
+                  tone="auto"
                 />
               </div>
 
@@ -2974,24 +3014,14 @@ export default function DmtWorkspace({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer (CRM Attribution)</label>
-                    <SearchableSelect
-                      options={[
-                        { value: "", label: "-- Walk-in (No Attribution) --" },
-                        ...customers.map((c) => ({
-                          value: c.id,
-                          label: `${c.name}${c.phone ? ` (${c.phone})` : ""}`,
-                        })),
-                      ]}
-                      value={editCustomerId}
-                      onChange={(val) => {
-                        setEditCustomerId(val);
-                        const cust = customers.find((c) => c.id === val);
-                        if (cust) {
-                          if (cust.name) setEditSenderName(cust.name);
-                          if (cust.phone) setEditSenderMobile(cust.phone);
-                        }
-                      }}
+                    <CustomerSearchSelect
+                      value={editCustomerId || null}
+                      selected={editCustomerRecord}
+                      onChange={handleEditCustomerSelect}
+                      allowWalkIn
+                      walkInLabel="-- Walk-in (No Attribution) --"
                       placeholder="Assign customer…"
+                      tone="auto"
                     />
                   </div>
                   <div className="space-y-1">

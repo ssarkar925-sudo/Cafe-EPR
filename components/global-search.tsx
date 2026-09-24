@@ -120,12 +120,15 @@ export default function GlobalSearch({
       }
 
       const ilike = `%${needle}%`;
+      const needleDigits = needle.replace(/\D/g, "");
+      const customerOr = [`name.ilike.${ilike}`, `code.ilike.${ilike}`, `phone.ilike.${ilike}`, `email.ilike.${ilike}`];
+      if (needleDigits.length >= 3) customerOr.push(`phone.ilike.%${needleDigits}%`);
 
       const [cust, prods, servs, invs, sups, txns] = await Promise.all([
         supabaseRef
           .from("customers")
-          .select("id, name, code, phone, email")
-          .or(`name.ilike.${ilike},phone.ilike.${ilike},email.ilike.${ilike}`)
+          .select("id, name, code, phone, email, is_active")
+          .or(customerOr.join(","))
           .limit(5),
         supabaseRef
           .from("products")
@@ -162,7 +165,7 @@ export default function GlobalSearch({
       for (const c of cust.data ?? [])
         out.push({
           type: "Customer",
-          title: c.name as string,
+          title: `${c.name as string}${(c as any).is_active === false ? " (inactive)" : ""}`,
           subtitle: `${c.code ?? ""}${c.phone ? " · " + c.phone : ""}`.trim(),
           href: `/customers/${c.id}`,
         });

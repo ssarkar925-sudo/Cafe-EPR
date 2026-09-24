@@ -12,7 +12,7 @@ import CustomerPhotoModal from "./customer-photo-modal";
 import AdvanceModal from "./advance-modal";
 import Modal from "@/components/ui/modal";
 import SearchableSelect from "@/components/ui/searchable-select";
-import { findDuplicateCustomer, digitsOnly, isDuplicateKeyError } from "@/lib/customers";
+import { digitsOnly, isDuplicateKeyError, createCustomerRecord, DuplicateCustomerError } from "@/lib/customers";
 import { DEFAULT_WA_TEMPLATES, getWhatsAppConfig, renderWhatsAppTemplate } from "@/lib/whatsapp";
 import WhatsAppSendModal from "@/components/whatsapp/whatsapp-send-modal";
 
@@ -288,15 +288,6 @@ export default function CustomersClient({
     };
   }, [detail, viewing]);
 
-  function nextCode() {
-    let max = 0;
-    for (const c of customers) {
-      const n = parseInt(String(c.code ?? "").replace(/\D/g, ""), 10);
-      if (!Number.isNaN(n)) max = Math.max(max, n);
-    }
-    return "CUST-" + String(max + 1).padStart(4, "0");
-  }
-
   async function saveCustomer(
     raw: {
       name: string;
@@ -332,15 +323,21 @@ export default function CustomersClient({
       );
       setViewing((v) => (v && v.id === customer.id ? { ...v, ...input } : v));
     } else {
-      if (input.phone) {
-        let dup: { id: string; name: string; phone?: string | null } | null = null;
-        try {
-          dup = await findDuplicateCustomer(supabase, input.phone);
-        } catch (e: any) {
-          alert(e.message);
-          return;
-        }
-        if (dup) {
+      // Canonical creation: the database assigns the Customer ID (code).
+      // No frontend code generation — see lib/customers.createCustomerRecord.
+      let data;
+      try {
+        data = await createCustomerRecord(supabase, {
+          name: input.name,
+          phone: input.phone,
+          email: input.email,
+          address: input.address,
+          balance: input.opening_balance,
+          customer_type: input.customer_type,
+        });
+      } catch (e: any) {
+        if (e instanceof DuplicateCustomerError) {
+          const dup = e.existing;
           const existing = customers.find((c) => c.id === dup.id) ?? {
             ...dup,
             code: null,
@@ -357,30 +354,7 @@ export default function CustomersClient({
           setDupWarning({ dup: existing, input });
           return;
         }
-      }
-      const payload = {
-        ...input,
-        code: nextCode(),
-        balance: input.opening_balance,
-        is_active: true,
-      };
-      let { data, error } = await supabase
-        .from("customers")
-        .insert(payload)
-        .select()
-        .single();
-      if (error && error.message.includes("credit_limit")) {
-        const { credit_limit, ...rest } = payload as any;
-        const res = await supabase.from("customers").insert(rest).select().single();
-        data = res.data;
-        error = res.error;
-      }
-      if (error) {
-        if (isDuplicateKeyError(error.message)) {
-          alert("A customer with this phone number already exists.");
-        } else {
-          alert(error.message);
-        }
+        alert(e?.message || "Failed to create customer.");
         return;
       }
       setCustomers((prev) => [data as Customer, ...prev]);

@@ -210,7 +210,7 @@ async function collectCscDigiPay(page, selectors) {
     if (!isCompleted(status)) continue;
     const transaction = {
       sourceType: "aeps",
-      providerName: "CSC DigiPay",
+      providerName: provider || "CSC DigiPay",
       externalTransactionId: (await textAt(page, field("externalTransactionId"))) ?? "",
       externalReference: selectors.fields.externalReference ? await textAt(page, field("externalReference")) : null,
       status,
@@ -224,7 +224,7 @@ async function collectCscDigiPay(page, selectors) {
       rawData: {},
     };
     const errors = validateTransaction(transaction);
-    if (errors.length) throw new Error(`STOPPED: CSC DigiPay row ${index} failed validation: ${errors.join(", ")}.`);
+    if (errors.length) throw new Error(`STOPPED: ${provider || "CSC DigiPay"} row ${index} failed validation: ${errors.join(", ")}.`);
     const key = fingerprint(transaction);
     if (fingerprints.has(key)) continue;
     fingerprints.add(key);
@@ -416,7 +416,7 @@ async function collect() {
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto(startUrl, { waitUntil: "domcontentloaded" });
     await inspectPage(page);
-    if (provider !== "CSC DigiPay") throw new Error(`Unsupported AI_PORTAL_PROVIDER '${provider}'. Add a read-only adapter before enabling collection.`);
+    if (provider !== "CSC DigiPay" && provider !== "EzeePay") throw new Error(`Unsupported AI_PORTAL_PROVIDER '${provider}'. Add a read-only adapter before enabling collection.`);
     const transactions = await collectCscDigiPay(page, selectors);
     await writeExport(transactions);
     console.log(`Authenticated ${provider} session collected ${transactions.length} completed transaction(s) in read-only mode.`);

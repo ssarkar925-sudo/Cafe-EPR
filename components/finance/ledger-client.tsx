@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/format";
 import { useRealtime } from "@/lib/supabase/realtime";
 import SearchableSelect from "@/components/ui/searchable-select";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
 import CompactToggle from "@/components/ui/compact-toggle";
 import MultiPaymentCollection, { type PaymentAllocation } from "@/components/business/multi-payment-collection";
 import Modal from "@/components/ui/modal";
@@ -58,6 +59,24 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
     return initialCustomers[0]?.id ?? "";
   });
   const [onlyDue, setOnlyDue] = useState(false);
+  // Canonical directory search: server-side lookup upserts into the local
+  // list (dues overview preload is retained as the dues report source).
+  const ledgerSelectedRecord = useMemo(() => {
+    const c = customers.find((x) => x.id === customerId);
+    return c ? { id: c.id, code: c.code ?? null, name: c.name, phone: c.phone ?? null, is_active: true } : null;
+  }, [customers, customerId]);
+
+  function handleLedgerCustomerSelect(id: string | null, record: CustomerSearchResult | null) {
+    if (!id) return; // ledger view requires a customer; ignore clear
+    setCustomerId(id);
+    if (record) {
+      setCustomers((prev) =>
+        prev.some((x) => x.id === record.id)
+          ? prev
+          : [...prev, { id: record.id, name: record.name ?? "Customer", code: record.code, phone: record.phone, balance: 0 } as LedgerCustomer]
+      );
+    }
+  }
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,10 +93,6 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
   const totalDueOutstanding = useMemo(() => {
     return dueCustomers.reduce((s, c) => s + Number(c.balance || 0), 0);
   }, [dueCustomers]);
-
-  const displayedCustomers = useMemo(() => {
-    return onlyDue ? dueCustomers : customers;
-  }, [onlyDue, dueCustomers, customers]);
 
   function handleToggleDueFilter() {
     setOnlyDue((prev) => {
@@ -417,18 +432,15 @@ export default function LedgerClient({ customers: initialCustomers }: { customer
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <SearchableSelect
-                value={customerId}
-                onChange={setCustomerId}
-                options={displayedCustomers.map((c) => ({
-                  value: c.id,
-                  label: `${c.name} (${c.code ?? "-"})${Number(c.balance || 0) > 0 ? ` · Due: ${inr(Number(c.balance))}` : ""}${c.phone ? ` · ${c.phone}` : ""}`,
-                }))}
-                placeholder={onlyDue ? "Search pending due customers…" : "Select customer…"}
-                searchPlaceholder="Search customer…"
-                showClear={false}
-                className="w-full max-w-sm"
-              />
+              <div className="w-full max-w-sm">
+                <CustomerSearchSelect
+                  value={customerId || null}
+                  selected={ledgerSelectedRecord}
+                  onChange={handleLedgerCustomerSelect}
+                  placeholder={onlyDue ? "Search pending due customers…" : "Search customer by name, code, or phone…"}
+                  tone="auto"
+                />
+              </div>
 
               {/* Pending Due Fast Filter Button */}
               <button

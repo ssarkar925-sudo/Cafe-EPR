@@ -24,9 +24,10 @@ import { chromium } from "playwright";
 import { digipayAdapter } from "./adapters/digipay.mjs";
 import { spicemoneyAdapter } from "./adapters/spicemoney.mjs";
 import { paymonkAdapter } from "./adapters/paymonk.mjs";
+import { ezeepayAdapter } from "./adapters/ezeepay.mjs";
 import { genericAdapter } from "./adapters/generic.mjs";
 
-const ADAPTERS = [digipayAdapter, spicemoneyAdapter, paymonkAdapter];
+const ADAPTERS = [digipayAdapter, spicemoneyAdapter, paymonkAdapter, ezeepayAdapter];
 
 const provider = process.env.AI_PORTAL_PROVIDER || "CSC DigiPay";
 const reportUrl = process.env.AI_PORTAL_REPORT_URL || "";
