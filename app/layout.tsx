@@ -4,6 +4,7 @@ import "./receipt-responsive.css";
 import "./mobile-modal-overrides.css";
 import "./receipt-visual-fixes.css";
 import "./quick-access.css";
+import "./modern-ui.css";
 import ThemeProvider from "@/components/theme-provider";
 import { NotificationProvider } from "@/components/ui/notification-provider";
 
@@ -14,8 +15,8 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f6f8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1018" },
   ],
 };
 
