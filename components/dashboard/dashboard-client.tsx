@@ -29,6 +29,7 @@ const money = (v: number | null | undefined, compact = false) => {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 };
 const exactMoney = (v: number | null | undefined) => `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+const inr = exactMoney;
 const ago = (v: string) => {
   if (!v) return "Live";
   const m = Math.floor(Math.max(0, Date.now() - new Date(v).getTime()) / 60000);
@@ -74,21 +75,32 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   const alerts = data.alerts || [], pools = data.liquidity?.pools || {}, recent = data.recentActivity || [];
   const inventory = data.inventoryData || {}, service = data.todayServiceBreakdown || data.serviceBreakdown || {};
   const audit = data.auditData || {}, shop = data.shop || {}, profile = data.profile || {};
-  const chart = (data.chartDays || []).slice(-10), max = Math.max(...chart.map((x:any)=>Number(x.revenue||0)),1);
+  const chartDays = data.chartDays || [];
+  const actualPeakRevenue = chartDays.length > 0 ? Math.max(0, ...chartDays.map((d: any) => Number(d.revenue || 0))) : 0;
+  const chart = chartDays.slice(-10), max = Math.max(...chart.map((x:any)=>Number(x.revenue||0)),1);
   const greeting = useMemo(() => { const h = new Date().getHours(); return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening"; }, []);
   const totalLiquidity = Number(data.liquidity?.totalLiquidAssets || 0);
   const receivables = Number(data.customerData?.totalReceivables || 0);
   const delta = data.salesPerformance?.trends?.todayVsYesterdayPct;
 
   const quick = [
-    ["New Sale (POS)","/pos","green",<ShoppingCart className="h-4 w-4"/>],
-    ["New Invoice","/invoices/new","blue",<FileText className="h-4 w-4"/>],
-    ["Add Customer","/customers","violet",<Users className="h-4 w-4"/>],
-    ["Cash Entry","/finance/cashbook","orange",<Banknote className="h-4 w-4"/>],
-    ["AEPS","/business/aeps","cyan",<CreditCard className="h-4 w-4"/>],
-    ["DMT","/business/dmt","blue",<ArrowUpRight className="h-4 w-4"/>],
-    ["Recharge / BBPS","/business/bill-payment","green",<Smartphone className="h-4 w-4"/>],
+    { label:"New Sale (POS)", href:"/pos", tone:"green", icon:<ShoppingCart className="h-4 w-4"/> },
+    { label:"New Invoice", href:"/invoices/new", tone:"blue", icon:<FileText className="h-4 w-4"/> },
+    { label:"Add Customer", href:"/customers", tone:"violet", icon:<Users className="h-4 w-4"/> },
+    { label:"Cash Entry", href:"/finance/cashbook", tone:"orange", icon:<Banknote className="h-4 w-4"/> },
+    { label:"AEPS", href:"/business/aeps", tone:"cyan", icon:<CreditCard className="h-4 w-4"/> },
+    { label:"DMT", href:"/business/dmt", tone:"blue", icon:<ArrowUpRight className="h-4 w-4"/> },
+    { label:"Recharge / BBPS", href:"/business/bill-payment", tone:"green", icon:<Smartphone className="h-4 w-4"/> },
   ] as const;
+
+  const moreActions = [
+    { label:"Journal", href:"/finance/journal" },
+    { label:"Trial Balance", href:"/finance/trial-balance" },
+    { label:"WhatsApp", href:"/business/whatsapp" },
+    { label:"Day Close", href:"/finance/day-close" },
+    { label:"Reports", href:"/reports" },
+    { label:"Settings", href:"/settings" },
+  ];
 
   const poolRows = [
     ["cash","Cash in Hand",Banknote,"green"],["bank","Bank Account",CircleDollarSign,"blue"],
@@ -124,7 +136,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">{PERIODS.map(x=><button key={x.key} onClick={()=>setPeriod(x.key)} className={`rounded-md px-2.5 py-1.5 text-[9px] font-bold ${period===x.key?"bg-blue-600 text-white":"text-slate-500"}`}>{x.label}</button>)}</div>
           <div className="flex gap-3 text-[9px] font-semibold text-slate-500"><span>■ Sales</span><span className="text-emerald-600">■ Profit</span></div>
         </div>
-        <div className="relative h-[245px] rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40">
+        <div className="mb-2 text-right text-[9px] font-semibold text-slate-400">14-Day Peak: <strong className="text-slate-900 dark:text-white">{inr(actualPeakRevenue)}</strong></div><div className="relative h-[245px] rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-slate-950/40">
           <div className="pointer-events-none absolute inset-3 bottom-8 flex flex-col justify-between">{[40,30,20,10,0].map(v=><div key={v} className="border-t border-slate-200/70 dark:border-white/5"><span className="relative -top-2 text-[8px] text-slate-400">{v? `₹${v}k`:"₹0"}</span></div>)}</div>
           <div className="absolute inset-x-3 bottom-8 top-3 flex items-end gap-1.5">{chart.map((d:any,i:number)=>{const s=Number(d.revenue||0), pr=Math.max(0,s-Number(d.expenses||0));return <div key={d.date||i} className="group flex flex-1 items-end justify-center gap-0.5"><i title={money(s)} className="w-[42%] rounded-t bg-blue-500/75" style={{height:`${Math.max(3,s/max*88)}%`}}/><i title={money(pr)} className="w-[42%] rounded-t bg-emerald-500/75" style={{height:`${Math.max(3,pr/max*88)}%`}}/></div>})}</div>
           <div className="absolute inset-x-3 bottom-1 flex justify-between text-[8px] text-slate-400">{chart.map((d:any)=><span key={d.date}>{String(d.label||"").split(" ")[0]}</span>)}</div>
@@ -151,7 +163,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
     </div>
 
     <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(15,23,42,.05)] dark:border-white/10 dark:bg-slate-900">
-      <div className="flex flex-wrap items-center gap-2"><b className="mr-1 hidden text-[10px] text-slate-500 lg:block">Quick Actions</b>{quick.map(([l,h,t,I])=><Link key={h} href={h} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-[9px] font-extrabold ${t==="green"?"border-emerald-200 bg-emerald-50 text-emerald-700":t==="blue"?"border-blue-200 bg-blue-50 text-blue-700":t==="violet"?"border-violet-200 bg-violet-50 text-violet-700":t==="orange"?"border-orange-200 bg-orange-50 text-orange-700":"border-cyan-200 bg-cyan-50 text-cyan-700"}`}>{I}{l}</Link>)}<button onClick={()=>setMore(v=>!v)} className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-[9px] font-extrabold text-slate-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">More Actions <ChevronDown className={`h-3 w-3 ${more?"rotate-180":""}`}/></button></div>{more&&<div className="mt-2 flex flex-wrap gap-2 border-t border-slate-100 pt-2">{[["Journal","/finance/journal"],["Trial Balance","/finance/trial-balance"],["WhatsApp","/business/whatsapp"],["Day Close","/finance/day-close"],["Reports","/reports"],["Settings","/settings"]].map(([l,h])=><Link key={h} href={h} className="rounded-lg bg-slate-50 px-3 py-2 text-[9px] font-bold text-slate-600">{l}</Link>)}</div>}</section>
+      <div className="flex flex-wrap items-center gap-2"><b className="mr-1 hidden text-[10px] text-slate-500 lg:block">Quick Actions</b>{quick.map((a)=><Link key={a.href} href={a.href} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-[9px] font-extrabold ${a.tone==="green"?"border-emerald-200 bg-emerald-50 text-emerald-700":a.tone==="blue"?"border-blue-200 bg-blue-50 text-blue-700":a.tone==="violet"?"border-violet-200 bg-violet-50 text-violet-700":a.tone==="orange"?"border-orange-200 bg-orange-50 text-orange-700":"border-cyan-200 bg-cyan-50 text-cyan-700"}`}>{a.icon}{a.label}</Link>)}<button onClick={()=>setMore(v=>!v)} className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-[9px] font-extrabold text-slate-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">More Actions <ChevronDown className={`h-3 w-3 ${more?"rotate-180":""}`}/></button></div>{more&&<div className="mt-2 flex flex-wrap gap-2 border-t border-slate-100 pt-2">{moreActions.map((a:any)=><Link key={a.href} href={a.href} className="rounded-lg bg-slate-50 px-3 py-2 text-[9px] font-bold text-slate-600">{a.label}</Link>)}</div>}</section>
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(330px,.7fr)]">
       <Section title="Recent Invoices & Activity" href="/invoices" className="overflow-hidden p-0"><div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left"><thead className="bg-slate-50 text-[8px] uppercase tracking-wider text-slate-400 dark:bg-slate-800"><tr><th className="px-4 py-2.5">Reference</th><th className="px-4 py-2.5">Time</th><th className="px-4 py-2.5">Customer / Event</th><th className="px-4 py-2.5 text-right">Amount</th><th className="px-4 py-2.5">Status</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-white/5">{recent.slice(0,7).map((x:any)=><tr key={x.id}><td className="px-4 py-2.5 text-[9px] font-extrabold text-blue-600">{x.title}</td><td className="px-4 py-2.5 text-[9px] text-slate-500">{ago(x.date)}</td><td className="max-w-[230px] truncate px-4 py-2.5 text-[9px] font-semibold text-slate-700 dark:text-slate-300">{x.subtitle}</td><td className="px-4 py-2.5 text-right text-[9px] font-black">{money(x.amount)}</td><td className="px-4 py-2.5"><span className="rounded-md bg-emerald-50 px-2 py-1 text-[7px] font-black text-emerald-700">{x.status||"posted"}</span></td></tr>)}</tbody></table></div></Section>
