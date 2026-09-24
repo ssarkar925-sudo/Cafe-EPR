@@ -90,12 +90,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
     { label:"Cash Entry", href:"/finance/cashbook", tone:"orange", icon:<Banknote className="h-4 w-4"/> },
     { label:"AEPS", href:"/business/aeps", tone:"cyan", icon:<CreditCard className="h-4 w-4"/> },
     { label:"DMT", href:"/business/dmt", tone:"blue", icon:<ArrowUpRight className="h-4 w-4"/> },
-    { label:"Recharge / BBPS", href:"/business/bill-payment", tone:"green", icon:<Smartphone className="h-4 w-4"/> },
+    { label:"Recharge / BBPS", href: "/business/bill-payment", tone:"green", icon:<Smartphone className="h-4 w-4"/> },
   ] as const;
 
   const moreActions = [
-    { label:"Journal", href:"/finance/journal" },
-    { label:"Trial Balance", href:"/finance/trial-balance" },
+    { label:"Journal", href: "/finance/journal" },
+    { label:"Trial Balance", href: "/finance/trial-balance" },
     { label:"WhatsApp", href:"/business/whatsapp" },
     { label:"Day Close", href:"/finance/day-close" },
     { label:"Reports", href:"/reports" },
