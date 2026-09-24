@@ -120,7 +120,7 @@ export default function DashboardShell({ name, email, role, shopName, logoUrl, a
 
   return (
     <DashboardShellProvider value={shellContextValue}>
-      <div className="erp-app-shell min-h-screen bg-[var(--page)] text-slate-900 dark:text-white">
+      <div className="modern-erp erp-app-shell min-h-screen bg-[var(--page)] text-slate-900 dark:text-white" data-module={pathname?.split("/")[1] || "dashboard"}>
         <Sidebar name={name} email={email} role={role} shopName={shopName} logoUrl={logoUrl} avatarUrl={avatarUrl} userId={userId} collapsed={collapsed} onToggle={toggle} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
         {!isPos && (
