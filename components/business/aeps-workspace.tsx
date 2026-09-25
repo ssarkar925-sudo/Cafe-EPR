@@ -194,6 +194,9 @@ export default function AepsWorkspace({
   }), [filtered]);
 
   const aepsFloat = Number(float?.current ?? float?.balance ?? 0);
+  const receiptMode = "basic";
+  const receiptUrl = (id: string) => "/business/receipt/" + id + (receiptMode === "detailed" ? "?mode=detailed" : "");
+  const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + (receiptMode === "detailed" ? "?mode=detailed" : "");
 
   const candidates = useMemo(() => {
     return initialCustomers.filter((c) => {
@@ -380,7 +383,7 @@ export default function AepsWorkspace({
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1200px] text-left text-[10px]">
                   <thead className="bg-slate-50 font-black uppercase text-slate-400">
-                    <tr><th className="px-3 py-3">#</th><th>Date &amp; Time</th><th>Customer</th><th>Mobile</th><th>Type</th><th>Aadhaar</th><th>Amount</th><th>Fee</th><th>Commission</th><th>Bank Ref</th><th>Portal Ref</th><th>Status</th></tr>
+                    <tr><th className="px-3 py-3">#</th><th>Date &amp; Time</th><th>Customer</th><th>Mobile</th><th>Type</th><th>Aadhaar</th><th>Amount</th><th>Fee</th><th>Commission</th><th>Bank Ref</th><th>Portal Ref</th><th>Status</th><th>Receipt</th></tr>
                   </thead>
                   <tbody className="divide-y">
                     {filtered.slice(0, 12).map((t) => (
@@ -396,10 +399,10 @@ export default function AepsWorkspace({
                         <td className="px-3 py-3">{inr(Number(t.portal_commission || 0))}</td>
                         <td className="px-3 py-3">{t.reference || "—"}</td>
                         <td className="px-3 py-3">{t.remarks?.replace(/^Portal Ref:\s*/i, "") || "—"}</td>
-                        <td className="px-3 py-3">{t.status}</td>
+                        <td className="px-3 py-3">{t.status}</td><td className="px-3 py-3"><div className="flex gap-1"><Link href={receiptUrl(t.id)} target="_blank" className="font-bold text-blue-600">80mm</Link><Link href={invoiceUrl(t.id)} target="_blank" className="font-bold text-slate-600">A4</Link></div></td>
                       </tr>
                     ))}
-                    {filtered.length === 0 && <tr><td colSpan={12} className="px-4 py-10 text-center text-xs text-slate-400">No AEPS transactions match the current filters.</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={13} className="px-4 py-10 text-center text-xs text-slate-400">No AEPS transactions match the current filters.</td></tr>}
                   </tbody>
                 </table>
               </div>
