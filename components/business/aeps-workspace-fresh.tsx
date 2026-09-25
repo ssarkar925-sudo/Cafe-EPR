@@ -1985,9 +1985,38 @@ export default function AepsWorkspaceFresh({
                   <div><label className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">Source URL</label><input value={watcherSourceUrl} onChange={(e) => setWatcherSourceUrl(e.target.value)} className={inputClass} placeholder="https://portal.example/..." /></div>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[9px] font-bold leading-4 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">Do not store portal passwords, OTPs, biometric data, or session tokens in CafeERP. The URL is only the source location. Extracted transactions must go to review before recording.</div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Live runtime</div>
+                      <div className="mt-1 text-[11px] font-black text-slate-800 dark:text-slate-100">
+                        {watcherRuntimeStatus === "running" ? "RUNNING" : watcherRuntimeStatus === "auth_required" ? "LOGIN REQUIRED" : watcherRuntimeStatus === "starting" ? "STARTING" : watcherRuntimeStatus === "error" ? "ERROR" : "STOPPED"}
+                      </div>
+                    </div>
+                    <div className={cx(
+                      "h-2.5 w-2.5 rounded-full",
+                      watcherRuntimeStatus === "running" && "bg-emerald-500",
+                      watcherRuntimeStatus === "auth_required" && "bg-amber-500",
+                      watcherRuntimeStatus === "starting" && "bg-blue-500",
+                      watcherRuntimeStatus === "error" && "bg-rose-500",
+                      watcherRuntimeStatus === "idle" && "bg-slate-300"
+                    )} />
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[8px] font-bold text-slate-500">
+                    <span>Last check: {watcherLastCheck ? new Date(watcherLastCheck).toLocaleTimeString("en-IN") : "—"}</span>
+                    <span className="text-right">Detected this session: {watcherDetectedCount}</span>
+                  </div>
+                </div>
                 {watcherMessage && <div className="rounded-xl bg-blue-50 px-3 py-2 text-[9px] font-bold text-blue-700">{watcherMessage}</div>}
               </div>
-              <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800"><button type="button" onClick={() => setWatcherOpen(false)} className={smallButtonClass}>Close</button><button type="button" onClick={() => void saveWatcherConfig()} disabled={watcherBusy || !watcherPortalId} className={primaryButtonClass}>{watcherBusy ? "Saving..." : "Save Watcher Setup"}</button></div>
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+                <button type="button" onClick={() => setWatcherOpen(false)} className={smallButtonClass}>Close</button>
+                <button type="button" onClick={() => void stopAepsWatcher()} disabled={watcherRuntimeStatus === "idle"} className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[10px] font-black text-rose-700 disabled:opacity-40">Stop Watcher</button>
+                <button type="button" onClick={() => void saveWatcherConfig()} disabled={watcherBusy || !watcherPortalId} className={smallButtonClass}>{watcherBusy ? "Saving..." : "Save Setup"}</button>
+                <button type="button" onClick={async () => { const saved = await saveWatcherConfig(); if (saved) await startAepsWatcher(); }} disabled={watcherBusy || !watcherPortalId || !watcherSourceUrl.trim()} className={primaryButtonClass}>
+                  {watcherRuntimeStatus === "starting" ? "Starting..." : "Save & Start Watcher"}
+                </button>
+              </div>
             </div>
           </div>
         )}
