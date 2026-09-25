@@ -1317,7 +1317,7 @@ export default function AepsWorkspaceFresh({
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-black text-emerald-950 dark:text-emerald-100">AEPS Watcher</h2>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">{Object.values(watcherConfigs).some((config) => config.enabled) ? "CONFIGURED" : "SETUP"}</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">{watcherRuntimeStatus === "running" ? "RUNNING" : Object.values(watcherConfigs).some((config) => config.enabled) ? "CONFIGURED" : "SETUP"}</span>
                     </div>
                     <p className="mt-0.5 text-[9px] text-emerald-800/75 dark:text-emerald-200/75">Read-only monitor for registered portals</p>
                   </div>
@@ -1337,8 +1337,8 @@ export default function AepsWorkspaceFresh({
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[10px] font-black text-slate-800 dark:text-slate-100">{portal.name}</div>
                         <div className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
-                          <span className={cx("h-1.5 w-1.5 rounded-full", watcherConfigs[portal.id]?.enabled ? "bg-emerald-500" : "bg-slate-300")} />
-                          {watcherConfigs[portal.id]?.enabled ? `Watching · ${watcherConfigs[portal.id]?.poll_interval_seconds || 30}s` : "Not configured"}
+                          <span className={cx("h-1.5 w-1.5 rounded-full", watcherRuntimeStatus === "running" && watcherPortalId === portal.id ? "bg-emerald-500" : watcherConfigs[portal.id]?.enabled ? "bg-amber-400" : "bg-slate-300")} />
+                          {watcherRuntimeStatus === "running" && watcherPortalId === portal.id ? `Watching · ${watcherConfigs[portal.id]?.poll_interval_seconds || 30}s` : watcherConfigs[portal.id]?.enabled ? "Configured · not running" : "Not configured"}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
