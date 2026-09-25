@@ -197,7 +197,7 @@ export function extractPortal(text: string): string | null {
 
   // Only accept an explicitly labelled portal/source. Generic "via/through"
   // text is intentionally ignored because it can be followed by a bank name.
-  const m = text.match(/\b(?:Portal|Source|Provider)\s*[#:=\-]?\s*([A-Za-z][A-Za-z .]{2,25})/i);
+  const m = text.match(/\b(?:Portal|Portal\s*Name|Source|Source\s*Name)\s*[#:=\-]?\s*([A-Za-z][A-Za-z .]{2,25})/i);
   return m ? clean(m[1]).replace(/\s+(?:Bank|Name|Ref(?:erence)?)$/i, "").trim() : null;
 }
 
