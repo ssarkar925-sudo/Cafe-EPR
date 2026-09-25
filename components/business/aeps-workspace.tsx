@@ -308,7 +308,7 @@ export default function AepsWorkspace({
 
   return (
     <div className="min-h-full bg-[#f7faff] text-slate-900">
-      <div className="mx-auto max-w-[1600px] space-y-4 p-4 lg:p-6">
+      <div className="mx-auto max-w-[1600px] space-y-4 px-4 pb-6 pt-16 lg:px-6 lg:pt-16">
         <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-[10px] font-bold text-slate-400">Business Services › AEPS</div>
@@ -440,12 +440,12 @@ export default function AepsWorkspace({
           </main>
 
           {drawerOpen && (
-            <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-lg xl:sticky xl:top-4 xl:h-fit">
+            <aside className="!bg-white !text-slate-900 rounded-2xl border border-slate-200 p-4 shadow-xl xl:sticky xl:top-20 xl:h-fit">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-black">Record AEPS Transaction</h2>
                 <button type="button" onClick={() => setDrawerOpen(false)} className="text-lg">×</button>
               </div>
-              <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs">
+              <div className="mt-3 rounded-xl border border-violet-200 !bg-violet-50 !text-slate-900 p-3 text-xs">
                 <b>✦ AI Auto-Fill</b>
                 <p className="mt-1">Customer matching uses mobile and/or Aadhaar last 4. A match is only a suggestion and remains under operator review.</p>
                 {candidates.length > 0 && (
@@ -458,21 +458,21 @@ export default function AepsWorkspace({
               </div>
               <div className="mt-4 space-y-3">
                 <label className="block text-[10px] font-black">Customer Mobile *
-                  <input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs" />
+                  <input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-3 py-2 text-xs" />
                 </label>
                 <label className="block text-[10px] font-black">Customer Name
-                  <input value={name} readOnly className="mt-1 w-full rounded-xl border bg-slate-50 px-3 py-2 text-xs" />
+                  <input value={name} readOnly className="mt-1 w-full rounded-xl border border-slate-200 !bg-slate-50 !text-slate-900 px-3 py-2 text-xs" />
                 </label>
                 <label className="block text-[10px] font-black">Aadhaar Last 4 Digits *
-                  <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))} maxLength={4} className="mt-1 w-full rounded-xl border px-3 py-2 font-mono text-xs" />
+                  <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))} maxLength={4} className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-3 py-2 font-mono text-xs" />
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  <label className="text-[10px] font-black">Amount<input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-2 py-2 text-xs" /></label>
+                  <label className="text-[10px] font-black">Amount<input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-2 py-2 text-xs" /></label>
                   <label className="text-[10px] font-black">Fee<input value={fee} onChange={(e) => setFee(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-2 py-2 text-xs" /></label>
                   <label className="text-[10px] font-black">Commission<input value={commission} onChange={(e) => setCommission(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-2 py-2 text-xs" /></label>
                 </div>
                 <label className="block text-[10px] font-black">Bank Name
-                  <select value={bankId} onChange={(e) => setBankId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs"><option value="">Select bank</option>{initialBanks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+                  <select value={bankId} onChange={(e) => setBankId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-3 py-2 text-xs"><option value="">Select bank</option>{initialBanks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
                 </label>
                 <label className="block text-[10px] font-black">Portal Name
                   <select value={portalId} onChange={(e) => setPortalId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs"><option value="">Select portal</option>{initialPortals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
