@@ -160,8 +160,11 @@ function ModernAepsWorkspace({
     Number(commission || 0) >= 0
   );
   const livePool = float;
-  if (!livePool) return 0;
-  const aepsFloat = Number(livePool.current ?? livePool.balance ?? 0);
+  const getAepsFloat = () => {
+    if (!livePool) return 0;
+    return Number(livePool.current ?? livePool.balance ?? 0);
+  };
+  const aepsFloat = getAepsFloat();
 
   const handleNewCashOut = () => {
     setCustomerId(""); setMobile(""); setName(""); setAadhaar("");
@@ -393,7 +396,7 @@ function ModernAepsWorkspace({
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1100px] text-left text-[10px]">
                   <thead className="bg-slate-50 font-black uppercase text-slate-400">
-                    <tr><th className="px-3 py-3">#</th><th>Date &amp; Time</th><th>Customer</th><th>Mobile</th><th>Type</th><th>Aadhaar</th><th>Amount</th><th>Fee</th><th>Commission</th><th>Bank Ref</th><th>Portal Ref</th><th>Status</th></tr>
+                    <tr><th className="px-3 py-3">#</th><th>Date &amp; Time</th><th>Customer</th><th>Mobile</th><th>Type</th><th>Aadhaar</th><th>Amount</th><th>Fee</th><th>Commission</th><th>Bank Ref</th><th>Portal Ref</th><th>Status</th><th>Actions</th></tr>
                   </thead>
                   <tbody className="divide-y">
                     {filtered.slice(0, 12).map((t) => (
@@ -409,7 +412,7 @@ function ModernAepsWorkspace({
                         <td className="px-3 py-3">{inr(Number(t.portal_commission || 0))}</td>
                         <td className="px-3 py-3">{t.reference || "—"}</td>
                         <td className="px-3 py-3">{t.remarks?.replace(/^Portal Ref:\s*/i, "") || "—"}</td>
-                        <td className="px-3 py-3">{t.status}</td>
+                        <td className="px-3 py-3">{t.status}</td><td className="px-3 py-3"><div className="flex gap-1"><a href={receipt80mmUrl(t.id)} target="_blank" rel="noreferrer" className="font-bold text-blue-600">80mm</a><a href={receiptA4Url(t.id)} target="_blank" rel="noreferrer" className="font-bold text-slate-600">A4</a></div></td>
                       </tr>
                     ))}
                   </tbody>
