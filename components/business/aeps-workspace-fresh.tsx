@@ -849,15 +849,15 @@ export default function AepsWorkspaceFresh({
     setWatcherOpen(true);
   }
 
-  async function saveWatcherConfig() {
+  async function saveWatcherConfig(): Promise<boolean> {
     if (!watcherPortalId) {
       setWatcherMessage("Select a registered AEPS portal.");
-      return;
+      return false;
     }
     const interval = Number(watcherInterval);
     if (!Number.isFinite(interval) || interval < 15 || interval > 3600) {
       setWatcherMessage("Watcher interval must be between 15 and 3600 seconds.");
-      return;
+      return false;
     }
     setWatcherBusy(true);
     setWatcherMessage("");
@@ -870,15 +870,178 @@ export default function AepsWorkspaceFresh({
       });
       if (error) {
         setWatcherMessage(error.hint || error.details || error.message || "Could not save watcher setup.");
-        return;
+        return false;
       }
-      setWatcherConfigs((previous) => ({ ...previous, [watcherPortalId]: { enabled: watcherEnabled, poll_interval_seconds: interval, source_url: watcherSourceUrl.trim() || null } }));
+      setWatcherConfigs((previous) => ({
+        ...previous,
+        [watcherPortalId]: {
+          enabled: watcherEnabled,
+          poll_interval_seconds: interval,
+          source_url: watcherSourceUrl.trim() || null,
+        },
+      }));
       setWatcherMessage("Watcher setup saved.");
+      return true;
     } catch (error) {
       setWatcherMessage(error instanceof Error ? error.message : "Could not save watcher setup.");
+      return false;
     } finally {
       setWatcherBusy(false);
     }
+  }
+
+  async function startAepsWatcher() {
+    if (!watcherPortalId || !watcherSourceUrl.trim()) {
+      setWatcherMessage("Save a registered portal and source URL before starting the watcher.");
+      return;
+    }
+
+    const electron = (window as Window & {
+      electronAPI?: {
+        startAepsWatcher?: (options: {
+          portalId: string;
+          portalName: string;
+          sourceUrl: string;
+          intervalSeconds: number;
+        }) => Promise<{ success: boolean; error?: string }>;
+      };
+    }).electronAPI;
+
+    if (!electron?.startAepsWatcher) {
+      setWatcherMessage("Live AEPS Watcher requires the CafeERP desktop application.");
+      return;
+    }
+
+    setWatcherRuntimeStatus("starting");
+    setWatcherMessage("Opening the portal watcher window...");
+    const result = await electron.startAepsWatcher({
+      portalId: watcherPortalId,
+      portalName: portalMasters.find((portal) => portal.id === watcherPortalId)?.name || "AEPS Portal",
+      sourceUrl: watcherSourceUrl.trim(),
+      intervalSeconds: Number(watcherInterval),
+    });
+
+    if (!result.success) {
+      setWatcherRuntimeStatus("error");
+      setWatcherMessage(result.error || "Could not start the watcher.");
+    }
+  }
+
+  async function stopAepsWatcher() {
+    const electron = (window as Window & {
+      electronAPI?: {
+        stopAepsWatcher?: () => Promise<{ success: boolean; error?: string }>;
+      };
+    }).electronAPI;
+
+    if (!electron?.stopAepsWatcher) {
+      setWatcherRuntimeStatus("idle");
+      return;
+    }
+
+    const result = await electron.stopAepsWatcher();
+    setWatcherRuntimeStatus("idle");
+    setWatcherMessage(result.success ? "Watcher stopped." : (result.error || "Could not stop watcher."));
+  }
+
+  async function handleWatcherTransaction(payload: any) {
+    const transaction = payload?.transaction;
+    if (!transaction || !payload?.portalId) return;
+
+    const portal = portalMasters.find((candidate) => candidate.id === payload.portalId);
+    const rawText = [
+      payload.portalName || portal?.name || "",
+      transaction.rawText || "",
+      transaction.externalTransactionId ? "RRN: " + transaction.externalTransactionId : "",
+      transaction.amount ? "Amount: ₹" + transaction.amount : "",
+      transaction.customerMobile ? "Mobile: " + transaction.customerMobile : "",
+      transaction.aadhaarLast4 ? "Aadhaar: XXXX" + transaction.aadhaarLast4 : "",
+      transaction.bankName ? "Bank Name: " + transaction.bankName : "",
+      transaction.commission ? "Portal Commission: ₹" + transaction.commission : "",
+    ].filter(Boolean).join("\n");
+
+    const fields = extractAeps(rawText);
+    fields.amount = String(transaction.amount || fields.amount || "");
+    fields.reference = String(transaction.externalTransactionId || fields.reference || "");
+    fields.customer_mobile = cleanPhone(String(transaction.customerMobile || fields.customer_mobile || ""));
+    fields.aadhaar_last4 = String(transaction.aadhaarLast4 || fields.aadhaar_last4 || "");
+    fields.bank_name = String(transaction.bankName || fields.bank_name || "");
+    fields.portal_name = String(payload.portalName || portal?.name || fields.portal_name || "");
+    fields.portal_commission = String(transaction.commission ?? fields.portal_commission ?? "0");
+
+    const fingerprint = String(payload.fingerprint || [
+      payload.portalId,
+      fields.reference,
+      fields.amount,
+      "cash_out",
+    ].join("|")).slice(0, 500);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) {
+      setWatcherMessage("Watcher detected a transaction, but the CafeERP session is not authenticated.");
+      return;
+    }
+
+    const { data: imported, error: importError } = await supabase
+      .from("ai_transaction_imports")
+      .upsert({
+        created_by: userId,
+        provider_name: payload.portalName || portal?.name || "AEPS Portal",
+        source_type: "aeps",
+        external_transaction_id: fields.reference,
+        external_reference: fields.reference,
+        status: "success",
+        transaction_type: "cash_out",
+        amount: Number(fields.amount),
+        fee: fields.service_fee ? Number(fields.service_fee) : null,
+        commission: Number(fields.portal_commission || 0),
+        occurred_at: transaction.occurredAt ? new Date(transaction.occurredAt).toISOString() : new Date().toISOString(),
+        customer_name: transaction.customerName || null,
+        customer_mobile: fields.customer_mobile || null,
+        raw_data: {
+          portal_id: payload.portalId,
+          portal_name: payload.portalName,
+          fingerprint,
+          extracted: transaction,
+          source_text: rawText,
+        },
+        fingerprint,
+        state: "needs_review",
+        review_note: "Detected by the read-only AEPS Watcher. Operator approval is required.",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "created_by,fingerprint", ignoreDuplicates: false })
+      .select("id,state")
+      .single();
+
+    if (importError) {
+      setWatcherMessage(importError.message || "Watcher detected a transaction but staging failed.");
+      setWatcherRuntimeStatus("error");
+      return;
+    }
+
+    setWatcherImportId(String(imported?.id || ""));
+    setWatcherDetectedCount((count) => count + 1);
+    setSourceText(rawText);
+    setAnalysis(fields);
+    setEntryMode("ai");
+    setPortalId(payload.portalId);
+    setTransactionType("cash_out");
+    setAmount(fields.amount);
+    setAadhaar(fields.aadhaar_last4);
+    setMobile(fields.customer_mobile);
+    setBankRef(fields.reference);
+    setCommission(fields.portal_commission || "0");
+
+    const matchedBank = fields.bank_name ? matchBank(fields.bank_name, bankMasters) : null;
+    if (matchedBank) setBankId(matchedBank.id);
+
+    if (fields.customer_mobile || fields.aadhaar_last4) {
+      await resolveCustomerFromSignals(fields.customer_mobile || "", fields.aadhaar_last4 || "");
+    }
+
+    setWatcherMessage("New AEPS transaction detected. Verify the customer and pricing, then Approve & Record.");
+    setReviewOpen(true);
   }
 
   async function savePricingRule() {
