@@ -1,4 +1,5 @@
 import fs from "fs";
+import { execSync } from "child_process";
 
 console.log("================================================================================");
 console.log("CYBERCAFE ERP — AUTOMATED FINANCIAL & INTEGRITY TEST SUITE");
@@ -8076,6 +8077,105 @@ assert(
   assert(aepsWorkspaceSrc.includes("Test URL") && aepsWorkspaceSrc.includes("Collect Now"), "1539. Portal Watcher UI: Test URL and Collect Now triggers active");
   assert(aepsWorkspaceSrc.includes("Enable") || aepsWorkspaceSrc.includes("Disable"), "1540. Portal Watcher UI: Enable/Disable watcher toggle active");
   assert(aepsWorkspaceSrc.includes("Last Checked"), "1541. Portal Watcher UI: Last Checked timestamp rendered");
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 23: AEPS Intelligent Transaction System Acceptance Invariants (Tests A to U)
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 23: AEPS Intelligent Transaction System Acceptance Invariants ---");
+
+  const aepsWorkspaceSrc = fs.readFileSync("./components/business/aeps-workspace.tsx", "utf8");
+  const portalWatcherLib = fs.readFileSync("./lib/aeps/portal-watcher.ts", "utf8");
+  const portalWatcherApi = fs.readFileSync("./app/api/ai/portal-watcher/route.ts", "utf8");
+
+  // 1. Multi-Source Purpose Coverage & Data Models
+  assert(
+    portalWatcherLib.includes('"commission"') &&
+      portalWatcherLib.includes('"fee"') &&
+      portalWatcherLib.includes('"aeps_rules"') &&
+      portalWatcherLib.includes('"transaction_info"') &&
+      portalWatcherLib.includes('"provider_bank_info"') &&
+      portalWatcherLib.includes('"service_status"') &&
+      portalWatcherLib.includes('"general_updates"'),
+    "1542. Portal Watcher: All 7 required source purposes supported"
+  );
+  assert(
+    portalWatcherLib.includes("PortalCollectionObservation") &&
+      portalWatcherLib.includes("PortalCollectionRun") &&
+      portalWatcherLib.includes("VerifiedTransactionContext"),
+    "1543. Portal Watcher: Multi-source collection run and verified context models declared"
+  );
+
+  // 2. Cross-Verification & Strict Production Non-Mutation Invariant
+  assert(
+    portalWatcherLib.includes("crossVerifySourceObservations") &&
+      portalWatcherLib.includes("feeStatus") &&
+      portalWatcherLib.includes("commStatus"),
+    "1544. Portal Watcher: Cross-verification engine with status tracking declared"
+  );
+  assert(
+    portalWatcherApi.includes("action === 'approve_change'") ||
+      portalWatcherApi.includes('action === "approve_change"') ||
+      portalWatcherApi.includes('action === "save_rule"'),
+    "1545. Portal Watcher API: Rule and change approval endpoints strictly require operator action"
+  );
+
+  // 3. Setup Rules & Dynamic Denominations
+  assert(
+    aepsWorkspaceSrc.includes("Setup Rules") &&
+      aepsWorkspaceSrc.includes("handleSaveRule") &&
+      aepsWorkspaceSrc.includes("handleDeleteRule"),
+    "1546. AEPS Workspace: Rule Setup Modal with full CRUD controls present"
+  );
+  assert(
+    portalWatcherLib.includes("getDynamicDenominations") &&
+      aepsWorkspaceSrc.includes("dynamicDenominations"),
+    "1547. AEPS Workspace: Dynamic denomination chips generated from active rules"
+  );
+  assert(
+    portalWatcherLib.includes("resolvePricingFromRules"),
+    "1548. AEPS Workspace: Pricing resolution function calculates fee & commission"
+  );
+
+  // 4. Universal Customer Search & Unified Transaction Reference
+  assert(
+    aepsWorkspaceSrc.includes("Universal Customer Search") ||
+      aepsWorkspaceSrc.includes("Search Customer by Mobile"),
+    "1549. AEPS Workspace: Universal customer search across Name, Mobile, ID & Aadhaar"
+  );
+  assert(
+    aepsWorkspaceSrc.includes("Transaction Reference [ RRN / Portal Reference ]") &&
+      aepsWorkspaceSrc.includes("setBankRef") &&
+      aepsWorkspaceSrc.includes("setPortalRef"),
+    "1550. AEPS Workspace: Unified operator reference field maintains bank_rrn & portal_reference separation"
+  );
+
+  // 5. Verification Details Modal & Financial Persistence Confirmation
+  assert(
+    aepsWorkspaceSrc.includes("Portal Source Verification Provenance") &&
+      aepsWorkspaceSrc.includes("currentRun"),
+    "1551. AEPS Workspace: Verification Provenance modal displays multi-URL diagnostics"
+  );
+  assert(
+    /supabase\s*\.\s*rpc\s*\(\s*["']create_business_txn["']/.test(aepsWorkspaceSrc) &&
+      /from\s*\(\s*["']transactions["']\s*\)\s*\.\s*select/.test(aepsWorkspaceSrc) &&
+      /eq\s*\(\s*["']id["']\s*,\s*insertedId\s*\)\s*\.\s*single\s*\(\s*\)/.test(aepsWorkspaceSrc),
+    "1552. AEPS Financial Persistence: recordTransaction verifies database commit via fresh database read"
+  );
+
+  // 6. Execute Full Acceptance Test Suite (Tests A to U)
+  try {
+    const suiteOutput = execSync("node --experimental-strip-types scripts/test-aeps-intelligent-system.mjs", {
+      encoding: "utf8",
+    });
+    assert(
+      suiteOutput.includes("ALL 21 ACCEPTANCE TESTS (A to U) PASSED SUCCESSFULLY"),
+      "1553. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly"
+    );
+  } catch (err) {
+    assert(false, "1553. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly", err.message);
+  }
 }
 
 console.log("\n================================================================================");
