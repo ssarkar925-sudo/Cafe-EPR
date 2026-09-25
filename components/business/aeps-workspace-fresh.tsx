@@ -273,6 +273,7 @@ export default function AepsWorkspaceFresh({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [analyzerOpen, setAnalyzerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
@@ -673,6 +674,7 @@ export default function AepsWorkspaceFresh({
     if (busy || !formValid) return;
 
     setBusy(true);
+    setSaveError("");
 
     try {
       const result = await supabase.rpc("create_business_txn", {
@@ -688,7 +690,7 @@ export default function AepsWorkspaceFresh({
         p_portal_id: portalId,
         p_merchant_qr_id: null,
         p_aadhaar_last4: cleanAadhaar,
-        p_transfer_method: transactionType,
+        p_transfer_method: transactionType === "cash_out" ? "bank_account" : "upi",
         p_sender_name: null,
         p_sender_mobile: null,
         p_beneficiary_name: null,
@@ -706,13 +708,17 @@ export default function AepsWorkspaceFresh({
         p_receiver_name: null,
       });
 
-      if (result.error) throw result.error;
+      if (result.error) {
+        setSaveError(result.error.message || "Transaction could not be saved.");
+        throw result.error;
+      }
 
       setRows((previous) => [result.data as Txn, ...previous]);
       setReviewOpen(false);
       resetForm();
     } catch (error) {
-      console.error(error);
+      console.error("AEPS record failed:", error);
+      setSaveError(error instanceof Error ? error.message : "Transaction could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -1694,6 +1700,13 @@ export default function AepsWorkspaceFresh({
                   <X className="h-4 w-4" />
                 </button>
               </div>
+
+              {saveError && (
+                <div className="mx-5 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[10px] font-bold text-rose-700">
+                  <AlertCircle className="mr-1.5 inline h-3.5 w-3.5" />
+                  {saveError}
+                </div>
+              )}
 
               <div className="grid gap-3 p-5 sm:grid-cols-2">
                 <div className="rounded-2xl bg-slate-50 p-4">
