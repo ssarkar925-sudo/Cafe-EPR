@@ -111,9 +111,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
     return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
   }, []);
 
-  const totalLiquidity = Number(data.liquidity?.totalLiquidAssets || 212750);
-  const receivables = Number(data.customerData?.totalReceivables || 18450);
-  const delta = data.salesPerformance?.trends?.todayVsYesterdayPct ?? 12.5;
+  const totalLiquidity = Number(data.liquidity?.totalLiquidAssets ?? 0);
+  const receivables = Number(data.customerData?.totalReceivables ?? 0);
+  const delta = data.salesPerformance?.trends?.todayVsYesterdayPct ?? null;
+  const profitDelta = data.salesPerformance?.trends?.profitVsYesterdayPct ?? null;
+  const expenseDelta = data.salesPerformance?.trends?.expensesVsYesterdayPct ?? null;
+  const transactionDelta = data.salesPerformance?.trends?.txCountVsYesterdayPct ?? null;
 
   // Canonical Quick Action buttons (preserves test 1413 contract)
   const quick = [
@@ -154,7 +157,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">
             <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            <span>Wed, 24 Sep 2026</span>
+            <span>{data.period?.isoToday ? new Date(data.period.isoToday + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
           </div>
 
           <div className="relative">
@@ -186,7 +189,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
           <div className="mt-2 sm:mt-2.5">
             <div className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              {p.revenue ? money(p.revenue) : "₹ 28,540"}
+              {money(p.revenue)}
             </div>
             <div className="mt-1 flex items-center justify-between">
               <span className="flex items-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -223,12 +226,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
           <div className="mt-2 sm:mt-2.5">
             <div className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              {p.profit ? money(p.profit) : "₹ 6,820"}
+              {money(p.profit)}
             </div>
             <div className="mt-1 flex items-center justify-between">
               <span className="flex items-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                 <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                8.3% <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
+                {profitDelta !== null ? Math.abs(profitDelta).toFixed(1) + "%" : "—"} <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
               </span>
               <div className="hidden sm:flex h-4 items-end gap-0.5">
                 {[5, 7, 6, 11, 9, 13, 15].map((h, i) => (
@@ -255,12 +258,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
           <div className="mt-2 sm:mt-2.5">
             <div className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              {p.expenses ? money(p.expenses) : "₹ 4,230"}
+              {money(p.expenses)}
             </div>
             <div className="mt-1 flex items-center justify-between">
               <span className="flex items-center text-[10px] font-bold text-red-500">
                 <ArrowDownRight className="h-3 w-3 mr-0.5" />
-                6.1% <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
+                {expenseDelta !== null ? Math.abs(expenseDelta).toFixed(1) + "%" : "—"} <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
               </span>
               <div className="hidden sm:flex h-4 items-end gap-0.5">
                 {[14, 11, 13, 8, 9, 6, 5].map((h, i) => (
@@ -290,12 +293,12 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
           <div className="mt-2 sm:mt-2.5">
             <div className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              {p.txCount ? Number(p.txCount).toLocaleString("en-IN") : "124"}
+              {Number(p.txCount || 0).toLocaleString("en-IN")}
             </div>
             <div className="mt-1 flex items-center justify-between">
               <span className="flex items-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                 <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                15.0% <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
+                {transactionDelta !== null ? Math.abs(transactionDelta).toFixed(1) + "%" : "—"} <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
               </span>
               <div className="hidden sm:flex h-4 items-end gap-0.5">
                 {[4, 6, 8, 10, 9, 13, 16].map((h, i) => (
@@ -352,7 +355,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               </span>
               <div>
                 <p className="text-[10px] font-bold leading-tight text-amber-700 dark:text-amber-400">Day Close</p>
-                <p className="text-[9px] text-amber-600 dark:text-amber-500">Pending</p>
+                <p className="text-[9px] text-amber-600 dark:text-amber-500">{data.dayCloseStatus?.statusLabel || "—"}</p>
               </div>
             </div>
             <Link
@@ -647,7 +650,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   Cash in Hand
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  {pools.cash?.current ? exactMoney(pools.cash.current) : "₹ 12,450"}
+                  {exactMoney(pools.cash?.current ?? 0)}
                 </span>
               </div>
 
@@ -659,7 +662,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   Bank Account
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  {pools.bank?.current ? exactMoney(pools.bank.current) : "₹ 1,84,230"}
+                  {exactMoney(pools.bank?.current ?? 0)}
                 </span>
               </div>
 
@@ -671,7 +674,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   UPI Wallet
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  {pools.wallet?.current ? exactMoney(pools.wallet.current) : "₹ 8,920"}
+                  {exactMoney(pools.wallet?.current ?? 0)}
                 </span>
               </div>
 
@@ -683,7 +686,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   AEPS Balance
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  {pools.aeps?.current ? exactMoney(pools.aeps.current) : "₹ 2,350"}
+                  {exactMoney(pools.aeps?.current ?? 0)}
                 </span>
               </div>
 
@@ -695,7 +698,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   DMT Wallet
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white">
-                  {pools.dmt?.current ? exactMoney(pools.dmt.current) : "₹ 4,800"}
+                  {exactMoney(pools.dmt?.current ?? 0)}
                 </span>
               </div>
             </div>
@@ -731,7 +734,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   </span>
                   Total Products
                 </span>
-                <span className="font-bold text-slate-900 dark:text-white">1,245</span>
+                <span className="font-bold text-slate-900 dark:text-white">{Number(inventory.totalProductCount || 0).toLocaleString("en-IN")}</span>
               </div>
 
               <div className="flex items-center justify-between py-1">
@@ -742,7 +745,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   In Stock
                 </span>
                 <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                  1,132
+                  {Number(inventory.inStockProductCount || 0).toLocaleString("en-IN")}
                 </span>
               </div>
 
@@ -775,7 +778,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-white/5 text-xs">
             <span className="text-slate-500 dark:text-slate-400 font-medium">Stock Value (Est.)</span>
             <span className="text-sm font-black text-slate-900 dark:text-white">
-              {inventory.totalStockValue ? money(inventory.totalStockValue) : "₹ 4,85,320"}
+              {money(inventory.totalStockValue)}
             </span>
           </div>
         </section>
@@ -800,10 +803,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </span>
                 <div className="flex items-center gap-4">
                   <span className="font-semibold text-slate-600 dark:text-slate-400">
-                    {service.aeps?.count ?? 18}
+                    {Number(service.aeps?.count || 0)}
                   </span>
                   <span className="font-bold text-slate-900 dark:text-white w-18 text-right">
-                    {service.aeps?.volume ? money(service.aeps.volume) : "₹ 42,300"}
+                    {money(service.aeps?.volume)}
                   </span>
                 </div>
               </div>
@@ -817,10 +820,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </span>
                 <div className="flex items-center gap-4">
                   <span className="font-semibold text-slate-600 dark:text-slate-400">
-                    {service.dmt?.count ?? 8}
+                    {Number(service.dmt?.count || 0)}
                   </span>
                   <span className="font-bold text-slate-900 dark:text-white w-18 text-right">
-                    {service.dmt?.volume ? money(service.dmt.volume) : "₹ 18,500"}
+                    {money(service.dmt?.volume)}
                   </span>
                 </div>
               </div>
@@ -834,10 +837,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </span>
                 <div className="flex items-center gap-4">
                   <span className="font-semibold text-slate-600 dark:text-slate-400">
-                    {service.upi?.count ?? 24}
+                    {Number(service.upi?.count || 0)}
                   </span>
                   <span className="font-bold text-slate-900 dark:text-white w-18 text-right">
-                    {service.upi?.volume ? money(service.upi.volume) : "₹ 36,800"}
+                    {money(service.upi?.volume)}
                   </span>
                 </div>
               </div>
@@ -851,10 +854,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </span>
                 <div className="flex items-center gap-4">
                   <span className="font-semibold text-slate-600 dark:text-slate-400">
-                    {service.recharge?.count ?? 32}
+                    {Number(service.recharge?.count || 0)}
                   </span>
                   <span className="font-bold text-slate-900 dark:text-white w-18 text-right">
-                    {service.recharge?.volume ? money(service.recharge.volume) : "₹ 21,450"}
+                    {money(service.recharge?.volume)}
                   </span>
                 </div>
               </div>
@@ -867,7 +870,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               Commission Earned
             </span>
             <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-black text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-              ₹ 1,250
+              {money(data.serviceCommissionToday ?? 0)}
             </span>
           </div>
         </section>
