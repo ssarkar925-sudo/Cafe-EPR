@@ -1415,6 +1415,11 @@ export default function AepsWorkspaceFresh({
                   <p className="mt-0.5 text-[10px] text-slate-400">Showing {filtered.length} filtered records</p>
                 </div>
                 <div className="flex gap-2">
+                  <input ref={importRef} type="file" accept=".csv,.json,text/csv,application/json" onChange={handleImportChange} className="hidden" />
+                  <button type="button" onClick={() => importRef.current?.click()} className={smallButtonClass}>
+                    <Upload className="mr-1 h-3.5 w-3.5" />
+                    Import
+                  </button>
                   <button type="button" onClick={exportTransactions} className={smallButtonClass}>
                     <Download className="mr-1 h-3.5 w-3.5" />
                     Export
