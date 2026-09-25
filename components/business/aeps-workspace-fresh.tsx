@@ -899,6 +899,10 @@ export default function AepsWorkspaceFresh({
   }
 
   async function startAepsWatcher() {
+    if (!watcherEnabled) {
+      setWatcherMessage("Enable the watcher before starting it.");
+      return;
+    }
     if (!watcherPortalId || !watcherSourceUrl.trim()) {
       setWatcherMessage("Save a registered portal and source URL before starting the watcher.");
       return;
@@ -2048,7 +2052,7 @@ export default function AepsWorkspaceFresh({
                 <button type="button" onClick={() => setWatcherOpen(false)} className={smallButtonClass}>Close</button>
                 <button type="button" onClick={() => void stopAepsWatcher()} disabled={watcherRuntimeStatus === "idle"} className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[10px] font-black text-rose-700 disabled:opacity-40">Stop Watcher</button>
                 <button type="button" onClick={() => void saveWatcherConfig()} disabled={watcherBusy || !watcherPortalId} className={smallButtonClass}>{watcherBusy ? "Saving..." : "Save Setup"}</button>
-                <button type="button" onClick={async () => { const saved = await saveWatcherConfig(); if (saved) await startAepsWatcher(); }} disabled={watcherBusy || !watcherPortalId || !watcherSourceUrl.trim()} className={primaryButtonClass}>
+                <button type="button" onClick={async () => { const saved = await saveWatcherConfig(); if (saved) await startAepsWatcher(); }} disabled={watcherBusy || !watcherEnabled || !watcherPortalId || !watcherSourceUrl.trim()} className={primaryButtonClass}>
                   {watcherRuntimeStatus === "starting" ? "Starting..." : "Save & Start Watcher"}
                 </button>
               </div>
