@@ -551,6 +551,7 @@ export default function AepsWorkspaceFresh({
     setAnalysisError("");
     setMatchNotice("");
     setEntryMode("manual");
+    setWatcherImportId("");
     setReviewOpen(false);
   }
 
@@ -805,6 +806,12 @@ export default function AepsWorkspaceFresh({
       }
 
       setRows((previous) => [result.data as Txn, ...previous]);
+      if (watcherImportId) {
+        await supabase
+          .from("ai_transaction_imports")
+          .update({ state: "imported", review_note: "Approved and recorded in the AEPS ledger.", updated_at: new Date().toISOString() })
+          .eq("id", watcherImportId);
+      }
       setReviewOpen(false);
       resetForm();
     } catch (error) {
@@ -2214,6 +2221,12 @@ export default function AepsWorkspaceFresh({
                 <button
                   type="button"
                   onClick={() => {
+                    if (watcherImportId) {
+                      void supabase
+                        .from("ai_transaction_imports")
+                        .update({ state: "rejected", review_note: "Rejected by operator before ledger posting.", updated_at: new Date().toISOString() })
+                        .eq("id", watcherImportId);
+                    }
                     setReviewOpen(false);
                     resetForm();
                   }}
