@@ -717,8 +717,13 @@ export default function AepsWorkspaceFresh({
       });
 
       if (result.error) {
-        setSaveError(result.error.message || "Transaction could not be saved.");
-        throw result.error;
+        setSaveError(
+          result.error.hint ||
+          result.error.details ||
+          result.error.message ||
+          "Transaction could not be saved."
+        );
+        return;
       }
 
       setRows((previous) => [result.data as Txn, ...previous]);
@@ -726,7 +731,13 @@ export default function AepsWorkspaceFresh({
       resetForm();
     } catch (error) {
       console.error("AEPS record failed:", error);
-      setSaveError(error instanceof Error ? error.message : "Transaction could not be saved.");
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message?: unknown }).message || "Transaction could not be saved.")
+            : "Transaction could not be saved.";
+      setSaveError(message);
     } finally {
       setBusy(false);
     }
@@ -766,30 +777,18 @@ export default function AepsWorkspaceFresh({
     setPricingBusy(true);
     setPricingMessage("");
     try {
-      const common = {
-        service_type: "aeps",
-        portal_id: pricingPortalId,
-        customer_id: null,
-        min_amount: min,
-        max_amount: max,
-        priority: 10,
-        is_active: true,
-      };
-
-      await supabase
-        .from("aeps_pricing_rules")
-        .delete()
-        .eq("service_type", "aeps")
-        .eq("portal_id", pricingPortalId)
-        .is("customer_id", null)
-        .eq("min_amount", min)
-        .eq("is_active", true);
-
-      const { error } = await supabase.from("aeps_pricing_rules").insert([
-        { ...common, rule_type: "fee", value: feeValue },
-        { ...common, rule_type: "commission", value: commissionValue },
-      ]);
-      if (error) throw error;
+      const { error } = await supabase.rpc("save_aeps_pricing_rule", {
+        p_portal_id: pricingPortalId,
+        p_customer_id: null,
+        p_min_amount: min,
+        p_max_amount: max,
+        p_fee: feeValue,
+        p_commission: commissionValue,
+      });
+      if (error) {
+        setPricingMessage(error.hint || error.details || error.message || "Could not save pricing rule.");
+        return;
+      }
 
       setPricingMessage("Pricing rule saved permanently.");
     } catch (error) {
@@ -1241,6 +1240,31 @@ export default function AepsWorkspaceFresh({
                       tone="auto"
                       limit={12}
                     />
+                  </div>
+
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">Pricing</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPricingPortalId(portalId);
+                          setPricingMessage("");
+                          setPricingOpen(true);
+                        }}
+                        className="text-[9px] font-black text-blue-600 hover:text-blue-700"
+                      >
+                        Setup Rules
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void loadAepsPricing()}
+                        disabled={!portalId || !amount}
+                        className="text-[9px] font-black text-violet-600 disabled:opacity-40"
+                      >
+                        Load Saved
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5">
@@ -1729,12 +1753,6 @@ export default function AepsWorkspaceFresh({
                   <div className="mt-4 space-y-3">
                     <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
                     <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">Saved pricing</span>
-                      <button type="button" onClick={() => void loadAepsPricing()} disabled={!portalId || !amount} className="text-[9px] font-black text-blue-600 disabled:opacity-40">
-                        Load Rule
-                      </button>
-                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl border-2 border-dashed border-violet-200 bg-white px-3 py-7 text-center text-[10px] font-black text-violet-700 hover:bg-violet-50 dark:border-violet-900/60 dark:bg-slate-900 dark:text-violet-300">
                         <Upload className="mx-auto mb-1 h-5 w-5" />
