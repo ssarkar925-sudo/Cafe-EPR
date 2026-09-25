@@ -262,7 +262,6 @@ export default function AepsWorkspaceFresh({
   const [bankId, setBankId] = useState("");
   const [portalId, setPortalId] = useState(initialPortals[0]?.id || "");
   const [bankRef, setBankRef] = useState("");
-  const [portalRef, setPortalRef] = useState("");
   const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash" | "upi">("cut_from_withdrawal");
   const [customerPayMethod, setCustomerPayMethod] = useState("cash");
 
@@ -408,7 +407,6 @@ export default function AepsWorkspaceFresh({
     setBankId("");
     setPortalId(initialPortals[0]?.id || "");
     setBankRef("");
-    setPortalRef("");
     setFeeSource("cut_from_withdrawal");
     setCustomerPayMethod("cash");
     setSourceText("");
@@ -546,7 +544,6 @@ export default function AepsWorkspaceFresh({
     if (fields.service_fee) setFee(fields.service_fee);
     if (fields.portal_commission) setCommission(fields.portal_commission);
     if (fields.reference) setBankRef(fields.reference);
-    if (fields.portal_reference) setPortalRef(fields.portal_reference);
 
     if (fields.bank_name) {
       const bank = matchBank(fields.bank_name, initialBanks);
@@ -632,7 +629,7 @@ export default function AepsWorkspaceFresh({
         p_customer_id: customerId,
         p_customer_mobile: cleanMobile,
         p_reference: bankRef.trim() || null,
-        p_remarks: portalRef.trim() ? "Portal Ref: " + portalRef.trim() : null,
+        p_remarks: null,
         p_status: "success",
         p_bank_id: bankId,
         p_portal_id: portalId,
@@ -714,7 +711,6 @@ export default function AepsWorkspaceFresh({
         "Bank",
         "Portal",
         "Bank Reference",
-        "Portal Reference",
         "Status",
       ],
       filtered.map((transaction) => [
@@ -730,7 +726,7 @@ export default function AepsWorkspaceFresh({
         transaction.banks?.name || "",
         transaction.portals?.name || "",
         transaction.reference || "",
-        String(transaction.remarks || "").replace(/^Portal Ref:\s*/i, ""),
+        String(transaction.remarks || ""),
         transaction.status || "",
       ])
     );
@@ -1286,10 +1282,6 @@ export default function AepsWorkspaceFresh({
                       <label className="mb-1.5 block text-[10px] font-black text-slate-600">Bank Reference</label>
                       <input value={bankRef} onChange={(event) => setBankRef(event.target.value)} className={inputClass} placeholder="RRN / bank ref" />
                     </div>
-                    <div>
-                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">Portal Reference</label>
-                      <input value={portalRef} onChange={(event) => setPortalRef(event.target.value)} className={inputClass} placeholder="Portal transaction ref" />
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5">
@@ -1669,7 +1661,7 @@ export default function AepsWorkspaceFresh({
                   <div className="text-[9px] font-black uppercase tracking-wide text-blue-700">Transaction</div>
                   <div className="mt-1 text-xl font-black text-slate-950">{inr(Number(amount || 0))}</div>
                   <div className="mt-1 text-[10px] text-slate-500">
-                    Bank Ref: {bankRef || "—"} · Portal Ref: {portalRef || "—"}
+                    Bank Ref: {bankRef || "—"}
                   </div>
                 </div>
 
