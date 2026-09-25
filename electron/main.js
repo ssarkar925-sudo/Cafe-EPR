@@ -1,7 +1,9 @@
 const { app, BrowserWindow, ipcMain, Notification } = require("electron");
 const path = require("path");
+const { AepsWatcher } = require("./aeps-watcher");
 
 let mainWindow = null;
+const aepsWatcher = new AepsWatcher();
 
 const DEFAULT_CLOUD_URL = "https://cafeerp.ssarkar925.workers.dev";
 const APP_URL = process.env.APP_URL || DEFAULT_CLOUD_URL;
@@ -59,6 +61,7 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    void aepsWatcher.stop();
   });
 }
 
@@ -91,6 +94,48 @@ ipcMain.handle("print-thermal", async (_event, options = {}) => {
     });
   } catch (err) {
     return { success: false, error: err.message };
+  }
+});
+
+// IPC handlers for the desktop AEPS Watcher.
+// The watcher uses an in-memory Electron session and never receives provider credentials.
+// It only reads visible portal transaction data and sends normalized candidates to the renderer.
+ipcMain.handle("aeps-watcher-start", async (_event, options = {}) => {
+  if (!mainWindow) return { success: false, error: "No active CafeERP window." };
+
+  try {
+    const result = await aepsWatcher.start(
+      {
+        portalId: options.portalId,
+        portalName: options.portalName,
+        sourceUrl: options.sourceUrl,
+        intervalSeconds: options.intervalSeconds,
+      },
+      (payload) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("aeps-watcher-event", payload);
+        }
+      }
+    );
+
+    return { success: true, ...result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
+ipcMain.handle("aeps-watcher-stop", async () => {
+  try {
+    await aepsWatcher.stop();
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 });
 
