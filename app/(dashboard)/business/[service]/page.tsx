@@ -54,10 +54,11 @@ export default async function BusinessServicePage({
       // No customer directory preload: workspaces use server-side search.
       // Selections hydrate single rows on demand.
       Promise.resolve({ data: [], error: null }),
-      supabase.from("aeps_banks").select("*").order("name"),
+      supabase.from("aeps_banks").select("id,name,code,is_active").eq("is_active", true).order("name"),
       supabase
         .from("aeps_portals")
-        .select("*")
+        .select("id,name,code,is_active,payment_instrument_id,service_type")
+        .eq("is_active", true)
         .eq("service_type", service === "dmt" ? "dmt" : "aeps")
         .order("name"),
       supabase.from("upi_merchant_qrs").select("*").order("display_name"),
