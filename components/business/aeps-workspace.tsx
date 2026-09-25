@@ -151,6 +151,9 @@ export default function AepsWorkspace({
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [recordMode, setRecordMode] = useState<"manual" | "ai">("manual");
 
   // Canonical Clean Form State (Starts completely empty on fresh page load)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -311,691 +314,209 @@ export default function AepsWorkspace({
     return transactions.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (!q) return true;
-      return (
-        t.transaction_number?.toLowerCase().includes(q) ||
-        t.customer_mobile?.includes(q) ||
-        t.customers?.name?.toLowerCase().includes(q) ||
-        t.banks?.name?.toLowerCase().includes(q) ||
-        t.reference?.toLowerCase().includes(q)
-      );
+      const trendData = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - (6 - index));
+      return d;
     });
-  }, [transactions, searchQuery, statusFilter]);
-
-  // Aggregated KPIs
-  const kpis = useMemo(() => {
-    let volume = 0;
-    let totalCashDisbursed = 0;
-    let fees = 0;
-    let commissions = 0;
-    let successCount = 0;
-
-    for (const t of filteredTxns) {
-      if (t.status === "success") {
-        successCount++;
-        const a = Number(t.amount || 0);
-        const f = Number(t.service_fee || 0);
-        const c = Number(t.portal_commission || 0);
-        volume += a;
-        fees += f;
-        commissions += c;
-        if (t.fee_source === "cut_from_withdrawal") {
-          totalCashDisbursed += Math.max(0, a - f);
-        } else {
-          totalCashDisbursed += a;
-        }
-      }
-    }
-
-    return {
-      count: filteredTxns.length,
-      successCount,
-      volume,
-      totalCashDisbursed,
-      fees,
-      commissions,
-      totalIncome: fees + commissions,
-      variance: 0,
-    };
-  }, [filteredTxns]);
-
-  // Reset form completely for a clean new cash out
-  const handleNewCashOut = useCallback(() => {
-    setSelectedCustomerId("");
-    setCustomerMobile("");
-    setSelectedBankId("");
-    setAadhaarLast4("");
-    setAmount("");
-    setServiceFee("");
-    setPortalCommission("");
-    setReference("");
-    setRemarks("");
-    setScannedReviewData(null);
-    setSuccessTxn(null);
-    formRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  // Handle Scan & Fill Extraction
-  function handleScanApply(fields: ScanFields) {
-    const detectedName = fields.customer_name || fields.sender_name || "";
-    const detectedMobile = fields.customer_mobile || fields.sender_mobile || "";
-    const rawAadhaar = fields.aadhaar_last4 || "";
-    const cleanScanAadhaar = rawAadhaar.replace(/\D/g, "").slice(-4);
-    const detectedBank = fields.bank_name || fields.beneficiary_bank || "";
-
-    const matched = matchBank(detectedBank, banks);
-
-    setScannedReviewData({
-      customerName: detectedName,
-      mobile: detectedMobile,
-      aadhaarLast4: cleanScanAadhaar,
-      bankName: detectedBank,
-      matchedBank: matched,
+    return days.map((day) => {
+      const key = day.toISOString().slice(0, 10);
+      const rows = transactions.filter((t) => String(t.transaction_date || "").slice(0, 10) === key && t.status === "success");
+      return { label: day.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }), count: rows.length, amount: rows.reduce((sum, t) => sum + Number(t.amount || 0), 0) };
     });
+  }, [transactions]);
 
-    if (detectedMobile) setCustomerMobile(detectedMobile);
-    if (cleanScanAadhaar) setAadhaarLast4(cleanScanAadhaar);
-    if (fields.amount) setAmount(fields.amount);
-    if (fields.reference) setReference(fields.reference);
+  const transactionTypes = useMemo(() => Array.from(new Set(transactions.map((t) => t.transfer_method || "Cash Withdrawal").filter(Boolean))), [transactions]);
 
-    if (matched) {
-      setSelectedBankId(matched.id);
-    } else if (detectedBank) {
-      setNewBankName(detectedBank);
-    }
-  }
-
-  // Add New Bank
-  async function handleCreateBank(e: React.FormEvent) {
-    e.preventDefault();
-    const name = newBankName.trim();
-    if (!name) {
-      setBankCreateError("Please enter a valid bank name.");
-      return;
-    }
-
-    setBankCreateSubmitting(true);
-    setBankCreateError("");
-
-    const existing = matchBank(name, banks);
-    if (existing) {
-      setSelectedBankId(existing.id);
-      setAddBankWindowOpen(false);
-      setBankCreateSubmitting(false);
-      showToast("info", `Selected "${existing.name}" (already in Master List).`);
-      return;
-    }
-
-    try {
-      const { data: newBank, error: insertError } = await supabase
-        .from("aeps_banks")
-        .insert({
-          name,
-          code: newBankCode.trim() || null,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      await logAudit({
-        action: "create",
-        entity: "aeps_bank",
-        entity_id: (newBank as any).id,
-        description: `Added new bank "${name}" to Master List`,
-      });
-
-      setBanks((prev) => [...prev, newBank as Master].sort((a, b) => a.name.localeCompare(b.name)));
-      setSelectedBankId((newBank as any).id);
-      setAddBankWindowOpen(false);
-      setNewBankName("");
-      setNewBankCode("");
-      showToast("success", `Bank "${name}" added and selected.`);
-    } catch (err: any) {
-      console.error("Bank creation error:", err);
-      setBankCreateError(err.message || "Failed to create bank.");
-    } finally {
-      setBankCreateSubmitting(false);
-    }
-  }
-
-  // Add New Customer
-  async function handleCreateCustomer(e: React.FormEvent) {
-    e.preventDefault();
-    const name = newCustName.trim();
-    const phone = newCustPhone.trim().replace(/\D/g, "");
-
-    if (!name) {
-      setCustCreateError("Please enter a valid customer name.");
-      return;
-    }
-    if (phone && phone.length !== 10) {
-      setCustCreateError("Mobile number must be exactly 10 digits.");
-      return;
-    }
-
-    setCustCreateSubmitting(true);
-    setCustCreateError("");
-
-    try {
-      const newCust = await createCustomerRecord(supabase, {
-        name,
-        phone: phone || null,
-        email: newCustEmail.trim() || null,
-        address: newCustAddress.trim() || null,
-      });
-
-      await logAudit({
-        action: "create",
-        entity: "customer",
-        entity_id: newCust.id,
-        description: `Created customer "${name}" from AEPS workspace`,
-      });
-
-      setCustomers((prev) => [...prev, newCust as unknown as CustomerRow].sort((a, b) => a.name.localeCompare(b.name)));
-      setSelectedCustomerId(newCust.id);
-      if (phone) setCustomerMobile(phone);
-      setAddCustomerWindowOpen(false);
-      setNewCustName("");
-      setNewCustPhone("");
-      setNewCustEmail("");
-      setNewCustAddress("");
-      showToast("success", `Customer "${name}" created and assigned.`);
-    } catch (err: any) {
-      if (err instanceof DuplicateCustomerError) {
-        showToast("info", `Customer with this phone already exists: ${err.existing.name}`);
-        setSelectedCustomerId(err.existing.id);
-        if (err.existing.phone) setCustomerMobile(err.existing.phone);
-        setAddCustomerWindowOpen(false);
-      } else {
-        console.error("Customer creation error:", err);
-        setCustCreateError(err.message || "Failed to create customer.");
+  const displayedTransactions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const today = new Date();
+    return transactions.filter((t) => {
+      const type = t.transfer_method || "Cash Withdrawal";
+      if (typeFilter !== "all" && type !== typeFilter) return false;
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (dateFilter !== "all") {
+        const d = new Date(String(t.transaction_timestamp || t.transaction_date || ""));
+        if (dateFilter === "today" && d.toDateString() !== today.toDateString()) return false;
+        if (dateFilter === "7d" && (today.getTime() - d.getTime()) > 7 * 86400000) return false;
+        if (dateFilter === "30d" && (today.getTime() - d.getTime()) > 30 * 86400000) return false;
       }
-    } finally {
-      setCustCreateSubmitting(false);
-    }
-  }
-
-  // Open Edit Modal for Complete Financial & Operational Edit
-  function handleOpenEdit(t: Txn) {
-    setEditingTxn(t);
-    setEditAmount(String(t.amount ?? ""));
-    setEditServiceFee(String(t.service_fee ?? "0"));
-    setEditPortalCommission(String(t.portal_commission ?? "0"));
-    const isDeduct = t.fee_source === "cut_from_withdrawal" || t.fee_source === "deducted_from_cash";
-    setEditFeeTreatment(isDeduct ? "deduct" : "separate");
-    setEditCustomerPayMethod((t.customer_pay_method as any) || (t.fee_source === "upi" ? "upi" : "cash"));
-    setEditBankId(t.bank_id || "");
-    setEditPortalId(t.portal_id || portals[0]?.id || "");
-    setEditAadhaarLast4(t.aadhaar_last4 || "");
-    setEditCustomerId(t.customer_id || "");
-    setEditCustomerMobile(t.customer_mobile || t.customers?.phone || "");
-    setEditReference(t.reference || "");
-    setEditRemarks(t.remarks || "");
-    setEditTxnWindowOpen(true);
-  }
-
-  // Save Complete Financial & Operational Edit
-  async function handleSaveEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingTxn) return;
-
-    const parsedAmt = parseFloat(editAmount);
-    if (isNaN(parsedAmt) || parsedAmt <= 0) {
-      showToast("error", "Please enter a valid withdrawal amount.");
-      return;
-    }
-    const parsedFee = parseFloat(editServiceFee) || 0;
-    if (parsedFee < 0) {
-      showToast("error", "Service fee cannot be negative.");
-      return;
-    }
-    const parsedComm = parseFloat(editPortalCommission) || 0;
-    if (!editBankId) {
-      showToast("error", "Please select customer's bank.");
-      return;
-    }
-    if (!editPortalId) {
-      showToast("error", "Please select AEPS portal.");
-      return;
-    }
-    if (!/^\d{4}$/.test(editAadhaarLast4)) {
-      showToast("error", "Aadhaar must be exactly 4 digits.");
-      return;
-    }
-
-    setEditSubmitting(true);
-
-    try {
-      const effectiveFeeSource = editFeeTreatment === "deduct" ? "cut_from_withdrawal" : "customer_paid_extra";
-      const effectivePayMethod = editFeeTreatment === "separate" ? editCustomerPayMethod : "cash";
-
-      const res = await supabase.rpc("update_business_txn", {
-        p_txn_id: editingTxn.id,
-        p_transaction_date: editingTxn.transaction_date,
-        p_transaction_timestamp: editingTxn.transaction_timestamp || new Date().toISOString(),
-        p_customer_id: editCustomerId || null,
-        p_customer_mobile: editCustomerMobile.trim() || null,
-        p_reference: editReference.trim() || null,
-        p_remarks: editRemarks.trim() || null,
-        p_bank_id: editBankId,
-        p_portal_id: editPortalId,
-        p_merchant_qr_id: null,
-        p_aadhaar_last4: editAadhaarLast4,
-        p_transfer_method: null,
-        p_sender_name: null,
-        p_sender_mobile: null,
-        p_beneficiary_name: null,
-        p_beneficiary_mobile: null,
-        p_beneficiary_bank: null,
-        p_beneficiary_ifsc: null,
-        p_beneficiary_account: null,
-        p_upi_id: null,
-        p_amount: parsedAmt,
-        p_service_fee: parsedFee,
-        p_portal_commission: parsedComm,
-        p_fee_source: effectiveFeeSource,
-        p_paid_from: "portal",
-        p_customer_pay_method: effectivePayMethod,
-        p_pay_from_instrument_id: portals.find((p) => p.id === editPortalId)?.payment_instrument_id || null,
-        p_pay_from_method: "aeps_portal",
-      });
-
-      if (res.error) throw res.error;
-
-      // Re-fetch updated row with relations
-      const { data: updatedTxn } = await supabase
-        .from("transactions")
-        .select("*, customers(name, phone), banks:aeps_banks(name, code), portals:aeps_portals(name, code), profiles(full_name)")
-        .eq("id", editingTxn.id)
-        .single();
-
-      if (updatedTxn) {
-        setTransactions((prev) => prev.map((t) => (t.id === editingTxn.id ? (updatedTxn as any) : t)));
-      } else {
-        setTransactions((prev) =>
-          prev.map((t) =>
-            t.id === editingTxn.id
-              ? {
-                  ...t,
-                  amount: parsedAmt,
-                  service_fee: parsedFee,
-                  portal_commission: parsedComm,
-                  fee_source: effectiveFeeSource,
-                  customer_pay_method: effectivePayMethod,
-                  bank_id: editBankId,
-                  portal_id: editPortalId,
-                  aadhaar_last4: editAadhaarLast4,
-                  customer_id: editCustomerId || null,
-                  customer_mobile: editCustomerMobile.trim() || null,
-                  reference: editReference.trim() || null,
-                  remarks: editRemarks.trim() || null,
-                  banks: banks.find((b) => b.id === editBankId) || t.banks,
-                  portals: portals.find((p) => p.id === editPortalId) || t.portals,
-                  customers: customers.find((c) => c.id === editCustomerId) || t.customers,
-                }
-              : t
-          )
-        );
-      }
-
-      // Refresh pool balance
-      const { data: freshPool } = await supabase.rpc("get_pool_balances");
-      if (freshPool) setLivePool((freshPool as any)?.aeps ?? null);
-
-      setEditTxnWindowOpen(false);
-      setEditingTxn(null);
-      showToast("success", `✓ AEPS Transaction #${editingTxn.transaction_number} reconciled and updated!`);
-    } catch (err: any) {
-      console.error("Transaction edit error:", err);
-      showToast("error", err.message || "Failed to update transaction.");
-    } finally {
-      setEditSubmitting(false);
-    }
-  }
-
-  // Submit Initiation Guarded by Full Form Validation
-  function handleInitiateTransaction() {
-    if (!isFormValid || isSubmitting) {
-      if (!selectedBankId) showToast("error", "Please select customer's bank.");
-      else if (cleanAadhaar.length !== 4) showToast("error", "Please enter exactly 4 digits for Aadhaar.");
-      else if (cleanMobile.length !== 10) showToast("error", "Please enter a valid 10-digit mobile number.");
-      else if (operation === "withdrawal" && numAmount <= 0) showToast("error", "Please enter a withdrawal amount greater than ₹0.");
-      return;
-    }
-
-    setConfirmWindowOpen(true);
-  }
-
-  // Process Completed AEPS Withdrawal with Double-Submit Lock
-  async function handleProcessTransaction() {
-    if (isSubmitting || !isFormValid) return;
-    setIsSubmitting(true);
-
-    try {
-      const nowIso = new Date().toISOString();
-      const dateStr = nowIso.slice(0, 10);
-
-      const effectiveFeeSource = feeTreatment === "deduct" ? "cut_from_withdrawal" : "customer_paid_extra";
-      const effectivePayMethod = feeTreatment === "separate" ? customerPayMethod : "cash";
-
-      const rpcPayload: Record<string, any> = {
-        p_service_type: "aeps",
-        p_transaction_date: dateStr,
-        p_transaction_timestamp: nowIso,
-        p_customer_id: selectedCustomerId || null,
-        p_customer_mobile: customerMobile.trim() || null,
-        p_reference: reference.trim() || null,
-        p_remarks: remarks.trim() || null,
-        p_status: "success",
-        p_bank_id: selectedBankId,
-        p_portal_id: selectedPortalId,
-        p_merchant_qr_id: null,
-        p_aadhaar_last4: cleanAadhaar,
-        p_transfer_method: null,
-        p_sender_name: null,
-        p_sender_mobile: null,
-        p_beneficiary_name: null,
-        p_beneficiary_mobile: null,
-        p_beneficiary_bank: null,
-        p_beneficiary_ifsc: null,
-        p_beneficiary_account: null,
-        p_upi_id: null,
-        p_amount: numAmount,
-        p_service_fee: numFee,
-        p_portal_commission: numComm,
-        p_fee_source: effectiveFeeSource,
-        p_paid_from: "portal",
-        p_customer_pay_method: effectivePayMethod,
-        p_pay_from_instrument_id: portals.find((p) => p.id === selectedPortalId)?.payment_instrument_id || null,
-        p_pay_from_method: "aeps_portal",
-        p_receiver_name: null,
-        p_portal_charge: 0,
-      };
-
-      let res = await supabase.rpc("create_business_txn", rpcPayload);
-      if (res.error && (res.error.message?.includes("p_portal_charge") || res.error.message?.includes("schema cache"))) {
-        const fallback = { ...rpcPayload };
-        delete fallback.p_portal_charge;
-        res = await supabase.rpc("create_business_txn", fallback);
-      }
-
-      if (res.error) throw res.error;
-
-      const newTxnId = (res.data as any)?.id;
-      const newTxnNum = (res.data as any)?.transaction_number || "AEP-NEW";
-
-      const completedRecord: Txn = {
-        id: newTxnId || crypto.randomUUID(),
-        transaction_number: newTxnNum,
-        service_type: "aeps",
-        direction: "out",
-        transaction_date: dateStr,
-        transaction_timestamp: nowIso,
-        customer_id: selectedCustomerId || null,
-        customer_mobile: customerMobile.trim() || null,
-        reference: reference.trim() || null,
-        remarks: remarks.trim() || null,
-        status: "success",
-        bank_id: selectedBankId,
-        portal_id: selectedPortalId,
-        merchant_qr_id: null,
-        provider_id: null,
-        aadhaar_last4: cleanAadhaar,
-        transfer_method: null,
-        sender_name: null,
-        sender_mobile: null,
-        beneficiary_name: null,
-        beneficiary_mobile: null,
-        beneficiary_bank: null,
-        beneficiary_ifsc: null,
-        beneficiary_account: null,
-        upi_id: null,
-        amount: numAmount,
-        service_fee: numFee,
-        portal_commission: numComm,
-        fee_source: effectiveFeeSource,
-        paid_from: "portal",
-        customer_pay_method: effectivePayMethod,
-        customers: customers.find((c) => c.id === selectedCustomerId) || null,
-        banks: banks.find((b) => b.id === selectedBankId) || null,
-        portals: portals.find((p) => p.id === selectedPortalId) || null,
-        providers: null,
-        merchant_qrs: null,
-        profiles: null,
-      };
-
-      setTransactions((prev) => [completedRecord, ...prev]);
-      setConfirmWindowOpen(false);
-      setSuccessTxn(completedRecord);
-
-      // Clear input state after successful transaction
-      setSelectedCustomerId("");
-      setCustomerMobile("");
-      setSelectedBankId("");
-      setAadhaarLast4("");
-      setAmount("");
-      setServiceFee("");
-      setPortalCommission("");
-      setReference("");
-      setRemarks("");
-      setScannedReviewData(null);
-
-      showToast("success", `₹${numAmount.toLocaleString("en-IN")} cash withdrawal completed. Cash handed: ₹${cashHanded.toLocaleString("en-IN")}`);
-      await refreshData();
-    } catch (err: any) {
-      console.error("AEPS error:", err);
-      showToast("error", err.message || "Failed to complete AEPS transaction.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  // Open WhatsApp Modal
-  const handleOpenWhatsApp = (t: Txn) => {
-    const rawPhone = t.customer_mobile || t.customers?.phone || "";
-    const appUrl = typeof window !== "undefined" ? window.location.origin : "";
-    const receiptUrl = `${appUrl}/receipt/business/${t.id}`;
-    const cfg = getWhatsAppConfig();
-    const template = cfg.templates?.aeps_confirmation || DEFAULT_WA_TEMPLATES.aeps_confirmation || "AEPS Cash Withdrawal: {amount} successful for {customer_name}. Ref: {txn_id}";
-
-    const msg = renderWhatsAppTemplate(template, {
-      shop_name: "SC Communications",
-      service_name: "AEPS Cash Out",
-      txn_id: t.transaction_number,
-      txn_date: t.transaction_date,
-      customer_name: t.customers?.name || "Customer",
-      customer_name_line: t.customers?.name ? `👤 Customer: ${t.customers.name}\n` : "",
-      amount: inr(Number(t.amount)),
-      ref_number: t.reference || "-",
-      status: t.status.toUpperCase(),
-      receipt_url: receiptUrl,
+      if (!q) return true;
+      return [t.transaction_number, t.customer_mobile, t.customers?.name, t.banks?.name, t.portals?.name, t.reference, t.aadhaar_last4]
+        .filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
     });
-
-    setWaModal({
-      open: true,
-      phone: rawPhone,
-      name: t.customers?.name || "Customer",
-      msg,
-      refNum: t.transaction_number,
-      refId: t.id,
-    });
-  };
-
-  // Export CSV
-  const handleExportCsv = () => {
-    const filename = `AEPS_CashOut_${new Date().toISOString().slice(0, 10)}.csv`;
-    const headers = ["Txn Number", "Date", "Customer", "Mobile", "Aadhaar", "Bank", "Portal", "Amount", "Fee", "Commission", "Cash Handed", "Status", "RRN Reference"];
-    const rows = filteredTxns.map((t) => [
-      t.transaction_number,
-      t.transaction_date,
-      t.customers?.name || "Walk-in Customer",
-      t.customer_mobile || t.customers?.phone || "",
-      t.aadhaar_last4 ? `**** ${t.aadhaar_last4}` : "",
-      t.banks?.name || "",
-      t.portals?.name || "",
-      Number(t.amount),
-      Number(t.service_fee || 0),
-      Number(t.portal_commission || 0),
-      Number(t.fee_source === "cut_from_withdrawal" ? Math.max(0, Number(t.amount) - Number(t.service_fee || 0)) : t.amount),
-      t.status,
-      t.reference || "",
-    ]);
-    downloadCsv(filename, headers, rows);
-    showToast("success", "Exported AEPS transactions.");
-  };
-
-  const recentTxn = transactions[0] || null;
+  }, [transactions, searchQuery, statusFilter, typeFilter, dateFilter]);
 
   return (
-    <div className="space-y-5 pb-16">
+    <div className="min-h-screen bg-[#f7f9fc] pb-16 text-slate-900 dark:bg-slate-950 dark:text-white">
       {toastView}
-      <section className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 sm:p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-xl text-white shadow-lg shadow-blue-600/20">₹</div>
+
+      <div className="mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-6">
+        <section className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-[0_12px_40px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-slate-900 sm:px-7">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="mb-1 flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />LIVE AEPS SWITCH ONLINE</span><span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Business Services / AEPS</span></div>
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">AEPS Transactions</h1><p className="sr-only">AEPS Biometric Cash Out</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Record, review and reconcile Aadhaar Enabled Payment System transactions.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setScanModalOpen(true)} className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-black text-violet-700 transition hover:bg-violet-100 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300">✦ AI / Scan &amp; Fill</button>
-            <button type="button" onClick={handleNewCashOut} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700">+ Record Transaction</button>
-            <button type="button" onClick={handleExportCsv} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">↓ Export</button>
-            <button type="button" onClick={refreshData} disabled={isRefreshing} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{isRefreshing ? "Refreshing…" : "↻ Refresh"}</button>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          { label: "Total Transactions", value: String(kpis.count), note: `${kpis.successCount} completed`, tone: "blue" },
-          { label: "Total Amount", value: inr(kpis.volume), note: "AEPS transaction volume", tone: "blue" },
-          { label: "Customer Fees", value: inr(kpis.fees), note: "Service fees earned", tone: "emerald" },
-          { label: "Portal Commission", value: inr(kpis.commissions), note: "Portal margin earned", tone: "violet" },
-          { label: "AEPS Float", value: inr(aepsCurrentBalance), note: `Synced ${lastRefreshedAt}`, tone: "cyan" },
-        ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-sm font-black text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">₹</span>
-              <span className="text-[10px] font-black text-emerald-600">LIVE</span>
-            </div>
-            <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{card.label}</p>
-            <p className="mt-1 text-xl font-black text-slate-950 dark:text-white">{card.value}</p>
-            <p className="mt-1 text-[10px] text-slate-400">{card.note}</p>{card.label === "AEPS Float" && <span className="sr-only">AVAILABLE PLATFORM FLOAT</span>}
-          </div>
-        ))}
-      </section>
-
-      <section aria-label="AEPS POSITION" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10"><p className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">Recorded / Success</p><p className="mt-1 text-xl font-black text-emerald-800 dark:text-emerald-200">{kpis.successCount}</p></div>
-        <div className="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 dark:border-amber-500/20 dark:bg-amber-500/10"><p className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">Review / Other</p><p className="mt-1 text-xl font-black text-amber-800 dark:text-amber-200">{Math.max(0, kpis.count - kpis.successCount)}</p></div>
-        <div className="rounded-2xl border border-violet-200/70 bg-violet-50/60 p-4 dark:border-violet-500/20 dark:bg-violet-500/10"><p className="text-[10px] font-black uppercase text-violet-700 dark:text-violet-300">Registered Portals</p><p className="mt-1 text-xl font-black text-violet-800 dark:text-violet-200">{portals.length}</p><Link href="/business/portals" className="mt-1 inline-block text-[10px] font-bold text-violet-700 dark:text-violet-300">Manage portals →</Link></div>
-        <div className="rounded-2xl border border-cyan-200/70 bg-cyan-50/60 p-4 dark:border-cyan-500/20 dark:bg-cyan-500/10"><p className="text-[10px] font-black uppercase text-cyan-700 dark:text-cyan-300">Reconciliation</p><p className="mt-1 text-xl font-black text-cyan-800 dark:text-cyan-200">₹0.00</p><Link href="/finance/reconciliation" className="mt-1 inline-block text-[10px] font-bold text-cyan-700 dark:text-cyan-300">View reconciliation →</Link></div>
-      </section>
-
-      <section className="rounded-2xl border border-violet-200/70 bg-gradient-to-r from-violet-50 to-blue-50 p-4 dark:border-violet-500/20 dark:from-violet-500/10 dark:to-blue-500/10">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="text-sm font-black text-slate-900 dark:text-white">✦ AI-assisted AEPS entry</p><span className="sr-only">BIOMETRIC CASH OUT</span><p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">Scan a receipt or transaction evidence, review detected values, then apply them to the form. Financial submission remains under your control.</p></div>
-          <div className="flex gap-2"><button type="button" onClick={() => setScanModalOpen(true)} className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-black text-white">Scan &amp; Fill</button><Link href="/business/portals" className="rounded-xl border border-violet-200 bg-white px-4 py-2 text-xs font-black text-violet-700 dark:border-white/10 dark:bg-white/5 dark:text-violet-300">Portal Setup</Link></div>
-        </div>
-      </section>
-
-      <div ref={formRef} className="space-y-4">
-        {successTxn && (
-          <div className="relative overflow-hidden rounded-[24px] border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-slate-900/40 p-5 sm:p-6 backdrop-blur-md dark:border-emerald-500/30 shadow-lg space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-500/20 pb-3"><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-xl text-white shadow-md shadow-emerald-500/30">✓</div><div><h3 className="text-base font-black text-emerald-900 dark:text-emerald-300">AEPS CASH OUT COMPLETED SUCCESSFULLY</h3><p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">Deterministic settlement ledger updated and float synchronized.</p></div></div><button type="button" onClick={handleNewCashOut} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-md hover:bg-emerald-700 transition"><span>+ New Cash Out</span></button></div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 rounded-2xl bg-white/70 p-4 dark:bg-white/5 border border-emerald-500/10 text-xs"><div><span className="text-slate-400 font-semibold text-[10px]">TXN NUMBER:</span><p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">{successTxn.transaction_number}</p></div><div><span className="text-slate-400 font-semibold text-[10px]">CUSTOMER:</span><p className="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{successTxn.customers?.name || "Walk-in"}</p></div><div><span className="text-slate-400 font-semibold text-[10px]">BANK / PORTAL:</span><p className="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{successTxn.banks?.name || "Bank"}</p></div><div><span className="text-slate-400 font-semibold text-[10px]">WITHDRAWAL:</span><p className="font-black text-slate-900 dark:text-white mt-0.5">{inr(successTxn.amount)}</p></div><div><span className="text-slate-400 font-semibold text-[10px]">CASH HANDED:</span><p className="font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{inr(successTxn.fee_source === "cut_from_withdrawal" ? Math.max(0, Number(successTxn.amount) - Number(successTxn.service_fee || 0)) : successTxn.amount)}</p></div><div><span className="text-slate-400 font-semibold text-[10px]">NET EARNED:</span><p className="font-black text-teal-600 dark:text-teal-400 mt-0.5">+{inr(Number(successTxn.service_fee || 0) + Number(successTxn.portal_commission || 0))}</p></div></div>
-            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1"><div className="flex items-center gap-2"><Link href={`/business/receipt/${successTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`} target="_blank" className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-slate-800 dark:bg-teal-600">🖨️ Thermal Receipt</Link><Link href={`/business/receipt/${successTxn.id}/a4${receiptMode === "detailed" ? "?mode=detailed" : ""}`} target="_blank" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200">📄 A4 Invoice</Link><button type="button" onClick={() => handleOpenWhatsApp(successTxn)} className="rounded-xl bg-emerald-100 px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300">💬 Send WhatsApp</button></div><button type="button" onClick={handleNewCashOut} className="text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white">Dismiss</button></div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-          <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-8 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-white/5"><div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">{[{ id: "withdrawal", label: "🏧 Cash Withdrawal" }, { id: "enquiry", label: "🔍 Balance Enquiry" }, { id: "statement", label: "📑 Mini Statement" }].map((op) => <button key={op.id} type="button" onClick={() => setOperation(op.id as any)} className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${operation === op.id ? "bg-white text-slate-900 shadow-sm dark:bg-teal-600 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}>{op.label}</button>)}</div><button type="button" onClick={() => setScanModalOpen(true)} className="btn-3d-tactile-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black shadow-sm"><span>📷 Scan &amp; Fill Receipt / SMS</span></button></div>
-            {scannedReviewData && <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-3 text-xs dark:border-teal-900/40 dark:bg-teal-950/20"><div className="flex items-center justify-between"><span className="font-bold text-teal-900 dark:text-teal-300">✓ Information Detected from Scan</span><button type="button" onClick={() => setScannedReviewData(null)} className="text-slate-400 hover:text-slate-600">✕</button></div><div className="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">{scannedReviewData.mobile && <div><span className="text-slate-500">Mobile:</span> <strong>{maskMobile(scannedReviewData.mobile)}</strong></div>}{scannedReviewData.aadhaarLast4 && <div><span className="text-slate-500">Aadhaar:</span> <strong>**** {scannedReviewData.aadhaarLast4}</strong></div>}{scannedReviewData.bankName && <div><span className="text-slate-500">Bank:</span>{" "}<strong>{scannedReviewData.matchedBank ? `✓ ${scannedReviewData.matchedBank.name}` : `❓ ${scannedReviewData.bankName}`}</strong></div>}</div></div>}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer (CRM Profile) <span className="text-rose-500">*</span></label><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="text-[11px] font-bold text-teal-600 hover:underline dark:text-teal-400">+ Add New Customer</button></div><div className="flex gap-2"><div className="flex-1"><SearchableSelect value={selectedCustomerId} onChange={setSelectedCustomerId} minSearchLength={2} minSearchPrompt="Type at least 2 letters or digits to search saved customer directory…" options={[{ value: "", label: "-- Walk-in Customer --" }, ...customers.map((c) => ({ value: c.id, label: `${c.name} (${maskMobile(c.phone) || c.code})` }))]} placeholder="Search customer (min 2 chars) or select Walk-in…" /></div><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Add new customer to CRM">+ Add</button></div></div>
-              <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Mobile Number <span className="text-rose-500">*</span></label><input type="tel" value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit mobile number" className={`w-full rounded-2xl border bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none transition focus:bg-white dark:bg-white/5 dark:focus:bg-slate-900 ${cleanMobile && cleanMobile.length !== 10 ? "border-amber-400 focus:border-amber-500" : "border-slate-200 focus:border-teal-500 dark:border-white/10"}`} /></div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Customer's Bank <span className="text-rose-500">*</span>
-                  </label>
-                  {selectedBank && (
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]">
-                      ✓ {selectedBank.name}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <SearchableSelect
-                      value={selectedBankId}
-                      onChange={setSelectedBankId}
-                      options={[{ value: "", label: "-- Select Bank --" }, ...banks.map((b) => ({ value: b.id, label: b.name }))]}
-                      placeholder="Search bank name…"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAddBankWindowOpen(true)}
-                    className="shrink-0 rounded-2xl border border-slate-200 bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                    title="Add new bank to Master List"
-                  >
-                    + Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  {TOP_INDIAN_BANKS.map((tb) => {
-                    const found = banks.find((b) => tb.match.some((m) => b.name?.toLowerCase().includes(m) || b.code?.toLowerCase() === m));
-                    const isSelected = selectedBankId && found?.id === selectedBankId;
-                    return (
-                      <button
-                        key={tb.code}
-                        type="button"
-                        disabled={!found}
-                        onClick={() => found && setSelectedBankId(found.id)}
-                        className={`rounded-lg px-2 py-0.5 text-[10px] font-black transition ${
-                          isSelected
-                            ? "bg-teal-600 text-white shadow-xs ring-1 ring-teal-500"
-                            : "border border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:bg-teal-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                        } disabled:opacity-30`}
-                      >
-                        {tb.code}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />LIVE WATCHER READY</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Business Services / AEPS</span>
               </div>
-              <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Aadhaar Number (Last 4 Digits) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">XXXX - XXXX -</span><input type="text" maxLength={4} value={aadhaarLast4} onChange={(e) => { const digits = e.target.value.replace(/\D/g, "").slice(0, 4); setAadhaarLast4(digits); }} placeholder="3619" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2 pl-28 pr-3.5 text-xs font-black tracking-widest outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900" /></div></div>
-              <div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">AEPS Service Portal <span className="text-rose-500">*</span></label><select value={selectedPortalId} onChange={(e) => setSelectedPortalId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900">{portals.filter((p) => !p.service_type || p.service_type === "aeps").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-              {operation === "withdrawal" && <div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Withdrawal Amount (₹) <span className="text-rose-500">*</span></label><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-slate-400">₹</span><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-2xl font-black text-slate-900 outline-none focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-slate-900" /></div><div className="flex flex-wrap items-center gap-1.5 pt-0.5">{["100", "500", "1000", "2000", "3000", "5000", "10000"].map((v) => <button key={v} type="button" onClick={() => setAmount(v)} className={`rounded-xl border px-3 py-1 text-xs font-black transition ${amount === v ? "border-teal-600 bg-teal-600 text-white shadow-xs" : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"}`}>₹{Number(v).toLocaleString("en-IN")}</button>)}</div></div>}
-              {operation === "withdrawal" && <><div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Customer Service Fee (₹)</label><input type="number" value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" placeholder="0.00" /></div><div className="space-y-1"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Portal Commission (₹)</label><input type="number" value={portalCommission} onChange={(e) => setPortalCommission(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" placeholder="0.00" /></div><div className="space-y-1.5 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fee Treatment Model <span className="text-rose-500">*</span></label><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><button type="button" onClick={() => setFeeTreatment("separate")} className={`rounded-2xl border p-2.5 text-left transition ${feeTreatment === "separate" ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30" : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"}`}><div className="text-xs font-black text-slate-900 dark:text-white">💵 Collect Fee Separately</div><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Customer receives full <strong>{inr(numAmount)}</strong> withdrawal cash; pays <strong>{inr(numFee)}</strong> fee separately.</p></button><button type="button" onClick={() => setFeeTreatment("deduct")} className={`rounded-2xl border p-2.5 text-left transition ${feeTreatment === "deduct" ? "border-teal-600 bg-teal-50/80 shadow-xs dark:border-teal-500 dark:bg-teal-950/30" : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5"}`}><div className="text-xs font-black text-slate-900 dark:text-white">✂️ Deduct from Payout</div><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Fee deducted directly. Customer receives net <strong>{inr(Math.max(0, numAmount - numFee))}</strong> cash handout.</p></button></div></div>{feeTreatment === "separate" && <div className="space-y-1 sm:col-span-2 pt-1 border-t border-slate-100 dark:border-white/5"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Fee Collection Instrument <span className="text-rose-500">*</span></label><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[{ id: "cash", label: "💵 Cash Drawer", desc: "Till cash inflow" }, { id: "upi", label: "📱 UPI / QR Float", desc: "Merchant QR" }, { id: "bank", label: "🏦 Bank Account", desc: "Direct deposit" }, { id: "due", label: "📋 Customer Khata", desc: "Post to due" }].map((m) => <button key={m.id} type="button" onClick={() => setCustomerPayMethod(m.id as any)} className={`rounded-xl border p-2 text-center transition ${customerPayMethod === m.id ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-200" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300"}`}><div className="text-xs font-bold">{m.label}</div><div className="text-[10px] text-slate-400">{m.desc}</div></button>)}</div></div>}</>}
-              <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank RRN / Terminal Reference Number</label><input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="12-digit RRN / Auth Reference" className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-teal-500 dark:border-white/10 dark:bg-white/5" /></div>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-white">AEPS Transactions</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Monitor, review and record Aadhaar Enabled Payment System transactions from every registered portal.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setScanModalOpen(true)} className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-black text-violet-700 hover:bg-violet-100 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300">✦ AI Insights</button>
+              <button type="button" onClick={handleNewCashOut} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700">+ Record Transaction</button>
+              <button type="button" onClick={handleExportCsv} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">↓ Export</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Total Transactions", String(kpis.count), kpis.successCount + " completed", "blue"],
+            ["Total Amount", inr(kpis.volume), "AEPS transaction volume", "blue"],
+            ["Total Fees", inr(kpis.fees), "Customer fees earned", "emerald"],
+            ["Total Commission", inr(kpis.commissions), "Portal commission earned", "violet"],
+          ].map(([label, value, note]) => (
+            <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
+              <div className="flex items-center justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">₹</span><span className="text-[10px] font-black uppercase text-emerald-600">Live</span></div>
+              <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</p>
+              <p className="mt-1 text-2xl font-black">{value}</p>
+              <p className="mt-1 text-xs text-slate-400">{note}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Recorded", String(kpis.successCount), "bg-emerald-50 border-emerald-200 text-emerald-700"],
+            ["Pending / Review", String(Math.max(0, kpis.count - kpis.successCount)), "bg-amber-50 border-amber-200 text-amber-700"],
+            ["Cancelled", String(transactions.filter((t) => t.status === "cancelled").length), "bg-rose-50 border-rose-200 text-rose-700"],
+            ["Reversed", String(transactions.filter((t) => t.status === "reversed").length), "bg-slate-50 border-slate-200 text-slate-700"],
+          ].map(([label, value, classes]) => (
+            <div key={label} className={`rounded-2xl border p-4 ${classes}`}>
+              <p className="text-[10px] font-black uppercase tracking-wider">{label}</p><p className="mt-1 text-2xl font-black">{value}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-3">
+            <div className="flex items-center justify-between"><div><h2 className="text-sm font-black">Transaction Trend</h2><p className="text-xs text-slate-400">Completed AEPS volume · last 7 days</p></div><span className="text-xs font-bold text-blue-600">{inr(trendData.reduce((s, d) => s + d.amount, 0))}</span></div>
+            <div className="mt-6 flex h-44 items-end gap-2">
+              {trendData.map((d) => {
+                const max = Math.max(...trendData.map((x) => x.amount), 1);
+                return <div key={d.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"><div className="w-full rounded-t-lg bg-blue-500/15" style={{ height: `${Math.max(8, (d.amount / max) * 120)}px` }}><div className="h-full w-full rounded-t-lg bg-blue-600" /></div><span className="truncate text-[9px] font-bold text-slate-400">{d.label}</span></div>;
+              })}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2">
+            <h2 className="text-sm font-black">Transactions by Type</h2><p className="text-xs text-slate-400">Live transaction mix</p>
+            <div className="mt-5 space-y-3">
+              {(transactionTypes.length ? transactionTypes : ["Cash Withdrawal"]).slice(0, 5).map((type) => {
+                const count = transactions.filter((t) => (t.transfer_method || "Cash Withdrawal") === type).length;
+                const pct = transactions.length ? Math.round((count / transactions.length) * 100) : 0;
+                return <div key={type}><div className="flex justify-between text-xs font-bold"><span>{type}</span><span>{count} · {pct}%</span></div><div className="mt-1.5 h-2 rounded-full bg-slate-100 dark:bg-white/5"><div className="h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} /></div></div>;
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none dark:border-white/10 dark:bg-white/5"><option value="all">All Dates</option><option value="today">Today</option><option value="7d">Last 7 Days</option><option value="30d">Last 30 Days</option></select>
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none dark:border-white/10 dark:bg-white/5"><option value="all">All Types</option>{transactionTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none dark:border-white/10 dark:bg-white/5"><option value="all">All Status</option><option value="success">Recorded</option><option value="pending">Pending</option><option value="cancelled">Cancelled</option><option value="reversed">Reversed</option></select>
+            </div>
+            <div className="relative w-full xl:w-80"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search customer, mobile, Aadhaar, ref…" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-blue-500 dark:border-white/10 dark:bg-white/5" /></div>
+          </div>
+        </section>
+
+        <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="min-w-0 space-y-4">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/5"><div><h2 className="text-sm font-black">AEPS Transactions</h2><p className="text-xs text-slate-400">{displayedTransactions.length} transaction(s) shown</p></div><span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">{portals.length} portals registered</span></div>
+              <div className="overflow-x-auto">
+                <table className="min-w-[1250px] w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:bg-white/5">
+                    <tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Date &amp; Time</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Aadhaar</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Fee</th><th className="px-4 py-3">Commission</th><th className="px-4 py-3">Bank Ref</th><th className="px-4 py-3">Portal</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {displayedTransactions.length ? displayedTransactions.map((t, index) => (
+                      <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
+                        <td className="px-4 py-3 text-slate-400">{index + 1}</td>
+                        <td className="px-4 py-3 whitespace-nowrap"><div className="font-bold">{fmtDate(t.transaction_date)}</div><div className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</div></td>
+                        <td className="px-4 py-3"><div className="font-bold">{t.customers?.name || "Walk-in Customer"}</div><div className="text-[10px] text-slate-400">{t.transaction_number}</div></td>
+                        <td className="px-4 py-3 font-mono text-[11px]">{maskMobile(t.customer_mobile || t.customers?.phone)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{t.transfer_method || "Cash Withdrawal"}</td>
+                        <td className="px-4 py-3 font-mono">**** {t.aadhaar_last4 || "—"}</td>
+                        <td className="px-4 py-3 font-black">{inr(t.amount)}</td>
+                        <td className="px-4 py-3 font-bold text-emerald-600">{inr(t.service_fee || 0)}</td>
+                        <td className="px-4 py-3 font-bold text-violet-600">{inr(t.portal_commission || 0)}</td>
+                        <td className="px-4 py-3 font-mono">{t.reference || "—"}</td>
+                        <td className="px-4 py-3"><div className="font-bold">{t.portals?.name || "—"}</div><div className="text-[10px] text-slate-400">{t.banks?.name || "Bank —"}</div></td>
+                        <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-black ${t.status === "success" ? "bg-emerald-100 text-emerald-700" : t.status === "cancelled" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{t.status}</span></td>
+                        <td className="px-4 py-3"><button type="button" onClick={() => setSelectedDetailTxn(t)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold hover:bg-slate-50 dark:border-white/10">View</button></td>
+                      </tr>
+                    )) : <tr><td colSpan={13} className="px-5 py-12 text-center text-xs text-slate-400">No AEPS transactions match the selected filters.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 dark:border-violet-500/20 dark:bg-violet-500/10">
+                <div className="flex items-center justify-between"><h2 className="text-sm font-black">✦ AI Insights</h2><span className="text-[10px] font-black uppercase text-violet-600">Read-only</span></div>
+                {transactions.length ? <div className="mt-4 space-y-3 text-xs"><div className="rounded-xl bg-white/70 p-3 dark:bg-white/5"><strong>{portals.length}</strong> registered AEPS portal(s) are available for transaction routing.</div><div className="rounded-xl bg-white/70 p-3 dark:bg-white/5"><strong>{kpis.successCount}</strong> completed transaction(s) are currently recorded.</div><div className="rounded-xl bg-white/70 p-3 dark:bg-white/5">Latest activity: <strong>{recentTxn?.portals?.name || "Portal not recorded"}</strong> · {recentTxn ? inr(recentTxn.amount) : "—"}.</div></div> : <p className="mt-4 text-xs text-slate-500">No transaction history yet. AI insights will appear when AEPS records are available.</p>}
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-500/20 dark:bg-amber-500/10">
+                <h2 className="text-sm font-black">Important Notes</h2>
+                <ul className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-300"><li>• Aadhaar last 4 digits are mandatory for AEPS.</li><li>• Customer name is sourced from the CafeERP customer record, not from a portal.</li><li>• Portal identity should come from the registered portal/session.</li><li>• Financial submission remains under operator control.</li></ul>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200 bg-white p-5 lg:col-span-4 shadow-sm dark:border-white/10 dark:bg-slate-900 space-y-4">
-            <div className="border-b border-slate-100 pb-2.5 dark:border-white/5"><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order Summary</span><h3 className="text-base font-black text-slate-900 dark:text-white">AEPS Settlement Breakdown</h3></div>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500">Operation:</span><strong className="capitalize text-slate-900 dark:text-white">{operation}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Selected Bank:</span><strong className="text-slate-900 dark:text-white truncate max-w-[160px]">{selectedBank?.name || "None selected"}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Aadhaar (Last 4):</span><strong className="text-slate-900 dark:text-white">{cleanAadhaar ? `**** ${cleanAadhaar}` : "Pending"}</strong></div>
-              {operation === "withdrawal" && <><div className="flex justify-between border-t border-slate-100 pt-2 dark:border-white/5"><span className="text-slate-500">Withdrawal Amount:</span><strong className="text-slate-900 dark:text-white">{inr(numAmount)}</strong></div><div className="flex justify-between"><span className="text-slate-500">{feeTreatment === "deduct" ? "Fee Deducted from Payout:" : "Customer Service Fee:"}</span><strong className={feeTreatment === "deduct" ? "text-amber-600 dark:text-amber-400 font-bold" : "text-emerald-600 dark:text-emerald-400 font-bold"}>{feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}</strong></div><div className="flex justify-between"><span className="text-slate-500">Fee Treatment:</span><span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300">{feeTreatment === "deduct" ? "✂️ Deducted from Payout" : `💵 Separate via ${customerPayMethod.toUpperCase()}`}</span></div>{feeTreatment === "separate" && customerPayMethod === "cash" && <div className="flex justify-between"><span className="text-slate-500">Customer Cash Paid:</span><strong className="text-slate-900 dark:text-white font-bold">{inr(numAmount + numFee)}</strong></div>}<div className="flex justify-between"><span className="text-slate-500">Portal Commission:</span><strong className="text-teal-600 dark:text-teal-400 font-bold">+{inr(numComm)}</strong></div><div className="flex justify-between border-t border-slate-100 pt-1.5 dark:border-white/5"><span className="font-bold text-slate-700 dark:text-slate-300">Total Net Income:</span><strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong></div><div className="border-t border-slate-100 pt-2 dark:border-white/5"><div className="flex items-center justify-between text-[11px]"><span className="text-slate-500 font-bold">Receipt Format:</span><div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-white/5"><button type="button" onClick={() => setReceiptMode("basic")} className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${receiptMode === "basic" ? "bg-white text-slate-900 shadow-xs dark:bg-teal-600 dark:text-white" : "text-slate-500"}`}>Basic</button><button type="button" onClick={() => setReceiptMode("detailed")} className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${receiptMode === "detailed" ? "bg-white text-slate-900 shadow-xs dark:bg-teal-600 dark:text-white" : "text-slate-500"}`}>Detailed</button></div></div></div><div className="rounded-2xl bg-indigo-50/80 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200"><div className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Physical Cash to Hand to Customer:</div><div className="mt-1 text-2xl font-black text-indigo-900 dark:text-white">{inr(cashHanded)}</div><p className="mt-0.5 text-[10px] text-indigo-600 dark:text-indigo-300">{feeTreatment === "deduct" ? `Deducted fee ₹${numFee} from ₹${numAmount} withdrawal` : `Full withdrawal ₹${numAmount} given; ₹${numFee} fee collected separately`}</p></div></>}
+          <aside ref={formRef} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-slate-900 xl:sticky xl:top-24">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4 dark:border-white/5">
+              <div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Record AEPS Transaction</p><h2 className="mt-1 text-lg font-black">New Transaction</h2></div>
+              <span className="rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">REVIEW BEFORE SUBMIT</span>
             </div>
-            <div className="space-y-1.5 pt-1"><button type="button" onClick={handleInitiateTransaction} disabled={!isFormValid || isSubmitting} className={`w-full rounded-2xl py-3 text-sm font-black transition ${isFormValid && !isSubmitting ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-[0.98]" : "cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200 dark:border-white/5 dark:bg-white/5 dark:text-slate-500"}`}>{isSubmitting ? <span className="inline-flex items-center justify-center gap-2"><span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />Processing Disbursement…</span> : isFormValid ? `✓ Complete & Disburse ${inr(cashHanded)}` : "Complete Required Fields to Disburse"}</button><p className="text-center text-[10px] text-slate-400">Deterministic double-entry settlement engine</p></div>
-          </div>
-        </div>
+
+            <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+              <button type="button" onClick={() => setRecordMode("manual")} className={`rounded-lg px-3 py-2 text-xs font-black ${recordMode === "manual" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500"}`}>Manual Entry</button>
+              <button type="button" onClick={() => { setRecordMode("ai"); setScanModalOpen(true); }} className={`rounded-lg px-3 py-2 text-xs font-black ${recordMode === "ai" ? "bg-white text-violet-700 shadow-sm dark:bg-slate-800 dark:text-violet-300" : "text-slate-500"}`}>✦ AI Auto-Fill</button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div><label className="text-[10px] font-black uppercase text-slate-400">Customer</label><SearchableSelect value={selectedCustomerId} onChange={setSelectedCustomerId} minSearchLength={2} minSearchPrompt="Search saved customer…" options={[{ value: "", label: "-- Select customer --" }, ...customers.map((c) => ({ value: c.id, label: c.name }))]} placeholder="Search customer…" /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Mobile</label><input value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value.replace(/D/g, "").slice(0,10))} placeholder="10 digits" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5" /></div>
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Aadhaar last 4 *</label><input maxLength={4} value={aadhaarLast4} onChange={(e) => setAadhaarLast4(e.target.value.replace(/D/g, "").slice(0,4))} placeholder="1234" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono font-black tracking-widest dark:border-white/10 dark:bg-white/5" /></div>
+              </div>
+              <div><label className="text-[10px] font-black uppercase text-slate-400">AEPS Type</label><select value={operation} onChange={(e) => setOperation(e.target.value as any)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold dark:border-white/10 dark:bg-white/5"><option value="withdrawal">Cash Withdrawal</option><option value="enquiry">Balance Enquiry</option><option value="statement">Mini Statement</option></select></div>
+              {operation === "withdrawal" && <div><label className="text-[10px] font-black uppercase text-slate-400">Amount</label><div className="relative mt-1"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-slate-400">₹</span><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-8 pr-3 text-xl font-black dark:border-white/10 dark:bg-white/5" /></div></div>}
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Customer Fee</label><input type="number" value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} placeholder="Auto / 0" className="mt-1 w-full rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-2.5 text-xs font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300" /></div>
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Commission</label><input type="number" value={portalCommission} onChange={(e) => setPortalCommission(e.target.value)} placeholder="Auto / 0" className="mt-1 w-full rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2.5 text-xs font-black text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Bank</label><select value={selectedBankId} onChange={(e) => setSelectedBankId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold dark:border-white/10 dark:bg-white/5"><option value="">Select bank</option>{banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Portal</label><select value={selectedPortalId} onChange={(e) => setSelectedPortalId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold dark:border-white/10 dark:bg-white/5">{portals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Bank Ref</label><input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="RRN / bank ref" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5" /></div>
+                <div><label className="text-[10px] font-black uppercase text-slate-400">Portal Ref</label><input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Portal reference" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5" /></div>
+              </div>
+              <div><label className="text-[10px] font-black uppercase text-slate-400">Collection Method</label><div className="grid grid-cols-4 gap-1.5 mt-1">{[{id:"cash",label:"Cash"},{id:"upi",label:"UPI"},{id:"bank",label:"Bank"},{id:"due",label:"Due"}].map((m) => <button type="button" key={m.id} onClick={() => setCustomerPayMethod(m.id as any)} className={`rounded-lg border px-2 py-2 text-[10px] font-black ${customerPayMethod===m.id ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500 dark:border-white/10 dark:bg-white/5"}`}>{m.label}</button>)}</div></div>
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5"><div className="flex justify-between text-xs"><span className="text-slate-500">Customer fee</span><strong>{inr(numFee)}</strong></div><div className="mt-1 flex justify-between text-xs"><span className="text-slate-500">Portal commission</span><strong>{inr(numComm)}</strong></div><div className="mt-2 border-t border-slate-200 pt-2 dark:border-white/10 flex justify-between text-sm"><span className="font-black">Your income</span><strong className="text-emerald-600">+{inr(totalIncome)}</strong></div></div>
+              <button type="button" onClick={handleInitiateTransaction} disabled={!isFormValid || isSubmitting} className={`w-full rounded-xl py-3 text-sm font-black ${isFormValid && !isSubmitting ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700" : "cursor-not-allowed bg-slate-100 text-slate-400"}`}>{isSubmitting ? "Processing…" : "Record Transaction"}</button>
+              <p className="text-center text-[10px] text-slate-400">Review all financial values before final submission.</p>
+            </div>
+          </aside>
+        </section>
       </div>
-
-      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3"><div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5"><h2 className="text-xs font-black uppercase tracking-wider text-slate-400">AEPS OPERATION LIFECYCLE</h2><span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">5-Stage Atomic Flow</span></div><div className="grid grid-cols-1 gap-2 sm:grid-cols-5"><div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5"><span className="font-mono text-[10px] font-bold text-slate-400">01. IDENTIFY</span><p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Customer &amp; Bank</p><p className="text-[10px] text-slate-400">Aadhaar (Last 4) &amp; Bank select</p></div><div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5"><span className="font-mono text-[10px] font-bold text-teal-600 dark:text-teal-400">02. AUTHENTICATE</span><p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Biometric Scan</p><p className="text-[10px] text-slate-400">Fingerprint sensor verification</p></div><div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5"><span className="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400">03. SWITCH</span><p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Portal Credit</p><p className="text-[10px] text-slate-400">NPCI / Bank switch processing</p></div><div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5"><span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">04. DISBURSE</span><p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Cash Drawer Payout</p><p className="text-[10px] text-slate-400">Hand net physical currency</p></div><div className="rounded-xl bg-slate-50/80 p-2.5 dark:bg-white/5 border border-slate-100 dark:border-white/5"><span className="font-mono text-[10px] font-bold text-cyan-600 dark:text-cyan-400">05. SETTLEMENT</span><p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">Ledger Synchronized</p><p className="text-[10px] text-slate-400">Float updated &amp; receipt ready</p></div></div></section>
-
-      {recentTxn && <section className="rounded-[22px] border border-slate-200/80 bg-white p-4.5 shadow-xs dark:border-white/10 dark:bg-slate-900 space-y-3"><div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/5"><div className="flex items-center gap-2"><h2 className="text-xs font-black uppercase tracking-wider text-slate-400">LIVE AEPS ACTIVITY</h2><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /></div><span className="text-[10px] text-slate-400">Latest Completed Event</span></div><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/70 dark:bg-white/5 rounded-xl p-3"><div className="flex items-center gap-3"><span className="flex h-3 w-3 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" /><div><div className="flex items-center gap-2 flex-wrap"><span className="font-mono text-xs font-bold text-slate-900 dark:text-white">{recentTxn.transaction_number}</span><span className="text-xs text-slate-400">·</span><span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Customer: {recentTxn.customers?.name || "Walk-in"}</span><span className="text-xs text-slate-400">·</span><strong className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{inr(Number(recentTxn.amount))}</strong><span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">✓ {recentTxn.status.toUpperCase()}</span></div><p className="mt-0.5 text-[11px] text-slate-400">{fmtDate(recentTxn.transaction_date)} · {fmtTime(recentTxn.transaction_timestamp)} {recentTxn.reference ? `· RRN: ${recentTxn.reference}` : ""} {recentTxn.banks?.name ? `· Bank: ${recentTxn.banks.name}` : ""}</p></div></div><div className="flex items-center gap-2 self-start sm:self-auto"><button type="button" onClick={() => setSelectedDetailTxn(recentTxn)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">View</button><Link href={`/business/receipt/${recentTxn.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`} target="_blank" className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" title="Print thermal receipt">🖨️ Receipt</Link><button type="button" onClick={() => handleOpenWhatsApp(recentTxn)} className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300">💬 WhatsApp</button></div></div></section>}
-
-      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900"><div className="border-b border-slate-100 p-4 sm:p-5 dark:border-white/5 space-y-3.5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-base font-bold text-slate-900 dark:text-white">AEPS TRANSACTION HISTORY</h2><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Authoritative transaction ledger for Aadhaar biometric cash withdrawals and portal settlements.</p></div><div className="flex rounded-xl bg-slate-100 p-1 text-xs dark:bg-white/5">{[{ key: "all", label: `All (${transactions.length})` }, { key: "success", label: "Successful" }, { key: "pending", label: "Pending" }, { key: "failed", label: "Failed" }].map((tab) => <button key={tab.key} type="button" onClick={() => setStatusFilter(tab.key)} className={`rounded-lg px-3 py-1 font-semibold transition ${statusFilter === tab.key ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}>{tab.label}</button>)}</div></div><div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between"><div className="flex-1"><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by RRN reference, mobile, customer name, bank or portal…" className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs text-slate-900 outline-none transition focus:border-teal-500 focus:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:focus:bg-slate-900" /></div><button type="button" onClick={handleExportCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg><span>Export CSV</span></button></div></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/5 dark:bg-white/5"><th className="px-4 py-3">TRANSACTION</th><th className="px-4 py-3">CUSTOMER &amp; AADHAAR</th><th className="px-4 py-3">BANK &amp; PORTAL</th><th className="px-4 py-3">DATE / TIME</th><th className="px-4 py-3 text-right">WITHDRAWAL</th><th className="px-4 py-3 text-right">CASH HANDED</th><th className="px-4 py-3 text-right">FEE</th><th className="px-4 py-3 text-center">STATUS</th><th className="px-4 py-3 text-right">ACTIONS</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium text-slate-700 dark:text-slate-300">{filteredTxns.length === 0 ? <tr><td colSpan={9} className="py-12 text-center text-slate-400">No AEPS transactions match the selected filters.</td></tr> : filteredTxns.map((t) => { const isDeducted = t.fee_source === "cut_from_withdrawal"; const txnCashHanded = isDeducted ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0)) : Number(t.amount || 0); const receiptUrl = `/business/receipt/${t.id}${receiptMode === "detailed" ? "?mode=detailed" : ""}`; return <tr key={t.id} className="transition hover:bg-slate-50/70 dark:hover:bg-white/5"><td className="px-4 py-3.5"><div className="font-mono font-bold text-slate-900 dark:text-white">{t.transaction_number}</div>{t.reference && <span className="text-[10px] text-slate-400 truncate max-w-[140px] block">RRN: {t.reference}</span>}</td><td className="px-4 py-3.5"><div className="font-semibold text-slate-800 dark:text-slate-200">{t.customers?.name || "Walk-in"}</div><span className="text-[10px] text-slate-400">{t.customer_mobile ? `${maskMobile(t.customer_mobile)}` : ""} {t.aadhaar_last4 ? `· **** ${t.aadhaar_last4}` : ""}</span></td><td className="px-4 py-3.5"><div className="font-semibold text-slate-800 dark:text-slate-200">{t.banks?.name || "Bank"}</div><span className="text-[10px] text-teal-600 dark:text-teal-400">{t.portals?.name || "Portal"}</span></td><td className="px-4 py-3.5 text-slate-500 dark:text-slate-400"><div>{fmtDate(t.transaction_date)}</div><span className="text-[10px] text-slate-400">{fmtTime(t.transaction_timestamp)}</span></td><td className="px-4 py-3.5 text-right font-bold text-slate-900 dark:text-white">{inr(t.amount)}</td><td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{inr(txnCashHanded)}</td><td className="px-4 py-3.5 text-right font-semibold text-cyan-600 dark:text-cyan-400">+{inr(Number(t.service_fee || 0))}</td><td className="px-4 py-3.5 text-center"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${t.status === "success" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : t.status === "pending" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"}`}>{t.status === "success" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}{t.status === "success" ? "✓ Successful" : t.status === "pending" ? "◌ Pending" : "! Failed"}</span></td><td className="px-4 py-3.5 text-right"><div className="flex items-center justify-end gap-1"><Link href={receiptUrl} target="_blank" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white" title="Print 80mm thermal receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg></Link><button type="button" onClick={() => handleOpenWhatsApp(t)} className="rounded-lg p-1 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400" title="Send WhatsApp receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg></button><button type="button" onClick={() => setSelectedDetailTxn(t)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white" title="View complete details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg></button><button type="button" onClick={() => handleOpenEdit(t)} className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400" title="Edit full transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg></button></div></td></tr>; })}</tbody></table></div></section>
 
       {confirmWindowOpen && <FloatingWindow isOpen={confirmWindowOpen} size="sm" title="Confirm AEPS Cash Withdrawal" onClose={() => setConfirmWindowOpen(false)}><div className="p-5 space-y-4"><div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2"><div className="flex justify-between"><span className="text-slate-500">Withdrawal Amount:</span><strong className="text-base text-slate-900 dark:text-white">{inr(numAmount)}</strong></div><div className="flex justify-between"><span className="text-slate-500">Customer Bank:</span><strong className="text-slate-900 dark:text-white">{selectedBank?.name}</strong></div><div className="flex justify-between"><span className="text-slate-500">Aadhaar (Last 4):</span><strong className="text-slate-900 dark:text-white">**** {cleanAadhaar}</strong></div><div className="flex justify-between"><span className="text-slate-500">{feeTreatment === "deduct" ? "Fee Deducted from Payout:" : "Customer Service Fee:"}</span><strong className={feeTreatment === "deduct" ? "text-amber-600 dark:text-amber-400 font-bold" : "text-emerald-600 dark:text-emerald-400 font-bold"}>{feeTreatment === "deduct" ? `-${inr(numFee)}` : `+${inr(numFee)}`}</strong></div><div className="flex justify-between"><span className="text-slate-500">Fee Treatment:</span><strong className="text-slate-900 dark:text-white">{feeTreatment === "deduct" ? "Deducted from Payout" : `Separate via ${customerPayMethod.toUpperCase()}`}</strong></div>{feeTreatment === "separate" && customerPayMethod === "cash" && <div className="flex justify-between"><span className="text-slate-500">Total Customer Cash Received:</span><strong className="text-slate-900 dark:text-white">{inr(numAmount + numFee)}</strong></div>}<div className="flex justify-between"><span className="text-slate-500">Portal Commission:</span><strong className="text-teal-600 dark:text-teal-400 font-bold">+{inr(numComm)}</strong></div><div className="flex justify-between"><span className="text-slate-700 font-bold">Operator Net Income:</span><strong className="text-emerald-600 dark:text-emerald-400 font-black">+{inr(totalIncome)}</strong></div><div className="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10"><span className="text-slate-700 font-bold dark:text-slate-300">Physical Cash to Hand to Customer:</span><strong className="text-emerald-600 dark:text-emerald-400 text-sm font-black">{inr(cashHanded)}</strong></div></div><p className="text-[11px] text-slate-500">Please verify biometric confirmation on your AEPS device before confirming.</p><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setConfirmWindowOpen(false)} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5">Cancel</button><button type="button" onClick={handleProcessTransaction} disabled={isSubmitting || !isFormValid} className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 disabled:opacity-50">{isSubmitting ? "Processing…" : `Confirm & Disburse ${inr(cashHanded)}`}</button></div></div></FloatingWindow>}
 
