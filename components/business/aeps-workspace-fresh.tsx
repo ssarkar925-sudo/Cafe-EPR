@@ -67,21 +67,42 @@ function normalizeBankName(raw: string) {
   return String(raw || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\b(the|bank|india|limited|ltd|branch)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
+
+const BANK_ALIASES: Record<string, string[]> = {
+  sbi: ["state bank of india", "sbi"],
+  pnb: ["punjab national bank", "pnb"],
+  bob: ["bank of baroda", "bank of baroda", "bob"],
+  ubi: ["union bank of india", "union bank", "ubi"],
+  canara: ["canara bank", "canara"],
+  hdfc: ["hdfc bank", "hdfc"],
+  icici: ["icici bank", "icici"],
+  axis: ["axis bank", "axis"],
+  kotak: ["kotak mahindra bank", "kotak"],
+  indian: ["indian bank", "indian"],
+};
 
 function matchBank(input: string, banks: Master[]) {
   const normalized = normalizeBankName(input);
   if (!normalized) return null;
 
+  const inputAliases = Object.values(BANK_ALIASES).find((aliases) =>
+    aliases.includes(normalized)
+  ) || [normalized];
+
   for (const bank of banks) {
+    if (bank.is_active === false) continue;
+
     const bankName = normalizeBankName(bank.name);
-    if (bankName && (bankName === normalized || bankName.includes(normalized) || normalized.includes(bankName))) {
+    const bankCode = normalizeBankName(bank.code || "");
+
+    if (inputAliases.some((alias) => bankName === alias || bankName.includes(alias) || alias.includes(bankName))) {
       return bank;
     }
-    if (bank.code && bank.code.toLowerCase() === String(input).trim().toLowerCase()) {
+
+    if (bankCode && (bankCode === normalized || bankCode === String(input).trim().toLowerCase())) {
       return bank;
     }
   }
