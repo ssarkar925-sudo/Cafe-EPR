@@ -327,7 +327,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900 dark:text-white">Business Health</span>
               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-                Overall Status: Good
+                Overall Status: {shop.systemHealth === "critical" ? "Critical" : shop.systemHealth === "attention" ? "Attention" : "Operational"}
               </span>
             </div>
 
@@ -337,21 +337,21 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                   System
                 </span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Operational</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">{shop.systemHealth === "critical" ? "Attention" : "Operational"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                   <Database className="h-3 w-3 text-emerald-600" />
                   Database
                 </span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Healthy</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Connected</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                   <HardDrive className="h-3 w-3 text-emerald-600" />
                   Backup
                 </span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Completed (5h ago)</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">Not reported</span>
               </div>
             </div>
           </div>
@@ -1010,7 +1010,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
         <span>{shop.name || "CafeERP"} • {data.period?.fyLabel || "FY 2026-27"}</span>
         <span>
           Day Close: {data.dayCloseStatus?.statusLabel || data.dayCloseStatus?.state || "Active / Open"} • Audit:{" "}
-          {audit.status || "Verified Clean"}
+          {audit.status || "Not available"}
         </span>
       </div>
     </div>
