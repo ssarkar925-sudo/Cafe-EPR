@@ -4727,7 +4727,7 @@ function detectIntent(question) {
   assert(aepsWorkspaceFile.includes("Monitor, review and record Aadhaar Enabled Payment System transactions"), "593. AEPS Workspace: Hero subtitle present");
   assert(aepsWorkspaceFile.includes("Total Transactions"), "594. AEPS Workspace: Total Transactions KPI present");
   assert(aepsWorkspaceFile.includes("Total Amount"), "595. AEPS Workspace: Total Amount KPI present");
-  assert(aepsWorkspaceFile.includes("Customer Fees"), "596. AEPS Workspace: Customer Fees KPI present");
+  assert(aepsWorkspaceFile.includes("Total Fees"), "596. AEPS Workspace: Total Fees KPI present");
   assert(aepsWorkspaceFile.includes("Portal Commission"), "597. AEPS Workspace: Portal Commission KPI present");
   assert(aepsWorkspaceFile.includes("AEPS Float"), "598. AEPS Workspace: AEPS Float KPI present");
   assert(aepsWorkspaceFile.includes("Transaction Trend"), "599. AEPS Workspace: Transaction Trend analytics present");
