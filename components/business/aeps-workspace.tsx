@@ -348,7 +348,7 @@ export default function AepsWorkspace({
                 <div className="mt-6 flex h-28 items-end gap-2">
                   {[0,1,2,3,4,5,6].map((i) => {
                     const count = filtered.slice(i * 5, (i + 1) * 5).length;
-                    return <div key={i} className="flex-1 rounded-t bg-blue-500" style={{ height: \`${Math.max(10, Math.min(100, count * 20))}%\` }} />;
+                    return <div key={i} className="flex-1 rounded-t bg-blue-500" style={{ height: `${Math.max(10, Math.min(100, count * 20))}%` }} />;
                   })}
                 </div>
               </div>
