@@ -1044,11 +1044,25 @@ export default function AepsWorkspaceFresh({
     const matchedBank = fields.bank_name ? matchBank(fields.bank_name, bankMasters) : null;
     if (matchedBank) setBankId(matchedBank.id);
 
+    let matchedCustomerId: string | null = null;
     if (fields.customer_mobile || fields.aadhaar_last4) {
-      await resolveCustomerFromSignals(fields.customer_mobile || "", fields.aadhaar_last4 || "");
+      matchedCustomerId = await resolveCustomerFromSignals(fields.customer_mobile || "", fields.aadhaar_last4 || "");
     }
 
-    setWatcherMessage("New AEPS transaction detected. Verify the customer and pricing, then Approve & Record.");
+    const { data: pricing } = await supabase.rpc("resolve_aeps_pricing", {
+      p_customer_id: matchedCustomerId,
+      p_portal_id: payload.portalId,
+      p_amount: Number(fields.amount),
+    });
+    const resolvedPricing = (pricing || {}) as { fee?: number; commission?: number };
+    if (resolvedPricing.fee !== undefined) setFee(String(resolvedPricing.fee));
+    if (resolvedPricing.commission !== undefined) setCommission(String(resolvedPricing.commission));
+
+    setWatcherMessage(
+      matchedCustomerId
+        ? "New AEPS transaction detected and customer matched. Verify pricing, then Approve & Record."
+        : "New AEPS transaction detected. Customer match requires manual review before recording."
+    );
     setReviewOpen(true);
   }
 
