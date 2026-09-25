@@ -966,7 +966,7 @@ export default function AepsWorkspaceFresh({
             </section>
 
 
-          <aside className="xl:sticky xl:top-4">
+          <div className="xl:sticky xl:top-4">
             {!drawerOpen ? (
               <button
                 type="button"
@@ -1356,8 +1356,8 @@ export default function AepsWorkspaceFresh({
                 </div>
               </div>
             )}
-          </aside>
-          </aside>
+          </div>
+        </aside>
         </div>
 
         <section id="aeps-transactions" className="min-w-0">
