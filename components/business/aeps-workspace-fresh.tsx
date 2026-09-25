@@ -1022,9 +1022,9 @@ export default function AepsWorkspaceFresh({
         state: "needs_review",
         review_note: "Detected by the read-only AEPS Watcher. Operator approval is required.",
         updated_at: new Date().toISOString(),
-      }, { onConflict: "created_by,fingerprint", ignoreDuplicates: false })
+      }, { onConflict: "created_by,fingerprint", ignoreDuplicates: true })
       .select("id,state")
-      .single();
+      .maybeSingle();
 
     if (importError) {
       setWatcherMessage(importError.message || "Watcher detected a transaction but staging failed.");
@@ -1033,6 +1033,11 @@ export default function AepsWorkspaceFresh({
     }
 
     const stagedImportId = String(imported?.id || "");
+    if (!imported?.id) {
+      setWatcherMessage("Duplicate AEPS transaction detected and safely ignored.");
+      return;
+    }
+
     setWatcherImportId(stagedImportId);
     setWatcherDetectedCount((count) => count + 1);
     setSourceText(rawText);
