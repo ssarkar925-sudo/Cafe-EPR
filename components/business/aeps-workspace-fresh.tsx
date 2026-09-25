@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -247,20 +247,22 @@ function StatusCard({
 
 export default function AepsWorkspaceFresh({
   initialTransactions,
-  initialBanks,
-  initialPortals,
+  bankMasters,
+  portalMasters,
   float,
 }: {
   initialTransactions: Txn[];
   initialCustomers: any[];
-  initialBanks: Master[];
-  initialPortals: Master[];
+  bankMasters: Master[];
+  portalMasters: Master[];
   paymentInstruments?: any[];
   float: any;
 }) {
   const supabase = createClient();
 
   const [rows, setRows] = useState<Txn[]>(initialTransactions);
+  const [bankMasters, setBankMasters] = useState<Master[]>(bankMasters);
+  const [portalMasters, setPortalMasters] = useState<Master[]>(portalMasters);
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -282,7 +284,7 @@ export default function AepsWorkspaceFresh({
   const [fee, setFee] = useState("");
   const [commission, setCommission] = useState("");
   const [bankId, setBankId] = useState("");
-  const [portalId, setPortalId] = useState(initialPortals[0]?.id || "");
+  const [portalId, setPortalId] = useState(portalMasters[0]?.id || "");
   const [bankRef, setBankRef] = useState("");
   const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash" | "upi">("cut_from_withdrawal");
   const [customerPayMethod, setCustomerPayMethod] = useState("cash");
@@ -294,6 +296,35 @@ export default function AepsWorkspaceFresh({
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [matchNotice, setMatchNotice] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function hydrateAepsMasters() {
+      const [{ data: banks }, { data: portals }] = await Promise.all([
+        supabase
+          .from("aeps_banks")
+          .select("id,name,code,is_active")
+          .eq("is_active", true)
+          .order("name"),
+        supabase
+          .from("aeps_portals")
+          .select("id,name,code,is_active,payment_instrument_id,service_type")
+          .eq("is_active", true)
+          .eq("service_type", "aeps")
+          .order("name"),
+      ]);
+      if (!active) return;
+      if (banks?.length) setBankMasters(banks as Master[]);
+      if (portals?.length) {
+        setPortalMasters(portals as Master[]);
+        if (!portalId) setPortalId(portals[0].id);
+      }
+    }
+    void hydrateAepsMasters();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -401,8 +432,8 @@ export default function AepsWorkspaceFresh({
     };
   }, [rows]);
 
-  const portalName = initialPortals.find((portal) => portal.id === portalId)?.name || "Not selected";
-  const bankName = initialBanks.find((bank) => bank.id === bankId)?.name || "Not selected";
+  const portalName = portalMasters.find((portal) => portal.id === portalId)?.name || "Not selected";
+  const bankName = bankMasters.find((bank) => bank.id === bankId)?.name || "Not selected";
   const aepsFloat = Number(float?.current ?? float?.balance ?? 0);
 
   const formValid = Boolean(
@@ -427,7 +458,7 @@ export default function AepsWorkspaceFresh({
     setFee("");
     setCommission("");
     setBankId("");
-    setPortalId(initialPortals[0]?.id || "");
+    setPortalId(portalMasters[0]?.id || "");
     setBankRef("");
     setFeeSource("cut_from_withdrawal");
     setCustomerPayMethod("cash");
@@ -444,7 +475,7 @@ export default function AepsWorkspaceFresh({
     const bank = TOP_BANKS.find((entry) => entry[0] === code);
     if (!bank) return;
 
-    const hit = initialBanks.find((candidate) => {
+    const hit = bankMasters.find((candidate) => {
       const normalized = normalizeBankName(candidate.name);
       return bank[1].some((match) => normalized.includes(match));
     });
@@ -568,12 +599,12 @@ export default function AepsWorkspaceFresh({
     if (fields.reference) setBankRef(fields.reference);
 
     if (fields.bank_name) {
-      const bank = matchBank(fields.bank_name, initialBanks);
+      const bank = matchBank(fields.bank_name, bankMasters);
       if (bank) setBankId(bank.id);
     }
 
     if (fields.portal_name) {
-      const portal = initialPortals.find(
+      const portal = portalMasters.find(
         (candidate) =>
           String(candidate.name || "").toLowerCase().includes(String(fields.portal_name).toLowerCase())
       );
@@ -923,7 +954,7 @@ export default function AepsWorkspaceFresh({
               </div>
 
               <div className="mt-3 space-y-2">
-                {initialPortals.length ? initialPortals.slice(0, 4).map((portal) => {
+                {portalMasters.length ? portalMasters.slice(0, 4).map((portal) => {
                   const portalRows = rows.filter((row) => row.portal_id === portal.id);
                   const pendingRows = portalRows.filter((row) => ["pending", "review", "processing"].includes(String(row.status)));
                   return (
@@ -1242,7 +1273,7 @@ export default function AepsWorkspaceFresh({
                     </label>
                     <div className="grid grid-cols-5 gap-1.5">
                       {TOP_BANKS.map((bank) => {
-                        const current = initialBanks.find((item) => item.id === bankId);
+                        const current = bankMasters.find((item) => item.id === bankId);
                         const active = current
                           ? bank[1].some((match) => normalizeBankName(current.name).includes(match))
                           : false;
@@ -1265,7 +1296,7 @@ export default function AepsWorkspaceFresh({
                     </div>
                     <select value={bankId} onChange={(event) => setBankId(event.target.value)} className={cx(inputClass, "mt-2")}>
                       <option value="">Select registered bank</option>
-                      {initialBanks.map((bank) => (
+                      {bankMasters.map((bank) => (
                         <option key={bank.id} value={bank.id}>
                           {bank.name}
                         </option>
@@ -1281,7 +1312,7 @@ export default function AepsWorkspaceFresh({
                       </label>
                       <select value={portalId} onChange={(event) => setPortalId(event.target.value)} className={inputClass}>
                         <option value="">Select portal</option>
-                        {initialPortals.map((portal) => (
+                        {portalMasters.map((portal) => (
                           <option key={portal.id} value={portal.id}>
                             {portal.name}
                           </option>
