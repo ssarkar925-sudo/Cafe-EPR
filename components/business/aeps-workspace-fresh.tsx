@@ -1057,6 +1057,16 @@ export default function AepsWorkspaceFresh({
     const resolvedPricing = (pricing || {}) as { fee?: number; commission?: number };
     if (resolvedPricing.fee !== undefined) setFee(String(resolvedPricing.fee));
     if (resolvedPricing.commission !== undefined) setCommission(String(resolvedPricing.commission));
+    if (watcherImportId) {
+      await supabase
+        .from("ai_transaction_imports")
+        .update({
+          fee: resolvedPricing.fee ?? null,
+          commission: resolvedPricing.commission ?? Number(fields.portal_commission || 0),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", watcherImportId);
+    }
 
     setWatcherMessage(
       matchedCustomerId
