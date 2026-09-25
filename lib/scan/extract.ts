@@ -106,7 +106,6 @@ export function extractReference(text: string): string | null {
 export function extractPortalReference(text: string): string | null {
   const priority = [
     /\b(?:Portal\s*(?:Ref(?:erence)?|Txn(?:saction)?(?:\s*ID)?|Transaction\s*ID)|Portal\s*ID)\s*[#:=\-]?\s*([A-Za-z0-9]{6,32})\b/i,
-    /\b(?:Txn(?:saction)?\s*ID|Transaction\s*ID)\s*[#:=\-]?\s*([A-Za-z0-9]{6,32})\b/i,
   ];
   for (const pattern of priority) {
     const match = text.match(pattern);
