@@ -291,6 +291,10 @@ export default function AepsWorkspaceFresh({
   const [watcherInterval, setWatcherInterval] = useState("30");
   const [watcherSourceUrl, setWatcherSourceUrl] = useState("");
   const [watcherConfigs, setWatcherConfigs] = useState<Record<string, { enabled: boolean; poll_interval_seconds: number; source_url: string | null }>>({});
+  const [watcherRuntimeStatus, setWatcherRuntimeStatus] = useState<"idle" | "starting" | "running" | "auth_required" | "error">("idle");
+  const [watcherLastCheck, setWatcherLastCheck] = useState("");
+  const [watcherDetectedCount, setWatcherDetectedCount] = useState(0);
+  const [watcherImportId, setWatcherImportId] = useState("");
 
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
@@ -354,6 +358,56 @@ export default function AepsWorkspaceFresh({
     void loadWatcherConfigs();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const electron = (window as Window & {
+      electronAPI?: {
+        onAepsWatcherEvent?: (callback: (payload: any) => void) => void;
+      };
+    }).electronAPI;
+
+    if (!electron?.onAepsWatcherEvent) return;
+
+    const handleWatcherEvent = (payload: any) => {
+      if (!payload || payload.portalId !== watcherPortalId) return;
+
+      if (payload.type === "started" || payload.type === "ready") {
+        setWatcherRuntimeStatus("running");
+        setWatcherMessage(payload.type === "started" ? "Watcher started. Complete portal login manually in the Watcher window if required." : "Portal page is ready.");
+        return;
+      }
+
+      if (payload.type === "auth_required") {
+        setWatcherRuntimeStatus("auth_required");
+        setWatcherMessage(payload.message || "Portal authentication is required.");
+        return;
+      }
+
+      if (payload.type === "heartbeat" || payload.type === "success") {
+        setWatcherLastCheck(payload.checkedAt || new Date().toISOString());
+        if (payload.type === "success") setWatcherRuntimeStatus("running");
+        return;
+      }
+
+      if (payload.type === "error") {
+        setWatcherRuntimeStatus("error");
+        setWatcherMessage(payload.message || "Watcher error.");
+        return;
+      }
+
+      if (payload.type === "stopped") {
+        setWatcherRuntimeStatus("idle");
+        setWatcherMessage("Watcher stopped.");
+        return;
+      }
+
+      if (payload.type === "transaction") {
+        void handleWatcherTransaction(payload);
+      }
+    };
+
+    electron.onAepsWatcherEvent(handleWatcherEvent);
+  }, [watcherPortalId]);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -497,6 +551,7 @@ export default function AepsWorkspaceFresh({
     setAnalysisError("");
     setMatchNotice("");
     setEntryMode("manual");
+    setWatcherImportId("");
     setReviewOpen(false);
   }
 
@@ -512,7 +567,7 @@ export default function AepsWorkspaceFresh({
     if (hit) setBankId(hit.id);
   }
 
-  async function resolveCustomerFromSignals(mobileValue: string, aadhaarValue: string) {
+  async function resolveCustomerFromSignals(mobileValue: string, aadhaarValue: string): Promise<string | null> {
     setMatchNotice("");
 
     let mobileMatch: CustomerSearchResult | null = null;
@@ -559,7 +614,7 @@ export default function AepsWorkspaceFresh({
       setName(mobileMatch.name || "");
       setMobile(cleanPhone(mobileMatch.phone));
       setMatchNotice("Verified match: mobile + Aadhaar last 4.");
-      return;
+      return mobileMatch.id;
     }
 
     if (!mobileMatch && aadhaarCustomerIds.length === 1) {
@@ -583,7 +638,7 @@ export default function AepsWorkspaceFresh({
           setName(record.name || "");
           setMobile(cleanPhone(record.phone));
           setMatchNotice("Matched by Aadhaar last 4.");
-          return;
+          return record.id;
         }
       } catch {
         // Fall through to manual customer selection.
@@ -598,7 +653,7 @@ export default function AepsWorkspaceFresh({
         aadhaarCustomerIds.length +
           " customers share this Aadhaar last 4. Select the correct customer manually."
       );
-      return;
+      return null;
     }
 
     if (mobileMatch) {
@@ -606,7 +661,7 @@ export default function AepsWorkspaceFresh({
       setSelectedCustomer(null);
       setName("");
       setMatchNotice("Mobile match found, but Aadhaar must also be verified before approval.");
-      return;
+      return null;
     }
 
     if (mobileValue.length === 10 || aadhaarValue.length === 4) {
@@ -615,6 +670,7 @@ export default function AepsWorkspaceFresh({
       setName("");
       setMatchNotice("No single verified customer match. Manual customer selection is required.");
     }
+    return null;
   }
 
   async function applyAnalysis(fields: ScanFields, rawText: string) {
@@ -751,6 +807,12 @@ export default function AepsWorkspaceFresh({
       }
 
       setRows((previous) => [result.data as Txn, ...previous]);
+      if (watcherImportId) {
+        await supabase
+          .from("ai_transaction_imports")
+          .update({ state: "imported", review_note: "Approved and recorded in the AEPS ledger.", updated_at: new Date().toISOString() })
+          .eq("id", watcherImportId);
+      }
       setReviewOpen(false);
       resetForm();
     } catch (error) {
@@ -795,15 +857,15 @@ export default function AepsWorkspaceFresh({
     setWatcherOpen(true);
   }
 
-  async function saveWatcherConfig() {
+  async function saveWatcherConfig(): Promise<boolean> {
     if (!watcherPortalId) {
       setWatcherMessage("Select a registered AEPS portal.");
-      return;
+      return false;
     }
     const interval = Number(watcherInterval);
     if (!Number.isFinite(interval) || interval < 15 || interval > 3600) {
       setWatcherMessage("Watcher interval must be between 15 and 3600 seconds.");
-      return;
+      return false;
     }
     setWatcherBusy(true);
     setWatcherMessage("");
@@ -816,15 +878,216 @@ export default function AepsWorkspaceFresh({
       });
       if (error) {
         setWatcherMessage(error.hint || error.details || error.message || "Could not save watcher setup.");
-        return;
+        return false;
       }
-      setWatcherConfigs((previous) => ({ ...previous, [watcherPortalId]: { enabled: watcherEnabled, poll_interval_seconds: interval, source_url: watcherSourceUrl.trim() || null } }));
+      setWatcherConfigs((previous) => ({
+        ...previous,
+        [watcherPortalId]: {
+          enabled: watcherEnabled,
+          poll_interval_seconds: interval,
+          source_url: watcherSourceUrl.trim() || null,
+        },
+      }));
       setWatcherMessage("Watcher setup saved.");
+      return true;
     } catch (error) {
       setWatcherMessage(error instanceof Error ? error.message : "Could not save watcher setup.");
+      return false;
     } finally {
       setWatcherBusy(false);
     }
+  }
+
+  async function startAepsWatcher() {
+    if (!watcherEnabled) {
+      setWatcherMessage("Enable the watcher before starting it.");
+      return;
+    }
+    if (!watcherPortalId || !watcherSourceUrl.trim()) {
+      setWatcherMessage("Save a registered portal and source URL before starting the watcher.");
+      return;
+    }
+
+    const electron = (window as Window & {
+      electronAPI?: {
+        startAepsWatcher?: (options: {
+          portalId: string;
+          portalName: string;
+          sourceUrl: string;
+          intervalSeconds: number;
+        }) => Promise<{ success: boolean; error?: string }>;
+      };
+    }).electronAPI;
+
+    if (!electron?.startAepsWatcher) {
+      setWatcherMessage("Live AEPS Watcher requires the CafeERP desktop application.");
+      return;
+    }
+
+    setWatcherRuntimeStatus("starting");
+    setWatcherMessage("Opening the portal watcher window...");
+    const result = await electron.startAepsWatcher({
+      portalId: watcherPortalId,
+      portalName: portalMasters.find((portal) => portal.id === watcherPortalId)?.name || "AEPS Portal",
+      sourceUrl: watcherSourceUrl.trim(),
+      intervalSeconds: Number(watcherInterval),
+    });
+
+    if (!result.success) {
+      setWatcherRuntimeStatus("error");
+      setWatcherMessage(result.error || "Could not start the watcher.");
+    }
+  }
+
+  async function stopAepsWatcher() {
+    const electron = (window as Window & {
+      electronAPI?: {
+        stopAepsWatcher?: () => Promise<{ success: boolean; error?: string }>;
+      };
+    }).electronAPI;
+
+    if (!electron?.stopAepsWatcher) {
+      setWatcherRuntimeStatus("idle");
+      return;
+    }
+
+    const result = await electron.stopAepsWatcher();
+    setWatcherRuntimeStatus("idle");
+    setWatcherMessage(result.success ? "Watcher stopped." : (result.error || "Could not stop watcher."));
+  }
+
+  async function handleWatcherTransaction(payload: any) {
+    const transaction = payload?.transaction;
+    if (!transaction || !payload?.portalId) return;
+
+    const portal = portalMasters.find((candidate) => candidate.id === payload.portalId);
+    const rawText = [
+      payload.portalName || portal?.name || "",
+      transaction.rawText || "",
+      transaction.externalTransactionId ? "RRN: " + transaction.externalTransactionId : "",
+      transaction.amount ? "Amount: ₹" + transaction.amount : "",
+      transaction.customerMobile ? "Mobile: " + transaction.customerMobile : "",
+      transaction.aadhaarLast4 ? "Aadhaar: XXXX" + transaction.aadhaarLast4 : "",
+      transaction.bankName ? "Bank Name: " + transaction.bankName : "",
+      transaction.commission ? "Portal Commission: ₹" + transaction.commission : "",
+    ].filter(Boolean).join("\n");
+
+    const fields = extractAeps(rawText);
+    fields.amount = String(transaction.amount || fields.amount || "");
+    fields.reference = String(transaction.externalTransactionId || fields.reference || "");
+    fields.customer_mobile = cleanPhone(String(transaction.customerMobile || fields.customer_mobile || ""));
+    fields.aadhaar_last4 = String(transaction.aadhaarLast4 || fields.aadhaar_last4 || "");
+    fields.bank_name = String(transaction.bankName || fields.bank_name || "");
+    fields.portal_name = String(payload.portalName || portal?.name || fields.portal_name || "");
+    fields.portal_commission = String(transaction.commission ?? fields.portal_commission ?? "0");
+
+    const fingerprint = String(payload.fingerprint || [
+      payload.portalId,
+      fields.reference,
+      fields.amount,
+      "cash_out",
+    ].join("|")).slice(0, 500);
+    const parsedOccurredAt = transaction.occurredAt ? new Date(transaction.occurredAt) : new Date();
+    const occurredAt = Number.isNaN(parsedOccurredAt.getTime())
+      ? new Date().toISOString()
+      : parsedOccurredAt.toISOString();
+
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) {
+      setWatcherMessage("Watcher detected a transaction, but the CafeERP session is not authenticated.");
+      return;
+    }
+
+    const { data: imported, error: importError } = await supabase
+      .from("ai_transaction_imports")
+      .upsert({
+        created_by: userId,
+        provider_name: payload.portalName || portal?.name || "AEPS Portal",
+        source_type: "aeps",
+        external_transaction_id: fields.reference,
+        external_reference: fields.reference,
+        status: "success",
+        transaction_type: "cash_out",
+        amount: Number(fields.amount),
+        fee: fields.service_fee ? Number(fields.service_fee) : null,
+        commission: Number(fields.portal_commission || 0),
+        occurred_at: occurredAt,
+        customer_name: transaction.customerName || null,
+        customer_mobile: fields.customer_mobile || null,
+        raw_data: {
+          portal_id: payload.portalId,
+          portal_name: payload.portalName,
+          fingerprint,
+          extracted: transaction,
+          source_text: rawText,
+        },
+        fingerprint,
+        state: "needs_review",
+        review_note: "Detected by the read-only AEPS Watcher. Operator approval is required.",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "created_by,fingerprint", ignoreDuplicates: true })
+      .select("id,state")
+      .maybeSingle();
+
+    if (importError) {
+      setWatcherMessage(importError.message || "Watcher detected a transaction but staging failed.");
+      setWatcherRuntimeStatus("error");
+      return;
+    }
+
+    const stagedImportId = String(imported?.id || "");
+    if (!imported?.id) {
+      setWatcherMessage("Duplicate AEPS transaction detected and safely ignored.");
+      return;
+    }
+
+    setWatcherImportId(stagedImportId);
+    setWatcherDetectedCount((count) => count + 1);
+    setSourceText(rawText);
+    setAnalysis(fields);
+    setEntryMode("ai");
+    setPortalId(payload.portalId);
+    setTransactionType("cash_out");
+    setAmount(fields.amount);
+    setAadhaar(fields.aadhaar_last4);
+    setMobile(fields.customer_mobile);
+    setBankRef(fields.reference);
+    setCommission(fields.portal_commission || "0");
+
+    const matchedBank = fields.bank_name ? matchBank(fields.bank_name, bankMasters) : null;
+    if (matchedBank) setBankId(matchedBank.id);
+
+    let matchedCustomerId: string | null = null;
+    if (fields.customer_mobile || fields.aadhaar_last4) {
+      matchedCustomerId = await resolveCustomerFromSignals(fields.customer_mobile || "", fields.aadhaar_last4 || "");
+    }
+
+    const { data: pricing } = await supabase.rpc("resolve_aeps_pricing", {
+      p_customer_id: matchedCustomerId,
+      p_portal_id: payload.portalId,
+      p_amount: Number(fields.amount),
+    });
+    const resolvedPricing = (pricing || {}) as { fee?: number; commission?: number };
+    if (resolvedPricing.fee !== undefined) setFee(String(resolvedPricing.fee));
+    if (resolvedPricing.commission !== undefined) setCommission(String(resolvedPricing.commission));
+    if (stagedImportId) {
+      await supabase
+        .from("ai_transaction_imports")
+        .update({
+          fee: resolvedPricing.fee ?? null,
+          commission: resolvedPricing.commission ?? Number(fields.portal_commission || 0),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", stagedImportId);
+    }
+
+    setWatcherMessage(
+      matchedCustomerId
+        ? "New AEPS transaction detected and customer matched. Verify pricing, then Approve & Record."
+        : "New AEPS transaction detected. Customer match requires manual review before recording."
+    );
+    setReviewOpen(true);
   }
 
   async function savePricingRule() {
@@ -1093,7 +1356,7 @@ export default function AepsWorkspaceFresh({
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-black text-emerald-950 dark:text-emerald-100">AEPS Watcher</h2>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">{Object.values(watcherConfigs).some((config) => config.enabled) ? "CONFIGURED" : "SETUP"}</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">{watcherRuntimeStatus === "running" ? "RUNNING" : Object.values(watcherConfigs).some((config) => config.enabled) ? "CONFIGURED" : "SETUP"}</span>
                     </div>
                     <p className="mt-0.5 text-[9px] text-emerald-800/75 dark:text-emerald-200/75">Read-only monitor for registered portals</p>
                   </div>
@@ -1113,8 +1376,8 @@ export default function AepsWorkspaceFresh({
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[10px] font-black text-slate-800 dark:text-slate-100">{portal.name}</div>
                         <div className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
-                          <span className={cx("h-1.5 w-1.5 rounded-full", watcherConfigs[portal.id]?.enabled ? "bg-emerald-500" : "bg-slate-300")} />
-                          {watcherConfigs[portal.id]?.enabled ? `Watching · ${watcherConfigs[portal.id]?.poll_interval_seconds || 30}s` : "Not configured"}
+                          <span className={cx("h-1.5 w-1.5 rounded-full", watcherRuntimeStatus === "running" && watcherPortalId === portal.id ? "bg-emerald-500" : watcherConfigs[portal.id]?.enabled ? "bg-amber-400" : "bg-slate-300")} />
+                          {watcherRuntimeStatus === "running" && watcherPortalId === portal.id ? `Watching · ${watcherConfigs[portal.id]?.poll_interval_seconds || 30}s` : watcherConfigs[portal.id]?.enabled ? "Configured · not running" : "Not configured"}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1761,9 +2024,38 @@ export default function AepsWorkspaceFresh({
                   <div><label className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">Source URL</label><input value={watcherSourceUrl} onChange={(e) => setWatcherSourceUrl(e.target.value)} className={inputClass} placeholder="https://portal.example/..." /></div>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[9px] font-bold leading-4 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">Do not store portal passwords, OTPs, biometric data, or session tokens in CafeERP. The URL is only the source location. Extracted transactions must go to review before recording.</div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Live runtime</div>
+                      <div className="mt-1 text-[11px] font-black text-slate-800 dark:text-slate-100">
+                        {watcherRuntimeStatus === "running" ? "RUNNING" : watcherRuntimeStatus === "auth_required" ? "LOGIN REQUIRED" : watcherRuntimeStatus === "starting" ? "STARTING" : watcherRuntimeStatus === "error" ? "ERROR" : "STOPPED"}
+                      </div>
+                    </div>
+                    <div className={cx(
+                      "h-2.5 w-2.5 rounded-full",
+                      watcherRuntimeStatus === "running" && "bg-emerald-500",
+                      watcherRuntimeStatus === "auth_required" && "bg-amber-500",
+                      watcherRuntimeStatus === "starting" && "bg-blue-500",
+                      watcherRuntimeStatus === "error" && "bg-rose-500",
+                      watcherRuntimeStatus === "idle" && "bg-slate-300"
+                    )} />
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[8px] font-bold text-slate-500">
+                    <span>Last check: {watcherLastCheck ? new Date(watcherLastCheck).toLocaleTimeString("en-IN") : "—"}</span>
+                    <span className="text-right">Detected this session: {watcherDetectedCount}</span>
+                  </div>
+                </div>
                 {watcherMessage && <div className="rounded-xl bg-blue-50 px-3 py-2 text-[9px] font-bold text-blue-700">{watcherMessage}</div>}
               </div>
-              <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800"><button type="button" onClick={() => setWatcherOpen(false)} className={smallButtonClass}>Close</button><button type="button" onClick={() => void saveWatcherConfig()} disabled={watcherBusy || !watcherPortalId} className={primaryButtonClass}>{watcherBusy ? "Saving..." : "Save Watcher Setup"}</button></div>
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+                <button type="button" onClick={() => setWatcherOpen(false)} className={smallButtonClass}>Close</button>
+                <button type="button" onClick={() => void stopAepsWatcher()} disabled={watcherRuntimeStatus === "idle"} className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[10px] font-black text-rose-700 disabled:opacity-40">Stop Watcher</button>
+                <button type="button" onClick={() => void saveWatcherConfig()} disabled={watcherBusy || !watcherPortalId} className={smallButtonClass}>{watcherBusy ? "Saving..." : "Save Setup"}</button>
+                <button type="button" onClick={async () => { const saved = await saveWatcherConfig(); if (saved) await startAepsWatcher(); }} disabled={watcherBusy || !watcherEnabled || !watcherPortalId || !watcherSourceUrl.trim()} className={primaryButtonClass}>
+                  {watcherRuntimeStatus === "starting" ? "Starting..." : "Save & Start Watcher"}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1997,6 +2289,12 @@ export default function AepsWorkspaceFresh({
                 <button
                   type="button"
                   onClick={() => {
+                    if (watcherImportId) {
+                      void supabase
+                        .from("ai_transaction_imports")
+                        .update({ state: "rejected", review_note: "Rejected by operator before ledger posting.", updated_at: new Date().toISOString() })
+                        .eq("id", watcherImportId);
+                    }
                     setReviewOpen(false);
                     resetForm();
                   }}
