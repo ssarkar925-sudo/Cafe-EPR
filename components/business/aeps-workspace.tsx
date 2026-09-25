@@ -307,207 +307,183 @@ export default function AepsWorkspace({
   const bankName = initialBanks.find((b) => b.id === bankId)?.name || "—";
 
   return (
-    <div className="min-h-full bg-[#f7faff] text-slate-900">
-      <div className="mx-auto max-w-[1600px] space-y-4 px-4 pb-6 pt-16 lg:px-6 lg:pt-16">
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className="min-h-full bg-[#f6f9fd] !text-slate-900">
+      <div className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 lg:px-6 lg:pt-5">
+        <header className="mb-4 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-[10px] font-bold text-slate-400">Business Services › AEPS</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Business Services / AEPS</div>
             <div className="mt-1 flex items-center gap-3">
-              <div className="rounded-2xl bg-blue-600 px-3 py-3 text-white">AEPS</div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white shadow-sm">◉</div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black">AEPS Transactions</h1>
-                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">LIVE WATCHER READY</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-950">AEPS Transactions</h1>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black text-emerald-700">● LIVE WATCHER READY</span>
                 </div>
-                <p className="text-sm text-slate-500">Monitor, review and record Aadhaar Enabled Payment System transactions</p>
+                <p className="mt-1 text-xs text-slate-500">Monitor, review and record Aadhaar Enabled Payment System transactions</p>
               </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => { handleNewCashOut(); setDrawerOpen(true); }} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white">＋ Record Transaction</button>
-            <button type="button" onClick={() => showToast("info", "Import is reserved for the verified AEPS import contract.")} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold">⇧ Import</button>
-            <button type="button" onClick={handleExport} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold">⇩ Export</button>
+            <button type="button" onClick={handleNewCashOut} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-sm hover:bg-blue-700">＋ Record Transaction</button>
+            <button type="button" onClick={() => showToast("info", "Import is reserved for the verified AEPS import contract.")} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">⇧ Import</button>
+            <button type="button" onClick={handleExport} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">⇩ Export</button>
           </div>
         </header>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
-            ["Total Transactions", String(stats.total)],
-            ["Total Amount", inr(stats.amount)],
-            ["Total Fees", inr(stats.fees)],
-            ["Portal Commission", inr(stats.commission)],
-            ["AEPS Float", inr(aepsFloat)],
-          ].map(([label, value]) => (
+            ["▣", "Total Transactions", String(stats.total), "bg-blue-50 text-blue-600"],
+            ["₹", "Total Amount", inr(stats.amount), "bg-emerald-50 text-emerald-600"],
+            ["%", "Total Fees", inr(stats.fees), "bg-rose-50 text-rose-600"],
+            ["◔", "Portal Commission", inr(stats.commission), "bg-violet-50 text-violet-600"],
+            ["▣", "AEPS Float", inr(aepsFloat), "bg-amber-50 text-amber-600"],
+          ].map(([icon, label, value, tone]) => (
             <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
-              <p className="mt-2 text-xl font-black">{value}</p>
+              <div className="flex items-start justify-between">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black ${tone}`}>{icon}</div>
+              </div>
+              <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+              <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            ["Recorded / Success", stats.recorded],
-            ["Pending / Review", stats.review],
-            ["Cancelled", stats.cancelled],
-            ["Reversed", stats.reversed],
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-[10px] text-slate-400">{label}</p>
-              <p className="text-sm font-black">{value}</p>
+            ["✓", "Recorded / Success", stats.recorded, "text-emerald-600 bg-emerald-50"],
+            ["◷", "Pending / Review", stats.review, "text-amber-600 bg-amber-50"],
+            ["×", "Cancelled", stats.cancelled, "text-rose-600 bg-rose-50"],
+            ["↶", "Reversed", stats.reversed, "text-slate-600 bg-slate-100"],
+          ].map(([icon, label, value, tone]) => (
+            <div key={String(label)} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black ${tone}`}>{icon}</span>
+              <div><p className="text-[10px] font-medium text-slate-400">{label}</p><p className="text-base font-black text-slate-950">{value}</p></div>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <main className="space-y-4">
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+          <main className="min-w-0 space-y-4">
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-black">Transaction Trend</h2>
-                <div className="mt-6 flex h-28 items-end gap-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div><h2 className="text-sm font-black text-slate-950">Transaction Trend</h2><p className="text-[10px] text-slate-400">Recent AEPS activity</p></div>
+                  <span className="rounded-lg border border-slate-200 px-2 py-1 text-[9px] font-bold text-slate-500">Last 7 periods</span>
+                </div>
+                <div className="mt-5 flex h-32 items-end gap-2 border-b border-slate-100 px-1">
                   {[0,1,2,3,4,5,6].map((i) => {
                     const count = filtered.slice(i * 5, (i + 1) * 5).length;
-                    return <div key={i} className="flex-1 rounded-t bg-blue-500" style={{ height: `${Math.max(10, Math.min(100, count * 20))}%` }} />;
+                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: \`${Math.max(8, Math.min(100, count * 20))}%\` }} /></div>;
                   })}
                 </div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-black">Transactions by Type</h2>
-                <div className="mt-4 space-y-2 text-xs">
-                  <p>Cash Out: {rows.filter((t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal").length}</p>
-                  <p>Balance Enquiry: {rows.filter((t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry").length}</p>
-                  <p>Mini Statement: {rows.filter((t) => t.transfer_method === "mini_statement" || t.transfer_method === "statement").length}</p>
-                </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-black text-slate-950">Transactions by Type</h2>
+                <p className="text-[10px] text-slate-400">Distribution across AEPS operations</p>
+                {[
+                  ["Cash Out", rows.filter((t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal").length, "bg-blue-500"],
+                  ["Balance Enquiry", rows.filter((t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry").length, "bg-emerald-500"],
+                  ["Mini Statement", rows.filter((t) => t.transfer_method === "mini_statement" || t.transfer_method === "statement").length, "bg-amber-500"],
+                ].map(([label, count, bar]) => (
+                  <div key={String(label)} className="mt-4">
+                    <div className="mb-1 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b className="text-slate-900">{count}</b></div>
+                    <div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${bar}`} style={{ width: \`${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%\` }} /></div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="flex flex-col gap-2 lg:flex-row">
-                <select value="all" disabled className="rounded-xl border px-3 py-2 text-xs"><option value="all">All Dates</option></select>
-                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-xl border px-3 py-2 text-xs">
-                  <option value="all">All Types</option><option value="cash_out">Cash Out</option><option value="balance_enquiry">Balance Enquiry</option><option value="mini_statement">Mini Statement</option>
-                </select>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border px-3 py-2 text-xs">
-                  <option value="all">All Status</option><option value="success">Success</option><option value="pending">Pending</option><option value="review">Review</option><option value="cancelled">Cancelled</option><option value="reversed">Reversed</option>
-                </select>
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search transaction, customer, mobile, Aadhaar, bank or portal ref..." className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs" />
+                <select value="all" disabled className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Dates</option></select>
+                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Types</option><option value="cash_out">Cash Out</option><option value="balance_enquiry">Balance Enquiry</option><option value="mini_statement">Mini Statement</option></select>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Status</option><option value="success">Success</option><option value="pending">Pending</option><option value="review">Review</option><option value="cancelled">Cancelled</option><option value="reversed">Reversed</option></select>
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by customer, mobile, Aadhaar, bank or portal reference..." className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400" />
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="border-b px-4 py-4">
-                <h2 className="text-base font-black">AEPS Transactions</h2>
-                <p className="text-[10px] text-slate-400">Showing {Math.min(12, filtered.length)} of {filtered.length} filtered records</p>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+                <div><h2 className="text-base font-black text-slate-950">AEPS Transactions</h2><p className="text-[10px] text-slate-400">Showing {Math.min(12, filtered.length)} of {filtered.length} filtered records</p></div>
+                <button type="button" onClick={handleExport} className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-bold text-slate-600">Export CSV</button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1200px] text-left text-[10px]">
-                  <thead className="bg-slate-50 font-black uppercase text-slate-400">
-                    <tr><th className="px-3 py-3">#</th><th>Date &amp; Time</th><th>Customer</th><th>Mobile</th><th>Type</th><th>Aadhaar</th><th>Amount</th><th>Fee</th><th>Commission</th><th>Bank Ref</th><th>Portal Ref</th><th>Status</th><th>Receipt</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
+                <table className="w-full min-w-[1260px] text-left text-[10px] text-slate-700">
+                  <thead className="bg-slate-50 font-black uppercase tracking-wide text-slate-400"><tr><th className="px-3 py-3">#</th><th>Date &amp; Time</th><th>Customer</th><th>Mobile</th><th>Type</th><th>Aadhaar</th><th>Amount</th><th>Fee</th><th>Commission</th><th>Bank Ref</th><th>Portal Ref</th><th>Status</th><th>Receipt</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
                     {filtered.slice(0, 12).map((t) => (
-                      <tr key={t.id}>
-                        <td className="px-3 py-3 font-mono font-bold text-blue-600">{t.transaction_number}</td>
-                        <td className="px-3 py-3">{fmtDate(t.transaction_date)} {fmtTime((t as any).transaction_timestamp)}</td>
-                        <td className="px-3 py-3">{t.customers?.name || "—"}</td>
-                        <td className="px-3 py-3">{t.customer_mobile || t.customers?.phone || "—"}</td>
-                        <td className="px-3 py-3">{t.transfer_method || "Cash Out"}</td>
-                        <td className="px-3 py-3">•••• {t.aadhaar_last4 || "—"}</td>
-                        <td className="px-3 py-3 font-bold">{inr(Number(t.amount || 0))}</td>
-                        <td className="px-3 py-3">{inr(Number(t.service_fee || 0))}</td>
-                        <td className="px-3 py-3">{inr(Number(t.portal_commission || 0))}</td>
-                        <td className="px-3 py-3">{t.reference || "—"}</td>
-                        <td className="px-3 py-3">{t.remarks?.replace(/^Portal Ref:\s*/i, "") || "—"}</td>
-                        <td className="px-3 py-3">{t.status}</td><td className="px-3 py-3"><div className="flex gap-1"><Link href={receiptUrl(t.id)} target="_blank" className="font-bold text-blue-600">80mm</Link><Link href={invoiceUrl(t.id)} target="_blank" className="font-bold text-slate-600">A4</Link></div></td>
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="px-3 py-3 font-mono font-bold text-blue-600">{t.transaction_number}</td><td className="px-3 py-3 whitespace-nowrap">{fmtDate(t.transaction_date)} {fmtTime((t as any).transaction_timestamp)}</td><td className="px-3 py-3 font-semibold">{t.customers?.name || "—"}</td><td className="px-3 py-3">{t.customer_mobile || t.customers?.phone || "—"}</td><td className="px-3 py-3">{t.transfer_method || "Cash Out"}</td><td className="px-3 py-3">•••• {t.aadhaar_last4 || "—"}</td><td className="px-3 py-3 font-bold text-slate-950">{inr(Number(t.amount || 0))}</td><td className="px-3 py-3">{inr(Number(t.service_fee || 0))}</td><td className="px-3 py-3">{inr(Number(t.portal_commission || 0))}</td><td className="px-3 py-3">{t.reference || "—"}</td><td className="px-3 py-3">{t.remarks?.replace(/^Portal Ref:\s*/i, "") || "—"}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[9px] font-black ${t.status === "success" || t.status === "recorded" ? "bg-emerald-50 text-emerald-700" : t.status === "pending" || t.status === "review" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{t.status}</span></td><td className="px-3 py-3 whitespace-nowrap"><Link href={receiptUrl(t.id)} target="_blank" className="font-bold text-blue-600">80mm</Link><span className="mx-1 text-slate-300">/</span><Link href={invoiceUrl(t.id)} target="_blank" className="font-bold text-slate-600">A4</Link></td>
                       </tr>
                     ))}
-                    {filtered.length === 0 && <tr><td colSpan={13} className="px-4 py-10 text-center text-xs text-slate-400">No AEPS transactions match the current filters.</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={13} className="px-4 py-12 text-center text-xs text-slate-400">No AEPS transactions match the current filters.</td></tr>}
                   </tbody>
                 </table>
               </div>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
-                <p className="font-black">AI Insights</p>
-                <p className="mt-2 text-xs">{stats.total} real AEPS records loaded · {inr(stats.commission)} portal commission · {stats.review} requiring review.</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <p className="font-black">Important Notes</p>
-                <p className="mt-2 text-xs">Only Aadhaar last 4 is stored. Customer name is resolved from CafeERP data; the portal is never treated as a source of customer name.</p>
-              </div>
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4"><p className="font-black text-slate-950">✦ AI Insights</p><p className="mt-2 text-xs text-slate-600">{stats.total} real AEPS records loaded · {inr(stats.commission)} portal commission · {stats.review} requiring review.</p></div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="font-black text-slate-950">ⓘ Important Notes</p><p className="mt-2 text-xs text-slate-600">Only Aadhaar last 4 is stored. Customer name is resolved from CafeERP data; the portal is never treated as a source of customer name.</p></div>
             </div>
           </main>
 
-          {drawerOpen && (
-            <aside className="!bg-white !text-slate-900 rounded-2xl border border-slate-200 p-4 shadow-xl xl:sticky xl:top-20 xl:h-fit">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-black">Record AEPS Transaction</h2>
-                <button type="button" onClick={() => setDrawerOpen(false)} className="text-lg">×</button>
+          <aside className={`rounded-2xl border border-slate-200 bg-white !text-slate-900 p-5 shadow-lg xl:sticky xl:top-4 xl:h-fit ${drawerOpen ? "ring-2 ring-blue-100" : ""}`}>
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div><h2 className="text-base font-black text-slate-950">Record AEPS Transaction</h2><p className="mt-1 text-[10px] text-slate-400">Enter customer details and transaction information</p></div>
+              <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-lg px-2 text-lg text-slate-400 hover:bg-slate-100">×</button>
+            </div>
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-slate-700">
+              <div className="font-black text-amber-700">✦ AI Auto-Fill</div>
+              <p className="mt-1 leading-5">Customer matching uses mobile and/or Aadhaar last 4. A match is only a suggestion and remains under operator review.</p>
+              {candidates.length > 0 && <div className="mt-2 space-y-1">{candidates.slice(0, 3).map((c) => <button type="button" key={c.id} onClick={() => selectCustomer(c.id)} className="block w-full rounded-lg bg-white px-2 py-1.5 text-left font-bold text-slate-700">{c.name} · {c.phone || "No mobile"}</button>)}</div>}
+            </div>
+            <div className="mt-4 space-y-3">
+              <label className="block text-[10px] font-black text-slate-700">Customer Mobile *
+                <input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} placeholder="Enter 10 digit mobile number" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              </label>
+              <label className="block text-[10px] font-black text-slate-700">Customer Name
+                <input value={name} readOnly placeholder="Auto-filled from customer database" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium text-slate-700 outline-none" />
+              </label>
+              <label className="block text-[10px] font-black text-slate-700">Aadhaar Last 4 Digits *
+                <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))} maxLength={4} placeholder="Enter last 4 digits" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] font-black text-slate-700">Transaction Type<select className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900"><option>Cash Out</option></select></label>
+                <label className="text-[10px] font-black text-slate-700">Amount (₹)<input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" step="any" placeholder="0.00" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900" /></label>
               </div>
-              <div className="mt-3 rounded-xl border border-violet-200 !bg-violet-50 !text-slate-900 p-3 text-xs">
-                <b>✦ AI Auto-Fill</b>
-                <p className="mt-1">Customer matching uses mobile and/or Aadhaar last 4. A match is only a suggestion and remains under operator review.</p>
-                {candidates.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {candidates.slice(0, 3).map((c) => (
-                      <button type="button" key={c.id} onClick={() => selectCustomer(c.id)} className="block w-full rounded-lg bg-white px-2 py-1 text-left font-bold">{c.name} · {c.phone || "No mobile"}</button>
-                    ))}
-                  </div>
-                )}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] font-black text-slate-700">Bank *<select value={bankId} onChange={(e) => setBankId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900"><option value="">Select bank</option>{initialBanks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+                <label className="text-[10px] font-black text-slate-700">Portal *<select value={portalId} onChange={(e) => setPortalId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900"><option value="">Select portal</option>{initialPortals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
               </div>
-              <div className="mt-4 space-y-3">
-                <label className="block text-[10px] font-black">Customer Mobile *
-                  <input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-3 py-2 text-xs" />
-                </label>
-                <label className="block text-[10px] font-black">Customer Name
-                  <input value={name} readOnly className="mt-1 w-full rounded-xl border border-slate-200 !bg-slate-50 !text-slate-900 px-3 py-2 text-xs" />
-                </label>
-                <label className="block text-[10px] font-black">Aadhaar Last 4 Digits *
-                  <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))} maxLength={4} className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-3 py-2 font-mono text-xs" />
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <label className="text-[10px] font-black">Amount<input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-2 py-2 text-xs" /></label>
-                  <label className="text-[10px] font-black">Fee<input value={fee} onChange={(e) => setFee(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-2 py-2 text-xs" /></label>
-                  <label className="text-[10px] font-black">Commission<input value={commission} onChange={(e) => setCommission(e.target.value)} type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-2 py-2 text-xs" /></label>
-                </div>
-                <label className="block text-[10px] font-black">Bank Name
-                  <select value={bankId} onChange={(e) => setBankId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 !bg-white !text-slate-900 px-3 py-2 text-xs"><option value="">Select bank</option>{initialBanks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
-                </label>
-                <label className="block text-[10px] font-black">Portal Name
-                  <select value={portalId} onChange={(e) => setPortalId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs"><option value="">Select portal</option>{initialPortals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-                </label>
-                <label className="block text-[10px] font-black">Bank Reference<input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs" /></label>
-                <label className="block text-[10px] font-black">Portal Reference<input value={portalRef} onChange={(e) => setPortalRef(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs" /></label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] font-black text-slate-700">Customer Fee<input value={fee} onChange={(e) => setFee(e.target.value)} type="number" min="0" step="any" placeholder="0.00" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900" /></label>
+                <label className="text-[10px] font-black text-slate-700">Portal Commission<input value={commission} onChange={(e) => setCommission(e.target.value)} type="number" min="0" step="any" placeholder="0.00" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900" /></label>
               </div>
-              <button type="button" disabled={!isFormValid || busy} onClick={() => setReviewOpen(true)} className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-xs font-black text-white disabled:opacity-50">{busy ? "Processing…" : "Review & Record Transaction"}</button>
-              <p className="mt-2 text-center text-[9px] text-slate-400">Final recording stays under operator review.</p>
-            </aside>
-          )}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] font-black text-slate-700">Bank Reference<input value={bankRef} onChange={(e) => setBankRef(e.target.value)} placeholder="Optional" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900" /></label>
+                <label className="text-[10px] font-black text-slate-700">Portal Reference<input value={portalRef} onChange={(e) => setPortalRef(e.target.value)} placeholder="Optional" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900" /></label>
+              </div>
+            </div>
+            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-[10px] text-blue-800"><b>ⓘ Review Before Record</b><p className="mt-1">All transactions require operator review before recording.</p></div>
+            <button type="button" disabled={!isFormValid || busy} onClick={() => setReviewOpen(true)} className="mt-3 w-full rounded-xl bg-blue-600 py-3 text-xs font-black text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Processing…" : "✓ Review & Record Transaction"}</button>
+            <p className="mt-2 text-center text-[9px] text-slate-400">Final recording stays under operator review.</p>
+          </aside>
         </div>
 
         {reviewOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 p-4">
             <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
-              <h3 className="text-lg font-black">Review AEPS Transaction</h3>
-              <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-xs">
-                <p>Customer<br /><b>{name || selectedCustomer?.name || "—"}</b></p>
-                <p>Mobile<br /><b>{cleanMobile}</b></p>
-                <p>Aadhaar<br /><b>•••• {cleanAadhaar}</b></p>
-                <p>Bank<br /><b>{bankName}</b></p>
-                <p>Portal<br /><b>{portalName}</b></p>
-                <p>Amount<br /><b>{inr(Number(amount))}</b></p>
-                <p>Customer Fee<br /><b>{inr(Number(fee || 0))}</b></p>
-                <p>Portal Commission<br /><b>{inr(Number(commission || 0))}</b></p>
+              <h3 className="text-lg font-black text-slate-950">Review AEPS Transaction</h3>
+              <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
+                <p>Customer<br /><b>{name || selectedCustomer?.name || "—"}</b></p><p>Mobile<br /><b>{cleanMobile}</b></p><p>Aadhaar<br /><b>•••• {cleanAadhaar}</b></p><p>Bank<br /><b>{bankName}</b></p><p>Portal<br /><b>{portalName}</b></p><p>Amount<br /><b>{inr(Number(amount))}</b></p><p>Customer Fee<br /><b>{inr(Number(fee || 0))}</b></p><p>Portal Commission<br /><b>{inr(Number(commission || 0))}</b></p>
               </div>
-              <div className="mt-4 flex justify-end gap-2">
-                <button type="button" onClick={() => setReviewOpen(false)} className="rounded-xl border px-4 py-2 text-xs font-bold">Edit</button>
-                <button type="button" onClick={recordTransaction} disabled={!isFormValid || busy} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">{busy ? "Processing…" : "Approve & Record"}</button>
-              </div>
+              <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setReviewOpen(false)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700">Edit</button><button type="button" onClick={recordTransaction} disabled={!isFormValid || busy} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">{busy ? "Processing…" : "Approve & Record"}</button></div>
             </div>
           </div>
         )}
       </div>
     </div>
   );
+
 }
