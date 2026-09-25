@@ -359,6 +359,56 @@ export default function AepsWorkspaceFresh({
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    const electron = (window as Window & {
+      electronAPI?: {
+        onAepsWatcherEvent?: (callback: (payload: any) => void) => void;
+      };
+    }).electronAPI;
+
+    if (!electron?.onAepsWatcherEvent) return;
+
+    const handleWatcherEvent = (payload: any) => {
+      if (!payload || payload.portalId !== watcherPortalId) return;
+
+      if (payload.type === "started" || payload.type === "ready") {
+        setWatcherRuntimeStatus("running");
+        setWatcherMessage(payload.type === "started" ? "Watcher started. Complete portal login manually in the Watcher window if required." : "Portal page is ready.");
+        return;
+      }
+
+      if (payload.type === "auth_required") {
+        setWatcherRuntimeStatus("auth_required");
+        setWatcherMessage(payload.message || "Portal authentication is required.");
+        return;
+      }
+
+      if (payload.type === "heartbeat" || payload.type === "success") {
+        setWatcherLastCheck(payload.checkedAt || new Date().toISOString());
+        if (payload.type === "success") setWatcherRuntimeStatus("running");
+        return;
+      }
+
+      if (payload.type === "error") {
+        setWatcherRuntimeStatus("error");
+        setWatcherMessage(payload.message || "Watcher error.");
+        return;
+      }
+
+      if (payload.type === "stopped") {
+        setWatcherRuntimeStatus("idle");
+        setWatcherMessage("Watcher stopped.");
+        return;
+      }
+
+      if (payload.type === "transaction") {
+        void handleWatcherTransaction(payload);
+      }
+    };
+
+    electron.onAepsWatcherEvent(handleWatcherEvent);
+  }, [watcherPortalId]);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
