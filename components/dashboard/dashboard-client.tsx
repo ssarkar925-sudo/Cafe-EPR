@@ -436,28 +436,21 @@ export default function DashboardClient({ data }: DashboardClientProps) {
 
             {/* Bars */}
             <div className="absolute inset-x-6 sm:inset-x-10 bottom-8 top-4 flex items-end justify-between gap-1 sm:gap-2">
-              {[
-                { time: "8 AM", sales: 12000, profit: 4000 },
-                { time: "10 AM", sales: 18000, profit: 6500 },
-                { time: "12 PM", sales: 24000, profit: 8200 },
-                { time: "2 PM", sales: 16000, profit: 5400 },
-                { time: "4 PM", sales: 29000, profit: 10500 },
-                { time: "6 PM", sales: 38000, profit: 14000 },
-                { time: "8 PM", sales: 32000, profit: 11000 },
-                { time: "10 PM", sales: 22000, profit: 7500 },
-              ].map((d, i) => {
-                const maxVal = 40000;
-                const sH = Math.max(8, (d.sales / maxVal) * 100);
-                const pH = Math.max(5, (d.profit / maxVal) * 100);
+              {chart.map((d: any, i: number) => {
+                const sales = Number(d.revenue || 0);
+                const profit = Math.max(0, sales - Number(d.expenses || 0));
+                const maxVal = Math.max(max, 1);
+                const sH = Math.max(2, (sales / maxVal) * 100);
+                const pH = Math.max(1, (profit / maxVal) * 100);
                 return (
-                  <div key={i} className="group flex h-full flex-1 items-end justify-center gap-0.5 sm:gap-1">
+                  <div key={d.date || i} className="group flex h-full flex-1 items-end justify-center gap-0.5 sm:gap-1">
                     <span
-                      title={`Sales: ₹${d.sales}`}
+                      title={`Sales: ${money(sales)}`}
                       className="w-2 sm:w-3.5 rounded-t-xs bg-blue-500/85 hover:bg-blue-600 transition"
                       style={{ height: `${sH}%` }}
                     />
                     <span
-                      title={`Profit: ₹${d.profit}`}
+                      title={`Profit: ${money(profit)}`}
                       className="w-2 sm:w-3.5 rounded-t-xs bg-emerald-500/85 hover:bg-emerald-600 transition"
                       style={{ height: `${pH}%` }}
                     />
@@ -468,9 +461,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
 
             {/* X-Axis labels */}
             <div className="absolute inset-x-6 sm:inset-x-10 bottom-1 flex justify-between text-[9px] text-slate-400">
-              {["8 AM", "10 AM", "12 PM", "2 PM", "4 PM", "6 PM", "8 PM", "10 PM"].map((t) => (
-                <span key={t}>{t}</span>
-              ))}
+              {chart.map((d: any) => <span key={d.date}>{d.label}</span>)}
             </div>
           </div>
         </section>
@@ -485,86 +476,38 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   4
                 </span>
               </div>
-              <Link href="/ai/self-audit" className="text-xs font-bold text-blue-600 hover:underline">
+              <Link href="/reports" className="text-xs font-bold text-blue-600 hover:underline">
                 View All &rarr;
               </Link>
             </div>
 
             <div className="space-y-2.5">
-              {/* Item 1 */}
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-2.5 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-slate-800/60 transition">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50">
-                    <AlertCircle className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-slate-900 dark:text-white">
-                      5 products low in stock
-                    </p>
-                    <p className="truncate text-[10px] text-slate-400">Parle-G, Bisleri 1L, Maggi...</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-bold text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/60 dark:text-rose-300">
-                  Low Stock
-                </span>
-              </div>
-
-              {/* Item 2 */}
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-2.5 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-slate-800/60 transition">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50">
-                    <Banknote className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-slate-900 dark:text-white">
-                      ₹ 18,450 receivables overdue
-                    </p>
-                    <p className="truncate text-[10px] text-slate-400">12 customers</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-bold text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/60 dark:text-rose-300">
-                  Receivables
-                </span>
-              </div>
-
-              {/* Item 3 */}
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-2.5 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-slate-800/60 transition">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/50">
-                    <AlertTriangle className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-slate-900 dark:text-white">
-                      3 digital transactions failed
-                    </p>
-                    <p className="truncate text-[10px] text-slate-400">AEPS (1), DMT (1), UPI (1)</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-600 dark:border-amber-900/50 dark:bg-amber-950/60 dark:text-amber-300">
-                  Failed
-                </span>
-              </div>
-
-              {/* Item 4 */}
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-2.5 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-slate-800/60 transition">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/50">
-                    <Clock className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-slate-900 dark:text-white">
-                      Day close pending
-                    </p>
-                    <p className="truncate text-[10px] text-slate-400">Complete today&apos;s reconciliation</p>
-                  </div>
-                </div>
+              {alerts.slice(0, 4).map((alert: any) => (
                 <Link
-                  href="/finance/day-close"
-                  className="shrink-0 rounded-md bg-blue-600 px-2.5 py-1 text-[9px] font-bold text-white hover:bg-blue-700 transition"
+                  key={alert.id}
+                  href={alert.actionHref || "/reports"}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-2.5 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-slate-800/60 transition"
                 >
-                  Action Required
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${alert.severity === "critical" ? "bg-rose-50 text-rose-600 dark:bg-rose-950/50" : "bg-amber-50 text-amber-600 dark:bg-amber-950/50"}`}>
+                      {alert.severity === "critical" ? <AlertCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{alert.title}</p>
+                      <p className="truncate text-[10px] text-slate-400">{alert.reason}</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
+                    {alert.actionLabel || "Open"}
+                  </span>
                 </Link>
-              </div>
+              ))}
+              {alerts.length === 0 && (
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 text-xs font-semibold text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300">
+                  No active items require attention.
+                </div>
+              )}
+            </div>
             </div>
           </div>
         </section>
