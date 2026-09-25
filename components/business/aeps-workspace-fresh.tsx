@@ -653,7 +653,7 @@ export default function AepsWorkspaceFresh({
         aadhaarCustomerIds.length +
           " customers share this Aadhaar last 4. Select the correct customer manually."
       );
-      return;
+      return null;
     }
 
     if (mobileMatch) {
@@ -661,7 +661,7 @@ export default function AepsWorkspaceFresh({
       setSelectedCustomer(null);
       setName("");
       setMatchNotice("Mobile match found, but Aadhaar must also be verified before approval.");
-      return;
+      return null;
     }
 
     if (mobileValue.length === 10 || aadhaarValue.length === 4) {
