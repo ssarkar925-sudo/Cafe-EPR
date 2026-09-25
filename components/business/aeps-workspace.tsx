@@ -194,9 +194,11 @@ export default function AepsWorkspace({
   }), [filtered]);
 
   const aepsFloat = Number(float?.current ?? float?.balance ?? 0);
+  const receiptQuery = (mode: "basic" | "detailed") =>
+    mode === "detailed" ? "?mode=detailed" : "";
   const receiptMode: "basic" | "detailed" = "basic";
-  const receiptUrl = (id: string) => "/business/receipt/" + id + (receiptMode === "detailed" ? "?mode=detailed" : "");
-  const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + (receiptMode === "detailed" ? "?mode=detailed" : "");
+  const receiptUrl = (id: string) => "/business/receipt/" + id + receiptQuery(receiptMode);
+  const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + receiptQuery(receiptMode);
 
   const candidates = useMemo(() => {
     return initialCustomers.filter((c) => {
