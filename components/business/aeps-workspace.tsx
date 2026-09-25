@@ -373,7 +373,7 @@ export default function AepsWorkspace({
                 <div className="mt-5 flex h-32 items-end gap-2 border-b border-slate-100 px-1">
                   {[0,1,2,3,4,5,6].map((i) => {
                     const count = filtered.slice(i * 5, (i + 1) * 5).length;
-                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: \`${Math.max(8, Math.min(100, count * 20))}%\` }} /></div>;
+                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: `${Math.max(8, Math.min(100, count * 20))}%` }} /></div>;
                   })}
                 </div>
               </div>
@@ -387,7 +387,7 @@ export default function AepsWorkspace({
                 ].map(([label, count, bar]) => (
                   <div key={String(label)} className="mt-4">
                     <div className="mb-1 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b className="text-slate-900">{count}</b></div>
-                    <div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${bar}`} style={{ width: \`${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%\` }} /></div>
+                    <div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${bar}`} style={{ width: `${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%` }} /></div>
                   </div>
                 ))}
               </div>
