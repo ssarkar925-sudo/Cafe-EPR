@@ -247,22 +247,22 @@ function StatusCard({
 
 export default function AepsWorkspaceFresh({
   initialTransactions,
-  bankMasters,
-  portalMasters,
+  initialBanks,
+  initialPortals,
   float,
 }: {
   initialTransactions: Txn[];
   initialCustomers: any[];
-  bankMasters: Master[];
-  portalMasters: Master[];
+  initialBanks: Master[];
+  initialPortals: Master[];
   paymentInstruments?: any[];
   float: any;
 }) {
   const supabase = createClient();
 
   const [rows, setRows] = useState<Txn[]>(initialTransactions);
-  const [bankMasters, setBankMasters] = useState<Master[]>(bankMasters);
-  const [portalMasters, setPortalMasters] = useState<Master[]>(portalMasters);
+  const [bankMasters, setBankMasters] = useState<Master[]>(initialBanks);
+  const [portalMasters, setPortalMasters] = useState<Master[]>(initialPortals);
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
