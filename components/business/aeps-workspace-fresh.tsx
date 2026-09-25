@@ -1028,7 +1028,8 @@ export default function AepsWorkspaceFresh({
       return;
     }
 
-    setWatcherImportId(String(imported?.id || ""));
+    const stagedImportId = String(imported?.id || "");
+    setWatcherImportId(stagedImportId);
     setWatcherDetectedCount((count) => count + 1);
     setSourceText(rawText);
     setAnalysis(fields);
@@ -1057,7 +1058,7 @@ export default function AepsWorkspaceFresh({
     const resolvedPricing = (pricing || {}) as { fee?: number; commission?: number };
     if (resolvedPricing.fee !== undefined) setFee(String(resolvedPricing.fee));
     if (resolvedPricing.commission !== undefined) setCommission(String(resolvedPricing.commission));
-    if (watcherImportId) {
+    if (stagedImportId) {
       await supabase
         .from("ai_transaction_imports")
         .update({
@@ -1065,7 +1066,7 @@ export default function AepsWorkspaceFresh({
           commission: resolvedPricing.commission ?? Number(fields.portal_commission || 0),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", watcherImportId);
+        .eq("id", stagedImportId);
     }
 
     setWatcherMessage(
