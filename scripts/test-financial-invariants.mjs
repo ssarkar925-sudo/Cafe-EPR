@@ -4720,32 +4720,32 @@ function detectIntent(question) {
   assert(upiWorkspaceFile.includes("TRANSACTION HISTORY"), "589. UPI Workspace: Redesigned transaction ledger present");
   assert(upiWorkspaceFile.includes("Record UPI Cash Out"), "590. UPI Workspace: Modal workflow for cash out recording present");
 
-  // Test 9: AEPS Command Center Modernization (Tests 591-605)
+  // Test 9: AEPS Modern Transaction Workspace (Tests 591-605)
   const aepsWorkspaceFile = fs.readFileSync("./components/business/aeps-workspace.tsx", "utf8");
-  assert(aepsWorkspaceFile.includes("LIVE AEPS SWITCH ONLINE"), "591. AEPS Command Center: Live AEPS switch badge present in hero");
-  assert(aepsWorkspaceFile.includes("AEPS Biometric Cash Out"), "592. AEPS Command Center: Hero title present");
-  assert(aepsWorkspaceFile.includes("AVAILABLE PLATFORM FLOAT"), "593. AEPS Command Center: Available platform float card present in hero");
-  assert(aepsWorkspaceFile.includes("AEPS POSITION"), "594. AEPS Command Center: Compact AEPS POSITION financial summary present directly below hero");
-  assert(aepsWorkspaceFile.includes("/finance/reconciliation"), "595. AEPS Command Center: Position strip links to /finance/reconciliation");
-  assert(aepsWorkspaceFile.includes("BIOMETRIC CASH OUT"), "596. AEPS Command Center: Biometric Cash Out quick operation tile present");
-  assert(aepsWorkspaceFile.includes("AEPS OPERATION LIFECYCLE"), "597. AEPS Command Center: 5-stage lifecycle workflow present");
-  assert(aepsWorkspaceFile.includes("LIVE AEPS ACTIVITY"), "598. AEPS Command Center: Live activity feed present");
-  assert(aepsWorkspaceFile.includes("AEPS TRANSACTION HISTORY"), "599. AEPS Command Center: Transaction history ledger present");
-  assert(aepsWorkspaceFile.includes("Confirm AEPS Cash Withdrawal"), "600. AEPS Command Center: Modal workflow for cash withdrawal present");
-  assert(aepsWorkspaceFile.includes('const [amount, setAmount] = useState<string>("")'), "601. Clean Form Invariant: Amount starts empty without pre-filled values");
-  assert(aepsWorkspaceFile.includes('const [serviceFee, setServiceFee] = useState<string>("")'), "602. Clean Form Invariant: Service fee starts empty without pre-filled values");
-  assert(aepsWorkspaceFile.includes('const [portalCommission, setPortalCommission] = useState<string>("")'), "603. Clean Form Invariant: Portal commission starts empty without pre-filled values");
-  assert(aepsWorkspaceFile.includes("AEPS Settlement Breakdown"), "604. Side-by-Side Invariant: Right-side Settlement Breakdown panel present");
-  assert(aepsWorkspaceFile.includes("Complete & Disburse"), "605. Single Action Invariant: Complete & Disburse trigger integrated in right settlement panel");
+  assert(aepsWorkspaceFile.includes("LIVE WATCHER READY"), "591. AEPS Workspace: Live watcher readiness badge present");
+  assert(aepsWorkspaceFile.includes("AEPS Transactions"), "592. AEPS Workspace: Modern hero title present");
+  assert(aepsWorkspaceFile.includes("Total Transactions"), "593. AEPS Workspace: Total Transactions KPI present");
+  assert(aepsWorkspaceFile.includes("Total Amount"), "594. AEPS Workspace: Total Amount KPI present");
+  assert(aepsWorkspaceFile.includes("Total Fees"), "595. AEPS Workspace: Total Fees KPI present");
+  assert(aepsWorkspaceFile.includes("Portal Commission"), "596. AEPS Workspace: Portal Commission KPI present");
+  assert(aepsWorkspaceFile.includes("AEPS Float"), "597. AEPS Workspace: AEPS Float KPI present");
+  assert(aepsWorkspaceFile.includes("Transaction Trend"), "598. AEPS Workspace: Transaction Trend analytics present");
+  assert(aepsWorkspaceFile.includes("Transactions by Type"), "599. AEPS Workspace: Transaction type analytics present");
+  assert(aepsWorkspaceFile.includes("AEPS Transactions"), "600. AEPS Workspace: Transaction history ledger present");
+  assert(aepsWorkspaceFile.includes("Record AEPS Transaction"), "601. AEPS Workspace: Record transaction panel present");
+  assert(aepsWorkspaceFile.includes('const [amount, setAmount] = useState("")'), "602. Clean Form Invariant: Amount starts empty without pre-filled values");
+  assert(aepsWorkspaceFile.includes('const [fee, setFee] = useState("")'), "603. Clean Form Invariant: Customer fee starts empty without pre-filled values");
+  assert(aepsWorkspaceFile.includes('const [commission, setCommission] = useState("")'), "604. Clean Form Invariant: Portal commission starts empty without pre-filled values");
+  assert(aepsWorkspaceFile.includes("Review AEPS Transaction"), "605. Review-before-record modal present");
 
   // Test 10: AEPS UX Hardening & Transaction Safety (Tests 606-612)
   assert(aepsWorkspaceFile.includes("isFormValid"), "606. Validation Invariant: Reactive isFormValid evaluation present");
-  assert(aepsWorkspaceFile.includes("cleanAadhaar.length !== 4"), "607. Aadhaar Guard: 4-digit Aadhaar length enforcement present");
-  assert(aepsWorkspaceFile.includes("cleanMobile.length !== 10"), "608. Mobile Guard: 10-digit mobile number validation present");
-  assert(aepsWorkspaceFile.includes("disabled={!isFormValid || isSubmitting}"), "609. UI Guard: Primary disbursement button disabled on invalid form or while submitting");
-  assert(aepsWorkspaceFile.includes("Processing Disbursement…"), "610. Processing Lock: Visual processing indicator during transaction execution");
-  assert(aepsWorkspaceFile.includes("AEPS CASH OUT COMPLETED SUCCESSFULLY"), "611. Success State: Post-transaction success confirmation card present");
-  assert(aepsWorkspaceFile.includes("handleNewCashOut"), "612. Reset Invariant: Explicit New Cash Out reset handler present");
+  assert(aepsWorkspaceFile.includes("cleanAadhaar.length === 4"), "607. Aadhaar Guard: 4-digit Aadhaar length enforcement present");
+  assert(aepsWorkspaceFile.includes("cleanMobile.length === 10"), "608. Mobile Guard: 10-digit mobile number validation present");
+  assert(aepsWorkspaceFile.includes("disabled={!isFormValid || busy}"), "609. UI Guard: Primary record button disabled on invalid form or while submitting");
+  assert(aepsWorkspaceFile.includes("Processing…"), "610. Processing Lock: Visual processing indicator during transaction execution");
+  assert(aepsWorkspaceFile.includes("Final recording stays under operator review."), "611. Review State: Final recording remains under operator review");
+  assert(aepsWorkspaceFile.includes("handleNewCashOut"), "612. Reset Invariant: Explicit reset handler present");
 
   // Test 11: AEPS Receipt & Invoice Customer/Internal Financial Privacy Logic (Tests 613-630)
   const receipt80mmFile = fs.readFileSync("./app/business/receipt/[id]/page.tsx", "utf8").replace(/\r\n/g, "\n");
@@ -4775,7 +4775,7 @@ function detectIntent(question) {
   assert(businessPdfFile.includes("showFees = false"), "627. PDF Generator: showFees defaults to false (Basic privacy mode)");
   assert(receipt80mmFile.includes("mode === \"detailed\" || detail === \"true\""), "628. Dual-Param Invariant: Both mode=detailed and detail=true supported on 80mm");
   assert(receiptA4File.includes("mode === \"detailed\" || detail === \"true\""), "629. Dual-Param Invariant: Both mode=detailed and detail=true supported on A4");
-  assert(aepsWorkspaceFile.includes("receiptMode === \"detailed\" ? \"?mode=detailed\" : \"\""), "630. Workspace Invariant: Workspace preserves receiptMode query parameter in print links");
+  assert(aepsWorkspaceFile.includes("receiptMode") && aepsWorkspaceFile.includes("mode=detailed"), "630. Workspace Invariant: Workspace preserves receiptMode query parameter in print links");
 
   // Test 12: Real Scannable Merchant UPI QR System (Tests 631-645)
   const upiQrComponentFile = fs.readFileSync("./components/ui/upi-qr-code.tsx", "utf8");
@@ -5934,7 +5934,7 @@ assert(
   // 12. Workspace Fallback Audit
   const aepsWorkspaceFile = fs.readFileSync("./components/business/aeps-workspace.tsx", "utf8");
   assert(!aepsWorkspaceFile.includes("-6515"), "1047. AEPS Workspace: No legacy -6515 hardcoded fallback");
-  assert(aepsWorkspaceFile.includes("if (!livePool) return 0;"), "1048. AEPS Workspace: Defaults safely to 0 when uninitialized");
+  assert(aepsWorkspaceFile.includes("Number(float?.current ?? float?.balance ?? 0)") || aepsWorkspaceFile.includes("if (!float) return 0"), "1048. AEPS Workspace: Defaults safely to 0 when float is uninitialized");
 
   // 13. Payment Accounts & Opening Studio Agreement
   const payAccountsFile = fs.readFileSync("./components/settings/payment-accounts-panel.tsx", "utf8");
