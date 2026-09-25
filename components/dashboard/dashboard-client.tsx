@@ -996,32 +996,20 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                {[
-                  { id: "INV-1043", date: "24 Sep 06:42 PM", customer: "Walk-in Customer", amount: 1240, method: "Cash", status: "Paid" },
-                  { id: "INV-1042", date: "24 Sep 05:18 PM", customer: "Rakesh Shaw", amount: 2850, method: "UPI", status: "Paid" },
-                  { id: "INV-1041", date: "24 Sep 04:03 PM", customer: "Priya Das", amount: 1950, method: "Credit", status: "Unpaid" },
-                  { id: "INV-1040", date: "24 Sep 03:21 PM", customer: "Walk-in Customer", amount: 680, method: "Cash", status: "Paid" },
-                  { id: "INV-1039", date: "24 Sep 01:45 PM", customer: "Amit Kumar", amount: 3120, method: "UPI", status: "Paid" },
-                ].map((row) => (
+                {(data.recentInvoices || []).map((row: any) => (
                   <tr key={row.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                     <td className="py-2.5 font-bold text-blue-600 hover:underline cursor-pointer">
-                      <Link href={`/invoices`}>{row.id}</Link>
+                      <Link href="/invoices">{row.invoiceNumber}</Link>
                     </td>
-                    <td className="py-2.5 text-slate-500 dark:text-slate-400">{row.date}</td>
-                    <td className="py-2.5 font-medium text-slate-800 dark:text-slate-200">{row.customer}</td>
-                    <td className="py-2.5 font-bold text-slate-900 dark:text-white">
-                      ₹ {row.amount.toLocaleString("en-IN")}
+                    <td className="py-2.5 text-slate-500 dark:text-slate-400">
+                      {row.createdAt ? new Date(row.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : row.invoiceDate || "—"}
                     </td>
-                    <td className="py-2.5 text-slate-500 dark:text-slate-400">{row.method}</td>
+                    <td className="py-2.5 font-medium text-slate-800 dark:text-slate-200">{row.customerName}</td>
+                    <td className="py-2.5 font-bold text-slate-900 dark:text-white">{money(row.total)}</td>
+                    <td className="py-2.5 text-slate-500 dark:text-slate-400">{row.paymentMethod}</td>
                     <td className="py-2.5">
-                      <span
-                        className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                          row.status === "Paid"
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
-                        }`}
-                      >
-                        {row.status}
+                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${row.status === "paid" || Number(row.paid || 0) >= Number(row.total || 0) ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"}`}>
+                        {row.status === "paid" || Number(row.paid || 0) >= Number(row.total || 0) ? "Paid" : row.status || "Unpaid"}
                       </span>
                     </td>
                   </tr>
@@ -1041,50 +1029,35 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
 
           <div className="space-y-3 text-xs">
-            {[
-              {
-                icon: <ShoppingCart className="h-3.5 w-3.5 text-emerald-600" />,
-                bg: "bg-emerald-50 dark:bg-emerald-950/50",
-                title: "Sale completed - ₹ 1,240 (INV-1043)",
-                time: "2 mins ago",
-              },
-              {
-                icon: <CreditCard className="h-3.5 w-3.5 text-blue-600" />,
-                bg: "bg-blue-50 dark:bg-blue-950/50",
-                title: "AEPS cash withdrawal - ₹ 2,000",
-                time: "12 mins ago",
-              },
-              {
-                icon: <Package className="h-3.5 w-3.5 text-amber-600" />,
-                bg: "bg-amber-50 dark:bg-amber-950/50",
-                title: "New product added - Coca Cola 500ml",
-                time: "1 hour ago",
-              },
-              {
-                icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />,
-                bg: "bg-amber-50 dark:bg-amber-950/50",
-                title: "Stock updated - Bisleri 1L (Low stock)",
-                time: "2 hours ago",
-              },
-              {
-                icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />,
-                bg: "bg-emerald-50 dark:bg-emerald-950/50",
-                title: "Customer payment received - ₹ 1,500 (Rakesh Shaw)",
-                time: "3 hours ago",
-              },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${item.bg}`}>
-                    {item.icon}
-                  </span>
-                  <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    {item.title}
-                  </p>
+            {recent.slice(0, 5).map((item: any, i: number) => {
+              const type = String(item.type || "").toLowerCase();
+              const icon = type === "sale"
+                ? <ShoppingCart className="h-3.5 w-3.5 text-emerald-600" />
+                : type === "expense"
+                ? <TrendingDown className="h-3.5 w-3.5 text-amber-600" />
+                : type === "aeps"
+                ? <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+                : type === "dmt"
+                ? <Send className="h-3.5 w-3.5 text-indigo-600" />
+                : <CheckCircle2 className="h-3.5 w-3.5 text-slate-600" />;
+              const bg = type === "sale"
+                ? "bg-emerald-50 dark:bg-emerald-950/50"
+                : type === "expense"
+                ? "bg-amber-50 dark:bg-amber-950/50"
+                : type === "aeps" || type === "dmt"
+                ? "bg-blue-50 dark:bg-blue-950/50"
+                : "bg-slate-100 dark:bg-slate-800";
+              return (
+                <div key={item.id || i} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${bg}`}>{icon}</span>
+                    <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{item.title || "Activity"}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-slate-400">{ago(item.date)}</span>
                 </div>
-                <span className="shrink-0 text-[10px] text-slate-400">{item.time}</span>
-              </div>
-            ))}
+              );
+            })}
+          </div>
           </div>
         </section>
       </div>
