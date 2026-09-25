@@ -283,6 +283,15 @@ export default function AepsWorkspaceFresh({
   const [pricingFee, setPricingFee] = useState("");
   const [pricingCommission, setPricingCommission] = useState("");
 
+  const [watcherOpen, setWatcherOpen] = useState(false);
+  const [watcherBusy, setWatcherBusy] = useState(false);
+  const [watcherMessage, setWatcherMessage] = useState("");
+  const [watcherPortalId, setWatcherPortalId] = useState("");
+  const [watcherEnabled, setWatcherEnabled] = useState(true);
+  const [watcherInterval, setWatcherInterval] = useState("30");
+  const [watcherSourceUrl, setWatcherSourceUrl] = useState("");
+  const [watcherConfigs, setWatcherConfigs] = useState<Record<string, { enabled: boolean; poll_interval_seconds: number; source_url: string | null }>>({});
+
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
   const [name, setName] = useState("");
@@ -333,6 +342,17 @@ export default function AepsWorkspaceFresh({
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function loadWatcherConfigs() {
+      const { data } = await supabase.from("aeps_watcher_configs").select("portal_id,enabled,poll_interval_seconds,source_url").eq("service_type", "aeps");
+      if (!active || !data) return;
+      setWatcherConfigs(Object.fromEntries(data.map((row) => [row.portal_id, { enabled: Boolean(row.enabled), poll_interval_seconds: Number(row.poll_interval_seconds || 30), source_url: row.source_url || null }])));
+    }
+    void loadWatcherConfigs();
+    return () => { active = false; };
   }, []);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -764,6 +784,49 @@ export default function AepsWorkspaceFresh({
     setPricingMessage("Applied saved AEPS pricing rule.");
   }
 
+  function openWatcherSetup(portalId?: string) {
+    const id = portalId || watcherPortalId || portalMasters[0]?.id || "";
+    const config = watcherConfigs[id];
+    setWatcherPortalId(id);
+    setWatcherEnabled(config?.enabled ?? true);
+    setWatcherInterval(String(config?.poll_interval_seconds ?? 30));
+    setWatcherSourceUrl(config?.source_url ?? "");
+    setWatcherMessage("");
+    setWatcherOpen(true);
+  }
+
+  async function saveWatcherConfig() {
+    if (!watcherPortalId) {
+      setWatcherMessage("Select a registered AEPS portal.");
+      return;
+    }
+    const interval = Number(watcherInterval);
+    if (!Number.isFinite(interval) || interval < 15 || interval > 3600) {
+      setWatcherMessage("Watcher interval must be between 15 and 3600 seconds.");
+      return;
+    }
+    setWatcherBusy(true);
+    setWatcherMessage("");
+    try {
+      const { error } = await supabase.rpc("save_aeps_watcher_config", {
+        p_portal_id: watcherPortalId,
+        p_enabled: watcherEnabled,
+        p_poll_interval_seconds: interval,
+        p_source_url: watcherSourceUrl.trim() || null,
+      });
+      if (error) {
+        setWatcherMessage(error.hint || error.details || error.message || "Could not save watcher setup.");
+        return;
+      }
+      setWatcherConfigs((previous) => ({ ...previous, [watcherPortalId]: { enabled: watcherEnabled, poll_interval_seconds: interval, source_url: watcherSourceUrl.trim() || null } }));
+      setWatcherMessage("Watcher setup saved.");
+    } catch (error) {
+      setWatcherMessage(error instanceof Error ? error.message : "Could not save watcher setup.");
+    } finally {
+      setWatcherBusy(false);
+    }
+  }
+
   async function savePricingRule() {
     const min = Number(pricingMinAmount || 0);
     const max = pricingMaxAmount ? Number(pricingMaxAmount) : null;
@@ -1030,11 +1093,12 @@ export default function AepsWorkspaceFresh({
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-black text-emerald-950 dark:text-emerald-100">AEPS Watcher</h2>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">READY</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">{Object.values(watcherConfigs).some((config) => config.enabled) ? "CONFIGURED" : "SETUP"}</span>
                     </div>
                     <p className="mt-0.5 text-[9px] text-emerald-800/75 dark:text-emerald-200/75">Read-only monitor for registered portals</p>
                   </div>
                 </div>
+                <button type="button" onClick={() => openWatcherSetup()} disabled={!portalMasters.length} className="rounded-lg bg-white px-2.5 py-1.5 text-[9px] font-black text-emerald-700 shadow-sm disabled:opacity-40 dark:bg-slate-900 dark:text-emerald-300">Setup</button>
               </div>
 
               <div className="mt-3 space-y-2">
@@ -1049,13 +1113,16 @@ export default function AepsWorkspaceFresh({
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[10px] font-black text-slate-800 dark:text-slate-100">{portal.name}</div>
                         <div className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          Registered source
+                          <span className={cx("h-1.5 w-1.5 rounded-full", watcherConfigs[portal.id]?.enabled ? "bg-emerald-500" : "bg-slate-300")} />
+                          {watcherConfigs[portal.id]?.enabled ? `Watching · ${watcherConfigs[portal.id]?.poll_interval_seconds || 30}s` : "Not configured"}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-black text-slate-800 dark:text-slate-100">{portalRows.length}</div>
-                        <div className="text-[8px] font-bold text-amber-600">{pendingRows.length} review</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="text-[10px] font-black text-slate-800 dark:text-slate-100">{portalRows.length}</div>
+                          <div className="text-[8px] font-bold text-amber-600">{pendingRows.length} review</div>
+                        </div>
+                        <button type="button" onClick={() => openWatcherSetup(portal.id)} className="rounded-lg border border-emerald-100 bg-white px-2 py-1 text-[8px] font-black text-emerald-700 dark:border-emerald-900/60 dark:bg-slate-950 dark:text-emerald-300">Setup</button>
                       </div>
                     </div>
                   );
@@ -1664,6 +1731,40 @@ export default function AepsWorkspaceFresh({
           <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-bold text-blue-800">
             <ShieldCheck className="mr-1.5 inline h-3.5 w-3.5" />
             {importNotice}
+          </div>
+        )}
+
+        {watcherOpen && (
+          <div className="fixed inset-0 z-[96] flex items-center justify-center bg-slate-950/45 p-4">
+            <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-2xl dark:border-emerald-900/60 dark:bg-slate-950">
+              <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                <div>
+                  <h3 className="text-base font-black text-slate-950 dark:text-white">AEPS Watcher Setup</h3>
+                  <p className="mt-1 text-[9px] text-slate-400">Configure a read-only source monitor. It must never submit, approve, or confirm provider transactions.</p>
+                </div>
+                <button type="button" onClick={() => setWatcherOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="space-y-4 p-5">
+                <div>
+                  <label className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">Registered Portal</label>
+                  <select value={watcherPortalId} onChange={(e) => openWatcherSetup(e.target.value)} className={inputClass}>
+                    <option value="">Select portal</option>
+                    {portalMasters.map((portal) => <option key={portal.id} value={portal.id}>{portal.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                  <div><div className="text-[10px] font-black text-emerald-950 dark:text-emerald-100">Enable watcher</div><div className="mt-0.5 text-[9px] text-emerald-800/70 dark:text-emerald-200/70">Read and normalize new AEPS records only.</div></div>
+                  <button type="button" onClick={() => setWatcherEnabled((value) => !value)} className={cx("relative h-6 w-11 rounded-full transition", watcherEnabled ? "bg-emerald-600" : "bg-slate-300")}><span className={cx("absolute top-1 h-4 w-4 rounded-full bg-white shadow transition", watcherEnabled ? "left-6" : "left-1")} /></button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">Check interval</label><select value={watcherInterval} onChange={(e) => setWatcherInterval(e.target.value)} className={inputClass}><option value="15">Every 15 seconds</option><option value="30">Every 30 seconds</option><option value="60">Every 1 minute</option><option value="120">Every 2 minutes</option><option value="300">Every 5 minutes</option><option value="600">Every 10 minutes</option></select></div>
+                  <div><label className="mb-1 block text-[9px] font-black uppercase tracking-wide text-slate-500">Source URL</label><input value={watcherSourceUrl} onChange={(e) => setWatcherSourceUrl(e.target.value)} className={inputClass} placeholder="https://portal.example/..." /></div>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[9px] font-bold leading-4 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">Do not store portal passwords, OTPs, biometric data, or session tokens in CafeERP. The URL is only the source location. Extracted transactions must go to review before recording.</div>
+                {watcherMessage && <div className="rounded-xl bg-blue-50 px-3 py-2 text-[9px] font-bold text-blue-700">{watcherMessage}</div>}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800"><button type="button" onClick={() => setWatcherOpen(false)} className={smallButtonClass}>Close</button><button type="button" onClick={() => void saveWatcherConfig()} disabled={watcherBusy || !watcherPortalId} className={primaryButtonClass}>{watcherBusy ? "Saving..." : "Save Watcher Setup"}</button></div>
+            </div>
           </div>
         )}
 
