@@ -713,7 +713,11 @@ export default function AepsWorkspaceFresh({
         p_fee_source: feeSource,
         p_paid_from: "portal",
         p_customer_pay_method: customerPayMethod,
+        p_pay_from_instrument_id: null,
+        p_pay_from_method: "aeps_portal",
         p_receiver_name: null,
+        p_portal_charge: 0,
+        p_idempotency_key: crypto.randomUUID(),
       });
 
       if (result.error) {
