@@ -850,46 +850,56 @@ export default function AepsWorkspace({
   return (
     <div className="space-y-5 pb-16">
       {toastView}
-      <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-xl ring-1 ring-white/10 sm:p-6">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-teal-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-400"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />● LIVE AEPS SWITCH ONLINE</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">BIOMETRIC GATEWAY ACTIVE</span>
+      <section className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 sm:p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-xl text-white shadow-lg shadow-blue-600/20">₹</div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Business Services / AEPS</p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">AEPS Transactions</h1>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Record, review and reconcile Aadhaar Enabled Payment System transactions.</p>
             </div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl text-white">AEPS Biometric Cash Out</h1>
-            <p className="text-xs text-indigo-200/80 sm:text-sm">Instant Aadhaar cash withdrawal, micro-ATM disbursement and live portal float settlement.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 sm:flex-nowrap">
-            <button type="button" onClick={refreshData} disabled={isRefreshing} className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-slate-300 backdrop-blur-md hover:bg-white/10 hover:text-white transition disabled:opacity-50" title="Refresh Live Balances from Database"><span className={`inline-block text-base ${isRefreshing ? "animate-spin text-teal-400" : ""}`}>↻</span></button>
-            <div className="flex flex-col items-end rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md min-w-[180px]"><span className="text-[10px] font-black uppercase tracking-wider text-slate-300">AVAILABLE PLATFORM FLOAT</span><div className={`text-2xl font-black ${aepsCurrentBalance < 0 ? "text-amber-400" : "text-emerald-400"}`}>{inr(aepsCurrentBalance)}</div><span className="text-[10px] text-slate-400">Live Settlement Pool</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-slate-100/90 p-4.5 sm:p-5 shadow-xs dark:border-white/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950">
-        <div className="flex flex-col gap-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-slate-200/70 pb-3 dark:border-white/10">
-            <div className="flex items-center gap-2.5 flex-wrap"><span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">AEPS POSITION</span><span className={`text-base font-black ${aepsCurrentBalance < 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>{inr(aepsCurrentBalance)}</span><span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/40"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />✓ RECONCILED</span></div>
-            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400"><span>Synced {lastRefreshedAt}</span><Link href="/finance/reconciliation" className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition"><span>View reconciliation</span><span>→</span></Link></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">WITHDRAWALS</p><p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(kpis.volume)}</p><p className="text-[10px] text-slate-400">{kpis.successCount} Completed</p></div>
-            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">CASH OUT</p><p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{inr(kpis.totalCashDisbursed)}</p><p className="text-[10px] text-slate-400">Till Handouts</p></div>
-            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">SERVICE FEES</p><p className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">+{inr(kpis.fees)}</p><p className="text-[10px] text-slate-400">Customer Fees</p></div>
-            <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-white/5 dark:bg-white/5"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">COMMISSIONS</p><p className="mt-0.5 text-lg font-bold text-teal-600 dark:text-teal-400">+{inr(kpis.commissions)}</p><p className="text-[10px] text-slate-400">Portal Margin</p></div>
-            <div className="col-span-2 sm:col-span-1 rounded-xl border border-emerald-500/20 bg-emerald-50/40 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/20"><p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">VARIANCE</p><p className="mt-0.5 text-lg font-black text-emerald-700 dark:text-emerald-300">₹0.00</p><p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Exact Match</p></div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setScanModalOpen(true)} className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-black text-violet-700 transition hover:bg-violet-100 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300">✦ AI / Scan &amp; Fill</button>
+            <button type="button" onClick={handleNewCashOut} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700">+ Record Transaction</button>
+            <button type="button" onClick={handleExportCsv} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">↓ Export</button>
+            <button type="button" onClick={refreshData} disabled={isRefreshing} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{isRefreshing ? "Refreshing…" : "↻ Refresh"}</button>
           </div>
         </div>
       </section>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between"><h2 className="text-xs font-black uppercase tracking-wider text-slate-400">QUICK OPERATIONS</h2><div className="flex items-center gap-2"><button type="button" onClick={() => setScanModalOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10" title="Scan AEPS receipt screenshot or SMS"><span>📷</span><span>Scan &amp; Fill</span></button><button type="button" onClick={() => setAddBankWindowOpen(true)} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"><span>+ Add Bank</span></button><button type="button" onClick={() => setAddCustomerWindowOpen(true)} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"><span>+ Add Customer</span></button></div></div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="bento-surface group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900 card-glow-emerald flex flex-col justify-between"><div><div className="flex items-center justify-between gap-3"><div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-xl text-white shadow-md shadow-teal-500/20">👆</div><span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">Micro-ATM / AePS</span></div><h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">BIOMETRIC CASH OUT</h3><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Aadhaar-enabled customer withdrawal &amp; biometric authentication</p><p className="mt-2 text-[11px] text-slate-400">Deterministic double-entry settlement with till cashout</p></div><div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between"><span className="text-xs text-slate-400 font-medium">Instant Till Cashout</span><button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })} className="btn-3d-tactile-emerald inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-sm"><span>Start Cash Out</span><span>→</span></button></div></div>
-          <div className="bento-surface group relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-900 card-glow-indigo flex flex-col justify-between"><div><div className="flex items-center justify-between gap-3"><div className="icon-box-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-xl text-white shadow-md shadow-indigo-500/20">🌐</div><span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">{portals.length} Active Gateways</span></div><h3 className="mt-3 text-base font-black text-slate-900 dark:text-white">AEPS SERVICE PORTALS</h3><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Fino, Spice Money, Payworld, RNFI &amp; settlement channels</p><p className="mt-2 text-[11px] text-slate-400">Authoritative multi-portal float tracking and ledger sync</p></div><div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between"><span className="text-xs text-slate-400 font-medium">{portals.map((p) => p.name).join(", ") || "No portals configured"}</span><Link href="/business/portals" className="btn-3d-tactile-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black shadow-sm"><span>Manage Portals</span><span>→</span></Link></div></div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: "Total Transactions", value: String(kpis.count), note: `${kpis.successCount} completed`, tone: "blue" },
+          { label: "Total Amount", value: inr(kpis.volume), note: "AEPS transaction volume", tone: "blue" },
+          { label: "Customer Fees", value: inr(kpis.fees), note: "Service fees earned", tone: "emerald" },
+          { label: "Portal Commission", value: inr(kpis.commissions), note: "Portal margin earned", tone: "violet" },
+          { label: "AEPS Float", value: inr(aepsCurrentBalance), note: `Synced ${lastRefreshedAt}`, tone: "cyan" },
+        ].map((card) => (
+          <div key={card.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-sm font-black text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">₹</span>
+              <span className="text-[10px] font-black text-emerald-600">LIVE</span>
+            </div>
+            <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{card.label}</p>
+            <p className="mt-1 text-xl font-black text-slate-950 dark:text-white">{card.value}</p>
+            <p className="mt-1 text-[10px] text-slate-400">{card.note}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10"><p className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">Recorded / Success</p><p className="mt-1 text-xl font-black text-emerald-800 dark:text-emerald-200">{kpis.successCount}</p></div>
+        <div className="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 dark:border-amber-500/20 dark:bg-amber-500/10"><p className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">Review / Other</p><p className="mt-1 text-xl font-black text-amber-800 dark:text-amber-200">{Math.max(0, kpis.count - kpis.successCount)}</p></div>
+        <div className="rounded-2xl border border-violet-200/70 bg-violet-50/60 p-4 dark:border-violet-500/20 dark:bg-violet-500/10"><p className="text-[10px] font-black uppercase text-violet-700 dark:text-violet-300">Registered Portals</p><p className="mt-1 text-xl font-black text-violet-800 dark:text-violet-200">{portals.length}</p><Link href="/business/portals" className="mt-1 inline-block text-[10px] font-bold text-violet-700 dark:text-violet-300">Manage portals →</Link></div>
+        <div className="rounded-2xl border border-cyan-200/70 bg-cyan-50/60 p-4 dark:border-cyan-500/20 dark:bg-cyan-500/10"><p className="text-[10px] font-black uppercase text-cyan-700 dark:text-cyan-300">Reconciliation</p><p className="mt-1 text-xl font-black text-cyan-800 dark:text-cyan-200">₹0.00</p><Link href="/finance/reconciliation" className="mt-1 inline-block text-[10px] font-bold text-cyan-700 dark:text-cyan-300">View reconciliation →</Link></div>
+      </section>
+
+      <section className="rounded-2xl border border-violet-200/70 bg-gradient-to-r from-violet-50 to-blue-50 p-4 dark:border-violet-500/20 dark:from-violet-500/10 dark:to-blue-500/10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="text-sm font-black text-slate-900 dark:text-white">✦ AI-assisted AEPS entry</p><p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">Scan a receipt or transaction evidence, review detected values, then apply them to the form. Financial submission remains under your control.</p></div>
+          <div className="flex gap-2"><button type="button" onClick={() => setScanModalOpen(true)} className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-black text-white">Scan &amp; Fill</button><Link href="/business/portals" className="rounded-xl border border-violet-200 bg-white px-4 py-2 text-xs font-black text-violet-700 dark:border-white/10 dark:bg-white/5 dark:text-violet-300">Portal Setup</Link></div>
         </div>
       </section>
 
