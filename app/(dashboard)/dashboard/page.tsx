@@ -185,6 +185,13 @@ export default async function DashboardPage() {
   const todayTxCount = todayInvoices.length + todayTxns.length;
   const todayAvgTicket = todayTxCount > 0 ? Math.round((todayOperatingRevenue / todayTxCount) * 100) / 100 : 0;
 
+  const revenueVsYesterdayPct =
+    yesterdayRevenue > 0 ? Math.round(((todayOperatingRevenue - yesterdayRevenue) / yesterdayRevenue) * 1000) / 10 : null;
+  const profitVsYesterdayPct =
+    yesterdayProfit !== 0 ? Math.round(((todayProfit - yesterdayProfit) / Math.abs(yesterdayProfit)) * 1000) / 10 : null;
+  const expensesVsYesterdayPct =
+    yesterdayExpenseTotal > 0 ? Math.round(((todayExpenseTotal - yesterdayExpenseTotal) / yesterdayExpenseTotal) * 1000) / 10 : null;
+
   // Month-to-date Calculations
   const mtdInvoices = invoices.filter((inv) => inv.invoice_date >= monthStart && inv.status !== "cancelled");
   const mtdExpenses = expenses.filter((e) => e.expense_date >= monthStart && e.status !== "cancelled");
@@ -215,6 +222,8 @@ export default async function DashboardPage() {
 
   // Inventory
   const products = productsRes.data || [];
+  const totalProductCount = products.length;
+  const inStockProductCount = products.filter((p: any) => Number(p.stock_qty || 0) > 0).length;
   let totalStockValue = 0;
   let isValuationMissingCost = false;
   const lowStockItems: any[] = [];
@@ -348,6 +357,12 @@ export default async function DashboardPage() {
   const todayDmtTxns = todayTxns.filter((t) => t.service_type === "dmt");
   const todayUpiTxns = todayTxns.filter((t) => t.service_type === "upi");
   const todayRechargeTxns = todayTxns.filter((t) => t.service_type === "recharge");
+
+  const todayServiceCommission =
+    todayAepsTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0) +
+    todayDmtTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0) - Number(t.portal_charge || 0), 0) +
+    todayUpiTxns.reduce((s, t) => s + Number(t.service_fee || 0), 0) +
+    todayRechargeTxns.reduce((s, t) => s + Number(t.service_fee || 0) + Number(t.portal_commission || 0), 0);
 
   const todayServiceBreakdown = {
     aeps: {
@@ -553,6 +568,23 @@ export default async function DashboardPage() {
     },
   });
 
+  const recentInvoices = invoices.slice(0, 5).map((inv: any) => {
+    const invoicePayments = payments.filter((p: any) => p.invoice_id === inv.id);
+    const paidAmount = invoicePayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    return {
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      invoiceDate: inv.invoice_date,
+      createdAt: inv.created_at,
+      customerName: inv.customers?.name || "Counter Retail Customer",
+      total: Number(inv.total || 0),
+      paid: Number(inv.paid || paidAmount || 0),
+      due: Number(inv.due || Math.max(0, Number(inv.total || 0) - paidAmount)),
+      paymentMethod: invoicePayments[0]?.method || "—",
+      status: inv.status,
+    };
+  });
+
   const dashboardPackage = {
     profile: {
       name: profile?.full_name || user?.email?.split("@")[0] || "Operator",
@@ -640,7 +672,10 @@ export default async function DashboardPage() {
         margin: taxReport.pnl.net_profit_margin_pct,
       },
       trends: {
-        todayVsYesterdayPct: yesterdayRevenue > 0 ? Math.round(((todayOperatingRevenue - yesterdayRevenue) / yesterdayRevenue) * 1000) / 10 : null,
+        todayVsYesterdayPct: revenueVsYesterdayPct,
+        profitVsYesterdayPct,
+        expensesVsYesterdayPct,
+        txCountVsYesterdayPct: null,
       },
     },
     chartDays,
@@ -672,12 +707,16 @@ export default async function DashboardPage() {
       }),
     },
     inventoryData: {
+      totalProductCount,
+      inStockProductCount,
       totalStockValue,
       isValuationMissingCost,
       lowStockCount: lowStockItems.length,
       outOfStockCount: outOfStockItems.length,
       lowStockItems,
     },
+    serviceCommissionToday: todayServiceCommission,
+    recentInvoices,
     auditData: {
       isAvailable: isAuditAvailable,
       score: auditScore,
