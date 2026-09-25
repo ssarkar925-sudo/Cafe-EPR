@@ -103,17 +103,6 @@ export function extractReference(text: string): string | null {
   return null;
 }
 
-export function extractPortalReference(text: string): string | null {
-  const priority = [
-    /\b(?:Portal\s*(?:Ref(?:erence)?|Txn(?:saction)?(?:\s*ID)?|Transaction\s*ID)|Portal\s*ID)\s*[#:=\-]?\s*([A-Za-z0-9]{6,32})\b/i,
-  ];
-  for (const pattern of priority) {
-    const match = text.match(pattern);
-    if (match?.[1]) return clean(match[1]);
-  }
-  return null;
-}
-
 export function extractAadhaarLast4(text: string): string | null {
   const labeled = text.match(
     /\b(?:Aadhaar|AADHAAR|Aadhar|Customer\s*(?:ID|Id|No\.?|Number)|Cust\s*(?:ID|Id))\s*(?:No\.?|Number|ID|Id)?\s*[#:=\-]?\s*(?:[^\d]{0,20})(?:[xX*#]+\s*)*([0-9]{4})(?![0-9])/i
@@ -273,8 +262,6 @@ export function extractAeps(text: string): ScanFields {
   if (fee) out.service_fee = fee;
   const commission = extractCommission(text);
   if (commission) out.portal_commission = commission;
-  const portalReference = extractPortalReference(text);
-  if (portalReference) out.portal_reference = portalReference;
   const status = extractStatus(text);
   if (status) out.status = status;
   const date = extractTransactionDate(text);
