@@ -169,7 +169,8 @@ export default function AepsWorkspace({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((t) => {
-      const method = t.transfer_method || "cash_out";
+      const rawMethod = t.transfer_method || "cash_out";
+      const method = rawMethod === "withdrawal" ? "cash_out" : rawMethod === "enquiry" ? "balance_enquiry" : rawMethod === "statement" ? "mini_statement" : rawMethod;
       const haystack = [
         t.transaction_number,
         t.customer_mobile,
@@ -460,12 +461,18 @@ export default function AepsWorkspace({
           </main>
 
           <aside className={`aeps-surface rounded-2xl border border-slate-200 bg-white !text-slate-900 p-5 shadow-lg xl:sticky xl:top-4 xl:h-fit ${drawerOpen ? "ring-2 ring-blue-100" : ""}`} style={{ colorScheme: "light" }}>
-            <div className="flex items-start justify-between border-b border-slate-100 pb-4">            <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-              <button type="button" onClick={() => setEntryMode("manual")} className={`rounded-lg px-3 py-2 text-[10px] font-black ${entryMode === "manual" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Manual Entry</button>
-              <button type="button" onClick={() => setEntryMode("ai")} className={`rounded-lg px-3 py-2 text-[10px] font-black ${entryMode === "ai" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>✦ AI Auto-Fill</button>
-            </div>
-              <div><h2 className="text-base font-black text-slate-950">Record AEPS Transaction</h2><p className="mt-1 text-[10px] text-slate-400">Enter customer details and transaction information</p></div>
-              <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-lg px-2 text-lg text-slate-400 hover:bg-slate-100">×</button>
+            <div className="border-b border-slate-100 pb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-base font-black text-slate-950">Record AEPS Transaction</h2>
+                  <p className="mt-1 text-[10px] text-slate-400">Enter customer details and transaction information</p>
+                </div>
+                <span className="rounded-lg bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-700">Review First</span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                <button type="button" onClick={() => setEntryMode("manual")} className={`rounded-lg px-3 py-2 text-[10px] font-black ${entryMode === "manual" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Manual Entry</button>
+                <button type="button" onClick={() => setEntryMode("ai")} className={`rounded-lg px-3 py-2 text-[10px] font-black ${entryMode === "ai" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>✦ AI Auto-Fill</button>
+              </div>
             </div>
             {entryMode === "ai" && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-slate-700">
               <div className="font-black text-blue-700">✦ AI Auto-Fill Assistant</div>
