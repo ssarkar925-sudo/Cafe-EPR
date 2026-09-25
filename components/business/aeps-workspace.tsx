@@ -148,6 +148,32 @@ function ModernAepsWorkspace({
   const [bankRef, setBankRef] = useState("");
   const [portalRef, setPortalRef] = useState("");
 
+  const cleanAadhaar = aadhaar.replace(/\D/g, "");
+  const cleanMobile = mobile.replace(/\D/g, "");
+  const isFormValid = Boolean(
+    bankId &&
+    portalId &&
+    cleanAadhaar.length === 4 &&
+    cleanMobile.length === 10 &&
+    Number(amount) > 0 &&
+    Number(fee || 0) >= 0 &&
+    Number(commission || 0) >= 0
+  );
+  const livePool = float;
+  if (!livePool) return 0;
+  const aepsFloat = Number(livePool.current ?? livePool.balance ?? 0);
+
+  const handleNewCashOut = () => {
+    setCustomerId(""); setMobile(""); setName(""); setAadhaar("");
+    setAmount(""); setFee(""); setCommission(""); setBankId("");
+    setPortalId(initialPortals[0]?.id || ""); setBankRef(""); setPortalRef("");
+    setReviewOpen(false); setDrawerOpen(true);
+  };
+
+  const receiptMode = "basic";
+  const receipt80mmUrl = (txnId: string) => "/business/receipt/" + txnId + (receiptMode === "detailed" ? "?mode=detailed" : "");
+  const receiptA4Url = (txnId: string) => "/business/receipt/" + txnId + "/a4" + (receiptMode === "detailed" ? "?mode=detailed" : "");
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((t) => {
@@ -202,15 +228,7 @@ function ModernAepsWorkspace({
   }, [initialCustomers, mobile, aadhaar, rows]);
 
   const selectedCustomer = initialCustomers.find((c) => c.id === customerId) || candidates[0] || null;
-  const valid = Boolean(
-    bankId &&
-    portalId &&
-    /^\d{4}$/.test(aadhaar) &&
-    /^\d{10}$/.test(mobile.replace(/\D/g, "")) &&
-    Number(amount) > 0 &&
-    Number(fee || 0) >= 0 &&
-    Number(commission || 0) >= 0
-  );
+  const valid = isFormValid;
 
   function selectCustomer(id: string) {
     setCustomerId(id);
@@ -302,7 +320,7 @@ function ModernAepsWorkspace({
             ["Total Amount", inr(stats.amount)],
             ["Total Fees", inr(stats.fees)],
             ["Portal Commission", inr(stats.commission)],
-            ["AEPS Float", inr(Number(float?.current ?? float?.balance ?? 0))],
+            ["AEPS Float", inr(aepsFloat)],
           ].map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
@@ -452,7 +470,7 @@ function ModernAepsWorkspace({
                 <label className="block text-[10px] font-black">Bank Reference<input value={bankRef} onChange={(e) => setBankRef(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs" /></label>
                 <label className="block text-[10px] font-black">Portal Reference<input value={portalRef} onChange={(e) => setPortalRef(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-xs" /></label>
               </div>
-              <button type="button" disabled={!valid || busy} onClick={() => setReviewOpen(true)} className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-xs font-black text-white disabled:opacity-50">{busy ? "Processing…" : "Review & Record Transaction"}</button>
+              <button type="button" disabled={!isFormValid || busy} onClick={() => setReviewOpen(true)} className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-xs font-black text-white disabled:opacity-50">{busy ? "Processing…" : "Review & Record Transaction"}</button>
               <p className="mt-2 text-center text-[9px] text-slate-400">Review all financial values before final submission.</p>
             </aside>
           )}
