@@ -248,6 +248,7 @@ export default function AepsWorkspaceFresh({
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [entryMode, setEntryMode] = useState<"manual" | "ai">("manual");
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [analyzerOpen, setAnalyzerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [customerId, setCustomerId] = useState("");
@@ -902,7 +903,7 @@ export default function AepsWorkspaceFresh({
 
               <div className="mt-3 space-y-2">
                 {initialPortals.length ? initialPortals.slice(0, 4).map((portal) => {
-                  const portalRows = rows.filter((row) => row.portals?.id === portal.id);
+                  const portalRows = rows.filter((row) => row.portal_id === portal.id);
                   const pendingRows = portalRows.filter((row) => ["pending", "review", "processing"].includes(String(row.status)));
                   return (
                     <div key={portal.id} className="flex items-center gap-2 rounded-xl border border-white/80 bg-white px-3 py-2 dark:border-emerald-900/40 dark:bg-slate-900">
