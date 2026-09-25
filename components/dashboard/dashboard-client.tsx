@@ -195,7 +195,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             <div className="mt-1 flex items-center justify-between">
               <span className="flex items-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                 <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                {delta !== null ? Math.abs(delta).toFixed(1) : "12.5"}%{" "}
+                {delta !== null ? Math.abs(delta).toFixed(1) + "%" : "—"}{" "}
                 <span className="hidden sm:inline ml-1 font-normal text-slate-400">vs yesterday</span>
               </span>
               {/* Mini sparkline bars */}
