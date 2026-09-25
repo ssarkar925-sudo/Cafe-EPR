@@ -473,7 +473,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white">Needs Attention</h2>
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
-                  4
+                  {alerts.length}
                 </span>
               </div>
               <Link href="/reports" className="text-xs font-bold text-blue-600 hover:underline">
@@ -507,7 +507,6 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   No active items require attention.
                 </div>
               )}
-            </div>
             </div>
           </div>
         </section>
@@ -708,7 +707,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   Low Stock
                 </span>
                 <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
-                  {inventory.lowStockCount ?? 28}
+                  {Number(inventory.lowStockCount || 0).toLocaleString("en-IN")}
                 </span>
               </div>
 
@@ -720,7 +719,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                   Out of Stock
                 </span>
                 <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-                  {inventory.outOfStockCount ?? 12}
+                  {Number(inventory.outOfStockCount || 0).toLocaleString("en-IN")}
                 </span>
               </div>
             </div>
@@ -1000,7 +999,6 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </div>
               );
             })}
-          </div>
           </div>
         </section>
       </div>
