@@ -567,7 +567,7 @@ export default function AepsWorkspaceFresh({
     if (hit) setBankId(hit.id);
   }
 
-  async function resolveCustomerFromSignals(mobileValue: string, aadhaarValue: string) {
+  async function resolveCustomerFromSignals(mobileValue: string, aadhaarValue: string): Promise<string | null> {
     setMatchNotice("");
 
     let mobileMatch: CustomerSearchResult | null = null;
@@ -614,7 +614,7 @@ export default function AepsWorkspaceFresh({
       setName(mobileMatch.name || "");
       setMobile(cleanPhone(mobileMatch.phone));
       setMatchNotice("Verified match: mobile + Aadhaar last 4.");
-      return;
+      return mobileMatch.id;
     }
 
     if (!mobileMatch && aadhaarCustomerIds.length === 1) {
@@ -638,7 +638,7 @@ export default function AepsWorkspaceFresh({
           setName(record.name || "");
           setMobile(cleanPhone(record.phone));
           setMatchNotice("Matched by Aadhaar last 4.");
-          return;
+          return record.id;
         }
       } catch {
         // Fall through to manual customer selection.
@@ -670,6 +670,7 @@ export default function AepsWorkspaceFresh({
       setName("");
       setMatchNotice("No single verified customer match. Manual customer selection is required.");
     }
+    return null;
   }
 
   async function applyAnalysis(fields: ScanFields, rawText: string) {
