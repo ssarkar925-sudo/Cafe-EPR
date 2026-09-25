@@ -240,7 +240,6 @@ export default function AepsWorkspaceFresh({
   const supabase = createClient();
 
   const [rows, setRows] = useState<Txn[]>(initialTransactions);
-  const [section, setSection] = useState<"overview" | "transactions">("overview");
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -277,6 +276,8 @@ export default function AepsWorkspaceFresh({
 
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importNotice, setImportNotice] = useState("");
 
   const cleanAadhaar = aadhaar.replace(/\D/g, "");
   const cleanMobile = mobile.replace(/\D/g, "");
@@ -667,6 +668,36 @@ export default function AepsWorkspaceFresh({
     }
   }
 
+  function openAiInsights() {
+    document.getElementById("aeps-ai-insights")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function stageImport(file: File) {
+    setImportNotice("");
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        setImportNotice("Import file is empty.");
+        return;
+      }
+      const isCsv = /\.csv$/i.test(file.name) || text.includes(",");
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (!isCsv && !/^\s*\[|^\s*\{/m.test(text)) {
+        setImportNotice("Import staged for preview. Use CSV or JSON transaction data.");
+        return;
+      }
+      setImportNotice("Import staged successfully: " + lines.length + " source row(s). Nothing was recorded.");
+    } catch {
+      setImportNotice("Could not read the import file.");
+    }
+  }
+
+  function handleImportChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (file) void stageImport(file);
+  }
+
   function exportTransactions() {
     downloadCsv(
       "aeps-transactions.csv",
@@ -709,36 +740,6 @@ export default function AepsWorkspaceFresh({
     <div className="min-h-full bg-[#f5f8fd] text-slate-900">
       <div className="mx-auto max-w-[1700px] space-y-4 px-4 pb-10 pt-4 lg:px-6">
 
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">AEPS</div>
-            <ArrowRight className="h-3 w-3 text-slate-300" />
-            <span className="text-[10px] font-black text-slate-700">Operations</span>
-          </div>
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => setSection("overview")}
-              className={cx(
-                "rounded-md px-3 py-1.5 text-[10px] font-black",
-                section === "overview" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
-              )}
-            >
-              Overview
-            </button>
-            <button
-              type="button"
-              onClick={() => setSection("transactions")}
-              className={cx(
-                "rounded-md px-3 py-1.5 text-[10px] font-black",
-                section === "transactions" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
-              )}
-            >
-              All Transactions
-            </button>
-          </div>
-        </div>
-
         <header className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-4">
@@ -779,7 +780,7 @@ export default function AepsWorkspaceFresh({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <KpiCard icon={<Activity className="h-4 w-4" />} label="Total Transactions" value={String(stats.total)} tone="blue" />
           <KpiCard icon={<Banknote className="h-4 w-4" />} label="Total Amount" value={inr(stats.amount)} tone="green" />
-          <KpiCard icon={<Percent className="h-4 w-4" />} label="Customer Fees" value={inr(stats.fees)} tone="rose" />
+          <KpiCard icon={<Percent className="h-4 w-4" />} label="Total Fees" value={inr(stats.fees)} tone="rose" />
           <KpiCard icon={<WalletCards className="h-4 w-4" />} label="Portal Commission" value={inr(stats.commission)} tone="violet" />
           <KpiCard icon={<Landmark className="h-4 w-4" />} label="AEPS Float" value={inr(aepsFloat)} tone="amber" />
         </div>
@@ -791,7 +792,6 @@ export default function AepsWorkspaceFresh({
           <StatusCard icon={<RefreshCw className="h-4 w-4" />} label="Reversed" count={stats.reversed} tone="neutral" />
         </div>
 
-        {section === "overview" && (
           <div className="grid gap-4 xl:grid-cols-[1.25fr_.9fr]">
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
@@ -856,7 +856,6 @@ export default function AepsWorkspaceFresh({
               </div>
             </section>
           </div>
-        )}
 
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
           <section className="min-w-0 space-y-4">
@@ -1501,8 +1500,15 @@ export default function AepsWorkspaceFresh({
           </aside>
         </div>
 
+        {importNotice && (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-bold text-blue-800">
+            <ShieldCheck className="mr-1.5 inline h-3.5 w-3.5" />
+            {importNotice}
+          </div>
+        )}
+
         <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+          <section id="aeps-ai-insights" className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
             <div className="flex items-center gap-2 text-[11px] font-black text-violet-900">
               <Sparkles className="h-4 w-4 text-violet-600" />
               AI Insights
