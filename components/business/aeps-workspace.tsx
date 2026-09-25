@@ -194,7 +194,7 @@ export default function AepsWorkspace({
   }), [filtered]);
 
   const aepsFloat = Number(float?.current ?? float?.balance ?? 0);
-  const receiptMode = "basic";
+  const receiptMode: "basic" | "detailed" = "basic";
   const receiptUrl = (id: string) => "/business/receipt/" + id + (receiptMode === "detailed" ? "?mode=detailed" : "");
   const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + (receiptMode === "detailed" ? "?mode=detailed" : "");
 
@@ -237,7 +237,24 @@ export default function AepsWorkspace({
   };
 
   const handleExport = () => {
-    downloadCsv(filtered as any, "aeps-transactions.csv");
+    downloadCsv(
+      "aeps-transactions.csv",
+      ["Transaction", "Date", "Customer", "Mobile", "Type", "Aadhaar", "Amount", "Fee", "Commission", "Bank Ref", "Portal Ref", "Status"],
+      filtered.map((t) => [
+        t.transaction_number || "",
+        t.transaction_date || "",
+        t.customers?.name || "",
+        t.customer_mobile || t.customers?.phone || "",
+        t.transfer_method || "Cash Out",
+        t.aadhaar_last4 || "",
+        Number(t.amount || 0),
+        Number(t.service_fee || 0),
+        Number(t.portal_commission || 0),
+        t.reference || "",
+        t.remarks?.replace(/^Portal Ref:\s*/i, "") || "",
+        t.status || "",
+      ])
+    );
     showToast("success", "AEPS transaction export created.");
   };
 
@@ -364,7 +381,7 @@ export default function AepsWorkspace({
 
             <div className="rounded-2xl border border-slate-200 bg-white p-3">
               <div className="flex flex-col gap-2 lg:flex-row">
-                <select value="all" readOnly className="rounded-xl border px-3 py-2 text-xs"><option>All Dates</option></select>
+                <select value="all" disabled className="rounded-xl border px-3 py-2 text-xs"><option value="all">All Dates</option></select>
                 <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-xl border px-3 py-2 text-xs">
                   <option value="all">All Types</option><option value="cash_out">Cash Out</option><option value="balance_enquiry">Balance Enquiry</option><option value="mini_statement">Mini Statement</option>
                 </select>
