@@ -401,14 +401,14 @@ export default function AepsWorkspace({
                 <div className="mt-5 flex h-32 items-end gap-2 border-b border-slate-100 px-1">
                   {[0,1,2,3,4,5,6].map((i) => {
                     const count = filtered.slice(i * 5, (i + 1) * 5).length;
-                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: \`${Math.max(8, Math.min(100, count * 20))}%\` }} /></div>;
+                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: `${Math.max(8, Math.min(100, count * 20))}%` }} /></div>;
                   })}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div><h2 className="text-sm font-black text-slate-950">Transactions by Type</h2><p className="text-[10px] text-slate-400">Distribution across AEPS operations</p></div>
-                  <div className="relative h-24 w-24 rounded-full" style={{ background: \`conic-gradient(#2563eb 0 ${rows.length ? (rows.filter((t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal").length / rows.length) * 100 : 0}%, #10b981 0 ${rows.length ? ((rows.filter((t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry").length + rows.filter((t) => t.transfer_method === "mini_statement" || t.transfer_method === "statement").length) / rows.length) * 100 : 0}%, #e2e8f0 0)\` }}>
+                  <div className="relative h-24 w-24 rounded-full" style={{ background: `conic-gradient(#2563eb 0 ${rows.length ? (rows.filter((t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal").length / rows.length) * 100 : 0}%, #10b981 0 ${rows.length ? ((rows.filter((t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry").length + rows.filter((t) => t.transfer_method === "mini_statement" || t.transfer_method === "statement").length) / rows.length) * 100 : 0}%, #e2e8f0 0)` }}>
                     <div className="absolute inset-3 flex items-center justify-center rounded-full bg-white text-center"><div><div className="text-lg font-black text-slate-950">{rows.length}</div><div className="text-[8px] text-slate-400">Transactions</div></div></div>
                   </div>
                 </div>
@@ -419,7 +419,7 @@ export default function AepsWorkspace({
                 ].map(([label, count, bar]) => (
                   <div key={String(label)} className="mt-3">
                     <div className="mb-1 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b className="text-slate-900">{count}</b></div>
-                    <div className="h-1.5 rounded-full bg-slate-100"><div className={`h-1.5 rounded-full ${bar}`} style={{ width: \`${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%\` }} /></div>
+                    <div className="h-1.5 rounded-full bg-slate-100"><div className={`h-1.5 rounded-full ${bar}`} style={{ width: `${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%` }} /></div>
                   </div>
                 ))}
               </div>
@@ -478,7 +478,7 @@ export default function AepsWorkspace({
               <div className="font-black text-blue-700">✦ AI Auto-Fill Assistant</div>
               <p className="mt-1 leading-5">Match the entered mobile and/or Aadhaar last 4 against CafeERP. The suggested customer is never selected blindly.</p>
               {candidates.length > 0 && <div className="mt-2 space-y-1">{candidates.slice(0, 3).map((c) => <button type="button" key={c.id} onClick={() => selectCustomer(c.id)} className="block w-full rounded-lg bg-white px-2 py-1.5 text-left font-bold text-slate-700">{c.name} · {c.phone || "No mobile"}</button>)}</div>}
-            </div>
+            </div>}
             <div className="mt-4 space-y-3">
               <label className="block text-[10px] font-black text-slate-700">Customer Mobile *
                 <input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} placeholder="Enter 10 digit mobile number" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
