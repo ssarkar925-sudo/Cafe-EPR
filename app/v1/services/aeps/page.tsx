@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getV1SessionContext, requireV1BackOffice } from "@/lib/v1/v1-auth-context";
 import { listTenantRows } from "@/lib/v1/v1-server-reads";
 import V1Forbidden from "@/components/v1/v1-forbidden";
-import ServiceForm, { type ServiceInstrument } from "../service-form";
-import { RecentServiceList, type RecentSvcRow } from "../recent-list";
+import AepsModernClient from "./aeps-modern-client";
+import type { RecentSvcRow } from "../recent-list";
 
 interface SvcRow {
   id: string;
@@ -78,31 +78,9 @@ export default async function V1ServicesAeps() {
     ],
   }));
 
-  const activeInstruments: ServiceInstrument[] = (instruments.rows ?? [])
+  const activeInstruments = (instruments.rows ?? [])
     .filter((i) => i.is_active === true)
     .map((i) => ({ id: i.id, name: i.name, itype: i.itype }));
 
-  return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div>
-        <h1 className="text-xl font-extrabold tracking-tight">AEPS</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Record-only. Recording here creates a local record only — no AEPS provider is contacted.
-        </p>
-      </div>
-      <section
-        aria-label="Record AEPS transaction"
-        className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]"
-      >
-        <ServiceForm type="aeps" instruments={activeInstruments} />
-      </section>
-      <section
-        aria-label="Recent AEPS records"
-        className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]"
-      >
-        <h2 className="text-sm font-extrabold tracking-tight">Recent records</h2>
-        <RecentServiceList rows={rows} />
-      </section>
-    </div>
-  );
+  return <AepsModernClient rows={rows} instruments={activeInstruments} />
 }
