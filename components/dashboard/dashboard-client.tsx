@@ -175,6 +175,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       {/* 2. TOP KPI ROW (4 Cards on mobile, 5 on desktop) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-3.5">
         {/* KPI 1: Total Sales */}
+        <Link href="/reports/income" className="block h-full">
         <div className="rounded-xl border border-slate-200/90 bg-white p-3 sm:p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 sm:gap-2.5">
@@ -210,8 +211,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             </div>
           </div>
         </div>
+        </Link>
 
         {/* KPI 2: Profit (Est.) */}
+        <Link href="/reports/profit-loss" className="block h-full">
         <div className="rounded-xl border border-slate-200/90 bg-white p-3 sm:p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 sm:gap-2.5">
@@ -245,8 +248,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             </div>
           </div>
         </div>
+        </Link>
 
         {/* KPI 3: Expenses */}
+        <Link href="/finance/expenses" className="block h-full">
         <div className="rounded-xl border border-slate-200/90 bg-white p-3 sm:p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 sm:gap-2.5">
@@ -277,8 +282,10 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             </div>
           </div>
         </div>
+        </Link>
 
         {/* KPI 4: Transactions */}
+        <Link href="/finance/transactions" className="block h-full">
         <div className="rounded-xl border border-slate-200/90 bg-white p-3 sm:p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 sm:gap-2.5">
@@ -312,6 +319,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
             </div>
           </div>
         </div>
+        </Link>
 
         {/* 5. Business Health Panel (Desktop 5th column, hidden on mobile per reference mockup) */}
         <div className="hidden xl:flex rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-xs dark:border-white/10 dark:bg-slate-900 xl:col-span-1 flex-col justify-between">
