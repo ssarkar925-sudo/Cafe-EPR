@@ -132,8 +132,11 @@ export default function AepsWorkspace({
   const { showToast } = useToast();
   const [rows, setRows] = useState<Txn[]>(initialTransactions);
   const [query, setQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [entryMode, setEntryMode] = useState<"manual" | "ai">("manual");
+  const [transactionType, setTransactionType] = useState("cash_out");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -157,7 +160,8 @@ export default function AepsWorkspace({
     portalId &&
     cleanAadhaar.length === 4 &&
     cleanMobile.length === 10 &&
-    Number(amount) > 0 &&
+    (transactionType !== "cash_out" || Number(amount || 0) >= 0) &&
+    (transactionType === "cash_out" ? Number(amount) > 0 : true) &&
     Number(fee || 0) >= 0 &&
     Number(commission || 0) >= 0
   );
@@ -178,9 +182,30 @@ export default function AepsWorkspace({
       ].filter(Boolean).join(" ").toLowerCase();
       return (typeFilter === "all" || method === typeFilter)
         && (statusFilter === "all" || t.status === statusFilter)
+        && (dateFilter === "all" || (() => {
+          const raw = String(t.transaction_date || "").slice(0, 10);
+          if (!raw) return false;
+          const today = new Date();
+          const todayKey = today.toISOString().slice(0, 10);
+          if (dateFilter === "today") return raw === todayKey;
+          if (dateFilter === "yesterday") {
+            const d = new Date(today);
+            d.setDate(d.getDate() - 1);
+            return raw === d.toISOString().slice(0, 10);
+          }
+          if (dateFilter === "7d" || dateFilter === "30d") {
+            const d = new Date(today);
+            d.setDate(d.getDate() - (dateFilter === "7d" ? 6 : 29));
+            return raw >= d.toISOString().slice(0, 10) && raw <= todayKey;
+          }
+          if (dateFilter === "month") {
+            return raw.slice(0, 7) === todayKey.slice(0, 7);
+          }
+          return true;
+        })())
         && (!q || haystack.includes(q));
     });
-  }, [rows, query, typeFilter, statusFilter]);
+  }, [rows, query, dateFilter, typeFilter, statusFilter]);
 
   const stats = useMemo(() => ({
     total: filtered.length,
@@ -235,6 +260,8 @@ export default function AepsWorkspace({
     setBankRef("");
     setPortalRef("");
     setReviewOpen(false);
+    setEntryMode("manual");
+    setTransactionType("cash_out");
     setDrawerOpen(true);
   };
 
@@ -277,7 +304,7 @@ export default function AepsWorkspace({
         p_portal_id: portalId,
         p_merchant_qr_id: null,
         p_aadhaar_last4: cleanAadhaar,
-        p_transfer_method: "cash_out",
+        p_transfer_method: transactionType,
         p_amount: Number(amount),
         p_service_fee: Number(fee || 0),
         p_portal_commission: Number(commission || 0),
@@ -332,17 +359,17 @@ export default function AepsWorkspace({
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
-            ["▣", "Total Transactions", String(stats.total), "bg-blue-50 text-blue-600"],
-            ["₹", "Total Amount", inr(stats.amount), "bg-emerald-50 text-emerald-600"],
-            ["%", "Total Fees", inr(stats.fees), "bg-rose-50 text-rose-600"],
-            ["◔", "Portal Commission", inr(stats.commission), "bg-violet-50 text-violet-600"],
-            ["▣", "AEPS Float", inr(aepsFloat), "bg-amber-50 text-amber-600"],
+            ["▣", "Total Transactions", String(stats.total), "border-blue-100 bg-blue-50/60 text-blue-600"],
+            ["₹", "Total Amount", inr(stats.amount), "border-emerald-100 bg-emerald-50/60 text-emerald-600"],
+            ["%", "Total Fees", inr(stats.fees), "border-rose-100 bg-rose-50/60 text-rose-600"],
+            ["◔", "Portal Commission", inr(stats.commission), "border-violet-100 bg-violet-50/60 text-violet-600"],
+            ["▣", "AEPS Float", inr(aepsFloat), "border-amber-100 bg-amber-50/60 text-amber-600"],
           ].map(([icon, label, value, tone]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={label} className={`rounded-2xl border p-4 shadow-sm ${tone}`}>
               <div className="flex items-start justify-between">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black ${tone}`}>{icon}</div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-sm font-black shadow-sm">{icon}</div>
               </div>
-              <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+              <p className="mt-3 text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</p>
               <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
             </div>
           ))}
@@ -373,21 +400,25 @@ export default function AepsWorkspace({
                 <div className="mt-5 flex h-32 items-end gap-2 border-b border-slate-100 px-1">
                   {[0,1,2,3,4,5,6].map((i) => {
                     const count = filtered.slice(i * 5, (i + 1) * 5).length;
-                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: `${Math.max(8, Math.min(100, count * 20))}%` }} /></div>;
+                    return <div key={i} className="flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-blue-500" style={{ height: \`${Math.max(8, Math.min(100, count * 20))}%\` }} /></div>;
                   })}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-black text-slate-950">Transactions by Type</h2>
-                <p className="text-[10px] text-slate-400">Distribution across AEPS operations</p>
+                <div className="flex items-center justify-between">
+                  <div><h2 className="text-sm font-black text-slate-950">Transactions by Type</h2><p className="text-[10px] text-slate-400">Distribution across AEPS operations</p></div>
+                  <div className="relative h-24 w-24 rounded-full" style={{ background: \`conic-gradient(#2563eb 0 ${rows.length ? (rows.filter((t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal").length / rows.length) * 100 : 0}%, #10b981 0 ${rows.length ? ((rows.filter((t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry").length + rows.filter((t) => t.transfer_method === "mini_statement" || t.transfer_method === "statement").length) / rows.length) * 100 : 0}%, #e2e8f0 0)\` }}>
+                    <div className="absolute inset-3 flex items-center justify-center rounded-full bg-white text-center"><div><div className="text-lg font-black text-slate-950">{rows.length}</div><div className="text-[8px] text-slate-400">Transactions</div></div></div>
+                  </div>
+                </div>
                 {[
                   ["Cash Out", rows.filter((t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal").length, "bg-blue-500"],
                   ["Balance Enquiry", rows.filter((t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry").length, "bg-emerald-500"],
                   ["Mini Statement", rows.filter((t) => t.transfer_method === "mini_statement" || t.transfer_method === "statement").length, "bg-amber-500"],
                 ].map(([label, count, bar]) => (
-                  <div key={String(label)} className="mt-4">
+                  <div key={String(label)} className="mt-3">
                     <div className="mb-1 flex justify-between text-[10px]"><span className="font-semibold text-slate-600">{label}</span><b className="text-slate-900">{count}</b></div>
-                    <div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${bar}`} style={{ width: `${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%` }} /></div>
+                    <div className="h-1.5 rounded-full bg-slate-100"><div className={`h-1.5 rounded-full ${bar}`} style={{ width: \`${rows.length ? Math.max(4, (Number(count) / rows.length) * 100) : 4}%\` }} /></div>
                   </div>
                 ))}
               </div>
@@ -395,7 +426,7 @@ export default function AepsWorkspace({
 
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="flex flex-col gap-2 lg:flex-row">
-                <select value="all" disabled className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Dates</option></select>
+                <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 Days</option><option value="30d">Last 30 Days</option><option value="month">This Month</option></select>
                 <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Types</option><option value="cash_out">Cash Out</option><option value="balance_enquiry">Balance Enquiry</option><option value="mini_statement">Mini Statement</option></select>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="all">All Status</option><option value="success">Success</option><option value="pending">Pending</option><option value="review">Review</option><option value="cancelled">Cancelled</option><option value="reversed">Reversed</option></select>
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by customer, mobile, Aadhaar, bank or portal reference..." className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400" />
@@ -429,13 +460,16 @@ export default function AepsWorkspace({
           </main>
 
           <aside className={`aeps-surface rounded-2xl border border-slate-200 bg-white !text-slate-900 p-5 shadow-lg xl:sticky xl:top-4 xl:h-fit ${drawerOpen ? "ring-2 ring-blue-100" : ""}`} style={{ colorScheme: "light" }}>
-            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">            <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+              <button type="button" onClick={() => setEntryMode("manual")} className={`rounded-lg px-3 py-2 text-[10px] font-black ${entryMode === "manual" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}>Manual Entry</button>
+              <button type="button" onClick={() => setEntryMode("ai")} className={`rounded-lg px-3 py-2 text-[10px] font-black ${entryMode === "ai" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>✦ AI Auto-Fill</button>
+            </div>
               <div><h2 className="text-base font-black text-slate-950">Record AEPS Transaction</h2><p className="mt-1 text-[10px] text-slate-400">Enter customer details and transaction information</p></div>
               <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-lg px-2 text-lg text-slate-400 hover:bg-slate-100">×</button>
             </div>
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-slate-700">
-              <div className="font-black text-amber-700">✦ AI Auto-Fill</div>
-              <p className="mt-1 leading-5">Customer matching uses mobile and/or Aadhaar last 4. A match is only a suggestion and remains under operator review.</p>
+            {entryMode === "ai" && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-slate-700">
+              <div className="font-black text-blue-700">✦ AI Auto-Fill Assistant</div>
+              <p className="mt-1 leading-5">Match the entered mobile and/or Aadhaar last 4 against CafeERP. The suggested customer is never selected blindly.</p>
               {candidates.length > 0 && <div className="mt-2 space-y-1">{candidates.slice(0, 3).map((c) => <button type="button" key={c.id} onClick={() => selectCustomer(c.id)} className="block w-full rounded-lg bg-white px-2 py-1.5 text-left font-bold text-slate-700">{c.name} · {c.phone || "No mobile"}</button>)}</div>}
             </div>
             <div className="mt-4 space-y-3">
@@ -449,7 +483,7 @@ export default function AepsWorkspace({
                 <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))} maxLength={4} placeholder="Enter last 4 digits" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[10px] font-black text-slate-700">Transaction Type<select className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900"><option>Cash Out</option></select></label>
+                <label className="text-[10px] font-black text-slate-700">Transaction Type<select value={transactionType} onChange={(e) => setTransactionType(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900"><option value="cash_out">Cash Out</option><option value="balance_enquiry">Balance Enquiry</option><option value="mini_statement">Mini Statement</option></select></label>
                 <label className="text-[10px] font-black text-slate-700">Amount (₹)<input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0" step="any" placeholder="0.00" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2.5 text-xs text-slate-900" /></label>
               </div>
               <div className="grid grid-cols-2 gap-2">
