@@ -142,6 +142,7 @@ function ModernAepsWorkspace({initialTransactions,initialCustomers,initialBanks,
     </div>
     {review&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl"><h3 className="text-lg font-black">Review AEPS Transaction</h3><div className="mt-4 grid grid-cols-2 gap-3 bg-slate-50 p-4 text-xs"><p>Customer<br/><b>{name||selected?.name||"—"}</b></p><p>Mobile<br/><b>{mobile}</b></p><p>Aadhaar<br/><b>•••• {aadhaar}</b></p><p>Bank<br/><b>{initialBanks.find(b=>b.id===bankId)?.name||"—"}</b></p><p>Portal<br/><b>{initialPortals.find(p=>p.id===portalId)?.name||"—"}</b></p><p>Amount<br/><b>{inr(Number(amount))}</b></p><p>Customer Fee<br/><b>{inr(Number(fee||0))}</b></p><p>Portal Commission<br/><b>{inr(Number(commission||0))}</b></p></div><div className="mt-4 flex justify-end gap-2"><button onClick={()=>setReview(false)} className="rounded-xl border px-4 py-2 text-xs font-bold">Edit</button><button onClick={record} disabled={busy||!isFormValid} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white">{busy?"Processing…":"Approve & Record"}</button></div></div></div>}
   </div>
+  </div>
 }
 
 
