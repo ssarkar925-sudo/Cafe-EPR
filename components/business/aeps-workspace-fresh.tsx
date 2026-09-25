@@ -93,7 +93,7 @@ function matchBank(input: string, banks: Master[]) {
   ) || [normalized];
 
   for (const bank of banks) {
-    if (bank.is_active === false) continue;
+    if ((bank as Master & { is_active?: boolean }).is_active === false) continue;
 
     const bankName = normalizeBankName(bank.name);
     const bankCode = normalizeBankName(bank.code || "");
