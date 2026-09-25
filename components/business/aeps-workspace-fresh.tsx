@@ -546,6 +546,7 @@ export default function AepsWorkspaceFresh({
     if (fields.service_fee) setFee(fields.service_fee);
     if (fields.portal_commission) setCommission(fields.portal_commission);
     if (fields.reference) setBankRef(fields.reference);
+    if (fields.portal_reference) setPortalRef(fields.portal_reference);
 
     if (fields.bank_name) {
       const bank = matchBank(fields.bank_name, initialBanks);
