@@ -8164,17 +8164,48 @@ assert(
     "1552. AEPS Financial Persistence: recordTransaction verifies database commit via fresh database read"
   );
 
-  // 6. Execute Full Acceptance Test Suite (Tests A to U)
+  // 6. Bank/Portal Alignment & Payment Collection Accounting Invariants
+  const businessPageSrc = fs.readFileSync("./app/(dashboard)/business/[service]/page.tsx", "utf8");
+  assert(
+    !businessPageSrc.includes("Promise.resolve({ data: [], error: null })"),
+    "1553. AEPS Architecture: No dummy Promise offset causing bank/portal reversal in business service page"
+  );
+
+  const migrationSrc = fs.readFileSync(
+    "./supabase/migrations/20260925_aeps_payment_collection_and_accounting.sql",
+    "utf8"
+  );
+  assert(
+    migrationSrc.includes("payment_collection") &&
+      migrationSrc.includes("v_direction := 'in'") &&
+      migrationSrc.includes("v_cash_out := 0"),
+    "1554. AEPS Accounting Migration: payment_collection sets direction 'in' and zero cash_out"
+  );
+
+  // 7. Execute Full Acceptance Test Suite (Tests A to U)
   try {
     const suiteOutput = execSync("node --experimental-strip-types scripts/test-aeps-intelligent-system.mjs", {
       encoding: "utf8",
     });
     assert(
       suiteOutput.includes("ALL 21 ACCEPTANCE TESTS (A to U) PASSED SUCCESSFULLY"),
-      "1553. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly"
+      "1555. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly"
     );
   } catch (err) {
-    assert(false, "1553. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly", err.message);
+    assert(false, "1555. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly", err.message);
+  }
+
+  // 8. Execute Bank/Portal Independence & Payment Collection Suite (Tests A to L)
+  try {
+    const suiteOutput2 = execSync("node --experimental-strip-types scripts/test-aeps-bank-portal-and-collection.mjs", {
+      encoding: "utf8",
+    });
+    assert(
+      suiteOutput2.includes("ALL 12 ACCEPTANCE TESTS (A to L) PASSED SUCCESSFULLY"),
+      "1556. AEPS Bank/Portal Separation & Payment Collection Suite: All 12 Tests (A to L) Passed Cleanly"
+    );
+  } catch (err) {
+    assert(false, "1556. AEPS Bank/Portal Separation & Payment Collection Suite: All 12 Tests (A to L) Passed Cleanly", err.message);
   }
 }
 

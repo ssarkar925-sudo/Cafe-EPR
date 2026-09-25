@@ -51,9 +51,6 @@ export default async function BusinessServicePage({
         .order("transaction_timestamp", { ascending: false, nullsFirst: false })
         .order("transaction_date", { ascending: false })
         .limit(500),
-      // No customer directory preload: workspaces use server-side search.
-      // Selections hydrate single rows on demand.
-      Promise.resolve({ data: [], error: null }),
       supabase.from("aeps_banks").select("id,name,code,is_active").eq("is_active", true).order("name"),
       supabase
         .from("aeps_portals")

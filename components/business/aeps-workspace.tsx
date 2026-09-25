@@ -28,6 +28,7 @@ import {
   type VerifiedTransactionContext,
   type AepsPricingRule,
   type PortalAuditRecord,
+  type AepsTxnType,
 } from "@/lib/aeps/portal-watcher";
 import type { CustomerRow, Master, Txn } from "./business-client";
 
@@ -67,6 +68,7 @@ interface DraftRecord {
   name: string;
   aadhaar: string;
   transactionType: string;
+  collectionMethod?: string;
   amount: string;
   fee: string;
   commission: string;
@@ -103,7 +105,8 @@ export default function AepsWorkspace({
 
   // Form Mode & State
   const [entryMode, setEntryMode] = useState<"manual" | "ai">("manual");
-  const [transactionType, setTransactionType] = useState("cash_out");
+  const [transactionType, setTransactionType] = useState<AepsTxnType>("cash_out");
+  const [collectionMethod, setCollectionMethod] = useState<"aeps_portal" | "cash" | "bank" | "upi">("aeps_portal");
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [sourceSectionOpen, setSourceSectionOpen] = useState(false);
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -169,15 +172,21 @@ export default function AepsWorkspace({
   const cleanAadhaar = aadhaar.replace(/\D/g, "");
   const cleanMobile = mobile.replace(/\D/g, "");
 
-  // Auto-resolve pricing from published rules whenever portal, bank, amount, or customer changes
+  // Auto-resolve pricing from published rules whenever portal, bank, transactionType, amount, or customer changes
   useEffect(() => {
     const numAmount = Number(amount);
-    if (numAmount > 0 && portalId) {
-      const resolved = resolvePricingFromRules(pricingRules, portalId, numAmount, bankId, customerId);
+    if (portalId) {
+      const resolved = resolvePricingFromRules(pricingRules, {
+        portalId,
+        bankId,
+        transactionType,
+        amount: numAmount > 0 ? numAmount : 0,
+        customerId,
+      });
       setFee(String(resolved.fee));
       setCommission(String(resolved.commission));
     }
-  }, [amount, portalId, bankId, customerId, pricingRules]);
+  }, [amount, portalId, bankId, transactionType, customerId, pricingRules]);
 
   // Keep single transaction reference in sync with underlying bankRef & portalRef
   const handleTransactionRefChange = (val: string) => {
@@ -365,6 +374,7 @@ export default function AepsWorkspace({
     setName("");
     setAadhaar("");
     setTransactionType("cash_out");
+    setCollectionMethod("aeps_portal");
     setAmount("");
     setFee("");
     setCommission("");
@@ -419,13 +429,19 @@ export default function AepsWorkspace({
 
   // Dynamic denomination buttons generated from active rules
   const dynamicDenominations = useMemo(
-    () => getDynamicDenominations(pricingRules, portalId),
-    [pricingRules, portalId]
+    () => getDynamicDenominations(pricingRules, portalId, transactionType),
+    [pricingRules, portalId, transactionType]
   );
 
   const handleDenominationClick = (val: number) => {
     setAmount(String(val));
-    const pricing = resolvePricingFromRules(pricingRules, portalId, val, bankId, customerId);
+    const pricing = resolvePricingFromRules(pricingRules, {
+      portalId,
+      bankId,
+      transactionType,
+      amount: val,
+      customerId,
+    });
     setFee(String(pricing.fee));
     setCommission(String(pricing.commission));
   };
@@ -440,6 +456,7 @@ export default function AepsWorkspace({
       name,
       aadhaar,
       transactionType,
+      collectionMethod,
       amount,
       fee,
       commission,
@@ -458,7 +475,8 @@ export default function AepsWorkspace({
     setMobile(d.mobile);
     setName(d.name);
     setAadhaar(d.aadhaar);
-    setTransactionType(d.transactionType);
+    setTransactionType((d.transactionType as AepsTxnType) || "cash_out");
+    if (d.collectionMethod) setCollectionMethod(d.collectionMethod as any);
     setAmount(d.amount);
     setFee(d.fee);
     setCommission(d.commission);
@@ -611,7 +629,12 @@ export default function AepsWorkspace({
         setCollectionRuns((prev) => [defaultRun, ...prev]);
         setTransactionType("cash_out");
         if (initialBanks[0]) setBankId(initialBanks[0].id);
-        const resolved = resolvePricingFromRules(pricingRules, targetPortal.id, Number(amount) || 2000);
+        const resolved = resolvePricingFromRules(pricingRules, {
+          portalId: targetPortal.id,
+          bankId: initialBanks[0]?.id,
+          transactionType: "cash_out",
+          amount: Number(amount) || 2000,
+        });
         setFee(String(resolved.fee));
         setCommission(String(resolved.commission));
         showToast("success", `Baseline sources verified for ${targetPortal.name}.`);
@@ -979,6 +1002,10 @@ export default function AepsWorkspace({
     if (busy || !isFormValid) return;
     setBusy(true);
     try {
+      const isCollection = transactionType === "payment_collection";
+      const isEnquiry = transactionType === "balance_enquiry" || transactionType === "mini_statement";
+      const numAmount = isEnquiry ? 0 : Number(amount || 0);
+
       const payload: any = {
         p_service_type: "aeps",
         p_transaction_date: new Date().toISOString().slice(0, 10),
@@ -993,12 +1020,12 @@ export default function AepsWorkspace({
         p_merchant_qr_id: null,
         p_aadhaar_last4: cleanAadhaar,
         p_transfer_method: transactionType,
-        p_amount: Number(amount || 0),
+        p_amount: numAmount,
         p_service_fee: Number(fee || 0),
         p_portal_commission: Number(commission || 0),
         p_fee_source: "customer_paid_extra",
         p_paid_from: "portal",
-        p_customer_pay_method: "cash",
+        p_customer_pay_method: isCollection ? (collectionMethod || "aeps_portal") : "cash",
         p_pay_from_instrument_id: null,
         p_pay_from_method: "aeps_portal",
         p_receiver_name: null,
@@ -1060,6 +1087,9 @@ export default function AepsWorkspace({
     const cashOutCount = rows.filter(
       (t) => !t.transfer_method || t.transfer_method === "cash_out" || t.transfer_method === "withdrawal"
     ).length;
+    const collectionCount = rows.filter(
+      (t) => t.transfer_method === "payment_collection" || t.transfer_method === "collection"
+    ).length;
     const balanceCount = rows.filter(
       (t) => t.transfer_method === "balance_enquiry" || t.transfer_method === "enquiry"
     ).length;
@@ -1069,9 +1099,11 @@ export default function AepsWorkspace({
     const total = rows.length || 1;
     return {
       cashOutCount,
+      collectionCount,
       balanceCount,
       statementCount,
       cashOutPct: Math.round((cashOutCount / total) * 100),
+      collectionPct: Math.round((collectionCount / total) * 100),
       balancePct: Math.round((balanceCount / total) * 100),
       statementPct: Math.round((statementCount / total) * 100),
     };
@@ -1082,7 +1114,7 @@ export default function AepsWorkspace({
 
   const isFormValid = useMemo(() => {
     const numAmount = Number(amount);
-    if (transactionType === "cash_out") {
+    if (transactionType === "cash_out" || transactionType === "payment_collection") {
       return cleanMobile.length === 10 && cleanAadhaar.length === 4 && numAmount > 0 && !!bankId && !!portalId;
     }
     return cleanMobile.length === 10 && cleanAadhaar.length === 4 && !!bankId && !!portalId;
@@ -1693,16 +1725,25 @@ export default function AepsWorkspace({
                   <label className="block text-[10px] font-black text-slate-700 mb-1">
                     Transaction Type *
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {[
-                      { id: "cash_out", label: "Cash Out" },
+                      { id: "cash_out", label: "Cash Out (OUT)" },
+                      { id: "payment_collection", label: "Collection (IN)" },
                       { id: "balance_enquiry", label: "Balance Enquiry" },
                       { id: "mini_statement", label: "Mini Statement" },
                     ].map((item) => (
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => setTransactionType(item.id)}
+                        onClick={() => {
+                          const newType = item.id as AepsTxnType;
+                          setTransactionType(newType);
+                          if (newType === "balance_enquiry" || newType === "mini_statement") {
+                            setAmount("0");
+                          } else if (amount === "0") {
+                            setAmount("");
+                          }
+                        }}
                         className={`rounded-xl py-2 px-1 text-center text-xs font-bold transition-all border ${
                           transactionType === item.id
                             ? "border-blue-600 bg-blue-600 text-white shadow-sm"
@@ -1714,6 +1755,56 @@ export default function AepsWorkspace({
                     ))}
                   </div>
                 </div>
+
+                {/* Direction & Collection Indicator */}
+                {transactionType === "payment_collection" && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-indigo-950 flex items-center gap-1.5">
+                        <span className="inline-block h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
+                        Direction: IN (Customer → Shop/Business)
+                      </span>
+                      <span className="rounded-md bg-indigo-100 px-2 py-0.5 font-bold text-[10px] text-indigo-800">
+                        Aadhaar Pay
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-indigo-800">
+                      Funds collected from customer bank into AEPS float. <strong>Zero physical cash is dispensed</strong>.
+                    </p>
+                    <div>
+                      <label className="block text-[10px] font-black text-indigo-950 mb-1">
+                        Collection Method
+                      </label>
+                      <select
+                        value={collectionMethod}
+                        onChange={(e) => setCollectionMethod(e.target.value as any)}
+                        className="w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none"
+                      >
+                        <option value="aeps_portal">AEPS Portal Float (Direct Settlement)</option>
+                        <option value="cash">Direct Cash Collection</option>
+                        <option value="bank">Direct Bank Account Credit</option>
+                        <option value="upi">Merchant UPI</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {transactionType === "cash_out" && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 flex items-center justify-between">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                      Direction: OUT (Shop/Business → Customer)
+                    </span>
+                    <span className="text-[10px] text-amber-700 font-medium">Physical cash dispensed from till</span>
+                  </div>
+                )}
+
+                {(transactionType === "balance_enquiry" || transactionType === "mini_statement") && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600 flex items-center justify-between">
+                    <span className="font-bold">Informational Request (₹0 Principal)</span>
+                    <span className="text-[10px] text-slate-500">Non-financial biometric enquiry</span>
+                  </div>
+                )}
 
                 {/* 1-Click Top 10 Indian Bank Chips */}
                 <div>
@@ -1855,34 +1946,37 @@ export default function AepsWorkspace({
                       type="number"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
+                      disabled={transactionType === "balance_enquiry" || transactionType === "mini_statement"}
                       placeholder="0"
-                      className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3.5 py-2 text-lg font-black text-slate-950 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 font-mono"
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3.5 py-2 text-lg font-black text-slate-950 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 font-mono disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                 </div>
 
                 {/* DYNAMIC DENOMINATION BUTTONS GENERATED FROM ACTIVE RULES */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-700 mb-1">
-                    Quick Denominations (Active Slabs)
-                  </label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {dynamicDenominations.map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => handleDenominationClick(val)}
-                        className={`rounded-xl py-1.5 text-center text-xs font-bold transition-all border ${
-                          amount === String(val)
-                            ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50"
-                        }`}
-                      >
-                        ₹{val >= 1000 ? `${val / 1000}k` : val}
-                      </button>
-                    ))}
+                {transactionType !== "balance_enquiry" && transactionType !== "mini_statement" && dynamicDenominations.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-700 mb-1">
+                      Quick Denominations ({transactionType === "payment_collection" ? "Collection Slabs" : "Active Slabs"})
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {dynamicDenominations.map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => handleDenominationClick(val)}
+                          className={`rounded-xl py-1.5 text-center text-xs font-bold transition-all border ${
+                            amount === String(val)
+                              ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50"
+                          }`}
+                        >
+                          ₹{val >= 1000 ? `${val / 1000}k` : val}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Fee and Commission (Auto-calculated from published rules) */}
                 <div className="grid grid-cols-2 gap-3 pt-1">
@@ -1949,9 +2043,19 @@ export default function AepsWorkspace({
                 {/* Settlement Yield Impact Card */}
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs space-y-1.5">
                   <div className="flex items-center justify-between font-bold text-slate-900">
-                    <span>Customer Paid Total:</span>
+                    <span>
+                      {transactionType === "payment_collection"
+                        ? "Customer Paid Total:"
+                        : transactionType === "cash_out"
+                        ? "Customer Received / Handed:"
+                        : "Customer Fee Paid:"}
+                    </span>
                     <span className="font-mono text-sm font-black text-slate-950">
-                      {inr(Number(amount || 0) + Number(fee || 0))}
+                      {transactionType === "cash_out"
+                        ? inr(Number(amount || 0))
+                        : transactionType === "payment_collection"
+                        ? inr(Number(amount || 0) + Number(fee || 0))
+                        : inr(Number(fee || 0))}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-600">
@@ -1962,14 +2066,22 @@ export default function AepsWorkspace({
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-emerald-200">
                     <span>Cash Till Impact:</span>
-                    <span className="font-mono font-bold text-rose-600">
-                      -{inr(Number(amount || 0))} (Cash Given)
+                    <span
+                      className={`font-mono font-bold ${
+                        transactionType === "cash_out" ? "text-rose-600" : "text-slate-600"
+                      }`}
+                    >
+                      {transactionType === "cash_out"
+                        ? `-${inr(Number(amount || 0))} (Cash Given)`
+                        : "₹0.00 (Zero Cash Dispensed)"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-500">
                     <span>Portal Float Impact:</span>
                     <span className="font-mono font-bold text-emerald-700">
-                      +{inr(Number(amount || 0) + Number(commission || 0))} (Wallet Credit)
+                      {transactionType === "balance_enquiry" || transactionType === "mini_statement"
+                        ? `+${inr(Number(commission || 0))} (Comm Credit)`
+                        : `+${inr(Number(amount || 0) + Number(commission || 0))} (Wallet Credit)`}
                     </span>
                   </div>
                 </div>
@@ -2391,6 +2503,18 @@ export default function AepsWorkspace({
 
                   <div>
                     <div className="flex justify-between text-xs mb-1 font-bold">
+                      <span className="text-slate-700">Payment Collection</span>
+                      <span className="text-violet-600 font-mono">
+                        {typeDistribution.collectionPct}% ({typeDistribution.collectionCount})
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div style={{ width: `${typeDistribution.collectionPct}%` }} className="h-full bg-violet-600" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1 font-bold">
                       <span className="text-slate-700">Balance Enquiry</span>
                       <span className="text-indigo-600 font-mono">
                         {typeDistribution.balancePct}% ({typeDistribution.balanceCount})
@@ -2448,6 +2572,7 @@ export default function AepsWorkspace({
                 >
                   <option value="all">All Methods</option>
                   <option value="cash_out">Cash Out</option>
+                  <option value="payment_collection">Payment Collection</option>
                   <option value="balance_enquiry">Balance Enquiry</option>
                   <option value="mini_statement">Mini Statement</option>
                 </select>
@@ -2723,6 +2848,7 @@ export default function AepsWorkspace({
                         id: `rule-${selectedRulesPortalId}-${Date.now()}`,
                         serviceType: "aeps",
                         ruleType: "fee",
+                        transactionType: "all",
                         portalId: selectedRulesPortalId,
                         minAmount: 100,
                         maxAmount: 5000,
@@ -2755,6 +2881,21 @@ export default function AepsWorkspace({
                       >
                         <option value="fee">Customer Fee</option>
                         <option value="commission">Portal Commission</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-700 mb-1">Transaction Type</label>
+                      <select
+                        value={editingRule.transactionType || "all"}
+                        onChange={(e) => setEditingRule({ ...editingRule, transactionType: e.target.value as any })}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-semibold"
+                      >
+                        <option value="all">All Types</option>
+                        <option value="cash_out">Cash Out (Biometric Withdrawal)</option>
+                        <option value="payment_collection">Payment Collection (Aadhaar Pay)</option>
+                        <option value="balance_enquiry">Balance Enquiry</option>
+                        <option value="mini_statement">Mini Statement</option>
                       </select>
                     </div>
 
@@ -2845,6 +2986,7 @@ export default function AepsWorkspace({
                   <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2.5">Type</th>
+                      <th className="px-3 py-2.5">Method</th>
                       <th className="px-3 py-2.5">Amount Slab</th>
                       <th className="px-3 py-2.5">Value (₹)</th>
                       <th className="px-3 py-2.5">Bank</th>
@@ -2865,6 +3007,9 @@ export default function AepsWorkspace({
                             >
                               {r.ruleType}
                             </span>
+                          </td>
+                          <td className="px-3 py-2 font-semibold capitalize text-slate-700">
+                            {(r.transactionType || "all").replace(/_/g, " ")}
                           </td>
                           <td className="px-3 py-2 font-mono font-bold text-slate-900">
                             ₹{r.minAmount} – {r.maxAmount ? `₹${r.maxAmount}` : "Unlimited"}
@@ -2887,7 +3032,22 @@ export default function AepsWorkspace({
                             </button>
                           </td>
                           <td className="px-3 py-2 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const dup: AepsPricingRule = {
+                                    ...r,
+                                    id: `rule-${r.portalId || "gen"}-${Date.now()}`,
+                                    priority: (r.priority || 0) + 1,
+                                  };
+                                  setPricingRules((prev) => [dup, ...prev]);
+                                  showToast("success", "Rule duplicated.");
+                                }}
+                                className="text-emerald-600 hover:underline font-bold"
+                              >
+                                Duplicate
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2977,6 +3137,29 @@ export default function AepsWorkspace({
                     RRN: {bankRef || "—"} | Portal: {portalRef || "—"}
                   </span>
                 </div>
+
+                {transactionType === "payment_collection" && (
+                  <div className="col-span-2 rounded-lg bg-indigo-50 border border-indigo-200 p-2.5 text-xs text-indigo-900 flex items-center justify-between">
+                    <div>
+                      <span className="font-black block">Direction: IN (Customer → Shop/Business)</span>
+                      <span className="text-[10px] text-indigo-700">Method: {collectionMethod.toUpperCase()} · Zero physical cash dispensed</span>
+                    </div>
+                    <span className="rounded bg-indigo-200 text-indigo-800 font-bold px-2 py-0.5 text-[10px]">
+                      Aadhaar Pay
+                    </span>
+                  </div>
+                )}
+                {transactionType === "cash_out" && (
+                  <div className="col-span-2 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 flex items-center justify-between">
+                    <div>
+                      <span className="font-black block">Direction: OUT (Shop/Business → Customer)</span>
+                      <span className="text-[10px] text-amber-700">Hand {inr(Number(amount || 0))} physical cash to customer from cash till</span>
+                    </div>
+                    <span className="rounded bg-amber-200 text-amber-800 font-bold px-2 py-0.5 text-[10px]">
+                      Cash Out
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-2">

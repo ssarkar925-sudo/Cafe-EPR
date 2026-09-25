@@ -181,23 +181,32 @@ export interface PortalWatcherSource {
   createdAt: string;
 }
 
+export type AepsTxnType = "cash_out" | "payment_collection" | "balance_enquiry" | "mini_statement";
+
 export interface PortalCollectionObservation {
   id: string;
   collectionRunId: string;
   sourceId: string;
   sourceUrl: string;
+  portalId?: string;
+  portalName?: string;
   purpose: PortalSourcePurpose;
   httpStatus: number;
   latencyMs: number;
   extractedAt: string;
   rawSnippet: string;
   normalizedData: {
-    transactionType?: "cash_out" | "balance_enquiry" | "mini_statement" | null;
+    portalId?: string;
+    portalName?: string;
+    bankId?: string | null;
     bankName?: string | null;
     bankCode?: string | null;
+    transactionType?: AepsTxnType | null;
+    customerFee?: number | null;
     commission?: number | null;
     fee?: number | null;
     maxLimit?: number | null;
+    amountLimits?: { min?: number; max?: number } | null;
     reference?: string | null;
     serviceStatus?: string | null;
     summary?: string | null;
@@ -207,22 +216,17 @@ export interface PortalCollectionObservation {
 }
 
 export interface VerifiedTransactionContext {
+  // Explicit canonical fields (Requirement 1.1)
   transactionType: {
-    value: "cash_out" | "balance_enquiry" | "mini_statement" | null;
+    value: AepsTxnType | null;
     status: SourceConfidenceStatus;
     sources: string[];
+    direction?: "in" | "out" | "info";
   };
-  bank: {
-    value: { id: string; name: string; code?: string } | null;
-    status: SourceConfidenceStatus;
-    sources: string[];
-    candidates?: { id: string; name: string; code?: string }[];
-  };
-  portal: {
-    id: string;
-    name: string;
-    status: SourceConfidenceStatus;
-  };
+  bankId?: string | null;
+  bankName?: string | null;
+  portalId?: string;
+  portalName?: string;
   customerFee: {
     value: number | null;
     status: SourceConfidenceStatus;
@@ -235,12 +239,28 @@ export interface VerifiedTransactionContext {
     sources: string[];
     conflicts?: { source: string; value: number }[];
   };
-  maxLimit: {
-    value: number | null;
-    status: SourceConfidenceStatus;
+  amountLimits?: {
+    min: number;
+    max: number;
   };
   reference: {
     value: string | null;
+    status: SourceConfidenceStatus;
+  };
+  // Structured entities
+  bank: {
+    value: { id: string; name: string; code?: string } | null;
+    status: SourceConfidenceStatus;
+    sources: string[];
+    candidates?: { id: string; name: string; code?: string }[];
+  };
+  portal: {
+    id: string;
+    name: string;
+    status: SourceConfidenceStatus;
+  };
+  maxLimit: {
+    value: number | null;
     status: SourceConfidenceStatus;
   };
   serviceStatus: {
@@ -292,6 +312,7 @@ export interface AepsPricingRule {
   id: string;
   serviceType: "aeps";
   ruleType: "fee" | "commission";
+  transactionType?: AepsTxnType | "all";
   portalId?: string | null;
   customerId?: string | null;
   bankId?: string | null; // null or 'all' for all banks, or specific bank uuid
@@ -321,9 +342,23 @@ export interface PortalAuditRecord {
 // Normalization helpers
 // ---------------------------------------------------------------------------
 
-export function normalizeTransactionType(raw: string): "cash_out" | "balance_enquiry" | "mini_statement" | null {
+export function normalizeTransactionType(raw: string): AepsTxnType | null {
   if (!raw) return null;
   const s = raw.toLowerCase().replace(/[-_]/g, " ").trim();
+  if (
+    s.includes("collection") ||
+    s.includes("pay collection") ||
+    s.includes("payment collection") ||
+    s.includes("aadhaar pay") ||
+    s.includes("aadhaarpay") ||
+    s.includes("merchant pay") ||
+    s.includes("merchant collection") ||
+    s.includes("collect") ||
+    s === "ap" ||
+    s === "pay"
+  ) {
+    return "payment_collection";
+  }
   if (
     s.includes("withdrawal") ||
     s.includes("cash out") ||
@@ -354,41 +389,82 @@ export function normalizeTransactionType(raw: string): "cash_out" | "balance_enq
   return null;
 }
 
+export interface ResolvePricingParams {
+  portalId?: string;
+  bankId?: string;
+  transactionType?: string;
+  amount: number;
+  customerId?: string;
+}
+
 /**
  * Resolves pricing from active published pricing rules.
- * Priority: customer-specific > bank-specific > portal-specific > global, then priority DESC.
+ * Supports explicit object signature: { portalId, bankId, transactionType, amount, customerId }
+ * Priority: customer-specific > transactionType-specific > bank-specific > portal-specific > global, then priority DESC.
  */
 export function resolvePricingFromRules(
   rules: AepsPricingRule[],
-  portalId: string,
-  amount: number,
+  paramsOrPortalId: string | ResolvePricingParams,
+  amount?: number,
   bankId?: string,
-  customerId?: string
-): { fee: number; commission: number; matchedFeeRule?: AepsPricingRule; matchedCommRule?: AepsPricingRule } {
-  const activeRules = (rules || []).filter(
-    (r) =>
-      r.serviceType === "aeps" &&
-      r.isActive &&
-      r.minAmount <= amount &&
-      (r.maxAmount === null || r.maxAmount === undefined || amount <= r.maxAmount) &&
-      (!r.portalId || r.portalId === portalId) &&
-      (!r.customerId || r.customerId === customerId) &&
-      (!r.bankId || r.bankId === "all" || r.bankId === bankId)
-  );
+  customerId?: string,
+  transactionType?: string
+): {
+  fee: number;
+  commission: number;
+  matchedFeeRule?: AepsPricingRule;
+  matchedCommRule?: AepsPricingRule;
+} {
+  let targetPortalId: string | undefined;
+  let targetBankId: string | undefined;
+  let targetTxnType: string = "cash_out";
+  let targetAmount: number = 0;
+  let targetCustomerId: string | undefined;
+
+  if (typeof paramsOrPortalId === "object" && paramsOrPortalId !== null) {
+    targetPortalId = paramsOrPortalId.portalId;
+    targetBankId = paramsOrPortalId.bankId;
+    targetTxnType = paramsOrPortalId.transactionType || "cash_out";
+    targetAmount = paramsOrPortalId.amount || 0;
+    targetCustomerId = paramsOrPortalId.customerId;
+  } else {
+    targetPortalId = paramsOrPortalId;
+    targetAmount = amount || 0;
+    targetBankId = bankId;
+    targetCustomerId = customerId;
+    targetTxnType = transactionType || "cash_out";
+  }
+
+  const activeRules = (rules || []).filter((r) => {
+    if (r.serviceType && r.serviceType !== "aeps") return false;
+    if (!r.isActive) return false;
+    if (r.minAmount > targetAmount) return false;
+    if (r.maxAmount !== null && r.maxAmount !== undefined && targetAmount > r.maxAmount) return false;
+    if (r.portalId && targetPortalId && r.portalId !== targetPortalId) return false;
+    if (r.customerId && targetCustomerId && r.customerId !== targetCustomerId) return false;
+    if (r.bankId && r.bankId !== "all" && targetBankId && r.bankId !== targetBankId) return false;
+    if (r.transactionType && r.transactionType !== "all" && r.transactionType !== targetTxnType) return false;
+    return true;
+  });
 
   const sortRules = (a: AepsPricingRule, b: AepsPricingRule) => {
     // 1. Customer specific first
     if (a.customerId && !b.customerId) return -1;
     if (!a.customerId && b.customerId) return 1;
-    // 2. Bank specific first
+    // 2. Transaction type specific match before generic "all"
+    const aTypeSpecific = a.transactionType && a.transactionType !== "all";
+    const bTypeSpecific = b.transactionType && b.transactionType !== "all";
+    if (aTypeSpecific && !bTypeSpecific) return -1;
+    if (!aTypeSpecific && bTypeSpecific) return 1;
+    // 3. Bank specific first
     if (a.bankId && a.bankId !== "all" && (!b.bankId || b.bankId === "all")) return -1;
     if ((!a.bankId || a.bankId === "all") && b.bankId && b.bankId !== "all") return 1;
-    // 3. Portal specific first
+    // 4. Portal specific first
     if (a.portalId && !b.portalId) return -1;
     if (!a.portalId && b.portalId) return 1;
-    // 4. Priority desc
+    // 5. Priority desc
     if ((b.priority || 0) !== (a.priority || 0)) return (b.priority || 0) - (a.priority || 0);
-    // 5. Min amount desc
+    // 6. Min amount desc
     return b.minAmount - a.minAmount;
   };
 
@@ -408,11 +484,23 @@ export function resolvePricingFromRules(
 
 /**
  * Returns dynamic denominations generated from active rules or falls back to canonical slabs.
+ * Accepts transactionType to return relevant denominations (e.g. Cash Out vs Payment Collection).
  */
-export function getDynamicDenominations(rules: AepsPricingRule[], portalId?: string): number[] {
+export function getDynamicDenominations(
+  rules: AepsPricingRule[],
+  portalId?: string,
+  transactionType: string = "cash_out"
+): number[] {
+  if (transactionType === "balance_enquiry" || transactionType === "mini_statement") {
+    return [];
+  }
   const candidateSet = new Set<number>();
   for (const r of rules || []) {
-    if (r.isActive && (!portalId || !r.portalId || r.portalId === portalId)) {
+    if (
+      r.isActive &&
+      (!portalId || !r.portalId || r.portalId === portalId) &&
+      (!r.transactionType || r.transactionType === "all" || r.transactionType === transactionType)
+    ) {
       if (r.minAmount > 0 && r.minAmount <= 10000) candidateSet.add(r.minAmount);
       if (r.maxAmount && r.maxAmount > 0 && r.maxAmount <= 10000) candidateSet.add(r.maxAmount);
     }
@@ -420,11 +508,14 @@ export function getDynamicDenominations(rules: AepsPricingRule[], portalId?: str
 
   // If no dynamic denominations from rules, use canonical Indian AEPS slabs
   if (candidateSet.size < 3) {
+    if (transactionType === "payment_collection") {
+      return [100, 200, 500, 1000, 2000, 5000];
+    }
     return [500, 1000, 2000, 3000, 5000, 10000];
   }
 
   return Array.from(candidateSet)
-    .filter((n) => n >= 100 && n <= 10000)
+    .filter((n) => n >= 50 && n <= 10000)
     .sort((a, b) => a - b)
     .slice(0, 8);
 }
@@ -452,7 +543,7 @@ export function crossVerifySourceObservations(
     .filter((o) => o.normalizedData.transactionType)
     .map((o) => ({ type: o.normalizedData.transactionType!, source: o.sourceUrl }));
 
-  let resolvedType: "cash_out" | "balance_enquiry" | "mini_statement" | null = null;
+  let resolvedType: AepsTxnType | null = null;
   let typeStatus: SourceConfidenceStatus = "NOT_FOUND";
   const typeSources = typeVotes.map((v) => v.source);
 
@@ -471,7 +562,11 @@ export function crossVerifySourceObservations(
     }
   }
 
-  // 2. Bank resolution
+  const direction: "in" | "out" | "info" =
+    resolvedType === "payment_collection" ? "in" :
+    resolvedType === "cash_out" ? "out" : "info";
+
+  // 2. Bank resolution (Extracted Financial Institution)
   const bankVotes = successfulObs
     .filter((o) => o.normalizedData.bankName || o.normalizedData.bankCode)
     .map((o) => {
@@ -562,7 +657,12 @@ export function crossVerifySourceObservations(
   }
 
   // If fees or commission were not in sources (or in conflict), check active published rules as baseline
-  const rulePricing = resolvePricingFromRules(activeRules, portal.id, 2000, resolvedBank?.id);
+  const rulePricing = resolvePricingFromRules(activeRules, {
+    portalId: portal.id,
+    amount: 2000,
+    bankId: resolvedBank?.id,
+    transactionType: resolvedType || "cash_out",
+  });
   if (resolvedFee === null) {
     resolvedFee = rulePricing.fee;
     if (feeStatus !== "CONFLICT") {
@@ -592,22 +692,17 @@ export function crossVerifySourceObservations(
   }
 
   const verifiedContext: VerifiedTransactionContext = {
+    // Explicit canonical fields (Requirement 1.1)
     transactionType: {
       value: resolvedType,
       status: typeStatus,
       sources: typeSources,
+      direction,
     },
-    bank: {
-      value: resolvedBank,
-      status: bankStatus,
-      sources: bankSources,
-      candidates: bankCandidates,
-    },
-    portal: {
-      id: portal.id,
-      name: portal.name,
-      status: "CONFIRMED",
-    },
+    bankId: resolvedBank?.id ?? null,
+    bankName: resolvedBank?.name ?? null,
+    portalId: portal.id,
+    portalName: portal.name,
     customerFee: {
       value: resolvedFee,
       status: feeStatus,
@@ -620,19 +715,35 @@ export function crossVerifySourceObservations(
       sources: commSources,
       conflicts: commConflicts.length > 0 ? commConflicts : undefined,
     },
-    maxLimit: {
-      value: maxLimitObs?.normalizedData.maxLimit ?? 10000,
-      status: maxLimitObs ? "CONFIRMED" : "NOT_FOUND",
+    amountLimits: {
+      min: 100,
+      max: maxLimitObs?.normalizedData.maxLimit ?? 10000,
     },
     reference: {
       value: refObs?.normalizedData.reference ?? null,
       status: refObs ? "CONFIRMED" : "NOT_FOUND",
     },
+    // Structured entities
+    bank: {
+      value: resolvedBank,
+      status: bankStatus,
+      sources: bankSources,
+      candidates: bankCandidates,
+    },
+    portal: {
+      id: portal.id,
+      name: portal.name,
+      status: "CONFIRMED",
+    },
+    maxLimit: {
+      value: maxLimitObs?.normalizedData.maxLimit ?? 10000,
+      status: maxLimitObs ? "CONFIRMED" : "NOT_FOUND",
+    },
     serviceStatus: {
       value: statusObs?.normalizedData.serviceStatus ?? "Operational",
       status: statusObs ? "CONFIRMED" : "NOT_FOUND",
     },
-    denominations: getDynamicDenominations(activeRules, portal.id),
+    denominations: getDynamicDenominations(activeRules, portal.id, resolvedType || "cash_out"),
     verifiedAt: new Date().toISOString(),
   };
 
@@ -987,10 +1098,72 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
           id: `rule-${p.id}-comm-3`,
           serviceType: "aeps",
           ruleType: "commission",
+          transactionType: "cash_out",
           portalId: p.id,
           minAmount: 5001,
           maxAmount: 10000,
           value: 8,
+          priority: 10,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        // DigiPay Payment Collection rules
+        {
+          id: `rule-${p.id}-fee-coll-1`,
+          serviceType: "aeps",
+          ruleType: "fee",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 100,
+          maxAmount: 5000,
+          value: 5,
+          priority: 10,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: `rule-${p.id}-fee-coll-2`,
+          serviceType: "aeps",
+          ruleType: "fee",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 5001,
+          maxAmount: 10000,
+          value: 10,
+          priority: 10,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: `rule-${p.id}-comm-coll-1`,
+          serviceType: "aeps",
+          ruleType: "commission",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 100,
+          maxAmount: 5000,
+          value: 2.5,
+          priority: 10,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: `rule-${p.id}-comm-coll-2`,
+          serviceType: "aeps",
+          ruleType: "commission",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 5001,
+          maxAmount: 10000,
+          value: 5.0,
           priority: 10,
           isActive: true,
           effectiveFrom: "2026-01-01",
@@ -1004,6 +1177,7 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
           id: `rule-${p.id}-fee-1`,
           serviceType: "aeps",
           ruleType: "fee",
+          transactionType: "cash_out",
           portalId: p.id,
           minAmount: 100,
           maxAmount: 10000,
@@ -1018,6 +1192,7 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
           id: `rule-${p.id}-comm-1`,
           serviceType: "aeps",
           ruleType: "commission",
+          transactionType: "cash_out",
           portalId: p.id,
           minAmount: 100,
           maxAmount: 3000,
@@ -1032,10 +1207,42 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
           id: `rule-${p.id}-comm-2`,
           serviceType: "aeps",
           ruleType: "commission",
+          transactionType: "cash_out",
           portalId: p.id,
           minAmount: 3001,
           maxAmount: 10000,
           value: 7,
+          priority: 10,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        // Spice Money Payment Collection
+        {
+          id: `rule-${p.id}-fee-coll-1`,
+          serviceType: "aeps",
+          ruleType: "fee",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 100,
+          maxAmount: 10000,
+          value: 0,
+          priority: 10,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: `rule-${p.id}-comm-coll-1`,
+          serviceType: "aeps",
+          ruleType: "commission",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 100,
+          maxAmount: 10000,
+          value: 5.5,
           priority: 10,
           isActive: true,
           effectiveFrom: "2026-01-01",
@@ -1049,6 +1256,7 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
           id: `rule-${p.id}-fee-default`,
           serviceType: "aeps",
           ruleType: "fee",
+          transactionType: "cash_out",
           portalId: p.id,
           minAmount: 100,
           maxAmount: 10000,
@@ -1063,10 +1271,41 @@ export function getDefaultAepsPricingRules(portals: { id: string; name: string }
           id: `rule-${p.id}-comm-default`,
           serviceType: "aeps",
           ruleType: "commission",
+          transactionType: "cash_out",
           portalId: p.id,
           minAmount: 100,
           maxAmount: 10000,
           value: 5,
+          priority: 5,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: `rule-${p.id}-fee-coll-default`,
+          serviceType: "aeps",
+          ruleType: "fee",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 100,
+          maxAmount: 10000,
+          value: 5,
+          priority: 5,
+          isActive: true,
+          effectiveFrom: "2026-01-01",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: `rule-${p.id}-comm-coll-default`,
+          serviceType: "aeps",
+          ruleType: "commission",
+          transactionType: "payment_collection",
+          portalId: p.id,
+          minAmount: 100,
+          maxAmount: 10000,
+          value: 3,
           priority: 5,
           isActive: true,
           effectiveFrom: "2026-01-01",

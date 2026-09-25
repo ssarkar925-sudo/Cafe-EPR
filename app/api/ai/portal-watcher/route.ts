@@ -10,6 +10,7 @@ import {
   type PortalCollectionRun,
   type PortalChangeRecord,
   type AepsPricingRule,
+  type AepsTxnType,
   normalizeTransactionType,
   crossVerifySourceObservations,
   getDefaultWatcherSources,
@@ -33,7 +34,7 @@ function normalizePurposeData(
 
   let commissionVal: number | null = null;
   let feeVal: number | null = null;
-  let txnTypeVal: "cash_out" | "balance_enquiry" | "mini_statement" | null = null;
+  let txnTypeVal: AepsTxnType | null = null;
   let bankNameVal: string | null = null;
   let bankCodeVal: string | null = null;
   let maxLimitVal: number | null = null;
@@ -179,13 +180,18 @@ export async function POST(request: Request) {
             verificationStatus: "VERIFIED",
             observations: [],
             verifiedContext: {
-              transactionType: { value: "cash_out", status: "CONFIRMED", sources: [] },
-              bank: { value: null, status: "NOT_FOUND", sources: [] },
-              portal: { id: portalId, name: portalName, status: "CONFIRMED" },
+              transactionType: { value: "cash_out", status: "CONFIRMED", sources: [], direction: "out" },
+              bankId: null,
+              bankName: null,
+              portalId,
+              portalName,
               customerFee: { value: 15, status: "CONFIRMED", sources: [] },
               commission: { value: 4, status: "CONFIRMED", sources: [] },
-              maxLimit: { value: 10000, status: "CONFIRMED" },
+              amountLimits: { min: 100, max: 10000 },
               reference: { value: null, status: "NOT_FOUND" },
+              bank: { value: null, status: "NOT_FOUND", sources: [] },
+              portal: { id: portalId, name: portalName, status: "CONFIRMED" },
+              maxLimit: { value: 10000, status: "CONFIRMED" },
               serviceStatus: { value: "Operational", status: "CONFIRMED" },
               denominations: [500, 1000, 2000, 3000, 5000, 10000],
               verifiedAt: new Date().toISOString(),
@@ -225,24 +231,32 @@ export async function POST(request: Request) {
           successCount++;
           const content = item.value.webRes.content || "";
           const normalized = normalizePurposeData(src.purpose, content, bankList);
+          const matchedBank = matchBank(normalized.bankName || normalized.bankCode || "", bankList);
 
           const obs: PortalCollectionObservation = {
             id: `obs-${src.id}-${Date.now()}`,
             collectionRunId: runId,
             sourceId: src.id,
             sourceUrl: src.url || src.sourceUrl || "",
+            portalId: src.portalId,
+            portalName: src.portalName,
             purpose: src.purpose,
             httpStatus: 200,
             latencyMs: item.value.latencyMs,
             extractedAt,
             rawSnippet: content.slice(0, 300),
             normalizedData: {
+              portalId: src.portalId,
+              portalName: src.portalName,
+              bankId: matchedBank?.id || null,
+              bankName: matchedBank?.name || normalized.bankName || null,
+              bankCode: matchedBank?.code || normalized.bankCode || null,
               transactionType: normalized.transactionType,
-              bankName: normalized.bankName,
-              bankCode: normalized.bankCode,
+              customerFee: normalized.fee,
               commission: normalized.commission,
               fee: normalized.fee,
               maxLimit: normalized.maxLimit,
+              amountLimits: normalized.maxLimit ? { min: 100, max: normalized.maxLimit } : null,
               reference: normalized.reference,
               serviceStatus: normalized.serviceStatus,
               summary: normalized.summary,
