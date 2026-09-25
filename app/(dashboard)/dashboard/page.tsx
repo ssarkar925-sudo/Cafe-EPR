@@ -182,6 +182,10 @@ export default async function DashboardPage() {
   const todayMoneyOut = todayCash.filter((c) => c.direction === "out" && c.ref_type !== "quick_sale").reduce((s, c) => s + Number(c.amount || 0), 0);
   const todayInternalTransfers = todaySettlements.reduce((s, st) => s + Number(st.amount || 0), 0);
 
+  const yesterdayInvoices = invoices.filter((inv) => inv.invoice_date === yesterday && inv.status !== "cancelled");
+  const yesterdayTxns = transactions.filter((t) => (t.transaction_date || "").slice(0, 10) === yesterday && t.status === "success");
+  const yesterdayTxCount = yesterdayInvoices.length + yesterdayTxns.length;
+
   const todayTxCount = todayInvoices.length + todayTxns.length;
   const todayAvgTicket = todayTxCount > 0 ? Math.round((todayOperatingRevenue / todayTxCount) * 100) / 100 : 0;
 
@@ -675,7 +679,7 @@ export default async function DashboardPage() {
         todayVsYesterdayPct: revenueVsYesterdayPct,
         profitVsYesterdayPct,
         expensesVsYesterdayPct,
-        txCountVsYesterdayPct: null,
+        txCountVsYesterdayPct: yesterdayTxCount > 0 ? Math.round(((todayTxCount - yesterdayTxCount) / yesterdayTxCount) * 1000) / 10 : null,
       },
     },
     chartDays,
