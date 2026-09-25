@@ -1,0 +1,1622 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  Banknote,
+  BarChart3,
+  Camera,
+  Check,
+  CheckCircle2,
+  ClipboardPaste,
+  Clock3,
+  Download,
+  FileImage,
+  Filter,
+  Landmark,
+  MoreHorizontal,
+  Percent,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  WalletCards,
+  X,
+  XCircle,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { inr } from "@/lib/format";
+import { downloadCsv } from "@/components/ui/csv";
+import CustomerSearchSelect, { type CustomerSearchResult } from "@/components/customers/customer-search-select";
+import { extractAeps, type ScanFields } from "@/lib/scan/extract";
+import { fileToDataUrl, ocrImage } from "@/lib/scan/ocr";
+import type { Master, Txn } from "./business-client";
+
+const DENOMINATIONS = [500, 1000, 2000, 3000, 5000, 10000];
+
+const TOP_BANKS = [
+  ["SBI", ["sbi", "state bank of india"]],
+  ["PNB", ["pnb", "punjab national bank"]],
+  ["BoB", ["bob", "bank of baroda"]],
+  ["UBI", ["ubi", "union bank"]],
+  ["Canara", ["canara"]],
+  ["HDFC", ["hdfc"]],
+  ["ICICI", ["icici"]],
+  ["Axis", ["axis"]],
+  ["Kotak", ["kotak"]],
+  ["Indian", ["indian bank"]],
+] as const;
+
+const inputClass =
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const smallButtonClass =
+  "inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 transition hover:bg-slate-50";
+const primaryButtonClass =
+  "inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40";
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function normalizeBankName(raw: string) {
+  return String(raw || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(the|bank|india|limited|ltd|branch)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchBank(input: string, banks: Master[]) {
+  const normalized = normalizeBankName(input);
+  if (!normalized) return null;
+
+  for (const bank of banks) {
+    const bankName = normalizeBankName(bank.name);
+    if (bankName && (bankName === normalized || bankName.includes(normalized) || normalized.includes(bankName))) {
+      return bank;
+    }
+    if (bank.code && bank.code.toLowerCase() === String(input).trim().toLowerCase()) {
+      return bank;
+    }
+  }
+
+  return null;
+}
+
+function canonicalType(value?: string | null) {
+  const normalized = String(value || "cash_out").toLowerCase();
+  if (normalized === "withdrawal" || normalized === "cashout") return "cash_out";
+  if (normalized === "enquiry" || normalized === "balance") return "balance_enquiry";
+  if (normalized === "statement") return "mini_statement";
+  return normalized;
+}
+
+function typeLabel(value?: string | null) {
+  const type = canonicalType(value);
+  if (type === "balance_enquiry") return "Balance Enquiry";
+  if (type === "mini_statement") return "Mini Statement";
+  return "Cash Out";
+}
+
+function maskMobile(value?: string | null) {
+  const mobile = String(value || "").replace(/\D/g, "");
+  return mobile.length === 10 ? mobile.slice(0, 2) + "••••••" + mobile.slice(-2) : mobile;
+}
+
+function cleanPhone(value?: string | null) {
+  return String(value || "").replace(/\D/g, "").slice(0, 10);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return { date: "—", time: "" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: value, time: "" };
+
+  return {
+    date: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+    time: date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+function statusTone(status?: string | null) {
+  const value = String(status || "").toLowerCase();
+  if (value === "success" || value === "recorded") return "success";
+  if (value === "pending" || value === "review" || value === "processing") return "pending";
+  if (value === "failed" || value === "cancelled") return "danger";
+  if (value === "reversed") return "violet";
+  return "neutral";
+}
+
+function StatusPill({ status }: { status?: string | null }) {
+  const tone = statusTone(status);
+  const styles = {
+    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    pending: "border-amber-200 bg-amber-50 text-amber-700",
+    danger: "border-rose-200 bg-rose-50 text-rose-700",
+    violet: "border-violet-200 bg-violet-50 text-violet-700",
+    neutral: "border-slate-200 bg-slate-50 text-slate-600",
+  };
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wide",
+        styles[tone]
+      )}
+    >
+      {String(status || "unknown")}
+    </span>
+  );
+}
+
+function KpiCard({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone: "blue" | "green" | "rose" | "violet" | "amber";
+}) {
+  const colors = {
+    blue: "border-blue-100 bg-blue-50/60 text-blue-600",
+    green: "border-emerald-100 bg-emerald-50/60 text-emerald-600",
+    rose: "border-rose-100 bg-rose-50/60 text-rose-600",
+    violet: "border-violet-100 bg-violet-50/60 text-violet-600",
+    amber: "border-amber-100 bg-amber-50/60 text-amber-600",
+  };
+
+  return (
+    <div className={cx("rounded-2xl border p-4 shadow-sm", colors[tone])}>
+      <div className="flex items-start justify-between">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm">{icon}</div>
+      </div>
+      <p className="mt-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className="mt-1 text-xl font-black text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function StatusCard({
+  icon,
+  label,
+  count,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  tone: "success" | "pending" | "danger" | "neutral";
+}) {
+  const colors = {
+    success: "bg-emerald-50 text-emerald-700",
+    pending: "bg-amber-50 text-amber-700",
+    danger: "bg-rose-50 text-rose-700",
+    neutral: "bg-slate-100 text-slate-700",
+  };
+
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className={cx("flex h-9 w-9 items-center justify-center rounded-xl", colors[tone])}>{icon}</span>
+        <div>
+          <p className="text-[10px] font-bold text-slate-400">{label}</p>
+          <p className="text-base font-black text-slate-950">{count}</p>
+        </div>
+      </div>
+      <span
+        className={cx(
+          "h-2.5 w-2.5 rounded-full",
+          tone === "success" && "bg-emerald-500",
+          tone === "pending" && "bg-amber-500",
+          tone === "danger" && "bg-rose-500",
+          tone === "neutral" && "bg-slate-400"
+        )}
+      />
+    </div>
+  );
+}
+
+export default function AepsWorkspaceFresh({
+  initialTransactions,
+  initialBanks,
+  initialPortals,
+  float,
+}: {
+  initialTransactions: Txn[];
+  initialCustomers: any[];
+  initialBanks: Master[];
+  initialPortals: Master[];
+  paymentInstruments?: any[];
+  float: any;
+}) {
+  const supabase = createClient();
+
+  const [rows, setRows] = useState<Txn[]>(initialTransactions);
+  const [query, setQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [entryMode, setEntryMode] = useState<"manual" | "ai">("manual");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [customerId, setCustomerId] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
+  const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [aadhaar, setAadhaar] = useState("");
+  const [transactionType, setTransactionType] = useState("cash_out");
+  const [amount, setAmount] = useState("");
+  const [fee, setFee] = useState("");
+  const [commission, setCommission] = useState("");
+  const [bankId, setBankId] = useState("");
+  const [portalId, setPortalId] = useState(initialPortals[0]?.id || "");
+  const [bankRef, setBankRef] = useState("");
+  const [portalRef, setPortalRef] = useState("");
+  const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash" | "upi">("cut_from_withdrawal");
+  const [customerPayMethod, setCustomerPayMethod] = useState("cash");
+
+  const [analyzerTab, setAnalyzerTab] = useState<"paste" | "photo">("paste");
+  const [sourceText, setSourceText] = useState("");
+  const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<ScanFields>({});
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+  const [matchNotice, setMatchNotice] = useState("");
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importNotice, setImportNotice] = useState("");
+
+  const cleanAadhaar = aadhaar.replace(/\D/g, "");
+  const cleanMobile = mobile.replace(/\D/g, "");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const now = new Date();
+    const todayKey = now.toISOString().slice(0, 10);
+
+    return rows.filter((transaction) => {
+      const haystack = [
+        transaction.transaction_number,
+        transaction.customer_mobile,
+        transaction.customers?.name,
+        transaction.banks?.name,
+        transaction.portals?.name,
+        transaction.reference,
+        transaction.remarks,
+        transaction.aadhaar_last4,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const rawDate = String(transaction.transaction_date || "").slice(0, 10);
+
+      if (dateFilter !== "all" && transaction.transaction_date) {
+        if (dateFilter === "today" && rawDate !== todayKey) return false;
+
+        if (dateFilter === "yesterday") {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 1);
+          if (rawDate !== d.toISOString().slice(0, 10)) return false;
+        }
+
+        if (dateFilter === "last7") {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 6);
+          if (rawDate < d.toISOString().slice(0, 10) || rawDate > todayKey) return false;
+        }
+
+        if (dateFilter === "last30") {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 29);
+          if (rawDate < d.toISOString().slice(0, 10) || rawDate > todayKey) return false;
+        }
+
+        if (dateFilter === "this_month" && rawDate.slice(0, 7) !== todayKey.slice(0, 7)) return false;
+      }
+
+      if (typeFilter !== "all" && canonicalType(transaction.transfer_method) !== typeFilter) return false;
+      if (statusFilter !== "all" && String(transaction.status || "").toLowerCase() !== statusFilter) return false;
+      if (q && !haystack.includes(q)) return false;
+
+      return true;
+    });
+  }, [rows, query, dateFilter, typeFilter, statusFilter]);
+
+  const stats = useMemo(() => {
+    return {
+      total: filtered.length,
+      amount: filtered.reduce((sum, t) => sum + Number(t.amount || 0), 0),
+      fees: filtered.reduce((sum, t) => sum + Number(t.service_fee || 0), 0),
+      commission: filtered.reduce((sum, t) => sum + Number(t.portal_commission || 0), 0),
+      success: filtered.filter((t) => String(t.status) === "success" || String(t.status) === "recorded").length,
+      pending: filtered.filter((t) => ["pending", "review", "processing"].includes(String(t.status))).length,
+      cancelled: filtered.filter((t) => String(t.status) === "cancelled" || String(t.status) === "failed").length,
+      reversed: filtered.filter((t) => String(t.status) === "reversed").length,
+    };
+  }, [filtered]);
+
+  const trend = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, index) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - index));
+      const key = d.toISOString().slice(0, 10);
+      return {
+        key,
+        label: d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+        count: rows.filter((t) => String(t.transaction_date || "").slice(0, 10) === key).length,
+      };
+    });
+  }, [rows]);
+
+  const maxTrend = Math.max(1, ...trend.map((point) => point.count));
+
+  const typeDistribution = useMemo(() => {
+    const total = rows.length || 1;
+    const cash = rows.filter((t) => canonicalType(t.transfer_method) === "cash_out").length;
+    const balance = rows.filter((t) => canonicalType(t.transfer_method) === "balance_enquiry").length;
+    const statement = rows.filter((t) => canonicalType(t.transfer_method) === "mini_statement").length;
+    return {
+      cash,
+      balance,
+      statement,
+      cashPct: Math.round((cash / total) * 100),
+      balancePct: Math.round((balance / total) * 100),
+      statementPct: Math.round((statement / total) * 100),
+    };
+  }, [rows]);
+
+  const portalName = initialPortals.find((portal) => portal.id === portalId)?.name || "Not selected";
+  const bankName = initialBanks.find((bank) => bank.id === bankId)?.name || "Not selected";
+  const aepsFloat = Number(float?.current ?? float?.balance ?? 0);
+
+  const formValid = Boolean(
+    customerId &&
+      bankId &&
+      portalId &&
+      cleanAadhaar.length === 4 &&
+      cleanMobile.length === 10 &&
+      Number(amount) > 0 &&
+      Number(fee || 0) >= 0 &&
+      Number(commission || 0) >= 0
+  );
+
+  function resetForm() {
+    setCustomerId("");
+    setSelectedCustomer(null);
+    setName("");
+    setMobile("");
+    setAadhaar("");
+    setTransactionType("cash_out");
+    setAmount("");
+    setFee("");
+    setCommission("");
+    setBankId("");
+    setPortalId(initialPortals[0]?.id || "");
+    setBankRef("");
+    setPortalRef("");
+    setFeeSource("cut_from_withdrawal");
+    setCustomerPayMethod("cash");
+    setSourceText("");
+    setSourceImage(null);
+    setAnalysis({});
+    setAnalysisError("");
+    setMatchNotice("");
+    setEntryMode("manual");
+    setReviewOpen(false);
+  }
+
+  function selectBankByCode(code: string) {
+    const bank = TOP_BANKS.find((entry) => entry[0] === code);
+    if (!bank) return;
+
+    const hit = initialBanks.find((candidate) => {
+      const normalized = normalizeBankName(candidate.name);
+      return bank[1].some((match) => normalized.includes(match));
+    });
+
+    if (hit) setBankId(hit.id);
+  }
+
+  async function resolveCustomerFromSignals(mobileValue: string, aadhaarValue: string) {
+    setMatchNotice("");
+
+    let mobileMatch: CustomerSearchResult | null = null;
+
+    if (mobileValue.length === 10) {
+      try {
+        const response = await fetch(
+          "/api/customers/search?q=" + encodeURIComponent(mobileValue) + "&limit=10"
+        );
+        const payload = await response.json();
+        const results = Array.isArray(payload?.results) ? payload.results : [];
+        mobileMatch =
+          results.find(
+            (customer: CustomerSearchResult) => cleanPhone(customer.phone) === mobileValue
+          ) || null;
+      } catch {
+        mobileMatch = null;
+      }
+    }
+
+    let aadhaarCustomerIds: string[] = [];
+
+    if (aadhaarValue.length === 4) {
+      try {
+        const result = await supabase
+          .from("transactions")
+          .select("customer_id")
+          .eq("service_type", "aeps")
+          .eq("aadhaar_last4", aadhaarValue)
+          .not("customer_id", "is", null)
+          .limit(50);
+
+        aadhaarCustomerIds = Array.from(
+          new Set((result.data || []).map((row: any) => row.customer_id).filter(Boolean))
+        );
+      } catch {
+        aadhaarCustomerIds = [];
+      }
+    }
+
+    if (mobileMatch && aadhaarCustomerIds.includes(mobileMatch.id)) {
+      setCustomerId(mobileMatch.id);
+      setSelectedCustomer(mobileMatch);
+      setName(mobileMatch.name || "");
+      setMobile(cleanPhone(mobileMatch.phone));
+      setMatchNotice("Verified match: mobile + Aadhaar last 4.");
+      return;
+    }
+
+    if (!mobileMatch && aadhaarCustomerIds.length === 1) {
+      try {
+        const result = await supabase
+          .from("customers")
+          .select("id, name, phone, code, is_active")
+          .eq("id", aadhaarCustomerIds[0])
+          .maybeSingle();
+
+        if (result.data) {
+          const record: CustomerSearchResult = {
+            id: result.data.id,
+            code: result.data.code || null,
+            name: result.data.name || null,
+            phone: result.data.phone || null,
+            is_active: result.data.is_active !== false,
+          };
+          setCustomerId(record.id);
+          setSelectedCustomer(record);
+          setName(record.name || "");
+          setMobile(cleanPhone(record.phone));
+          setMatchNotice("Matched by Aadhaar last 4.");
+          return;
+        }
+      } catch {
+        // Fall through to manual customer selection.
+      }
+    }
+
+    if (aadhaarCustomerIds.length > 1) {
+      setCustomerId("");
+      setSelectedCustomer(null);
+      setName("");
+      setMatchNotice(
+        aadhaarCustomerIds.length +
+          " customers share this Aadhaar last 4. Select the correct customer manually."
+      );
+      return;
+    }
+
+    if (mobileMatch) {
+      setCustomerId("");
+      setSelectedCustomer(null);
+      setName("");
+      setMatchNotice("Mobile match found, but Aadhaar must also be verified before approval.");
+      return;
+    }
+
+    if (mobileValue.length === 10 || aadhaarValue.length === 4) {
+      setCustomerId("");
+      setSelectedCustomer(null);
+      setName("");
+      setMatchNotice("No single verified customer match. Manual customer selection is required.");
+    }
+  }
+
+  async function applyAnalysis(fields: ScanFields, rawText: string) {
+    setAnalysis(fields);
+
+    if (fields.aadhaar_last4) setAadhaar(fields.aadhaar_last4);
+    if (fields.customer_mobile) setMobile(cleanPhone(fields.customer_mobile));
+    if (fields.amount) setAmount(fields.amount);
+    if (fields.service_fee) setFee(fields.service_fee);
+    if (fields.portal_commission) setCommission(fields.portal_commission);
+    if (fields.reference) setBankRef(fields.reference);
+
+    if (fields.bank_name) {
+      const bank = matchBank(fields.bank_name, initialBanks);
+      if (bank) setBankId(bank.id);
+    }
+
+    if (fields.portal_name) {
+      const portal = initialPortals.find(
+        (candidate) =>
+          String(candidate.name || "").toLowerCase().includes(String(fields.portal_name).toLowerCase())
+      );
+      if (portal) setPortalId(portal.id);
+    }
+
+    if (/mini\s*statement|mini statement/i.test(rawText)) {
+      setTransactionType("mini_statement");
+    } else if (/balance\s*(enquiry|inquiry)|available balance/i.test(rawText)) {
+      setTransactionType("balance_enquiry");
+    } else {
+      setTransactionType("cash_out");
+    }
+
+    if (fields.customer_mobile || fields.aadhaar_last4) {
+      await resolveCustomerFromSignals(
+        cleanPhone(fields.customer_mobile || ""),
+        fields.aadhaar_last4 || ""
+      );
+    }
+  }
+
+  async function analyzeText() {
+    if (!sourceText.trim()) return;
+
+    setAnalysisBusy(true);
+    setAnalysisError("");
+
+    try {
+      const fields = extractAeps(sourceText);
+      await applyAnalysis(fields, sourceText);
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "Text analysis failed.");
+    } finally {
+      setAnalysisBusy(false);
+    }
+  }
+
+  async function analyzePhoto(file: File) {
+    setAnalysisBusy(true);
+    setAnalysisError("");
+
+    try {
+      const preview = await fileToDataUrl(file);
+      setSourceImage(preview);
+
+      const text = await ocrImage(file);
+      setSourceText(text);
+
+      const fields = extractAeps(text);
+      await applyAnalysis(fields, text);
+      setEntryMode("ai");
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "Photo analysis failed.");
+    } finally {
+      setAnalysisBusy(false);
+    }
+  }
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (file) void analyzePhoto(file);
+  }
+
+  async function recordTransaction() {
+    if (busy || !formValid) return;
+
+    setBusy(true);
+
+    try {
+      const result = await supabase.rpc("create_business_txn", {
+        p_service_type: "aeps",
+        p_transaction_date: new Date().toISOString().slice(0, 10),
+        p_transaction_timestamp: new Date().toISOString(),
+        p_customer_id: customerId,
+        p_customer_mobile: cleanMobile,
+        p_reference: bankRef.trim() || null,
+        p_remarks: portalRef.trim() ? "Portal Ref: " + portalRef.trim() : null,
+        p_status: "success",
+        p_bank_id: bankId,
+        p_portal_id: portalId,
+        p_merchant_qr_id: null,
+        p_aadhaar_last4: cleanAadhaar,
+        p_transfer_method: transactionType,
+        p_sender_name: null,
+        p_sender_mobile: null,
+        p_beneficiary_name: null,
+        p_beneficiary_mobile: null,
+        p_beneficiary_bank: null,
+        p_beneficiary_ifsc: null,
+        p_beneficiary_account: null,
+        p_upi_id: null,
+        p_amount: Number(amount),
+        p_service_fee: Number(fee || 0),
+        p_portal_commission: Number(commission || 0),
+        p_fee_source: feeSource,
+        p_paid_from: "portal",
+        p_customer_pay_method: customerPayMethod,
+        p_receiver_name: null,
+      });
+
+      if (result.error) throw result.error;
+
+      setRows((previous) => [result.data as Txn, ...previous]);
+      setReviewOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openAiInsights() {
+    document.getElementById("aeps-ai-insights")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function stageImport(file: File) {
+    setImportNotice("");
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        setImportNotice("Import file is empty.");
+        return;
+      }
+      const isCsv = /\.csv$/i.test(file.name) || text.includes(",");
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (!isCsv && !/^\s*\[|^\s*\{/m.test(text)) {
+        setImportNotice("Import staged for preview. Use CSV or JSON transaction data.");
+        return;
+      }
+      setImportNotice("Import staged successfully: " + lines.length + " source row(s). Nothing was recorded.");
+    } catch {
+      setImportNotice("Could not read the import file.");
+    }
+  }
+
+  function handleImportChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (file) void stageImport(file);
+  }
+
+  function exportTransactions() {
+    downloadCsv(
+      "aeps-transactions.csv",
+      [
+        "Transaction",
+        "Date",
+        "Customer",
+        "Mobile",
+        "Type",
+        "Aadhaar",
+        "Amount",
+        "Customer Fee",
+        "Portal Commission",
+        "Bank",
+        "Portal",
+        "Bank Reference",
+        "Portal Reference",
+        "Status",
+      ],
+      filtered.map((transaction) => [
+        transaction.transaction_number || "",
+        transaction.transaction_date || "",
+        transaction.customers?.name || "",
+        transaction.customer_mobile || transaction.customers?.phone || "",
+        typeLabel(transaction.transfer_method),
+        transaction.aadhaar_last4 || "",
+        Number(transaction.amount || 0),
+        Number(transaction.service_fee || 0),
+        Number(transaction.portal_commission || 0),
+        transaction.banks?.name || "",
+        transaction.portals?.name || "",
+        transaction.reference || "",
+        String(transaction.remarks || "").replace(/^Portal Ref:\s*/i, ""),
+        transaction.status || "",
+      ])
+    );
+  }
+
+  return (
+    <div className="min-h-full bg-[#f5f8fd] text-slate-900">
+      <div className="mx-auto max-w-[1700px] space-y-4 px-4 pb-10 pt-4 lg:px-6">
+
+        <header className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+                <Banknote className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-950">AEPS Operations</h1>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Live Watcher Ready
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Aadhaar Enabled Payment System · monitor, review and record with operator control.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={resetForm} className={primaryButtonClass}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Record Transaction
+              </button>
+              <button type="button" onClick={() => setEntryMode("ai")} className={smallButtonClass}>
+                <Sparkles className="mr-1.5 h-3.5 w-3.5 text-violet-600" />
+                AI Detected
+              </button>
+              <button type="button" onClick={exportTransactions} className={smallButtonClass}>
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                Export
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard icon={<Activity className="h-4 w-4" />} label="Total Transactions" value={String(stats.total)} tone="blue" />
+          <KpiCard icon={<Banknote className="h-4 w-4" />} label="Total Amount" value={inr(stats.amount)} tone="green" />
+          <KpiCard icon={<Percent className="h-4 w-4" />} label="Total Fees" value={inr(stats.fees)} tone="rose" />
+          <KpiCard icon={<WalletCards className="h-4 w-4" />} label="Portal Commission" value={inr(stats.commission)} tone="violet" />
+          <KpiCard icon={<Landmark className="h-4 w-4" />} label="AEPS Float" value={inr(aepsFloat)} tone="amber" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatusCard icon={<CheckCircle2 className="h-4 w-4" />} label="Recorded / Success" count={stats.success} tone="success" />
+          <StatusCard icon={<Clock3 className="h-4 w-4" />} label="Pending / Review" count={stats.pending} tone="pending" />
+          <StatusCard icon={<XCircle className="h-4 w-4" />} label="Cancelled" count={stats.cancelled} tone="danger" />
+          <StatusCard icon={<RefreshCw className="h-4 w-4" />} label="Reversed" count={stats.reversed} tone="neutral" />
+        </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.25fr_.9fr]">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-black text-slate-950">Transaction Trend</h2>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Actual AEPS activity · Last 7 days</p>
+                </div>
+                <BarChart3 className="h-4 w-4 text-blue-500" />
+              </div>
+
+              <div className="mt-6 grid grid-cols-7 items-end gap-2">
+                {trend.map((point) => (
+                  <div key={point.key} className="flex min-w-0 flex-col items-center gap-2">
+                    <div className="flex h-32 w-full items-end justify-center rounded-xl bg-slate-50">
+                      <div
+                        className="w-5 rounded-t-lg bg-blue-500 transition-all"
+                        style={{ height: Math.max(8, (point.count / maxTrend) * 100) + "%" }}
+                        title={String(point.count) + " transactions"}
+                      />
+                    </div>
+                    <span className="truncate text-[9px] font-bold text-slate-400">{point.label}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-black text-slate-950">Transactions by Type</h2>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Actual distribution across AEPS operations</p>
+                </div>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border-[10px] border-blue-500">
+                  <div className="text-center">
+                    <div className="text-lg font-black text-slate-950">{rows.length}</div>
+                    <div className="text-[8px] font-bold text-slate-400">Transactions</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {[
+                  ["Cash Out", typeDistribution.cash, typeDistribution.cashPct, "bg-blue-500"],
+                  ["Balance Enquiry", typeDistribution.balance, typeDistribution.balancePct, "bg-emerald-500"],
+                  ["Mini Statement", typeDistribution.statement, typeDistribution.statementPct, "bg-amber-500"],
+                ].map((item) => (
+                  <div key={String(item[0])}>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="flex items-center gap-2 font-bold text-slate-600">
+                        <span className={cx("h-2 w-2 rounded-full", String(item[3]))} />
+                        {String(item[0])}
+                      </span>
+                      <span className="font-black text-slate-900">
+                        {String(item[1])} <span className="text-slate-400">({String(item[2])}%)</span>
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className={cx("h-full rounded-full", String(item[3]))} style={{ width: String(item[2]) + "%" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
+          <section className="min-w-0 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className={inputClass}>
+                  <option value="all">All Dates</option>
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="last7">Last 7 Days</option>
+                  <option value="last30">Last 30 Days</option>
+                  <option value="this_month">This Month</option>
+                </select>
+
+                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className={inputClass}>
+                  <option value="all">All Types</option>
+                  <option value="cash_out">Cash Out</option>
+                  <option value="balance_enquiry">Balance Enquiry</option>
+                  <option value="mini_statement">Mini Statement</option>
+                </select>
+
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}>
+                  <option value="all">All Status</option>
+                  <option value="success">Success</option>
+                  <option value="pending">Pending</option>
+                  <option value="review">Review</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="reversed">Reversed</option>
+                </select>
+
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className={cx(inputClass, "pl-9")}
+                    placeholder="Search customer, mobile, Aadhaar, bank, portal or reference..."
+                  />
+                </div>
+
+                <button type="button" className={smallButtonClass} title="More filters">
+                  <Filter className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-black text-slate-950">AEPS Transactions</h2>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Showing {filtered.length} filtered records</p>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={exportTransactions} className={smallButtonClass}>
+                    <Download className="mr-1 h-3.5 w-3.5" />
+                    Export
+                  </button>
+                  <button type="button" onClick={resetForm} className={primaryButtonClass}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    New
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1320px] text-left">
+                  <thead className="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <tr>
+                      <th className="px-3 py-3">#</th>
+                      <th className="px-3 py-3">Date & Time</th>
+                      <th className="px-3 py-3">Customer</th>
+                      <th className="px-3 py-3">Mobile</th>
+                      <th className="px-3 py-3">Type</th>
+                      <th className="px-3 py-3">Aadhaar</th>
+                      <th className="px-3 py-3">Amount</th>
+                      <th className="px-3 py-3">Customer Fee</th>
+                      <th className="px-3 py-3">Portal Commission</th>
+                      <th className="px-3 py-3">Bank</th>
+                      <th className="px-3 py-3">Portal</th>
+                      <th className="px-3 py-3">Bank Ref</th>
+                      <th className="px-3 py-3">Portal Ref</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[10px]">
+                    {filtered.map((transaction) => {
+                      const dateTime = formatDateTime(transaction.transaction_timestamp || transaction.transaction_date);
+                      return (
+                        <tr key={transaction.id} className="transition hover:bg-slate-50">
+                          <td className="px-3 py-3 font-mono font-black text-blue-600">{transaction.transaction_number || "—"}</td>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            <div className="font-bold text-slate-700">{dateTime.date}</div>
+                            <div className="text-[9px] text-slate-400">{dateTime.time}</div>
+                          </td>
+                          <td className="px-3 py-3 font-black text-slate-900">{transaction.customers?.name || "—"}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{maskMobile(transaction.customer_mobile || transaction.customers?.phone) || "—"}</td>
+                          <td className="px-3 py-3 font-semibold text-slate-600">{typeLabel(transaction.transfer_method)}</td>
+                          <td className="px-3 py-3 font-mono">•••• {transaction.aadhaar_last4 || "—"}</td>
+                          <td className="px-3 py-3 font-black text-slate-950">{inr(Number(transaction.amount || 0))}</td>
+                          <td className="px-3 py-3 font-bold text-rose-600">{inr(Number(transaction.service_fee || 0))}</td>
+                          <td className="px-3 py-3 font-bold text-violet-600">{inr(Number(transaction.portal_commission || 0))}</td>
+                          <td className="px-3 py-3 text-slate-600">{transaction.banks?.name || "—"}</td>
+                          <td className="px-3 py-3 text-slate-600">{transaction.portals?.name || "—"}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{transaction.reference || "—"}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{String(transaction.remarks || "").replace(/^Portal Ref:\s*/i, "") || "—"}</td>
+                          <td className="px-3 py-3"><StatusPill status={transaction.status} /></td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Link href={"/business/receipt/" + transaction.id + "?mode=detailed"} target="_blank" className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-600">
+                                80mm
+                              </Link>
+                              <Link href={"/business/receipt/" + transaction.id + "/a4?mode=detailed"} target="_blank" className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black text-slate-600">
+                                A4
+                              </Link>
+                              <button type="button" className="rounded-lg border border-slate-200 p-1.5 text-slate-400" title="More">
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {!filtered.length && (
+                      <tr>
+                        <td colSpan={15} className="px-5 py-16 text-center">
+                          <ShieldCheck className="mx-auto h-8 w-8 text-slate-300" />
+                          <p className="mt-3 text-sm font-black text-slate-500">No AEPS transactions found</p>
+                          <p className="mt-1 text-xs text-slate-400">Real transaction data will appear here when available.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <aside className="xl:sticky xl:top-4">
+            {!drawerOpen ? (
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                className="flex w-full items-center justify-between rounded-2xl border border-dashed border-blue-300 bg-blue-50 p-4 text-left"
+              >
+                <div>
+                  <p className="text-[11px] font-black text-blue-800">Open Counter Terminal</p>
+                  <p className="mt-1 text-[9px] text-blue-600">Manual Entry / AI Auto-Fill</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-blue-600" />
+              </button>
+            ) : (
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-base font-black text-slate-950">Record AEPS Transaction</h2>
+                        <span className="rounded-full bg-blue-50 px-2 py-1 text-[8px] font-black text-blue-700">Review First</span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-400">Operator-controlled transaction terminal</p>
+                    </div>
+                    <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Close">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setEntryMode("manual")}
+                      className={cx(
+                        "rounded-lg px-3 py-2 text-[10px] font-black",
+                        entryMode === "manual" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                      )}
+                    >
+                      Manual Entry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEntryMode("ai")}
+                      className={cx(
+                        "rounded-lg px-3 py-2 text-[10px] font-black",
+                        entryMode === "ai" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"
+                      )}
+                    >
+                      <Sparkles className="mr-1 inline h-3 w-3" />
+                      AI Auto-Fill
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4 p-5">
+
+                  {entryMode === "manual" && (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-[11px] font-black text-violet-900">
+                            <ZapIcon />
+                            Smart Paste / Photo Analyzer
+                          </div>
+                          <p className="mt-0.5 text-[9px] leading-4 text-violet-700/75">
+                            Paste portal/SMS text or analyze a screenshot. The analyzer only extracts data; it never records a transaction.
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-violet-200 bg-white px-2 py-1 text-[8px] font-black text-violet-700">MANUAL</span>
+                      </div>
+
+                      <div className="mt-3 flex rounded-xl bg-white/80 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setAnalyzerTab("paste")}
+                          className={cx(
+                            "flex-1 rounded-lg px-2.5 py-2 text-[9px] font-black",
+                            analyzerTab === "paste" ? "bg-white text-violet-700 shadow-sm" : "text-slate-400"
+                          )}
+                        >
+                          <ClipboardPaste className="mr-1 inline h-3 w-3" />
+                          Paste Text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnalyzerTab("photo")}
+                          className={cx(
+                            "flex-1 rounded-lg px-2.5 py-2 text-[9px] font-black",
+                            analyzerTab === "photo" ? "bg-white text-violet-700 shadow-sm" : "text-slate-400"
+                          )}
+                        >
+                          <FileImage className="mr-1 inline h-3 w-3" />
+                          Photo Analyzer
+                        </button>
+                      </div>
+
+                      {analyzerTab === "paste" ? (
+                        <div className="mt-3 space-y-2">
+                          <textarea
+                            value={sourceText}
+                            onChange={(event) => setSourceText(event.target.value)}
+                            rows={6}
+                            placeholder={"Paste DigiPay / portal transaction text here...\n\nExample: Amount: ₹2000\nAadhaar: XXXX 4821\nMobile: 98XXXXXXXX\nBank Ref: 123456789012"}
+                            className="w-full resize-none rounded-xl border border-violet-200 bg-white p-3 text-[10px] font-medium leading-4 text-slate-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void analyzeText()}
+                              disabled={!sourceText.trim() || analysisBusy}
+                              className="flex-1 rounded-xl bg-violet-600 px-3 py-2 text-[10px] font-black text-white disabled:opacity-40"
+                            >
+                              {analysisBusy ? "Analyzing..." : "Analyze & Fill"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSourceText("");
+                                setAnalysis({});
+                                setMatchNotice("");
+                              }}
+                              className={smallButtonClass}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 space-y-2.5">
+                          <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                          <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => fileRef.current?.click()}
+                              className="rounded-xl border-2 border-dashed border-violet-200 bg-white px-3 py-5 text-center text-[10px] font-black text-violet-700 hover:bg-violet-50"
+                            >
+                              <Upload className="mx-auto mb-1 h-5 w-5" />
+                              Upload Screenshot
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => cameraRef.current?.click()}
+                              className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-3 py-5 text-center text-[10px] font-black text-slate-700 hover:bg-slate-50"
+                            >
+                              <Camera className="mx-auto mb-1 h-5 w-5" />
+                              Take Photo
+                            </button>
+                          </div>
+
+                          {sourceImage && (
+                            <img
+                              src={sourceImage}
+                              alt="AEPS source preview"
+                              className="max-h-44 w-full rounded-xl object-contain bg-slate-50 ring-1 ring-slate-200"
+                            />
+                          )}
+
+                          <p className="text-[9px] leading-4 text-slate-500">
+                            Photo OCR runs locally in the browser. Extracted values stay in the review flow until you approve them.
+                          </p>
+                        </div>
+                      )}
+
+                      {analysisBusy && <p className="mt-2 text-[9px] font-bold text-violet-700">Reading source...</p>}
+                      {analysisError && (
+                        <p className="mt-2 flex items-center gap-1 text-[9px] font-bold text-rose-600">
+                          <AlertCircle className="h-3 w-3" />
+                          {analysisError}
+                        </p>
+                      )}
+
+                      {Object.keys(analysis).length > 0 && (
+                        <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">Extracted</span>
+                            <span className="text-[9px] font-black text-emerald-600">{Object.keys(analysis).length} fields</span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            {Object.entries(analysis).map(([key, value]) => (
+                              <div key={key} className="rounded-lg bg-slate-50 p-2">
+                                <div className="text-[8px] font-bold uppercase tracking-wide text-slate-400">{key.replace(/_/g, " ")}</div>
+                                <div className="mt-0.5 truncate text-[9px] font-black text-slate-700">{String(value)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {entryMode === "ai" && (
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3.5">
+                      <div className="flex items-center gap-2 text-[11px] font-black text-blue-900">
+                        <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                        Detected Transaction Draft
+                      </div>
+                      <p className="mt-1 text-[9px] leading-4 text-slate-600">
+                        Detected values are suggestions only. Customer, portal and references must be verified before recording.
+                      </p>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {[
+                          ["Portal", portalName],
+                          ["Bank", bankName],
+                          ["Type", typeLabel(transactionType)],
+                          ["Aadhaar", cleanAadhaar ? "•••• " + cleanAadhaar : "Required"],
+                          ["Amount", amount ? inr(Number(amount)) : "—"],
+                          ["Bank Ref", bankRef || "—"],
+                        ].map((item) => (
+                          <div key={String(item[0])} className="rounded-xl border border-blue-100 bg-white p-2.5">
+                            <div className="text-[8px] font-bold uppercase tracking-wide text-slate-400">{String(item[0])}</div>
+                            <div className="mt-0.5 truncate text-[10px] font-black text-slate-800">{String(item[1])}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {matchNotice && (
+                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[9px] font-bold text-amber-800">
+                          {matchNotice}
+                        </div>
+                      )}
+
+                      <div className="mt-3 rounded-xl border border-blue-100 bg-white px-3 py-2 text-[9px] text-blue-800">
+                        <ShieldCheck className="mr-1 inline h-3 w-3" />
+                        AI never submits the provider-side transaction.
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-600">
+                        Customer <span className="text-rose-500">*</span>
+                      </label>
+                      {selectedCustomer && (
+                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[8px] font-black text-emerald-700">
+                          Verified Match
+                        </span>
+                      )}
+                    </div>
+
+                    <CustomerSearchSelect
+                      value={customerId || null}
+                      selected={selectedCustomer}
+                      onChange={(id, record) => {
+                        setCustomerId(id || "");
+                        setSelectedCustomer(record);
+                        setName(record?.name || "");
+                        setMobile(cleanPhone(record?.phone || mobile));
+                        setMatchNotice(record ? "Customer selected from CafeERP database." : "");
+                      }}
+                      placeholder="Search customer by name, mobile or code..."
+                      tone="auto"
+                      limit={12}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">
+                        Mobile <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={mobile}
+                        onChange={(event) => setMobile(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                        className={inputClass}
+                        inputMode="numeric"
+                        placeholder="10-digit mobile"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">
+                        Aadhaar Last 4 <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        value={aadhaar}
+                        onChange={(event) => setAadhaar(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                        className={inputClass}
+                        inputMode="numeric"
+                        placeholder="4 digits"
+                      />
+                    </div>
+                  </div>
+
+                  {name && (
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2">
+                      <div className="text-[8px] font-bold uppercase tracking-wide text-emerald-700">CafeERP Customer</div>
+                      <div className="mt-0.5 text-[11px] font-black text-slate-800">{name}</div>
+                    </div>
+                  )}
+
+                  {matchNotice && entryMode === "manual" && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[9px] font-bold text-amber-800">
+                      {matchNotice}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-black text-slate-600">
+                      Transaction Type <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        ["cash_out", "Cash Out"],
+                        ["balance_enquiry", "Balance Enquiry"],
+                        ["mini_statement", "Mini Statement"],
+                      ].map((item) => (
+                        <button
+                          key={item[0]}
+                          type="button"
+                          onClick={() => setTransactionType(item[0])}
+                          className={cx(
+                            "rounded-xl border px-2 py-2 text-[9px] font-black",
+                            transactionType === item[0]
+                              ? "border-blue-500 bg-blue-50 text-blue-700"
+                              : "border-slate-200 bg-white text-slate-500"
+                          )}
+                        >
+                          {item[1]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-600">
+                        Amount <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[8px] font-bold text-slate-400">Quick amount</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {DENOMINATIONS.map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setAmount(String(value))}
+                          className={cx(
+                            "rounded-xl border px-2 py-2 text-[9px] font-black",
+                            amount === String(value)
+                              ? "border-blue-500 bg-blue-50 text-blue-700"
+                              : "border-slate-200 bg-white text-slate-500"
+                          )}
+                        >
+                          ₹{value.toLocaleString("en-IN")}
+                        </button>
+                      ))}
+                    </div>
+
+                    <input
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))}
+                      className={cx(inputClass, "mt-2")}
+                      inputMode="decimal"
+                      placeholder="Enter amount"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-black text-slate-600">
+                      Bank <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {TOP_BANKS.map((bank) => {
+                        const current = initialBanks.find((item) => item.id === bankId);
+                        const active = current
+                          ? bank[1].some((match) => normalizeBankName(current.name).includes(match))
+                          : false;
+                        return (
+                          <button
+                            key={bank[0]}
+                            type="button"
+                            onClick={() => selectBankByCode(bank[0])}
+                            className={cx(
+                              "rounded-lg border px-2 py-2 text-[8px] font-black",
+                              active
+                                ? "border-blue-500 bg-blue-50 text-blue-700"
+                                : "border-slate-200 bg-white text-slate-500"
+                            )}
+                          >
+                            {bank[0]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <select value={bankId} onChange={(event) => setBankId(event.target.value)} className={cx(inputClass, "mt-2")}>
+                      <option value="">Select registered bank</option>
+                      {initialBanks.map((bank) => (
+                        <option key={bank.id} value={bank.id}>
+                          {bank.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">
+                        Portal <span className="text-rose-500">*</span>
+                      </label>
+                      <select value={portalId} onChange={(event) => setPortalId(event.target.value)} className={inputClass}>
+                        <option value="">Select portal</option>
+                        {initialPortals.map((portal) => (
+                          <option key={portal.id} value={portal.id}>
+                            {portal.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">Collection</label>
+                      <select value={customerPayMethod} onChange={(event) => setCustomerPayMethod(event.target.value)} className={inputClass}>
+                        <option value="cash">Cash</option>
+                        <option value="bank">Bank</option>
+                        <option value="upi">UPI</option>
+                        <option value="qr">QR</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">Bank Reference</label>
+                      <input value={bankRef} onChange={(event) => setBankRef(event.target.value)} className={inputClass} placeholder="RRN / bank ref" />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-black text-slate-600">Portal Reference</label>
+                      <input value={portalRef} onChange={(event) => setPortalRef(event.target.value)} className={inputClass} placeholder="Portal transaction ref" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="rounded-xl border border-rose-100 bg-rose-50/60 p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase tracking-wide text-rose-700">Customer Fee</span>
+                        <span className="text-[8px] font-bold text-rose-500">Current rule value</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-sm font-black text-slate-500">₹</span>
+                        <input
+                          value={fee}
+                          onChange={(event) => setFee(event.target.value.replace(/[^0-9.]/g, ""))}
+                          className="h-8 w-full rounded-lg border border-rose-200 bg-white px-2 text-[10px] font-black text-slate-900 outline-none"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase tracking-wide text-violet-700">Portal Commission</span>
+                        <span className="text-[8px] font-bold text-violet-500">Current rule value</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-sm font-black text-slate-500">₹</span>
+                        <input
+                          value={commission}
+                          onChange={(event) => setCommission(event.target.value.replace(/[^0-9.]/g, ""))}
+                          className="h-8 w-full rounded-lg border border-violet-200 bg-white px-2 text-[10px] font-black text-slate-900 outline-none"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-black text-slate-600">Fee Handling</label>
+                    <select value={feeSource} onChange={(event) => setFeeSource(event.target.value as typeof feeSource)} className={inputClass}>
+                      <option value="cut_from_withdrawal">Cut from withdrawal</option>
+                      <option value="separate_cash">Collect separately</option>
+                      <option value="upi">UPI fee</option>
+                    </select>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[9px] text-amber-800">
+                    <div className="flex items-center gap-1.5 font-black">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Review-before-record control
+                    </div>
+                    <p className="mt-1 leading-4">
+                      Final recording stays under operator review. Analyzer and future watcher flows must never submit a provider-side transaction.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReviewOpen(true)}
+                      disabled={!formValid || busy}
+                      className={cx("flex-1", primaryButtonClass)}
+                    >
+                      Review AEPS Transaction
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={resetForm} className={smallButtonClass}>Reset</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+
+        {importNotice && (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-bold text-blue-800">
+            <ShieldCheck className="mr-1.5 inline h-3.5 w-3.5" />
+            {importNotice}
+          </div>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section id="aeps-ai-insights" className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+            <div className="flex items-center gap-2 text-[11px] font-black text-violet-900">
+              <Sparkles className="h-4 w-4 text-violet-600" />
+              AI Insights
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-700">
+              {stats.pending} transaction(s) currently need review. AI assistance prepares drafts; final recording remains operator-controlled.
+            </p>
+          </section>
+
+          <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+            <div className="flex items-center gap-2 text-[11px] font-black text-amber-900">
+              <ShieldCheck className="h-4 w-4 text-amber-600" />
+              Important Notes
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-700">
+              Only Aadhaar last 4 is used for AEPS matching. Customer identity comes from CafeERP data, never from an assumed portal customer name.
+            </p>
+          </section>
+        </div>
+
+        {reviewOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h3 className="text-lg font-black text-slate-950">Review AEPS Transaction</h3>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Verify every value before it reaches the financial transaction boundary.
+                  </p>
+                </div>
+                <button type="button" onClick={() => setReviewOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid gap-3 p-5 sm:grid-cols-2">
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Customer</div>
+                  <div className="mt-1 text-sm font-black text-slate-950">{name || selectedCustomer?.name || "Not selected"}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    {maskMobile(cleanMobile) || "Mobile missing"} · Aadhaar •••• {cleanAadhaar || "----"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Source</div>
+                  <div className="mt-1 text-sm font-black text-slate-950">{portalName}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{bankName} · {typeLabel(transactionType)}</div>
+                </div>
+
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="text-[9px] font-black uppercase tracking-wide text-blue-700">Transaction</div>
+                  <div className="mt-1 text-xl font-black text-slate-950">{inr(Number(amount || 0))}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    Bank Ref: {bankRef || "—"} · Portal Ref: {portalRef || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+                  <div className="text-[9px] font-black uppercase tracking-wide text-violet-700">Fee & Commission</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-[8px] font-bold text-slate-400">Customer Fee</div>
+                      <div className="text-sm font-black text-slate-950">{inr(Number(fee || 0))}</div>
+                    </div>
+                    <div>
+                      <div className="text-[8px] font-bold text-slate-400">Portal Commission</div>
+                      <div className="text-sm font-black text-slate-950">{inr(Number(commission || 0))}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[9px] text-amber-800">
+                  <strong>Review required:</strong> the analyzer can extract and match data, but it cannot approve or submit a provider transaction.
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                <button type="button" onClick={() => setReviewOpen(false)} className={smallButtonClass}>
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewOpen(false);
+                    resetForm();
+                  }}
+                  className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-[10px] font-black text-rose-700"
+                >
+                  Reject
+                </button>
+                <button type="button" onClick={() => void recordTransaction()} disabled={!formValid || busy} className={primaryButtonClass}>
+                  {busy ? "Processing..." : "Approve & Record"}
+                  <Check className="ml-1.5 h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ZapIcon() {
+  return (
+    <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+      <Sparkles className="h-3.5 w-3.5" />
+    </span>
+  );
+}

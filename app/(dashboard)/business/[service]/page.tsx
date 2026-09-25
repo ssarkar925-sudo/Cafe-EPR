@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserRole, hasRole } from "@/lib/authz";
 import BusinessClient from "@/components/business/business-client";
-import AepsWorkspace from "@/components/business/aeps-workspace";
+import AepsWorkspace from "@/components/business/aeps-workspace-fresh";
 import DmtWorkspace from "@/components/business/dmt-workspace";
 import UpiWorkspace from "@/components/business/upi-workspace";
 import RechargeWorkspaceLive from "@/components/business/recharge-workspace-live";
