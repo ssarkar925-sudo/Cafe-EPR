@@ -458,8 +458,17 @@ export default function AepsWorkspace({
       return;
     }
 
-    if (mobileMatch) {
-      setMatchNotice("Mobile match found. Verify Aadhaar last 4 before approval.");
+    if (mobileMatch && !aadhaarValue) {
+      setCustomerId(mobileMatch.id);
+      setSelectedCustomer(mobileMatch);
+      setName(mobileMatch.name || "");
+      setMobile(String(mobileMatch.phone || mobileValue).replace(/\D/g, "").slice(0, 10));
+      setMatchNotice("Unique mobile match found. Review before approval.");
+      return;
+    }
+
+    if (mobileMatch && aadhaarValue.length === 4) {
+      setMatchNotice("Mobile match found, but Aadhaar last 4 is not verified against this customer. Manual confirmation is required.");
       setCustomerId("");
       setSelectedCustomer(null);
       return;
