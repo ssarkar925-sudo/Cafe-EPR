@@ -699,7 +699,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between py-1">
+              <Link href="/inventory?status=low_stock" className="flex items-center justify-between py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                 <span className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
                   <span className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50 text-amber-600 dark:bg-amber-950/50">
                     <TrendingDown className="h-3.5 w-3.5" />
@@ -709,9 +709,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
                   {Number(inventory.lowStockCount || 0).toLocaleString("en-IN")}
                 </span>
-              </div>
+              </Link>
 
-              <div className="flex items-center justify-between py-1">
+              <Link href="/inventory?status=out_of_stock" className="flex items-center justify-between py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                 <span className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
                   <span className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-50 text-rose-600 dark:bg-rose-950/50">
                     <XCircle className="h-3.5 w-3.5" />
@@ -721,7 +721,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
                 <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
                   {Number(inventory.outOfStockCount || 0).toLocaleString("en-IN")}
                 </span>
-              </div>
+              </Link>
             </div>
           </div>
 
