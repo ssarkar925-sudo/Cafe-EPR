@@ -307,7 +307,7 @@ export default function AepsWorkspace({
   const bankName = initialBanks.find((b) => b.id === bankId)?.name || "—";
 
   return (
-    <div className="min-h-full bg-[#f6f9fd] !text-slate-900">
+    <div className="aeps-modern-light min-h-full bg-[#f6f9fd] !text-slate-900">
       <div className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 lg:px-6 lg:pt-5">
         <header className="mb-4 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -428,7 +428,7 @@ export default function AepsWorkspace({
             </div>
           </main>
 
-          <aside className={`rounded-2xl border border-slate-200 bg-white !text-slate-900 p-5 shadow-lg xl:sticky xl:top-4 xl:h-fit ${drawerOpen ? "ring-2 ring-blue-100" : ""}`}>
+          <aside className={`aeps-surface rounded-2xl border border-slate-200 bg-white !text-slate-900 p-5 shadow-lg xl:sticky xl:top-4 xl:h-fit ${drawerOpen ? "ring-2 ring-blue-100" : ""}`} style={{ colorScheme: "light" }}>
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div><h2 className="text-base font-black text-slate-950">Record AEPS Transaction</h2><p className="mt-1 text-[10px] text-slate-400">Enter customer details and transaction information</p></div>
               <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-lg px-2 text-lg text-slate-400 hover:bg-slate-100">×</button>
