@@ -14,7 +14,6 @@ import {
   ClipboardPaste,
   Clock3,
   Download,
-  Eye,
   FileImage,
   Filter,
   Landmark,
@@ -26,7 +25,6 @@ import {
   ShieldCheck,
   Sparkles,
   Upload,
-  UserRound,
   WalletCards,
   X,
   XCircle,
@@ -586,7 +584,6 @@ export default function AepsWorkspaceFresh({
     try {
       const fields = extractAeps(sourceText);
       await applyAnalysis(fields, sourceText);
-      setEntryMode("ai");
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "Text analysis failed.");
     } finally {
