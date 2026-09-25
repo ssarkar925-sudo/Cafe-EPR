@@ -273,6 +273,15 @@ export default function AepsWorkspaceFresh({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [analyzerOpen, setAnalyzerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingBusy, setPricingBusy] = useState(false);
+  const [pricingMessage, setPricingMessage] = useState("");
+  const [pricingPortalId, setPricingPortalId] = useState("");
+  const [pricingMinAmount, setPricingMinAmount] = useState("0");
+  const [pricingMaxAmount, setPricingMaxAmount] = useState("");
+  const [pricingFee, setPricingFee] = useState("");
+  const [pricingCommission, setPricingCommission] = useState("");
 
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
@@ -673,6 +682,7 @@ export default function AepsWorkspaceFresh({
     if (busy || !formValid) return;
 
     setBusy(true);
+    setSaveError("");
 
     try {
       const result = await supabase.rpc("create_business_txn", {
@@ -688,7 +698,7 @@ export default function AepsWorkspaceFresh({
         p_portal_id: portalId,
         p_merchant_qr_id: null,
         p_aadhaar_last4: cleanAadhaar,
-        p_transfer_method: transactionType,
+        p_transfer_method: transactionType === "cash_out" ? "bank_account" : "upi",
         p_sender_name: null,
         p_sender_mobile: null,
         p_beneficiary_name: null,
@@ -706,15 +716,86 @@ export default function AepsWorkspaceFresh({
         p_receiver_name: null,
       });
 
-      if (result.error) throw result.error;
+      if (result.error) {
+        setSaveError(result.error.message || "Transaction could not be saved.");
+        throw result.error;
+      }
 
       setRows((previous) => [result.data as Txn, ...previous]);
       setReviewOpen(false);
       resetForm();
     } catch (error) {
-      console.error(error);
+      console.error("AEPS record failed:", error);
+      setSaveError(error instanceof Error ? error.message : "Transaction could not be saved.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadAepsPricing() {
+    if (!portalId || !amount || Number(amount) <= 0) return;
+    const { data, error } = await supabase.rpc("resolve_aeps_pricing", {
+      p_customer_id: customerId || null,
+      p_portal_id: portalId,
+      p_amount: Number(amount),
+    });
+    if (error) {
+      setSaveError(error.message);
+      return;
+    }
+    const resolved = (data || {}) as { fee?: number; commission?: number };
+    setFee(String(resolved.fee ?? 0));
+    setCommission(String(resolved.commission ?? 0));
+    setPricingMessage("Applied saved AEPS pricing rule.");
+  }
+
+  async function savePricingRule() {
+    const min = Number(pricingMinAmount || 0);
+    const max = pricingMaxAmount ? Number(pricingMaxAmount) : null;
+    const feeValue = Number(pricingFee || 0);
+    const commissionValue = Number(pricingCommission || 0);
+    if (!Number.isFinite(min) || min < 0 || (max !== null && (!Number.isFinite(max) || max < min))) {
+      setPricingMessage("Check the amount slab.");
+      return;
+    }
+    if (!pricingPortalId || feeValue < 0 || commissionValue < 0) {
+      setPricingMessage("Select a portal and enter valid fee/commission values.");
+      return;
+    }
+
+    setPricingBusy(true);
+    setPricingMessage("");
+    try {
+      const common = {
+        service_type: "aeps",
+        portal_id: pricingPortalId,
+        customer_id: null,
+        min_amount: min,
+        max_amount: max,
+        priority: 10,
+        is_active: true,
+      };
+
+      await supabase
+        .from("aeps_pricing_rules")
+        .delete()
+        .eq("service_type", "aeps")
+        .eq("portal_id", pricingPortalId)
+        .is("customer_id", null)
+        .eq("min_amount", min)
+        .eq("is_active", true);
+
+      const { error } = await supabase.from("aeps_pricing_rules").insert([
+        { ...common, rule_type: "fee", value: feeValue },
+        { ...common, rule_type: "commission", value: commissionValue },
+      ]);
+      if (error) throw error;
+
+      setPricingMessage("Pricing rule saved permanently.");
+    } catch (error) {
+      setPricingMessage(error instanceof Error ? error.message : "Could not save pricing rule.");
+    } finally {
+      setPricingBusy(false);
     }
   }
 
@@ -1558,6 +1639,42 @@ export default function AepsWorkspaceFresh({
           </div>
         )}
 
+        {pricingOpen && (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4">
+            <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-950">AEPS Pricing Rules</h3>
+                  <p className="mt-1 text-[9px] text-slate-400">Save portal-specific fee and commission slabs permanently.</p>
+                </div>
+                <button type="button" onClick={() => setPricingOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="space-y-3 p-5">
+                <div>
+                  <label className="mb-1 block text-[9px] font-black text-slate-500">Portal</label>
+                  <select value={pricingPortalId} onChange={(e) => setPricingPortalId(e.target.value)} className={inputClass}>
+                    <option value="">Select portal</option>
+                    {portalMasters.map((portal) => <option key={portal.id} value={portal.id}>{portal.name}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="mb-1 block text-[9px] font-black text-slate-500">Min Amount</label><input type="number" value={pricingMinAmount} onChange={(e) => setPricingMinAmount(e.target.value)} className={inputClass} /></div>
+                  <div><label className="mb-1 block text-[9px] font-black text-slate-500">Max Amount</label><input type="number" value={pricingMaxAmount} onChange={(e) => setPricingMaxAmount(e.target.value)} placeholder="No limit" className={inputClass} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="mb-1 block text-[9px] font-black text-slate-500">Customer Fee</label><input type="number" min="0" step="0.01" value={pricingFee} onChange={(e) => setPricingFee(e.target.value)} className={inputClass} placeholder="0" /></div>
+                  <div><label className="mb-1 block text-[9px] font-black text-slate-500">Portal Commission</label><input type="number" min="0" step="0.01" value={pricingCommission} onChange={(e) => setPricingCommission(e.target.value)} className={inputClass} placeholder="0" /></div>
+                </div>
+                {pricingMessage && <div className="rounded-xl bg-blue-50 px-3 py-2 text-[9px] font-bold text-blue-700">{pricingMessage}</div>}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                <button type="button" onClick={() => setPricingOpen(false)} className={smallButtonClass}>Close</button>
+                <button type="button" onClick={() => void savePricingRule()} disabled={pricingBusy} className={primaryButtonClass}>{pricingBusy ? "Saving..." : "Save Rule"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {analyzerOpen && (
           <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4">
             <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
@@ -1612,6 +1729,12 @@ export default function AepsWorkspaceFresh({
                   <div className="mt-4 space-y-3">
                     <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
                     <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">Saved pricing</span>
+                      <button type="button" onClick={() => void loadAepsPricing()} disabled={!portalId || !amount} className="text-[9px] font-black text-blue-600 disabled:opacity-40">
+                        Load Rule
+                      </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl border-2 border-dashed border-violet-200 bg-white px-3 py-7 text-center text-[10px] font-black text-violet-700 hover:bg-violet-50 dark:border-violet-900/60 dark:bg-slate-900 dark:text-violet-300">
                         <Upload className="mx-auto mb-1 h-5 w-5" />
@@ -1694,6 +1817,13 @@ export default function AepsWorkspaceFresh({
                   <X className="h-4 w-4" />
                 </button>
               </div>
+
+              {saveError && (
+                <div className="mx-5 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[10px] font-bold text-rose-700">
+                  <AlertCircle className="mr-1.5 inline h-3.5 w-3.5" />
+                  {saveError}
+                </div>
+              )}
 
               <div className="grid gap-3 p-5 sm:grid-cols-2">
                 <div className="rounded-2xl bg-slate-50 p-4">
