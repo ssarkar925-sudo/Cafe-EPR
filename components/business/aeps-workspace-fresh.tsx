@@ -291,6 +291,10 @@ export default function AepsWorkspaceFresh({
   const [watcherInterval, setWatcherInterval] = useState("30");
   const [watcherSourceUrl, setWatcherSourceUrl] = useState("");
   const [watcherConfigs, setWatcherConfigs] = useState<Record<string, { enabled: boolean; poll_interval_seconds: number; source_url: string | null }>>({});
+  const [watcherRuntimeStatus, setWatcherRuntimeStatus] = useState<"idle" | "starting" | "running" | "auth_required" | "error">("idle");
+  const [watcherLastCheck, setWatcherLastCheck] = useState("");
+  const [watcherDetectedCount, setWatcherDetectedCount] = useState(0);
+  const [watcherImportId, setWatcherImportId] = useState("");
 
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
