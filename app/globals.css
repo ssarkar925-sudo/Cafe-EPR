@@ -515,6 +515,36 @@ input:focus,select:focus,textarea:focus {
 }
 
 /* --------------------------------------------------------------------------
+   AEPS modern workspace theme isolation
+   Keep the approved AEPS transaction workspace visually light even when the
+   global ERP shell is running in dark mode. This is intentionally scoped so
+   other workspaces can keep their configured theme.
+   -------------------------------------------------------------------------- */
+.aeps-modern-light,
+.aeps-modern-light * {
+  color-scheme: light;
+}
+.aeps-modern-light {
+  background: #f6f9fd !important;
+  color: #0f172a !important;
+}
+.aeps-modern-light .aeps-surface {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+.aeps-modern-light input,
+.aeps-modern-light select,
+.aeps-modern-light textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  color-scheme: light;
+}
+.aeps-modern-light input::placeholder,
+.aeps-modern-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* --------------------------------------------------------------------------
    Canonical ERP App Shell & Workspace Layout
    Authoritative root layout geometry for sidebar, workspace, header & content.
    -------------------------------------------------------------------------- */
