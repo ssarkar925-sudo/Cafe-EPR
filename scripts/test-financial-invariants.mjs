@@ -8037,6 +8037,47 @@ assert(
   assert(clientCode.includes("getRowIncome") || clientCode.includes("pos_invoice"), "1521. UI Invariant: POS Invoice revenue mapped to row income");
 }
 
+// -----------------------------------------------------------------------------
+// PHASE 22: Full-Width AEPS Workspace & Multi-Source Portal Watching Invariants
+// -----------------------------------------------------------------------------
+{
+  console.log("\n--- Phase 22: Full-Width AEPS Workspace & Multi-Source Portal Watching Invariants ---");
+
+  const aepsWorkspaceSrc = fs.readFileSync("./components/business/aeps-workspace.tsx", "utf8");
+  const portalWatcherLib = fs.readFileSync("./lib/aeps/portal-watcher.ts", "utf8");
+  const portalWatcherApi = fs.readFileSync("./app/api/ai/portal-watcher/route.ts", "utf8");
+
+  // 1. Full-Width Workspace Layout & Columns
+  assert(!aepsWorkspaceSrc.includes("xl:grid-cols-[minmax(0,1fr)_410px]"), "1522. AEPS Workspace: Narrow right-side drawer removed in favor of full-width layout");
+  assert(aepsWorkspaceSrc.includes("Customer & Identity") || aepsWorkspaceSrc.includes("Customer &amp; Identity"), "1523. AEPS Workspace: Column 1 'Customer & Identity' present");
+  assert(aepsWorkspaceSrc.includes("Transaction Details"), "1524. AEPS Workspace: Column 2 'Transaction Details' present");
+  assert(aepsWorkspaceSrc.includes("Pricing / Review"), "1525. AEPS Workspace: Column 3 'Pricing / Review' present");
+  assert(aepsWorkspaceSrc.includes("grid-cols-1 md:grid-cols-2 lg:grid-cols-3"), "1526. AEPS Workspace: Responsive 3-column desktop layout configured");
+
+  // 2. Mode Switches & Dedicated Source Section
+  assert(aepsWorkspaceSrc.includes("Manual Entry") && aepsWorkspaceSrc.includes("AI Auto-Fill"), "1527. AEPS Workspace: Manual Entry and AI Auto-Fill primary mode switch present");
+  assert(aepsWorkspaceSrc.includes("Dedicated Source / Watcher / AI Data Section"), "1528. AEPS Workspace: Dedicated Source / Watcher / AI Data section present");
+  assert(aepsWorkspaceSrc.includes("ScanFillModal"), "1529. AEPS Workspace: Scan / paste source functionality preserved");
+  assert(aepsWorkspaceSrc.includes("Review First"), "1530. AEPS Workspace: Clear 'Review First' status indicator present");
+
+  // 3. Fixed Bottom Action Area
+  assert(aepsWorkspaceSrc.includes("Cancel") && aepsWorkspaceSrc.includes("Save Draft") && aepsWorkspaceSrc.includes("Approve & Save"), "1531. AEPS Workspace: Fixed bottom action area with Cancel, Save Draft, and Approve & Save present");
+  assert(aepsWorkspaceSrc.includes("Final recording stays under operator review."), "1532. AEPS Workspace: Review state invariant retained");
+
+  // 4. Multi-Source Portal Watching Architecture
+  assert(portalWatcherLib.includes("commission") && portalWatcherLib.includes("fee") && portalWatcherLib.includes("aeps_rules") && portalWatcherLib.includes("provider_bank_info") && portalWatcherLib.includes("general_updates"), "1533. Portal Watcher: All 5 required source purposes supported");
+  assert(portalWatcherLib.includes("PortalWatcherSource") && portalWatcherLib.includes("PortalChangeRecord"), "1534. Portal Watcher: Independent source and change review models defined");
+  assert(portalWatcherApi.includes('action === "test"') && portalWatcherApi.includes('action === "collect"'), "1535. Portal Watcher API: Independent Test URL and Collect Now actions supported");
+  assert(portalWatcherApi.includes("reviewRequired: hasDifference"), "1536. Portal Watcher API: Change detection flags review requirement");
+  assert(portalWatcherApi.includes("Never overwrite production automatically"), "1537. Portal Watcher API: Strict production non-mutation invariant enforced");
+
+  // 5. Operator Review Controls
+  assert(aepsWorkspaceSrc.includes("handleApproveChange") && aepsWorkspaceSrc.includes("handleRejectChange"), "1538. Portal Watcher UI: Operator Approve and Reject controls implemented");
+  assert(aepsWorkspaceSrc.includes("Test URL") && aepsWorkspaceSrc.includes("Collect Now"), "1539. Portal Watcher UI: Test URL and Collect Now triggers active");
+  assert(aepsWorkspaceSrc.includes("Enable") || aepsWorkspaceSrc.includes("Disable"), "1540. Portal Watcher UI: Enable/Disable watcher toggle active");
+  assert(aepsWorkspaceSrc.includes("Last Checked"), "1541. Portal Watcher UI: Last Checked timestamp rendered");
+}
+
 console.log("\n================================================================================");
 console.log(`TEST RUN SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log("================================================================================");
