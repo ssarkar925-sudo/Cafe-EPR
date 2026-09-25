@@ -584,7 +584,7 @@ export default function AepsWorkspaceFresh({
 
     try {
       const fields = extractAeps(sourceText);
-      await applyAnalysis(fields, sourceText);
+      setAnalysis(fields);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "Text analysis failed.");
     } finally {
@@ -604,8 +604,7 @@ export default function AepsWorkspaceFresh({
       setSourceText(text);
 
       const fields = extractAeps(text);
-      await applyAnalysis(fields, text);
-      setEntryMode("ai");
+      setAnalysis(fields);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "Photo analysis failed.");
     } finally {
@@ -966,7 +965,7 @@ export default function AepsWorkspaceFresh({
             </section>
 
 
-          <div className="xl:sticky xl:top-4">
+          <div>
             {!drawerOpen ? (
               <button
                 type="button"
@@ -1117,6 +1116,7 @@ export default function AepsWorkspaceFresh({
                     <div>
                       <label className="mb-1.5 block text-[10px] font-black text-slate-600">
                         Mobile <span className="text-rose-500">*</span>
+                        {analysis.customer_mobile && <span className="ml-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[7px] font-black text-violet-700">SOURCE</span>}
                       </label>
                       <input
                         value={mobile}
@@ -1129,6 +1129,7 @@ export default function AepsWorkspaceFresh({
                     <div>
                       <label className="mb-1.5 block text-[10px] font-black text-slate-600">
                         Aadhaar Last 4 <span className="text-rose-500">*</span>
+                        {analysis.aadhaar_last4 && <span className="ml-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[7px] font-black text-violet-700">SOURCE</span>}
                       </label>
                       <input
                         value={aadhaar}
@@ -1218,6 +1219,7 @@ export default function AepsWorkspaceFresh({
                   <div>
                     <label className="mb-1.5 block text-[10px] font-black text-slate-600">
                       Bank <span className="text-rose-500">*</span>
+                        {analysis.bank_name && <span className="ml-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[7px] font-black text-violet-700">SOURCE</span>}
                     </label>
                     <div className="grid grid-cols-5 gap-1.5">
                       {TOP_BANKS.map((bank) => {
@@ -1256,6 +1258,7 @@ export default function AepsWorkspaceFresh({
                     <div>
                       <label className="mb-1.5 block text-[10px] font-black text-slate-600">
                         Portal <span className="text-rose-500">*</span>
+                        {analysis.portal_name && <span className="ml-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[7px] font-black text-violet-700">SOURCE</span>}
                       </label>
                       <select value={portalId} onChange={(event) => setPortalId(event.target.value)} className={inputClass}>
                         <option value="">Select portal</option>
@@ -1497,7 +1500,12 @@ export default function AepsWorkspaceFresh({
             </div>
           </section>
 
-
+        {importNotice && (
+          <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-bold text-blue-800">
+            <ShieldCheck className="mr-1.5 inline h-3.5 w-3.5" />
+            {importNotice}
+          </div>
+        )}
 
         {analyzerOpen && (
           <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4">
