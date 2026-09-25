@@ -737,7 +737,7 @@ export default function AepsWorkspaceFresh({
   }
 
   return (
-    <div className="min-h-full bg-[#f5f8fd] text-slate-900">
+    <div className="min-h-full bg-[#f5f8fd] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-[1700px] space-y-4 px-4 pb-10 pt-4 lg:px-6">
 
         <header className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
@@ -792,7 +792,10 @@ export default function AepsWorkspaceFresh({
           <StatusCard icon={<RefreshCw className="h-4 w-4" />} label="Reversed" count={stats.reversed} tone="neutral" />
         </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.25fr_.9fr]">
+
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 space-y-4">
+            <div className="grid gap-4 xl:grid-cols-2">
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -857,143 +860,111 @@ export default function AepsWorkspaceFresh({
             </section>
           </div>
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <section className="min-w-0 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className={inputClass}>
-                  <option value="all">All Dates</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="last7">Last 7 Days</option>
-                  <option value="last30">Last 30 Days</option>
-                  <option value="this_month">This Month</option>
-                </select>
 
-                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className={inputClass}>
-                  <option value="all">All Types</option>
-                  <option value="cash_out">Cash Out</option>
-                  <option value="balance_enquiry">Balance Enquiry</option>
-                  <option value="mini_statement">Mini Statement</option>
-                </select>
+            <div className="grid gap-4 md:grid-cols-2">
+          <section id="aeps-ai-insights" className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+            <div className="flex items-center gap-2 text-[11px] font-black text-violet-900">
+              <Sparkles className="h-4 w-4 text-violet-600" />
+              AI Insights
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-700">
+              {stats.pending} transaction(s) currently need review. AI assistance prepares drafts; final recording remains operator-controlled.
+            </p>
+          </section>
 
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}>
-                  <option value="all">All Status</option>
-                  <option value="success">Success</option>
-                  <option value="pending">Pending</option>
-                  <option value="review">Review</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="reversed">Reversed</option>
-                </select>
+          <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+            <div className="flex items-center gap-2 text-[11px] font-black text-amber-900">
+              <ShieldCheck className="h-4 w-4 text-amber-600" />
+              Important Notes
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-700">
+              Only Aadhaar last 4 is used for AEPS matching. Customer identity comes from CafeERP data, never from an assumed portal customer name.
+            </p>
+          </section>
+        </div>
 
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className={cx(inputClass, "pl-9")}
-                    placeholder="Search customer, mobile, Aadhaar, bank, portal or reference..."
-                  />
+
+          </div>
+
+          <aside className="space-y-4 xl:sticky xl:top-4">
+
+            <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                    <Activity className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-black text-emerald-950 dark:text-emerald-100">AEPS Watcher</h2>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-emerald-700 shadow-sm dark:bg-emerald-950/70 dark:text-emerald-200">READY</span>
+                    </div>
+                    <p className="mt-0.5 text-[9px] text-emerald-800/75 dark:text-emerald-200/75">Read-only monitor for registered portals</p>
+                  </div>
                 </div>
+              </div>
 
-                <button type="button" className={smallButtonClass} title="More filters">
-                  <Filter className="h-3.5 w-3.5" />
+              <div className="mt-3 space-y-2">
+                {initialPortals.length ? initialPortals.slice(0, 4).map((portal) => {
+                  const portalRows = rows.filter((row) => row.portals?.id === portal.id);
+                  const pendingRows = portalRows.filter((row) => ["pending", "review", "processing"].includes(String(row.status)));
+                  return (
+                    <div key={portal.id} className="flex items-center gap-2 rounded-xl border border-white/80 bg-white px-3 py-2 dark:border-emerald-900/40 dark:bg-slate-900">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                        <Landmark className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[10px] font-black text-slate-800 dark:text-slate-100">{portal.name}</div>
+                        <div className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          Registered source
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] font-black text-slate-800 dark:text-slate-100">{portalRows.length}</div>
+                        <div className="text-[8px] font-bold text-amber-600">{pendingRows.length} review</div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="rounded-xl border border-dashed border-emerald-200 bg-white px-3 py-4 text-center text-[9px] font-bold text-slate-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-400">
+                    No registered AEPS portals yet.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white px-3 py-2 dark:bg-slate-900">
+                  <div className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Review Queue</div>
+                  <div className="mt-0.5 text-lg font-black text-slate-950 dark:text-white">{stats.pending}</div>
+                </div>
+                <div className="rounded-xl bg-white px-3 py-2 dark:bg-slate-900">
+                  <div className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Recorded Today</div>
+                  <div className="mt-0.5 text-lg font-black text-slate-950 dark:text-white">{rows.filter((row) => {
+                    const d = new Date();
+                    return String(row.transaction_date || "").slice(0, 10) === d.toISOString().slice(0, 10) &&
+                      (String(row.status) === "success" || String(row.status) === "recorded");
+                  }).length}</div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-emerald-200 pt-3 dark:border-emerald-900/60">
+                <span className="text-[8px] font-bold text-emerald-800/75 dark:text-emerald-200/75">Watcher never submits provider transactions.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("review");
+                    setQuery("");
+                    document.getElementById("aeps-transactions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[9px] font-black text-emerald-700 shadow-sm dark:bg-slate-900 dark:text-emerald-300"
+                >
+                  Review Queue
+                  <ArrowRight className="ml-1 inline h-3 w-3" />
                 </button>
               </div>
-            </div>
+            </section>
 
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-black text-slate-950">AEPS Transactions</h2>
-                  <p className="mt-0.5 text-[10px] text-slate-400">Showing {filtered.length} filtered records</p>
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={exportTransactions} className={smallButtonClass}>
-                    <Download className="mr-1 h-3.5 w-3.5" />
-                    Export
-                  </button>
-                  <button type="button" onClick={resetForm} className={primaryButtonClass}>
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    New
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1320px] text-left">
-                  <thead className="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                    <tr>
-                      <th className="px-3 py-3">#</th>
-                      <th className="px-3 py-3">Date & Time</th>
-                      <th className="px-3 py-3">Customer</th>
-                      <th className="px-3 py-3">Mobile</th>
-                      <th className="px-3 py-3">Type</th>
-                      <th className="px-3 py-3">Aadhaar</th>
-                      <th className="px-3 py-3">Amount</th>
-                      <th className="px-3 py-3">Customer Fee</th>
-                      <th className="px-3 py-3">Portal Commission</th>
-                      <th className="px-3 py-3">Bank</th>
-                      <th className="px-3 py-3">Portal</th>
-                      <th className="px-3 py-3">Bank Ref</th>
-                      <th className="px-3 py-3">Portal Ref</th>
-                      <th className="px-3 py-3">Status</th>
-                      <th className="px-3 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-[10px]">
-                    {filtered.map((transaction) => {
-                      const dateTime = formatDateTime(transaction.transaction_timestamp || transaction.transaction_date);
-                      return (
-                        <tr key={transaction.id} className="transition hover:bg-slate-50">
-                          <td className="px-3 py-3 font-mono font-black text-blue-600">{transaction.transaction_number || "—"}</td>
-                          <td className="px-3 py-3 whitespace-nowrap">
-                            <div className="font-bold text-slate-700">{dateTime.date}</div>
-                            <div className="text-[9px] text-slate-400">{dateTime.time}</div>
-                          </td>
-                          <td className="px-3 py-3 font-black text-slate-900">{transaction.customers?.name || "—"}</td>
-                          <td className="px-3 py-3 font-mono text-slate-500">{maskMobile(transaction.customer_mobile || transaction.customers?.phone) || "—"}</td>
-                          <td className="px-3 py-3 font-semibold text-slate-600">{typeLabel(transaction.transfer_method)}</td>
-                          <td className="px-3 py-3 font-mono">•••• {transaction.aadhaar_last4 || "—"}</td>
-                          <td className="px-3 py-3 font-black text-slate-950">{inr(Number(transaction.amount || 0))}</td>
-                          <td className="px-3 py-3 font-bold text-rose-600">{inr(Number(transaction.service_fee || 0))}</td>
-                          <td className="px-3 py-3 font-bold text-violet-600">{inr(Number(transaction.portal_commission || 0))}</td>
-                          <td className="px-3 py-3 text-slate-600">{transaction.banks?.name || "—"}</td>
-                          <td className="px-3 py-3 text-slate-600">{transaction.portals?.name || "—"}</td>
-                          <td className="px-3 py-3 font-mono text-slate-500">{transaction.reference || "—"}</td>
-                          <td className="px-3 py-3 font-mono text-slate-500">{String(transaction.remarks || "").replace(/^Portal Ref:\s*/i, "") || "—"}</td>
-                          <td className="px-3 py-3"><StatusPill status={transaction.status} /></td>
-                          <td className="px-3 py-3 text-right">
-                            <div className="inline-flex items-center gap-1">
-                              <Link href={"/business/receipt/" + transaction.id + "?mode=detailed"} target="_blank" className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-600">
-                                80mm
-                              </Link>
-                              <Link href={"/business/receipt/" + transaction.id + "/a4?mode=detailed"} target="_blank" className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black text-slate-600">
-                                A4
-                              </Link>
-                              <button type="button" className="rounded-lg border border-slate-200 p-1.5 text-slate-400" title="More">
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-
-                    {!filtered.length && (
-                      <tr>
-                        <td colSpan={15} className="px-5 py-16 text-center">
-                          <ShieldCheck className="mx-auto h-8 w-8 text-slate-300" />
-                          <p className="mt-3 text-sm font-black text-slate-500">No AEPS transactions found</p>
-                          <p className="mt-1 text-xs text-slate-400">Real transaction data will appear here when available.</p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
 
           <aside className="xl:sticky xl:top-4">
             {!drawerOpen ? (
@@ -1009,8 +980,8 @@ export default function AepsWorkspaceFresh({
                 <ArrowRight className="h-4 w-4 text-blue-600" />
               </button>
             ) : (
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
-                <div className="border-b border-slate-100 px-5 py-4">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-950">
+                <div className="border-b border-slate-100 dark:border-slate-800 px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1024,13 +995,13 @@ export default function AepsWorkspaceFresh({
                     </button>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                  <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
                     <button
                       type="button"
                       onClick={() => setEntryMode("manual")}
                       className={cx(
                         "rounded-lg px-3 py-2 text-[10px] font-black",
-                        entryMode === "manual" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                        entryMode === "manual" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-900 dark:text-white" : "text-slate-500"
                       )}
                     >
                       Manual Entry
@@ -1040,7 +1011,7 @@ export default function AepsWorkspaceFresh({
                       onClick={() => setEntryMode("ai")}
                       className={cx(
                         "rounded-lg px-3 py-2 text-[10px] font-black",
-                        entryMode === "ai" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"
+                        entryMode === "ai" ? "bg-white text-blue-700 shadow-sm dark:bg-slate-900" : "text-slate-500"
                       )}
                     >
                       <Sparkles className="mr-1 inline h-3 w-3" />
@@ -1052,139 +1023,27 @@ export default function AepsWorkspaceFresh({
                 <div className="space-y-4 p-5">
 
                   {entryMode === "manual" && (
-                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 text-[11px] font-black text-violet-900">
-                            <ZapIcon />
-                            Smart Paste / Photo Analyzer
-                          </div>
-                          <p className="mt-0.5 text-[9px] leading-4 text-violet-700/75">
-                            Paste portal/SMS text or analyze a screenshot. The analyzer only extracts data; it never records a transaction.
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-violet-200 bg-white px-2 py-1 text-[8px] font-black text-violet-700">MANUAL</span>
+                    <button
+                      type="button"
+                      onClick={() => setAnalyzerOpen(true)}
+                      className="group w-full rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+                          <Sparkles className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[11px] font-black text-violet-950">Scan / Paste Source</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-violet-700">OPTIONAL</span>
+                          </span>
+                          <span className="mt-0.5 block text-[9px] leading-4 text-violet-700/80">
+                            Paste portal/SMS text or analyze a screenshot. Values are extracted only after you review them.
+                          </span>
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-violet-500 transition-transform group-hover:translate-x-0.5" />
                       </div>
-
-                      <div className="mt-3 flex rounded-xl bg-white/80 p-1">
-                        <button
-                          type="button"
-                          onClick={() => setAnalyzerTab("paste")}
-                          className={cx(
-                            "flex-1 rounded-lg px-2.5 py-2 text-[9px] font-black",
-                            analyzerTab === "paste" ? "bg-white text-violet-700 shadow-sm" : "text-slate-400"
-                          )}
-                        >
-                          <ClipboardPaste className="mr-1 inline h-3 w-3" />
-                          Paste Text
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAnalyzerTab("photo")}
-                          className={cx(
-                            "flex-1 rounded-lg px-2.5 py-2 text-[9px] font-black",
-                            analyzerTab === "photo" ? "bg-white text-violet-700 shadow-sm" : "text-slate-400"
-                          )}
-                        >
-                          <FileImage className="mr-1 inline h-3 w-3" />
-                          Photo Analyzer
-                        </button>
-                      </div>
-
-                      {analyzerTab === "paste" ? (
-                        <div className="mt-3 space-y-2">
-                          <textarea
-                            value={sourceText}
-                            onChange={(event) => setSourceText(event.target.value)}
-                            rows={6}
-                            placeholder={"Paste DigiPay / portal transaction text here...\n\nExample: Amount: ₹2000\nAadhaar: XXXX 4821\nMobile: 98XXXXXXXX\nBank Ref: 123456789012"}
-                            className="w-full resize-none rounded-xl border border-violet-200 bg-white p-3 text-[10px] font-medium leading-4 text-slate-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void analyzeText()}
-                              disabled={!sourceText.trim() || analysisBusy}
-                              className="flex-1 rounded-xl bg-violet-600 px-3 py-2 text-[10px] font-black text-white disabled:opacity-40"
-                            >
-                              {analysisBusy ? "Analyzing..." : "Analyze & Fill"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSourceText("");
-                                setAnalysis({});
-                                setMatchNotice("");
-                              }}
-                              className={smallButtonClass}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-3 space-y-2.5">
-                          <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                          <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => fileRef.current?.click()}
-                              className="rounded-xl border-2 border-dashed border-violet-200 bg-white px-3 py-5 text-center text-[10px] font-black text-violet-700 hover:bg-violet-50"
-                            >
-                              <Upload className="mx-auto mb-1 h-5 w-5" />
-                              Upload Screenshot
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => cameraRef.current?.click()}
-                              className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-3 py-5 text-center text-[10px] font-black text-slate-700 hover:bg-slate-50"
-                            >
-                              <Camera className="mx-auto mb-1 h-5 w-5" />
-                              Take Photo
-                            </button>
-                          </div>
-
-                          {sourceImage && (
-                            <img
-                              src={sourceImage}
-                              alt="AEPS source preview"
-                              className="max-h-44 w-full rounded-xl object-contain bg-slate-50 ring-1 ring-slate-200"
-                            />
-                          )}
-
-                          <p className="text-[9px] leading-4 text-slate-500">
-                            Photo OCR runs locally in the browser. Extracted values stay in the review flow until you approve them.
-                          </p>
-                        </div>
-                      )}
-
-                      {analysisBusy && <p className="mt-2 text-[9px] font-bold text-violet-700">Reading source...</p>}
-                      {analysisError && (
-                        <p className="mt-2 flex items-center gap-1 text-[9px] font-bold text-rose-600">
-                          <AlertCircle className="h-3 w-3" />
-                          {analysisError}
-                        </p>
-                      )}
-
-                      {Object.keys(analysis).length > 0 && (
-                        <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">Extracted</span>
-                            <span className="text-[9px] font-black text-emerald-600">{Object.keys(analysis).length} fields</span>
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            {Object.entries(analysis).map(([key, value]) => (
-                              <div key={key} className="rounded-lg bg-slate-50 p-2">
-                                <div className="text-[8px] font-bold uppercase tracking-wide text-slate-400">{key.replace(/_/g, " ")}</div>
-                                <div className="mt-0.5 truncate text-[9px] font-black text-slate-700">{String(value)}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    </button>
                   )}
 
                   {entryMode === "ai" && (
@@ -1433,7 +1292,7 @@ export default function AepsWorkspaceFresh({
                     <div className="rounded-xl border border-rose-100 bg-rose-50/60 p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] font-black uppercase tracking-wide text-rose-700">Customer Fee</span>
-                        <span className="text-[8px] font-bold text-rose-500">Current rule value</span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-rose-600">{analysis.service_fee ? "SOURCE" : "MANUAL"}</span>
                       </div>
                       <div className="mt-2 flex items-center gap-1.5">
                         <span className="text-sm font-black text-slate-500">₹</span>
@@ -1449,7 +1308,7 @@ export default function AepsWorkspaceFresh({
                     <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] font-black uppercase tracking-wide text-violet-700">Portal Commission</span>
-                        <span className="text-[8px] font-bold text-violet-500">Current rule value</span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black text-violet-600">{analysis.portal_commission ? "SOURCE" : "MANUAL"}</span>
                       </div>
                       <div className="mt-2 flex items-center gap-1.5">
                         <span className="text-sm font-black text-slate-500">₹</span>
@@ -1498,36 +1357,269 @@ export default function AepsWorkspaceFresh({
               </div>
             )}
           </aside>
+          </aside>
         </div>
 
-        {importNotice && (
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-bold text-blue-800">
-            <ShieldCheck className="mr-1.5 inline h-3.5 w-3.5" />
-            {importNotice}
+        <section id="aeps-transactions" className="min-w-0">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className={inputClass}>
+                  <option value="all">All Dates</option>
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="last7">Last 7 Days</option>
+                  <option value="last30">Last 30 Days</option>
+                  <option value="this_month">This Month</option>
+                </select>
+
+                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className={inputClass}>
+                  <option value="all">All Types</option>
+                  <option value="cash_out">Cash Out</option>
+                  <option value="balance_enquiry">Balance Enquiry</option>
+                  <option value="mini_statement">Mini Statement</option>
+                </select>
+
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}>
+                  <option value="all">All Status</option>
+                  <option value="success">Success</option>
+                  <option value="pending">Pending</option>
+                  <option value="review">Review</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="reversed">Reversed</option>
+                </select>
+
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className={cx(inputClass, "pl-9")}
+                    placeholder="Search customer, mobile, Aadhaar, bank, portal or reference..."
+                  />
+                </div>
+
+                <button type="button" className={smallButtonClass} title="More filters">
+                  <Filter className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-black text-slate-950">AEPS Transactions</h2>
+                  <p className="mt-0.5 text-[10px] text-slate-400">Showing {filtered.length} filtered records</p>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={exportTransactions} className={smallButtonClass}>
+                    <Download className="mr-1 h-3.5 w-3.5" />
+                    Export
+                  </button>
+                  <button type="button" onClick={resetForm} className={primaryButtonClass}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    New
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1320px] text-left">
+                  <thead className="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <tr>
+                      <th className="px-3 py-3">#</th>
+                      <th className="px-3 py-3">Date & Time</th>
+                      <th className="px-3 py-3">Customer</th>
+                      <th className="px-3 py-3">Mobile</th>
+                      <th className="px-3 py-3">Type</th>
+                      <th className="px-3 py-3">Aadhaar</th>
+                      <th className="px-3 py-3">Amount</th>
+                      <th className="px-3 py-3">Customer Fee</th>
+                      <th className="px-3 py-3">Portal Commission</th>
+                      <th className="px-3 py-3">Bank</th>
+                      <th className="px-3 py-3">Portal</th>
+                      <th className="px-3 py-3">Bank Ref</th>
+                      <th className="px-3 py-3">Portal Ref</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[10px]">
+                    {filtered.map((transaction) => {
+                      const dateTime = formatDateTime(transaction.transaction_timestamp || transaction.transaction_date);
+                      return (
+                        <tr key={transaction.id} className="transition hover:bg-slate-50">
+                          <td className="px-3 py-3 font-mono font-black text-blue-600">{transaction.transaction_number || "—"}</td>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            <div className="font-bold text-slate-700">{dateTime.date}</div>
+                            <div className="text-[9px] text-slate-400">{dateTime.time}</div>
+                          </td>
+                          <td className="px-3 py-3 font-black text-slate-900">{transaction.customers?.name || "—"}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{maskMobile(transaction.customer_mobile || transaction.customers?.phone) || "—"}</td>
+                          <td className="px-3 py-3 font-semibold text-slate-600">{typeLabel(transaction.transfer_method)}</td>
+                          <td className="px-3 py-3 font-mono">•••• {transaction.aadhaar_last4 || "—"}</td>
+                          <td className="px-3 py-3 font-black text-slate-950">{inr(Number(transaction.amount || 0))}</td>
+                          <td className="px-3 py-3 font-bold text-rose-600">{inr(Number(transaction.service_fee || 0))}</td>
+                          <td className="px-3 py-3 font-bold text-violet-600">{inr(Number(transaction.portal_commission || 0))}</td>
+                          <td className="px-3 py-3 text-slate-600">{transaction.banks?.name || "—"}</td>
+                          <td className="px-3 py-3 text-slate-600">{transaction.portals?.name || "—"}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{transaction.reference || "—"}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{String(transaction.remarks || "").replace(/^Portal Ref:\s*/i, "") || "—"}</td>
+                          <td className="px-3 py-3"><StatusPill status={transaction.status} /></td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Link href={"/business/receipt/" + transaction.id + "?mode=detailed"} target="_blank" className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-600">
+                                80mm
+                              </Link>
+                              <Link href={"/business/receipt/" + transaction.id + "/a4?mode=detailed"} target="_blank" className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black text-slate-600">
+                                A4
+                              </Link>
+                              <button type="button" className="rounded-lg border border-slate-200 p-1.5 text-slate-400" title="More">
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {!filtered.length && (
+                      <tr>
+                        <td colSpan={15} className="px-5 py-16 text-center">
+                          <ShieldCheck className="mx-auto h-8 w-8 text-slate-300" />
+                          <p className="mt-3 text-sm font-black text-slate-500">No AEPS transactions found</p>
+                          <p className="mt-1 text-xs text-slate-400">Real transaction data will appear here when available.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+
+
+        {analyzerOpen && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white">
+                      <Sparkles className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-base font-black text-slate-950 dark:text-white">Scan / Paste Transaction Source</h3>
+                      <p className="mt-0.5 text-[9px] text-slate-400">Extract → verify → apply. Nothing is recorded from this window.</p>
+                    </div>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setAnalyzerOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="p-5">
+                <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
+                  <button type="button" onClick={() => setAnalyzerTab("paste")} className={cx("rounded-lg px-3 py-2 text-[10px] font-black", analyzerTab === "paste" ? "bg-white text-violet-700 shadow-sm dark:bg-slate-800" : "text-slate-500")}>
+                    <ClipboardPaste className="mr-1 inline h-3 w-3" />
+                    Paste Text
+                  </button>
+                  <button type="button" onClick={() => setAnalyzerTab("photo")} className={cx("rounded-lg px-3 py-2 text-[10px] font-black", analyzerTab === "photo" ? "bg-white text-violet-700 shadow-sm dark:bg-slate-800" : "text-slate-500")}>
+                    <FileImage className="mr-1 inline h-3 w-3" />
+                    Photo Analyzer
+                  </button>
+                </div>
+
+                {analyzerTab === "paste" ? (
+                  <div className="mt-4 space-y-2">
+                    <textarea
+                      value={sourceText}
+                      onChange={(event) => setSourceText(event.target.value)}
+                      rows={8}
+                      placeholder={"Paste DigiPay / portal transaction text here...\n\nExample: Amount: ₹2000\nAadhaar: XXXX 4821\nMobile: 98XXXXXXXX\nBank Ref: 123456789012"}
+                      className="w-full resize-none rounded-2xl border border-violet-200 bg-white p-3 text-[10px] font-medium leading-4 text-slate-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-violet-900/60 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => void analyzeText()} disabled={!sourceText.trim() || analysisBusy} className="flex-1 rounded-xl bg-violet-600 px-3 py-2.5 text-[10px] font-black text-white disabled:opacity-40">
+                        {analysisBusy ? "Analyzing..." : "Analyze Source"}
+                      </button>
+                      <button type="button" onClick={() => { setSourceText(""); setAnalysis({}); setMatchNotice(""); }} className={smallButtonClass}>
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl border-2 border-dashed border-violet-200 bg-white px-3 py-7 text-center text-[10px] font-black text-violet-700 hover:bg-violet-50 dark:border-violet-900/60 dark:bg-slate-900 dark:text-violet-300">
+                        <Upload className="mx-auto mb-1 h-5 w-5" />
+                        Upload Screenshot
+                      </button>
+                      <button type="button" onClick={() => cameraRef.current?.click()} className="rounded-2xl border-2 border-dashed border-slate-200 bg-white px-3 py-7 text-center text-[10px] font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        <Camera className="mx-auto mb-1 h-5 w-5" />
+                        Take Photo
+                      </button>
+                    </div>
+                    {sourceImage && <img src={sourceImage} alt="AEPS source preview" className="max-h-48 w-full rounded-2xl object-contain bg-slate-50 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" />}
+                    <p className="text-[9px] leading-4 text-slate-500 dark:text-slate-400">Photo OCR runs locally in the browser. Extracted values stay in the source review flow.</p>
+                  </div>
+                )}
+
+                {analysisBusy && <p className="mt-3 text-[9px] font-bold text-violet-700 dark:text-violet-300">Reading source...</p>}
+                {analysisError && (
+                  <p className="mt-3 flex items-center gap-1 text-[9px] font-bold text-rose-600">
+                    <AlertCircle className="h-3 w-3" />
+                    {analysisError}
+                  </p>
+                )}
+
+                {Object.keys(analysis).length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/60 p-3.5 dark:border-violet-900/60 dark:bg-violet-950/30">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-wide text-violet-800 dark:text-violet-200">Detected values</span>
+                        <span className="ml-2 text-[9px] font-bold text-emerald-600">{Object.keys(analysis).length} fields</span>
+                      </div>
+                      <span className="rounded-full bg-white px-2 py-1 text-[8px] font-black text-violet-700 dark:bg-slate-900 dark:text-violet-300">SOURCE</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {Object.entries(analysis).map(([key, value]) => (
+                        <div key={key} className="rounded-xl bg-white p-2.5 dark:bg-slate-900">
+                          <div className="text-[8px] font-bold uppercase tracking-wide text-slate-400">{key.replace(/_/g, " ")}</div>
+                          <div className="mt-0.5 truncate text-[10px] font-black text-slate-800 dark:text-slate-100">{String(value)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[9px] font-bold text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                      Customer identity is resolved from CafeERP; source text never becomes the authoritative customer name.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+                <button type="button" onClick={() => setAnalyzerOpen(false)} className={smallButtonClass}>Cancel</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnalyzerOpen(false);
+                    if (Object.keys(analysis).length) {
+                      void applyAnalysis(analysis, sourceText);
+                    }
+                  }}
+                  disabled={!Object.keys(analysis).length || analysisBusy}
+                  className={primaryButtonClass}
+                >
+                  Apply Detected Values
+                  <Check className="ml-1.5 h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section id="aeps-ai-insights" className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
-            <div className="flex items-center gap-2 text-[11px] font-black text-violet-900">
-              <Sparkles className="h-4 w-4 text-violet-600" />
-              AI Insights
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-700">
-              {stats.pending} transaction(s) currently need review. AI assistance prepares drafts; final recording remains operator-controlled.
-            </p>
-          </section>
-
-          <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
-            <div className="flex items-center gap-2 text-[11px] font-black text-amber-900">
-              <ShieldCheck className="h-4 w-4 text-amber-600" />
-              Important Notes
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-700">
-              Only Aadhaar last 4 is used for AEPS matching. Customer identity comes from CafeERP data, never from an assumed portal customer name.
-            </p>
-          </section>
-        </div>
 
         {reviewOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4">
