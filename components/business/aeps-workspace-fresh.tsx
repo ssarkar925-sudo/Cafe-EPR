@@ -983,6 +983,10 @@ export default function AepsWorkspaceFresh({
       fields.amount,
       "cash_out",
     ].join("|")).slice(0, 500);
+    const parsedOccurredAt = transaction.occurredAt ? new Date(transaction.occurredAt) : new Date();
+    const occurredAt = Number.isNaN(parsedOccurredAt.getTime())
+      ? new Date().toISOString()
+      : parsedOccurredAt.toISOString();
 
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
@@ -1004,7 +1008,7 @@ export default function AepsWorkspaceFresh({
         amount: Number(fields.amount),
         fee: fields.service_fee ? Number(fields.service_fee) : null,
         commission: Number(fields.portal_commission || 0),
-        occurred_at: transaction.occurredAt ? new Date(transaction.occurredAt).toISOString() : new Date().toISOString(),
+        occurred_at: occurredAt,
         customer_name: transaction.customerName || null,
         customer_mobile: fields.customer_mobile || null,
         raw_data: {
