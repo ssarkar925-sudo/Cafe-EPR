@@ -188,6 +188,11 @@ export default function AepsWorkspace({
   const [selectedWatcherPortalId, setSelectedWatcherPortalId] = useState(initialPortals[0]?.id || "");
   const [testingSourceId, setTestingSourceId] = useState<string | null>(null);
   const [collectingSourceId, setCollectingSourceId] = useState<string | null>(null);
+  const [liveWatcherActive, setLiveWatcherActive] = useState(false);
+  const [liveWatcherPortalId, setLiveWatcherPortalId] = useState<string | null>(null);
+  const [liveWatcherLastEventAt, setLiveWatcherLastEventAt] = useState<string | null>(null);
+  const [liveWatcherDetectedCount, setLiveWatcherDetectedCount] = useState(0);
+  const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourcePurpose, setNewSourcePurpose] = useState<PortalSourcePurpose>("commission");
 
@@ -318,6 +323,166 @@ export default function AepsWorkspace({
       }
     }
   };
+
+  // Native desktop watcher event bridge.
+  // Browser builds deliberately do not pretend to have an authenticated watcher.
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.onAepsWatcherEvent !== "function") return;
+
+    const unsubscribe = api.onAepsWatcherEvent((event: any) => {
+      const eventPortalId = String(event?.portalId || "");
+      if (!eventPortalId) return;
+
+      if (event.type === "multi_started") {
+        setLiveWatcherActive(true);
+        setLiveWatcherPortalId(eventPortalId);
+        setLiveWatcherError(null);
+        setLiveWatcherLastEventAt(new Date().toISOString());
+        showToast("success", `Live watcher started: ${event.startedSourceCount}/${event.sourceCount} source URLs are being watched.`);
+        return;
+      }
+
+      if (event.type === "source_ready" || event.type === "source_started") {
+        setLiveWatcherLastEventAt(new Date().toISOString());
+        setWatcherSources((prev) =>
+          prev.map((s) =>
+            s.id === String(event.sourceId)
+              ? { ...s, lastStatus: "idle", lastMessage: "Live watcher connected." }
+              : s
+          )
+        );
+        return;
+      }
+
+      if (event.type === "source_heartbeat") {
+        setLiveWatcherLastEventAt(event.checkedAt || new Date().toISOString());
+        setWatcherSources((prev) =>
+          prev.map((s) =>
+            s.id === String(event.sourceId)
+              ? {
+                  ...s,
+                  lastChecked: event.checkedAt || new Date().toISOString(),
+                  lastStatus: event.authRequired ? "warning" : "success",
+                  lastMessage: event.authRequired
+                    ? "Authentication required — sign in manually in the watcher window."
+                    : `Live check complete. ${Number(event.found || 0)} transaction row(s) visible.`,
+                }
+              : s
+          )
+        );
+        return;
+      }
+
+      if (event.type === "source_auth_required") {
+        setLiveWatcherError("One or more portal sources require manual sign-in.");
+        setWatcherSources((prev) =>
+          prev.map((s) =>
+            s.id === String(event.sourceId)
+              ? {
+                  ...s,
+                  lastStatus: "warning",
+                  lastMessage: "Authentication required. Sign in manually in the watcher window.",
+                }
+              : s
+          )
+        );
+        showToast("info", `${event.sourceUrl || "Portal source"} requires manual sign-in in the watcher window.`);
+        return;
+      }
+
+      if (event.type === "source_error") {
+        setLiveWatcherError(String(event.error || "A watcher source failed."));
+        setWatcherSources((prev) =>
+          prev.map((s) =>
+            s.id === String(event.sourceId)
+              ? { ...s, lastStatus: "error", lastMessage: String(event.error || "Source error.") }
+              : s
+          )
+        );
+        return;
+      }
+
+      if (event.type === "source_success") {
+        setLiveWatcherLastEventAt(event.checkedAt || new Date().toISOString());
+        return;
+      }
+
+      if (event.type === "transaction") {
+        const tx = event.transaction || {};
+        const detectedPortal = eventPortalId;
+        setLiveWatcherDetectedCount((n) => n + 1);
+        setLiveWatcherLastEventAt(event.detectedAt || new Date().toISOString());
+
+        // Only the currently selected portal may populate the active transaction.
+        // Events from other portals remain watcher telemetry and never cross-pollute the form.
+        if (detectedPortal !== portalId) {
+          showToast("info", `New AEPS transaction detected in ${event.portalName || "another portal"}. Select that portal to review it.`);
+          return;
+        }
+
+        const nextType = normalizeRuleTransactionType(tx.transactionType);
+        if (nextType === "cash_out" || nextType === "payment_collection" || nextType === "balance_enquiry" || nextType === "mini_statement") {
+          setTransactionType(nextType as AepsTxnType);
+        }
+
+        if (tx.amount != null && Number(tx.amount) > 0) {
+          setAmount(String(tx.amount));
+        }
+        if (/^\d{10}$/.test(String(tx.customerMobile || ""))) {
+          setMobile(String(tx.customerMobile));
+        }
+        if (/^\d{4}$/.test(String(tx.aadhaarLast4 || ""))) {
+          setAadhaar(String(tx.aadhaarLast4));
+        }
+
+        const detectedBank = String(tx.bankName || "").trim();
+        if (detectedBank) {
+          const exact = matchBankExactName(detectedBank, bankOptions);
+          if (exact) {
+            setBankId(exact.id);
+            setUnmatchedBankName(null);
+          } else {
+            setUnmatchedBankName(detectedBank);
+          }
+        }
+
+        const ref = String(tx.externalReference || tx.externalTransactionId || tx.reference || "").trim();
+        if (ref) {
+          setTransactionRef(ref);
+          if (/^\d{10,14}$/.test(ref)) {
+            setBankRef(ref);
+            setPortalRef("");
+          } else {
+            setPortalRef(ref);
+          }
+        }
+
+        if (tx.fee != null && Number.isFinite(Number(tx.fee))) setFee(String(tx.fee));
+        if (tx.commission != null && Number.isFinite(Number(tx.commission))) setCommission(String(tx.commission));
+
+        setEntryMode("ai");
+        setSourceSectionOpen(true);
+        showToast(
+          "success",
+          `New AEPS transaction detected from ${event.portalName || "portal"} — details filled for operator review.`
+        );
+      }
+
+      if (event.type === "stopped") {
+        setLiveWatcherActive(false);
+        setLiveWatcherPortalId(null);
+        setLiveWatcherLastEventAt(new Date().toISOString());
+      }
+    });
+
+    return () => {
+      // ipcRenderer listeners are removed by watcher process when the app closes.
+      // The preload wrapper does not expose removeListener, so no unsafe renderer
+      // cleanup is attempted here.
+      void unsubscribe;
+    };
+  }, [bankOptions, portalId, showToast]);
 
   // Filtered Ledger Rows
   const filtered = useMemo(() => {
@@ -1051,6 +1216,78 @@ export default function AepsWorkspace({
     } finally {
       setIsVerifyingPortal(false);
       setVerificationProgressStep("");
+    }
+  };
+
+  const startLiveWatcher = async () => {
+    if (liveWatcherActive || isVerifyingPortal) return;
+
+    const api = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.startAepsWatcherAll !== "function") {
+      setLiveWatcherError("Live authenticated portal watching is available in the CafeERP Desktop app. Open the Windows desktop app to start the watcher.");
+      showToast("error", "Open CafeERP Desktop to start the live authenticated watcher.");
+      return;
+    }
+
+    const targetPortal = initialPortals.find((p) => p.id === portalId) || initialPortals[0];
+    const portalSources = watcherSources.filter((s) => s.portalId === targetPortal.id && s.isEnabled && !s.isArchived);
+
+    if (!targetPortal || portalSources.length === 0) {
+      setLiveWatcherError(`No enabled watcher URLs are configured for ${targetPortal?.name || "this portal"}.`);
+      showToast("error", `No enabled watcher URLs are configured for ${targetPortal?.name || "this portal"}.`);
+      return;
+    }
+
+    setLiveWatcherError(null);
+    setLiveWatcherDetectedCount(0);
+    setLiveWatcherLastEventAt(new Date().toISOString());
+
+    // Perform one immediate multi-source verification so the operator gets a
+    // current baseline before continuous transaction monitoring begins.
+    await verifyCurrentPortalDetails(true);
+
+    try {
+      const result = await api.startAepsWatcherAll({
+        portalId: targetPortal.id,
+        portalName: targetPortal.name,
+        sources: portalSources.map((s) => ({
+          id: s.id,
+          url: s.url || s.sourceUrl || "",
+          purpose: s.purpose,
+        })),
+        intervalSeconds: 30,
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.error || "Desktop live watcher failed to start.");
+      }
+
+      setLiveWatcherActive(true);
+      setLiveWatcherPortalId(targetPortal.id);
+      showToast("success", `Live watcher is monitoring ${result.startedSourceCount || portalSources.length} URL(s) for ${targetPortal.name} every 30 seconds.`);
+    } catch (err: any) {
+      setLiveWatcherActive(false);
+      setLiveWatcherPortalId(null);
+      setLiveWatcherError(err?.message || "Failed to start live watcher.");
+      showToast("error", err?.message || "Failed to start live watcher.");
+    }
+  };
+
+  const stopLiveWatcher = async () => {
+    const api = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.stopAepsWatcher !== "function") {
+      setLiveWatcherActive(false);
+      return;
+    }
+    try {
+      const result = await api.stopAepsWatcher();
+      if (!result?.success) throw new Error(result?.error || "Failed to stop live watcher.");
+      setLiveWatcherActive(false);
+      setLiveWatcherPortalId(null);
+      setLiveWatcherLastEventAt(new Date().toISOString());
+      showToast("info", "Live AEPS watcher stopped.");
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to stop live watcher.");
     }
   };
 
@@ -2223,21 +2460,37 @@ export default function AepsWorkspace({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Live Watcher — All Portals</h3>
-                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800">{isVerifyingPortal ? "CHECKING…" : "READY"}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${liveWatcherActive ? "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-slate-200 bg-slate-100 text-slate-600"}`}>
+                      {isVerifyingPortal ? "CHECKING…" : liveWatcherActive ? "LIVE WATCHING" : "IDLE"}
+                    </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-500">All registered portals are monitored independently. Portal results are never mixed.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
-                    {isVerifyingPortal ? "Verifying All…" : "Verify All Portals"}
-                  </button>
+                  {liveWatcherActive ? (
+                    <button type="button" onClick={stopLiveWatcher} className="rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-rose-700">
+                      Stop Live Watcher
+                    </button>
+                  ) : (
+                    <button type="button" onClick={startLiveWatcher} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">
+                      {isVerifyingPortal ? "Starting…" : "Start Live Watcher"}
+                    </button>
+                  )}
                   <button type="button" onClick={() => verifyCurrentPortalDetails(true)} disabled={isVerifyingPortal || liveEnabledCount === 0} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
                     Verify Selected
+                  </button>
+                  <button type="button" onClick={verifyAllPortalsLive} disabled={isVerifyingPortal || initialPortals.length === 0} className="rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50">
+                    Verify All
                   </button>
                   <button type="button" onClick={() => { setSelectedWatcherPortalId(portalId); setActiveTab("watcher"); }} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
                     Open Watcher
                   </button>
                 </div>
+              <div className="border-t border-emerald-100 bg-white px-4 py-3 text-[10px] text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span><b className="text-slate-700">Mode:</b> {liveWatcherActive ? "Persistent desktop watcher" : "Manual verification"}</span>
+                <span><b className="text-slate-700">Detected:</b> {liveWatcherDetectedCount}</span>
+                <span><b className="text-slate-700">Last event:</b> {liveWatcherLastEventAt ? fmtTime(liveWatcherLastEventAt) : "—"}</span>
+                {liveWatcherError && <span className="font-bold text-amber-700">{liveWatcherError}</span>}
               </div>
               <div className="grid gap-3 p-4 md:grid-cols-3">
                 {portalWatcherSummaries.map(({ portal, sources, enabledCount, healthyCount, errorCount, latestRun }) => {
