@@ -116,6 +116,32 @@ ipcMain.handle("aeps-watcher-collect-sources", async (_event, options = {}) => {
   }
 });
 
+ipcMain.handle("aeps-watcher-start-all", async (_event, options = {}) => {
+  if (!mainWindow) return { success: false, error: "No active CafeERP window." };
+
+  try {
+    const result = await aepsWatcher.startAll(
+      {
+        portalId: options.portalId,
+        portalName: options.portalName,
+        sources: options.sources,
+        intervalSeconds: options.intervalSeconds,
+      },
+      (payload) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("aeps-watcher-event", payload);
+        }
+      }
+    );
+    return { success: true, ...result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
 ipcMain.handle("aeps-watcher-start", async (_event, options = {}) => {
   if (!mainWindow) return { success: false, error: "No active CafeERP window." };
 
