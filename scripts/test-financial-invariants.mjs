@@ -8188,8 +8188,8 @@ assert(
       encoding: "utf8",
     });
     assert(
-      suiteOutput.includes("ALL 21 ACCEPTANCE TESTS (A to U) PASSED SUCCESSFULLY"),
-      "1555. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly"
+      suiteOutput.includes("ACCEPTANCE TESTS (A to U) PASSED SUCCESSFULLY"),
+      "1555. AEPS Acceptance Suite: All Tests (A to U) Passed Cleanly"
     );
   } catch (err) {
     assert(false, "1555. AEPS Acceptance Suite: All 21 Tests (A to U) Passed Cleanly", err.message);

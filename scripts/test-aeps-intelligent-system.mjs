@@ -536,7 +536,7 @@ runTest("TEST P: Source Failure Handling (5 URLs, 1 timeout -> 4/5 successful, P
     { sourceUrl: "https://url1.com", httpStatus: 200, normalizedData: { commission: 4 } },
     { sourceUrl: "https://url2.com", httpStatus: 200, normalizedData: { fee: 15 } },
     { sourceUrl: "https://url3.com", httpStatus: 200, normalizedData: { transactionType: "cash_out" } },
-    { sourceUrl: "https://url4.com", httpStatus: 200, normalizedData: { bankName: "SBI" } },
+    { sourceUrl: "https://url4.com", httpStatus: 200, normalizedData: { bankName: "State Bank of India" } },
     { sourceUrl: "https://url5.com", httpStatus: 504, errorMessage: "Gateway Timeout (504)", normalizedData: {} },
   ];
 
