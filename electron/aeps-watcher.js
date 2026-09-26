@@ -4,11 +4,15 @@ class AepsWatcher {
   constructor() {
     this.window = null;
     this.sourceWindows = new Map();
+    this.sourceSessions = new Map();
     this.timer = null;
     this.config = null;
     this.emit = null;
     this.seen = new Set();
     this.polling = false;
+    this.liveConfig = null;
+    this.liveEmit = null;
+    this.liveSeen = new Set();
   }
 
   isValidSource(url) {
@@ -173,6 +177,252 @@ class AepsWatcher {
     }
   }
 
+  async startAll(config, emit) {
+    const portalId = String(config?.portalId || "").trim();
+    const portalName = String(config?.portalName || "AEPS Portal").trim();
+    const sources = Array.isArray(config?.sources) ? config.sources : [];
+    const intervalSeconds = Math.max(15, Math.min(3600, Number(config?.intervalSeconds) || 30));
+
+    if (!portalId || sources.length === 0) {
+      throw new Error("Live watcher requires a registered portal and at least one source.");
+    }
+
+    const validSources = sources.filter((source) => source?.id && source?.url && this.isValidSource(String(source.url)));
+    if (validSources.length === 0) {
+      throw new Error("No valid enabled watcher source URLs are available.");
+    }
+
+    await this.stop();
+
+    this.liveConfig = { portalId, portalName, intervalSeconds };
+    this.liveEmit = typeof emit === "function" ? emit : () => {};
+
+    const results = await Promise.allSettled(
+      validSources.map((source) => this.startSourceSession(source, portalId, portalName, intervalSeconds))
+    );
+
+    const startedSources = results.filter((r) => r.status === "fulfilled").length;
+    const failedSources = results.length - startedSources;
+
+    this.liveEmit({
+      type: "multi_started",
+      portalId,
+      portalName,
+      sourceCount: validSources.length,
+      startedSourceCount: startedSources,
+      failedSourceCount: failedSources,
+      intervalSeconds,
+    });
+
+    if (startedSources === 0) {
+      await this.stop();
+      throw new Error("Live watcher could not open any configured source.");
+    }
+
+    return {
+      started: true,
+      mode: "multi_source",
+      portalId,
+      portalName,
+      sourceCount: validSources.length,
+      startedSourceCount: startedSources,
+      failedSourceCount: failedSources,
+      intervalSeconds,
+    };
+  }
+
+  async startSourceSession(source, portalId, portalName, intervalSeconds) {
+    const sourceId = String(source.id);
+    const sourceUrl = String(source.url);
+    const startedAt = Date.now();
+    let win = null;
+
+    try {
+      const partition = "aeps-watcher-" + portalId;
+      win = new BrowserWindow({
+        width: 1280,
+        height: 860,
+        minWidth: 960,
+        minHeight: 640,
+        title: "CafeERP — AEPS Live Watcher · " + portalName + " · " + (source.purpose || "source"),
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true,
+          partition,
+        },
+      });
+
+      const session = { win, timer: null, polling: false, source };
+      this.sourceSessions.set(sourceId, session);
+      this.sourceWindows.set(sourceId, win);
+
+      win.on("closed", () => {
+        const current = this.sourceSessions.get(sourceId);
+        if (current?.timer) clearTimeout(current.timer);
+        this.sourceSessions.delete(sourceId);
+        this.sourceWindows.delete(sourceId);
+        this.liveEmit?.({
+          type: "source_stopped",
+          portalId,
+          sourceId,
+          sourceUrl,
+          reason: "window_closed",
+        });
+      });
+
+      win.webContents.on("did-finish-load", () => {
+        this.liveEmit?.({
+          type: "source_ready",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl,
+          purpose: source.purpose || "general_updates",
+        });
+      });
+
+      win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+        this.liveEmit?.({
+          type: "source_error",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl,
+          error: "Portal page failed to load (" + errorCode + "): " + (errorDescription || validatedURL),
+        });
+      });
+
+      await win.loadURL(sourceUrl);
+      this.scheduleSourcePoll(sourceId, 0);
+      this.liveEmit?.({
+        type: "source_started",
+        portalId,
+        portalName,
+        sourceId,
+        sourceUrl,
+        purpose: source.purpose || "general_updates",
+        intervalSeconds,
+        latencyMs: Date.now() - startedAt,
+      });
+
+      return true;
+    } catch (error) {
+      if (win && !win.isDestroyed()) win.destroy();
+      this.sourceSessions.delete(sourceId);
+      this.sourceWindows.delete(sourceId);
+      this.liveEmit?.({
+        type: "source_error",
+        portalId,
+        portalName,
+        sourceId,
+        sourceUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
+
+  scheduleSourcePoll(sourceId, delayMs) {
+    const session = this.sourceSessions.get(String(sourceId));
+    if (!session || !this.liveConfig || !session.win || session.win.isDestroyed()) return;
+    if (session.timer) clearTimeout(session.timer);
+    session.timer = setTimeout(() => {
+      void this.pollSource(String(sourceId));
+    }, Math.max(0, delayMs));
+  }
+
+  async pollSource(sourceId) {
+    const session = this.sourceSessions.get(String(sourceId));
+    if (!session || !this.liveConfig || !session.win || session.win.isDestroyed() || session.polling) return;
+    session.polling = true;
+
+    const source = session.source;
+    const portalId = this.liveConfig.portalId;
+    const portalName = this.liveConfig.portalName;
+
+    try {
+      const result = await session.win.webContents.executeJavaScript(
+        "(" + extractVisibleTransactions.toString() + ")()",
+        true
+      );
+
+      this.liveEmit?.({
+        type: "source_heartbeat",
+        portalId,
+        portalName,
+        sourceId,
+        sourceUrl: String(source.url),
+        checkedAt: new Date().toISOString(),
+        found: Array.isArray(result?.transactions) ? result.transactions.length : 0,
+        authRequired: Boolean(result?.authRequired),
+      });
+
+      if (result?.authRequired) {
+        session.win.show();
+        this.liveEmit?.({
+          type: "source_auth_required",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          message: "Portal authentication is required. Sign in manually in this watcher window. CafeERP never enters OTP, PIN, password, or biometric data.",
+        });
+      }
+
+      for (const transaction of result?.transactions || []) {
+        const reference = transaction.externalTransactionId || transaction.reference || transaction.externalReference || "";
+        const fingerprint = [
+          portalId,
+          reference,
+          transaction.amount || "",
+          transaction.transactionType || "cash_out",
+        ].join("|").toLowerCase();
+
+        if (!reference || !transaction.amount) continue;
+        if (this.liveSeen.has(fingerprint)) continue;
+        this.liveSeen.add(fingerprint);
+
+        if (this.liveSeen.size > 2000) {
+          this.liveSeen.delete(this.liveSeen.values().next().value);
+        }
+
+        this.liveEmit?.({
+          type: "transaction",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl: String(source.url),
+          fingerprint,
+          transaction,
+          detectedAt: new Date().toISOString(),
+        });
+      }
+
+      this.liveEmit?.({
+        type: "source_success",
+        portalId,
+        portalName,
+        sourceId,
+        sourceUrl: String(source.url),
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.liveEmit?.({
+        type: "source_error",
+        portalId,
+        portalName,
+        sourceId,
+        sourceUrl: String(source.url),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      session.polling = false;
+      this.scheduleSourcePoll(sourceId, (this.liveConfig?.intervalSeconds || 30) * 1000);
+    }
+  }
+
   async collectSources(config) {
     const portalId = String(config?.portalId || "").trim();
     const portalName = String(config?.portalName || "AEPS Portal").trim();
@@ -294,6 +544,10 @@ class AepsWatcher {
       if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.destroy();
     }
     this.sourceWindows.clear();
+    this.sourceSessions.clear();
+    this.liveConfig = null;
+    this.liveEmit = null;
+    this.liveSeen.clear();
     this.window = null;
     this.config = null;
     this.seen.clear();
@@ -385,11 +639,14 @@ function extractVisibleTransactions() {
 
       const full = cells.join(" | ");
       const serviceText = service >= 0 ? cells[service] || "" : "";
-      const isAepsWithdrawal =
-        /aeps.*cash\s*withdrawal|cash\s*withdrawal.*aeps/i.test(serviceText + " " + full) ||
-        (/cash\s*withdrawal|cash\s*out|withdrawal/i.test(full) && /aeps|aadhaar/i.test(full));
+      const isCashOut =
+        /aeps.*cash\s*withdrawal|cash\s*withdrawal.*aeps|cash\s*out|withdrawal/i.test(serviceText + " " + full) &&
+        /aeps|aadhaar/i.test(serviceText + " " + full);
+      const isPaymentCollection =
+        /payment\s*collection|cash\s*collection|customer\s*payment|aadhaar\s*pay/i.test(serviceText + " " + full) &&
+        /aeps|aadhaar/i.test(serviceText + " " + full);
 
-      if (!isAepsWithdrawal) continue;
+      if (!isCashOut && !isPaymentCollection) continue;
 
       const parsedAmount = amount >= 0 ? money(cells[amount]) : money(full);
       const reference = rrn >= 0 ? cells[rrn] : "";
@@ -410,7 +667,7 @@ function extractVisibleTransactions() {
         externalTransactionId: reference,
         externalReference: reference,
         status: "success",
-        transactionType: "cash_out",
+        transactionType: isPaymentCollection ? "payment_collection" : "cash_out",
         amount: parsedAmount.toFixed(2),
         fee: null,
         commission: commission >= 0 ? String(money(cells[commission]) || 0) : "0",
