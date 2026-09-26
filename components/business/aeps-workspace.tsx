@@ -350,6 +350,27 @@ export default function AepsWorkspace({
   const receiptQuery = (mode: "basic" | "detailed") => (mode === "detailed" ? "?mode=detailed" : "");
   const receiptUrl = (id: string) => "/business/receipt/" + id + receiptQuery(receiptMode);
   const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + receiptQuery(receiptMode);
+  const handlePrintTransaction = (t: Txn) => {
+    const printWindow = window.open(receiptUrl(t.id), "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      showToast("error", "Popup blocked. Allow popups to print the receipt.");
+      return;
+    }
+    const runPrint = () => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch {
+        // Receipt page remains open for manual printing.
+      }
+    };
+    try {
+      printWindow.addEventListener("load", runPrint, { once: true });
+    } catch {
+      // Older browser fallback: leave receipt page open.
+    }
+  };
+
   const handleWhatsAppShare = (t: Txn) => {
     const feeSourceLabel =
       t.fee_source === "cut_from_withdrawal"
@@ -3501,15 +3522,14 @@ export default function AepsWorkspace({
                             >
                               View
                             </button>
-                            <a
-                              href={receiptUrl(t.id)}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => handlePrintTransaction(t)}
                               className="rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
-                              title="Open print-ready receipt"
+                              title="Print receipt"
                             >
                               Print
-                            </a>
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleWhatsAppShare(t)}
@@ -3587,14 +3607,13 @@ export default function AepsWorkspace({
                 >
                   Edit
                 </button>
-                <a
-                  href={receiptUrl(viewTxn.id)}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => handlePrintTransaction(viewTxn)}
                   className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100"
                 >
                   Print Receipt
-                </a>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleWhatsAppShare(viewTxn)}
