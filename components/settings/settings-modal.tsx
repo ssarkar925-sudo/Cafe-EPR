@@ -26,9 +26,10 @@ export interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
   initialCategory?: string;
+  initialCardId?: string;
 }
 
-type CardItem = {
+export type CardItem = {
   id: string;
   title: string;
   desc: string;
@@ -39,7 +40,7 @@ type CardItem = {
   directHref?: string;
 };
 
-type CategoryGroup = {
+export type CategoryGroup = {
   id: string;
   label: string;
   icon: string;
@@ -48,7 +49,7 @@ type CategoryGroup = {
   cards: CardItem[];
 };
 
-const CATEGORIES: CategoryGroup[] = [
+export const CATEGORIES: CategoryGroup[] = [
   {
     id: "business",
     label: "Business & Legal",
@@ -401,7 +402,7 @@ const CATEGORIES: CategoryGroup[] = [
   },
 ];
 
-export default function SettingsModal({ open, onClose, initialCategory = "business" }: SettingsModalProps) {
+export default function SettingsModal({ open, onClose, initialCategory = "business", initialCardId }: SettingsModalProps) {
   const router = useRouter();
   const supabase = createClient();
   const { showToast, toastView } = useToast();
@@ -417,6 +418,22 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [activeSubmodule, setActiveSubmodule] = useState<CardItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Handle initialCardId and initialCategory
+  useEffect(() => {
+    if (open && initialCardId) {
+      for (const cat of CATEGORIES) {
+        const found = cat.cards.find((c) => c.id === initialCardId);
+        if (found) {
+          setActiveCategory(cat.id);
+          setActiveSubmodule(found);
+          break;
+        }
+      }
+    } else if (open && initialCategory) {
+      setActiveCategory(initialCategory);
+    }
+  }, [open, initialCardId, initialCategory]);
 
   // Shop form state
   const [shopName, setShopName] = useState("Cafe ERP");

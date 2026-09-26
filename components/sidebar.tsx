@@ -384,11 +384,11 @@ export default function Sidebar({
               title={collapsed ? "Dashboard" : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition ${
                 isDashboardActive
-                  ? "bg-blue-600 text-white shadow-sm"
+                  ? "is-active bg-indigo-50/90 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-500/30"
                   : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white"
               }`}
             >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center ${isDashboardActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}`}>
                 <Icon d={ICONS.dashboard} className="h-4 w-4" />
               </span>
               {!collapsed && <span>Dashboard</span>}
@@ -435,14 +435,14 @@ export default function Sidebar({
                           href={item.href}
                           onClick={onMobileClose}
                           title={collapsed ? item.label : undefined}
-                          className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                          className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs transition ${
                             isActive
-                              ? "bg-blue-600 text-white font-semibold shadow-sm"
-                              : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white"
+                              ? "is-active bg-indigo-50/90 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-500/30"
+                              : "text-slate-700 font-medium hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white"
                           } ${item.isSubItem && !collapsed ? "pl-6" : ""}`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white">
+                            <span className={`flex h-4 w-4 shrink-0 items-center justify-center ${isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white"}`}>
                               {item.isSubItem ? (
                                 <span className="text-[10px] text-slate-400 dark:text-slate-500">└</span>
                               ) : (
