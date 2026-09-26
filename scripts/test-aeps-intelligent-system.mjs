@@ -279,6 +279,120 @@ runTest("TEST H: Pricing Resolution (DigiPay Cash Out ₹5,000 -> Fee ₹15, Com
 });
 
 // -----------------------------------------------------------------------------
+// TEST H2 — PAYMENT COLLECTION PRICING ISOLATION
+// -----------------------------------------------------------------------------
+runTest("TEST H2: Payment Collection does not inherit generic Cash Out pricing", () => {
+  const genericRules = [
+    {
+      id: "generic-fee",
+      serviceType: "aeps",
+      ruleType: "fee",
+      transactionType: "all",
+      portalId: "portal-digipay",
+      customerId: null,
+      bankId: null,
+      minAmount: 0,
+      maxAmount: null,
+      value: 15,
+      priority: 10,
+      isActive: true,
+    },
+    {
+      id: "generic-comm",
+      serviceType: "aeps",
+      ruleType: "commission",
+      transactionType: "all",
+      portalId: "portal-digipay",
+      customerId: null,
+      bankId: null,
+      minAmount: 0,
+      maxAmount: null,
+      value: 4,
+      priority: 10,
+      isActive: true,
+    },
+  ];
+
+  const missingPaymentPricing = resolvePricingFromRules(genericRules, {
+    portalId: "portal-digipay",
+    transactionType: "payment_collection",
+    amount: 5000,
+  });
+  assert.strictEqual(missingPaymentPricing.fee, 0, "Payment Collection fee must remain unconfigured when no payment rule exists");
+  assert.strictEqual(missingPaymentPricing.commission, 0, "Payment Collection commission must remain unconfigured when no payment rule exists");
+
+  const paymentRules = [
+    ...genericRules,
+    {
+      id: "payment-fee",
+      serviceType: "aeps",
+      ruleType: "fee",
+      transactionType: "payment_collection",
+      portalId: "portal-digipay",
+      customerId: null,
+      bankId: null,
+      minAmount: 0,
+      maxAmount: null,
+      value: 2,
+      priority: 10,
+      isActive: true,
+    },
+    {
+      id: "payment-comm",
+      serviceType: "aeps",
+      ruleType: "commission",
+      transactionType: "payment_collection",
+      portalId: "portal-digipay",
+      customerId: null,
+      bankId: null,
+      minAmount: 0,
+      maxAmount: null,
+      value: 1,
+      priority: 10,
+      isActive: true,
+    },
+  ];
+  const configuredPaymentPricing = resolvePricingFromRules(paymentRules, {
+    portalId: "portal-digipay",
+    transactionType: "payment_collection",
+    amount: 5000,
+  });
+  assert.strictEqual(configuredPaymentPricing.fee, 2);
+  assert.strictEqual(configuredPaymentPricing.commission, 1);
+});
+
+// -----------------------------------------------------------------------------
+// TEST H3 — CONFLICT TAKES PRECEDENCE OVER PARTIAL FAILURE
+// -----------------------------------------------------------------------------
+runTest("TEST H3: Source conflict remains CONFLICT even when another source fails", () => {
+  const observations = [
+    {
+      sourceUrl: "https://url-a.example",
+      httpStatus: 200,
+      normalizedData: { commission: 4 },
+      confidence: "HIGH_CONFIDENCE",
+    },
+    {
+      sourceUrl: "https://url-b.example",
+      httpStatus: 200,
+      normalizedData: { commission: 5 },
+      confidence: "HIGH_CONFIDENCE",
+    },
+    {
+      sourceUrl: "https://url-c.example",
+      httpStatus: 504,
+      normalizedData: {},
+      confidence: "SOURCE_FAILED",
+    },
+  ];
+
+  const result = crossVerifySourceObservations(observations, mockBanks, mockPortals[0], activeRules);
+  assert.strictEqual(result.verifiedContext.commission.status, "CONFLICT");
+  assert.strictEqual(result.verificationStatus, "CONFLICT");
+});
+
+// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // TEST I — PORTAL CHANGE
 // -----------------------------------------------------------------------------
 runTest("TEST I: Portal Change (DigiPay -> Spice Money recalculates pricing immediately)", () => {
