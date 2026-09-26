@@ -100,6 +100,22 @@ ipcMain.handle("print-thermal", async (_event, options = {}) => {
 // IPC handlers for the desktop AEPS Watcher.
 // The watcher uses an in-memory Electron session and never receives provider credentials.
 // It only reads visible portal transaction data and sends normalized candidates to the renderer.
+ipcMain.handle("aeps-watcher-collect-sources", async (_event, options = {}) => {
+  if (!mainWindow) return { success: false, error: "No active CafeERP window." };
+  try {
+    return await aepsWatcher.collectSources({
+      portalId: options.portalId,
+      portalName: options.portalName,
+      sources: options.sources,
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
 ipcMain.handle("aeps-watcher-start", async (_event, options = {}) => {
   if (!mainWindow) return { success: false, error: "No active CafeERP window." };
 
