@@ -423,6 +423,84 @@ class AepsWatcher {
     }
   }
 
+  async snapshotLiveSources(config = {}) {
+    const requestedPortalId = String(config?.portalId || this.liveConfig?.portalId || "").trim();
+    if (!requestedPortalId || !this.liveConfig || requestedPortalId !== this.liveConfig.portalId) {
+      return { success: false, portalId: requestedPortalId, observations: [], error: "Live watcher is not running for the requested portal." };
+    }
+
+    const sessions = Array.from(this.sourceSessions.entries());
+    if (sessions.length === 0) {
+      return { success: false, portalId: requestedPortalId, observations: [], error: "No live watcher source sessions are running." };
+    }
+
+    const results = await Promise.all(
+      sessions.map(async ([sourceId, session]) => {
+        const started = Date.now();
+        try {
+          if (!session.win || session.win.isDestroyed()) {
+            throw new Error("Source browser window is unavailable.");
+          }
+
+          const rendered = await session.win.webContents.executeJavaScript(
+            "(" + extractRenderedPage.toString() + ")(" + JSON.stringify(1200) + ")",
+            true
+          );
+          const content = String(rendered?.text || "").trim();
+          const authRequired = Boolean(rendered?.authRequired);
+
+          if (authRequired) session.win.show();
+
+          return {
+            sourceId,
+            sourceUrl: String(session.source.url),
+            purpose: session.source.purpose || "general_updates",
+            portalId: requestedPortalId,
+            portalName: this.liveConfig.portalName,
+            success: !authRequired && content.length > 0,
+            authRequired,
+            rendered: true,
+            httpStatus: 200,
+            latencyMs: Date.now() - started,
+            content: content.slice(0, 12000),
+            title: String(rendered?.title || ""),
+            error: authRequired
+              ? "Portal authentication is required. Sign in manually in the watcher window."
+              : content.length > 0
+              ? null
+              : "Source returned no readable content.",
+          };
+        } catch (error) {
+          return {
+            sourceId,
+            sourceUrl: String(session.source.url),
+            purpose: session.source.purpose || "general_updates",
+            portalId: requestedPortalId,
+            portalName: this.liveConfig.portalName,
+            success: false,
+            authRequired: false,
+            rendered: true,
+            httpStatus: 0,
+            latencyMs: Date.now() - started,
+            content: "",
+            title: "",
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
+
+    return {
+      success: results.some((r) => r.success),
+      portalId: requestedPortalId,
+      portalName: this.liveConfig.portalName,
+      observations: results,
+      sourceCount: results.length,
+      successfulSourceCount: results.filter((r) => r.success).length,
+      failedSourceCount: results.filter((r) => !r.success).length,
+    };
+  }
+
   async collectSources(config) {
     const portalId = String(config?.portalId || "").trim();
     const portalName = String(config?.portalName || "AEPS Portal").trim();
