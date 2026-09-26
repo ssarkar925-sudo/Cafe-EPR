@@ -193,6 +193,7 @@ export default function AepsWorkspace({
   const [liveWatcherLastEventAt, setLiveWatcherLastEventAt] = useState<string | null>(null);
   const [liveWatcherDetectedCount, setLiveWatcherDetectedCount] = useState(0);
   const [liveWatcherError, setLiveWatcherError] = useState<string | null>(null);
+  const liveSnapshotBusyRef = useRef(false);
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourcePurpose, setNewSourcePurpose] = useState<PortalSourcePurpose>("commission");
 
@@ -1259,6 +1260,7 @@ export default function AepsWorkspace({
 
       setLiveWatcherActive(true);
       setLiveWatcherPortalId(targetPortal.id);
+      void refreshLiveWatcherContext();
       showToast("success", `Live watcher is monitoring ${result.startedSourceCount || portalSources.length} URL(s) for ${targetPortal.name} every 30 seconds.`);
     } catch (err: any) {
       setLiveWatcherActive(false);
@@ -1281,10 +1283,101 @@ export default function AepsWorkspace({
       setLiveWatcherPortalId(null);
       setLiveWatcherLastEventAt(new Date().toISOString());
       showToast("info", "Live AEPS watcher stopped.");
-    } catch (err: any) {
-      showToast("error", err?.message || "Failed to stop live watcher.");
     }
   };
+
+  const refreshLiveWatcherContext = async () => {
+    if (liveSnapshotBusyRef.current || !liveWatcherActive || !liveWatcherPortalId) return;
+
+    const api = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.snapshotAepsWatcherSources !== "function") return;
+
+    liveSnapshotBusyRef.current = true;
+    try {
+      const snapshot = await api.snapshotAepsWatcherSources({
+        portalId: liveWatcherPortalId,
+      });
+
+      if (!snapshot?.success && !Array.isArray(snapshot?.observations)) {
+        throw new Error(snapshot?.error || "Live watcher could not read its source sessions.");
+      }
+
+      const browserObservations = Array.isArray(snapshot.observations)
+        ? snapshot.observations
+        : [];
+
+      const portal = initialPortals.find((p) => p.id === liveWatcherPortalId) || initialPortals[0];
+      if (!portal || browserObservations.length === 0) return;
+
+      const res = await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "collect_all",
+          portalId: portal.id,
+          portalName: portal.name,
+          browserObservations,
+          forceFresh: true,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.collectionRun) {
+        throw new Error(data?.error || "Live watcher verification failed.");
+      }
+
+      const run = data.collectionRun as PortalCollectionRun;
+      setCurrentRun(run);
+      setCollectionRuns((prev) => [
+        run,
+        ...prev.filter((old) => old.portalId !== run.portalId),
+      ]);
+      setLastVerifiedAt(run.completedAt || run.startedAt);
+
+      const ctx = run.verifiedContext;
+      if (run.portalId === portalId) {
+        if (ctx.transactionType.value) setTransactionType(ctx.transactionType.value);
+        if (ctx.bank.value) setBankId(ctx.bank.value.id);
+        if (ctx.reference.value) handleTransactionRefChange(ctx.reference.value);
+        if (ctx.customerFee.value !== null && ctx.customerFee.value !== undefined) {
+          setFee(String(ctx.customerFee.value));
+        }
+        if (ctx.commission.value !== null && ctx.commission.value !== undefined) {
+          setCommission(String(ctx.commission.value));
+        }
+      }
+
+      if (Array.isArray(data.pendingChanges) && data.pendingChanges.length > 0) {
+        setChangeRecords((prev) => [...data.pendingChanges, ...prev]);
+      }
+
+      setLiveWatcherLastEventAt(run.completedAt || new Date().toISOString());
+      setLiveWatcherError(
+        run.verificationStatus === "VERIFIED"
+          ? null
+          : run.verificationStatus === "PARTIAL"
+          ? "Watcher is live, but one or more sources are unavailable."
+          : run.verificationStatus === "CONFLICT"
+          ? "Watcher found conflicting source data. Review is required."
+          : "Watcher could not verify the configured sources."
+      );
+    } catch (err: any) {
+      setLiveWatcherError(err?.message || "Live watcher context refresh failed.");
+    } finally {
+      liveSnapshotBusyRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!liveWatcherActive || !liveWatcherPortalId) return;
+
+    void refreshLiveWatcherContext();
+    const timer = window.setInterval(() => {
+      void refreshLiveWatcherContext();
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [liveWatcherActive, liveWatcherPortalId, initialPortals]);
 
   // Verify every registered portal independently. Never mix portal data.
   const verifyAllPortalsLive = async () => {
