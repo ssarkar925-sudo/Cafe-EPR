@@ -353,6 +353,8 @@ export interface PortalChangeRecord {
   normalizedData: {
     commission?: number | null;
     fee?: number | null;
+    transactionType?: AepsTxnType | null;
+    bankId?: string | null;
     summary?: string | null;
   };
   status: "pending" | "approved" | "rejected";
