@@ -295,6 +295,27 @@ class AepsWatcher {
       });
 
       await win.loadURL(sourceUrl);
+
+      // Detect authenticated-session requirements immediately after navigation.
+      // Some portals render a login form without a /login URL, so URL checks
+      // alone are insufficient. The same browser partition is retained so the
+      // operator's manual login is reused by every source for the portal.
+      const pageState = await win.webContents.executeJavaScript(
+        "(" + extractRenderedPage.toString() + ")(" + JSON.stringify(1500) + ")",
+        true
+      );
+      if (pageState?.authRequired) {
+        win.show();
+        this.liveEmit?.({
+          type: "source_auth_required",
+          portalId,
+          portalName,
+          sourceId,
+          sourceUrl,
+          message: "Authentication required. Sign in manually in this watcher window; the same session will be reused for this portal's other sources.",
+        });
+      }
+
       this.scheduleSourcePoll(sourceId, 0);
       this.liveEmit?.({
         type: "source_started",
@@ -503,6 +524,17 @@ class AepsWatcher {
 
   async collectSources(config) {
     const portalId = String(config?.portalId || "").trim();
+
+    // When the persistent watcher is already running for this portal, reuse
+    // those authenticated browser sessions instead of opening a second set of
+    // windows and losing the operator's current login context.
+    if (
+      portalId &&
+      this.liveConfig?.portalId === portalId &&
+      this.sourceSessions.size > 0
+    ) {
+      return this.snapshotLiveSources({ portalId });
+    }
     const portalName = String(config?.portalName || "AEPS Portal").trim();
     const sources = Array.isArray(config?.sources) ? config.sources : [];
 
@@ -611,6 +643,25 @@ class AepsWatcher {
     };
   }
 
+  getStatus() {
+    const sessions = Array.from(this.sourceSessions.entries()).map(([sourceId, session]) => ({
+      sourceId,
+      url: String(session?.source?.url || ""),
+      purpose: session?.source?.purpose || "general_updates",
+      destroyed: Boolean(!session?.win || session.win.isDestroyed()),
+      polling: Boolean(session?.polling),
+    }));
+
+    return {
+      active: Boolean(this.liveConfig && this.sourceSessions.size > 0),
+      portalId: this.liveConfig?.portalId || null,
+      portalName: this.liveConfig?.portalName || null,
+      intervalSeconds: this.liveConfig?.intervalSeconds || null,
+      sourceCount: sessions.length,
+      sessions,
+    };
+  }
+
   async stop() {
     this.clearTimer();
     this.polling = false;
@@ -641,14 +692,38 @@ async function extractRenderedPage(waitMs = 5000) {
     const state = await new Promise((resolve) => {
       try {
         const text = document.body?.innerText || "";
-        const passwordField = document.querySelector('input[type="password"]:not([hidden])');
-        const otpField = document.querySelector('input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i]');
-        const loginControl = Array.from(document.querySelectorAll('button, input[type="submit"], a')).some((el) =>
-          /(?:sign\s*in|log\s*in|login|authenticate)/i.test(String(el.innerText || el.value || "").trim())
+        const visibleField = (selector) =>
+          Array.from(document.querySelectorAll(selector)).some((el) => {
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+          });
+
+        const passwordField = visibleField('input[type="password"]:not([hidden])');
+        const otpField = visibleField('input[name*="otp" i], input[id*="otp" i], input[name*="pin" i]');
+        const credentialField = visibleField(
+          'input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i], input[type="email"]'
         );
-        const shortLoginPage = String(text || "").trim().length < 1500 &&
-          /(?:sign\s*in|log\s*in|login|authentication required|enter otp|verification code)/i.test(String(text || ""));
-        const authRequired = Boolean(passwordField || otpField || (loginControl && shortLoginPage));
+
+        const loginControl = Array.from(document.querySelectorAll('button, input[type="submit"], a')).some((el) =>
+          /(?:sign\s*in|log\s*in|login|authenticate|agent\s+login|retailer\s+login)/i.test(
+            String(el.innerText || el.value || "").trim()
+          )
+        );
+
+        const loginText = /(?:agent\s+login|retailer\s+login|sign\s*in|log\s*in|login|authentication required|enter otp|verification code|user\s*name|password)/i.test(
+          String(text || "")
+        );
+
+        const passwordAndLoginForm =
+          passwordField &&
+          loginControl;
+
+        const likelyLoginPage =
+          loginText &&
+          (passwordField || otpField || credentialField || loginControl);
+
+        const authRequired = Boolean(passwordAndLoginForm || likelyLoginPage);
         resolve({ text, authRequired, title: document.title || "" });
       } catch {
         resolve({ text: "", authRequired: false, title: document.title || "" });
