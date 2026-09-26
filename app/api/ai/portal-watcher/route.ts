@@ -261,9 +261,47 @@ export async function GET(request: Request) {
       if (runErr) {
         return NextResponse.json({ success: false, error: "Unable to load watcher runs: " + runErr.message }, { status: 500 });
       }
+      const runRows = runs || [];
+      const runIds = runRows.map((r: any) => r.id).filter(Boolean);
+      let observationRows: any[] = [];
+      if (runIds.length > 0) {
+        const { data: loadedObservations, error: obsErr } = await supabase
+          .from("aeps_portal_collection_observations")
+          .select("id,collection_run_id,source_id,source_url,portal_id,portal_name,purpose,http_status,latency_ms,extracted_at,raw_snippet,normalized_data,confidence,error_message")
+          .in("collection_run_id", runIds)
+          .order("extracted_at", { ascending: true });
+        if (obsErr) {
+          return NextResponse.json({ success: false, error: "Unable to load saved watcher observations: " + obsErr.message }, { status: 500 });
+        }
+        observationRows = loadedObservations || [];
+      }
+
+      const observationsByRun = new Map<string, PortalCollectionObservation[]>();
+      for (const row of observationRows) {
+        const observation: PortalCollectionObservation = {
+          id: String(row.id),
+          collectionRunId: String(row.collection_run_id),
+          sourceId: String(row.source_id),
+          sourceUrl: String(row.source_url || ""),
+          portalId: row.portal_id || undefined,
+          portalName: row.portal_name || undefined,
+          purpose: row.purpose as PortalSourcePurpose,
+          httpStatus: Number(row.http_status || 0),
+          latencyMs: Number(row.latency_ms || 0),
+          extractedAt: String(row.extracted_at),
+          rawSnippet: String(row.raw_snippet || ""),
+          normalizedData: row.normalized_data || {},
+          confidence: row.confidence as SourceConfidenceStatus,
+          errorMessage: row.error_message || null,
+        };
+        const existing = observationsByRun.get(observation.collectionRunId) || [];
+        existing.push(observation);
+        observationsByRun.set(observation.collectionRunId, existing);
+      }
+
       return NextResponse.json({
         success: true,
-        runs: (runs || []).map((r: any) => ({
+        runs: runRows.map((r: any) => ({
           id: r.id,
           portalId: r.portal_id,
           portalName: r.portal_name,
@@ -275,6 +313,7 @@ export async function GET(request: Request) {
           conflictCount: r.conflict_count,
           verificationStatus: r.verification_status,
           verifiedContext: r.verified_context,
+          observations: observationsByRun.get(String(r.id)) || [],
         })),
       });
     }
