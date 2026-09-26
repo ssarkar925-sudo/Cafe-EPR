@@ -1025,7 +1025,7 @@ export default function AepsWorkspace({
 
   const liveWatcherRun = currentRun && currentRun.portalId === portalId ? currentRun : null;
   const liveEnabledCount = livePortalSources.filter((s) => s.isEnabled).length;
-  const liveHealthyCount = livePortalSources.filter((s) => s.isEnabled && (s.lastStatus === "success" || s.lastStatus === "verified")).length;
+  const liveHealthyCount = livePortalSources.filter((s) => s.isEnabled && s.lastStatus === "success").length;
   const liveErroredCount = livePortalSources.filter((s) => s.isEnabled && s.lastStatus === "error").length;
 
 
