@@ -416,11 +416,11 @@ export default function AepsWorkspace({
     } catch {
       showToast("error", "Could not copy the RRN / reference.");
     }
-    setActionMenuTxnId(null);
+    setActionMenuTxn(null);
   };
 
   const handleOpenAudit = async (t: Txn) => {
-    setActionMenuTxnId(null);
+    setActionMenuTxn(null);
     setAuditTxn(t);
     setAuditRows([]);
     setAuditBusy(true);
@@ -438,7 +438,7 @@ export default function AepsWorkspace({
   };
 
   const handlePortalVerification = (t: Txn) => {
-    setActionMenuTxnId(null);
+    setActionMenuTxn(null);
     setViewTxn(null);
     if ((t as any).portal_id) setSelectedWatcherPortalId((t as any).portal_id);
     setActiveTab("watcher");
@@ -1749,13 +1749,21 @@ export default function AepsWorkspace({
   const [thermalTxn, setThermalTxn] = useState<Txn | null>(null);
   const [viewTxn, setViewTxn] = useState<Txn | null>(null);
   const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
-  const [actionMenuTxnId, setActionMenuTxnId] = useState<string | null>(null);
+  const [actionMenuTxn, setActionMenuTxn] = useState<Txn | null>(null);
   const [reverseTxn, setReverseTxn] = useState<Txn | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseBusy, setReverseBusy] = useState(false);
   const [auditTxn, setAuditTxn] = useState<Txn | null>(null);
   const [auditRows, setAuditRows] = useState<any[]>([]);
   const [auditBusy, setAuditBusy] = useState(false);
+  useEffect(() => {
+    if (!actionMenuTxn) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActionMenuTxn(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [actionMenuTxn]);
 
   const handleEditTransaction = (t: Txn) => {
     setViewTxn(null);
@@ -3636,59 +3644,15 @@ export default function AepsWorkspace({
                             </button>
                             <button
                               type="button"
-                              onClick={() => setActionMenuTxnId((id) => (id === t.id ? null : t.id))}
+                              onClick={() => setActionMenuTxn(t)}
                               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[12px] font-black text-slate-700 hover:bg-slate-50"
                               aria-label="More transaction actions"
-                              aria-expanded={actionMenuTxnId === t.id}
+                              aria-expanded={actionMenuTxn?.id === t.id}
                               title="More actions"
                             >
                               ⋮
                             </button>
 
-                            {actionMenuTxnId === t.id && (
-                              <div className="absolute right-0 top-9 z-[80] w-52 rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-xl">
-                                <button type="button" onClick={() => handleCopyRrn(t)} className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
-                                  📋 Copy RRN
-                                </button>
-                                <a
-                                  href={invoiceUrl(t.id)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={() => setActionMenuTxnId(null)}
-                                  className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
-                                >
-                                  📄 A4 / Save as PDF
-                                </a>
-                                {t.status === "success" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setReverseTxn(t);
-                                      setReverseReason("");
-                                      setActionMenuTxnId(null);
-                                    }}
-                                    className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-rose-700 hover:bg-rose-50"
-                                  >
-                                    ↩ Reverse Transaction
-                                  </button>
-                                )}
-                                <button type="button" onClick={() => handleOpenAudit(t)} className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
-                                  🧾 Audit / Ledger
-                                </button>
-                                <button type="button" onClick={() => handlePortalVerification(t)} className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
-                                  🔎 Portal Verification
-                                </button>
-                                {(t as any).customer_id && (
-                                  <Link
-                                    href={"/customers/" + String((t as any).customer_id)}
-                                    onClick={() => setActionMenuTxnId(null)}
-                                    className="flex w-full items-center rounded-lg px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
-                                  >
-                                    👤 Open Customer
-                                  </Link>
-                                )}
-                              </div>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -3703,6 +3667,172 @@ export default function AepsWorkspace({
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TRANSACTION ACTIONS POPUP */}
+        {actionMenuTxn && (
+          <div
+            className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Transaction actions"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setActionMenuTxn(null);
+            }}
+          >
+            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Transaction Actions</div>
+                  <div className="mt-1 font-mono text-sm font-black text-slate-950">
+                    {actionMenuTxn.transaction_number || actionMenuTxn.id.slice(0, 8)}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {actionMenuTxn.customers?.name || "Walk-in Customer"} · {inr(Number(actionMenuTxn.amount || 0))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionMenuTxn(null)}
+                  className="rounded-lg px-2 py-1 text-lg font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close transaction actions"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 p-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCopyRrn(actionMenuTxn);
+                    setActionMenuTxn(null);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left hover:bg-slate-50"
+                >
+                  <div className="text-lg">📋</div>
+                  <div className="mt-1 text-xs font-black text-slate-900">Copy RRN</div>
+                  <div className="text-[10px] text-slate-500">Copy transaction reference</div>
+                </button>
+
+                <a
+                  href={invoiceUrl(actionMenuTxn.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setActionMenuTxn(null)}
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-left hover:bg-indigo-100"
+                >
+                  <div className="text-lg">📄</div>
+                  <div className="mt-1 text-xs font-black text-indigo-900">Save as PDF</div>
+                  <div className="text-[10px] text-indigo-700">A4 printable receipt</div>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewTxn(actionMenuTxn);
+                    setActionMenuTxn(null);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left hover:bg-slate-50"
+                >
+                  <div className="text-lg">👁</div>
+                  <div className="mt-1 text-xs font-black text-slate-900">View Details</div>
+                  <div className="text-[10px] text-slate-500">Full transaction information</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleEditTransaction(actionMenuTxn);
+                    setActionMenuTxn(null);
+                  }}
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 text-left hover:bg-blue-100"
+                >
+                  <div className="text-lg">✏️</div>
+                  <div className="mt-1 text-xs font-black text-blue-900">Edit Transaction</div>
+                  <div className="text-[10px] text-blue-700">Open in AEPS workspace</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handlePrintTransaction(actionMenuTxn);
+                    setActionMenuTxn(null);
+                  }}
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-left hover:bg-indigo-100"
+                >
+                  <div className="text-lg">🖨️</div>
+                  <div className="mt-1 text-xs font-black text-indigo-900">Print</div>
+                  <div className="text-[10px] text-indigo-700">Open print dialog</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleWhatsAppShare(actionMenuTxn);
+                    setActionMenuTxn(null);
+                  }}
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-left hover:bg-emerald-100"
+                >
+                  <div className="text-lg">💬</div>
+                  <div className="mt-1 text-xs font-black text-emerald-900">WhatsApp</div>
+                  <div className="text-[10px] text-emerald-700">Share transaction summary</div>
+                </button>
+
+                {actionMenuTxn.status === "success" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReverseTxn(actionMenuTxn);
+                      setReverseReason("");
+                      setActionMenuTxn(null);
+                    }}
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-left hover:bg-rose-100"
+                  >
+                    <div className="text-lg">↩️</div>
+                    <div className="mt-1 text-xs font-black text-rose-900">Reverse Transaction</div>
+                    <div className="text-[10px] text-rose-700">Requires a reason</div>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenAudit(actionMenuTxn)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left hover:bg-slate-50"
+                >
+                  <div className="text-lg">🧾</div>
+                  <div className="mt-1 text-xs font-black text-slate-900">Audit / Ledger</div>
+                  <div className="text-[10px] text-slate-500">Posted journal entries</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePortalVerification(actionMenuTxn)}
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-left hover:bg-amber-100"
+                >
+                  <div className="text-lg">🔎</div>
+                  <div className="mt-1 text-xs font-black text-amber-900">Verification</div>
+                  <div className="text-[10px] text-amber-700">Portal/source verification</div>
+                </button>
+
+                {(actionMenuTxn as any).customer_id && (
+                  <Link
+                    href={"/customers/" + String((actionMenuTxn as any).customer_id)}
+                    onClick={() => setActionMenuTxn(null)}
+                    className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-left hover:bg-violet-100"
+                  >
+                    <div className="text-lg">👤</div>
+                    <div className="mt-1 text-xs font-black text-violet-900">Open Customer</div>
+                    <div className="text-[10px] text-violet-700">Customer profile</div>
+                  </Link>
+                )}
+              </div>
+
+              <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[10px] text-slate-500">
+                Actions are performed against the persisted transaction record.
               </div>
             </div>
           </div>
