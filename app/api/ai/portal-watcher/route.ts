@@ -560,41 +560,84 @@ export async function POST(request: Request) {
     // -----------------------------------------------------------------------
     // ACTION: SAVE_RULE (Creates or updates an AEPS pricing rule)
     // -----------------------------------------------------------------------
+    const looksUuidSafe = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
     if (action === "save_rule") {
-      const rule = body.rule;
-      if (!rule) {
+      const input = body.rule;
+      if (!input || typeof input !== "object") {
         return NextResponse.json({ error: "Rule payload required." }, { status: 400 });
       }
 
-      // Try RPC first for authorization & atomicity
-      if (rule.portalId) {
-        try {
-          await supabase.rpc("save_aeps_pricing_rule", {
-            p_portal_id: rule.portalId,
-            p_customer_id: rule.customerId || null,
-            p_min_amount: Number(rule.minAmount || 0),
-            p_max_amount: rule.maxAmount != null ? Number(rule.maxAmount) : null,
-            p_fee: rule.ruleType === "fee" ? Number(rule.value || 0) : 0,
-            p_commission: rule.ruleType === "commission" ? Number(rule.value || 0) : 0,
-          });
-        } catch (rpcErr) {
-          // If RPC fails, save directly to public.aeps_pricing_rules
-          await supabase.from("aeps_pricing_rules").upsert({
-            id: rule.id || undefined,
-            service_type: "aeps",
-            rule_type: rule.ruleType,
-            transaction_type: normalizeRuleTransactionType(rule.transactionType) || "cash_out",
-            portal_id: rule.portalId || null,
-            customer_id: rule.customerId || null,
-            bank_id: rule.bankId && rule.bankId !== "all" ? rule.bankId : null,
-            min_amount: Number(rule.minAmount || 0),
-            max_amount: rule.maxAmount != null ? Number(rule.maxAmount) : null,
-            value: Number(rule.value || 0),
-            priority: Number(rule.priority || 10),
-            is_active: rule.isActive ?? true,
-          });
-        }
+      const portalId = input.portalId ? String(input.portalId) : null;
+      const ruleType = String(input.ruleType || "").toLowerCase();
+      if (!portalId) {
+        return NextResponse.json({ error: "Portal is required for an AEPS pricing rule." }, { status: 400 });
       }
+      if (ruleType !== "fee" && ruleType !== "commission") {
+        return NextResponse.json({ error: "Rule type must be fee or commission." }, { status: 400 });
+      }
+
+      const rulePayload: any = {
+        service_type: "aeps",
+        rule_type: ruleType,
+        transaction_type: normalizeRuleTransactionType(input.transactionType) || "all",
+        portal_id: portalId,
+        customer_id: input.customerId || null,
+        bank_id: input.bankId && input.bankId !== "all" ? input.bankId : null,
+        min_amount: Number(input.minAmount ?? 0),
+        max_amount: input.maxAmount == null || input.maxAmount === "" ? null : Number(input.maxAmount),
+        value: Number(input.value ?? 0),
+        priority: Number(input.priority ?? 10),
+        is_active: input.isActive !== false,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (!Number.isFinite(rulePayload.min_amount) || rulePayload.min_amount < 0) {
+        return NextResponse.json({ error: "Minimum amount must be non-negative." }, { status: 400 });
+      }
+      if (
+        rulePayload.max_amount !== null &&
+        (!Number.isFinite(rulePayload.max_amount) || rulePayload.max_amount < rulePayload.min_amount)
+      ) {
+        return NextResponse.json({ error: "Maximum amount must be greater than or equal to minimum amount." }, { status: 400 });
+      }
+      if (!Number.isFinite(rulePayload.value) || rulePayload.value < 0) {
+        return NextResponse.json({ error: "Rule value must be non-negative." }, { status: 400 });
+      }
+
+      if (looksUuidSafe(String(input.id || ""))) {
+        rulePayload.id = String(input.id);
+      }
+
+      const { data: saved, error: saveErr } = await supabase
+        .from("aeps_pricing_rules")
+        .upsert(rulePayload)
+        .select("id,service_type,rule_type,transaction_type,portal_id,customer_id,bank_id,min_amount,max_amount,value,priority,is_active,created_at,updated_at")
+        .single();
+
+      if (saveErr || !saved) {
+        return NextResponse.json(
+          { error: "Failed to persist AEPS pricing rule: " + (saveErr?.message || "unknown error") },
+          { status: 500 }
+        );
+      }
+
+      const rule = {
+        id: saved.id,
+        serviceType: "aeps" as const,
+        ruleType: saved.rule_type as "fee" | "commission",
+        transactionType: saved.transaction_type || "all",
+        portalId: saved.portal_id,
+        customerId: saved.customer_id,
+        bankId: saved.bank_id || null,
+        minAmount: Number(saved.min_amount),
+        maxAmount: saved.max_amount == null ? null : Number(saved.max_amount),
+        value: Number(saved.value),
+        priority: Number(saved.priority),
+        isActive: Boolean(saved.is_active),
+        createdAt: saved.created_at,
+        updatedAt: saved.updated_at,
+      };
 
       return NextResponse.json({
         success: true,
@@ -603,6 +646,50 @@ export async function POST(request: Request) {
         rule,
         message: "AEPS pricing rule saved successfully.",
       });
+    }
+
+    if (action === "delete_rule") {
+      const ruleId = String(body.ruleId || "").trim();
+      if (!looksUuidSafe(ruleId)) {
+        return NextResponse.json({ error: "Rule ID is invalid." }, { status: 400 });
+      }
+
+      const { data, error } = await supabase
+        .from("aeps_pricing_rules")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", ruleId)
+        .select("id")
+        .single();
+
+      if (error || !data) {
+        return NextResponse.json(
+          { error: "Failed to archive pricing rule: " + (error?.message || "rule not found") },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ success: true, action: "delete_rule", ruleId, archived: true });
+    }
+
+    if (action === "toggle_rule") {
+      const ruleId = String(body.ruleId || "").trim();
+      if (!looksUuidSafe(ruleId)) {
+        return NextResponse.json({ error: "Rule ID is invalid." }, { status: 400 });
+      }
+
+      const { data, error } = await supabase
+        .from("aeps_pricing_rules")
+        .update({ is_active: Boolean(body.isActive), updated_at: new Date().toISOString() })
+        .eq("id", ruleId)
+        .select("id,is_active")
+        .single();
+
+      if (error || !data) {
+        return NextResponse.json(
+          { error: "Failed to update pricing rule: " + (error?.message || "rule not found") },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ success: true, action: "toggle_rule", ruleId, isActive: data.is_active });
     }
 
     // -----------------------------------------------------------------------
