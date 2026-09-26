@@ -24,16 +24,53 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 45;
 
+function extractRateSlabs(
+  text: string,
+  label: "fee" | "commission"
+): { minAmount: number; maxAmount: number | null; value: number; label: "fee" | "commission" }[] {
+  const slabs: { minAmount: number; maxAmount: number | null; value: number; label: "fee" | "commission" }[] = [];
+  const lines = (text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const range = line.match(/(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*)\s*(?:-|–|—|to)\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*)/i);
+    if (!range || range.index == null) continue;
+
+    const suffix = line.slice(range.index + range[0].length);
+    const valueMatch =
+      suffix.match(/(?:₹|Rs\.?|INR|fee|charge|commission|comm)\s*[:=\-]?\s*([0-9]+(?:\.[0-9]{1,2})?)/i) ||
+      line.match(/(?:₹|Rs\.?|INR)\s*([0-9]+(?:\.[0-9]{1,2})?)\s*$/i);
+
+    if (!valueMatch) continue;
+
+    const minAmount = Number(range[1].replace(/,/g, ""));
+    const maxAmount = Number(range[2].replace(/,/g, ""));
+    const value = Number(valueMatch[1]);
+
+    if (!Number.isFinite(minAmount) || !Number.isFinite(maxAmount) || !Number.isFinite(value)) continue;
+    if (minAmount < 0 || maxAmount < minAmount || value < 0) continue;
+
+    slabs.push({ minAmount, maxAmount, value, label });
+  }
+
+  return slabs.filter(
+    (s, index, arr) =>
+      arr.findIndex(
+        (x) =>
+          x.minAmount === s.minAmount &&
+          x.maxAmount === s.maxAmount &&
+          x.value === s.value &&
+          x.label === s.label
+      ) === index
+  );
+}
+
 function normalizePurposeData(
   purpose: PortalSourcePurpose,
   text: string,
   bankList: { id: string; name: string; code?: string }[] = []
 ) {
   const cleanText = text || "";
-  const lines = cleanText
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
+  const lines = cleanText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
   let commissionVal: number | null = null;
   let feeVal: number | null = null;
@@ -45,22 +82,32 @@ function normalizePurposeData(
   let serviceStatusVal: string | null = null;
   let summary = "";
 
-  // 1. Commission extraction
+  const rateSlabs =
+    purpose === "commission" || purpose === "fee"
+      ? extractRateSlabs(cleanText, purpose)
+      : [];
+
   if (purpose === "commission") {
-    const rawComm = extractCommission(cleanText) || extractAmount(cleanText);
+    const rawComm = extractCommission(cleanText);
     if (rawComm) commissionVal = parseFloat(rawComm);
-    summary = commissionVal !== null ? `Commission rate: ₹${commissionVal.toFixed(2)}` : "No specific commission slab detected.";
-  }
-
-  // 2. Fee extraction
-  else if (purpose === "fee") {
-    const rawFee = extractFee(cleanText) || extractAmount(cleanText);
+    if (commissionVal === null && rateSlabs.length === 1) commissionVal = rateSlabs[0].value;
+    summary =
+      rateSlabs.length > 0
+        ? "Commission slabs extracted: " + rateSlabs.length
+        : commissionVal !== null
+        ? "Commission rate: ₹" + commissionVal.toFixed(2)
+        : "No specific commission data detected.";
+  } else if (purpose === "fee") {
+    const rawFee = extractFee(cleanText);
     if (rawFee) feeVal = parseFloat(rawFee);
-    summary = feeVal !== null ? `Customer fee: ₹${feeVal.toFixed(2)}` : "No specific customer fee detected.";
-  }
-
-  // 3. AEPS Rules extraction
-  else if (purpose === "aeps_rules") {
+    if (feeVal === null && rateSlabs.length === 1) feeVal = rateSlabs[0].value;
+    summary =
+      rateSlabs.length > 0
+        ? "Fee slabs extracted: " + rateSlabs.length
+        : feeVal !== null
+        ? "Customer fee: ₹" + feeVal.toFixed(2)
+        : "No specific customer fee data detected.";
+  } else if (purpose === "aeps_rules") {
     const ruleLines = lines.filter((l) =>
       /\b(?:rule|guideline|limit|daily|aadhaar|biometric|cw|per\s*day|mandatory|2fa)\b/i.test(l)
     );
@@ -69,34 +116,29 @@ function normalizePurposeData(
       const parsedLimit = Number(limitMatch[1].replace(/,/g, ""));
       if (parsedLimit > 0 && parsedLimit <= 50000) maxLimitVal = parsedLimit;
     }
-    summary = ruleLines.slice(0, 3).join("; ") || lines.slice(0, 2).join("; ") || "AEPS operational rules published.";
-  }
-
-  // 4. Transaction Info extraction
-  else if (purpose === "transaction_info") {
+    summary =
+      ruleLines.slice(0, 3).join("; ") ||
+      lines.slice(0, 2).join("; ") ||
+      "AEPS operational rules published.";
+  } else if (purpose === "transaction_info") {
     txnTypeVal = normalizeTransactionType(cleanText);
     refVal = extractReference(cleanText);
-    summary = `Transaction operations: ${txnTypeVal ? txnTypeVal.toUpperCase() : "Standard Operations"}${refVal ? `; Ref: ${refVal}` : ""}`;
-  }
-
-  // 5. Provider / Bank Info extraction
-  else if (purpose === "provider_bank_info") {
-    // Strict bank rule: only a bank name that exactly matches a CafeERP
-    // master name (case-insensitive, ignoring only duplicate/outer whitespace)
-    // may be linked automatically. Aliases such as "SBI" are not converted
-    // to "State Bank of India".
+    summary =
+      "Transaction operations: " +
+      (txnTypeVal ? txnTypeVal.toUpperCase() : "STANDARD") +
+      (refVal ? "; Ref: " + refVal : "");
+  } else if (purpose === "provider_bank_info") {
     const exactMaster = bankList.find(
       (b) =>
         !!b.name &&
-        cleanText.toLowerCase().includes(b.name.trim().replace(/\s+/g, " ").toLowerCase())
+        cleanText.toLowerCase().includes(
+          b.name.trim().replace(/\s+/g, " ").toLowerCase()
+        )
     );
-
     if (exactMaster) {
       bankNameVal = exactMaster.name;
       bankCodeVal = exactMaster.code || null;
     } else {
-      // Preserve an explicitly labelled unknown bank name so the UI can ask
-      // the operator to create it instead of choosing a fuzzy match.
       const labelledBankLine =
         lines.find((l) => /(?:issuer\s+bank|bank\s+name|bank)\s*[:\-]/i.test(l)) || "";
       const labelledMatch = labelledBankLine.match(
@@ -106,27 +148,20 @@ function normalizePurposeData(
         bankNameVal = labelledMatch[1].trim().replace(/[|;,].*$/, "").trim();
       }
     }
-
     const bankLines = lines.filter((l) =>
       /\b(?:bank|issuer|downtime|live|status|npci|switch)\b/i.test(l)
     );
     summary = bankNameVal
-      ? `Bank detected: ${bankNameVal}; ${bankLines.slice(0, 2).join("; ")}`
-      : bankLines.slice(0, 3).join("; ") || lines.slice(0, 2).join("; ") || "Provider bank network update.";
-  }
-
-  // 6. Service Status extraction
-  else if (purpose === "service_status") {
-    if (/\b(?:down|degraded|outage|issues|maintenance)\b/i.test(cleanText)) {
-      serviceStatusVal = "Degraded / Maintenance";
-    } else {
-      serviceStatusVal = "Operational";
-    }
-    summary = `Service status: ${serviceStatusVal}`;
-  }
-
-  // 7. General Updates extraction
-  else {
+      ? "Bank detected: " + bankNameVal + "; " + bankLines.slice(0, 2).join("; ")
+      : bankLines.slice(0, 3).join("; ") ||
+        lines.slice(0, 2).join("; ") ||
+        "Provider bank network update.";
+  } else if (purpose === "service_status") {
+    serviceStatusVal = /\b(?:down|degraded|outage|issues|maintenance)\b/i.test(cleanText)
+      ? "Degraded / Maintenance"
+      : "Operational";
+    summary = "Service status: " + serviceStatusVal;
+  } else {
     summary = lines.slice(0, 3).join("; ") || "General portal notice.";
   }
 
@@ -139,6 +174,7 @@ function normalizePurposeData(
     maxLimit: maxLimitVal,
     reference: refVal,
     serviceStatus: serviceStatusVal,
+    rateSlabs,
     summary: summary.slice(0, 300),
     sampleSnippet: cleanText.slice(0, 400),
   };
