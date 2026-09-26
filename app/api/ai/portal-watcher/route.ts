@@ -172,7 +172,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await query;
     if (error) {
-      return NextResponse.json({ success: true, sources: [] });
+      return NextResponse.json({ success: false, error: "Unable to load watcher sources: " + error.message }, { status: 500 });
     }
 
     const sources: PortalWatcherSource[] = (data || []).map((row: any) => ({
@@ -622,7 +622,7 @@ export async function POST(request: Request) {
 
       const { data, error } = await query;
       if (error) {
-        return NextResponse.json({ success: true, sources: [] });
+        return NextResponse.json({ success: false, error: "Unable to load watcher sources: " + error.message }, { status: 500 });
       }
 
       const sources: PortalWatcherSource[] = (data || []).map((row: any) => ({
@@ -637,7 +637,10 @@ export async function POST(request: Request) {
         priority: row.priority ?? 3,
         description: row.description,
         lastChecked: row.last_checked,
+        lastSuccessfulCheck: row.last_successful_check || null,
         lastStatus: row.last_status || "idle",
+        httpStatus: row.http_status || null,
+        extractionConfidence: row.extraction_confidence || undefined,
         lastMessage: row.last_message,
         currentPublishedValue: row.current_published_value || {},
         isArchived: row.is_archived,
