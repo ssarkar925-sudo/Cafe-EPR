@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -8,8 +8,16 @@ import AvatarModal from "./profile/avatar-modal";
 
 export type BadgeTone = "emerald" | "amber" | "indigo" | "purple" | "rose" | "slate" | "blue";
 export type NavChild = { label: string; href: string; icon?: string; badge?: { text: string; tone: BadgeTone } };
-export type NavItem = { label: string; href: string; icon: string; badge?: { text: string; tone: BadgeTone }; isSubHeader?: boolean; children?: NavChild[] };
-export type NavSection = { title: string; items: NavItem[] };
+export type NavItem = {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: { text: string; tone: BadgeTone };
+  isSubItem?: boolean;
+  isSubHeader?: boolean;
+  children?: NavChild[];
+};
+export type NavSection = { id: string; title: string; icon: string; items: NavItem[] };
 
 const BADGE_STYLES: Record<BadgeTone, string> = {
   emerald: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
@@ -30,10 +38,12 @@ const ICONS: Record<string, string> = {
   products: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v9",
   services: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
   categories: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  catalog: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm2 0v12h12V6H6zm2 2h8v2H8V8zm0 4h8v2H8v-2z",
   inventory: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
   purchases: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0-4 0Zm-8 2a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
   suppliers: "M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm11 10v-6a2 2 0 0 0-2-2h-1m3 8h-4",
   brands: "M7 7h.01M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z",
+  units: "M3 6h18M3 12h18M3 18h18",
   billPayment: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z",
   aeps: "M12 2a10 10 0 0 0-7.07 17.07l.07.07A10 10 0 1 0 12 2zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8zm1-13h-2v6h2zm0 8h-2v2h2z",
   dmt: "M22 2 11 13M22 2 15 22l-4-9-9-4z",
@@ -57,11 +67,21 @@ const ICONS: Record<string, string> = {
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51l-.06-.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0-1.82-.33 2 2 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a2 2 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a2 2 0 0 1-1.51 1H21a2 2 0 1 1 0 4h-.09a2 2 0 0 0-1.51 1z",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   chevron: "m9 18 6-6-6-6",
+  recharge: "M13 2 3 14h7l-1 8 10-12h-7l1-8Z",
+  googlePlay: "M5 3l14 9-14 9V3z",
 };
 
 function Icon({ d, className }: { d: string; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <path d={d} />
     </svg>
   );
@@ -79,6 +99,7 @@ export default function Sidebar({
   onToggle,
   mobileOpen,
   onMobileClose,
+  onOpenSettings,
 }: {
   name: string;
   email: string;
@@ -91,6 +112,7 @@ export default function Sidebar({
   onToggle: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  onOpenSettings?: () => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -110,70 +132,132 @@ export default function Sidebar({
     window.location.href = "/logout";
   }
 
-  // Exact reference layout navigation sections:
-  // SALES, INVENTORY, FINANCE, BUSINESS SERVICES, REPORTS, ADMINISTRATION
+  // 10 DOMAINS ARCHITECTURE (With Restored Catalog & Inventory below Domain 6)
   const sections: NavSection[] = useMemo(
     () => [
+      // DOMAIN 2: SALES & COUNTER POS
       {
-        title: "SALES",
+        id: "sales",
+        title: "Sales & POS",
+        icon: "pos",
         items: [
-          { label: "POS", href: "/pos", icon: "pos" },
-          { label: "Invoices", href: "/invoices", icon: "invoices" },
-          { label: "Customers", href: "/customers", icon: "customers" },
+          { label: "POS Billing", href: "/pos", icon: "pos", badge: { text: "Live", tone: "emerald" } },
+          { label: "Invoices History", href: "/invoices", icon: "invoices" },
+          { label: "Customers & Khata", href: "/customers", icon: "customers" },
           { label: "Returns & Refunds", href: "/returns", icon: "returns" },
         ],
       },
+      // DOMAIN 3: FINTECH, BANKING & CYBER SERVICES
       {
-        title: "INVENTORY",
+        id: "fintech",
+        title: "Fintech & Banking Services",
+        icon: "aeps",
         items: [
-          { label: "Products", href: "/catalog/products", icon: "products" },
-          { label: "Stock", href: "/inventory", icon: "inventory" },
-          { label: "Purchases", href: "/purchases", icon: "purchases" },
-          { label: "Suppliers", href: "/suppliers", icon: "suppliers" },
+          { label: "Services Hub", href: "/business", icon: "billPayment" },
+          { label: "AEPS Aadhaar ATM", href: "/business/aeps", icon: "aeps", badge: { text: "Live", tone: "emerald" } },
+          { label: "DMT Remittance", href: "/business/dmt", icon: "dmt" },
+          { label: "UPI Collections", href: "/business/upi", icon: "upi" },
         ],
       },
+      // DOMAIN 4: BBPS & UTILITY BILLS
       {
-        title: "FINANCE",
+        id: "bbps",
+        title: "BBPS & Utilities",
+        icon: "billPayment",
         items: [
-          { label: "Cashbook", href: "/finance/cashbook", icon: "cashbook" },
-          { label: "Ledger", href: "/finance/ledger", icon: "ledger" },
-          { label: "Journal", href: "/finance/journal", icon: "ledger" },
-          { label: "Reconciliation", href: "/finance/reconciliation", icon: "dayclose" },
-          { label: "Day Close", href: "/finance/day-close", icon: "dayclose" },
-        ],
-      },
-      {
-        title: "BUSINESS SERVICES",
-        items: [
-          { label: "AEPS", href: "/business/aeps", icon: "aeps" },
-          { label: "DMT", href: "/business/dmt", icon: "dmt" },
-          { label: "UPI", href: "/business/upi", icon: "upi" },
           {
-            label: "BBPS & Recharge",
+            label: "BBPS & Utility Bills",
             /* label: "Bill Payment" */
             href: "/business/bill-payment",
             icon: "billPayment",
           },
-          { label: "WhatsApp", href: "/business/whatsapp", icon: "whatsapp" },
-          { label: "Merchant QR", href: "/business/merchant-qrs", icon: "upi" },
+          { label: "Mobile & DTH Recharge", href: "/business/bill-payment?tab=recharge", icon: "recharge", isSubItem: true },
+          { label: "Google Play Cards", href: "/business/bill-payment/google-play", icon: "googlePlay", isSubItem: true },
         ],
       },
+      // DOMAIN 5: FINANCE & DOUBLE-ENTRY ACCOUNTING
       {
-        title: "REPORTS",
+        id: "finance",
+        title: "Finance & Accounting",
+        icon: "cashbook",
         items: [
-          { label: "Sales Reports", href: "/reports", icon: "reports" },
-          { label: "Financial Reports", href: "/finance/pnl", icon: "pnl" },
-          { label: "Inventory Reports", href: "/inventory/movements", icon: "transactions" },
-          { label: "GST & Tax", href: "/reports/gst", icon: "gst" },
+          { label: "Finance Hub", href: "/finance", icon: "pnl" },
+          { label: "Daily Cash Book", href: "/finance/cashbook", icon: "cashbook", badge: { text: "Today", tone: "amber" } },
+          { label: "Expenses & Vouchers", href: "/finance/expenses", icon: "expenses" },
+          { label: "Settlements & Float", href: "/finance/settlements", icon: "settlements" },
+          { label: "Day Close Register", href: "/finance/day-close", icon: "dayclose" },
+          { label: "Account Ledgers", href: "/finance/ledger", icon: "ledger" },
+          { label: "Double-Entry Journal", href: "/finance/journal", icon: "ledger" },
+          { label: "Reconciliation", href: "/finance/reconciliation", icon: "dayclose" },
+          { label: "General Ledger", href: "/finance/general-ledger", icon: "ledger" },
+          { label: "Chart of Accounts", href: "/finance/accounts", icon: "opening" },
+          { label: "Transactions Feed", href: "/finance/transactions", icon: "transactions" },
+          { label: "Trial Balance", href: "/finance/trial-balance", icon: "pnl" },
+          { label: "Opening Balances", href: "/finance/opening-balances", icon: "opening" },
         ],
       },
+      // DOMAIN 6: REPORTS, ANALYTICS & TAX COMPLIANCE
       {
-        title: "ADMINISTRATION",
+        id: "reports",
+        title: "Reports & Tax",
+        icon: "reports",
         items: [
-          { label: "Staff", href: "/staff", icon: "staff" },
-          { label: "Settings", href: "/settings", icon: "settings" },
-          { label: "Security", href: "/security", icon: "security" },
-          { label: "AI & Automation", href: "/ai-agent", icon: "ai" },
+          { label: "Reports Studio", href: "/reports", icon: "reports" },
+          { label: "Income Breakdown", href: "/reports/income", icon: "pnl" },
+          { label: "Profit & Loss (P&L)", href: "/finance/pnl", icon: "pnl" },
+          { label: "Cash & Bank Report", href: "/reports/cash-bank", icon: "cashbook" },
+          { label: "Tax Prep (Sec 44AD)", href: "/reports/tax-preparation", icon: "tax" },
+          { label: "GST Compliance", href: "/reports/gst", icon: "gst" },
+          { label: "Transaction Audit", href: "/reports/transaction-audit", icon: "audit" },
+        ],
+      },
+      // DOMAIN 7: CATALOG & ITEM MASTERS (RESTORED BELOW DOMAIN 6)
+      {
+        id: "catalog",
+        title: "Catalog Masters",
+        icon: "products",
+        items: [
+          { label: "Catalog Hub", href: "/catalog", icon: "catalog" },
+          { label: "Products Master", href: "/catalog/products", icon: "products" },
+          { label: "Services Master", href: "/catalog/services", icon: "services" },
+          { label: "Categories Master", href: "/catalog/categories", icon: "categories" },
+          { label: "Brands Master", href: "/catalog/brands", icon: "brands" },
+          { label: "Units of Measure", href: "/catalog/units", icon: "units" },
+        ],
+      },
+      // DOMAIN 8: INVENTORY & PROCUREMENT (RESTORED BELOW DOMAIN 6)
+      {
+        id: "inventory",
+        title: "Inventory & Stock",
+        icon: "inventory",
+        items: [
+          { label: "Stock Inventory", href: "/inventory", icon: "inventory" },
+          { label: "Stock Movements", href: "/inventory/movements", icon: "transactions" },
+          { label: "Purchases List", href: "/purchases", icon: "purchases" },
+          { label: "Purchase Inward Entry", href: "/purchases/entry", icon: "purchases" },
+          { label: "Suppliers Directory", href: "/suppliers", icon: "suppliers" },
+        ],
+      },
+      // DOMAIN 9: AI & INTELLIGENT AUTOMATION
+      {
+        id: "ai",
+        title: "AI & Automation",
+        icon: "ai",
+        items: [
+          { label: "AI Command Center", href: "/ai-agent", icon: "ai", badge: { text: "AI", tone: "purple" } },
+          { label: "AI Financial Audit", href: "/ai/self-audit", icon: "audit" },
+          { label: "WhatsApp Desk", href: "/business/whatsapp", icon: "whatsapp" },
+        ],
+      },
+      // DOMAIN 10: ADMINISTRATION, SECURITY & SYSTEM
+      {
+        id: "admin",
+        title: "Admin & Security",
+        icon: "security",
+        items: [
+          { label: "Staff & Roles", href: "/staff", icon: "staff" },
+          { label: "Security Center", href: "/security", icon: "security" },
+          { label: "System Audit Logs", href: "/audit", icon: "audit" },
         ],
       },
     ],
@@ -188,6 +272,35 @@ export default function Sidebar({
   }
 
   const isDashboardActive = pathname === "/dashboard";
+
+  // Collapsible sections state
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    return {
+      sales: true,
+      fintech: true,
+      bbps: true,
+      finance: true,
+      reports: false,
+      catalog: true,
+      inventory: true,
+      ai: false,
+      admin: false,
+    };
+  });
+
+  // Auto-expand the domain section containing the active path
+  useEffect(() => {
+    sections.forEach((sec) => {
+      const hasActive = sec.items.some((it) => isItemActive(it.href));
+      if (hasActive) {
+        setExpandedSections((prev) => ({ ...prev, [sec.id]: true }));
+      }
+    });
+  }, [pathname, searchParams]);
+
+  function toggleSection(sectionId: string) {
+    setExpandedSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  }
 
   return (
     <>
@@ -261,14 +374,15 @@ export default function Sidebar({
         )}
 
         {/* NAVIGATION ITEMS */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
-          {/* Top selected Dashboard Item */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3.5 custom-scrollbar">
+          
+          {/* DOMAIN 1: TOP DASHBOARD ITEM */}
           <div>
             <Link
               href="/dashboard"
               onClick={onMobileClose}
               title={collapsed ? "Dashboard" : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+              className={`flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition ${
                 isDashboardActive
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
@@ -281,57 +395,117 @@ export default function Sidebar({
             </Link>
           </div>
 
-          {/* Grouped Nav Sections */}
-          {sections.map((section) => (
-            <div key={section.title} className="space-y-1">
-              {!collapsed && (
-                <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  {section.title}
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const isActive = isItemActive(item.href);
-                  return (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      onClick={onMobileClose}
-                      title={collapsed ? item.label : undefined}
-                      className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition ${
-                        isActive
-                          ? "bg-blue-600 text-white font-semibold shadow-sm"
-                          : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
+          {/* DOMAINS 2 TO 10: COLLAPSIBLE ACCORDION GROUPS */}
+          {sections.map((section) => {
+            const isExpanded = expandedSections[section.id] ?? false;
+            return (
+              <div key={section.id} className="space-y-1">
+                {!collapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.id)}
+                    className="flex w-full items-center justify-between px-2 pt-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">
+                        <Icon d={ICONS[section.icon] || ICONS.dashboard} className="h-3.5 w-3.5" />
+                      </span>
+                      <span>{section.title}</span>
+                    </div>
+                    <span
+                      className={`text-slate-500 transition-transform duration-200 ${
+                        isExpanded ? "rotate-90" : "rotate-0"
                       }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 group-hover:text-white">
-                          <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-4 w-4" />
-                        </span>
-                        {!collapsed && <span className="truncate">{item.label}</span>}
-                      </div>
-                      {!collapsed && item.badge && (
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase ${
-                            BADGE_STYLES[item.badge.tone]
-                          }`}
+                      ›
+                    </span>
+                  </button>
+                ) : (
+                  <div className="h-px bg-slate-800/80 my-2" />
+                )}
+
+                {/* Sub-items (visible if expanded or if collapsed rail mode) */}
+                {(isExpanded || collapsed) && (
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const isActive = isItemActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onMobileClose}
+                          title={collapsed ? item.label : undefined}
+                          className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                            isActive
+                              ? "bg-blue-600 text-white font-semibold shadow-sm"
+                              : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
+                          } ${item.isSubItem && !collapsed ? "pl-6" : ""}`}
                         >
-                          {item.badge.text}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center text-slate-400 group-hover:text-white">
+                              {item.isSubItem ? (
+                                <span className="text-[10px] text-slate-500">└</span>
+                              ) : (
+                                <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-3.5 w-3.5" />
+                              )}
+                            </span>
+                            {!collapsed && <span className="truncate">{item.label}</span>}
+                          </div>
+                          {!collapsed && item.badge && (
+                            <span
+                              className={`rounded-full border px-1.5 py-0.2 text-[8.5px] font-bold uppercase ${
+                                BADGE_STYLES[item.badge.tone]
+                              }`}
+                            >
+                              {item.badge.text}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
+
+          {/* DOMAIN 11: SETTINGS COMMAND TRIGGER CARD */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenSettings) onOpenSettings();
+              }}
+              title={collapsed ? "Settings Command Center (Ctrl + ,)" : undefined}
+              className={`flex w-full items-center justify-between rounded-xl border border-indigo-500/30 bg-indigo-950/20 px-3 py-2 text-xs font-bold text-indigo-300 transition hover:bg-indigo-950/40 hover:border-indigo-500/50 ${
+                collapsed ? "justify-center px-2" : ""
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center text-indigo-400">
+                  <Icon d={ICONS.settings} className="h-4 w-4" />
+                </span>
+                {!collapsed && <span>Settings Command</span>}
+              </div>
+              {!collapsed && (
+                <kbd className="rounded-md border border-indigo-500/30 bg-indigo-950/50 px-1.5 py-0.5 font-mono text-[9px] text-indigo-300">
+                  ⌘,
+                </kbd>
+              )}
+            </button>
+          </div>
+
         </div>
 
         {/* BOTTOM USER PROFILE STRIP */}
         <div className="border-t border-slate-800 px-3 py-2.5 shrink-0 bg-[#0c1322]">
           <div className="flex items-center justify-between">
             <div
-              onClick={() => setProfileOpen(true)}
+              onClick={() => {
+                if (onOpenSettings) onOpenSettings();
+                else setProfileOpen(true);
+              }}
+              title="Click to open Settings & System Control Center"
               className="flex flex-1 items-center gap-2.5 rounded-lg p-1 hover:bg-slate-800/60 cursor-pointer transition min-w-0"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-sm overflow-hidden">
@@ -348,7 +522,7 @@ export default function Sidebar({
                     {name || "Saikat Sarkar"}
                   </span>
                   <span className="block truncate text-[10px] text-slate-400 font-medium">
-                    {role || "Admin"}
+                    {role || "Super Admin"}
                   </span>
                 </div>
               )}

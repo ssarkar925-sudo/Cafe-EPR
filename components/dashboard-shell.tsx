@@ -9,6 +9,7 @@ import GlobalQuickAccess from "./global-quick-access";
 import NotificationBell from "./notification-bell";
 import ThemeToggle from "./theme-toggle";
 import MobileBottomNav from "./mobile-bottom-nav";
+import SettingsModal from "./settings/settings-modal";
 import { DashboardShellProvider } from "./dashboard-shell-context";
 
 const COLLAPSE_KEY = "sccomm-sidebar-collapsed";
@@ -57,6 +58,7 @@ export default function DashboardShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const pathname = usePathname();
   const isPos = pathname === "/pos";
 
@@ -72,6 +74,9 @@ export default function DashboardShell({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSearchOpen((v) => !v);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((v) => !v);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -99,6 +104,8 @@ export default function DashboardShell({
     setMobileOpen,
     searchOpen,
     setSearchOpen,
+    settingsOpen,
+    setSettingsOpen,
     name,
     email,
     role,
@@ -126,6 +133,7 @@ export default function DashboardShell({
           onToggle={toggle}
           mobileOpen={mobileOpen}
           onMobileClose={() => setMobileOpen(false)}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {/* MOBILE HEADER (Reference: Left hamburger, CafeERP brand, Red Bell, Avatar) */}
@@ -217,9 +225,10 @@ export default function DashboardShell({
 
                 <ThemeToggle />
 
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-2.5 rounded-lg pl-2 transition hover:opacity-85"
+                <div
+                  onClick={() => setSettingsOpen(true)}
+                  className="flex items-center gap-2.5 rounded-lg pl-2 transition hover:opacity-85 cursor-pointer"
+                  title="Settings & System Control Center (Ctrl + ,)"
                 >
                   <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-8 w-8" />
                   <div className="text-left hidden sm:block">
@@ -239,7 +248,7 @@ export default function DashboardShell({
                   >
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
-                </Link>
+                </div>
               </div>
             </header>
           )}
@@ -257,6 +266,7 @@ export default function DashboardShell({
         </div>
 
         <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         {!isPos && <MobileBottomNav />}
       </div>
     </DashboardShellProvider>

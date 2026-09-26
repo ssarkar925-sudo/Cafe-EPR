@@ -16,6 +16,8 @@ export interface DashboardShellContextValue {
   logoUrl: string | null;
   avatarUrl: string | null;
   userId?: string;
+  settingsOpen?: boolean;
+  setSettingsOpen?: (open: boolean) => void;
 }
 
 const DashboardShellContext = createContext<DashboardShellContextValue | null>(null);
