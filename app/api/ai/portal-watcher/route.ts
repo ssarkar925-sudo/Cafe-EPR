@@ -244,45 +244,44 @@ export async function POST(request: Request) {
       const startedAt = new Date().toISOString();
 
       if (targetSources.length === 0) {
-        // Fallback default observations if no sources configured yet
-        return NextResponse.json({
-          success: true,
-          action: "collect_all",
-          portalId,
-          portalName,
-          collectionRun: {
-            id: runId,
-            portalId,
-            portalName,
-            startedAt,
-            completedAt: new Date().toISOString(),
-            sourceCount: 0,
-            successfulSourceCount: 0,
-            failedSourceCount: 0,
-            conflictCount: 0,
-            verificationStatus: "VERIFIED",
-            observations: [],
-            verifiedContext: {
-              transactionType: { value: "cash_out", status: "CONFIRMED", sources: [], direction: "out" },
-              bankId: null,
-              bankName: null,
+        return NextResponse.json(
+          {
+            success: false,
+            action: "collect_all",
+            error: "No enabled watcher sources are configured for ${portalName}. Add at least one source URL before live verification.",
+            collectionRun: {
+              id: runId,
               portalId,
               portalName,
-              customerFee: { value: 15, status: "CONFIRMED", sources: [] },
-              commission: { value: 4, status: "CONFIRMED", sources: [] },
-              amountLimits: { min: 100, max: 10000 },
-              reference: { value: null, status: "NOT_FOUND" },
-              bank: { value: null, status: "NOT_FOUND", sources: [] },
-              portal: { id: portalId, name: portalName, status: "CONFIRMED" },
-              maxLimit: { value: 10000, status: "CONFIRMED" },
-              serviceStatus: { value: "Operational", status: "CONFIRMED" },
-              denominations: [500, 1000, 2000, 3000, 5000, 10000],
-              verifiedAt: new Date().toISOString(),
+              startedAt,
+              completedAt: new Date().toISOString(),
+              sourceCount: 0,
+              successfulSourceCount: 0,
+              failedSourceCount: 0,
+              conflictCount: 0,
+              verificationStatus: "FAILED",
+              observations: [],
+              verifiedContext: {
+                transactionType: { value: null, status: "NOT_FOUND", sources: [] },
+                bankId: null,
+                bankName: null,
+                portalId,
+                portalName,
+                customerFee: { value: null, status: "NOT_FOUND", sources: [] },
+                commission: { value: null, status: "NOT_FOUND", sources: [] },
+                reference: { value: null, status: "NOT_FOUND" },
+                bank: { value: null, status: "NOT_FOUND", sources: [] },
+                portal: { id: portalId, name: portalName, status: "CONFIRMED" },
+                maxLimit: { value: null, status: "NOT_FOUND" },
+                serviceStatus: { value: "Not verified", status: "NOT_FOUND" },
+                denominations: [],
+                verifiedAt: new Date().toISOString(),
+              },
             },
+            pendingChanges: [],
           },
-          pendingChanges: [],
-          message: `Verified baseline for ${portalName}.`,
-        });
+          { status: 400 }
+        );
       }
 
       // Fetch all sources concurrently using Promise.allSettled
