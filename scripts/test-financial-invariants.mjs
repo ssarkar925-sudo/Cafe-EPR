@@ -8207,6 +8207,51 @@ assert(
   } catch (err) {
     assert(false, "1556. AEPS Bank/Portal Separation & Payment Collection Suite: All 12 Tests (A to L) Passed Cleanly", err.message);
   }
+
+  // 9. AEPS Visible Selector Invariant (Exactly 3 cards, No OUT/IN suffixes)
+  assert(
+    aepsWorkspaceSrc.includes('id: "cash_out", label: "Cash Withdrawal"') &&
+      aepsWorkspaceSrc.includes('id: "balance_enquiry", label: "Balance Enquiry"') &&
+      aepsWorkspaceSrc.includes('id: "mini_statement", label: "Mini Statement"') &&
+      !aepsWorkspaceSrc.includes('label: "Cash Out (OUT)"') &&
+      !aepsWorkspaceSrc.includes('label: "Collection (IN)"'),
+    "1557. AEPS Selector: Exactly 3 visible cards (Cash Withdrawal, Balance Enquiry, Mini Statement) without (OUT)/(IN) suffixes"
+  );
+
+  // 10. AEPS Column 3 Dedicated 4-Card Order
+  const c1 = aepsWorkspaceSrc.indexOf("CARD 1: FEE COLLECTION");
+  const c2 = aepsWorkspaceSrc.indexOf("CARD 2: CUSTOMER FEE PAID");
+  const c3 = aepsWorkspaceSrc.indexOf("CARD 3: PORTAL COMMISSION");
+  const c4 = aepsWorkspaceSrc.indexOf("CARD 4: AEPS BALANCE IMPACT / SETTLEMENT REVIEW");
+  assert(
+    c1 !== -1 && c2 !== -1 && c3 !== -1 && c4 !== -1 && c1 < c2 && c2 < c3 && c3 < c4,
+    "1558. AEPS Workspace Column 3: Dedicated 4-card hierarchy in exact specification order"
+  );
+
+  // 11. AEPS Migration 20260926: QR Fee Isolation & Float Invariants
+  const migration20260926Src = fs.readFileSync(
+    "./supabase/migrations/20260926_aeps_fee_collection_and_float_accounting.sql",
+    "utf8"
+  );
+  assert(
+    migration20260926Src.includes("'qr'::text") &&
+      migration20260926Src.includes("v_pool_credit := p_amount + coalesce(p_portal_commission, 0)") &&
+      migration20260926Src.includes("v_upi_fee := v_fee"),
+    "1559. AEPS Accounting Migration: 20260926 expands fee_source check with 'qr' and isolates QR fee"
+  );
+
+  // 12. Execute Full AEPS Fee Collection, Commission & Balance Acceptance Suite (Tests A to Y)
+  try {
+    const suiteOutput3 = execSync("node --experimental-strip-types scripts/test-aeps-fee-collection-and-balance.mjs", {
+      encoding: "utf8",
+    });
+    assert(
+      suiteOutput3.includes("ALL 25 ACCEPTANCE TESTS (A to Y) PASSED SUCCESSFULLY"),
+      "1560. AEPS Fee Collection & Balance Suite: All 25 Tests (A to Y) Passed Cleanly"
+    );
+  } catch (err) {
+    assert(false, "1560. AEPS Fee Collection & Balance Suite: All 25 Tests (A to Y) Passed Cleanly", err.message);
+  }
 }
 
 console.log("\n================================================================================");

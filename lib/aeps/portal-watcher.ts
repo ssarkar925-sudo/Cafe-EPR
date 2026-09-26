@@ -316,6 +316,7 @@ export interface AepsPricingRule {
   portalId?: string | null;
   customerId?: string | null;
   bankId?: string | null; // null or 'all' for all banks, or specific bank uuid
+  feeSource?: "cut_from_withdrawal" | "separate_cash" | "upi" | string | null;
   minAmount: number;
   maxAmount: number | null;
   value: number;
@@ -395,11 +396,12 @@ export interface ResolvePricingParams {
   transactionType?: string;
   amount: number;
   customerId?: string;
+  feeSource?: string;
 }
 
 /**
  * Resolves pricing from active published pricing rules.
- * Supports explicit object signature: { portalId, bankId, transactionType, amount, customerId }
+ * Supports explicit object signature: { portalId, bankId, transactionType, amount, customerId, feeSource }
  * Priority: customer-specific > transactionType-specific > bank-specific > portal-specific > global, then priority DESC.
  */
 export function resolvePricingFromRules(
@@ -412,6 +414,7 @@ export function resolvePricingFromRules(
 ): {
   fee: number;
   commission: number;
+  feeSource?: "cut_from_withdrawal" | "separate_cash" | "upi" | string;
   matchedFeeRule?: AepsPricingRule;
   matchedCommRule?: AepsPricingRule;
 } {
@@ -420,6 +423,7 @@ export function resolvePricingFromRules(
   let targetTxnType: string = "cash_out";
   let targetAmount: number = 0;
   let targetCustomerId: string | undefined;
+  let targetFeeSource: string | undefined;
 
   if (typeof paramsOrPortalId === "object" && paramsOrPortalId !== null) {
     targetPortalId = paramsOrPortalId.portalId;
@@ -427,6 +431,7 @@ export function resolvePricingFromRules(
     targetTxnType = paramsOrPortalId.transactionType || "cash_out";
     targetAmount = paramsOrPortalId.amount || 0;
     targetCustomerId = paramsOrPortalId.customerId;
+    targetFeeSource = paramsOrPortalId.feeSource;
   } else {
     targetPortalId = paramsOrPortalId;
     targetAmount = amount || 0;
@@ -473,10 +478,12 @@ export function resolvePricingFromRules(
 
   const fee = feeRules[0] ? Number(feeRules[0].value) : 0;
   const commission = commRules[0] ? Number(commRules[0].value) : 0;
+  const resolvedFeeSource = (feeRules[0]?.feeSource as any) || targetFeeSource || "cut_from_withdrawal";
 
   return {
     fee,
     commission,
+    feeSource: resolvedFeeSource,
     matchedFeeRule: feeRules[0],
     matchedCommRule: commRules[0],
   };

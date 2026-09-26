@@ -69,6 +69,7 @@ interface DraftRecord {
   aadhaar: string;
   transactionType: string;
   collectionMethod?: string;
+  feeSource?: "cut_from_withdrawal" | "separate_cash" | "upi";
   amount: string;
   fee: string;
   commission: string;
@@ -107,6 +108,7 @@ export default function AepsWorkspace({
   const [entryMode, setEntryMode] = useState<"manual" | "ai">("manual");
   const [transactionType, setTransactionType] = useState<AepsTxnType>("cash_out");
   const [collectionMethod, setCollectionMethod] = useState<"aeps_portal" | "cash" | "bank" | "upi">("aeps_portal");
+  const [feeSource, setFeeSource] = useState<"cut_from_withdrawal" | "separate_cash" | "upi">("cut_from_withdrawal");
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [sourceSectionOpen, setSourceSectionOpen] = useState(false);
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -172,7 +174,7 @@ export default function AepsWorkspace({
   const cleanAadhaar = aadhaar.replace(/\D/g, "");
   const cleanMobile = mobile.replace(/\D/g, "");
 
-  // Auto-resolve pricing from published rules whenever portal, bank, transactionType, amount, or customer changes
+  // Auto-resolve pricing from published rules whenever portal, bank, transactionType, amount, customer, or feeSource changes
   useEffect(() => {
     const numAmount = Number(amount);
     if (portalId) {
@@ -182,11 +184,12 @@ export default function AepsWorkspace({
         transactionType,
         amount: numAmount > 0 ? numAmount : 0,
         customerId,
+        feeSource,
       });
       setFee(String(resolved.fee));
       setCommission(String(resolved.commission));
     }
-  }, [amount, portalId, bankId, transactionType, customerId, pricingRules]);
+  }, [amount, portalId, bankId, transactionType, customerId, feeSource, pricingRules]);
 
   // Keep single transaction reference in sync with underlying bankRef & portalRef
   const handleTransactionRefChange = (val: string) => {
@@ -375,6 +378,7 @@ export default function AepsWorkspace({
     setAadhaar("");
     setTransactionType("cash_out");
     setCollectionMethod("aeps_portal");
+    setFeeSource("cut_from_withdrawal");
     setAmount("");
     setFee("");
     setCommission("");
@@ -457,6 +461,7 @@ export default function AepsWorkspace({
       aadhaar,
       transactionType,
       collectionMethod,
+      feeSource,
       amount,
       fee,
       commission,
@@ -477,6 +482,7 @@ export default function AepsWorkspace({
     setAadhaar(d.aadhaar);
     setTransactionType((d.transactionType as AepsTxnType) || "cash_out");
     if (d.collectionMethod) setCollectionMethod(d.collectionMethod as any);
+    if (d.feeSource) setFeeSource(d.feeSource);
     setAmount(d.amount);
     setFee(d.fee);
     setCommission(d.commission);
@@ -1023,11 +1029,13 @@ export default function AepsWorkspace({
         p_amount: numAmount,
         p_service_fee: Number(fee || 0),
         p_portal_commission: Number(commission || 0),
-        p_fee_source: "customer_paid_extra",
+        p_fee_source: feeSource,
         p_paid_from: "portal",
-        p_customer_pay_method: isCollection ? (collectionMethod || "aeps_portal") : "cash",
+        p_customer_pay_method: isCollection
+          ? (collectionMethod || "aeps_portal")
+          : (feeSource === "upi" ? "upi" : (feeSource === "separate_cash" ? "cash" : "portal")),
         p_pay_from_instrument_id: null,
-        p_pay_from_method: "aeps_portal",
+        p_pay_from_method: isCollection ? "aeps_portal" : "cash",
         p_receiver_name: null,
       };
 
@@ -1725,10 +1733,9 @@ export default function AepsWorkspace({
                   <label className="block text-[10px] font-black text-slate-700 mb-1">
                     Transaction Type *
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5">
                     {[
-                      { id: "cash_out", label: "Cash Out (OUT)" },
-                      { id: "payment_collection", label: "Collection (IN)" },
+                      { id: "cash_out", label: "Cash Withdrawal" },
                       { id: "balance_enquiry", label: "Balance Enquiry" },
                       { id: "mini_statement", label: "Mini Statement" },
                     ].map((item) => (
@@ -1793,7 +1800,7 @@ export default function AepsWorkspace({
                   <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 flex items-center justify-between">
                     <span className="font-bold flex items-center gap-1.5">
                       <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                      Direction: OUT (Shop/Business → Customer)
+                      Direction: Cash Withdrawal (Shop/Business → Customer)
                     </span>
                     <span className="text-[10px] text-amber-700 font-medium">Physical cash dispensed from till</span>
                   </div>
@@ -1978,10 +1985,66 @@ export default function AepsWorkspace({
                   </div>
                 )}
 
-                {/* Fee and Commission (Auto-calculated from published rules) */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-700 mb-1">Customer Fee (₹)</label>
+                {/* ------------------------------------------------------------- */}
+                {/* CARD 1: FEE COLLECTION                                        */}
+                {/* ------------------------------------------------------------- */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                      Fee Collection
+                    </label>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                      Collection Mode
+                    </span>
+                  </div>
+                  <select
+                    value={feeSource}
+                    onChange={(e) => setFeeSource(e.target.value as any)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="cut_from_withdrawal">Cut from Withdrawal</option>
+                    <option value="separate_cash">Collect Separately (Cash)</option>
+                    <option value="upi">Collect Separately in QR</option>
+                  </select>
+                  <div className="text-[10px] text-slate-500 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                    {feeSource === "cut_from_withdrawal" && (
+                      <span>
+                        Deduct fee from customer payout. Customer receives{" "}
+                        <strong className="text-slate-800 font-mono">
+                          {inr(Math.max(0, Number(amount || 0) - Number(fee || 0)))}
+                        </strong>
+                        .
+                      </span>
+                    )}
+                    {feeSource === "separate_cash" && (
+                      <span>
+                        Customer receives full{" "}
+                        <strong className="text-slate-800 font-mono">{inr(Number(amount || 0))}</strong>. Customer fee{" "}
+                        <strong className="text-slate-800 font-mono">{inr(Number(fee || 0))}</strong> is collected separately in cash.
+                      </span>
+                    )}
+                    {feeSource === "upi" && (
+                      <span>
+                        Customer receives full{" "}
+                        <strong className="text-slate-800 font-mono">{inr(Number(amount || 0))}</strong> cash. Fee{" "}
+                        <strong className="text-slate-800 font-mono">{inr(Number(fee || 0))}</strong> paid via Shop QR. Zero till cash increase.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ------------------------------------------------------------- */}
+                {/* CARD 2: CUSTOMER FEE PAID                                     */}
+                {/* ------------------------------------------------------------- */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                      Customer Fee Paid
+                    </label>
+                    <span className="text-[9px] font-medium text-slate-400">Auto from active rule</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
                     <input
                       type="number"
                       step="0.01"
@@ -2005,12 +2068,33 @@ export default function AepsWorkspace({
                         setFee(newFee);
                       }}
                       placeholder="0.00"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-bold text-indigo-700 outline-none focus:border-indigo-500"
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-7 pr-3 py-2 text-xs font-mono font-bold text-indigo-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
-                    <span className="text-[9px] text-slate-400 mt-0.5 block">Auto from active rule</span>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-700 mb-1">Portal Commission (₹)</label>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                    <span>Handling:</span>
+                    <span className="font-semibold text-slate-700">
+                      {feeSource === "cut_from_withdrawal"
+                        ? "Deducted from cash payout"
+                        : feeSource === "separate_cash"
+                        ? "Paid separately in cash"
+                        : "Paid via Shop QR (digital)"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ------------------------------------------------------------- */}
+                {/* CARD 3: PORTAL COMMISSION                                     */}
+                {/* ------------------------------------------------------------- */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                      Portal Commission
+                    </label>
+                    <span className="text-[9px] font-medium text-slate-400">Auto from active rule</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
                     <input
                       type="number"
                       step="0.01"
@@ -2034,54 +2118,94 @@ export default function AepsWorkspace({
                         setCommission(newComm);
                       }}
                       placeholder="0.00"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-bold text-emerald-700 outline-none focus:border-emerald-500"
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-7 pr-3 py-2 text-xs font-mono font-bold text-emerald-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     />
-                    <span className="text-[9px] text-slate-400 mt-0.5 block">Auto from active rule</span>
                   </div>
+                  <div className="rounded-lg bg-emerald-50/80 border border-emerald-100 p-2 text-[10px] text-emerald-800 flex items-center justify-between">
+                    <span className="font-medium">AEPS Balance Impact:</span>
+                    <span className="font-mono font-bold text-emerald-700">
+                      +{inr(Number(commission || 0))}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 leading-tight">
+                    Increases AEPS float balance on successful settlement (Asset 1400).
+                  </p>
                 </div>
 
-                {/* Settlement Yield Impact Card */}
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs space-y-1.5">
+                {/* ------------------------------------------------------------- */}
+                {/* CARD 4: AEPS BALANCE IMPACT / SETTLEMENT REVIEW               */}
+                {/* ------------------------------------------------------------- */}
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs space-y-2">
+                  <div className="flex items-center justify-between font-black text-slate-900 border-b border-emerald-200/60 pb-1.5">
+                    <span className="uppercase text-[10px] tracking-wider text-emerald-950">
+                      Settlement &amp; Balance Impact
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700">Live Breakdown</span>
+                  </div>
+
+                  {/* Customer Receives */}
                   <div className="flex items-center justify-between font-bold text-slate-900">
-                    <span>
+                    <span className="text-[11px]">
                       {transactionType === "payment_collection"
                         ? "Customer Paid Total:"
                         : transactionType === "cash_out"
-                        ? "Customer Received / Handed:"
+                        ? "Customer Receives:"
                         : "Customer Fee Paid:"}
                     </span>
                     <span className="font-mono text-sm font-black text-slate-950">
                       {transactionType === "cash_out"
-                        ? inr(Number(amount || 0))
+                        ? inr(
+                            feeSource === "cut_from_withdrawal"
+                              ? Math.max(0, Number(amount || 0) - Number(fee || 0))
+                              : Number(amount || 0)
+                          )
                         : transactionType === "payment_collection"
                         ? inr(Number(amount || 0) + Number(fee || 0))
                         : inr(Number(fee || 0))}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-600">
-                    <span>Net Margin (Fee + Comm):</span>
-                    <span className="font-mono font-bold text-emerald-700">
-                      +{inr(Number(fee || 0) + Number(commission || 0))}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-emerald-200">
-                    <span>Cash Till Impact:</span>
+
+                  {/* Cash Till Impact */}
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-emerald-200/50">
+                    <span className="text-slate-600">Cash Till Impact:</span>
                     <span
                       className={`font-mono font-bold ${
                         transactionType === "cash_out" ? "text-rose-600" : "text-slate-600"
                       }`}
                     >
                       {transactionType === "cash_out"
-                        ? `-${inr(Number(amount || 0))} (Cash Given)`
-                        : "₹0.00 (Zero Cash Dispensed)"}
+                        ? feeSource === "cut_from_withdrawal"
+                          ? `-${inr(Math.max(0, Number(amount || 0) - Number(fee || 0)))} (Net Out)`
+                          : feeSource === "separate_cash"
+                          ? `-${inr(Math.max(0, Number(amount || 0) - Number(fee || 0)))} (Out ${inr(Number(amount || 0))}, In ${inr(Number(fee || 0))})`
+                          : `-${inr(Number(amount || 0))} (Till Out; QR: +${inr(Number(fee || 0))})`
+                        : "₹0.00"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Portal Float Impact:</span>
+
+                  {/* AEPS Balance Impact */}
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600">AEPS Balance Impact:</span>
                     <span className="font-mono font-bold text-emerald-700">
+                      +{inr(Number(commission || 0))} (Commission)
+                    </span>
+                  </div>
+
+                  {/* Gross Float Credited */}
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Gross Float Credited:</span>
+                    <span className="font-mono font-semibold text-emerald-800">
                       {transactionType === "balance_enquiry" || transactionType === "mini_statement"
-                        ? `+${inr(Number(commission || 0))} (Comm Credit)`
-                        : `+${inr(Number(amount || 0) + Number(commission || 0))} (Wallet Credit)`}
+                        ? `+${inr(Number(commission || 0))}`
+                        : `+${inr(Number(amount || 0) + Number(commission || 0))}`}
+                    </span>
+                  </div>
+
+                  {/* Net Margin (Fee + Commission) */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-700 pt-1 border-t border-emerald-200/50">
+                    <span className="font-bold">Total Earnings (Margin):</span>
+                    <span className="font-mono font-black text-emerald-700">
+                      +{inr(Number(fee || 0) + Number(commission || 0))}
                     </span>
                   </div>
                 </div>
@@ -3109,7 +3233,9 @@ export default function AepsWorkspace({
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 block">Transaction Type</span>
-                  <span className="font-bold text-slate-900 capitalize">{transactionType.replace(/_/g, " ")}</span>
+                  <span className="font-bold text-slate-900 capitalize">
+                    {transactionType === "cash_out" ? "Cash Withdrawal" : transactionType.replace(/_/g, " ")}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 block">Bank</span>
@@ -3124,14 +3250,56 @@ export default function AepsWorkspace({
                   <span className="font-mono font-black text-sm text-slate-900">{inr(Number(amount || 0))}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">Customer Fee</span>
+                  <span className="text-[10px] font-bold text-slate-400 block">Fee Collection Mode</span>
+                  <span className="font-bold text-slate-900">
+                    {feeSource === "cut_from_withdrawal"
+                      ? "Cut from Withdrawal"
+                      : feeSource === "separate_cash"
+                      ? "Collect Separately (Cash)"
+                      : "Collect Separately in QR"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">Customer Fee Paid</span>
                   <span className="font-mono font-bold text-indigo-600">{inr(Number(fee || 0))}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">Portal Commission</span>
-                  <span className="font-mono font-bold text-emerald-600">{inr(Number(commission || 0))}</span>
+                  <span className="text-[10px] font-bold text-slate-400 block">Customer Receives</span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    {inr(
+                      feeSource === "cut_from_withdrawal"
+                        ? Math.max(0, Number(amount || 0) - Number(fee || 0))
+                        : Number(amount || 0)
+                    )}
+                  </span>
                 </div>
                 <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">Portal Commission</span>
+                  <span className="font-mono font-bold text-emerald-600">+{inr(Number(commission || 0))}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">AEPS Balance Impact</span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    +{inr(Number(commission || 0))} (Commission)
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">Cash Till Impact</span>
+                  <span
+                    className={`font-mono font-bold ${
+                      transactionType === "cash_out" ? "text-rose-600" : "text-slate-600"
+                    }`}
+                  >
+                    {transactionType === "cash_out"
+                      ? feeSource === "cut_from_withdrawal"
+                        ? `-${inr(Math.max(0, Number(amount || 0) - Number(fee || 0)))} (Net Out)`
+                        : feeSource === "separate_cash"
+                        ? `-${inr(Math.max(0, Number(amount || 0) - Number(fee || 0)))} (Out ${inr(Number(amount || 0))}, In ${inr(Number(fee || 0))})`
+                        : `-${inr(Number(amount || 0))} (Till Out; QR: +${inr(Number(fee || 0))})`
+                      : "₹0.00"}
+                  </span>
+                </div>
+                <div className="col-span-2">
                   <span className="text-[10px] font-bold text-slate-400 block">References</span>
                   <span className="font-mono text-slate-600 text-[11px]">
                     RRN: {bankRef || "—"} | Portal: {portalRef || "—"}
@@ -3152,11 +3320,17 @@ export default function AepsWorkspace({
                 {transactionType === "cash_out" && (
                   <div className="col-span-2 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 flex items-center justify-between">
                     <div>
-                      <span className="font-black block">Direction: OUT (Shop/Business → Customer)</span>
-                      <span className="text-[10px] text-amber-700">Hand {inr(Number(amount || 0))} physical cash to customer from cash till</span>
+                      <span className="font-black block">Direction: Cash Withdrawal (Shop/Business → Customer)</span>
+                      <span className="text-[10px] text-amber-700">
+                        {feeSource === "cut_from_withdrawal"
+                          ? `Dispense ${inr(Math.max(0, Number(amount || 0) - Number(fee || 0)))} net physical cash from till`
+                          : feeSource === "separate_cash"
+                          ? `Dispense ${inr(Number(amount || 0))} physical cash; collect ${inr(Number(fee || 0))} fee in cash`
+                          : `Dispense ${inr(Number(amount || 0))} physical cash; fee ${inr(Number(fee || 0))} received via QR (zero till increase)`}
+                      </span>
                     </div>
                     <span className="rounded bg-amber-200 text-amber-800 font-bold px-2 py-0.5 text-[10px]">
-                      Cash Out
+                      Cash Withdrawal
                     </span>
                   </div>
                 )}
