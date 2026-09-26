@@ -1390,55 +1390,33 @@ export default function AepsWorkspace({
   const handleAddSource = async () => {
     const rawUrl = newSourceUrl.trim();
     if (!rawUrl) return;
+
     const targetPortal = initialPortals.find((p) => p.id === selectedWatcherPortalId);
     if (!targetPortal) return;
 
-    // Validate URL & SSRF
     const urlValidation = validatePortalSourceUrl(rawUrl);
     if (!urlValidation.valid) {
       showToast("error", urlValidation.error || "Invalid URL.");
       return;
     }
+
     const normalizedUrl = urlValidation.normalizedUrl!;
 
-    // Duplicate check for active sources for this portal
     const isDuplicate = watcherSources.some(
       (s) =>
         !s.isArchived &&
         s.portalId === selectedWatcherPortalId &&
         s.url.trim().toLowerCase() === normalizedUrl.toLowerCase()
     );
+
     if (isDuplicate) {
       showToast("error", "Source URL already configured for this portal.");
       return;
     }
 
-    const now = new Date().toISOString();
     const newId = `src-${selectedWatcherPortalId}-${Date.now()}`;
-    const newSrc: PortalWatcherSource = {
-      id: newId,
-      portalId: selectedWatcherPortalId,
-      portalName: targetPortal.name,
-      url: normalizedUrl,
-      sourceUrl: normalizedUrl,
-      sourceType: "web_page",
-      purpose: newSourcePurpose,
-      isEnabled: true,
-      priority: 3,
-      lastChecked: null,
-      lastStatus: "idle",
-      lastMessage: "Newly added watcher source.",
-      currentPublishedValue: {
-        summary: "Pending first collection.",
-        updatedAt: now,
-      },
-      createdAt: now,
-      isArchived: false,
-    };
-
     setNewSourceUrl("");
 
-    // Persist to server
     try {
       const res = await fetch("/api/ai/portal-watcher", {
         method: "POST",
@@ -1453,18 +1431,24 @@ export default function AepsWorkspace({
           isEnabled: true,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.source) {
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success || !data?.source) {
         throw new Error(data?.error || "Failed to persist source to server.");
       }
+
+      // Add only the server-persisted representation. Never keep a local-only
+      // source that can reappear after refresh.
       setWatcherSources((prev) => [...prev, data.source]);
-      showToast("success", `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
+      showToast(
+        "success",
+        `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`
+      );
     } catch (err: any) {
       showToast("error", err?.message || "Failed to persist source to server.");
- `Added new ${PURPOSE_LABELS[newSourcePurpose].label} source for ${targetPortal.name}.`);
     }
   };
-
   // Rules Manager Actions
   const handleSaveRule = async (rule: AepsPricingRule) => {
     const cleanRule: AepsPricingRule = {
