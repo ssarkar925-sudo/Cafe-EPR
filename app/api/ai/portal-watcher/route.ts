@@ -188,7 +188,38 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
+    const actionParam = searchParams.get("action");
+
+    if (actionParam === "get_runs") {
+      const runPortalId = searchParams.get("portalId");
+      let runQuery = supabase
+        .from("aeps_portal_collection_runs")
+        .select("id,portal_id,portal_name,started_at,completed_at,source_count,successful_source_count,failed_source_count,conflict_count,verification_status,verified_context")
+        .order("completed_at", { ascending: false })
+        .limit(50);
+      if (runPortalId) runQuery = runQuery.eq("portal_id", runPortalId);
+      const { data: runs, error: runErr } = await runQuery;
+      if (runErr) {
+        return NextResponse.json({ success: false, error: "Unable to load watcher runs: " + runErr.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        runs: (runs || []).map((r: any) => ({
+          id: r.id,
+          portalId: r.portal_id,
+          portalName: r.portal_name,
+          startedAt: r.started_at,
+          completedAt: r.completed_at,
+          sourceCount: r.source_count,
+          successfulSourceCount: r.successful_source_count,
+          failedSourceCount: r.failed_source_count,
+          conflictCount: r.conflict_count,
+          verificationStatus: r.verification_status,
+          verifiedContext: r.verified_context,
+        })),
+      });
+    }
+
     const portalId = searchParams.get("portalId");
 
     let query = supabase
