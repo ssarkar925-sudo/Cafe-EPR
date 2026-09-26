@@ -1239,10 +1239,6 @@ export default function AepsWorkspace({
     setLiveWatcherDetectedCount(0);
     setLiveWatcherLastEventAt(new Date().toISOString());
 
-    // Perform one immediate multi-source verification so the operator gets a
-    // current baseline before continuous transaction monitoring begins.
-    await verifyCurrentPortalDetails(true);
-
     try {
       const result = await api.startAepsWatcherAll({
         portalId: targetPortal.id,
