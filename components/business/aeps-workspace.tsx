@@ -1340,11 +1340,6 @@ export default function AepsWorkspace({
       lastMessage: urlChanged ? "URL modified — pending verification" : editingSource.lastMessage,
     };
 
-    // Update local React state immediately
-    setWatcherSources((prev) =>
-      prev.map((s) => (s.id === editingSource.id ? updatedSource : s))
-    );
-
     try {
       const res = await fetch("/api/ai/portal-watcher", {
         method: "POST",
@@ -1361,14 +1356,16 @@ export default function AepsWorkspace({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        showToast("error", data.error || "Failed to save updated source.");
-      } else {
-        showToast("success", "Source updated successfully.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success || !data?.source) {
+        throw new Error(data?.error || "Failed to save updated source.");
       }
-    } catch {
+      setWatcherSources((prev) =>
+        prev.map((s) => (s.id === editingSource.id ? data.source : s))
+      );
       showToast("success", "Source updated successfully.");
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to save updated source.");
     } finally {
       setIsSavingEditSource(false);
       setEditSourceModalOpen(false);
@@ -1419,7 +1416,7 @@ export default function AepsWorkspace({
 
     // Call server to persist approved change to database rules
     try {
-      await fetch("/api/ai/portal-watcher", {
+      const response = await fetch("/api/ai/portal-watcher", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1430,8 +1427,13 @@ export default function AepsWorkspace({
           newValue: rec.purpose === "commission" ? rec.normalizedData.commission : rec.normalizedData.fee,
         }),
       });
-    } catch {
-      // Local fallback
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Could not persist approved watcher change.");
+      }
+    } catch (err: any) {
+      showToast("error", err?.message || "Could not approve watcher change.");
+      return;
     }
 
     // Update published active value in watcher source
@@ -1574,7 +1576,7 @@ export default function AepsWorkspace({
       transactionType: (normalizeRuleTransactionType(rule.transactionType) as any) || "all",
     };
     try {
-      await fetch("/api/ai/portal-watcher", {
+      const response = await fetch("/api/ai/portal-watcher", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1582,9 +1584,22 @@ export default function AepsWorkspace({
           rule: cleanRule,
         }),
       });
-    } catch {}
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data?.rule) {
+        throw new Error(data?.error || "Failed to persist pricing rule.");
+      }
+      const persistedRule = data.rule as AepsPricingRule;
+      setPricingRules((prev) => {
+        const exists = prev.some((r) => r.id === persistedRule.id);
+        if (exists) return prev.map((r) => (r.id === persistedRule.id ? persistedRule : r));
+        return [persistedRule, ...prev];
+      });
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to persist pricing rule.");
+      return;
+    }
 
-    setPricingRules((prev) => {
+
       const exists = prev.some((r) => r.id === cleanRule.id);
       if (exists) {
         return prev.map((r) => (r.id === cleanRule.id ? cleanRule : r));
