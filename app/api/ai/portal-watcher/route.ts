@@ -562,7 +562,13 @@ export async function POST(request: Request) {
               oldValue: oldVal == null ? "None" : "₹" + Number(oldVal).toFixed(2),
               newValue: "₹" + Number(newVal).toFixed(2),
               changeSummary: src.purpose.toUpperCase() + " change detected",
-              normalizedData: { commission: normalized.commission, fee: normalized.fee, summary: normalized.summary },
+              normalizedData: {
+                commission: normalized.commission,
+                fee: normalized.fee,
+                transactionType: normalized.transactionType,
+                bankId: matchedBank?.id || null,
+                summary: normalized.summary,
+              },
               status: "pending",
             });
           }
