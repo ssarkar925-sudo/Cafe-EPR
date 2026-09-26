@@ -640,25 +640,83 @@ export async function POST(request: Request) {
     // ACTION: APPROVE_CHANGE (Operator approves pending change)
     // -----------------------------------------------------------------------
     if (action === "approve_change") {
-      const changeId = String(body.changeId || "");
-      const portalId = String(body.portalId || "");
-      const purpose = String(body.purpose || "");
-      const newValue = Number(body.newValue || 0);
+      const changeId = String(body.changeId || "").trim();
+      const portalId = String(body.portalId || "").trim();
+      const purpose = String(body.purpose || "").toLowerCase();
+      const newValue = Number(body.newValue);
+      const requestedTxnType = normalizeRuleTransactionType(body.transactionType) || "cash_out";
+      const bankId = body.bankId ? String(body.bankId).trim() : null;
 
-      // Updates active published pricing rule in database via RPC or direct update
-      if (purpose === "commission" || purpose === "fee") {
-        try {
-          await supabase.rpc("save_aeps_pricing_rule", {
-            p_portal_id: portalId,
-            p_customer_id: null,
-            p_min_amount: 100,
-            p_max_amount: 10000,
-            p_fee: purpose === "fee" ? newValue : 0,
-            p_commission: purpose === "commission" ? newValue : 0,
-          });
-        } catch {
-          // Fallback to table update if RPC signature difference
+      if (!changeId || !portalId) {
+        return NextResponse.json({ error: "Change ID and portal ID are required." }, { status: 400 });
+      }
+      if (purpose !== "commission" && purpose !== "fee") {
+        return NextResponse.json({ error: "Only fee and commission changes can be approved." }, { status: 400 });
+      }
+      if (!Number.isFinite(newValue) || newValue < 0) {
+        return NextResponse.json({ error: "Approved value must be a non-negative number." }, { status: 400 });
+      }
+
+      // Operator approval is the only path that publishes a watcher observation.
+      // Scope the published rule to the observed transaction type/bank so one
+      // portal page can never rewrite unrelated pricing rules.
+      let existingQuery = supabase
+        .from("aeps_pricing_rules")
+        .select("id,service_type,rule_type,transaction_type,portal_id,customer_id,bank_id,min_amount,max_amount,value,priority,is_active,created_at,updated_at")
+        .eq("service_type", "aeps")
+        .eq("rule_type", purpose)
+        .eq("portal_id", portalId)
+        .eq("transaction_type", requestedTxnType)
+        .eq("is_active", true)
+        .order("priority", { ascending: false })
+        .order("min_amount", { ascending: false })
+        .limit(1);
+
+      existingQuery = bankId ? existingQuery.eq("bank_id", bankId) : existingQuery.is("bank_id", null);
+      const { data: existingRows, error: existingErr } = await existingQuery;
+      if (existingErr) {
+        return NextResponse.json({ error: "Unable to load existing pricing rule: " + existingErr.message }, { status: 500 });
+      }
+
+      const existing = existingRows?.[0];
+      const now = new Date().toISOString();
+      let saved: any = null;
+
+      if (existing) {
+        const { data: updated, error: updateErr } = await supabase
+          .from("aeps_pricing_rules")
+          .update({ value: newValue, updated_at: now })
+          .eq("id", existing.id)
+          .select("id,service_type,rule_type,transaction_type,portal_id,customer_id,bank_id,min_amount,max_amount,value,priority,is_active,created_at,updated_at")
+          .single();
+        if (updateErr || !updated) {
+          return NextResponse.json({ error: "Failed to publish approved pricing rule: " + (updateErr?.message || "unknown error") }, { status: 500 });
         }
+        saved = updated;
+      } else {
+        const { data: inserted, error: insertErr } = await supabase
+          .from("aeps_pricing_rules")
+          .insert({
+            service_type: "aeps",
+            rule_type: purpose,
+            transaction_type: requestedTxnType,
+            portal_id: portalId,
+            customer_id: null,
+            bank_id: bankId,
+            min_amount: Number(body.minAmount ?? 100),
+            max_amount: body.maxAmount == null || body.maxAmount === "" ? 10000 : Number(body.maxAmount),
+            value: newValue,
+            priority: Number(body.priority ?? 100),
+            is_active: true,
+            created_at: now,
+            updated_at: now,
+          })
+          .select("id,service_type,rule_type,transaction_type,portal_id,customer_id,bank_id,min_amount,max_amount,value,priority,is_active,created_at,updated_at")
+          .single();
+        if (insertErr || !inserted) {
+          return NextResponse.json({ error: "Failed to publish approved pricing rule: " + (insertErr?.message || "unknown error") }, { status: 500 });
+        }
+        saved = inserted;
       }
 
       return NextResponse.json({
@@ -667,9 +725,10 @@ export async function POST(request: Request) {
         changeId,
         approved: true,
         activatedValue: newValue,
-        reviewedAt: new Date().toISOString(),
+        reviewedAt: now,
         reviewedBy: auth.user.email || "operator",
-        message: `Change ${changeId} approved and activated in published configuration.`,
+        rule: mapPricingRule(saved),
+        message: "Watcher change approved and published to the scoped AEPS pricing rule.",
       });
     }
 
