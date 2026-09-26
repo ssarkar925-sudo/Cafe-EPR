@@ -1624,14 +1624,6 @@ export default function AepsWorkspace({
       return;
     }
 
-
-      const exists = prev.some((r) => r.id === cleanRule.id);
-      if (exists) {
-        return prev.map((r) => (r.id === cleanRule.id ? cleanRule : r));
-      }
-      return [cleanRule, ...prev];
-    });
-
     setIsAddingRule(false);
     setEditingRule(null);
     showToast("success", `Rule saved successfully.`);
