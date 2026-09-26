@@ -70,9 +70,9 @@ runTest("TEST A: Watcher observes Bank separately from Portal", () => {
       httpStatus: 200,
       latencyMs: 120,
       extractedAt: new Date().toISOString(),
-      rawSnippet: "SBI Switch Operational",
+      rawSnippet: "State Bank of India Switch Operational",
       normalizedData: {
-        bankName: "SBI",
+        bankName: "State Bank of India",
       },
       confidence: "CONFIRMED",
     },
