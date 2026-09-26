@@ -713,7 +713,16 @@ export function crossVerifySourceObservations(
       message: "Bank name not found in CafeERP master; exact match required",
       variants: unmatchedBankObservations.map((v) => ({ name: v.raw, source: v.source })),
     });
-    if (bankStatus !== "CONFLICT" && bankVotes.length > 0) bankStatus = "CONFLICT";
+
+    const distinctUnknownBanks = Array.from(
+      new Set(unmatchedBankObservations.map((v) => normalizeBankNameExact(v.raw)))
+    );
+
+    // One unknown bank = NOT_FOUND + explicit create-bank path.
+    // Multiple different unknown bank observations = CONFLICT / Needs Review.
+    if (distinctUnknownBanks.length > 1 || bankVotes.length > 0) {
+      bankStatus = "CONFLICT";
+    }
   }
 
   // 3. Customer Fee resolution & conflict detection
