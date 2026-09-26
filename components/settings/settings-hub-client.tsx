@@ -118,21 +118,21 @@ export default function SettingsHubClient() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-8 animate-fade-in">
+    <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8 space-y-6 sm:space-y-8 animate-fade-in">
       
       {/* TOP COMMAND HEADER */}
-      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-indigo-50/30 to-blue-50/40 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-slate-900/90 dark:to-indigo-950/20 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-gradient-to-r from-white via-indigo-50/30 to-blue-50/40 p-4 sm:p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-slate-900/90 dark:to-indigo-950/20 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20">
               <span className="text-xl">⚙️</span>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black tracking-tight text-slate-950 dark:text-white sm:text-2xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg font-black tracking-tight text-slate-950 dark:text-white sm:text-2xl">
                   Settings &amp; System Control Center
                 </h1>
-                <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300">
+                <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[9px] sm:text-[10px] font-black text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300">
                   Live Operational Hub
                 </span>
               </div>
@@ -144,7 +144,7 @@ export default function SettingsHubClient() {
         </div>
 
         {/* TOP QUICK ACTIONS & LIVE SEARCH */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           <div className="relative w-full sm:w-64">
             <input
               type="text"
@@ -165,28 +165,49 @@ export default function SettingsHubClient() {
             )}
           </div>
 
-          <Link
-            href="/settings/defaults"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-2xs hover:bg-indigo-50 transition dark:border-indigo-800 dark:bg-slate-800 dark:text-indigo-300"
-          >
-            <span>Routing Defaults</span>
-            <span className="text-indigo-400">→</span>
-          </Link>
+          <div className="flex w-full sm:w-auto items-center gap-2">
+            <Link
+              href="/settings/defaults"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 shadow-2xs hover:bg-indigo-50 transition dark:border-indigo-800 dark:bg-slate-800 dark:text-indigo-300"
+            >
+              <span>Routing Defaults</span>
+              <span className="text-indigo-400">→</span>
+            </Link>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedCardId(undefined);
-              setSelectedCategoryId("business");
-              setModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
-          >
-            <span>Open Popup Modal</span>
-            <kbd className="rounded border border-indigo-400/40 bg-indigo-700 px-1 py-0.2 font-mono text-[9px] text-white">⌘,</kbd>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCardId(undefined);
+                setSelectedCategoryId("business");
+                setModalOpen(true);
+              }}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+            >
+              <span>Open Popup</span>
+              <kbd className="hidden sm:inline-block rounded border border-indigo-400/40 bg-indigo-700 px-1 py-0.2 font-mono text-[9px] text-white">⌘,</kbd>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* QUICK HORIZONTAL CATEGORY JUMP PILLS */}
+      {!searchQuery && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {CATEGORIES.map((cat) => (
+            <a
+              key={cat.id}
+              href={`#${cat.id}`}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:border-indigo-300 hover:text-indigo-600 active:scale-95 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-indigo-400"
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                {cat.cards.length}
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
 
       {/* SEARCH STATS BAR (IF ACTIVE SEARCH) */}
       {searchQuery && (
@@ -206,7 +227,7 @@ export default function SettingsHubClient() {
       <div className="space-y-8">
         {filteredCategories.map((category) => {
           return (
-            <section key={category.id} className="space-y-3.5">
+            <section key={category.id} id={category.id} className="space-y-3.5 scroll-mt-20">
               
               {/* Category Header */}
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5 dark:border-slate-800">
@@ -226,8 +247,8 @@ export default function SettingsHubClient() {
                 </span>
               </div>
 
-              {/* Cards Grid */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {/* Cards Grid (1 column on mobile, 2 on tablet, 3 on desktop, 4 on xl) */}
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {category.cards.map((card) => {
                   const themeStyle = THEME_CLASSES[card.theme] || THEME_CLASSES["theme-indigo"];
                   return (

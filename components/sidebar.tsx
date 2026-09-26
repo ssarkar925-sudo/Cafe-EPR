@@ -370,6 +370,20 @@ export default function Sidebar({
                 <line x1="4" y1="18" x2="20" y2="18" />
               </svg>
             </button>
+
+            {/* Mobile Close Button */}
+            <button
+              type="button"
+              onClick={onMobileClose}
+              aria-label="Close sidebar"
+              title="Close sidebar"
+              className="flex lg:hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700/80 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
         )}
 

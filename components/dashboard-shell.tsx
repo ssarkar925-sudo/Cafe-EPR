@@ -157,8 +157,17 @@ export default function DashboardShell({
             </div>
 
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <NotificationBell role={role} />
-              <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-7 w-7" />
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="flex items-center rounded-full transition active:scale-95"
+                title="Settings & System Control Center"
+                aria-label="Open settings"
+              >
+                <Avatar name={name || "Saikat Sarkar"} avatarUrl={avatarUrl} size="h-7 w-7" />
+              </button>
             </div>
           </header>
         )}
