@@ -176,6 +176,26 @@ function normalizePurposeData(
   };
 }
 
+function mapPricingRule(row: any): AepsPricingRule {
+  return {
+    id: String(row.id),
+    serviceType: "aeps",
+    ruleType: row.rule_type as "fee" | "commission",
+    transactionType: normalizeRuleTransactionType(row.transaction_type) || "all",
+    portalId: row.portal_id || null,
+    customerId: row.customer_id || null,
+    bankId: row.bank_id || null,
+    minAmount: Number(row.min_amount || 0),
+    maxAmount: row.max_amount == null ? null : Number(row.max_amount),
+    value: Number(row.value || 0),
+    priority: Number(row.priority || 0),
+    isActive: Boolean(row.is_active),
+    effectiveFrom: row.created_at ? String(row.created_at).slice(0, 10) : undefined,
+    createdAt: row.created_at || undefined,
+    updatedAt: row.updated_at || undefined,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const role = await getUserRole();
@@ -191,6 +211,29 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const actionParam = searchParams.get("action");
+
+    if (actionParam === "get_rules") {
+      const portalIdParam = searchParams.get("portalId");
+      let ruleQuery = supabase
+        .from("aeps_pricing_rules")
+        .select("id,service_type,rule_type,transaction_type,portal_id,customer_id,bank_id,min_amount,max_amount,value,priority,is_active,created_at,updated_at")
+        .eq("service_type", "aeps")
+        .order("is_active", { ascending: false })
+        .order("priority", { ascending: false })
+        .order("min_amount", { ascending: false })
+        .order("created_at", { ascending: true });
+      if (portalIdParam) {
+        ruleQuery = ruleQuery.or("portal_id.is.null,portal_id.eq." + portalIdParam);
+      }
+      const { data: rulesData, error: rulesErr } = await ruleQuery;
+      if (rulesErr) {
+        return NextResponse.json({ success: false, error: "Unable to load AEPS pricing rules: " + rulesErr.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        rules: (rulesData || []).map(mapPricingRule),
+      });
+    }
 
     if (actionParam === "get_runs") {
       const runPortalId = searchParams.get("portalId");
@@ -251,8 +294,11 @@ export async function GET(request: Request) {
       priority: row.priority ?? 3,
       description: row.description,
       lastChecked: row.last_checked,
+      lastSuccessfulCheck: row.last_successful_check || null,
       lastStatus: row.last_status || "idle",
       lastMessage: row.last_message,
+      httpStatus: row.http_status || null,
+      extractionConfidence: row.extraction_confidence || undefined,
       currentPublishedValue: row.current_published_value || {},
       isArchived: row.is_archived,
       archivedAt: row.archived_at,
@@ -689,22 +735,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const rule = {
-        id: saved.id,
-        serviceType: "aeps" as const,
-        ruleType: saved.rule_type as "fee" | "commission",
-        transactionType: saved.transaction_type || "all",
-        portalId: saved.portal_id,
-        customerId: saved.customer_id,
-        bankId: saved.bank_id || null,
-        minAmount: Number(saved.min_amount),
-        maxAmount: saved.max_amount == null ? null : Number(saved.max_amount),
-        value: Number(saved.value),
-        priority: Number(saved.priority),
-        isActive: Boolean(saved.is_active),
-        createdAt: saved.created_at,
-        updatedAt: saved.updated_at,
-      };
+      const rule = mapPricingRule(saved);
 
       return NextResponse.json({
         success: true,
