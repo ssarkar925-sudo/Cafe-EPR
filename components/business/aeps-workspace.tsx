@@ -1113,12 +1113,13 @@ export default function AepsWorkspace({
   // ---------------------------------------------------------------------------
   // CRITICAL REQUIREMENT: VERIFY CURRENT PORTAL DETAILS (CHECK ALL URLs TOGETHER)
   // ---------------------------------------------------------------------------
-  const verifyCurrentPortalDetails = async (forceFresh = true) => {
+  const verifyCurrentPortalDetails = async (forceFresh = true, portalOverride?: string) => {
     if (isVerifyingPortal) return;
     setIsVerifyingPortal(true);
     setVerificationProgressStep("Connecting to configured portal sources...");
 
-    const targetPortal = initialPortals.find((p) => p.id === portalId) || initialPortals[0];
+    const requestedPortalId = portalOverride || (activeTab === "watcher" ? selectedWatcherPortalId : portalId);
+    const targetPortal = initialPortals.find((p) => p.id === requestedPortalId) || initialPortals[0];
     const portalSources = watcherSources.filter((s) => s.portalId === targetPortal.id && s.isEnabled);
 
     try {
@@ -1226,7 +1227,8 @@ export default function AepsWorkspace({
       return;
     }
 
-    const targetPortal = initialPortals.find((p) => p.id === portalId) || initialPortals[0];
+    const requestedPortalId = activeTab === "watcher" ? selectedWatcherPortalId : portalId;
+    const targetPortal = initialPortals.find((p) => p.id === requestedPortalId) || initialPortals[0];
     const portalSources = watcherSources.filter((s) => s.portalId === targetPortal.id && s.isEnabled && !s.isArchived);
 
     if (!targetPortal || portalSources.length === 0) {
@@ -3531,7 +3533,7 @@ export default function AepsWorkspace({
                 )}
                 <button
                   type="button"
-                  onClick={() => verifyCurrentPortalDetails(true)}
+                  onClick={() => verifyCurrentPortalDetails(true, selectedWatcherPortalId)}
                   disabled={isVerifyingPortal}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-black text-white shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
                 >
@@ -3557,7 +3559,10 @@ export default function AepsWorkspace({
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => setSelectedWatcherPortalId(p.id)}
+                    onClick={() => {
+                      setSelectedWatcherPortalId(p.id);
+                      setPortalId(p.id);
+                    }}
                     className={`rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                       active ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
