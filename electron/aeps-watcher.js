@@ -3,6 +3,7 @@ const { BrowserWindow } = require("electron");
 class AepsWatcher {
   constructor() {
     this.window = null;
+    this.sourceWindows = new Map();
     this.timer = null;
     this.config = null;
     this.emit = null;
@@ -172,6 +173,116 @@ class AepsWatcher {
     }
   }
 
+  async collectSources(config) {
+    const portalId = String(config?.portalId || "").trim();
+    const portalName = String(config?.portalName || "AEPS Portal").trim();
+    const sources = Array.isArray(config?.sources) ? config.sources : [];
+
+    if (!portalId || sources.length === 0) {
+      return { success: false, portalId, portalName, observations: [], error: "Portal and at least one source are required." };
+    }
+
+    const validSources = sources.filter((source) => {
+      if (!source?.id || !source?.url) return false;
+      return this.isValidSource(String(source.url));
+    });
+
+    const results = await Promise.all(
+      validSources.map(async (source) => {
+        const started = Date.now();
+        let win = null;
+        let keepOpen = false;
+
+        try {
+          const partition = "aeps-watcher-" + portalId;
+          win = new BrowserWindow({
+            width: 1280,
+            height: 860,
+            minWidth: 960,
+            minHeight: 640,
+            title: "CafeERP — AEPS Live Watcher · " + portalName,
+            show: false,
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+              sandbox: true,
+              partition,
+            },
+          });
+
+          this.sourceWindows.set(String(source.id), win);
+          await win.loadURL(String(source.url));
+
+          // Give SPAs a chance to render data after the initial document load.
+          let rendered = await win.webContents.executeJavaScript(
+            "(" + extractRenderedPage.toString() + ")(" + JSON.stringify(5000) + ")",
+            true
+          );
+
+          const rawText = String(rendered?.text || "").trim();
+          const authRequired = Boolean(rendered?.authRequired);
+
+          if (authRequired) {
+            keepOpen = true;
+            win.show();
+          } else if (!rawText) {
+            throw new Error("Browser page returned no readable text.");
+          }
+
+          return {
+            sourceId: String(source.id),
+            sourceUrl: String(source.url),
+            purpose: source.purpose || "general_updates",
+            portalId,
+            portalName,
+            success: !authRequired,
+            authRequired,
+            rendered: true,
+            httpStatus: 200,
+            latencyMs: Date.now() - started,
+            content: rawText.slice(0, 12000),
+            title: rendered?.title || "",
+            error: authRequired
+              ? "Portal authentication is required. Sign in manually in the watcher window, then run Verify Live again."
+              : null,
+          };
+        } catch (error) {
+          return {
+            sourceId: String(source.id),
+            sourceUrl: String(source.url),
+            purpose: source.purpose || "general_updates",
+            portalId,
+            portalName,
+            success: false,
+            authRequired: false,
+            rendered: true,
+            httpStatus: 0,
+            latencyMs: Date.now() - started,
+            content: "",
+            title: "",
+            error: error instanceof Error ? error.message : String(error),
+          };
+        } finally {
+          if (win && !win.isDestroyed() && !keepOpen) {
+            win.destroy();
+          }
+          if (!keepOpen) this.sourceWindows.delete(String(source.id));
+        }
+      })
+    );
+
+    const succeeded = results.filter((r) => r.success).length;
+    return {
+      success: succeeded > 0,
+      portalId,
+      portalName,
+      observations: results,
+      sourceCount: results.length,
+      successfulSourceCount: succeeded,
+      failedSourceCount: results.length - succeeded,
+    };
+  }
+
   async stop() {
     this.clearTimer();
     this.polling = false;
@@ -179,11 +290,45 @@ class AepsWatcher {
     if (this.window && !this.window.isDestroyed()) {
       this.window.destroy();
     }
+    for (const sourceWindow of this.sourceWindows.values()) {
+      if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.destroy();
+    }
+    this.sourceWindows.clear();
     this.window = null;
     this.config = null;
     this.seen.clear();
     if (current) this.emit?.({ type: "stopped", portalId: current, reason: "manual_stop" });
   }
+}
+
+async function extractRenderedPage(waitMs = 5000) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const started = Date.now();
+
+  while (Date.now() - started < Number(waitMs || 5000)) {
+    const state = await new Promise((resolve) => {
+      try {
+        const text = document.body?.innerText || "";
+        const authRequired =
+          Boolean(document.querySelector('input[type="password"]:not([hidden]), input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i]')) ||
+          /(?:login|sign in|authentication required|enter otp|verification code)/i.test(location.href);
+        resolve({ text, authRequired, title: document.title || "" });
+      } catch {
+        resolve({ text: "", authRequired: false, title: document.title || "" });
+      }
+    });
+
+    if (state.authRequired || String(state.text || "").trim().length >= 160) {
+      return state;
+    }
+    await sleep(500);
+  }
+
+  return {
+    text: document.body?.innerText || "",
+    authRequired: false,
+    title: document.title || "",
+  };
 }
 
 function extractVisibleTransactions() {
