@@ -350,6 +350,37 @@ export default function AepsWorkspace({
   const receiptQuery = (mode: "basic" | "detailed") => (mode === "detailed" ? "?mode=detailed" : "");
   const receiptUrl = (id: string) => "/business/receipt/" + id + receiptQuery(receiptMode);
   const invoiceUrl = (id: string) => "/business/receipt/" + id + "/a4" + receiptQuery(receiptMode);
+  const handleWhatsAppShare = (t: Txn) => {
+    const feeSourceLabel =
+      t.fee_source === "cut_from_withdrawal"
+        ? "Cut from Withdrawal"
+        : t.fee_source === "separate_cash"
+        ? "Collect Separately"
+        : t.fee_source === "upi"
+        ? "Collect Separately in QR"
+        : "—";
+    const customerReceives =
+      t.fee_source === "cut_from_withdrawal"
+        ? Math.max(0, Number(t.amount || 0) - Number(t.service_fee || 0))
+        : Number(t.amount || 0);
+    const message = [
+      "Cafe ERP — AEPS Transaction",
+      `Transaction: ${t.transaction_number || t.id.slice(0, 8)}`,
+      `Customer: ${t.customers?.name || "Customer"}`,
+      `Type: ${t.transfer_method === "cash_out" ? "Cash Withdrawal" : String(t.transfer_method || "").replace(/_/g, " ")}`,
+      `Bank: ${t.banks?.name || "—"}`,
+      `Portal: ${t.portals?.name || "—"}`,
+      `Amount: ₹${Number(t.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Fee Collection: ${feeSourceLabel}`,
+      `Customer Fee: ₹${Number(t.service_fee || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Customer Receives: ₹${customerReceives.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `RRN / Reference: ${t.reference || "—"}`,
+      `Status: ${String(t.status || "success").toUpperCase()}`,
+    ].join("\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  };
+
+
 
   // Debounced Universal Customer Search (Authoritative CafeERP Directory)
   useEffect(() => {
@@ -1610,6 +1641,7 @@ export default function AepsWorkspace({
   const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
 
   const handleEditTransaction = (t: Txn) => {
+    setViewTxn(null);
     setEditingTxnId(t.id);
     setActiveTab("workspace");
     setWorkspaceOpen(true);
@@ -3417,7 +3449,9 @@ export default function AepsWorkspace({
                         </td>
                         <td className="px-3 py-2.5">
                           <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold capitalize text-slate-700">
-                            {(t.transfer_method || "cash_out").replace(/_/g, " ")}
+                            {t.transfer_method === "cash_out" || !t.transfer_method
+                              ? "Cash Withdrawal"
+                              : t.transfer_method.replace(/_/g, " ")}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 font-mono font-bold text-slate-700">
@@ -3450,21 +3484,40 @@ export default function AepsWorkspace({
                           </span>
                         </td>
                         <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1">
                             <button
                               type="button"
-                              onClick={() => setThermalTxn(t)}
-                              className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+                              onClick={() => handleEditTransaction(t)}
+                              className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                              title="Edit transaction"
                             >
-                              Thermal
+                              Edit
                             </button>
-                            <Link
+                            <button
+                              type="button"
+                              onClick={() => setViewTxn(t)}
+                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+                              title="View transaction"
+                            >
+                              View
+                            </button>
+                            <a
                               href={receiptUrl(t.id)}
                               target="_blank"
-                              className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
+                              rel="noreferrer"
+                              className="rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                              title="Open print-ready receipt"
                             >
-                              Receipt
-                            </Link>
+                              Print
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleWhatsAppShare(t)}
+                              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                              title="Share transaction on WhatsApp"
+                            >
+                              WhatsApp
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -3479,6 +3532,83 @@ export default function AepsWorkspace({
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TRANSACTION VIEW MODAL */}
+        {viewTxn && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 text-slate-900 space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-slate-950">AEPS Transaction Details</h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {viewTxn.transaction_number || viewTxn.id.slice(0, 8)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewTxn(null)}
+                  className="text-slate-400 hover:text-slate-700 text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-xs border border-slate-200">
+                {[
+                  ["Customer", viewTxn.customers?.name || "Walk-in Customer"],
+                  ["Mobile", maskMobile(viewTxn.customer_mobile || viewTxn.customers?.phone)],
+                  ["Transaction Type", viewTxn.transfer_method === "cash_out" ? "Cash Withdrawal" : String(viewTxn.transfer_method || "—").replace(/_/g, " ")],
+                  ["Bank", viewTxn.banks?.name || "—"],
+                  ["Portal", viewTxn.portals?.name || "—"],
+                  ["Amount", inr(Number(viewTxn.amount || 0))],
+                  ["Customer Fee", inr(Number(viewTxn.service_fee || 0))],
+                  ["Portal Commission", inr(Number(viewTxn.portal_commission || 0))],
+                  ["Fee Collection", viewTxn.fee_source === "cut_from_withdrawal" ? "Cut from Withdrawal" : viewTxn.fee_source === "separate_cash" ? "Collect Separately" : viewTxn.fee_source === "upi" ? "Collect Separately in QR" : "—"],
+                  ["RRN / Reference", viewTxn.reference || "—"],
+                  ["Status", String(viewTxn.status || "success").toUpperCase()],
+                  ["Date & Time", `${fmtDate(viewTxn.transaction_date)} ${fmtTime(viewTxn.transaction_timestamp)}`],
+                ].map(([label, value]) => (
+                  <div key={String(label)}>
+                    <span className="text-[10px] font-bold text-slate-400 block">{label}</span>
+                    <span className="font-semibold text-slate-900">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleEditTransaction(viewTxn)}
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-black text-blue-700 hover:bg-blue-100"
+                >
+                  Edit
+                </button>
+                <a
+                  href={receiptUrl(viewTxn.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100"
+                >
+                  Print Receipt
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleWhatsAppShare(viewTxn)}
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                >
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewTxn(null)}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-slate-800"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
