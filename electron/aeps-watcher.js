@@ -309,9 +309,14 @@ async function extractRenderedPage(waitMs = 5000) {
     const state = await new Promise((resolve) => {
       try {
         const text = document.body?.innerText || "";
-        const authRequired =
-          Boolean(document.querySelector('input[type="password"]:not([hidden]), input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i]')) ||
-          /(?:login|sign in|authentication required|enter otp|verification code)/i.test(location.href);
+        const passwordField = document.querySelector('input[type="password"]:not([hidden])');
+        const otpField = document.querySelector('input[name*="otp" i], input[id*="otp" i], input[name*="pin" i], input[id*="pin" i]');
+        const loginControl = Array.from(document.querySelectorAll('button, input[type="submit"], a')).some((el) =>
+          /(?:sign\s*in|log\s*in|login|authenticate)/i.test(String(el.innerText || el.value || "").trim())
+        );
+        const shortLoginPage = String(text || "").trim().length < 1500 &&
+          /(?:sign\s*in|log\s*in|login|authentication required|enter otp|verification code)/i.test(String(text || ""));
+        const authRequired = Boolean(passwordField || otpField || (loginControl && shortLoginPage));
         resolve({ text, authRequired, title: document.title || "" });
       } catch {
         resolve({ text: "", authRequired: false, title: document.title || "" });
