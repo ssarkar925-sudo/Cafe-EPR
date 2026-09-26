@@ -1612,16 +1612,41 @@ export default function AepsWorkspace({
     showToast("success", `Rule saved successfully.`);
   };
 
-  const handleDeleteRule = (ruleId: string) => {
-    setPricingRules((prev) => prev.filter((r) => r.id !== ruleId));
-    showToast("info", "Rule archived / removed.");
+  const handleDeleteRule = async (ruleId: string) => {
+    try {
+      const response = await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_rule", ruleId }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(data?.error || "Failed to archive pricing rule.");
+      setPricingRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, isActive: false } : r)));
+      showToast("info", "Rule archived / disabled.");
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to archive pricing rule.");
+    }
   };
 
-  const handleToggleRule = (ruleId: string) => {
-    setPricingRules((prev) =>
-      prev.map((r) => (r.id === ruleId ? { ...r, isActive: !r.isActive } : r))
-    );
+  const handleToggleRule = async (ruleId: string) => {
+    const current = pricingRules.find((r) => r.id === ruleId);
+    if (!current) return;
+    const next = !current.isActive;
+    try {
+      const response = await fetch("/api/ai/portal-watcher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggle_rule", ruleId, isActive: next }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(data?.error || "Failed to update pricing rule.");
+      setPricingRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, isActive: next, updatedAt: new Date().toISOString() } : r)));
+      showToast("success", next ? "Rule enabled." : "Rule disabled.");
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to update pricing rule.");
+    }
   };
+
 
   const handleExport = () => {
     downloadCsv(
