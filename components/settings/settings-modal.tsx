@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useBodyScrollLock } from "@/components/ui/modal";
+import { useTheme } from "@/components/theme-provider";
 import ShopPanel from "@/components/settings/shop-panel";
 import PaymentMethodsPanel from "@/components/settings/payment-methods-panel";
 import QuickFavoritesPanel from "@/components/settings/quick-favorites-panel";
@@ -402,6 +405,14 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
   const router = useRouter();
   const supabase = createClient();
   const { showToast, toastView } = useToast();
+  const { displayMode } = useTheme();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useBodyScrollLock(open && mounted);
 
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [activeSubmodule, setActiveSubmodule] = useState<CardItem | null>(null);
@@ -624,20 +635,21 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
     return CATEGORIES.find((c) => c.id === activeCategory) || CATEGORIES[0];
   }, [activeCategory]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
-    <>
+  const modalNode = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-md transition-opacity duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       {toastView}
-      {/* Centered Modal Backdrop */}
+      {/* Floating Modal Window - Centered Only, No Side, No Bottom */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md transition-opacity duration-200"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
+        className="relative flex h-[88vh] max-h-[760px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all dark:border-slate-800 dark:bg-slate-900"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Floating Modal Window - Centered Only, No Side, No Bottom */}
-        <div className="relative flex h-[88vh] max-h-[760px] w-[94vw] max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all dark:border-slate-800 dark:bg-slate-900">
           
           {/* Header */}
           <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/70 px-6 dark:border-slate-800 dark:bg-slate-950/60">
@@ -1075,7 +1087,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
           {/* Footer */}
           <div className="flex h-12 shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50/70 px-6 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
             <div className="flex items-center gap-3">
-              <span>Theme Synced: <strong>System</strong></span>
+              <span>Theme Synced: <strong className="capitalize">{displayMode}</strong></span>
               <span>•</span>
               <span>Fast Shortcut: <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">Ctrl + ,</kbd></span>
             </div>
@@ -1086,6 +1098,7 @@ export default function SettingsModal({ open, onClose, initialCategory = "busine
 
         </div>
       </div>
-    </>
   );
+
+  return createPortal(modalNode, document.body);
 }

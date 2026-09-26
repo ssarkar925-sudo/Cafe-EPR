@@ -20,13 +20,13 @@ export type NavItem = {
 export type NavSection = { id: string; title: string; icon: string; items: NavItem[] };
 
 const BADGE_STYLES: Record<BadgeTone, string> = {
-  emerald: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  amber: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  indigo: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-  purple: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  rose: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-  blue: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  slate: "bg-slate-500/20 text-slate-300 border-slate-500/30",
+  emerald: "bg-emerald-500/15 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30",
+  amber: "bg-amber-500/15 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30",
+  indigo: "bg-indigo-500/15 text-indigo-700 border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30",
+  purple: "bg-purple-500/15 text-purple-700 border-purple-300 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30",
+  rose: "bg-rose-500/15 text-rose-700 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30",
+  blue: "bg-blue-500/15 text-blue-700 border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30",
+  slate: "bg-slate-500/15 text-slate-700 border-slate-300 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/30",
 };
 
 const ICONS: Record<string, string> = {
@@ -311,15 +311,15 @@ export default function Sidebar({
         />
       )}
 
-      {/* EXACT DARK LEFT SIDEBAR (bg-[#0f172a] slate-900) */}
+      {/* LEFT SIDEBAR (LIGHT & DARK THEMED) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 border-r border-slate-800 bg-[#0f172a] text-slate-300 shadow-xl ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 border-r border-slate-200 bg-white text-slate-700 shadow-md dark:border-slate-800 dark:bg-[#0f172a] dark:text-slate-300 dark:shadow-xl ${
           collapsed ? "w-[72px]" : "w-60 xl:w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* BRAND HEADER */}
         {collapsed ? (
-          <div className="flex h-16 shrink-0 items-center justify-center border-b border-slate-800 px-2 py-2">
+          <div className="flex h-16 shrink-0 items-center justify-center border-b border-slate-200 dark:border-slate-800 px-2 py-2">
             <button
               type="button"
               onClick={onToggle}
@@ -333,7 +333,7 @@ export default function Sidebar({
             </button>
           </div>
         ) : (
-          <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4">
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4">
             <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden min-w-0">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
                 {logoUrl ? (
@@ -348,11 +348,11 @@ export default function Sidebar({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-base font-bold text-white tracking-tight">
+                  <span className="truncate text-base font-bold text-slate-900 dark:text-white tracking-tight">
                     {shopName || "CafeERP"}
                   </span>
                 </div>
-                <span className="block truncate text-[10px] font-medium text-slate-400">
+                <span className="block truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
                   Retail • Services • Finance
                 </span>
               </div>
@@ -362,7 +362,7 @@ export default function Sidebar({
               onClick={onToggle}
               aria-label="Collapse sidebar"
               title="Collapse sidebar"
-              className="hidden lg:flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
+              className="hidden lg:flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white transition"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
                 <line x1="4" y1="6" x2="20" y2="6" />
@@ -385,7 +385,7 @@ export default function Sidebar({
               className={`flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition ${
                 isDashboardActive
                   ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white"
               }`}
             >
               <span className="flex h-5 w-5 shrink-0 items-center justify-center">
@@ -404,16 +404,16 @@ export default function Sidebar({
                   <button
                     type="button"
                     onClick={() => toggleSection(section.id)}
-                    className="flex w-full items-center justify-between px-2 pt-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition"
+                    className="flex w-full items-center justify-between px-2 pt-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-500">
+                      <span className="text-slate-400 dark:text-slate-500">
                         <Icon d={ICONS[section.icon] || ICONS.dashboard} className="h-3.5 w-3.5" />
                       </span>
                       <span>{section.title}</span>
                     </div>
                     <span
-                      className={`text-slate-500 transition-transform duration-200 ${
+                      className={`text-slate-400 dark:text-slate-500 transition-transform duration-200 ${
                         isExpanded ? "rotate-90" : "rotate-0"
                       }`}
                     >
@@ -421,7 +421,7 @@ export default function Sidebar({
                     </span>
                   </button>
                 ) : (
-                  <div className="h-px bg-slate-800/80 my-2" />
+                  <div className="h-px bg-slate-200 dark:bg-slate-800/80 my-2" />
                 )}
 
                 {/* Sub-items (visible if expanded or if collapsed rail mode) */}
@@ -438,13 +438,13 @@ export default function Sidebar({
                           className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                             isActive
                               ? "bg-blue-600 text-white font-semibold shadow-sm"
-                              : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
+                              : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white"
                           } ${item.isSubItem && !collapsed ? "pl-6" : ""}`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center text-slate-400 group-hover:text-white">
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white">
                               {item.isSubItem ? (
-                                <span className="text-[10px] text-slate-500">└</span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500">└</span>
                               ) : (
                                 <Icon d={ICONS[item.icon] || ICONS.dashboard} className="h-3.5 w-3.5" />
                               )}
@@ -477,18 +477,18 @@ export default function Sidebar({
                 if (onOpenSettings) onOpenSettings();
               }}
               title={collapsed ? "Settings Command Center (Ctrl + ,)" : undefined}
-              className={`flex w-full items-center justify-between rounded-xl border border-indigo-500/30 bg-indigo-950/20 px-3 py-2 text-xs font-bold text-indigo-300 transition hover:bg-indigo-950/40 hover:border-indigo-500/50 ${
+              className={`flex w-full items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-500/30 dark:bg-indigo-950/20 dark:text-indigo-300 dark:hover:bg-indigo-950/40 dark:hover:border-indigo-500/50 ${
                 collapsed ? "justify-center px-2" : ""
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center text-indigo-400">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center text-indigo-600 dark:text-indigo-400">
                   <Icon d={ICONS.settings} className="h-4 w-4" />
                 </span>
                 {!collapsed && <span>Settings Command</span>}
               </div>
               {!collapsed && (
-                <kbd className="rounded-md border border-indigo-500/30 bg-indigo-950/50 px-1.5 py-0.5 font-mono text-[9px] text-indigo-300">
+                <kbd className="rounded-md border border-indigo-200 bg-white px-1.5 py-0.5 font-mono text-[9px] text-indigo-700 shadow-2xs dark:border-indigo-500/30 dark:bg-indigo-950/50 dark:text-indigo-300">
                   ⌘,
                 </kbd>
               )}
@@ -498,7 +498,7 @@ export default function Sidebar({
         </div>
 
         {/* BOTTOM USER PROFILE STRIP */}
-        <div className="border-t border-slate-800 px-3 py-2.5 shrink-0 bg-[#0c1322]">
+        <div className="border-t border-slate-200 px-3 py-2.5 shrink-0 bg-slate-50 dark:border-slate-800 dark:bg-[#0c1322]">
           <div className="flex items-center justify-between">
             <div
               onClick={() => {
@@ -506,7 +506,7 @@ export default function Sidebar({
                 else setProfileOpen(true);
               }}
               title="Click to open Settings & System Control Center"
-              className="flex flex-1 items-center gap-2.5 rounded-lg p-1 hover:bg-slate-800/60 cursor-pointer transition min-w-0"
+              className="flex flex-1 items-center gap-2.5 rounded-lg p-1 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer transition min-w-0"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-sm overflow-hidden">
                 {currentAvatar ? (
@@ -518,10 +518,10 @@ export default function Sidebar({
               </div>
               {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold text-white">
+                  <span className="block truncate text-xs font-semibold text-slate-900 dark:text-white">
                     {name || "Saikat Sarkar"}
                   </span>
-                  <span className="block truncate text-[10px] text-slate-400 font-medium">
+                  <span className="block truncate text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                     {role || "Super Admin"}
                   </span>
                 </div>
@@ -533,7 +533,7 @@ export default function Sidebar({
                 <button
                   onClick={handleSignOut}
                   title="Sign Out"
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-950/40 hover:text-rose-400 transition"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
                 >
                   <Icon d={ICONS.logout} className="h-4 w-4" />
                 </button>
