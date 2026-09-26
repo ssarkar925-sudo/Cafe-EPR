@@ -642,8 +642,15 @@ export function crossVerifySourceObservations(
   verificationStatus: VerificationStatus;
 } {
   const conflicts: any[] = [];
-  const successfulObs = observations.filter((o) => o.httpStatus >= 200 && o.httpStatus < 300);
-  const failedObs = observations.filter((o) => o.httpStatus < 200 || o.httpStatus >= 300);
+  // Only observations with purpose-specific extracted data participate in live
+  // verification. HTTP 200 by itself is not proof that usable portal data was
+  // obtained; NEEDS_REVIEW observations are excluded from the verified set.
+  const successfulObs = observations.filter(
+    (o) => o.httpStatus >= 200 && o.httpStatus < 300 && o.confidence !== "SOURCE_FAILED" && o.confidence !== "NEEDS_REVIEW"
+  );
+  const failedObs = observations.filter(
+    (o) => o.httpStatus < 200 || o.httpStatus >= 300 || o.confidence === "SOURCE_FAILED" || o.confidence === "NEEDS_REVIEW"
+  );
 
   // 1. Transaction Type resolution
   const typeVotes = successfulObs
@@ -781,26 +788,11 @@ export function crossVerifySourceObservations(
     }
   }
 
-  // If fees or commission were not in sources (or in conflict), check active published rules as baseline
-  const rulePricing = resolvePricingFromRules(activeRules, {
-    portalId: portal.id,
-    amount: 2000,
-    bankId: resolvedBank?.id,
-    transactionType: resolvedType || "cash_out",
-  });
-  if (resolvedFee === null) {
-    resolvedFee = rulePricing.fee;
-    if (feeStatus !== "CONFLICT") {
-      feeStatus = "CONFIRMED";
-    }
-  }
-  if (resolvedComm === null) {
-    resolvedComm = rulePricing.commission;
-    if (commStatus !== "CONFLICT") {
-      commStatus = "CONFIRMED";
-    }
-  }
-
+  // IMPORTANT: do not substitute active pricing rules into live watcher
+  // observations. Published rules are a separate authoritative layer for
+  // transaction pricing; the watcher reports only what its sources actually
+  // observed. Missing live fee/commission therefore remains NOT_FOUND.
+  void activeRules; // retained in the function contract for future rule-aware verification
   // 5. Limits & Reference
   const maxLimitObs = successfulObs.find((o) => o.normalizedData.maxLimit != null);
   const refObs = successfulObs.find((o) => o.normalizedData.reference);
