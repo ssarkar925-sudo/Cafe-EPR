@@ -172,9 +172,8 @@ export default function AepsWorkspace({
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
 
   // Pricing Rules Engine State
-  const [pricingRules, setPricingRules] = useState<AepsPricingRule[]>(() =>
-    getDefaultAepsPricingRules(initialPortals)
-  );
+  const [pricingRules, setPricingRules] = useState<AepsPricingRule[]>([]);
+  const [pricingRulesLoaded, setPricingRulesLoaded] = useState(false);
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [selectedRulesPortalId, setSelectedRulesPortalId] = useState(initialPortals[0]?.id || "");
   const [rulesTxnFilter, setRulesTxnFilter] = useState<string>("all");
@@ -214,12 +213,14 @@ export default function AepsWorkspace({
     let isMounted = true;
     async function loadPersistedSources() {
       try {
-        const [sourceRes, runRes] = await Promise.all([
+        const [sourceRes, runRes, ruleRes] = await Promise.all([
           fetch("/api/ai/portal-watcher"),
           fetch("/api/ai/portal-watcher?action=get_runs"),
+          fetch("/api/ai/portal-watcher?action=get_rules"),
         ]);
         const sourceData = await sourceRes.json().catch(() => null);
         const runData = await runRes.json().catch(() => null);
+        const ruleData = await ruleRes.json().catch(() => null);
 
         if (!sourceRes.ok || !sourceData?.success || !Array.isArray(sourceData.sources)) {
           throw new Error(sourceData?.error || "Unable to load saved watcher sources.");
@@ -227,9 +228,19 @@ export default function AepsWorkspace({
         if (!runRes.ok || !runData?.success || !Array.isArray(runData.runs)) {
           throw new Error(runData?.error || "Unable to load saved watcher verification history.");
         }
+        if (!ruleRes.ok || !ruleData?.success || !Array.isArray(ruleData.rules)) {
+          throw new Error(ruleData?.error || "Unable to load saved AEPS pricing rules.");
+        }
 
         if (isMounted) {
           setWatcherSources(sourceData.sources);
+          const persistedRules = ruleData.rules as AepsPricingRule[];
+          // Code defaults are a fallback only when the database truly has no
+          // persisted AEPS rules. Existing production rules are never replaced.
+          setPricingRules(
+            persistedRules.length > 0 ? persistedRules : getDefaultAepsPricingRules(initialPortals)
+          );
+          setPricingRulesLoaded(true);
           const runs = runData.runs as PortalCollectionRun[];
           setCollectionRuns(runs);
           const selected = runs.find((run) => run.portalId === portalId) || null;
@@ -247,6 +258,8 @@ export default function AepsWorkspace({
           setCollectionRuns([]);
           setCurrentRun(null);
           setLastVerifiedAt(null);
+          setPricingRules([]);
+          setPricingRulesLoaded(false);
           showToast("error", err?.message || "Unable to load saved watcher state.");
         }
       }
@@ -276,6 +289,7 @@ export default function AepsWorkspace({
   // Auto-resolve pricing from published rules whenever portal, bank, transactionType, amount, customer, or feeSource changes
   useEffect(() => {
     const numAmount = Number(amount);
+    if (!pricingRulesLoaded || !portalId) return;
     if (portalId) {
       const resolved = resolvePricingFromRules(pricingRules, {
         portalId,
